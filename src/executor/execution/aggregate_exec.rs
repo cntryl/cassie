@@ -21,6 +21,7 @@ mod group_memory;
 mod interval_aggregate;
 #[path = "aggregate_exec/modifiers.rs"]
 mod modifiers;
+mod ordered_set;
 mod output_types;
 #[path = "aggregate_exec/rewrite.rs"]
 mod rewrite;
@@ -498,6 +499,9 @@ fn evaluate_aggregate(
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
+    if ordered_set::is_percentile(function) {
+        return ordered_set::evaluate(function, rows, context);
+    }
     let is_string_aggregate = crate::sql::functions::function(&function.name)
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg);
     if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")

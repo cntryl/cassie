@@ -61,6 +61,7 @@ pub(crate) enum FunctionInputSignature {
     Text,
     Boolean,
     CommonArguments,
+    PercentileFraction,
     Positional(&'static [i32]),
 }
 
@@ -89,6 +90,9 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
         FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
+        FunctionId::PercentileCont | FunctionId::PercentileDisc => {
+            Some(FunctionInputSignature::PercentileFraction)
+        }
         FunctionId::Coalesce => Some(FunctionInputSignature::CommonArguments),
         FunctionId::Substring => Some(FunctionInputSignature::Positional(&[25, 23, 23])),
         FunctionId::StringAgg

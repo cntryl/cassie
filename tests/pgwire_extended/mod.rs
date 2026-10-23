@@ -57,6 +57,8 @@ mod record_functions;
 #[path = "subqueries/scalar_subqueries.rs"]
 mod scalar_subqueries;
 
+#[path = "aggregates/ordered_set/arrays.rs"]
+mod aggregates_ordered_set_arrays;
 #[path = "aggregates/ordered_set/resources.rs"]
 mod aggregates_ordered_set_resources;
 

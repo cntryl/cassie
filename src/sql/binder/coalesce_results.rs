@@ -6,6 +6,8 @@ pub(super) struct ResultTypes {
     schema: Schema,
     comparison_types: super::numeric_outputs::ComparisonTypes,
     cte_schemas: std::collections::HashMap<String, Schema>,
+    percentile_array_functions:
+        std::collections::HashMap<String, crate::sql::functions::FunctionId>,
     parameter_types: Vec<i32>,
     contextual_parameters: bool,
     resolved_coalesce_domains: bool,
@@ -43,6 +45,17 @@ impl ResultTypes {
             &self.functions,
             &self.parameter_types,
         )
+    }
+
+    pub(super) fn percentile_function_for_column(
+        &self,
+        expression: &Expr,
+    ) -> Option<crate::sql::functions::FunctionId> {
+        let Expr::Column(name) = expression else {
+            return None;
+        };
+        let key = crate::sql::ColumnIdentifierPath::from_field_name(name).field_lookup_key();
+        self.percentile_array_functions.get(&key).copied()
     }
 
     pub(super) fn declared_function(&self, name: &str) -> Option<&crate::catalog::FunctionMeta> {
@@ -281,11 +294,26 @@ impl ResultTypes {
             parameter_types,
         )
         .unwrap_or_default();
+        let percentile_array_functions = schema
+            .fields
+            .iter()
+            .filter_map(|field| {
+                crate::sql::functions::percentile_function_for_column(source, ctes, &field.name)
+                    .map(|function| {
+                        (
+                            crate::sql::ColumnIdentifierPath::from_field_name(&field.name)
+                                .field_lookup_key(),
+                            function,
+                        )
+                    })
+            })
+            .collect();
         Ok(Self {
             controls: None,
             schema,
             comparison_types,
             cte_schemas: schemas,
+            percentile_array_functions,
             functions,
             parameter_types: parameter_types.to_vec(),
             contextual_parameters: false,

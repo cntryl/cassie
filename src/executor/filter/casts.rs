@@ -25,6 +25,11 @@ pub(super) fn scalar(
     {
         return super::integers::controlled_input(input, width, controls);
     }
+    if matches!(target, DataType::Text | DataType::Varchar { .. }) {
+        if let Some(formatted) = format_array_text(value, source) {
+            return Ok(formatted);
+        }
+    }
     // Explicit typmod casts truncate; assignment and function coercion still
     // use cast_scalar's bounded validation. Format the source before applying
     // the width so CHAR blanks and temporal spellings keep their SQL identity.
@@ -104,6 +109,14 @@ pub(super) fn scalar(
         }
     }
     cast_scalar(value, target, controls)
+}
+
+fn format_array_text(value: &ScalarValue, source: Option<&DataType>) -> Option<ScalarValue> {
+    let (Some(DataType::Array(element_type)), ScalarValue::Json(input)) = (source, value) else {
+        return None;
+    };
+    let array = serde_json::from_str::<serde_json::Value>(input).ok()?;
+    crate::types::array::format_text_array(&array, element_type).map(ScalarValue::Str)
 }
 
 fn varchar(

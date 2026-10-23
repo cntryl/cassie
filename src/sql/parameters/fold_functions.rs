@@ -177,6 +177,15 @@ impl Fold<'_, '_> {
                 }
                 Ok(Summary::known(25))
             }
+            Some(FunctionInputSignature::PercentileFraction) => {
+                for summary in &mut self.summaries.values[frame.start..] {
+                    check_controls(self.controls)?;
+                    if summary.oid != 1022 {
+                        self.occurrences.coerce(summary, 701, true)?;
+                    }
+                }
+                Ok(Summary::unqualified())
+            }
             Some(FunctionInputSignature::CommonArguments) => self.common_function(frame),
             None => {
                 self.occurrences

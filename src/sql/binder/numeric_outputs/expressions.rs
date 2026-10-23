@@ -212,6 +212,9 @@ impl Analyzer<'_> {
         // COUNT(*) and other fixed-return policies do not export argument
         // values. Ordinary validation checks their arguments separately;
         // this output analyzer must not resolve the `*` pseudo-column.
+        if let Some(output) = self.ordered_set_percentile(function, metadata.id, lookup)? {
+            return Ok(output);
+        }
         if let Some(output) = self.temporal_function(function, metadata.id, lookup)? {
             return Ok(output);
         }
@@ -285,6 +288,50 @@ impl Analyzer<'_> {
             }
             _ => unreachable!("fixed function return policies return before argument analysis"),
         })
+    }
+
+    fn ordered_set_percentile(
+        &self,
+        function: &FunctionCall,
+        id: crate::sql::functions::FunctionId,
+        lookup: &[OutputField],
+    ) -> Result<Option<OutputType>, CassieError> {
+        use crate::sql::functions::FunctionId;
+
+        if !matches!(id, FunctionId::PercentileCont | FunctionId::PercentileDisc) {
+            return Ok(None);
+        }
+        let Some(order) = function.order_by.first() else {
+            return Ok(None);
+        };
+        let ordered_type = self.expression(&order.expr, lookup)?.data_type;
+        let element_type = match id {
+            FunctionId::PercentileCont
+                if matches!(
+                    ordered_type,
+                    DataType::Extended(crate::types::extended::ExtendedType::Interval { .. })
+                ) =>
+            {
+                ordered_type
+            }
+            FunctionId::PercentileCont => DataType::Float,
+            FunctionId::PercentileDisc => ordered_type,
+            _ => return Ok(None),
+        };
+        let is_array = function.args.first().is_some_and(|fraction| {
+            matches!(
+                fraction,
+                Expr::Subquery(subquery)
+                    if matches!(subquery.kind, crate::sql::ast::SubqueryKind::Array)
+            ) || self
+                .expression(fraction, lookup)
+                .is_ok_and(|output| matches!(output.data_type, DataType::Array(_)))
+        });
+        Ok(Some(OutputType::fixed(if is_array {
+            DataType::Array(Box::new(element_type))
+        } else {
+            element_type
+        })))
     }
 
     /// Date/time builtins, and `sum`/`avg` over `interval` (an `interval`).

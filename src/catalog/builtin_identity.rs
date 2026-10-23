@@ -131,6 +131,25 @@ pub fn builtin_identities() -> &'static BuiltinIdentities {
     IDENTITIES.get_or_init(load)
 }
 
+/// PostgreSQL's built-in array identity for a scalar element type, when one
+/// exists. Cassie's general SQL array identity remains private.
+#[must_use]
+pub(crate) fn builtin_array_oid(element_oid: u32) -> Option<u32> {
+    builtin_identities()
+        .type_by_oid(element_oid)
+        .map(|metadata| metadata.array)
+        .filter(|oid| *oid != 0)
+}
+
+/// Element identity for a PostgreSQL built-in array OID.
+#[must_use]
+pub(crate) fn builtin_array_element_oid(array_oid: u32) -> Option<u32> {
+    builtin_identities()
+        .type_by_oid(array_oid)
+        .map(|metadata| metadata.element)
+        .filter(|oid| *oid != 0)
+}
+
 fn load() -> BuiltinIdentities {
     let types = rows(include_str!("builtin_identity/pg_type.tsv"))
         .map(|fields| BuiltinTypeRow {

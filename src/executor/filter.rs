@@ -942,6 +942,27 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     identity: crate::sql::ast::CastIdentity,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    if matches!(data_type, DataType::Text | DataType::Varchar { .. })
+        && percentile_array_expression(expr)
+    {
+        let value = eval_scalar_with_context(row, expr, context)?;
+        if let ScalarValue::Json(value) = value {
+            if let Ok(array) = serde_json::from_str::<serde_json::Value>(&value) {
+                if let Some(formatted) = crate::types::array::format_json_array_text(&array) {
+                    return casts::scalar(
+                        &ScalarValue::Str(formatted),
+                        data_type,
+                        Some(&DataType::Text),
+                        context.controls.or_else(|| {
+                            context
+                                .session
+                                .and_then(CassieSession::statement_execution_controls)
+                        }),
+                    );
+                }
+            }
+        }
+    }
     if let Expr::NumericLiteral(value) = expr {
         return casts::numeric_literal(
             value,
@@ -975,6 +996,39 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
             }),
         )
     }
+}
+
+fn percentile_array_expression(expression: &Expr) -> bool {
+    let function = match expression {
+        Expr::Function(function) => function.as_ref(),
+        Expr::Column(name)
+            if name.starts_with("percentile_cont(") || name.starts_with("percentile_disc(") =>
+        {
+            return true;
+        }
+        _ => return false,
+    };
+    let percentile = crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::PercentileCont
+                | crate::sql::functions::FunctionId::PercentileDisc
+        )
+    });
+    percentile
+        && function
+            .args
+            .first()
+            .is_some_and(|argument| match argument {
+                Expr::Subquery(subquery) => {
+                    matches!(subquery.kind, crate::sql::ast::SubqueryKind::Array)
+                }
+                Expr::Cast {
+                    data_type: DataType::Array(_),
+                    ..
+                } => true,
+                _ => false,
+            })
 }
 
 #[cfg(test)]

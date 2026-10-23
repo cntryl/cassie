@@ -135,6 +135,27 @@ fn infer_inputs(
         }
         Some(FunctionInputSignature::Text) => Some(DataType::Text),
         Some(FunctionInputSignature::Boolean) => Some(DataType::Boolean),
+        Some(FunctionInputSignature::PercentileFraction) => {
+            let array_argument = function.args.first().is_some_and(|argument| {
+                matches!(
+                    argument,
+                    Expr::Subquery(subquery)
+                        if matches!(subquery.kind, crate::sql::ast::SubqueryKind::Array)
+                ) || matches!(
+                    argument,
+                    Expr::Cast {
+                        data_type: DataType::Array(_),
+                        ..
+                    }
+                )
+            });
+            if !array_argument {
+                if let Some(argument) = function.args.first() {
+                    infer_parameter_type_from_expected_expr(argument, &DataType::Float, inference);
+                }
+            }
+            None
+        }
         Some(FunctionInputSignature::CommonArguments) => {
             common_argument_type(function, field_types, catalog, inference)?
         }

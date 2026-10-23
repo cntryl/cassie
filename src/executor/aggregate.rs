@@ -3,7 +3,9 @@ use std::hash::BuildHasher;
 
 use crate::catalog::{CollectionSchema, FunctionMeta};
 use crate::executor::ColumnMeta;
-use crate::sql::ast::{SelectItem, WindowFunctionCall};
+use crate::sql::ast::{
+    CommonTableExpression, Expr, FunctionCall, QuerySource, SelectItem, WindowFunctionCall,
+};
 use crate::types::row_identity::{is_row_identity_column, LEGACY_ID_COLUMN};
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -124,7 +126,7 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
         .map(|(name, metadata)| (name.clone(), metadata.clone()))
         .collect::<HashMap<_, _>>();
 
-    projection
+    let mut columns = projection
         .iter()
         .flat_map(|item| match item {
             SelectItem::Wildcard => wildcard_columns(collection_schema, wildcard_fields),
@@ -175,7 +177,86 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
                 )]
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+    apply_percentile_array_oids(projection, &mut columns);
+    columns
+}
+
+/// Applies PostgreSQL's built-in array OID to percentile array results only.
+/// General Cassie array identities continue to use the private OID range.
+pub(crate) fn apply_percentile_array_oids(projection: &[SelectItem], columns: &mut [ColumnMeta]) {
+    apply_percentile_array_oids_for_query(&QuerySource::SingleRow, &[], projection, columns);
+}
+
+pub(crate) fn apply_percentile_array_oids_for_query(
+    source: &QuerySource,
+    ctes: &[CommonTableExpression],
+    projection: &[SelectItem],
+    columns: &mut [ColumnMeta],
+) {
+    if projection.len() != columns.len()
+        || projection
+            .iter()
+            .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        return;
+    }
+    for (item, column) in projection.iter().zip(columns) {
+        let Ok(data_type) = DataType::parse_sql(&column.data_type) else {
+            continue;
+        };
+        let output_oid = match item {
+            SelectItem::Function { function, .. } => {
+                percentile_array_output_oid(function, &data_type)
+            }
+            SelectItem::Expr {
+                expr: Expr::Function(function),
+                ..
+            } => percentile_array_output_oid(function, &data_type),
+            SelectItem::Column { name, .. } => {
+                crate::sql::functions::percentile_function_for_column(source, ctes, name).and_then(
+                    |function_id| percentile_array_output_oid_for_id(function_id, &data_type),
+                )
+            }
+            SelectItem::Expr {
+                expr: Expr::Column(name),
+                ..
+            } => crate::sql::functions::percentile_function_for_column(source, ctes, name)
+                .and_then(|function_id| {
+                    percentile_array_output_oid_for_id(function_id, &data_type)
+                }),
+            _ => None,
+        };
+        if let Some(oid) = output_oid {
+            column.type_oid = oid;
+        }
+    }
+}
+
+pub(crate) fn percentile_array_output_oid(
+    function: &FunctionCall,
+    data_type: &DataType,
+) -> Option<i64> {
+    let metadata = crate::sql::functions::function(&function.name)?;
+    percentile_array_output_oid_for_id(metadata.id, data_type)
+}
+
+fn percentile_array_output_oid_for_id(
+    function_id: crate::sql::functions::FunctionId,
+    data_type: &DataType,
+) -> Option<i64> {
+    if !matches!(
+        function_id,
+        crate::sql::functions::FunctionId::PercentileCont
+            | crate::sql::functions::FunctionId::PercentileDisc
+    ) {
+        return None;
+    }
+    let DataType::Array(element) = data_type else {
+        return None;
+    };
+    let element_oid = u32::try_from(element.type_oid()).ok()?;
+    crate::catalog::builtin_identity::builtin_array_oid(element_oid).map(i64::from)
 }
 
 fn wildcard_columns(

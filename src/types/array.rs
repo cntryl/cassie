@@ -72,6 +72,95 @@ pub(crate) fn parse_text_array(
     Ok(JsonValue::Array(values))
 }
 
+/// Formats the one-dimensional JSON carrier using PostgreSQL array text
+/// syntax for a known SQL element type.
+pub(crate) fn format_text_array(value: &JsonValue, element_type: &DataType) -> Option<String> {
+    let JsonValue::Array(values) = value else {
+        return None;
+    };
+    let elements = values
+        .iter()
+        .map(|value| {
+            if value.is_null() {
+                return Some("NULL".to_owned());
+            }
+            let text = format_element(value, element_type)?;
+            Some(quote_element(&text))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(format!("{{{}}}", elements.join(",")))
+}
+
+pub(crate) fn format_json_array_text(value: &JsonValue) -> Option<String> {
+    let JsonValue::Array(values) = value else {
+        return None;
+    };
+    let element_type = if values.is_empty() {
+        DataType::Text
+    } else if values
+        .iter()
+        .all(|value| matches!(value, JsonValue::Number(_)))
+    {
+        if values
+            .iter()
+            .any(|value| matches!(value, JsonValue::Number(number) if number.is_f64()))
+        {
+            DataType::Float
+        } else {
+            DataType::BigInt
+        }
+    } else if values.iter().all(JsonValue::is_boolean) {
+        DataType::Boolean
+    } else if values.iter().all(JsonValue::is_string) {
+        DataType::Text
+    } else {
+        DataType::Json
+    };
+    format_text_array(value, &element_type)
+}
+
+fn format_element(value: &JsonValue, element_type: &DataType) -> Option<String> {
+    Some(match (value, element_type) {
+        (JsonValue::String(value), DataType::Extended(kind)) => kind
+            .parse_text(value)
+            .map_or_else(|_| value.clone(), |typed| typed.text()),
+        (JsonValue::String(value), _) => value.clone(),
+        (JsonValue::Number(value), DataType::Float) => {
+            crate::types::float_text::format(value.as_f64()?)
+        }
+        (JsonValue::Number(value), _) => value.to_string(),
+        (JsonValue::Bool(value), DataType::Boolean) => if *value { "t" } else { "f" }.to_owned(),
+        (JsonValue::Bool(value), _) => value.to_string(),
+        (JsonValue::Array(_) | JsonValue::Object(_), DataType::Json | DataType::Vector(_)) => {
+            value.to_string()
+        }
+        (JsonValue::Array(_) | JsonValue::Object(_), _) => return None,
+        (JsonValue::Null, _) => "NULL".to_owned(),
+    })
+}
+
+fn quote_element(value: &str) -> String {
+    if value.is_empty()
+        || value.eq_ignore_ascii_case("NULL")
+        || value.chars().any(|character| {
+            character.is_whitespace() || matches!(character, '{' | '}' | ',' | '"' | '\\')
+        })
+    {
+        let mut quoted = String::with_capacity(value.len() + 2);
+        quoted.push('"');
+        for character in value.chars() {
+            if matches!(character, '"' | '\\') {
+                quoted.push('\\');
+            }
+            quoted.push(character);
+        }
+        quoted.push('"');
+        quoted
+    } else {
+        value.to_owned()
+    }
+}
+
 enum ArrayElement {
     Null,
     Value(String),

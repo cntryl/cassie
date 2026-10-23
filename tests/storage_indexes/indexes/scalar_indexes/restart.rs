@@ -188,6 +188,89 @@ fn should_persist_include_index_metadata_after_restart() {
 }
 
 #[test]
+fn should_persist_altered_btree_storage_parameters_after_restart() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("altered_btree_storage_parameters_restart");
+    {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE sql_btree_storage_parameters_restart (payload TEXT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX sql_btree_storage_parameters_restart_idx \
+                 ON sql_btree_storage_parameters_restart USING btree (payload) \
+                 WITH (deduplicate_items = off)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER INDEX sql_btree_storage_parameters_restart_idx \
+                 SET (fillfactor = 81)",
+                vec![],
+            )
+            .unwrap();
+    }
+
+    let restarted = Cassie::new_with_data_dir(&path).unwrap();
+    restarted.startup().unwrap();
+    let index = restarted
+        .catalog
+        .get_index(
+            "sql_btree_storage_parameters_restart",
+            "sql_btree_storage_parameters_restart_idx",
+        )
+        .expect("index metadata should hydrate after restart");
+    let session = restarted.create_session("tester", None);
+    let introspection = restarted
+        .execute_sql(
+            &session,
+            "SELECT reloptions, pg_catalog.pg_get_indexdef(oid) \
+             FROM pg_catalog.pg_class \
+             WHERE oid = 'sql_btree_storage_parameters_restart_idx'::regclass",
+            vec![],
+        )
+        .unwrap();
+
+    // Assert
+    assert_eq!(
+        index.options.get("deduplicate_items").map(String::as_str),
+        Some("off")
+    );
+    assert_eq!(
+        index.options.get("fillfactor").map(String::as_str),
+        Some("81")
+    );
+    assert_eq!(
+        introspection.rows()[0][0],
+        Value::String("{deduplicate_items=off,fillfactor=81}".to_string())
+    );
+    assert_eq!(
+        introspection.rows()[0][1],
+        Value::String(
+            "CREATE INDEX sql_btree_storage_parameters_restart_idx \
+             ON public.sql_btree_storage_parameters_restart USING btree \
+             (payload) WITH (deduplicate_items='off', fillfactor='81')"
+                .to_string()
+        )
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_hydrate_partial_index_metadata_after_restart() {
     // Arrange
     use_local_storage();

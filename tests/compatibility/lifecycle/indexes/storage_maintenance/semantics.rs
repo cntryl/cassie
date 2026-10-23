@@ -124,12 +124,17 @@ fn should_ignore_alter_index_if_exists_for_a_missing_index() {
         client
             .batch_execute(
                 "ALTER INDEX IF EXISTS compat_missing_alter_index \
-                   SET (fillfactor = 81); \
-                 ALTER INDEX IF EXISTS compat_missing_alter_index \
+                   SET (fillfactor = 81)",
+            )
+            .await
+            .expect("skip SET when the index is absent");
+        client
+            .batch_execute(
+                "ALTER INDEX IF EXISTS compat_missing_alter_index \
                    RESET (fillfactor)",
             )
             .await
-            .expect("skip both ALTER INDEX operations when the index is absent");
+            .expect("skip RESET when the index is absent");
         let remains_missing: bool = client
             .query_one(
                 "SELECT pg_catalog.to_regclass('compat_missing_alter_index') IS NULL",

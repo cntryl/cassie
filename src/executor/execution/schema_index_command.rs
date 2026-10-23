@@ -3,7 +3,59 @@ use super::{
     catalog, empty_command, refresh_table_cardinality_stats, schema_constraint_helpers,
     schema_foreign_keys, Cassie, QueryError, QueryExecutionControls, QueryResult,
 };
-use crate::sql::ast::{DropIndexStatement, ReindexStatement, ReindexTarget};
+use crate::sql::ast::{
+    AlterIndexOperation, AlterIndexStatement, DropIndexStatement, ReindexStatement, ReindexTarget,
+};
+
+pub(in crate::executor::execution) fn alter_index_storage_parameters(
+    cassie: &Cassie,
+    statement: &AlterIndexStatement,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let output = empty_command("ALTER INDEX", controls)?;
+    if statement.collection.trim().is_empty() {
+        if statement.if_exists {
+            return Ok(output);
+        }
+        return Err(QueryError::General(
+            "ALTER INDEX was not bound to an existing index".to_string(),
+        ));
+    }
+    let updated = cassie.midge.update_index_metadata(
+        &statement.collection,
+        &statement.name,
+        |metadata| {
+            if metadata.kind != catalog::IndexKind::Scalar
+                || !metadata.access_method().eq_ignore_ascii_case("btree")
+            {
+                return Err(crate::app::CassieError::Unsupported(
+                    "ALTER INDEX storage parameters are supported only for scalar btree indexes"
+                        .to_string(),
+                ));
+            }
+            match &statement.operation {
+                AlterIndexOperation::Set(options) => {
+                    metadata.options.extend(options.clone());
+                }
+                AlterIndexOperation::Reset(options) => {
+                    for option in options {
+                        metadata.options.remove(option);
+                    }
+                }
+            }
+            Ok(())
+        },
+        |updated| cassie.catalog.register_index(updated),
+    );
+    match updated {
+        Ok(()) => Ok(output),
+        Err(crate::app::CassieError::CatalogObjectNotFound {
+            kind: crate::app::CatalogObjectKind::Index,
+            ..
+        }) if statement.if_exists => Ok(output),
+        Err(error) => Err(QueryError::General(error.to_string())),
+    }
+}
 
 pub(in crate::executor::execution) fn drop_index(
     cassie: &Cassie,

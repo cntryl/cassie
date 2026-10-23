@@ -21,6 +21,17 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
         .as_ref()
         .map(|predicate| format!(" WHERE {}", format_stored_expression(predicate)))
         .unwrap_or_default();
+    let storage_options = index
+        .options
+        .iter()
+        .filter(|(name, _)| matches!(name.as_str(), "deduplicate_items" | "fillfactor"))
+        .map(|(name, value)| format!("{name}='{}'", value.replace('\'', "''")))
+        .collect::<Vec<_>>();
+    let storage_options = if storage_options.is_empty() {
+        String::new()
+    } else {
+        format!(" WITH ({})", storage_options.join(", "))
+    };
     let fields = index.normalized_fields();
     let keys =
         fields
@@ -60,6 +71,7 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
         keys
     ) + &include
         + &predicate
+        + &storage_options
 }
 
 fn format_index_key(index: &IndexMeta, position: usize, key: &str) -> String {

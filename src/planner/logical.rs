@@ -1,16 +1,17 @@
 use crate::app::CassieError;
 use crate::sql::{
     ast::{
-        AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaStatement,
-        AlterTableOperation, AlterTableStatement, CatalogStatementRef, CommonTableExpression,
-        CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement,
-        CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement, CreateSchemaStatement,
-        CreateTableStatement, CreateViewStatement, DatabaseConnectPrivilegeStatement,
-        DeleteStatement, DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
-        DropMaterializedProjectionStatement, DropProcedureStatement, DropRetentionPolicyStatement,
-        DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropTableStatement,
-        DropViewStatement, EnforceRetentionPolicyStatement, Expr, IdentifierPath, InsertStatement,
-        OrderExpr, ProjectionStatementRef, QuerySource, RefreshRollupStatement, ReindexStatement,
+        AlterIndexStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
+        AlterSchemaStatement, AlterTableOperation, AlterTableStatement, CatalogStatementRef,
+        CommonTableExpression, CreateDatabaseStatement, CreateFunctionStatement,
+        CreateGraphStatement, CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement,
+        CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
+        DatabaseConnectPrivilegeStatement, DeleteStatement, DropDatabaseStatement,
+        DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
+        DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement,
+        DropRollupStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
+        EnforceRetentionPolicyStatement, Expr, IdentifierPath, InsertStatement, OrderExpr,
+        ProjectionStatementRef, QuerySource, RefreshRollupStatement, ReindexStatement,
         ReindexTarget, RetentionStatementRef, RuntimeStatementRef, SelectItem, SelectStatement,
         SetStatement, ShowStatement, StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
     },
@@ -83,6 +84,7 @@ pub enum LogicalCommand {
     DropView(DropViewStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    AlterIndex(AlterIndexStatement),
     Reindex(ReindexStatement),
     CreateRollup(crate::sql::ast::CreateRollupStatement),
     RefreshRollup(RefreshRollupStatement),
@@ -270,6 +272,7 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
         | CatalogStatementRef::CallProcedure(_) => plan_procedure_statement(statement),
         CatalogStatementRef::CreateIndex(_)
         | CatalogStatementRef::DropIndex(_)
+        | CatalogStatementRef::AlterIndex(_)
         | CatalogStatementRef::Reindex(_) => plan_index_statement(statement),
     }
 }
@@ -278,6 +281,7 @@ fn plan_index_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalPla
     match statement {
         CatalogStatementRef::CreateIndex(statement) => plan_create_index(statement),
         CatalogStatementRef::DropIndex(statement) => plan_drop_index(statement),
+        CatalogStatementRef::AlterIndex(statement) => plan_alter_index(statement),
         CatalogStatementRef::Reindex(statement) => plan_reindex(statement),
         _ => unreachable!("statement should be an index command"),
     }
@@ -584,6 +588,20 @@ fn plan_reindex(statement: &ReindexStatement) -> Result<LogicalPlan, CassieError
         collection,
         "REINDEX requires an indexed table",
         LogicalCommand::Reindex(statement.clone()),
+    )
+}
+
+fn plan_alter_index(statement: &AlterIndexStatement) -> Result<LogicalPlan, CassieError> {
+    require_name(&statement.name, "ALTER INDEX requires an index name")?;
+    if statement.collection.trim().is_empty() {
+        return Ok(single_row_command_plan(LogicalCommand::AlterIndex(
+            statement.clone(),
+        )));
+    }
+    plan_table_command(
+        &statement.collection,
+        "ALTER INDEX requires an indexed table",
+        LogicalCommand::AlterIndex(statement.clone()),
     )
 }
 

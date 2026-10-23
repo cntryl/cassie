@@ -45,9 +45,10 @@ use crate::catalog::{
 use crate::embeddings::DistanceMetric;
 use crate::search::bm25;
 use crate::sql::ast::{
-    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
-    AlterTableStatement, BinaryOp, CallProcedureStatement, CatalogStatement, CommonTableExpression,
-    CopyStatement, CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
+    AlterIndexOperation, AlterIndexStatement, AlterSchemaOperation, AlterSchemaStatement,
+    AlterSequenceStatement, AlterTableOperation, AlterTableStatement, BinaryOp,
+    CallProcedureStatement, CatalogStatement, CommonTableExpression, CopyStatement,
+    CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
     DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropSchemaStatement, DropSequenceStatement,
@@ -430,6 +431,9 @@ fn bind_catalog_route(
         CatalogStatement::DropIndex(statement) => {
             bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
         }
+        CatalogStatement::AlterIndex(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
         CatalogStatement::Reindex(statement) => bind_catalog_statement(
             raw_sql,
             schema::bind_reindex(statement, catalog, context),
@@ -535,6 +539,7 @@ fn bind_catalog_definition_route(
         | CatalogStatement::CallProcedure(_)
         | CatalogStatement::CreateIndex(_)
         | CatalogStatement::DropIndex(_)
+        | CatalogStatement::AlterIndex(_)
         | CatalogStatement::Reindex(_) => unreachable!("routine and index routes are extracted"),
     }
 }
@@ -593,6 +598,11 @@ fn bind_catalog_routine_or_index_route(
             bind_drop_index(statement, catalog, context),
             QueryStatement::DropIndex,
         ),
+        CatalogRoutineOrIndexStatement::AlterIndex(statement) => bind_catalog_statement(
+            raw_sql,
+            schema::bind_alter_index(statement, catalog, context),
+            QueryStatement::AlterIndex,
+        ),
     }
 }
 
@@ -604,6 +614,7 @@ enum CatalogRoutineOrIndexStatement {
     CallProcedure(CallProcedureStatement),
     CreateIndex(crate::sql::ast::CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    AlterIndex(crate::sql::ast::AlterIndexStatement),
 }
 
 impl From<CreateFunctionStatement> for CatalogRoutineOrIndexStatement {
@@ -645,6 +656,12 @@ impl From<crate::sql::ast::CreateIndexStatement> for CatalogRoutineOrIndexStatem
 impl From<DropIndexStatement> for CatalogRoutineOrIndexStatement {
     fn from(statement: DropIndexStatement) -> Self {
         Self::DropIndex(statement)
+    }
+}
+
+impl From<crate::sql::ast::AlterIndexStatement> for CatalogRoutineOrIndexStatement {
+    fn from(statement: crate::sql::ast::AlterIndexStatement) -> Self {
+        Self::AlterIndex(statement)
     }
 }
 

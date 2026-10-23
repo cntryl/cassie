@@ -104,6 +104,7 @@ pub enum QueryStatement {
     RevokeDatabaseConnect(DatabaseConnectPrivilegeStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    AlterIndex(AlterIndexStatement),
     Reindex(ReindexStatement),
     CreateRollup(CreateRollupStatement),
     RefreshRollup(RefreshRollupStatement),
@@ -586,6 +587,20 @@ pub struct DropIndexStatement {
     /// Empty when the SQL omits the optional `ON` relation qualifier.
     pub table: String,
     pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlterIndexStatement {
+    pub name: String,
+    pub collection: String,
+    pub if_exists: bool,
+    pub operation: AlterIndexOperation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AlterIndexOperation {
+    Set(BTreeMap<String, String>),
+    Reset(Vec<String>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -229,6 +229,19 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Projection lifecycle | Materialized projection create, refresh, checkpointed replay, version build, verification, activation, rollback by reactivation, repair, and drop on one local instance, as defined in [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). Interrupted or failed builds never become query-visible; stale or unproven projections fall back to authoritative source rows. Column-store table mode, remote replay coordination, and automatic activation are outside this surface. | Stable |
 | Verification and repair | Hashes, manifests, local repair planning and audit for materialized projections; see [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). No general (non-projection) index verification or repair exists. | Experimental |
 
+### Scalar btree storage parameters
+
+Scalar btree indexes accept `fillfactor` values from 10 through 100 and
+`deduplicate_items` values `on` or `off` in `CREATE INDEX ... WITH (...)` and
+`ALTER INDEX ... SET/RESET (...)`. Cassie stores these values with the index
+metadata and reports them through `pg_class.reloptions` and
+`pg_get_indexdef`; they do not change Midge index layout or query behavior.
+Other btree parameters and GIN, GiST, and BRIN storage parameters remain
+unsupported. Focused evidence is in
+[`should_update_index_storage_parameter_catalog_state`](../tests/compatibility/lifecycle/indexes/storage_parameter_options.rs),
+[`should_store_btree_deduplicate_items_option`](../tests/compatibility/lifecycle/indexes/storage_maintenance/semantics.rs),
+and [`should_ignore_alter_index_if_exists_for_a_missing_index`](../tests/compatibility/lifecycle/indexes/storage_maintenance/semantics.rs).
+
 ## Retrieval and Analytics
 
 | Capability | Behavior | Status |

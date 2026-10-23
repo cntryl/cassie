@@ -5,10 +5,10 @@ mod aggregate_call;
 
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
-    AlterRetentionPolicyStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
-    AlterSequenceStatement, AlterTableOperation, AlterTableStatement, BinaryOp,
-    CallProcedureStatement, CommonTableExpression, CreateDatabaseStatement,
-    CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
+    AlterIndexOperation, AlterIndexStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
+    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
+    AlterTableStatement, BinaryOp, CallProcedureStatement, CommonTableExpression,
+    CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
     CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
@@ -200,10 +200,10 @@ use rollups::{
     parse_create_rollup_statement, parse_drop_rollup_statement, parse_refresh_rollup_statement,
 };
 use schema::{
-    parse_alter_role_statement, parse_alter_schema_statement, parse_alter_sequence_statement,
-    parse_alter_table_statement, parse_create_database_statement, parse_create_graph_statement,
-    parse_create_index_statement, parse_create_role_statement, parse_create_schema_statement,
-    parse_create_sequence_statement, parse_create_table_statement,
+    parse_alter_index_statement, parse_alter_role_statement, parse_alter_schema_statement,
+    parse_alter_sequence_statement, parse_alter_table_statement, parse_create_database_statement,
+    parse_create_graph_statement, parse_create_index_statement, parse_create_role_statement,
+    parse_create_schema_statement, parse_create_sequence_statement, parse_create_table_statement,
     parse_database_connect_privilege_statement, parse_drop_database_statement,
     parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
     parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
@@ -421,6 +421,8 @@ fn parse_view_or_index_statement(
         Ok(Some(parse_create_index_statement(trimmed)?))
     } else if starts_statement(lower, "drop index") {
         Ok(Some(parse_drop_index_statement(trimmed)?))
+    } else if starts_statement(lower, "alter index") {
+        Ok(Some(parse_alter_index_statement(trimmed)?))
     } else if starts_statement(lower, "reindex") {
         Ok(Some(parse_reindex_statement(trimmed)?))
     } else {

@@ -89,7 +89,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | OID and reg* types | Absent | #818 |
 | **Functions** | | |
 | count, sum, avg, min, max | Supported | — |
-| Aggregate DISTINCT, FILTER, ORDER BY | Absent | #804 |
+| Aggregate-local `DISTINCT`, `FILTER`, `ORDER BY` | Selected support for core aggregates and text `STRING_AGG`: `FILTER` runs before argument evaluation; `DISTINCT` and ordered arguments use the controlled serial row accumulator. Typed and column-batch summary paths decline modified calls; parallel partial aggregation declines `DISTINCT` and ordered arguments. Other aggregate families retain their own status below and under #811. [Focused behavior tests](../tests/sql_queries/aggregates/semantics/semantics.rs), [typed fallback tests](../src/executor/execution/aggregate_exec/typed/tests.rs), and [column-summary fallback test](../tests/analytics/aggregates/aggregate_acceleration.rs). | #804 |
 | bool_and, bool_or | Absent | #805 |
 | Statistical, ordered-set, hypothetical-set, bitwise aggregates | Absent | #806 |
 | string_agg, array_agg, json(b)_agg, json(b)_object_agg | Absent | #811 |

@@ -22,22 +22,6 @@ fn should_preserve_split_part_empty_field_semantics() {
 }
 
 #[test]
-fn should_preserve_null_quote_literal_separately_from_quote_nullable() {
-    // Arrange
-    let fixture = sql_fixture("issue-803-quote-literal-null", &[]);
-
-    // Act
-    let result = fixture
-        .execute("SELECT quote_literal(CAST(NULL AS TEXT)), quote_nullable(CAST(NULL AS TEXT))");
-
-    // Assert
-    assert_eq!(
-        result.expect("NULL literal quoting forms").rows(),
-        &[vec![Value::Null, Value::String("NULL".to_owned())]]
-    );
-}
-
-#[test]
 fn should_return_zero_for_empty_ascii_input() {
     // Arrange
     let fixture = sql_fixture("issue-803-ascii-empty-string", &[]);

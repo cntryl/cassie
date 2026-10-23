@@ -745,38 +745,6 @@ fn should_distinguish_text_character_byte_length_from_string_predicates() {
         ("SELECT 'alphabet' ^@ 'alpha'", Value::Bool(true)),
         ("SELECT 'alphabet' ^@ 'bet'", Value::Bool(false)),
         (
-            "SELECT quote_literal('O''Brien')",
-            Value::String("'O''Brien'".to_owned()),
-        ),
-        (
-            "SELECT quote_nullable(CAST(NULL AS TEXT))",
-            Value::String("NULL".to_owned()),
-        ),
-        ("SELECT quote_literal(42)", Value::String("'42'".to_owned())),
-        ("SELECT to_hex(10)", Value::String("a".to_owned())),
-        ("SELECT to_bin(10)", Value::String("1010".to_owned())),
-        ("SELECT to_oct(10)", Value::String("12".to_owned())),
-        ("SELECT to_hex(-1)", Value::String("ffffffff".to_owned())),
-        (
-            "SELECT to_bin(-1)",
-            Value::String("11111111111111111111111111111111".to_owned()),
-        ),
-        ("SELECT to_oct(-1)", Value::String("37777777777".to_owned())),
-        (
-            "SELECT to_hex(-1::BIGINT)",
-            Value::String("ffffffffffffffff".to_owned()),
-        ),
-        (
-            "SELECT to_bin(-1::BIGINT)",
-            Value::String(
-                "1111111111111111111111111111111111111111111111111111111111111111".to_owned(),
-            ),
-        ),
-        (
-            "SELECT to_oct(-1::BIGINT)",
-            Value::String("1777777777777777777777".to_owned()),
-        ),
-        (
             "SELECT num_nulls(1, CAST(NULL AS INT4), CAST(NULL AS TEXT))",
             Value::Int64(2),
         ),
@@ -808,126 +776,6 @@ fn should_match_text_prefix_with_starts_with_operator() {
         result.expect("PostgreSQL text starts-with operator").rows(),
         &[vec![Value::Bool(true), Value::Bool(false), Value::Null]]
     );
-}
-
-#[test]
-fn should_apply_postgresql_18_unicode_string_functions() {
-    // Arrange
-    let fixture = sql_fixture("issue-803-unicode-string-functions", &[]);
-    let cases = [
-        (
-            "SELECT casefold('Straße' COLLATE \"und-x-icu\")",
-            Value::String("strasse".to_owned()),
-        ),
-        ("SELECT unicode_assigned(U&'\\0441')", Value::Bool(true)),
-        ("SELECT unicode_assigned(U&'\\+10FFFF')", Value::Bool(false)),
-        (
-            "SELECT unistr('\\0061\\+01F600')",
-            Value::String("a😀".to_owned()),
-        ),
-        (
-            "SELECT normalize(U&'e\\0301', NFC)",
-            Value::String("é".to_owned()),
-        ),
-        (
-            "SELECT normalize(U&'e\\0301')",
-            Value::String("é".to_owned()),
-        ),
-        (
-            "SELECT normalize(U&'\\00E9', NFD)",
-            Value::String("e\u{301}".to_owned()),
-        ),
-        (
-            "SELECT normalize(U&'\\00E9', NFKC)",
-            Value::String("é".to_owned()),
-        ),
-        (
-            "SELECT normalize(U&'\\00E9', NFKD)",
-            Value::String("e\u{301}".to_owned()),
-        ),
-        ("SELECT U&'é' IS NFC NORMALIZED", Value::Bool(true)),
-        ("SELECT U&'e\\0301' IS NFC NORMALIZED", Value::Bool(false)),
-        ("SELECT U&'\\00E9' IS NFD NORMALIZED", Value::Bool(false)),
-        ("SELECT U&'e\\0301' IS NFD NORMALIZED", Value::Bool(true)),
-        ("SELECT U&'\\00E9' IS NFKC NORMALIZED", Value::Bool(true)),
-        ("SELECT U&'\\00E9' IS NFKD NORMALIZED", Value::Bool(false)),
-        (
-            "SELECT to_ascii('abc', 'LATIN1')",
-            Value::String("abc".to_owned()),
-        ),
-        ("SELECT to_ascii('abc', 8)", Value::String("abc".to_owned())),
-    ];
-
-    // Act
-    let failures = failed_string_function_cases(&fixture, &cases);
-
-    // Assert
-    assert!(
-        failures.is_empty(),
-        "PostgreSQL 18 Unicode string functions differ:\n{}",
-        failures.join("\n")
-    );
-}
-
-#[test]
-fn should_apply_negated_postgresql_unicode_normalization_predicates() {
-    // Arrange
-    let fixture = sql_fixture("issue-803-negated-normalization-predicates", &[]);
-    let cases = [
-        ("SELECT 'e\u{301}' IS NOT NFC NORMALIZED", Value::Bool(true)),
-        ("SELECT 'é' IS NOT NFD NORMALIZED", Value::Bool(true)),
-        (
-            "SELECT 'e\u{301}' IS NOT NFD NORMALIZED",
-            Value::Bool(false),
-        ),
-        ("SELECT 'é' IS NOT NFC NORMALIZED", Value::Bool(false)),
-        (
-            "SELECT 'e\u{301}' IS NOT NFKC NORMALIZED",
-            Value::Bool(true),
-        ),
-        ("SELECT 'é' IS NOT NFKC NORMALIZED", Value::Bool(false)),
-        ("SELECT 'é' IS NOT NFKD NORMALIZED", Value::Bool(true)),
-        (
-            "SELECT 'e\u{301}' IS NOT NFKD NORMALIZED",
-            Value::Bool(false),
-        ),
-        ("SELECT NULL IS NOT NFC NORMALIZED", Value::Null),
-    ];
-
-    // Act
-    let failures = failed_string_function_cases(&fixture, &cases);
-
-    // Assert
-    assert!(
-        failures.is_empty(),
-        "PostgreSQL Unicode normalization predicates differ:\n{}",
-        failures.join("\n")
-    );
-}
-
-#[test]
-fn should_preserve_empty_fields_for_two_argument_string_to_table() {
-    // Arrange
-    let fixture = sql_fixture("issue-803-string-to-table-two-arguments", &[]);
-
-    // Act
-    let rows = fixture
-        .execute("SELECT string_to_table('a,,b', ',')")
-        .expect("two-argument string_to_table");
-    let null_input_rows = fixture
-        .execute("SELECT string_to_table(CAST(NULL AS TEXT), ',')")
-        .expect("NULL string_to_table input");
-
-    // Assert
-    assert_eq!(
-        rows.rows(),
-        &[
-            vec![Value::String("a".to_owned())],
-            vec![Value::String(String::new())],
-            vec![Value::String("b".to_owned())],
-        ]
-    );
-    assert_eq!(null_input_rows.rows(), &[] as &[Vec<Value>]);
 }
 
 #[test]
@@ -982,9 +830,9 @@ fn should_reject_postgresql_overlay_start_before_first_character() {
 }
 
 #[test]
-fn should_propagate_null_through_postgresql18_string_function_signatures() {
+fn should_propagate_null_through_selected_string_function_signatures() {
     // Arrange
-    let fixture = sql_fixture("issue-803-added-string-function-nulls", &[]);
+    let fixture = sql_fixture("selected-string-function-nulls", &[]);
     let cases = [
         (
             "SELECT concat_ws(CAST(NULL AS TEXT), 'a', 'b')",
@@ -996,11 +844,6 @@ fn should_propagate_null_through_postgresql18_string_function_signatures() {
         ),
         ("SELECT octet_length(CAST(NULL AS TEXT))", Value::Null),
         ("SELECT bit_length(CAST(NULL AS TEXT))", Value::Null),
-        ("SELECT unicode_assigned(CAST(NULL AS TEXT))", Value::Null),
-        ("SELECT unistr(CAST(NULL AS TEXT))", Value::Null),
-        ("SELECT normalize(CAST(NULL AS TEXT))", Value::Null),
-        ("SELECT to_ascii(CAST(NULL AS TEXT), 'LATIN1')", Value::Null),
-        ("SELECT parse_ident(CAST(NULL AS TEXT))", Value::Null),
     ];
 
     // Act

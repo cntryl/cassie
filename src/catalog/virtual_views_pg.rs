@@ -776,39 +776,6 @@ fn oid(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::ObjectId(ObjectIdKind::Oid))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::catalog::IndexKind;
-
-    #[test]
-    fn should_leave_unselected_native_index_methods_without_catalog_oids() {
-        // Arrange
-        let indexes =
-            [IndexKind::Vector, IndexKind::Column, IndexKind::TimeSeries].map(|kind| IndexMeta {
-                collection: "items".to_string(),
-                name: "items_idx".to_string(),
-                field: "value".to_string(),
-                fields: vec!["value".to_string()],
-                expressions: Vec::new(),
-                include_fields: Vec::new(),
-                predicate: None,
-                kind,
-                unique: false,
-                options: std::collections::BTreeMap::new(),
-            });
-
-        // Act
-        let access_method_oids = indexes
-            .iter()
-            .map(|index| relation_access_method_oid("i", Some(index)))
-            .collect::<Vec<_>>();
-
-        // Assert
-        assert_eq!(access_method_oids, vec![0, 0, 0]);
-    }
-}
-
 fn bool(name: &str) -> (String, DataType) {
     (name.to_string(), DataType::Boolean)
 }
@@ -845,4 +812,37 @@ fn row_sort_key(row: &VirtualRow) -> String {
         })
         .collect::<Vec<_>>()
         .join("\u{1f}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::catalog::IndexKind;
+
+    #[test]
+    fn should_leave_unselected_native_index_methods_without_catalog_oids() {
+        // Arrange
+        let indexes =
+            [IndexKind::Vector, IndexKind::Column, IndexKind::TimeSeries].map(|kind| IndexMeta {
+                collection: "items".to_string(),
+                name: "items_idx".to_string(),
+                field: "value".to_string(),
+                fields: vec!["value".to_string()],
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                kind,
+                unique: false,
+                options: std::collections::BTreeMap::new(),
+            });
+
+        // Act
+        let access_method_oids = indexes
+            .iter()
+            .map(|index| relation_access_method_oid("i", Some(index)))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(access_method_oids, vec![0, 0, 0]);
+    }
 }

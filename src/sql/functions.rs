@@ -7,6 +7,7 @@ mod numeric_identity;
 mod object_identity;
 mod percentile_identity;
 mod sequences;
+pub(crate) mod statistical;
 pub(crate) use numeric_identity::has_unselected_numeric;
 pub(crate) use object_identity::lookup_kind as object_lookup_kind;
 pub(crate) use percentile_identity::percentile_function_for_column;
@@ -50,6 +51,12 @@ pub enum FunctionId {
     Count,
     Sum,
     Avg,
+    VarPop,
+    VarSamp,
+    Variance,
+    StddevPop,
+    StddevSamp,
+    Stddev,
     Min,
     Max,
     StringAgg,
@@ -233,6 +240,7 @@ pub fn aggregate_arity(name: &str) -> Option<usize> {
 pub fn registry() -> Vec<ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
+        .chain(statistical::FUNCTIONS)
         .chain(text::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
@@ -248,6 +256,7 @@ pub fn registry() -> Vec<ScalarFunction> {
 pub fn function(name: &str) -> Option<&'static ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
+        .chain(statistical::FUNCTIONS)
         .chain(text::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
@@ -292,6 +301,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                 .and_then(|local| {
                     SCALAR_FUNCTIONS
                         .iter()
+                        .chain(statistical::FUNCTIONS)
                         .chain(text::FUNCTIONS)
                         .chain(bytea::FUNCTIONS)
                         .chain(catalog::FUNCTIONS)

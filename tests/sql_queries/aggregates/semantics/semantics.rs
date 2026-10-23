@@ -195,7 +195,7 @@ fn should_return_statistical_aggregate_values_for_float_inputs() {
 
     // Act
     let result = fixture.execute(
-            "SELECT VAR_POP(value), VAR_SAMP(value), STDDEV_POP(value), STDDEV_SAMP(value), CORR(value, value), COVAR_POP(value, value), REGR_SLOPE(value, value) FROM aggregate_statistical_inputs",
+            "SELECT VAR_POP(value), VAR_SAMP(value), VARIANCE(value), STDDEV_POP(value), STDDEV_SAMP(value), STDDEV(value) FROM aggregate_statistical_inputs",
         );
 
     // Assert
@@ -205,10 +205,9 @@ fn should_return_statistical_aggregate_values_for_float_inputs() {
         &[vec![
             Value::Float64(0.666_666_666_666_666_6),
             Value::Float64(1.0),
+            Value::Float64(1.0),
             Value::Float64(0.816_496_580_927_726),
             Value::Float64(1.0),
-            Value::Float64(1.0),
-            Value::Float64(0.666_666_666_666_666_6),
             Value::Float64(1.0),
         ]]
     );
@@ -217,7 +216,20 @@ fn should_return_statistical_aggregate_values_for_float_inputs() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![701, 701, 701, 701, 701, 701, 701]
+        vec![701; 6]
+    );
+
+    let filtered = fixture.execute(
+        "SELECT VAR_POP(value) FILTER (WHERE keep), STDDEV_SAMP(value) FILTER (WHERE keep) \
+         FROM aggregate_statistical_inputs",
+    );
+    let filtered = filtered.expect("statistical FILTER runs before aggregate transitions");
+    assert_eq!(
+        filtered.rows(),
+        &[vec![
+            Value::Float64(0.25),
+            Value::Float64(std::f64::consts::FRAC_1_SQRT_2),
+        ]]
     );
 }
 

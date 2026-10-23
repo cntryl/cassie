@@ -1,5 +1,6 @@
 //! `sum(interval)` and `avg(interval)` accumulation.
-use super::state::{AggregateAccumulator, RetainedChange};
+use super::retained_change::RetainedChange;
+use super::state::AggregateAccumulator;
 use super::QueryError;
 use crate::types::extended::temporal::Interval;
 use crate::types::typed::TypedValue;

@@ -69,6 +69,16 @@ pub fn avg(argument: &DataType) -> DataType {
     }
 }
 
+/// `var_pop`, `var_samp`, `variance` and the standard-deviation aggregates.
+#[must_use]
+pub fn statistical(argument: &DataType) -> DataType {
+    if is_integer(argument) || is_numeric(argument) {
+        NUMERIC
+    } else {
+        DataType::Float
+    }
+}
+
 /// The position of a numeric-category type in PostgreSQL's implicit-cast order.
 fn numeric_rank(data_type: &DataType) -> Option<u8> {
     match data_type {

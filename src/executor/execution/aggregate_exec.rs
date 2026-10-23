@@ -23,10 +23,12 @@ mod interval_aggregate;
 mod modifiers;
 mod ordered_set;
 mod output_types;
+mod retained_change;
 #[path = "aggregate_exec/rewrite.rs"]
 mod rewrite;
 #[path = "aggregate_exec/state.rs"]
 mod state;
+mod statistical;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
@@ -97,7 +99,7 @@ fn aggregate_query_batches_inner(
                 }
                 cassie
                     .runtime
-                    .record_parallel_aggregation_fallback(FLOAT_SUM_FALLBACK.to_owned());
+                    .record_parallel_aggregation_fallback(AGGREGATE_ROW_ORDER_FALLBACK.to_owned());
                 return aggregate_query_batches_serial(rows, &specs, context);
             }
         }
@@ -164,10 +166,8 @@ fn aggregate_query_batches_serial(
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
 }
 
-/// Fallback reason recorded when a merged group folded an inexact SUM/AVG
-/// input: merging per-partition float sums would re-associate the row-order
-/// fold, so the rows are aggregated serially instead.
-const FLOAT_SUM_FALLBACK: &str = "float-sum-requires-row-order";
+/// Fallback reason recorded when a merged aggregate state requires row order.
+const AGGREGATE_ROW_ORDER_FALLBACK: &str = "aggregate-state-requires-row-order";
 
 fn merge_partial_aggregations(
     cassie: &Cassie,
@@ -366,6 +366,9 @@ fn parallel_aggregation_eligibility(
             spec.function.name.to_ascii_lowercase().as_str(),
             "count" | "sum" | "avg" | "min" | "max"
         ) && boolean::BooleanState::new(&spec.function.name).is_none()
+            && !crate::sql::functions::function(&spec.function.name).is_some_and(|metadata| {
+                crate::sql::functions::statistical::is_statistical_function(metadata.id)
+            })
     }) {
         return Err("unsupported-aggregate");
     }
@@ -413,6 +416,9 @@ fn expr_supports_parallel_aggregation(
             if crate::sql::functions::is_aggregate_function(&function.name)
                 && !matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
                 && boolean::BooleanState::new(&function.name).is_none()
+                && !crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+                    crate::sql::functions::statistical::is_statistical_function(metadata.id)
+                })
             {
                 return false;
             }
@@ -509,6 +515,9 @@ fn evaluate_aggregate(
     if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
         || is_string_aggregate
         || boolean::BooleanState::new(&function.name).is_some()
+        || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+            crate::sql::functions::statistical::is_statistical_function(metadata.id)
+        })
     {
         AggregateAccumulator::evaluate(function, rows, context)
     } else {

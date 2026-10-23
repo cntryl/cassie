@@ -188,6 +188,12 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
             | "sum"
             | "bool_and"
             | "bool_or"
+            | "var_pop"
+            | "var_samp"
+            | "variance"
+            | "stddev_pop"
+            | "stddev_samp"
+            | "stddev"
     ) {
         return Err(SqlError::new(format!(
             "unsupported window function '{}'",

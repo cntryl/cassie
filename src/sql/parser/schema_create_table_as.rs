@@ -122,7 +122,7 @@ mod tests {
     use crate::sql::{parser, QueryStatement};
 
     #[test]
-    fn should_parse_create_table_as_with_values_and_output_names() {
+    fn should_parse_create_table_as_values_with_output_names() {
         // Arrange
         let sql = "CREATE TABLE copied (copy_id, copy_label) AS VALUES (1, 'one')";
 
@@ -162,7 +162,7 @@ mod tests {
         let Some(as_query) = statement.as_query else {
             panic!("expected a typed CTAS clause");
         };
-        assert!(as_query.column_names.is_empty());
+        assert_eq!(as_query.column_names, Vec::<String>::new());
         assert!(!as_query.with_data);
         assert!(matches!(
             as_query.query.statement,

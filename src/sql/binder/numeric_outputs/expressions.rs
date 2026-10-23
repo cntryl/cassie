@@ -402,6 +402,14 @@ impl Analyzer<'_> {
                 return Ok(Some(output));
             }
         }
+        if crate::sql::functions::statistical::is_statistical_function(id) {
+            let argument = function
+                .args
+                .first()
+                .map(|argument| self.expression(argument, lookup))
+                .transpose()?;
+            return Ok(Some(statistical_argument(argument.as_ref())));
+        }
         Ok(None)
     }
 
@@ -497,6 +505,30 @@ fn numeric_argument(argument: Option<&OutputType>, policy: FunctionReturnType) -
         candidates,
         unresolved_numeric,
         proven_float8: argument.proven_float8,
+    }
+}
+
+fn statistical_argument(argument: Option<&OutputType>) -> OutputType {
+    let Some(argument) = argument else {
+        return OutputType::fixed(DataType::Float);
+    };
+    let mut candidates = Vec::new();
+    for candidate in &argument.candidates {
+        push_distinct(
+            &mut candidates,
+            crate::types::extended::numeric_types::statistical(candidate),
+        );
+    }
+    let data_type = if candidates.contains(&DataType::Float) {
+        DataType::Float
+    } else {
+        candidates.first().cloned().unwrap_or(DataType::Float)
+    };
+    OutputType {
+        data_type,
+        unresolved_numeric: argument.unresolved_numeric && candidates.len() != 1,
+        proven_float8: candidates == [DataType::Float],
+        candidates,
     }
 }
 

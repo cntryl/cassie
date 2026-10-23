@@ -791,6 +791,12 @@ fn aggregate_function_supports_parallel(function: &FunctionCall) -> bool {
                 | FunctionId::Max
                 | FunctionId::BoolAnd
                 | FunctionId::BoolOr
+                | FunctionId::VarPop
+                | FunctionId::VarSamp
+                | FunctionId::Variance
+                | FunctionId::StddevPop
+                | FunctionId::StddevSamp
+                | FunctionId::Stddev
         )
     })
 }

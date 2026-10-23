@@ -1,3 +1,5 @@
+use cassie::types::extended::numeric::{math as numeric_math, parse_text, Numeric};
+
 #[test]
 fn should_apply_lag_lead_window_arguments() {
     // Arrange
@@ -27,7 +29,6 @@ fn should_apply_lag_lead_window_arguments() {
         ]
     );
 }
-
 #[test]
 fn should_return_tied_window_distribution_values() {
     // Arrange
@@ -494,5 +495,104 @@ fn should_keep_window_results_out_of_wildcard_expansion() {
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
         vec![23, 23, 20]
+    );
+}
+
+#[test]
+fn should_evaluate_statistical_window_frames() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-statistical-window-frames",
+        &[
+            "CREATE TABLE issue_806_statistical_window_values \
+             (id INT, n FLOAT8, exact_n NUMERIC)",
+            "INSERT INTO issue_806_statistical_window_values \
+             VALUES (1,1,1),(2,3,3),(3,5,5)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id, \
+         VAR_POP(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), \
+         VAR_SAMP(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), \
+         VARIANCE(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), \
+         STDDEV_POP(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), \
+         STDDEV_SAMP(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), \
+         STDDEV(n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), \
+         VAR_POP(exact_n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING), \
+         STDDEV_SAMP(exact_n) OVER (ORDER BY id ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) \
+         FROM issue_806_statistical_window_values ORDER BY id",
+    );
+
+    // Assert
+    let result = result.expect("variance and standard deviation over ROWS frames");
+    let float_rows = result
+        .rows()
+        .iter()
+        .map(|row| row[..7].to_vec())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        float_rows,
+        vec![
+            vec![
+                Value::Int64(1),
+                Value::Float64(0.0),
+                Value::Null,
+                Value::Null,
+                Value::Float64(0.0),
+                Value::Null,
+                Value::Null,
+            ],
+            vec![
+                Value::Int64(2),
+                Value::Float64(1.0),
+                Value::Float64(2.0),
+                Value::Float64(2.0),
+                Value::Float64(1.0),
+                Value::Float64(2.0_f64.sqrt()),
+                Value::Float64(2.0_f64.sqrt()),
+            ],
+            vec![
+                Value::Int64(3),
+                Value::Float64(1.0),
+                Value::Float64(2.0),
+                Value::Float64(2.0),
+                Value::Float64(1.0),
+                Value::Float64(2.0_f64.sqrt()),
+                Value::Float64(2.0_f64.sqrt()),
+            ],
+        ]
+    );
+    assert_eq!(result.rows()[0][7..], [Value::Null, Value::Null]);
+    for row in &result.rows()[1..] {
+        let Value::String(actual) = &row[7] else {
+            panic!("NUMERIC window result should retain text carrier, got {:?}", row[7]);
+        };
+        let actual = parse_text(actual).expect("parse NUMERIC population variance");
+        assert_eq!(
+            actual.compare(&Numeric::zero()),
+            std::cmp::Ordering::Equal
+        );
+    }
+    let expected_numeric_stddev =
+        numeric_math::sqrt(&Numeric::from_i128(2)).expect("numeric sample standard deviation");
+    for row in &result.rows()[1..] {
+        let Value::String(actual) = &row[8] else {
+            panic!("NUMERIC window result should retain text carrier, got {:?}", row[8]);
+        };
+        let actual = parse_text(actual).expect("parse NUMERIC window result");
+        assert_eq!(
+            actual.compare(&expected_numeric_stddev),
+            std::cmp::Ordering::Equal
+        );
+    }
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 701, 701, 701, 701, 701, 701, 1700, 1700]
     );
 }

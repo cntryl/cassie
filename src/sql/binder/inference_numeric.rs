@@ -73,6 +73,17 @@ pub(super) fn numeric_function_type(
                     crate::types::extended::numeric_types::avg(&data_type)
                 }),
         ),
+        id if crate::sql::functions::statistical::is_statistical_function(id) => Some(
+            function
+                .args
+                .first()
+                .and_then(|expr| {
+                    infer_expr_type(expr, source_schema, user_functions, parameter_types)
+                })
+                .map_or(DataType::Float, |data_type| {
+                    crate::types::extended::numeric_types::statistical(&data_type)
+                }),
+        ),
         FunctionId::Math(math) => {
             Some(crate::sql::functions::math::result_type(math, &arguments()))
         }

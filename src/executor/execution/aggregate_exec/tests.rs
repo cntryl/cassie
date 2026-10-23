@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use super::*;
-use crate::config::CassieRuntimeLimits;
+use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 use crate::executor::execution::build_logical_plan;
 
 #[path = "control_tests.rs"]
@@ -118,6 +118,199 @@ fn aggregate_context<'a>(
         controls,
         after_partition_row: None,
     }
+}
+
+fn aggregate_call(plan: &LogicalPlan) -> &FunctionCall {
+    let SelectItem::Function { function, .. } = &plan.projection[0] else {
+        panic!("expected aggregate function projection");
+    };
+    function
+}
+
+#[test]
+fn should_admit_statistical_numeric_state_growth_against_query_memory_budget() {
+    // Arrange
+    let plan = aggregate_plan("SELECT var_pop(value) FROM events");
+    let functions = HashMap::new();
+    let controls = controls_with_budget(0);
+    let context = aggregate_context(&plan, &functions, &controls);
+    let value = crate::types::extended::numeric::Numeric::from_i128(
+        12_345_678_901_234_567_890_123_456_789_012_345_678_i128,
+    );
+    let rows = [BatchRow::new(vec![(
+        "value".to_owned(),
+        Value::Typed(crate::types::typed::TypedValue::Numeric(value)),
+    )])];
+
+    // Act
+    let error = AggregateAccumulator::evaluate(aggregate_call(&plan), &rows, &context)
+        .expect_err("growing numeric moments must respect the query budget");
+
+    // Assert
+    assert!(error.to_string().contains("query memory budget exceeded"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_retained_numeric_memory_when_later_growth_exceeds_budget() {
+    // Arrange
+    let plan = aggregate_plan("SELECT var_pop(value) FROM events");
+    let function = aggregate_call(&plan);
+    let first = Value::Typed(crate::types::typed::TypedValue::Numeric(
+        crate::types::extended::numeric::parse_text("12345678901234567890")
+            .expect("small NUMERIC input"),
+    ));
+    let large_input = format!("{}.5", "9".repeat(250));
+    let second = Value::Typed(crate::types::typed::TypedValue::Numeric(
+        crate::types::extended::numeric::parse_text(&large_input).expect("large NUMERIC input"),
+    ));
+    let mut measured = AggregateAccumulator::new(function);
+    measured
+        .update_values(function, first.clone(), None, None)
+        .expect("first statistical transition");
+    let first_retained_bytes = measured
+        .retained_heap_bytes()
+        .expect("first retained moment size");
+    measured
+        .update_values(function, second.clone(), None, None)
+        .expect("second statistical transition");
+    let second_retained_bytes = measured
+        .retained_heap_bytes()
+        .expect("second retained moment size");
+    assert!(first_retained_bytes > 0);
+    assert!(second_retained_bytes > first_retained_bytes);
+
+    let controls = controls_with_budget(first_retained_bytes);
+    let functions = HashMap::new();
+    let context = aggregate_context(&plan, &functions, &controls);
+    let rows = [first, second].map(|value| BatchRow::new(vec![("value".to_owned(), value)]));
+
+    // Act
+    let error = AggregateAccumulator::evaluate(function, &rows, &context)
+        .expect_err("later numeric state growth must exceed the retained budget");
+
+    // Assert
+    assert!(error.to_string().contains("query memory budget exceeded"));
+    assert_eq!(controls.peak_query_memory_bytes(), first_retained_bytes);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_merge_exact_numeric_statistics_across_parallel_partitions() {
+    // Arrange
+    let plan = aggregate_plan("SELECT var_pop(value) FROM events");
+    let specs = aggregate_specs(&plan);
+    let functions = HashMap::new();
+    let controls = controls_with_budget(CassieRuntimeLimits::default().query_memory_budget_bytes);
+    let context = aggregate_context(&plan, &functions, &controls);
+    let rows =
+        [1, 3, 5, 7].map(|value| BatchRow::new(vec![("value".to_owned(), Value::Int64(value))]));
+    let eligibility = parallel_aggregation_eligibility(&plan, &specs, &functions);
+
+    // Act
+    let partials = aggregate_partitions(&rows, &specs, &context, 2)
+        .expect("numeric statistical worker partitions");
+    let mut merged = PartialAggregateGroup::new(Vec::new(), &specs);
+    for partial in &partials {
+        for group in partial.groups.values() {
+            merged.merge(group).expect("merge exact Numeric moments");
+        }
+    }
+    let values = merged
+        .accumulators
+        .into_iter()
+        .map(AggregateAccumulator::finish)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("finish exact parallel statistical state");
+    drop(partials);
+
+    // Assert
+    assert_eq!(eligibility, Ok(()));
+    let [Value::Typed(crate::types::typed::TypedValue::Numeric(variance))] = values.as_slice()
+    else {
+        panic!("integer variance should return NUMERIC, got {values:?}");
+    };
+    assert_eq!(
+        variance.compare(&crate::types::extended::numeric::Numeric::from_i128(5)),
+        std::cmp::Ordering::Equal
+    );
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_fall_back_to_row_order_for_parallel_float_statistics() {
+    // Arrange
+    let config = CassieRuntimeConfig {
+        limits: CassieRuntimeLimits {
+            parallel_aggregation_workers: 2,
+            ..CassieRuntimeLimits::default()
+        },
+        ..CassieRuntimeConfig::default()
+    };
+    let cassie = Cassie::new_in_memory_with_config(config).expect("in-memory Cassie");
+    let plan = aggregate_plan("SELECT var_pop(value) FROM events");
+    let functions = HashMap::new();
+    let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
+    let context = aggregate_context(&plan, &functions, &controls);
+    let rows = (0..2 * batch::DEFAULT_BATCH_SIZE)
+        .map(|index| {
+            let value = match index % 4 {
+                0 => 1.0e16,
+                1 => 1.0,
+                2 => -1.0e16,
+                _ => 3.0,
+            };
+            BatchRow::new(vec![("value".to_owned(), Value::Float64(value))])
+        })
+        .collect::<Vec<_>>();
+    let serial = AggregateAccumulator::evaluate(aggregate_call(&plan), &rows, &context)
+        .expect("serial float statistical aggregate");
+    let before = cassie.runtime.snapshot();
+
+    // Act
+    let output = aggregate_query_batches_inner(&cassie, vec![rows], &context)
+        .expect("parallel attempt should fall back to serial");
+    let output_rows = batch::flatten_batches(output);
+    let result = output_rows[0]
+        .get("var_pop")
+        .expect("statistical output column");
+    let after = cassie.runtime.snapshot();
+
+    // Assert
+    assert_eq!(result, &serial);
+    assert_eq!(
+        after.parallel_aggregation.fallback_aggregations,
+        before.parallel_aggregation.fallback_aggregations + 1
+    );
+    assert_eq!(
+        after.parallel_aggregation.last_fallback_reason,
+        "aggregate-state-requires-row-order"
+    );
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_cancel_statistical_aggregate_before_publishing_a_partial_result() {
+    // Arrange
+    let plan = aggregate_plan("SELECT var_pop(value) FROM events");
+    let functions = HashMap::new();
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+    let context = aggregate_context(&plan, &functions, &controls);
+    let rows = [BatchRow::new(vec![("value".to_owned(), Value::Int64(1))])];
+
+    // Act
+    let error = AggregateAccumulator::evaluate(aggregate_call(&plan), &rows, &context)
+        .expect_err("cancelled statistical work cannot publish a result");
+
+    // Assert
+    assert!(error.to_string().contains("query canceled"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 fn payload_row(tenant: &str, payload: String) -> BatchRow {

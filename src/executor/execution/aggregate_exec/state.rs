@@ -12,6 +12,8 @@ use crate::types::typed::TypedValue;
 use crate::types::Value;
 
 use super::boolean::BooleanState;
+use super::retained_change::{value_retained_bytes, RetainedChange};
+use super::statistical::StatisticalAccumulator;
 use super::{AggregateExecutionContext, AggregateSpec, QueryError};
 
 struct AggregateValueContext<'a> {
@@ -79,39 +81,6 @@ impl PartialAggregateGroup {
     }
 }
 
-/// Retained accumulator bytes before and after an update or merge.
-#[derive(Clone, Copy, Default)]
-pub(in crate::executor::execution) struct RetainedChange {
-    pub(super) before: usize,
-    pub(super) after: usize,
-}
-
-impl RetainedChange {
-    fn replaced(
-        before: Option<&Value>,
-        after: &Value,
-        old_key: Option<&SemanticValue>,
-        new_key: Option<&SemanticValue>,
-    ) -> Self {
-        Self {
-            before: before
-                .map_or(0, value_retained_bytes)
-                .saturating_add(old_key.map_or(0, SemanticValue::estimated_bytes)),
-            after: value_retained_bytes(after)
-                .saturating_add(new_key.map_or(0, SemanticValue::estimated_bytes)),
-        }
-    }
-
-    fn absorb(&mut self, other: Self) {
-        self.before = self.before.saturating_add(other.before);
-        self.after = self.after.saturating_add(other.after);
-    }
-}
-
-fn value_retained_bytes(value: &Value) -> usize {
-    super::group_memory::json_bytes(value)
-}
-
 #[derive(Clone)]
 pub(super) enum AggregateAccumulator {
     Boolean(BooleanState),
@@ -136,6 +105,7 @@ pub(super) enum AggregateAccumulator {
     },
     /// `sum`/`avg` over `interval` inputs.
     Interval(super::interval_aggregate::IntervalAggregate),
+    Statistical(StatisticalAccumulator),
 }
 
 impl AggregateAccumulator {
@@ -152,6 +122,7 @@ impl AggregateAccumulator {
                 .saturating_add(value_retained_bytes(value))
                 .saturating_add(key.as_ref().map_or(0, SemanticValue::estimated_bytes)),
             Self::StringAgg { value: Some(value) } => inline.saturating_add(value.len()),
+            Self::Statistical(state) => inline.saturating_add(state.retained_heap_bytes()),
             _ => inline,
         }
     }
@@ -181,6 +152,7 @@ impl AggregateAccumulator {
             )?;
             let bytes = match &accumulator {
                 Self::MinMax { key: Some(key), .. } => key.estimated_bytes(),
+                Self::Statistical(state) => state.retained_heap_bytes(),
                 _ => 0,
             };
             key_memory.resize(retained_key_bytes, bytes)?;
@@ -190,6 +162,9 @@ impl AggregateAccumulator {
     }
 
     pub(super) fn new(function: &FunctionCall) -> Self {
+        if let Some(state) = StatisticalAccumulator::new(function) {
+            return Self::Statistical(state);
+        }
         if let Some(state) = BooleanState::new(&function.name) {
             return Self::Boolean(state);
         }
@@ -266,6 +241,14 @@ impl AggregateAccumulator {
         }
         match self {
             Self::Interval(_) => {}
+            Self::Statistical(state) => {
+                let before = state.retained_heap_bytes();
+                state.update(&function.name, &value)?;
+                return Ok(RetainedChange {
+                    before,
+                    after: state.retained_heap_bytes(),
+                });
+            }
             Self::Boolean(state) => match value {
                 Value::Bool(value) => state.update(value),
                 Value::Null => {}
@@ -354,6 +337,14 @@ impl AggregateAccumulator {
         match (self, other) {
             (Self::Boolean(state), Self::Boolean(later)) => state.merge(later)?,
             (Self::Interval(state), Self::Interval(later)) => state.merge(later)?,
+            (Self::Statistical(state), Self::Statistical(later)) => {
+                let before = state.retained_heap_bytes();
+                state.merge(later)?;
+                return Ok(RetainedChange {
+                    before,
+                    after: state.retained_heap_bytes(),
+                });
+            }
             (Self::Count { count }, Self::Count { count: other }) => {
                 *count = count
                     .checked_add(*other)
@@ -436,6 +427,7 @@ impl AggregateAccumulator {
             }
             Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
             Self::Interval(state) => state.finish()?,
+            Self::Statistical(state) => state.finish()?,
         })
     }
 
@@ -445,6 +437,7 @@ impl AggregateAccumulator {
         match self {
             Self::Sum { sum, .. } => sum.requires_row_order(),
             Self::Avg { sum, .. } => sum.requires_row_order(),
+            Self::Statistical(state) => state.requires_row_order(),
             Self::StringAgg { .. } => true,
             Self::Boolean(_) | Self::Count { .. } | Self::MinMax { .. } | Self::Interval(_) => {
                 false
@@ -483,6 +476,7 @@ impl AggregateAccumulator {
                 key.as_ref().map_or(0, SemanticValue::estimated_bytes),
             )?,
             Self::StringAgg { value: Some(value) } => value.len(),
+            Self::Statistical(state) => state.retained_heap_bytes(),
             _ => 0,
         })
     }

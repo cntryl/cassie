@@ -129,7 +129,8 @@ fn apply_single_window(
                 crate::executor::array_order::expression_type(row, expr, context.user_functions)
             })
             .unwrap_or(crate::types::DataType::Null),
-        "sum" | "count" | "bool_and" | "bool_or" => rows
+        "sum" | "count" | "bool_and" | "bool_or" | "var_pop" | "var_samp" | "variance"
+        | "stddev_pop" | "stddev_samp" | "stddev" => rows
             .first()
             .and_then(|row| {
                 let aggregate = FunctionCall {
@@ -191,6 +192,12 @@ fn validated_window_function_name(function: &WindowFunctionCall) -> Result<Strin
             | "sum"
             | "bool_and"
             | "bool_or"
+            | "var_pop"
+            | "var_samp"
+            | "variance"
+            | "stddev_pop"
+            | "stddev_samp"
+            | "stddev"
     ) {
         return Ok(function_name);
     }
@@ -381,7 +388,8 @@ fn window_value_at(
             false,
             context,
         ),
-        "count" | "sum" | "bool_and" | "bool_or" => {
+        "count" | "sum" | "bool_and" | "bool_or" | "var_pop" | "var_samp" | "variance"
+        | "stddev_pop" | "stddev_samp" | "stddev" => {
             let positions = frame_positions(
                 value_position.position,
                 indices,

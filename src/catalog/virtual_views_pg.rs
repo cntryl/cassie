@@ -25,6 +25,7 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         text("relpersistence"),
         int("reltuples"),
         text("relacl"),
+        text("reloptions"),
     ]
 }
 
@@ -119,7 +120,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
             current_database
                 .is_none_or(|database| relation_belongs_to_database(&collection.name, database))
         })
-        .map(|collection| class_row(catalog, &collection.name, "r"))
+        .map(|collection| class_row(catalog, &collection.name, "r", None))
         .collect::<Vec<_>>();
     rows.extend(
         catalog
@@ -129,7 +130,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 current_database
                     .is_none_or(|database| relation_belongs_to_database(&view.name, database))
             })
-            .map(|view| class_row(catalog, &view.name, "v")),
+            .map(|view| class_row(catalog, &view.name, "v", None)),
     );
     rows.extend(
         catalog
@@ -139,7 +140,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 current_database
                     .is_none_or(|database| relation_belongs_to_database(&sequence.name, database))
             })
-            .map(|sequence| class_row(catalog, &sequence.name, "S")),
+            .map(|sequence| class_row(catalog, &sequence.name, "S", None)),
     );
     rows.extend(
         sorted_indexes(catalog)
@@ -149,7 +150,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
                     relation_belongs_to_database(&index.collection, database)
                 })
             })
-            .map(|index| class_row(catalog, &index.name, "i")),
+            .map(|index| class_row(catalog, &index.name, "i", Some(&index))),
     );
     rows.sort_by_key(row_sort_key);
     rows
@@ -358,11 +359,17 @@ fn namespace_row(catalog: &Catalog, canonical: &str, name: &str) -> VirtualRow {
     ]
 }
 
-fn class_row(catalog: &Catalog, name: &str, kind: &str) -> VirtualRow {
+fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta>) -> VirtualRow {
     let relation_name = local_name(name);
     let schema_name = relation_schema_name(name);
     vec![
-        int_value("oid", relation_kind_oid(catalog, kind, name)),
+        int_value(
+            "oid",
+            index.map_or_else(
+                || relation_oid(catalog, name),
+                |index| index_oid(&index.name),
+            ),
+        ),
         string("relname", relation_name),
         string("relkind", kind),
         string("relnamespace", &schema_name),
@@ -384,7 +391,21 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str) -> VirtualRow {
         ),
         int_value("reltuples", 0),
         string("relacl", ""),
+        index.and_then(index_reloptions).map_or_else(
+            || ("reloptions".to_string(), Value::Null),
+            |value| string("reloptions", value),
+        ),
     ]
+}
+
+fn index_reloptions(index: &IndexMeta) -> Option<String> {
+    let options = index
+        .options
+        .iter()
+        .filter(|(name, _)| matches!(name.as_str(), "deduplicate_items" | "fillfactor"))
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>();
+    (!options.is_empty()).then(|| format!("{{{}}}", options.join(",")))
 }
 
 fn relation_has_indexes(catalog: &Catalog, name: &str) -> bool {
@@ -696,19 +717,11 @@ pub(super) fn database_oid(name: &str) -> i64 {
 }
 
 pub(super) fn index_oid(name: &str) -> i64 {
-    stable_catalog_oid("index", name, 200_000)
+    i64::from(crate::catalog::object_identity::stable_index_oid(name))
 }
 
 pub(super) fn constraint_oid(collection: &str, constraint: &str) -> i64 {
     stable_catalog_oid("constraint", &format!("{collection}.{constraint}"), 300_000)
-}
-
-fn relation_kind_oid(catalog: &Catalog, kind: &str, name: &str) -> i64 {
-    if kind == "i" {
-        index_oid(name)
-    } else {
-        relation_oid(catalog, name)
-    }
 }
 
 fn stable_catalog_oid(kind: &str, name: &str, base: i64) -> i64 {

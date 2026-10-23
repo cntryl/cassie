@@ -329,6 +329,9 @@ fn execute_schema_object_group(
         LogicalCommand::DropIndex(statement) => Some(CommandExecution::invalidating(
             super::schema_command::drop_index(cassie, statement, controls),
         )),
+        LogicalCommand::AlterIndex(statement) => Some(CommandExecution::invalidating(
+            super::schema_command::alter_index_storage_parameters(cassie, statement, controls),
+        )),
         LogicalCommand::Reindex(statement) => Some(CommandExecution::invalidating(
             super::schema_command::reindex(cassie, statement, controls),
         )),

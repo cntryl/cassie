@@ -143,6 +143,7 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         | QueryStatement::RevokeDatabaseConnect(_)
         | QueryStatement::CreateIndex(_)
         | QueryStatement::DropIndex(_)
+        | QueryStatement::AlterIndex(_)
         | QueryStatement::Reindex(_)
         | QueryStatement::CreateRollup(_)
         | QueryStatement::RefreshRollup(_)

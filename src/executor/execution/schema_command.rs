@@ -19,7 +19,7 @@ mod schema_graph_rename;
 mod schema_index_command;
 #[path = "schema_sequence_rename.rs"]
 mod schema_sequence_rename;
-pub(super) use schema_index_command::{drop_index, reindex};
+pub(super) use schema_index_command::{alter_index_storage_parameters, drop_index, reindex};
 
 pub(super) fn create_graph(
     cassie: &Cassie,

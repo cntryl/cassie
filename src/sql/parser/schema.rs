@@ -1,14 +1,15 @@
 use super::expr::split_csv;
 use super::{
     find_matching_paren, find_top_level_keyword, parse_enclosed_parenthesized,
-    parse_optional_role_password, split_keyword, strip_parentheses, AlterRoleStatement,
-    AlterSchemaOperation, AlterSchemaStatement, AlterSequenceStatement, AlterTableOperation,
-    AlterTableStatement, ConstraintCheck, ConstraintOperator, CreateDatabaseStatement,
-    CreateGraphStatement, CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement,
-    CreateSequenceStatement, CreateTableStatement, DataType, DatabaseConnectPrivilegeStatement,
-    DropDatabaseStatement, DropIndexStatement, DropRoleStatement, DropSchemaStatement,
-    DropSequenceStatement, DropTableStatement, Expr, FieldConstraint, FieldDefinition, HashSet,
-    IndexKind, ParsedStatement, QueryStatement, SqlError, Value,
+    parse_optional_role_password, split_keyword, strip_parentheses, AlterIndexOperation,
+    AlterIndexStatement, AlterRoleStatement, AlterSchemaOperation, AlterSchemaStatement,
+    AlterSequenceStatement, AlterTableOperation, AlterTableStatement, ConstraintCheck,
+    ConstraintOperator, CreateDatabaseStatement, CreateGraphStatement, CreateIndexStatement,
+    CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
+    DataType, DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropIndexStatement,
+    DropRoleStatement, DropSchemaStatement, DropSequenceStatement, DropTableStatement, Expr,
+    FieldConstraint, FieldDefinition, HashSet, IndexKind, ParsedStatement, QueryStatement,
+    SqlError, Value,
 };
 
 #[path = "schema_fields.rs"]
@@ -37,8 +38,8 @@ use schema_identifiers::{
     parse_column_identifier, parse_column_reference, parse_identifier, parse_relation_path,
 };
 pub(super) use schema_indexes::{
-    parse_create_index_statement, parse_drop_index_statement, parse_index_options,
-    parse_reindex_statement,
+    parse_alter_index_statement, parse_create_index_statement, parse_drop_index_statement,
+    parse_index_options, parse_reindex_statement,
 };
 use schema_like::{is_like_table_element, parse_create_table_like_clause};
 use schema_literals::parse_constant_literal;

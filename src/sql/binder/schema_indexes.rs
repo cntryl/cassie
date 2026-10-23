@@ -67,43 +67,18 @@ pub(super) fn bind_create_index(
     let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
     validate_include_fields(&statement, &schema, &table, &fields, &include_fields)?;
     validate_index_fields_and_expressions(&schema, &table, &fields, &expressions)?;
-    validate_scalar_index_key_options(&statement, &schema, &fields, &expressions)?;
-
-    match statement.kind {
-        crate::catalog::IndexKind::Vector => schema_index_options::bind_vector_index_options(
-            &mut statement,
+    bind_index_method_options(
+        &mut statement,
+        IndexMethodBinding {
             catalog,
-            &schema,
-            &table,
-            &name,
-            fields.as_slice(),
-        )?,
-        crate::catalog::IndexKind::FullText => {
-            bind_fulltext_index_options(&mut statement, catalog, &schema, &table, &name, &fields)?;
-        }
-        crate::catalog::IndexKind::Column => {
-            bind_column_index_options(
-                &mut statement,
-                &table,
-                &name,
-                &fields,
-                &expressions,
-                &include_fields,
-            )?;
-        }
-        crate::catalog::IndexKind::TimeSeries => {
-            schema_index_options::bind_time_series_index_options(
-                &mut statement,
-                &schema,
-                &table,
-                &name,
-                fields.as_slice(),
-                expressions.as_slice(),
-                include_fields.as_slice(),
-            )?;
-        }
-        crate::catalog::IndexKind::Scalar | crate::catalog::IndexKind::Hybrid => {}
-    }
+            schema: &schema,
+            table: &table,
+            name: &name,
+            fields: &fields,
+            expressions: &expressions,
+            include_fields: &include_fields,
+        },
+    )?;
 
     if let Some(predicate) = &mut statement.predicate {
         bind_index_predicate(predicate, &schema, &table, catalog, context)?;
@@ -121,6 +96,123 @@ pub(super) fn bind_create_index(
     statement.expressions = expressions;
     statement.include_fields = include_fields;
     Ok(statement)
+}
+
+#[derive(Clone, Copy)]
+struct IndexMethodBinding<'a> {
+    catalog: &'a Catalog,
+    schema: &'a CollectionSchema,
+    table: &'a str,
+    name: &'a str,
+    fields: &'a [String],
+    expressions: &'a [Expr],
+    include_fields: &'a [String],
+}
+
+fn bind_index_method_options(
+    statement: &mut CreateIndexStatement,
+    binding: IndexMethodBinding<'_>,
+) -> Result<(), CassieError> {
+    let IndexMethodBinding {
+        catalog,
+        schema,
+        table,
+        name,
+        fields,
+        expressions,
+        include_fields,
+    } = binding;
+    validate_scalar_index_key_options(statement, schema, fields, expressions)?;
+    validate_scalar_storage_options(statement)?;
+    match statement.kind {
+        crate::catalog::IndexKind::Vector => schema_index_options::bind_vector_index_options(
+            statement, catalog, schema, table, name, fields,
+        )?,
+        crate::catalog::IndexKind::FullText => {
+            bind_fulltext_index_options(statement, catalog, schema, table, name, fields)?;
+        }
+        crate::catalog::IndexKind::Column => {
+            bind_column_index_options(statement, table, name, fields, expressions, include_fields)?;
+        }
+        crate::catalog::IndexKind::TimeSeries => {
+            schema_index_options::bind_time_series_index_options(
+                statement,
+                schema,
+                table,
+                name,
+                fields,
+                expressions,
+                include_fields,
+            )?;
+        }
+        crate::catalog::IndexKind::Scalar | crate::catalog::IndexKind::Hybrid => {}
+    }
+    Ok(())
+}
+
+pub(super) fn validate_scalar_storage_options(
+    statement: &mut CreateIndexStatement,
+) -> Result<(), CassieError> {
+    if statement.kind != crate::catalog::IndexKind::Scalar {
+        return Ok(());
+    }
+    let storage_options = statement
+        .options
+        .keys()
+        .filter(|key| key.as_str() != IndexMeta::ACCESS_METHOD_OPTION)
+        .filter(|key| !key.starts_with("__cassie_index_key_"))
+        .cloned()
+        .collect::<Vec<_>>();
+    if storage_options.is_empty() {
+        return Ok(());
+    }
+    let access_method = statement
+        .options
+        .get(IndexMeta::ACCESS_METHOD_OPTION)
+        .map_or("btree", String::as_str);
+    if statement.kind != crate::catalog::IndexKind::Scalar
+        || !access_method.eq_ignore_ascii_case("btree")
+    {
+        return Err(CassieError::Unsupported(
+            "storage parameters are supported only for scalar btree indexes".into(),
+        ));
+    }
+    for option in storage_options {
+        let value = statement
+            .options
+            .get(&option)
+            .expect("storage option key was collected from the map")
+            .clone();
+        let normalized = match option.as_str() {
+            "fillfactor" => {
+                let fillfactor = value
+                    .parse::<u8>()
+                    .ok()
+                    .filter(|value| (10..=100).contains(value));
+                fillfactor.map(|value| value.to_string()).ok_or_else(|| {
+                    CassieError::Planner("btree fillfactor must be between 10 and 100".into())
+                })?
+            }
+            "deduplicate_items" => normalize_storage_boolean(&option, &value)?,
+            _ => {
+                return Err(CassieError::Unsupported(format!(
+                    "unsupported btree storage parameter '{option}'"
+                )));
+            }
+        };
+        statement.options.insert(option, normalized);
+    }
+    Ok(())
+}
+
+pub(super) fn normalize_storage_boolean(name: &str, value: &str) -> Result<String, CassieError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "on" | "true" | "yes" | "1" => Ok("on".to_string()),
+        "off" | "false" | "no" | "0" => Ok("off".to_string()),
+        _ => Err(CassieError::Planner(format!(
+            "btree {name} must be on or off"
+        ))),
+    }
 }
 
 fn reject_unsupported_scalar_access_method(

@@ -7,7 +7,10 @@ use crate::catalog::builtin_identity::{
     builtin_identities, BOOTSTRAP_ROLE_OID, INFORMATION_SCHEMA_NAMESPACE_OID,
     PG_CATALOG_NAMESPACE_OID, PG_TOAST_NAMESPACE_OID, PUBLIC_NAMESPACE_OID,
 };
-use crate::catalog::{canonical_relation_name, canonical_schema_name, Catalog, DEFAULT_SCHEMA};
+use crate::catalog::{
+    canonical_relation_name, canonical_schema_name, local_name, relation_schema_name, Catalog,
+    DEFAULT_SCHEMA,
+};
 use crate::sql::binder::BindingContext;
 use crate::types::object_id::{parse_oid_text, FIRST_NORMAL_OBJECT_ID};
 use crate::types::{ObjectIdKind, ObjectIdentifierError};
@@ -165,12 +168,37 @@ impl<'a> ObjectScope<'a> {
                 });
         }
         let canonical = canonical_relation_name(&self.context.database, schema, name);
-        let oid = stored_relation_oid(self.catalog, &canonical)?;
-        Some(RelationIdentity {
-            oid,
-            schema: schema.to_string(),
-            name: name.to_string(),
-        })
+        if let Some(oid) = stored_relation_oid(self.catalog, &canonical) {
+            return Some(RelationIdentity {
+                oid,
+                schema: schema.to_string(),
+                name: name.to_string(),
+            });
+        }
+        self.index_in_schema(schema, name)
+    }
+
+    fn index_in_schema(&self, schema: &str, name: &str) -> Option<RelationIdentity> {
+        self.catalog
+            .all_indexes_snapshot()
+            .into_iter()
+            .find_map(|index| {
+                let relation = crate::catalog::RelationId::parse_canonical(&index.collection)?;
+                if !relation
+                    .database
+                    .eq_ignore_ascii_case(&self.context.database)
+                    || !relation.schema.eq_ignore_ascii_case(schema)
+                    || !local_name(&index.name).eq_ignore_ascii_case(name)
+                {
+                    return None;
+                }
+                let oid = stable_index_oid(&index.name);
+                Some(RelationIdentity {
+                    oid,
+                    schema: relation_schema_name(&index.collection),
+                    name: local_name(&index.name),
+                })
+            })
     }
 
     fn relation_by_oid(&self, oid: u32) -> Option<RelationIdentity> {
@@ -186,6 +214,33 @@ impl<'a> ObjectScope<'a> {
                 });
         }
         let id = u64::from(oid - FIRST_NORMAL_OBJECT_ID);
+        if let Some(index) =
+            self.catalog
+                .all_indexes_snapshot()
+                .into_iter()
+                .find(|index| {
+                    stable_index_oid(&index.name) == oid
+                        && crate::catalog::RelationId::parse_canonical(&index.collection)
+                            .is_some_and(|relation| {
+                                relation
+                                    .database
+                                    .eq_ignore_ascii_case(&self.context.database)
+                            })
+                })
+        {
+            let relation = crate::catalog::RelationId::parse_canonical(&index.collection)?;
+            if !relation
+                .database
+                .eq_ignore_ascii_case(&self.context.database)
+            {
+                return None;
+            }
+            return Some(RelationIdentity {
+                oid,
+                schema: relation.schema,
+                name: local_name(&index.name),
+            });
+        }
         let name = self
             .catalog
             .list_collections_canonical()
@@ -338,6 +393,21 @@ pub fn stored_relation_oid(catalog: &Catalog, canonical: &str) -> Option<u32> {
     } else {
         normal_oid(catalog.get_sequence(canonical)?.object_id)
     }
+}
+
+/// The stable catalog OID used for an index relation.
+#[must_use]
+pub(crate) fn stable_index_oid(name: &str) -> u32 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in "index"
+        .bytes()
+        .chain(*b":")
+        .chain(name.to_ascii_lowercase().bytes())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    u32::try_from(200_000_u64 + hash % 800_000).unwrap_or(0)
 }
 
 /// The OID of a schema by canonical name, including the fixed system schemas.

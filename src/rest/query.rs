@@ -520,6 +520,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::RevokeDatabaseConnect(_) => "REVOKE",
         QueryStatement::CreateIndex(_) => "CREATE INDEX",
         QueryStatement::DropIndex(_) => "DROP INDEX",
+        QueryStatement::AlterIndex(_) => "ALTER INDEX",
         QueryStatement::Reindex(_) => "REINDEX",
         QueryStatement::CreateRollup(_) => "CREATE ROLLUP",
         QueryStatement::RefreshRollup(_) => "REFRESH ROLLUP",

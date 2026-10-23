@@ -23,16 +23,17 @@ pub(crate) use source_types::{
 };
 
 pub use ast::{
-    AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
-    CatalogStatement, CatalogStatementRef, CommonTableExpression, CopyFormat, CopyStatement,
-    CreateMaterializedViewStatement, CreateSchemaStatement, CreateTableLikeClause,
-    CreateTableLikeFeature, CreateTableLikeOption, CreateTableStatement, CreateViewStatement,
-    DeleteStatement, DropMaterializedViewStatement, DropSchemaStatement, DropTableStatement,
-    DropViewStatement, FieldDefinition, IdentifierComponent, IdentifierPath, InsertStatement,
-    ParsedStatement, ProjectionStatement, ProjectionStatementRef, QuerySource, QueryStatement,
-    RefreshMaterializedViewStatement, ReindexStatement, ReindexTarget, RetentionStatement,
-    RetentionStatementRef, RuntimeStatement, RuntimeStatementRef, SelectItem, SelectStatement,
-    StatementFamily, StatementRoute, StatementRouteRef, UpdateStatement,
+    AlterIndexOperation, AlterIndexStatement, AlterSchemaOperation, AlterSchemaStatement,
+    AlterTableOperation, AlterTableStatement, CatalogStatement, CatalogStatementRef,
+    CommonTableExpression, CopyFormat, CopyStatement, CreateMaterializedViewStatement,
+    CreateSchemaStatement, CreateTableLikeClause, CreateTableLikeFeature, CreateTableLikeOption,
+    CreateTableStatement, CreateViewStatement, DeleteStatement, DropMaterializedViewStatement,
+    DropSchemaStatement, DropTableStatement, DropViewStatement, FieldDefinition,
+    IdentifierComponent, IdentifierPath, InsertStatement, ParsedStatement, ProjectionStatement,
+    ProjectionStatementRef, QuerySource, QueryStatement, RefreshMaterializedViewStatement,
+    ReindexStatement, ReindexTarget, RetentionStatement, RetentionStatementRef, RuntimeStatement,
+    RuntimeStatementRef, SelectItem, SelectStatement, StatementFamily, StatementRoute,
+    StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub(crate) use column_identifier::ColumnIdentifierPath;

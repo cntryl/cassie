@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AlterMaterializedProjectionStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
-    AlterSchemaStatement, AlterSequenceStatement, AlterTableStatement, CallProcedureStatement,
-    CompareProjectionStatement, CopyStatement, CreateDatabaseStatement, CreateFunctionStatement,
-    CreateGraphStatement, CreateIndexStatement, CreateMaterializedProjectionStatement,
-    CreateMaterializedViewStatement, CreateProcedureStatement, CreateRetentionPolicyStatement,
-    CreateRoleStatement, CreateRollupStatement, CreateSchemaStatement, CreateSequenceStatement,
-    CreateTableStatement, CreateViewStatement, DatabaseConnectPrivilegeStatement, DeleteStatement,
+    AlterIndexStatement, AlterMaterializedProjectionStatement, AlterRetentionPolicyStatement,
+    AlterRoleStatement, AlterSchemaStatement, AlterSequenceStatement, AlterTableStatement,
+    CallProcedureStatement, CompareProjectionStatement, CopyStatement, CreateDatabaseStatement,
+    CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
+    CreateMaterializedProjectionStatement, CreateMaterializedViewStatement,
+    CreateProcedureStatement, CreateRetentionPolicyStatement, CreateRoleStatement,
+    CreateRollupStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
+    CreateViewStatement, DatabaseConnectPrivilegeStatement, DeleteStatement,
     DiffProjectionStatement, DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
     DropMaterializedProjectionStatement, DropMaterializedProjectionVersionStatement,
     DropMaterializedViewStatement, DropProcedureStatement, DropRetentionPolicyStatement,
@@ -80,6 +81,7 @@ pub enum CatalogStatementRef<'a> {
     CallProcedure(&'a CallProcedureStatement),
     CreateIndex(&'a CreateIndexStatement),
     DropIndex(&'a DropIndexStatement),
+    AlterIndex(&'a AlterIndexStatement),
     Reindex(&'a ReindexStatement),
 }
 
@@ -160,6 +162,7 @@ pub enum CatalogStatement {
     CallProcedure(CallProcedureStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    AlterIndex(AlterIndexStatement),
     Reindex(ReindexStatement),
 }
 
@@ -231,6 +234,7 @@ impl QueryStatement {
             | Self::CallProcedure(_)
             | Self::CreateIndex(_)
             | Self::DropIndex(_)
+            | Self::AlterIndex(_)
             | Self::Reindex(_) => StatementFamily::Catalog,
             Self::CreateRollup(_)
             | Self::RefreshRollup(_)
@@ -327,6 +331,7 @@ impl QueryStatement {
             Self::CallProcedure(statement) => CatalogStatementRef::CallProcedure(statement),
             Self::CreateIndex(statement) => CatalogStatementRef::CreateIndex(statement),
             Self::DropIndex(statement) => CatalogStatementRef::DropIndex(statement),
+            Self::AlterIndex(statement) => CatalogStatementRef::AlterIndex(statement),
             Self::Reindex(statement) => CatalogStatementRef::Reindex(statement),
             _ => unreachable!("statement family should match catalog route"),
         }
@@ -446,6 +451,7 @@ impl QueryStatement {
             Self::CallProcedure(statement) => CatalogStatement::CallProcedure(statement),
             Self::CreateIndex(statement) => CatalogStatement::CreateIndex(statement),
             Self::DropIndex(statement) => CatalogStatement::DropIndex(statement),
+            Self::AlterIndex(statement) => CatalogStatement::AlterIndex(statement),
             Self::Reindex(statement) => CatalogStatement::Reindex(statement),
             _ => unreachable!("statement family should match catalog route"),
         }

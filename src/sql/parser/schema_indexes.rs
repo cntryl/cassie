@@ -1,8 +1,9 @@
 use super::super::expr::{parse_expression, split_csv};
 use super::schema_identifiers::{parse_column_reference, parse_identifier, parse_relation_path};
 use super::{
-    find_matching_paren, find_top_level_keyword, CreateIndexStatement, DropIndexStatement, Expr,
-    IndexKind, ParsedStatement, QueryStatement, SqlError,
+    find_matching_paren, find_top_level_keyword, AlterIndexOperation, AlterIndexStatement,
+    CreateIndexStatement, DropIndexStatement, Expr, IndexKind, ParsedStatement, QueryStatement,
+    SqlError,
 };
 
 use super::{parse_if_exists, parse_if_not_exists, starts_with_keyword};
@@ -61,14 +62,7 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     let (include_fields, remainder) = parse_index_include_fields(remainder)?;
     let (predicate, remainder) = parse_index_predicate(remainder)?;
     let (mut options, remainder) = parse_index_options(remainder)?;
-    if options
-        .keys()
-        .any(|key| key.starts_with("__cassie_index_key_"))
-    {
-        return Err(SqlError::unsupported(
-            "index key metadata options are reserved for SQL key clauses".to_string(),
-        ));
-    }
+    reject_reserved_index_options(&options)?;
     options.extend(key_options);
 
     if !remainder.is_empty() {
@@ -156,6 +150,87 @@ pub(in crate::sql::parser) fn parse_drop_index_statement(
             name: name.to_string(),
             table,
             if_exists,
+        }),
+    })
+}
+
+pub(in crate::sql::parser) fn parse_alter_index_statement(
+    sql: &str,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let alteration = trimmed["alter index".len()..].trim();
+    let (if_exists, alteration) = parse_if_exists(alteration);
+    let set_position = find_top_level_keyword(alteration, 0, "set");
+    let reset_position = find_top_level_keyword(alteration, 0, "reset");
+    let (position, action) = match (set_position, reset_position) {
+        (Some(set), Some(reset)) if set < reset => (set, "set"),
+        (Some(set), None) => (set, "set"),
+        (_, Some(reset)) => (reset, "reset"),
+        (None, None) => {
+            return Err(SqlError::new(
+                "ALTER INDEX requires SET or RESET storage parameters".to_string(),
+            ));
+        }
+    };
+    let name = alteration[..position].trim();
+    if name.is_empty() {
+        return Err(SqlError::new(
+            "ALTER INDEX requires an index name".to_string(),
+        ));
+    }
+    crate::sql::ast::IdentifierPath::parse(name).map_err(SqlError::new)?;
+
+    let values = alteration[position + action.len()..].trim();
+    let body_start = values.find('(').ok_or_else(|| {
+        SqlError::new("ALTER INDEX storage parameters require parentheses".to_string())
+    })?;
+    let close = find_matching_paren(values, body_start).ok_or_else(|| {
+        SqlError::new("ALTER INDEX storage parameters require closing ')'".to_string())
+    })?;
+    if !values[close + 1..].trim().is_empty() {
+        return Err(SqlError::new(
+            "unsupported tokens after ALTER INDEX parameters".to_string(),
+        ));
+    }
+    let body = &values[body_start + 1..close];
+    let operation = if action == "set" {
+        let options = parse_index_option_assignments(body)?;
+        if options.is_empty() {
+            return Err(SqlError::new(
+                "ALTER INDEX SET requires at least one parameter".to_string(),
+            ));
+        }
+        reject_reserved_index_options(&options)?;
+        AlterIndexOperation::Set(options)
+    } else {
+        let options = split_csv(body)
+            .into_iter()
+            .map(|option| {
+                let option = option.trim();
+                if option.is_empty() || option.contains('=') {
+                    return Err(SqlError::new(
+                        "ALTER INDEX RESET requires parameter names".to_string(),
+                    ));
+                }
+                let name = parse_identifier(option)?;
+                Ok(name.to_ascii_lowercase())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if options.is_empty() {
+            return Err(SqlError::new(
+                "ALTER INDEX RESET requires at least one parameter".to_string(),
+            ));
+        }
+        AlterIndexOperation::Reset(options)
+    };
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::AlterIndex(AlterIndexStatement {
+            name: name.to_string(),
+            collection: String::new(),
+            if_exists,
+            operation,
         }),
     })
 }
@@ -443,7 +518,7 @@ pub(in crate::sql::parser) fn parse_index_predicate(
 pub(in crate::sql::parser) fn parse_index_options(
     raw: &str,
 ) -> Result<(std::collections::BTreeMap<String, String>, &str), SqlError> {
-    let mut options = std::collections::BTreeMap::new();
+    let options = std::collections::BTreeMap::new();
     let raw = raw.trim();
     if raw.is_empty() {
         return Ok((options, raw));
@@ -461,6 +536,14 @@ pub(in crate::sql::parser) fn parse_index_options(
     }
 
     let body = &with_body[1..with_body.len() - 1];
+    let options = parse_index_option_assignments(body)?;
+    Ok((options, ""))
+}
+
+fn parse_index_option_assignments(
+    body: &str,
+) -> Result<std::collections::BTreeMap<String, String>, SqlError> {
+    let mut options = std::collections::BTreeMap::new();
     for token in split_csv(body) {
         let token = token.trim();
         let (key, value) = token
@@ -479,8 +562,18 @@ pub(in crate::sql::parser) fn parse_index_options(
         }
         options.insert(key, value);
     }
+    Ok(options)
+}
 
-    Ok((options, ""))
+fn reject_reserved_index_options(
+    options: &std::collections::BTreeMap<String, String>,
+) -> Result<(), SqlError> {
+    if options.keys().any(|key| key.starts_with("__cassie_")) {
+        return Err(SqlError::unsupported(
+            "index metadata options are reserved for SQL index clauses".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 pub(in crate::sql::parser) fn parse_reindex_statement(

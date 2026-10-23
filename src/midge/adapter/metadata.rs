@@ -1,11 +1,13 @@
-use super::index_publication::PendingIndexPublication;
 use super::{
-    check_index_drop_failure_point, check_index_publication_failure_point, collect_scan,
-    key_encoding, payload_contains_index_membership, payload_contains_vector_membership,
-    CassieError, CollectionCardinalityStats, FieldConstraint, IndexKind, IndexMeta, Midge,
-    ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily,
+    check_index_drop_failure_point, collect_scan, key_encoding, payload_contains_index_membership,
+    payload_contains_vector_membership, CassieError, CollectionCardinalityStats, FieldConstraint,
+    IndexKind, IndexMeta, Midge, ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta,
+    Schema, StorageFamily,
 };
 use crate::catalog::name_matches;
+
+#[path = "metadata/index_lifecycle.rs"]
+mod index_lifecycle;
 
 impl Midge {
     pub(super) fn collection_generation_key(collection: &str) -> Vec<u8> {
@@ -64,68 +66,6 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(id)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn put_index(&self, metadata: &IndexMeta) -> Result<(), CassieError> {
-        self.prepare_index_for_publication(metadata)?;
-        check_index_publication_failure_point()?;
-        self.replay_pending_index_publications()
-    }
-
-    /// Publishes an index while the caller owns the index collection's canonical write gate.
-    ///
-    /// This does not acquire the referential gate or replay other pending index publications.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub(crate) fn put_index_with_held_collection_gate(
-        &self,
-        metadata: &IndexMeta,
-    ) -> Result<(), CassieError> {
-        let publication = self.prepare_index_for_publication(metadata)?;
-        check_index_publication_failure_point()?;
-        self.publish_prepared_index_locked(publication)
-    }
-
-    fn prepare_index_for_publication(
-        &self,
-        metadata: &IndexMeta,
-    ) -> Result<PendingIndexPublication, CassieError> {
-        let metadata = self.prepare_index_metadata(metadata)?;
-        self.prepare_index_publication(&metadata)
-    }
-
-    pub(super) fn prepare_index_metadata(
-        &self,
-        metadata: &IndexMeta,
-    ) -> Result<IndexMeta, CassieError> {
-        for expr in metadata.expressions.iter().chain(&metadata.predicate) {
-            crate::sql::definition_guard::encoded_expression(expr)?;
-        }
-        let mut metadata = metadata.clone();
-        metadata.collection = self.canonical_collection_name(&metadata.collection);
-        let relation_id = self
-            .collection_metadata(&metadata.collection)?
-            .ok_or_else(|| CassieError::CollectionNotFound(metadata.collection.clone()))?
-            .storage_id;
-        let storage_id =
-            if let Some(existing) = self.get_index(&metadata.collection, &metadata.name)? {
-                existing.storage_id().ok_or_else(|| {
-                    CassieError::Parse("index metadata is missing its storage id".to_string())
-                })?
-            } else {
-                let mut tx = self.begin_schema_rw_tx()?;
-                let id = Self::allocate_object_id_to_tx(&mut tx)?;
-                tx.commit(self.write_options_sync())
-                    .map_err(CassieError::from)?;
-                id
-            };
-        metadata.set_storage_ids(relation_id, storage_id);
-        Ok(metadata)
     }
 
     /// # Errors

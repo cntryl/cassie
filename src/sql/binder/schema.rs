@@ -2,10 +2,11 @@ use super::{
     bind_select, bm25, infer_select_schema_with_context, is_reserved_namespace, local_name,
     normalize_new_relation_path, normalize_relation_name, normalize_schema_name,
     resolve_relation_name, resolve_relation_path, resolve_schema_name, select_contains_parameters,
-    virtual_views, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
-    AlterTableStatement, BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema,
-    CreateViewStatement, DataType, DistanceMetric, DropIndexStatement, DropSchemaStatement,
-    DropViewStatement, Expr, HashSet, QueryStatement, ReindexStatement, ReindexTarget,
+    virtual_views, AlterIndexOperation, AlterIndexStatement, AlterSchemaOperation,
+    AlterSchemaStatement, AlterTableOperation, AlterTableStatement, BindingContext, CassieError,
+    Catalog, CatalogObjectKind, CollectionSchema, CreateViewStatement, DataType, DistanceMetric,
+    DropIndexStatement, DropSchemaStatement, DropViewStatement, Expr, HashSet, QueryStatement,
+    ReindexStatement, ReindexTarget,
 };
 
 #[path = "schema_alter_constraints.rs"]
@@ -492,6 +493,67 @@ pub(super) fn bind_drop_index(
 
     statement.table = table;
     statement.name = name;
+    Ok(statement)
+}
+
+pub(super) fn bind_alter_index(
+    mut statement: AlterIndexStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<AlterIndexStatement, CassieError> {
+    let name = statement.name.trim().to_string();
+    if name.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER INDEX requires an index name".into(),
+        ));
+    }
+    let Some(index) = schema_indexes::resolve_drop_index_name(&name, catalog, context)? else {
+        if statement.if_exists {
+            statement.name = name;
+            return Ok(statement);
+        }
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Index,
+            name,
+        });
+    };
+    if index.kind != crate::catalog::IndexKind::Scalar
+        || !index.access_method().eq_ignore_ascii_case("btree")
+    {
+        return Err(CassieError::Unsupported(
+            "ALTER INDEX storage parameters are supported only for scalar btree indexes".into(),
+        ));
+    }
+    match &mut statement.operation {
+        AlterIndexOperation::Set(options) => {
+            let mut candidate = crate::sql::ast::CreateIndexStatement {
+                name: index.name.clone(),
+                table: IdentifierPath::parse(&index.collection).map_err(CassieError::Planner)?,
+                fields: Vec::new(),
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                if_not_exists: false,
+                unique: false,
+                kind: crate::catalog::IndexKind::Scalar,
+                options: std::mem::take(options),
+            };
+            schema_indexes::validate_scalar_storage_options(&mut candidate)?;
+            *options = candidate.options;
+        }
+        AlterIndexOperation::Reset(options) => {
+            if let Some(option) = options
+                .iter()
+                .find(|option| !matches!(option.as_str(), "fillfactor" | "deduplicate_items"))
+            {
+                return Err(CassieError::Unsupported(format!(
+                    "unsupported btree storage parameter '{option}'"
+                )));
+            }
+        }
+    }
+    statement.name = index.name;
+    statement.collection = index.collection;
     Ok(statement)
 }
 

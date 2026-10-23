@@ -183,6 +183,25 @@ impl BatchRow {
         self.lookup = OnceLock::new();
     }
 
+    pub(crate) fn append_value_with_alias(
+        &mut self,
+        name: String,
+        value: Value,
+        alias: &str,
+    ) -> Result<(), CassieError> {
+        self.values.try_reserve_exact(1).map_err(|error| {
+            CassieError::ResourceLimit(format!("unable to retain window output slot: {error}"))
+        })?;
+        self.aliases.try_reserve_exact(1).map_err(|error| {
+            CassieError::ResourceLimit(format!("unable to retain window output alias: {error}"))
+        })?;
+        let index = self.values.len();
+        self.values.push((name, value));
+        self.aliases.push((alias.to_owned(), index));
+        self.lookup = OnceLock::new();
+        Ok(())
+    }
+
     fn column_type(&self, name: &str) -> Option<&DataType> {
         let lookup = self
             .lookup

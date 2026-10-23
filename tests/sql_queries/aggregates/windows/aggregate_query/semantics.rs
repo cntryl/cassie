@@ -276,8 +276,9 @@ fn should_apply_aggregate_filters_to_window_frames() {
     );
 
     // Assert
+    let result = result.expect("FILTER on ordered window aggregates");
     assert_eq!(
-        result.expect("FILTER on ordered window aggregates").rows(),
+        result.rows(),
         &[
             vec![
                 Value::String("a".to_owned()),
@@ -299,6 +300,14 @@ fn should_apply_aggregate_filters_to_window_frames() {
             ],
         ]
     );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 23, 20, 20]
+    );
 }
 
 #[test]
@@ -318,10 +327,9 @@ fn should_apply_boolean_aggregate_filters_over_ordered_window_frames() {
     );
 
     // Assert
+    let result = result.expect("filtered boolean aggregates over ordered windows");
     assert_eq!(
-        result
-            .expect("filtered boolean aggregates over ordered windows")
-            .rows(),
+        result.rows(),
         &[
             vec![
                 Value::String("a".to_owned()),
@@ -354,5 +362,137 @@ fn should_apply_boolean_aggregate_filters_over_ordered_window_frames() {
                 Value::Bool(true),
             ],
         ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25, 23, 16, 16]
+    );
+}
+
+#[test]
+fn should_preserve_empty_results_for_filtered_window_aggregate_frames() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-filtered-window-aggregate-empty-frames",
+        &[
+            "CREATE TABLE issue_806_empty_filtered_window (id INT, n INT, flag BOOLEAN)",
+            "INSERT INTO issue_806_empty_filtered_window VALUES (1,5,TRUE),(2,6,FALSE)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id, \
+         COUNT(*) FILTER (WHERE FALSE) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND CURRENT ROW), \
+         SUM(n) FILTER (WHERE FALSE) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND CURRENT ROW), \
+         BOOL_AND(flag) FILTER (WHERE FALSE) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND CURRENT ROW), \
+         BOOL_OR(flag) FILTER (WHERE FALSE) OVER (ORDER BY id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) \
+         FROM issue_806_empty_filtered_window ORDER BY id",
+    );
+
+    // Assert
+    let result = result.expect("filtered window aggregates return empty-frame values");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![
+                Value::Int64(1),
+                Value::Int64(0),
+                Value::Null,
+                Value::Null,
+                Value::Null,
+            ],
+            vec![
+                Value::Int64(2),
+                Value::Int64(0),
+                Value::Null,
+                Value::Null,
+                Value::Null,
+            ],
+        ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 20, 20, 16, 16]
+    );
+}
+
+#[test]
+fn should_skip_window_aggregate_arguments_when_the_filter_rejects_a_row() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-filter-before-window-aggregate-argument",
+        &[
+            "CREATE TABLE issue_806_filter_before_argument (id INT, value TEXT, selected BOOLEAN)",
+            "INSERT INTO issue_806_filter_before_argument VALUES (1,'invalid',FALSE),(2,'2',TRUE)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT id, SUM(value::INT4) FILTER (WHERE selected) OVER ( \
+             ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW \
+         ) FROM issue_806_filter_before_argument ORDER BY id",
+    );
+
+    // Assert
+    let result = result.expect("filtered-out rows do not evaluate aggregate arguments");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::Int64(1), Value::Null],
+            vec![Value::Int64(2), Value::Int64(2)],
+        ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 20]
+    );
+}
+
+#[test]
+fn should_keep_window_results_out_of_wildcard_expansion() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-window-result-wildcard",
+        &[
+            "CREATE TABLE issue_806_window_wildcard (id INT, n INT)",
+            "INSERT INTO issue_806_window_wildcard VALUES (1,10),(2,20)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT *, COUNT(*) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM issue_806_window_wildcard ORDER BY id",
+    );
+
+    // Assert
+    let result = result.expect("wildcard expansion excludes internal window values");
+    assert_eq!(
+        result.rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(10), Value::Int64(1)],
+            vec![Value::Int64(2), Value::Int64(20), Value::Int64(2)],
+        ]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23, 20]
     );
 }

@@ -308,21 +308,12 @@ fn window_result_type(
     user_functions: &HashMap<String, FunctionMeta>,
     parameter_type_oids: &[i32],
 ) -> DataType {
-    match function.name.to_ascii_lowercase().as_str() {
-        "lag" | "lead" | "first_value" | "last_value" => function
-            .args
-            .first()
-            .and_then(|arg| {
-                crate::sql::binder::infer_expr_type(
-                    arg,
-                    source_schema,
-                    user_functions,
-                    parameter_type_oids,
-                )
-            })
-            .unwrap_or(DataType::Text),
-        _ => DataType::BigInt,
-    }
+    crate::sql::binder::infer_window_return_type(
+        function,
+        source_schema,
+        user_functions,
+        parameter_type_oids,
+    )
 }
 
 fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Schema {

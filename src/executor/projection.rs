@@ -85,7 +85,9 @@ where
                         .iter()
                         .any(|(name, _)| is_legacy_id_column(name));
                     projected.extend(row.entries().iter().filter_map(|(name, value)| {
-                        if hide_internal_identity && is_row_identity_column(name) {
+                        if is_window_value_key(name)
+                            || (hide_internal_identity && is_row_identity_column(name))
+                        {
                             None
                         } else {
                             Some((name.clone(), value.clone()))
@@ -147,8 +149,8 @@ where
                         )?;
                     projected.push((key.clone(), value));
                 }
-                ProjectionOp::WindowFunction { key } => {
-                    projected.push((key.clone(), row.get(key).cloned().unwrap_or(Value::Null)));
+                ProjectionOp::WindowFunction { key, source } => {
+                    projected.push((key.clone(), row.get(source).cloned().unwrap_or(Value::Null)));
                 }
             }
         }
@@ -164,6 +166,7 @@ where
 }
 
 fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
+    let mut window_index = 0;
     projection
         .iter()
         .map(|item| match item {
@@ -203,12 +206,17 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                 expr: expr.clone(),
                 precomputed_key: Some(projection_expr_key(expr)),
             },
-            SelectItem::WindowFunction { function, alias } => ProjectionOp::WindowFunction {
-                key: alias
-                    .as_deref()
-                    .unwrap_or(function.name.as_str())
-                    .to_string(),
-            },
+            SelectItem::WindowFunction { function, alias } => {
+                let source = window_value_key(window_index);
+                window_index += 1;
+                ProjectionOp::WindowFunction {
+                    key: alias
+                        .as_deref()
+                        .unwrap_or(function.name.as_str())
+                        .to_string(),
+                    source,
+                }
+            }
         })
         .collect()
 }
@@ -288,11 +296,10 @@ fn owned_sources_are_distinct(ops: &[ProjectionOp]) -> bool {
     }
     let mut sources = std::collections::HashSet::new();
     ops.iter().all(|op| match op {
-        ProjectionOp::Column { source, .. } => sources.insert(
-            crate::sql::ColumnIdentifierPath::reference_field_key(source),
-        ),
-        ProjectionOp::WindowFunction { key } => {
-            sources.insert(crate::sql::ColumnIdentifierPath::reference_field_key(key))
+        ProjectionOp::Column { source, .. } | ProjectionOp::WindowFunction { source, .. } => {
+            sources.insert(crate::sql::ColumnIdentifierPath::reference_field_key(
+                source,
+            ))
         }
         _ => true,
     })
@@ -327,7 +334,9 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
                 let hide_internal_identity =
                     entries.iter().any(|(name, _)| is_legacy_id_column(name));
                 for (name, value) in &mut entries {
-                    if hide_internal_identity && is_row_identity_column(name) {
+                    if is_window_value_key(name)
+                        || (hide_internal_identity && is_row_identity_column(name))
+                    {
                         continue;
                     }
                     let value = value.take().unwrap_or(Value::Null);
@@ -354,10 +363,10 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
                 }
                 projected.push((key.clone(), value));
             }
-            ProjectionOp::WindowFunction { key } => {
+            ProjectionOp::WindowFunction { key, source } => {
                 let value = entries
                     .iter_mut()
-                    .find(|(name, _)| name == key)
+                    .find(|(name, _)| name == source)
                     .and_then(|(_, value)| value.take())
                     .unwrap_or(Value::Null);
                 if !matches!(value, Value::Null) {
@@ -398,7 +407,16 @@ pub(super) enum ProjectionOp {
     },
     WindowFunction {
         key: String,
+        source: String,
     },
+}
+
+pub(crate) fn window_value_key(index: usize) -> String {
+    format!("\0cassie_window_value_{index}")
+}
+
+pub(crate) fn is_window_value_key(name: &str) -> bool {
+    name.starts_with("\0cassie_window_value_")
 }
 
 fn projection_expr_key(expr: &Expr) -> String {

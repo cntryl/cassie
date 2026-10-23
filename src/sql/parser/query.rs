@@ -8,7 +8,8 @@ use super::{
     ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
 use crate::sql::ast::{
-    SetOperator, WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
+    AggregateQuantifier, SetOperator, WindowFrame, WindowFrameBound, WindowFrameExclusion,
+    WindowFrameUnit,
 };
 
 #[path = "query_select.rs"]
@@ -153,15 +154,40 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
     };
     let function = parse_function(function_raw.trim())?
         .ok_or_else(|| SqlError::new("window function requires function call".into()))?;
-    if function.has_modifiers() {
-        return Err(SqlError::unsupported(
-            "aggregate modifiers on window functions are not yet supported".into(),
-        ));
-    }
     let function_name = function.name.to_ascii_lowercase();
+    let aggregate_window = matches!(
+        function_name.as_str(),
+        "count" | "sum" | "bool_and" | "bool_or"
+    );
+    let function = if aggregate_window {
+        if function.is_distinct() || !function.order_by.is_empty() {
+            return Err(SqlError::unsupported(
+                "DISTINCT and aggregate-local ORDER BY are not supported on window aggregates"
+                    .into(),
+            ));
+        }
+        lower_window_filter(function, &function_name)?
+    } else {
+        if function.has_modifiers() {
+            return Err(SqlError::unsupported(
+                "aggregate modifiers on window functions are not yet supported".into(),
+            ));
+        }
+        function
+    };
     if !matches!(
         function_name.as_str(),
-        "row_number" | "rank" | "dense_rank" | "lag" | "lead" | "first_value" | "last_value"
+        "row_number"
+            | "rank"
+            | "dense_rank"
+            | "lag"
+            | "lead"
+            | "first_value"
+            | "last_value"
+            | "count"
+            | "sum"
+            | "bool_and"
+            | "bool_or"
     ) {
         return Err(SqlError::new(format!(
             "unsupported window function '{}'",
@@ -186,6 +212,16 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
             function.name
         )));
     }
+    if aggregate_window
+        && (function.args.len() != 1
+            || (matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*")
+                && function_name != "count"))
+    {
+        return Err(SqlError::syntax(format!(
+            "{} window aggregate expects one valid argument",
+            function.name
+        )));
+    }
 
     let over_body = strip_parentheses(over_raw.trim())
         .ok_or_else(|| SqlError::new("window function OVER clause requires parentheses".into()))?;
@@ -197,6 +233,37 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
         order_by,
         frame,
     }))
+}
+
+fn lower_window_filter(
+    mut function: super::FunctionCall,
+    function_name: &str,
+) -> Result<super::FunctionCall, SqlError> {
+    let count_star = function_name == "count"
+        && matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*");
+    let Some(predicate) = function.filter.take() else {
+        if count_star {
+            function.args = vec![Expr::IntegerLiteral(1)];
+        }
+        return Ok(function);
+    };
+    let value = match function.args.as_slice() {
+        [Expr::Column(name)] if name == "*" && count_star => Expr::IntegerLiteral(1),
+        [argument] => argument.clone(),
+        _ => {
+            return Err(SqlError::syntax(format!(
+                "{} window aggregate expects one argument",
+                function.name
+            )))
+        }
+    };
+    function.args = vec![Expr::Case {
+        operand: None,
+        branches: vec![(*predicate, value)],
+        else_expr: Some(Box::new(Expr::Null)),
+    }];
+    function.quantifier = AggregateQuantifier::Default;
+    Ok(function)
 }
 
 type WindowSpec = (Vec<Expr>, Vec<OrderExpr>, Option<WindowFrame>);
@@ -382,6 +449,29 @@ pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
     }
 
     parse_single_query_source(raw)
+}
+
+#[cfg(test)]
+mod window_aggregate_tests {
+    use super::parse_window_function;
+
+    #[test]
+    fn should_reject_distinct_and_aggregate_ordering_on_window_aggregates() {
+        // Arrange
+        let distinct =
+            "SUM(DISTINCT n) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)";
+        let ordered =
+            "SUM(n ORDER BY n) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)";
+
+        // Act
+        let distinct_error = parse_window_function(distinct).expect_err("DISTINCT is pending");
+        let ordered_error =
+            parse_window_function(ordered).expect_err("aggregate-local ordering is pending");
+
+        // Assert
+        assert_eq!(distinct_error.kind(), crate::sql::SqlErrorKind::Unsupported);
+        assert_eq!(ordered_error.kind(), crate::sql::SqlErrorKind::Unsupported);
+    }
 }
 
 #[derive(Clone, Copy)]

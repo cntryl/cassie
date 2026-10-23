@@ -67,9 +67,16 @@ fn scalar_oracle_on(mut rows: Vec<BatchRow>, projection: &[SelectItem]) -> Vec<B
         controls: &controls,
         evaluate: None,
     };
-    for (function, alias) in collect_window_functions(projection) {
-        apply_single_window(&mut rows, function, alias.as_deref(), &context)
-            .expect("existing scalar frame authority");
+    for (window_index, function, alias) in collect_window_functions(projection) {
+        let output_name = crate::executor::projection::window_value_key(window_index);
+        apply_single_window(
+            &mut rows,
+            function,
+            &output_name,
+            alias.as_deref().unwrap_or(function.name.as_str()),
+            &context,
+        )
+        .expect("existing scalar frame authority");
     }
     assert_eq!(controls.current_query_memory_bytes(), 0);
     rows
@@ -152,9 +159,16 @@ fn should_preserve_unknown_value_argument_descriptor_after_known_input_fields() 
         controls: &oracle_controls,
         evaluate: None,
     };
-    for (function, alias) in collect_window_functions(&projection) {
-        apply_single_window(&mut expected, function, alias.as_deref(), &context)
-            .expect("unknown scalar descriptor authority");
+    for (window_index, function, alias) in collect_window_functions(&projection) {
+        let output_name = crate::executor::projection::window_value_key(window_index);
+        apply_single_window(
+            &mut expected,
+            function,
+            &output_name,
+            alias.as_deref().unwrap_or(function.name.as_str()),
+            &context,
+        )
+        .expect("unknown scalar descriptor authority");
     }
     let controls = controls();
     // Act

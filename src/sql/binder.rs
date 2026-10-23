@@ -82,6 +82,9 @@ mod conditional_types;
 mod context;
 #[path = "binder/inference.rs"]
 mod inference;
+#[path = "binder/window_types.rs"]
+mod window_types;
+pub(crate) use window_types::infer_window_return_type;
 #[path = "binder/numeric_outputs.rs"]
 mod numeric_outputs;
 pub(crate) use numeric_outputs::infer_plan_output_contract;

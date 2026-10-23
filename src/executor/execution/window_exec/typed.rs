@@ -60,7 +60,7 @@ pub(super) fn apply(
     backing.try_grow(input_bytes(&rows, projection)?)?;
     let windows = collect_window_functions(projection);
     let mut selections = Vec::with_capacity(windows.len());
-    for (function, _) in &windows {
+    for (_, function, _) in &windows {
         let Some(selection) = select(&rows, function, context.controls)? else {
             return scalar(vec![rows], projection, context, "scalar_expression_window");
         };
@@ -73,8 +73,15 @@ pub(super) fn apply(
     }
     let mut native = true;
     let mut payload = false;
-    for ((function, alias), selection) in windows.iter().zip(&selections) {
-        let typed = apply_one(&mut rows, function, alias.as_deref(), selection, context)?;
+    for ((window_index, function, alias), selection) in windows.iter().zip(&selections) {
+        let typed = apply_one(
+            &mut rows,
+            *window_index,
+            function,
+            alias.as_deref().unwrap_or(function.name.as_str()),
+            selection,
+            context,
+        )?;
         native &= typed;
         payload |= selection.payload.is_some();
     }
@@ -585,8 +592,9 @@ fn payload(
 
 fn apply_one(
     rows: &mut [BatchRow],
+    window_index: usize,
     function: &WindowFunctionCall,
-    alias: Option<&str>,
+    output_alias: &str,
     selection: &Selection,
     context: &WindowExecutionContext<'_>,
 ) -> Result<bool, QueryError> {
@@ -604,8 +612,15 @@ fn apply_one(
             .unwrap_or(&DataType::Null),
         None => &DataType::BigInt,
     };
-    let name = alias.unwrap_or(function.name.as_str());
-    let output_bytes = output_bytes(rows, &targets, selection.payload, name, data_type)?;
+    let name = crate::executor::projection::window_value_key(window_index);
+    let output_bytes = output_bytes(
+        rows,
+        &targets,
+        selection.payload,
+        &name,
+        output_alias,
+        data_type,
+    )?;
     let output_memory = Arc::new(context.controls.reserve_query_memory(output_bytes)?);
     let mut values = Vec::with_capacity(rows.len());
     for target in targets {
@@ -634,7 +649,7 @@ fn apply_one(
         check_timeout(context.controls)?;
         row.reserve_append_slot()?;
         row.attach_operator_memory(context.controls, Arc::clone(&output_memory))?;
-        row.append_value(name.to_owned(), value);
+        row.append_value_with_alias(name.clone(), value, output_alias)?;
         if let Some(types) = &types {
             row.set_data_types(Arc::clone(types));
         }
@@ -648,6 +663,7 @@ fn output_bytes(
     targets: &[Target],
     payload: Option<usize>,
     name: &str,
+    output_alias: &str,
     data_type: &DataType,
 ) -> Result<usize, crate::app::CassieError> {
     let mut bytes = add(
@@ -655,7 +671,16 @@ fn output_bytes(
         size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>(),
     )?;
     for (row, target) in rows.iter().zip(targets) {
-        bytes = add(bytes, add(row.append_slot_backing_bytes()?, name.len())?)?;
+        bytes = add(
+            bytes,
+            add(
+                row.append_slot_backing_bytes()?,
+                add(
+                    name.len(),
+                    add(size_of::<(String, usize)>(), output_alias.len())?,
+                )?,
+            )?,
+        )?;
         if let (Target::Row(index), Some(column)) = (target, payload) {
             bytes = add(bytes, value_clone_bytes(&rows[*index].entries()[column].1)?)?;
         }

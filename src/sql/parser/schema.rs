@@ -12,6 +12,8 @@ use super::{
     SqlError, Value,
 };
 
+#[path = "schema_create_table_as.rs"]
+mod schema_create_table_as;
 #[path = "schema_fields.rs"]
 mod schema_fields;
 #[path = "schema_identifiers.rs"]
@@ -54,6 +56,11 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
     let rest = trimmed[12..].trim();
 
     let (if_not_exists, rest) = parse_if_not_exists(rest);
+    if let Some(statement) =
+        schema_create_table_as::parse_create_table_as_statement(trimmed, if_not_exists, rest)?
+    {
+        return Ok(statement);
+    }
 
     let open_paren = rest
         .find('(')
@@ -119,6 +126,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
             fields,
             if_not_exists,
             storage_mode,
+            as_query: None,
             like,
         }),
     })

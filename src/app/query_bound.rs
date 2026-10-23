@@ -72,6 +72,21 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        if let QueryStatement::CreateTable(statement) = &parsed.statement {
+            if statement.as_query.is_some() {
+                self.ensure_session_database_access(session)?;
+                self.ensure_statement_can_execute(session, &parsed, controls)?;
+                Self::mark_statement_transaction_query(session, &parsed.statement);
+                return self.execute_create_table_as(
+                    session,
+                    statement,
+                    &parsed.raw_sql,
+                    parameters,
+                    mode,
+                    controls,
+                );
+            }
+        }
         if matches!(&parsed.statement, QueryStatement::Transaction(_)) {
             return self.execute_bound_statement_inner(
                 session,

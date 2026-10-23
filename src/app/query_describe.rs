@@ -69,6 +69,9 @@ impl Cassie {
         if let Some(session) = session {
             self.ensure_session_database_access(session)?;
         }
+        if is_create_table_as(&parsed) {
+            return Ok(Vec::new());
+        }
         if let crate::sql::ast::QueryStatement::SessionObject(statement) = &parsed.statement {
             return self.describe_session_object(session, statement, wire_output);
         }
@@ -103,24 +106,14 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
 
-        let search_path = session.map_or_else(
-            || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
-            super::CassieSession::search_path,
+        let cache_key = describe_plan_cache_key(
+            &scoped_cassie,
+            can_use_shared_plan_cache,
+            &parsed,
+            sql_fingerprint,
+            parameter_type_oids,
+            session,
         );
-        let database = session
-            .and_then(super::CassieSession::current_database)
-            .map(str::to_string);
-        let cache_key = (can_use_shared_plan_cache
-            && matches!(parsed.statement, crate::sql::ast::QueryStatement::Select(_)))
-        .then(|| {
-            scoped_cassie.plan_cache_key_from_fingerprint(
-                sql_fingerprint,
-                parameter_type_oids,
-                crate::runtime::ExecutionMode::DescribeQuery,
-                database,
-                &search_path,
-            )
-        });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
             scoped_cassie.resolve_physical_plan_with_parameter_oids(
                 parsed,
@@ -364,4 +357,44 @@ impl Cassie {
             )
         })
     }
+}
+
+fn is_create_table_as(parsed: &crate::sql::ast::ParsedStatement) -> bool {
+    matches!(
+        &parsed.statement,
+        crate::sql::ast::QueryStatement::CreateTable(statement)
+            if statement.as_query.is_some()
+    )
+}
+
+fn describe_plan_cache_key(
+    cassie: &Cassie,
+    can_use_shared_plan_cache: bool,
+    parsed: &crate::sql::ast::ParsedStatement,
+    sql_fingerprint: u64,
+    parameter_type_oids: &[i32],
+    session: Option<&super::CassieSession>,
+) -> Option<crate::runtime::PlanCacheKey> {
+    if !can_use_shared_plan_cache
+        || !matches!(
+            &parsed.statement,
+            crate::sql::ast::QueryStatement::Select(_)
+        )
+    {
+        return None;
+    }
+    let search_path = session.map_or_else(
+        || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
+        super::CassieSession::search_path,
+    );
+    let database = session
+        .and_then(super::CassieSession::current_database)
+        .map(str::to_string);
+    Some(cassie.plan_cache_key_from_fingerprint(
+        sql_fingerprint,
+        parameter_type_oids,
+        crate::runtime::ExecutionMode::DescribeQuery,
+        database,
+        &search_path,
+    ))
 }

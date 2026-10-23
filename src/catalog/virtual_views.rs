@@ -840,9 +840,9 @@ fn data_type_name(data_type: &DataType) -> String {
     match data_type {
         DataType::Null => "null".to_string(),
         DataType::SmallInt => "smallint".to_string(),
-        DataType::Int => "int".to_string(),
+        DataType::Int => "integer".to_string(),
         DataType::BigInt => "bigint".to_string(),
-        DataType::Float => "float".to_string(),
+        DataType::Float => "double precision".to_string(),
         DataType::Boolean => "boolean".to_string(),
         DataType::Text => "text".to_string(),
         DataType::Char { length } => match length {

@@ -24,10 +24,10 @@ fn should_create_table_as_prepared_execute_with_typed_parameters() {
             Some(
                 client
                     .query(
-                        "SELECT attname, atttypid::INT, atttypmod, attnotnull \
-                         FROM pg_attribute \
-                         WHERE attrelid = 'compat_ctas_execute_copy'::regclass \
-                           AND attnum > 0 \
+                        "SELECT a.attname, a.atttypid::INT, a.atttypmod, a.attnotnull \
+                         FROM pg_attribute a \
+                         WHERE a.attrelid = 'compat_ctas_execute_copy' \
+                           AND a.attnum > 0 \
                          ORDER BY attnum",
                         &[],
                     )

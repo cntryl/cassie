@@ -18,10 +18,10 @@ fn should_create_table_as_values_with_result_metadata() {
             Some(
                 client
                     .query(
-                        "SELECT attname, atttypid::INT, atttypmod, attnotnull \
-                         FROM pg_attribute \
-                         WHERE attrelid = 'compat_ctas_values_copy'::regclass \
-                           AND attnum > 0 \
+                        "SELECT a.attname, a.atttypid::INT, a.atttypmod, a.attnotnull \
+                         FROM pg_attribute a \
+                         WHERE a.attrelid = 'compat_ctas_values_copy' \
+                           AND a.attnum > 0 \
                          ORDER BY attnum",
                         &[],
                     )

@@ -156,6 +156,286 @@ fn should_serialize_concurrent_materialized_projection_refreshes() {
 }
 
 #[test]
+fn should_keep_active_materialized_view_readable_during_concurrent_refresh_build() {
+    // Arrange
+    let _guard = projection_concurrency_test_guard();
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
+    cassie.startup().expect("startup");
+    let setup = cassie.create_session("setup", None);
+    cassie
+        .execute_sql(
+            &setup,
+            "CREATE TABLE materialized_view_reader_source (id INT PRIMARY KEY, label TEXT)",
+            vec![],
+        )
+        .expect("create source table");
+    cassie
+        .execute_sql(
+            &setup,
+            "INSERT INTO materialized_view_reader_source VALUES (1, 'one'), (2, 'two')",
+            vec![],
+        )
+        .expect("seed source rows");
+    cassie
+        .execute_sql(
+            &setup,
+            "CREATE MATERIALIZED VIEW materialized_view_reader_copy (item_id, item_label) AS \
+             SELECT id, label FROM materialized_view_reader_source",
+            vec![],
+        )
+        .expect("create populated materialized view");
+    cassie
+        .execute_sql(
+            &setup,
+            "CREATE UNIQUE INDEX materialized_view_reader_copy_id_uq \
+             ON materialized_view_reader_copy (item_id)",
+            vec![],
+        )
+        .expect("create concurrent-refresh index");
+    cassie
+        .execute_sql(
+            &setup,
+            "UPDATE materialized_view_reader_source SET label = 'updated' WHERE id = 2",
+            vec![],
+        )
+        .expect("update source before rebuilding the output");
+
+    let build_ready = Arc::new(Barrier::new(2));
+    let build_resume = Arc::new(Barrier::new(2));
+    set_materialized_projection_replace_start_barriers(
+        Some(Arc::clone(&build_ready)),
+        Some(Arc::clone(&build_resume)),
+    );
+    let refresh_cassie = Arc::clone(&cassie);
+
+    // Act
+    let refresh = std::thread::spawn(move || {
+        let session = refresh_cassie.create_session("refresh", None);
+        refresh_cassie.execute_sql(
+            &session,
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY materialized_view_reader_copy",
+            vec![],
+        )
+    });
+    build_ready.wait();
+    let during_build = cassie
+        .execute_sql(
+            &setup,
+            "SELECT item_label FROM materialized_view_reader_copy ORDER BY item_id",
+            vec![],
+        )
+        .expect("read the active output while the replacement is building");
+    build_resume.wait();
+    refresh
+        .join()
+        .expect("concurrent refresh thread")
+        .expect("concurrent refresh should publish the replacement");
+    let after_refresh = cassie
+        .execute_sql(
+            &setup,
+            "SELECT item_label FROM materialized_view_reader_copy ORDER BY item_id",
+            vec![],
+        )
+        .expect("read the newly active output");
+
+    // Assert
+    assert_eq!(
+        during_build.rows(),
+        vec![
+            vec![Value::String("one".to_string())],
+            vec![Value::String("two".to_string())],
+        ]
+    );
+    assert_eq!(
+        after_refresh.rows(),
+        vec![
+            vec![Value::String("one".to_string())],
+            vec![Value::String("updated".to_string())],
+        ]
+    );
+}
+
+#[test]
+fn should_serialize_materialized_view_refresh_modes() {
+    // Arrange
+    let _guard = projection_concurrency_test_guard();
+    let cassie = Arc::new(crate::support_sql::new_in_memory_cassie().expect("cassie"));
+    cassie.startup().expect("startup");
+    let setup = cassie.create_session("setup", None);
+    for sql in [
+        "CREATE TABLE materialized_view_refresh_order_source \
+           (id INT PRIMARY KEY, label TEXT)",
+        "INSERT INTO materialized_view_refresh_order_source VALUES (1, 'one')",
+        "CREATE MATERIALIZED VIEW materialized_view_refresh_order_copy \
+           (item_id, item_label) AS \
+           SELECT id, label FROM materialized_view_refresh_order_source",
+        "CREATE UNIQUE INDEX materialized_view_refresh_order_copy_id_uq \
+           ON materialized_view_refresh_order_copy (item_id)",
+        "UPDATE materialized_view_refresh_order_source SET label = 'concurrent' WHERE id = 1",
+    ] {
+        cassie
+            .execute_sql(&setup, sql, vec![])
+            .expect("prepare materialized view");
+    }
+    let build_ready = Arc::new(Barrier::new(2));
+    let build_resume = Arc::new(Barrier::new(2));
+    set_materialized_projection_replace_start_barriers(
+        Some(Arc::clone(&build_ready)),
+        Some(Arc::clone(&build_resume)),
+    );
+    let concurrent_cassie = Arc::clone(&cassie);
+
+    // Act
+    let concurrent = std::thread::spawn(move || {
+        let session = concurrent_cassie.create_session("concurrent", None);
+        concurrent_cassie.execute_sql(
+            &session,
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY materialized_view_refresh_order_copy",
+            vec![],
+        )
+    });
+    build_ready.wait();
+    cassie
+        .execute_sql(
+            &setup,
+            "UPDATE materialized_view_refresh_order_source SET label = 'ordinary' WHERE id = 1",
+            vec![],
+        )
+        .expect("change source before the ordinary refresh");
+    let (started_tx, started_rx) = mpsc::channel();
+    let (ordinary_tx, ordinary_rx) = mpsc::channel();
+    let ordinary_cassie = Arc::clone(&cassie);
+    let ordinary = std::thread::spawn(move || {
+        let session = ordinary_cassie.create_session("ordinary", None);
+        started_tx.send(()).expect("signal ordinary refresh start");
+        ordinary_tx
+            .send(ordinary_cassie.execute_sql(
+                &session,
+                "REFRESH MATERIALIZED VIEW materialized_view_refresh_order_copy",
+                vec![],
+            ))
+            .expect("send ordinary refresh result");
+    });
+    started_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("ordinary refresh should reach its execution boundary");
+    let ordinary_before_publish = ordinary_rx.recv_timeout(Duration::from_millis(250)).ok();
+    let was_blocked_before_publish = ordinary_before_publish.is_none();
+    build_resume.wait();
+    let concurrent_result = concurrent.join().expect("concurrent refresh thread");
+    ordinary.join().expect("ordinary refresh thread");
+    let ordinary_result = ordinary_before_publish.unwrap_or_else(|| {
+        ordinary_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("ordinary refresh should complete after publication")
+    });
+    let rows = cassie
+        .execute_sql(
+            &setup,
+            "SELECT item_label FROM materialized_view_refresh_order_copy",
+            vec![],
+        )
+        .expect("read the final materialized-view output");
+    let has_indexes = cassie
+        .execute_sql(
+            &setup,
+            "SELECT hasindexes FROM pg_matviews \
+             WHERE matviewname = 'materialized_view_refresh_order_copy'",
+            vec![],
+        )
+        .expect("read final materialized-view index state");
+
+    // Assert
+    concurrent_result.expect("concurrent refresh should succeed");
+    ordinary_result.expect("ordinary refresh should succeed");
+    assert!(was_blocked_before_publish);
+    assert_eq!(
+        rows.rows(),
+        vec![vec![Value::String("ordinary".to_string())]]
+    );
+    assert_eq!(has_indexes.rows(), vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_rollback_concurrent_materialized_view_refresh_with_transaction() {
+    // Arrange
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    cassie.startup().expect("startup");
+    let setup = cassie.create_session("setup", None);
+    let transaction = cassie.create_session("transaction", None);
+    let observer = cassie.create_session("observer", None);
+    for sql in [
+        "CREATE TABLE transactional_materialized_view_source \
+           (id INT PRIMARY KEY, label TEXT)",
+        "INSERT INTO transactional_materialized_view_source VALUES (1, 'one'), (2, 'two')",
+        "CREATE MATERIALIZED VIEW transactional_materialized_view_copy \
+           (item_id, item_label) AS \
+           SELECT id, label FROM transactional_materialized_view_source",
+        "CREATE UNIQUE INDEX transactional_materialized_view_copy_id_uq \
+           ON transactional_materialized_view_copy (item_id)",
+        "UPDATE transactional_materialized_view_source \
+           SET label = 'updated' WHERE id = 2",
+    ] {
+        cassie
+            .execute_sql(&setup, sql, vec![])
+            .unwrap_or_else(|error| panic!("execute setup SQL '{sql}': {error}"));
+    }
+
+    // Act
+    cassie
+        .execute_sql(&transaction, "BEGIN", vec![])
+        .expect("begin transaction");
+    cassie
+        .execute_sql(
+            &transaction,
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY transactional_materialized_view_copy",
+            vec![],
+        )
+        .expect("refresh concurrently inside explicit transaction");
+    let transaction_rows = cassie
+        .execute_sql(
+            &transaction,
+            "SELECT item_label FROM transactional_materialized_view_copy ORDER BY item_id",
+            vec![],
+        )
+        .expect("read the transaction-local refreshed output");
+    let observer_rows = cassie
+        .execute_sql(
+            &observer,
+            "SELECT item_label FROM transactional_materialized_view_copy ORDER BY item_id",
+            vec![],
+        )
+        .expect("read the committed output from another session");
+    cassie
+        .execute_sql(&transaction, "ROLLBACK", vec![])
+        .expect("roll back concurrent refresh");
+    let rolled_back_rows = cassie
+        .execute_sql(
+            &transaction,
+            "SELECT item_label FROM transactional_materialized_view_copy ORDER BY item_id",
+            vec![],
+        )
+        .expect("read the output after rollback");
+
+    // Assert
+    assert_eq!(
+        transaction_rows.rows(),
+        vec![
+            vec![Value::String("one".to_string())],
+            vec![Value::String("updated".to_string())],
+        ]
+    );
+    assert_eq!(
+        observer_rows.rows(),
+        vec![
+            vec![Value::String("one".to_string())],
+            vec![Value::String("two".to_string())],
+        ]
+    );
+    assert_eq!(rolled_back_rows.rows(), observer_rows.rows());
+}
+
+#[test]
 fn should_keep_concurrent_replay_checkpoint_monotonic() {
     // Arrange
     let _guard = projection_concurrency_test_guard();

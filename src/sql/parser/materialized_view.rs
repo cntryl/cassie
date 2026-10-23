@@ -91,13 +91,15 @@ pub(super) fn parse_refresh_materialized_view_statement(
 ) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let prefix = "REFRESH MATERIALIZED VIEW";
-    let rest = trimmed[prefix.len()..].trim();
+    let mut rest = trimmed[prefix.len()..].trim();
     let lower = rest.to_ascii_lowercase();
-    if lower.starts_with("concurrently ") {
-        return Err(SqlError::unsupported(
-            "REFRESH MATERIALIZED VIEW CONCURRENTLY is not supported".into(),
-        ));
+    let concurrent_end = super::lexical::pattern_end(&lower, 0, "concurrently");
+    let concurrently = concurrent_end.is_some();
+    if let Some(concurrent_end) = concurrent_end {
+        let name_start = super::lexical::separator_end(rest, concurrent_end);
+        rest = rest[name_start..].trim();
     }
+    let lower = rest.to_ascii_lowercase();
     let (name, with_data) = if lower.ends_with(" with no data") {
         (rest[..rest.len() - " with no data".len()].trim(), false)
     } else if lower.ends_with(" with data") {
@@ -105,6 +107,11 @@ pub(super) fn parse_refresh_materialized_view_statement(
     } else {
         (rest, true)
     };
+    if concurrently && !with_data {
+        return Err(SqlError::syntax(
+            "CONCURRENTLY and WITH NO DATA options cannot be used together".into(),
+        ));
+    }
     if name.is_empty() || name.split_whitespace().count() != 1 {
         return Err(SqlError::syntax(
             "REFRESH MATERIALIZED VIEW requires one relation name".into(),
@@ -118,6 +125,21 @@ pub(super) fn parse_refresh_materialized_view_statement(
             with_data,
         }),
     })
+}
+
+pub(crate) fn is_concurrent_refresh(sql: &str) -> bool {
+    let Ok(decoded) = super::lexical::decode_unicode_identifiers(sql) else {
+        return false;
+    };
+    let lower = decoded.to_ascii_lowercase();
+    let start = super::lexical::separator_end(&lower, 0);
+    let Some(statement_end) =
+        super::lexical::pattern_end(&lower, start, "refresh materialized view")
+    else {
+        return false;
+    };
+    let concurrently_start = super::lexical::separator_end(&lower, statement_end);
+    super::lexical::pattern_end(&lower, concurrently_start, "concurrently").is_some()
 }
 
 pub(super) fn parse_drop_materialized_view_statement(
@@ -186,5 +208,37 @@ mod tests {
             drop_view.statement,
             QueryStatement::DropMaterializedView(statement) if statement.if_exists
         ));
+    }
+
+    #[test]
+    fn should_parse_concurrent_materialized_view_refresh_without_expanding_the_ast() {
+        // Arrange
+        let sql = "REFRESH MATERIALIZED VIEW CONCURRENTLY public.records_copy";
+
+        // Act
+        let parsed = parse_statement(sql).expect("parse concurrent materialized-view refresh");
+
+        // Assert
+        assert!(super::is_concurrent_refresh(&parsed.raw_sql));
+        assert!(matches!(
+            parsed.statement,
+            QueryStatement::RefreshMaterializedView(statement)
+                if statement.name == "public.records_copy" && statement.with_data
+        ));
+    }
+
+    #[test]
+    fn should_reject_concurrent_materialized_view_refresh_with_no_data() {
+        // Arrange
+        let sql = "REFRESH MATERIALIZED VIEW CONCURRENTLY public.records_copy WITH NO DATA";
+
+        // Act
+        let error = parse_statement(sql).expect_err("reject CONCURRENTLY with WITH NO DATA");
+
+        // Assert
+        assert_eq!(error.kind(), crate::sql::parser::SqlErrorKind::Syntax);
+        assert!(error
+            .message()
+            .contains("CONCURRENTLY and WITH NO DATA options cannot be used together"));
     }
 }

@@ -168,17 +168,20 @@ impl Cassie {
                 controls,
             )?;
         let parameter_type_oids = parameter_types.types();
+        if crate::sql::parser::is_concurrent_materialized_view_refresh(&parsed.raw_sql) {
+            return self.execute_concurrent_materialized_view_refresh(session, parsed, controls);
+        }
         if let QueryStatement::Explain(statement) = &parsed.statement {
-            return self.explain_statement(
+            return self.execute_bound_explain(
                 session,
-                statement.statement.as_ref().clone(),
-                (params, parameter_type_oids),
-                statement.analyze,
+                statement,
+                params,
+                parameter_type_oids,
                 controls,
             );
         }
         if let QueryStatement::Transaction(statement) = &parsed.statement {
-            return self.execute_transaction_statement(session, statement, controls);
+            return self.execute_bound_transaction(session, statement, controls);
         }
 
         let mut cache_context = self.query_cache_context_with_controls(
@@ -189,16 +192,11 @@ impl Cassie {
             (mode, parameter_type_oids),
             controls,
         )?;
-        if session.transaction_catalog_overlay().is_some() {
-            // Transactional DDL can change names and output columns without
-            // publishing a new shared schema epoch until commit.
-            cache_context.cache_key = None;
-        }
-        if bound_parameters {
-            // Physical access paths depend on actual bounds, while the plan key
-            // deliberately contains parameter shapes rather than values.
-            cache_context.cache_key = None;
-        }
+        Self::disable_query_cache_for_bound_execution(
+            session,
+            bound_parameters,
+            &mut cache_context,
+        );
         let (physical, provenance) = self.resolve_statement_plan(
             parsed,
             &cache_context,
@@ -268,6 +266,66 @@ impl Cassie {
         }
 
         Ok(result)
+    }
+
+    fn execute_concurrent_materialized_view_refresh(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        let binding_context = self.binding_context_for_session(Some(session));
+        let bound = crate::sql::binder::bind_with_context(parsed, &self.catalog, &binding_context)?;
+        let QueryStatement::RefreshMaterializedView(statement) = bound.statement.statement else {
+            return Err(CassieError::Execution(
+                "expected concurrent materialized-view refresh after binding".to_string(),
+            ));
+        };
+        let user_functions = self.user_functions_for_session(Some(session));
+        let result = crate::executor::refresh_materialized_view_concurrently_external(
+            self,
+            &statement,
+            &user_functions,
+            controls,
+        )?;
+        self.bump_schema_epoch_and_invalidate_query_cache()?;
+        Ok(result)
+    }
+
+    fn execute_bound_explain(
+        &self,
+        session: &CassieSession,
+        statement: &crate::sql::ast::ExplainStatement,
+        params: Vec<Value>,
+        parameter_type_oids: &[i32],
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.explain_statement(
+            session,
+            statement.statement.as_ref().clone(),
+            (params, parameter_type_oids),
+            statement.analyze,
+            controls,
+        )
+    }
+
+    fn execute_bound_transaction(
+        &self,
+        session: &CassieSession,
+        statement: &crate::sql::ast::TransactionStatement,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_transaction_statement(session, statement, controls)
+    }
+
+    fn disable_query_cache_for_bound_execution(
+        session: &CassieSession,
+        bound_parameters: bool,
+        cache_context: &mut super::query::QueryCacheContext,
+    ) {
+        if session.transaction_catalog_overlay().is_some() || bound_parameters {
+            cache_context.cache_key = None;
+        }
     }
 
     fn mark_statement_transaction_query(session: &CassieSession, statement: &QueryStatement) {

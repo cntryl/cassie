@@ -3,6 +3,7 @@ mod array_order;
 pub mod batch;
 mod execution;
 pub(crate) use execution::plan_needs_statement_data;
+pub(crate) use execution::refresh_materialized_view_concurrently_external;
 pub(crate) use execution::{
     check_bound_plan_constants, check_plan_constants, reached_ctes, reached_plan_ctes,
 };

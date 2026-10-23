@@ -77,11 +77,17 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Sha384
         | FunctionId::Sha512 => Some(FunctionInputSignature::Positional(&[17])),
         FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
-        FunctionId::PgCharToEncoding | FunctionId::PgSizeBytes => {
-            Some(FunctionInputSignature::Positional(&[25]))
-        }
+        FunctionId::PgCharToEncoding
+        | FunctionId::PgSizeBytes
+        | FunctionId::Reverse
+        | FunctionId::Initcap
+        | FunctionId::Length
+        | FunctionId::OctetLength
+        | FunctionId::BitLength
+        | FunctionId::Ascii
+        | FunctionId::Format => Some(FunctionInputSignature::Positional(&[25])),
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
-        FunctionId::Lower => Some(FunctionInputSignature::Text),
+        FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
         FunctionId::Coalesce => Some(FunctionInputSignature::CommonArguments),
         FunctionId::Substring => Some(FunctionInputSignature::Positional(&[25, 23, 23])),
@@ -93,14 +99,53 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Rtrim
         | FunctionId::Strpos => Some(FunctionInputSignature::Positional(&[25, 25])),
         FunctionId::SplitPart => Some(FunctionInputSignature::Positional(&[25, 25, 23])),
-        FunctionId::Replace => Some(FunctionInputSignature::Positional(&[25, 25, 25])),
-        FunctionId::Left | FunctionId::Right => Some(FunctionInputSignature::Positional(&[25, 23])),
-        FunctionId::Length
-        | FunctionId::OctetLength
-        | FunctionId::BitLength
-        | FunctionId::Ascii
-        | FunctionId::Format => Some(FunctionInputSignature::Positional(&[25])),
+        FunctionId::Replace | FunctionId::Translate => {
+            Some(FunctionInputSignature::Positional(&[25, 25, 25]))
+        }
+        FunctionId::Left | FunctionId::Right | FunctionId::Repeat => {
+            Some(FunctionInputSignature::Positional(&[25, 23]))
+        }
+        FunctionId::Lpad | FunctionId::Rpad => {
+            Some(FunctionInputSignature::Positional(&[25, 23, 25]))
+        }
+        FunctionId::Overlay => Some(FunctionInputSignature::Positional(&[25, 25, 23, 23])),
         FunctionId::Chr => Some(FunctionInputSignature::Positional(&[23])),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{input_signature, FunctionInputSignature};
+    use crate::sql::functions::FunctionId;
+
+    fn positional(id: FunctionId) -> &'static [i32] {
+        match input_signature(id) {
+            Some(FunctionInputSignature::Positional(oids)) => oids,
+            _ => panic!("expected positional input signature for {id:?}"),
+        }
+    }
+
+    #[test]
+    fn should_define_postgresql_input_types_for_text_transform_functions() {
+        // Arrange
+        let signatures = [
+            (FunctionId::Overlay, &[25, 25, 23, 23][..]),
+            (FunctionId::Lpad, &[25, 23, 25][..]),
+            (FunctionId::Rpad, &[25, 23, 25][..]),
+            (FunctionId::Repeat, &[25, 23][..]),
+            (FunctionId::Reverse, &[25][..]),
+            (FunctionId::Initcap, &[25][..]),
+            (FunctionId::Translate, &[25, 25, 25][..]),
+        ];
+
+        // Act / Assert
+        for (function, expected) in signatures {
+            assert_eq!(positional(function), expected, "{function:?}");
+        }
+        assert!(matches!(
+            input_signature(FunctionId::ConcatWs),
+            Some(FunctionInputSignature::Text)
+        ));
     }
 }

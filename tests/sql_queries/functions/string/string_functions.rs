@@ -1,4 +1,4 @@
-//! PostgreSQL 18 string-function, formatting and indexing contracts for #803.
+//! PostgreSQL 18 string-function, formatting and indexing contracts for #803 and #1034.
 
 #[path = "residuals.rs"]
 mod residual_semantics;
@@ -588,6 +588,29 @@ fn should_bind_parameters_to_split_part_signature() {
 }
 
 #[test]
+fn should_bind_parameters_to_concat_ws_signature() {
+    // Arrange
+    let fixture = sql_fixture("issue-1034-concat-ws-parameters", &[]);
+
+    // Act
+    let result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "SELECT concat_ws($1, $2, NULL, $3)",
+        vec![
+            Value::String("|".to_owned()),
+            Value::String("a".to_owned()),
+            Value::String("b".to_owned()),
+        ],
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("concat_ws bound arguments").rows(),
+        &[vec![Value::String("a|b".to_owned())]]
+    );
+}
+
+#[test]
 fn should_admit_a_bounded_format_output_expansion() {
     // Arrange
     let fixture = sql_fixture("issue-803-format-output-expansion", &[]);
@@ -920,6 +943,42 @@ fn should_execute_overlay_placing_keyword_form() {
         result.expect("OVERLAY PLACING FROM FOR form").rows(),
         &[vec![Value::String("aXYZef".to_owned())]]
     );
+}
+
+#[test]
+fn should_apply_postgresql_overlay_signed_counts() {
+    // Arrange
+    let fixture = sql_fixture("issue-1034-overlay-boundaries", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT overlay('abc' PLACING 'XY' FROM 2 FOR -1), overlay('abc' PLACING 'X' FROM 2 FOR 0)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("negative and zero overlay counts").rows(),
+        &[vec![
+            Value::String("aXYabc".to_owned()),
+            Value::String("aXbc".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_postgresql_overlay_start_before_first_character() {
+    // Arrange
+    let fixture = sql_fixture("issue-1034-overlay-invalid-start", &[]);
+
+    // Act
+    let invalid_start = fixture.execute("SELECT overlay('abc' PLACING 'X' FROM 0)");
+
+    // Assert
+    assert!(matches!(
+        invalid_start,
+        Err(cassie::CassieError::Execution(message))
+            if message.contains("negative substring length not allowed")
+    ));
 }
 
 #[test]

@@ -51,3 +51,31 @@ fn should_return_zero_for_empty_ascii_input() {
         &[vec![Value::Int64(0)]]
     );
 }
+
+#[test]
+fn should_propagate_null_through_selected_text_transform_signatures() {
+    // Arrange
+    let fixture = sql_fixture("issue-1034-text-transform-nulls", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT overlay(CAST(NULL AS TEXT) PLACING 'x' FROM 1), lpad(CAST(NULL AS TEXT), 2), rpad('x', CAST(NULL AS INT)), repeat(CAST(NULL AS TEXT), 2), reverse(CAST(NULL AS TEXT)), initcap(CAST(NULL AS TEXT)), translate(CAST(NULL AS TEXT), 'a', 'b'), concat_ws(CAST(NULL AS TEXT), 'x')",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("strict transform functions and NULL separator")
+            .rows(),
+        &[vec![
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+        ]]
+    );
+}

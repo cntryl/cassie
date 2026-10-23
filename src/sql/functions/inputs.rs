@@ -146,6 +146,8 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         }
         FunctionId::Overlay => Some(FunctionInputSignature::Positional(&[25, 25, 23, 23])),
         FunctionId::Chr => Some(FunctionInputSignature::Positional(&[23])),
+        FunctionId::RegexpLike => Some(FunctionInputSignature::Positional(&[25, 25, 25])),
+        FunctionId::RegexpCount => Some(FunctionInputSignature::Positional(&[25, 25, 23, 25])),
         _ => None,
     }
 }
@@ -183,6 +185,20 @@ mod tests {
             input_signature(FunctionId::ConcatWs),
             Some(FunctionInputSignature::Text)
         ));
+    }
+
+    #[test]
+    fn should_define_postgresql_input_types_for_regex_functions() {
+        // Arrange
+        let signatures = [
+            (FunctionId::RegexpLike, &[25, 25, 25][..]),
+            (FunctionId::RegexpCount, &[25, 25, 23, 25][..]),
+        ];
+
+        // Act / Assert
+        for (function, expected) in signatures {
+            assert_eq!(positional(function), expected, "{function:?}");
+        }
     }
 
     #[test]

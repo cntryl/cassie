@@ -7,6 +7,7 @@ pub(super) enum SplitError {
     NumericRange(String),
     DuplicateColumn(String),
     ResourceLimit(String),
+    UndefinedFunction(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +24,9 @@ pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
         crate::sql::SqlErrorKind::ResourceLimit => SplitError::ResourceLimit(error.to_string()),
         crate::sql::SqlErrorKind::NumericRange => SplitError::NumericRange(error.to_string()),
         crate::sql::SqlErrorKind::DuplicateColumn => SplitError::DuplicateColumn(error.to_string()),
+        crate::sql::SqlErrorKind::UndefinedFunction => {
+            SplitError::UndefinedFunction(error.to_string())
+        }
         crate::sql::SqlErrorKind::Syntax | crate::sql::SqlErrorKind::InvalidParameterValue => {
             SplitError::Syntax(error.to_string())
         }

@@ -587,6 +587,7 @@ async fn write_simple_query_split_error(
         simple_query::SplitError::Syntax(message) => ("42601", message, true),
         simple_query::SplitError::DuplicateColumn(message) => ("42701", message, false),
         simple_query::SplitError::NumericRange(message) => ("22003", message, true),
+        simple_query::SplitError::UndefinedFunction(message) => ("42883", message, true),
         simple_query::SplitError::Unsupported(message) => ("0A000", message, true),
         simple_query::SplitError::ResourceLimit(message) => ("54000", message, false),
     };

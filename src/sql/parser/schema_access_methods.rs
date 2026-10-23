@@ -132,4 +132,20 @@ mod tests {
             error.message
         );
     }
+
+    #[test]
+    fn should_reject_column_not_without_null() {
+        // Arrange
+        let sql = "CREATE TABLE invalid_not_clause (value TEXT NOT TRUE)";
+
+        // Act
+        let error = parser::parse_statement(sql).expect_err("NOT must be followed by NULL");
+
+        // Assert
+        assert!(
+            error.message.contains("unsupported constraint 'NOT TRUE'"),
+            "unexpected parser error: {}",
+            error.message
+        );
+    }
 }

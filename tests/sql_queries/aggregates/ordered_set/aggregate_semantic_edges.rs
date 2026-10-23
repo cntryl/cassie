@@ -10,15 +10,16 @@ fn should_choose_the_lowest_ordered_mode_when_frequencies_tie() {
     );
 
     // Act
-    let result =
-        fixture.execute("SELECT mode() WITHIN GROUP (ORDER BY n) FROM issue_806_mode_tie_values");
+    let result = fixture.execute(
+        "SELECT mode() WITHIN GROUP (ORDER BY n ASC), mode() WITHIN GROUP (ORDER BY n DESC) FROM issue_806_mode_tie_values",
+    );
 
     // Assert
     assert_eq!(
         result
             .expect("mode resolves equal-frequency inputs by aggregate order")
             .rows(),
-        &[vec![Value::Int64(1)]]
+        &[vec![Value::Int64(1), Value::Int64(2)]]
     );
 }
 

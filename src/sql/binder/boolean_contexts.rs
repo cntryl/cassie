@@ -44,6 +44,7 @@ pub(super) fn validate_boolean_aggregate(
                 }
             }
         }
+        validate_hypothetical_set_arguments(function, metadata.id, types)?;
     }
     if function.has_modifiers() {
         if !crate::sql::functions::is_aggregate_function(&function.name) {
@@ -96,6 +97,43 @@ pub(super) fn validate_boolean_aggregate(
         }
     }
     boolean_aggregates::validate(function, types)
+}
+
+fn validate_hypothetical_set_arguments(
+    function: &crate::sql::ast::FunctionCall,
+    id: crate::sql::functions::FunctionId,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    if !matches!(
+        id,
+        crate::sql::functions::FunctionId::Rank
+            | crate::sql::functions::FunctionId::DenseRank
+            | crate::sql::functions::FunctionId::PercentRank
+            | crate::sql::functions::FunctionId::CumeDist
+    ) {
+        return Ok(());
+    }
+    for (argument, order) in function.args.iter().zip(&function.order_by) {
+        let Some(argument_type) = types.expression_type(argument) else {
+            continue;
+        };
+        let Some(order_type) = types.expression_type(&order.expr) else {
+            continue;
+        };
+        if matches!(argument_type, DataType::Null)
+            || matches!(order_type, DataType::Null)
+            || argument_type == order_type
+        {
+            continue;
+        }
+        return Err(CassieError::Execution(format!(
+            "ordered-set aggregate {} direct argument type {} does not match ORDER BY type {}",
+            function.name.to_ascii_lowercase(),
+            argument_type.type_name(),
+            order_type.type_name()
+        )));
+    }
+    Ok(())
 }
 
 pub(super) fn qualify_declared_boolean_functions(

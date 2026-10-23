@@ -5,6 +5,7 @@ mod catalog;
 mod datum_size;
 mod numeric_identity;
 mod object_identity;
+mod ordered_set;
 mod percentile_identity;
 pub(crate) mod regression;
 mod sequences;
@@ -75,8 +76,13 @@ pub enum FunctionId {
     StringAgg,
     BoolAnd,
     BoolOr,
+    Mode,
     PercentileCont,
     PercentileDisc,
+    Rank,
+    DenseRank,
+    PercentRank,
+    CumeDist,
     Search,
     SearchScore,
     VectorDistance,
@@ -253,6 +259,7 @@ pub fn aggregate_arity(name: &str) -> Option<usize> {
 pub fn registry() -> Vec<ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
+        .chain(ordered_set::FUNCTIONS)
         .chain(statistical::FUNCTIONS)
         .chain(regression::FUNCTIONS)
         .chain(text::FUNCTIONS)
@@ -270,6 +277,7 @@ pub fn registry() -> Vec<ScalarFunction> {
 pub fn function(name: &str) -> Option<&'static ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
+        .chain(ordered_set::FUNCTIONS)
         .chain(statistical::FUNCTIONS)
         .chain(regression::FUNCTIONS)
         .chain(text::FUNCTIONS)
@@ -436,38 +444,6 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         name: "pg_catalog.every",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::Boolean,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PercentileCont,
-        name: "percentile_cont",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Unknown,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PercentileCont,
-        name: "pg_catalog.percentile_cont",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Unknown,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PercentileDisc,
-        name: "percentile_disc",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Unknown,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PercentileDisc,
-        name: "pg_catalog.percentile_disc",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Unknown,
         is_aggregate: true,
         bypass_arity_validation: false,
     },

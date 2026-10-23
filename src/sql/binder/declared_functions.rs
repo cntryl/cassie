@@ -138,6 +138,7 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             qualify_expression(expr, types);
             qualify_expression(low, types);

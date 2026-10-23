@@ -589,22 +589,7 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             operand,
             branches,
             else_expr,
-        } => {
-            let mut key = format!(
-                "case {}",
-                operand
-                    .as_ref()
-                    .map_or(String::new(), |expr| expr_key(expr))
-            );
-            for (when, then) in branches {
-                let _ = write!(key, " when {} then {}", expr_key(when), expr_key(then));
-            }
-            if let Some(else_expr) = else_expr {
-                let _ = write!(key, " else {}", expr_key(else_expr));
-            }
-            key.push_str(" end");
-            key
-        }
+        } => case_key(operand.as_deref(), branches, else_expr.as_deref()),
         Expr::Column(name) => name.clone(),
         Expr::Param(index) => format!("${}", index + 1),
         Expr::Null => "null".to_string(),
@@ -643,9 +628,11 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             expr,
             pattern,
             escape,
+            case_insensitive,
         } => format!(
-            "({} LIKE {} ESCAPE {})",
+            "({} {} {} ESCAPE {})",
             expr_key(expr),
+            if *case_insensitive { "ILIKE" } else { "LIKE" },
             expr_key(pattern),
             expr_key(escape)
         ),
@@ -684,6 +671,18 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
         Expr::Exists(_) => "exists".to_string(),
         Expr::Subquery(subquery) => subquery_key(subquery),
     }
+}
+
+fn case_key(operand: Option<&Expr>, branches: &[(Expr, Expr)], else_expr: Option<&Expr>) -> String {
+    let mut key = format!("case {}", operand.map_or(String::new(), expr_key));
+    for (when, then) in branches {
+        let _ = write!(key, " when {} then {}", expr_key(when), expr_key(then));
+    }
+    if let Some(else_expr) = else_expr {
+        let _ = write!(key, " else {}", expr_key(else_expr));
+    }
+    key.push_str(" end");
+    key
 }
 
 fn subquery_key(subquery: &crate::sql::ast::SubqueryExpr) -> String {

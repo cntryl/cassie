@@ -26,6 +26,30 @@ fn should_match_ascii_values_with_ilike_patterns() {
 }
 
 #[test]
+fn should_apply_unicode_simple_case_mapping_to_ilike_literals() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-ilike-unicode-simple-case-mapping", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT 'é' ILIKE 'É', 'İ' ILIKE 'i', 'ẞ' ILIKE 'ß', 'Σ' ILIKE 'σ', 'Σ' ILIKE 'ς', 'İ' ILIKE 'i̇'",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("Unicode ILIKE simple case mapping").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false),
+        ]]
+    );
+}
+
+#[test]
 fn should_match_like_escape_characters_from_an_explicit_clause() {
     // Arrange
     let fixture = sql_fixture("issue-799-like-escape-clause", &[]);
@@ -43,6 +67,23 @@ fn should_match_like_escape_characters_from_an_explicit_clause() {
             Value::Bool(true),
             Value::Bool(true)
         ]]
+    );
+}
+
+#[test]
+fn should_apply_escape_clauses_to_ilike_predicates() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-ilike-escape-clause", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT 'A_b' ILIKE 'a!_B' ESCAPE '!', 'A%b' ILIKE 'a!%B' ESCAPE '!', '_A' ILIKE 'A_a' ESCAPE 'A'",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("ILIKE with explicit escape character").rows(),
+        &[vec![Value::Bool(true), Value::Bool(true), Value::Bool(true)]]
     );
 }
 
@@ -174,6 +215,55 @@ fn should_match_posix_patterns_without_implicit_anchors() {
             Value::Bool(true),
         ]]
     );
+}
+
+#[test]
+fn should_ignore_nonexpression_regex_tokens() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-operator-token-boundaries", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT 'a~b' = 'a~b', 'alpha' /* ~ ignored */ ~ 'ph'",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("regex tokens in strings and comments").rows(),
+        &[vec![Value::Bool(true), Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_preserve_regex_comparison_precedence() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-operator-comparison-precedence", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT 'alpha' ~ 'ph' = true");
+
+    // Assert
+    assert_eq!(
+        result.expect("regex comparison precedence").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_report_2201b_for_invalid_regex_operator_patterns() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-operator-invalid-pattern", &[]);
+
+    // Act
+    let error = fixture
+        .execute("SELECT 'x' ~ '['")
+        .expect_err("invalid regular-expression operator pattern should fail");
+
+    // Assert
+    assert!(matches!(
+        error,
+        CassieError::Diagnostic(ref diagnostic) if diagnostic.sql_state == "2201B"
+    ));
 }
 
 #[test]

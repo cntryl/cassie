@@ -629,7 +629,8 @@ pub(super) fn resolve_exists_expr<'a>(
             expr,
             pattern,
             escape,
-        } => predicates::like(context, expr, pattern, escape),
+            case_insensitive,
+        } => predicates::like(context, expr, pattern, escape, *case_insensitive),
         Expr::Not { expr } => resolve_not_exists_expr(context, expr),
         Expr::UnaryNumeric { expr, op } => Ok(Expr::UnaryNumeric {
             expr: Box::new(resolve_exists_expr(context, expr)?),
@@ -956,6 +957,7 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
             expr,
             pattern: low,
             escape: high,
+            ..
         } => expression_expansion_weight(expr)
             .saturating_add(expression_expansion_weight(low))
             .saturating_add(expression_expansion_weight(high)),

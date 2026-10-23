@@ -553,6 +553,7 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             expr_uses_vector_operator(expr)
                 || expr_uses_vector_operator(low)
@@ -745,6 +746,7 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             collect_fulltext_fields_from_expr(expr, fields);
             collect_fulltext_fields_from_expr(low, fields);

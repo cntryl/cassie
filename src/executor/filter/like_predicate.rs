@@ -24,6 +24,7 @@ pub(super) fn scalar(
     value: &ScalarValue,
     pattern: &ScalarValue,
     escape: &ScalarValue,
+    case_insensitive: bool,
     check: impl FnMut() -> Result<(), QueryError>,
 ) -> Result<ScalarValue, QueryError> {
     validate_rhs(pattern, escape)?;
@@ -36,14 +37,20 @@ pub(super) fn scalar(
     let (ScalarValue::Str(value), ScalarValue::Str(pattern)) = (value, pattern) else {
         return Err(QueryError::General("LIKE requires text operands".into()));
     };
-    super::like::controlled(value, pattern, escape_character(escape)?, check)
-        .map(ScalarValue::Bool)
-        .map_err(|error| match error {
-            super::like::MatchError::Pattern => {
-                QueryError::General(super::like::LikePatternError.to_string())
-            }
-            super::like::MatchError::Interrupted(error) => error,
-        })
+    super::like::controlled(
+        value,
+        pattern,
+        escape_character(escape)?,
+        case_insensitive,
+        check,
+    )
+    .map(ScalarValue::Bool)
+    .map_err(|error| match error {
+        super::like::MatchError::Pattern => {
+            QueryError::General(super::like::LikePatternError.to_string())
+        }
+        super::like::MatchError::Interrupted(error) => error,
+    })
 }
 
 pub(super) fn runtime<R: RowAccess + ?Sized>(
@@ -58,6 +65,7 @@ pub(super) fn runtime<R: RowAccess + ?Sized>(
         expr,
         pattern,
         escape,
+        case_insensitive,
     } = expression
     else {
         unreachable!("LIKE dispatch");
@@ -65,7 +73,7 @@ pub(super) fn runtime<R: RowAccess + ?Sized>(
     let value = eval_scalar_with_context(row, expr, context)?;
     let pattern = eval_scalar_with_context(row, pattern, context)?;
     let escape = eval_scalar_with_context(row, escape, context)?;
-    scalar(&value, &pattern, &escape, || {
+    scalar(&value, &pattern, &escape, *case_insensitive, || {
         context.session.map_or(Ok(()), |session| {
             session
                 .check_statement_interruption()

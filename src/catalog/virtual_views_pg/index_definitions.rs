@@ -236,9 +236,11 @@ fn format_index_predicate(expression: &crate::sql::ast::Expr) -> Option<String> 
             expr,
             pattern,
             escape,
+            case_insensitive,
         } => Some(format!(
-            "({} LIKE {} ESCAPE {})",
+            "({} {} {} ESCAPE {})",
             format_index_expression(expr)?,
+            if *case_insensitive { "ILIKE" } else { "LIKE" },
             format_index_expression(pattern)?,
             format_index_expression(escape)?
         )),

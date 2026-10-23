@@ -360,6 +360,7 @@ fn like_value<R: RowAccess + ?Sized>(
         expr,
         pattern,
         escape,
+        case_insensitive,
     } = expression
     else {
         unreachable!("LIKE constant dispatch")
@@ -378,7 +379,7 @@ fn like_value<R: RowAccess + ?Sized>(
     }
     match (value, pattern, escape) {
         (Some(value), Some(pattern), Some(escape)) => {
-            super::like_predicate::scalar(&value, &pattern, &escape, || {
+            super::like_predicate::scalar(&value, &pattern, &escape, *case_insensitive, || {
                 if let Some(controls) = context.controls {
                     controls.check_interruption()?;
                 }

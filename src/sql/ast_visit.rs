@@ -62,6 +62,7 @@ impl Expr {
                 expr,
                 pattern: low,
                 escape: high,
+                ..
             } => {
                 visit(expr)?;
                 visit(low)?;
@@ -243,6 +244,7 @@ impl Expr {
                 expr,
                 pattern: low,
                 escape: high,
+                ..
             } => {
                 visit(expr)?;
                 visit(low)?;
@@ -538,10 +540,12 @@ fn map_predicate(expr: &Expr, mut map: impl FnMut(&Expr) -> Expr) -> Expr {
             expr,
             pattern,
             escape,
+            case_insensitive,
         } => Expr::Like {
             expr: Box::new(map(expr)),
             pattern: Box::new(map(pattern)),
             escape: Box::new(map(escape)),
+            case_insensitive: *case_insensitive,
         },
         Expr::Between {
             expr,
@@ -567,13 +571,20 @@ fn like_structurally_eq(left: &Expr, right: &Expr) -> Option<bool> {
                 expr: left,
                 pattern: lp,
                 escape: le,
+                case_insensitive: left_case_insensitive,
             },
             Expr::Like {
                 expr: right,
                 pattern: rp,
                 escape: re,
+                case_insensitive: right_case_insensitive,
             },
-        ) => Some(left.structurally_eq(right) && lp.structurally_eq(rp) && le.structurally_eq(re)),
+        ) => Some(
+            left.structurally_eq(right)
+                && lp.structurally_eq(rp)
+                && le.structurally_eq(re)
+                && left_case_insensitive == right_case_insensitive,
+        ),
 
         (Expr::Like { .. }, _) | (_, Expr::Like { .. }) => Some(false),
         _ => None,

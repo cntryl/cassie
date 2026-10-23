@@ -340,6 +340,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
             expr,
             pattern: low,
             escape: high,
+            ..
         } => parameter_count_expr(expr)
             .max(parameter_count_expr(low))
             .max(parameter_count_expr(high)),

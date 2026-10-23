@@ -1,11 +1,13 @@
 //! SQL `LIKE` pattern matching.
 //!
-//! Semantics follow PostgreSQL `LIKE`: matching is case-sensitive, `%` matches
-//! any sequence of zero or more characters, `_` matches exactly one character,
-//! and a backslash escapes the next pattern character so `%`, `_`, or `\` can
-//! be matched literally. A pattern that ends with an unpaired backslash is
+//! `LIKE` compares literal characters exactly; `ILIKE` compares each literal
+//! using Unicode simple lowercase mappings. In both forms, `%` matches any
+//! sequence of zero or more characters, and `_` matches exactly one character.
+//! The default backslash escapes the next pattern character so `%`, `_`, or `\`
+//! can be matched literally. A pattern that ends with an unpaired backslash is
 //! reported only when matching reaches it with remaining input. ESCAPE may
-//! select another character or disable escaping; ILIKE remains unselected.
+//! select another exact syntax character or disable escaping. Case conversion
+//! applies only to matched literals, leaving escape syntax intact.
 //!
 //! The matcher walks the pattern and value in place, without allocating or
 //! compiling the pattern, so it is safe to call once per row.
@@ -66,7 +68,7 @@ pub(super) enum MatchError<E> {
 }
 
 pub(crate) fn like_matches(value: &str, pattern: &str) -> Result<bool, LikePatternError> {
-    controlled(value, pattern, Some(ESCAPE), || {
+    controlled(value, pattern, Some(ESCAPE), false, || {
         Ok::<_, std::convert::Infallible>(())
     })
     .map_err(|error| match error {
@@ -79,6 +81,7 @@ pub(super) fn controlled<E>(
     value: &str,
     pattern: &str,
     escape: Option<char>,
+    case_insensitive: bool,
     mut check: impl FnMut() -> Result<(), E>,
 ) -> Result<bool, MatchError<E>> {
     check().map_err(MatchError::Interrupted)?;
@@ -120,7 +123,7 @@ pub(super) fn controlled<E>(
                 split_first_char(remaining_value).map(|(_, value_rest)| (rest, value_rest))
             }
             Some((Token::Literal(expected), rest)) => split_first_char(remaining_value)
-                .filter(|(actual, _)| *actual == expected)
+                .filter(|(actual, _)| literal_matches(*actual, expected, case_insensitive))
                 .map(|(_, value_rest)| (rest, value_rest)),
             None if remaining_value.is_empty() => return Ok(true),
             None => None,
@@ -143,6 +146,18 @@ pub(super) fn controlled<E>(
         remaining_pattern = pattern_after_wildcard;
         remaining_value = absorbed_rest;
     }
+}
+
+fn literal_matches(actual: char, expected: char, case_insensitive: bool) -> bool {
+    if case_insensitive {
+        simple_lowercase(actual) == simple_lowercase(expected)
+    } else {
+        actual == expected
+    }
+}
+
+fn simple_lowercase(value: char) -> char {
+    value.to_lowercase().next().unwrap_or(value)
 }
 
 #[cfg(test)]
@@ -270,7 +285,7 @@ mod tests {
         let value = "a".repeat(4096);
         let mut checks = 0;
         // Act
-        let result = super::controlled(&value, "%ab", Some('!'), || {
+        let result = super::controlled(&value, "%ab", Some('!'), false, || {
             checks += 1;
             if checks == 3 {
                 Err("cancelled")
@@ -284,5 +299,17 @@ mod tests {
             Err(super::MatchError::Interrupted("cancelled"))
         ));
         assert_eq!(checks, 3);
+    }
+
+    #[test]
+    fn should_match_ilike_literals_without_folding_escape_syntax() {
+        // Arrange
+        let check = || Ok::<_, std::convert::Infallible>(());
+
+        // Act
+        let result = super::controlled("_A", "A_a", Some('A'), true, check);
+
+        // Assert
+        assert!(matches!(result, Ok(true)));
     }
 }

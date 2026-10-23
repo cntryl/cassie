@@ -62,7 +62,8 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             expr,
             pattern,
             escape,
-        } => format_like(expr, pattern, escape),
+            case_insensitive,
+        } => format_like(expr, pattern, escape, *case_insensitive),
         Expr::Between {
             expr,
             low,
@@ -222,10 +223,16 @@ fn format_row_comparison(comparison: &crate::sql::ast::RowComparison) -> Result<
     ))
 }
 
-fn format_like(expr: &Expr, pattern: &Expr, escape: &Expr) -> Result<String, String> {
+fn format_like(
+    expr: &Expr,
+    pattern: &Expr,
+    escape: &Expr,
+    case_insensitive: bool,
+) -> Result<String, String> {
     Ok(format!(
-        "({} LIKE {} ESCAPE {})",
+        "({} {} {} ESCAPE {})",
         format_expression(expr)?,
+        if case_insensitive { "ILIKE" } else { "LIKE" },
         format_expression(pattern)?,
         format_expression(escape)?
     ))

@@ -933,6 +933,7 @@ fn validate_like_expression(
         expr,
         pattern,
         escape,
+        ..
     } = expression
     else {
         unreachable!("LIKE validation dispatch")

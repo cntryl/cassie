@@ -926,6 +926,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             vector_prefilter_supported(expr, schema)
                 && vector_prefilter_supported(low, schema)

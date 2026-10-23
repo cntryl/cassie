@@ -303,6 +303,7 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
             expr,
             pattern: low,
             escape: high,
+            ..
         } => Some(Node::Expr(match index {
             0 => expr,
             1 => low,

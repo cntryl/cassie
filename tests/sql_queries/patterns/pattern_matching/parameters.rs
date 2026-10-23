@@ -16,3 +16,22 @@ fn should_bind_text_parameters_in_ilike_patterns() {
         &[vec![Value::Bool(true)]]
     );
 }
+
+#[test]
+fn should_bind_text_parameters_in_regex_operator_patterns() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-operator-parameter", &[]);
+
+    // Act
+    let result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "SELECT 'Alice' ~ $1 AS matched",
+        vec![Value::String("lic".to_owned())],
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("bound regex operator pattern").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}

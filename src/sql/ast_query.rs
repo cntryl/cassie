@@ -329,6 +329,9 @@ pub enum Expr {
         expr: Box<Expr>,
         pattern: Box<Expr>,
         escape: Box<Expr>,
+        /// Match literal pattern characters using Unicode simple lowercase mappings.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        case_insensitive: bool,
     },
     Between {
         expr: Box<Expr>,

@@ -74,6 +74,31 @@ fn should_preserve_null_results_for_regex_operators() {
 }
 
 #[test]
+fn should_preserve_null_inputs_for_regexp_replace() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-replace-null-inputs", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_replace(NULL, 'a', 'b'), regexp_replace('a', NULL, 'b'), regexp_replace('a', 'a', NULL), regexp_replace('a', 'a', 'b', NULL::TEXT), regexp_replace('a', 'a', 'b', NULL::INT), regexp_replace('a', 'a', 'b', 1, NULL::INT), regexp_replace('a', 'a', 'b', 1, 1, NULL::TEXT)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("NULL regexp_replace inputs").rows(),
+        &[vec![
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+        ]]
+    );
+}
+
+#[test]
 fn should_preserve_null_inputs_for_regex_functions() {
     // Arrange
     let fixture = sql_fixture("issue-799-regexp-null-inputs", &[]);

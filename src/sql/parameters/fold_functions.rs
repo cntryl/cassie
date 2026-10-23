@@ -149,6 +149,28 @@ impl Fold<'_, '_> {
                 oids,
                 frame,
             ),
+            Some(FunctionInputSignature::RegexpReplace) => {
+                let oids = match function.args.len() {
+                    3 => &[25, 25, 25][..],
+                    4 => {
+                        let fourth = self.summaries.values[frame.start + 3];
+                        if matches!(fourth.oid, 21 | 23) {
+                            &[25, 25, 25, 23][..]
+                        } else {
+                            &[25, 25, 25, 25][..]
+                        }
+                    }
+                    5 => &[25, 25, 25, 23, 23][..],
+                    6 => &[25, 25, 25, 23, 23, 25][..],
+                    _ => &[],
+                };
+                self.positional_function(
+                    function,
+                    metadata.expect("regexp_replace metadata"),
+                    oids,
+                    frame,
+                )
+            }
             Some(FunctionInputSignature::Boolean) => {
                 for (argument, summary) in function
                     .args

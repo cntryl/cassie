@@ -11,9 +11,24 @@ pub(super) fn arguments(name: &str, body: &str) -> Result<Option<(String, Vec<Ex
     let argument_names: &[&str] = match function.id {
         crate::sql::functions::FunctionId::RegexpLike => &["string", "pattern", "flags"],
         crate::sql::functions::FunctionId::RegexpCount => &["string", "pattern", "start", "flags"],
+        crate::sql::functions::FunctionId::RegexpReplace => {
+            &["string", "pattern", "replacement", "start", "N", "flags"]
+        }
         _ => return Ok(None),
     };
     let raw_arguments = super::expr::split_csv(body);
+    let Some(arguments) = map_named_arguments(function.name, argument_names, raw_arguments)? else {
+        return Ok(None);
+    };
+    let ordered = ordered_named_arguments(function.id, function.name, argument_names, arguments)?;
+    Ok(Some((function.name.to_owned(), ordered)))
+}
+
+fn map_named_arguments(
+    function_name: &str,
+    argument_names: &[&str],
+    raw_arguments: Vec<&str>,
+) -> Result<Option<Vec<Option<Expr>>>, SqlError> {
     let has_named_argument = raw_arguments
         .iter()
         .any(|argument| split_named_argument(argument).is_some());
@@ -36,14 +51,12 @@ pub(super) fn arguments(name: &str, body: &str) -> Result<Option<(String, Vec<Ex
         let name = normalize_identifier(name)?;
         let Some(index) = argument_names.iter().position(|expected| *expected == name) else {
             return Err(SqlError::syntax(format!(
-                "unknown named argument '{name}' for function '{}'",
-                function.name
+                "unknown named argument '{name}' for function '{function_name}'"
             )));
         };
         if arguments[index].is_some() {
             return Err(SqlError::syntax(format!(
-                "duplicate named argument '{name}' for function '{}'",
-                function.name
+                "duplicate named argument '{name}' for function '{function_name}'"
             )));
         }
         if value.trim().is_empty() {
@@ -53,20 +66,48 @@ pub(super) fn arguments(name: &str, body: &str) -> Result<Option<(String, Vec<Ex
         }
         arguments[index] = Some(parse_expression(value)?);
     }
+
+    Ok(Some(arguments))
+}
+
+fn ordered_named_arguments(
+    function_id: crate::sql::functions::FunctionId,
+    function_name: &str,
+    argument_names: &[&str],
+    mut arguments: Vec<Option<Expr>>,
+) -> Result<Vec<Expr>, SqlError> {
     if arguments[0].is_none() || arguments[1].is_none() {
         return Err(SqlError::syntax(format!(
-            "function '{}' requires named arguments 'string' and 'pattern'",
-            function.name
+            "function '{function_name}' requires named arguments 'string' and 'pattern'"
         )));
     }
-    if function.id == crate::sql::functions::FunctionId::RegexpCount
+    if function_id == crate::sql::functions::FunctionId::RegexpReplace && arguments[2].is_none() {
+        return Err(SqlError::syntax(format!(
+            "function '{function_name}' requires named argument 'replacement'"
+        )));
+    }
+    if function_id == crate::sql::functions::FunctionId::RegexpCount
         && arguments[2].is_none()
         && arguments[3].is_some()
     {
         return Err(SqlError::undefined_function(format!(
-            "function {}(text, text, text) does not exist",
-            function.name
+            "function {function_name}(text, text, text) does not exist"
         )));
+    }
+    if function_id == crate::sql::functions::FunctionId::RegexpReplace
+        && arguments[3].is_none()
+        && arguments[4].is_none()
+        && arguments[5].is_some()
+    {
+        let ordered = [0, 1, 2, 5]
+            .into_iter()
+            .map(|index| {
+                arguments[index]
+                    .take()
+                    .expect("required named regexp_replace arguments were checked above")
+            })
+            .collect();
+        return Ok(ordered);
     }
 
     let last_argument = arguments
@@ -77,14 +118,14 @@ pub(super) fn arguments(name: &str, body: &str) -> Result<Option<(String, Vec<Ex
     for (index, argument) in arguments.into_iter().enumerate().take(last_argument + 1) {
         let Some(argument) = argument else {
             return Err(SqlError::syntax(format!(
-                "missing named argument '{}' for function '{}'",
-                argument_names[index], function.name
+                "missing named argument '{}' for function '{function_name}'",
+                argument_names[index]
             )));
         };
         ordered.push(argument);
     }
 
-    Ok(Some((function.name.to_owned(), ordered)))
+    Ok(ordered)
 }
 
 fn split_named_argument(raw: &str) -> Option<(&str, &str)> {
@@ -140,5 +181,58 @@ mod tests {
 
         // Assert
         assert!(error.to_string().contains("unknown named argument 'mode'"));
+    }
+
+    #[test]
+    fn should_place_named_regexp_replace_flags_in_the_short_overload() {
+        // Arrange
+        let name = "regexp_replace";
+        let body = "flags => 'g', replacement => 'X', pattern => 'a', string => 'abc'";
+
+        // Act
+        let (_, arguments) = arguments(name, body)
+            .expect("named arguments are valid")
+            .expect("regexp_replace uses the named-argument parser");
+
+        // Assert
+        assert_eq!(arguments.len(), 4);
+        assert!(matches!(arguments[0], Expr::StringLiteral(ref value) if value == "abc"));
+        assert!(matches!(arguments[1], Expr::StringLiteral(ref value) if value == "a"));
+        assert!(matches!(arguments[2], Expr::StringLiteral(ref value) if value == "X"));
+        assert!(matches!(arguments[3], Expr::StringLiteral(ref value) if value == "g"));
+    }
+
+    #[test]
+    fn should_order_named_regexp_replace_start_occurrence_flags() {
+        // Arrange
+        let name = "regexp_replace";
+        let body = "flags => 'i', \"N\" => 2, replacement => 'X', start => 3, pattern => 'a', string => 'abc'";
+
+        // Act
+        let (_, arguments) = arguments(name, body)
+            .expect("named arguments are valid")
+            .expect("regexp_replace uses the named-argument parser");
+
+        // Assert
+        assert_eq!(arguments.len(), 6);
+        assert!(matches!(arguments[0], Expr::StringLiteral(ref value) if value == "abc"));
+        assert!(matches!(arguments[3], Expr::IntegerLiteral(3)));
+        assert!(matches!(arguments[4], Expr::IntegerLiteral(2)));
+        assert!(matches!(arguments[5], Expr::StringLiteral(ref value) if value == "i"));
+    }
+
+    #[test]
+    fn should_reject_named_regexp_replace_without_replacement() {
+        // Arrange
+        let name = "regexp_replace";
+        let body = "string => 'abc', pattern => 'a', flags => 'g'";
+
+        // Act
+        let error = arguments(name, body).expect_err("replacement is required");
+
+        // Assert
+        assert!(error
+            .to_string()
+            .contains("requires named argument 'replacement'"));
     }
 }

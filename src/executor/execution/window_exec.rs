@@ -8,8 +8,8 @@ use crate::executor::filter;
 use crate::executor::semantic::{SemanticKey, SemanticValue};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
-    NullsOrder, SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameExclusion,
-    WindowFrameUnit, WindowFunctionCall,
+    AggregateQuantifier, FunctionCall, NullsOrder, SelectItem, SortDirection, WindowFrame,
+    WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
 };
 use crate::types::Value;
 
@@ -57,8 +57,15 @@ fn apply_scalar_window_functions(
     let _rows_memory = context
         .controls
         .reserve_query_memory(batch_rows_bytes(&rows))?;
-    for (function, alias) in windows {
-        apply_single_window(&mut rows, function, alias.as_deref(), context)?;
+    for (window_index, function, alias) in windows {
+        let output_name = crate::executor::projection::window_value_key(window_index);
+        apply_single_window(
+            &mut rows,
+            function,
+            &output_name,
+            alias.as_deref().unwrap_or(function.name.as_str()),
+            context,
+        )?;
     }
 
     Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
@@ -78,11 +85,16 @@ struct WindowExecutionContext<'a> {
 
 fn collect_window_functions(
     projection: &[SelectItem],
-) -> Vec<(&WindowFunctionCall, &Option<String>)> {
+) -> Vec<(usize, &WindowFunctionCall, &Option<String>)> {
+    let mut window_index = 0;
     projection
         .iter()
         .filter_map(|item| match item {
-            SelectItem::WindowFunction { function, alias } => Some((function, alias)),
+            SelectItem::WindowFunction { function, alias } => {
+                let index = window_index;
+                window_index += 1;
+                Some((index, function, alias))
+            }
             _ => None,
         })
         .collect()
@@ -91,7 +103,8 @@ fn collect_window_functions(
 fn apply_single_window(
     rows: &mut [BatchRow],
     function: &WindowFunctionCall,
-    alias: Option<&str>,
+    output_name: &str,
+    output_alias: &str,
     context: &WindowExecutionContext<'_>,
 ) -> Result<(), QueryError> {
     let function_name = validated_window_function_name(function)?;
@@ -100,9 +113,14 @@ fn apply_single_window(
         .controls
         .reserve_query_memory(window_partition_bytes(&partitions))?;
     let values = evaluate_window_values(rows, function, &function_name, &mut partitions, context)?;
-    let _value_memory = context
-        .controls
-        .reserve_query_memory(values.len().saturating_mul(std::mem::size_of::<Value>()))?;
+    let _value_memory = context.controls.reserve_query_memory(
+        values.len().saturating_mul(
+            std::mem::size_of::<(String, Value)>()
+                .saturating_add(output_name.len())
+                .saturating_add(std::mem::size_of::<(String, usize)>())
+                .saturating_add(output_alias.len()),
+        ),
+    )?;
     let data_type = match function_name.as_str() {
         "first_value" | "last_value" | "lag" | "lead" => rows
             .first()
@@ -111,14 +129,29 @@ fn apply_single_window(
                 crate::executor::array_order::expression_type(row, expr, context.user_functions)
             })
             .unwrap_or(crate::types::DataType::Null),
+        "sum" | "count" | "bool_and" | "bool_or" => rows
+            .first()
+            .and_then(|row| {
+                let aggregate = FunctionCall {
+                    name: function.name.clone(),
+                    args: function.args.clone(),
+                    quantifier: AggregateQuantifier::Default,
+                    filter: None,
+                    order_by: Vec::new(),
+                };
+                crate::executor::array_order::expression_type(
+                    row,
+                    &crate::sql::ast::Expr::Function(Box::new(aggregate)),
+                    context.user_functions,
+                )
+            })
+            .unwrap_or(match function_name.as_str() {
+                "bool_and" | "bool_or" => crate::types::DataType::Boolean,
+                _ => crate::types::DataType::BigInt,
+            }),
         _ => crate::types::DataType::BigInt,
     };
-    append_window_values(
-        rows,
-        alias.unwrap_or(function.name.as_str()),
-        values,
-        &data_type,
-    );
+    append_window_values(rows, output_name, output_alias, values, &data_type)?;
     Ok(())
 }
 
@@ -147,7 +180,17 @@ fn validated_window_function_name(function: &WindowFunctionCall) -> Result<Strin
     let function_name = function.name.to_ascii_lowercase();
     if matches!(
         function_name.as_str(),
-        "row_number" | "rank" | "dense_rank" | "lag" | "lead" | "first_value" | "last_value"
+        "row_number"
+            | "rank"
+            | "dense_rank"
+            | "lag"
+            | "lead"
+            | "first_value"
+            | "last_value"
+            | "count"
+            | "sum"
+            | "bool_and"
+            | "bool_or"
     ) {
         return Ok(function_name);
     }
@@ -338,6 +381,32 @@ fn window_value_at(
             false,
             context,
         ),
+        "count" | "sum" | "bool_and" | "bool_or" => {
+            let positions = frame_positions(
+                value_position.position,
+                indices,
+                rows,
+                function,
+                value_position.frame,
+                context,
+            )?;
+            let aggregate = FunctionCall {
+                name: function.name.clone(),
+                args: function.args.clone(),
+                quantifier: AggregateQuantifier::Default,
+                filter: None,
+                order_by: Vec::new(),
+            };
+            super::aggregate_exec::evaluate_window_aggregate(
+                &aggregate,
+                positions.iter().map(|position| &rows[indices[*position]]),
+                context.params,
+                context.search_context,
+                context.user_functions,
+                context.session,
+                context.controls,
+            )
+        }
         _ => Ok(Value::Null),
     }
 }
@@ -726,9 +795,10 @@ fn rank_value(
 fn append_window_values(
     rows: &mut [BatchRow],
     output_name: &str,
+    output_alias: &str,
     values: Vec<Value>,
     data_type: &crate::types::DataType,
-) {
+) -> Result<(), QueryError> {
     let types: Option<std::sync::Arc<Vec<crate::types::DataType>>> = rows.first().and_then(|row| {
         if row.data_types().is_empty() && !matches!(data_type, crate::types::DataType::Array(_)) {
             return None;
@@ -739,11 +809,12 @@ fn append_window_values(
         Some(types.into())
     });
     for (row, value) in rows.iter_mut().zip(values) {
-        row.append_value(output_name.to_string(), value);
+        row.append_value_with_alias(output_name.to_string(), value, output_alias)?;
         if let Some(types) = &types {
             row.set_data_types(types.clone());
         }
     }
+    Ok(())
 }
 
 fn window_arg_value(

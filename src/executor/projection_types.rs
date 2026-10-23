@@ -31,13 +31,14 @@ pub(super) fn projected<R: RowAccess>(
                         .iter()
                         .enumerate()
                         .filter(|(_, (name, _))| {
-                            !hide_identity
-                                || !crate::types::row_identity::is_row_identity_column(name)
+                            !super::projection::is_window_value_key(name)
+                                && (!hide_identity
+                                    || !crate::types::row_identity::is_row_identity_column(name))
                         })
                         .map(|(index, _)| row.entry_type(index).cloned().unwrap_or(DataType::Null)),
                 );
             }
-            ProjectionOp::Column { source, .. } => {
+            ProjectionOp::Column { source, .. } | ProjectionOp::WindowFunction { source, .. } => {
                 types.push(row.column_type(source).cloned().unwrap_or(DataType::Null));
             }
             ProjectionOp::AggregateFunction { lookups, .. } => types.push(
@@ -59,9 +60,6 @@ pub(super) fn projected<R: RowAccess>(
                     .or_else(|| array_order::expression_type(row, expr, functions))
                     .unwrap_or(DataType::Null),
             ),
-            ProjectionOp::WindowFunction { key } => {
-                types.push(row.column_type(key).cloned().unwrap_or(DataType::Null));
-            }
         }
     }
     types

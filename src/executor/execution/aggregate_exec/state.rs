@@ -219,7 +219,7 @@ impl AggregateAccumulator {
         }
     }
 
-    fn update(
+    pub(super) fn update(
         &mut self,
         function: &FunctionCall,
         row: &BatchRow,

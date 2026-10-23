@@ -560,16 +560,12 @@ pub(super) fn infer_projection_schema_with_parameters(
                 });
             }
             SelectItem::WindowFunction { function, alias } => {
-                let data_type = match function.name.to_ascii_lowercase().as_str() {
-                    "lag" | "lead" | "first_value" | "last_value" => function
-                        .args
-                        .first()
-                        .and_then(|arg| {
-                            infer_expr_type(arg, source_schema, user_functions, parameter_types)
-                        })
-                        .unwrap_or(DataType::Text),
-                    _ => DataType::BigInt,
-                };
+                let data_type = super::infer_window_return_type(
+                    function,
+                    source_schema,
+                    user_functions,
+                    parameter_types,
+                );
                 fields.push(FieldSchema {
                     name: alias
                         .as_deref()

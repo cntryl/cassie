@@ -31,6 +31,8 @@ mod state;
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
 pub(super) mod typed;
+#[path = "aggregate_exec/window.rs"]
+mod window;
 
 use group_memory::GroupMemory;
 pub(super) use rewrite::{
@@ -512,6 +514,26 @@ fn evaluate_aggregate(
     } else {
         Ok(Value::Null)
     }
+}
+
+pub(super) fn evaluate_window_aggregate<'a>(
+    function: &FunctionCall,
+    rows: impl IntoIterator<Item = &'a BatchRow>,
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+) -> Result<Value, QueryError> {
+    window::evaluate(
+        function,
+        rows,
+        params,
+        search_context,
+        user_functions,
+        session,
+        controls,
+    )
 }
 
 fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {

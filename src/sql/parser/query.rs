@@ -152,7 +152,7 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
     let Some((function_raw, over_raw)) = split_top_level(raw, " over ") else {
         return Ok(None);
     };
-    let function = parse_function(function_raw.trim())?
+    let function = super::aggregate_call::parse_function_for_window(function_raw.trim())?
         .ok_or_else(|| SqlError::new("window function requires function call".into()))?;
     let function_name = function.name.to_ascii_lowercase();
     let aggregate_window = matches!(

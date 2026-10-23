@@ -212,7 +212,7 @@ impl Analyzer<'_> {
         // COUNT(*) and other fixed-return policies do not export argument
         // values. Ordinary validation checks their arguments separately;
         // this output analyzer must not resolve the `*` pseudo-column.
-        if let Some(output) = self.ordered_set_percentile(function, metadata.id, lookup)? {
+        if let Some(output) = self.ordered_set_function(function, metadata.id, lookup)? {
             return Ok(output);
         }
         if let Some(output) = self.temporal_function(function, metadata.id, lookup)? {
@@ -290,7 +290,7 @@ impl Analyzer<'_> {
         })
     }
 
-    fn ordered_set_percentile(
+    fn ordered_set_function(
         &self,
         function: &FunctionCall,
         id: crate::sql::functions::FunctionId,
@@ -298,13 +298,19 @@ impl Analyzer<'_> {
     ) -> Result<Option<OutputType>, CassieError> {
         use crate::sql::functions::FunctionId;
 
-        if !matches!(id, FunctionId::PercentileCont | FunctionId::PercentileDisc) {
+        if !matches!(
+            id,
+            FunctionId::Mode | FunctionId::PercentileCont | FunctionId::PercentileDisc
+        ) {
             return Ok(None);
         }
         let Some(order) = function.order_by.first() else {
             return Ok(None);
         };
         let ordered_type = self.expression(&order.expr, lookup)?.data_type;
+        if id == FunctionId::Mode {
+            return Ok(Some(OutputType::fixed(ordered_type)));
+        }
         let element_type = match id {
             FunctionId::PercentileCont
                 if matches!(

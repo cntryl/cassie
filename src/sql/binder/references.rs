@@ -221,23 +221,24 @@ pub(super) fn validate_aggregate_function_args(
     known_fields: &HashSet<String>,
     scope: ReferenceScope<'_, '_>,
 ) -> Result<(), CassieError> {
-    let Some(arity) = crate::sql::functions::aggregate_arity(&function.name) else {
+    let Some(metadata) =
+        crate::sql::functions::function(&function.name).filter(|metadata| metadata.is_aggregate)
+    else {
         return Ok(());
     };
     for arg in &function.args {
-        if crate::sql::functions::function(&function.name)
-            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::Count)
+        if metadata.id == crate::sql::functions::FunctionId::Count
             && matches!(arg, Expr::Column(name) if name == "*")
         {
             continue;
         }
         validate_expression_in_scope(arg, known_fields, &HashSet::new(), false, scope)?;
     }
-    if function.args.len() != arity {
+    if !metadata.arity.matches(function.args.len()) {
         return Err(CassieError::Planner(format!(
-            "aggregate function '{}' expects {} args, got {}",
+            "aggregate function '{}' expects {}, got {} args",
             function.name,
-            arity,
+            metadata.arity.describe(),
             function.args.len()
         )));
     }

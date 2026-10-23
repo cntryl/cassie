@@ -31,7 +31,13 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
                 | DataType::Float
                 | DataType::Extended(ExtendedType::Numeric(_) | ExtendedType::Real)
         ),
-        FunctionId::Min | FunctionId::Max => matches!(
+        FunctionId::Min
+        | FunctionId::Max
+        | FunctionId::Mode
+        | FunctionId::Rank
+        | FunctionId::DenseRank
+        | FunctionId::PercentRank
+        | FunctionId::CumeDist => matches!(
             data_type,
             DataType::Null
                 | DataType::SmallInt
@@ -75,6 +81,8 @@ pub(crate) enum FunctionInputSignature {
     Boolean,
     CommonArguments,
     PercentileFraction,
+    OrderedSetOrderKey,
+    HypotheticalSetArguments,
     Positional(&'static [i32]),
 }
 
@@ -112,6 +120,11 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PercentileCont | FunctionId::PercentileDisc => {
             Some(FunctionInputSignature::PercentileFraction)
         }
+        FunctionId::Mode => Some(FunctionInputSignature::OrderedSetOrderKey),
+        FunctionId::Rank
+        | FunctionId::DenseRank
+        | FunctionId::PercentRank
+        | FunctionId::CumeDist => Some(FunctionInputSignature::HypotheticalSetArguments),
         FunctionId::Coalesce => Some(FunctionInputSignature::CommonArguments),
         FunctionId::Substring => Some(FunctionInputSignature::Positional(&[25, 23, 23])),
         FunctionId::StringAgg
@@ -170,5 +183,28 @@ mod tests {
             input_signature(FunctionId::ConcatWs),
             Some(FunctionInputSignature::Text)
         ));
+    }
+
+    #[test]
+    fn should_define_within_group_input_signatures_for_ordered_aggregates() {
+        // Arrange
+        let hypothetical = [
+            FunctionId::Rank,
+            FunctionId::DenseRank,
+            FunctionId::PercentRank,
+            FunctionId::CumeDist,
+        ];
+
+        // Act / Assert
+        assert!(matches!(
+            input_signature(FunctionId::Mode),
+            Some(FunctionInputSignature::OrderedSetOrderKey)
+        ));
+        for id in hypothetical {
+            assert!(matches!(
+                input_signature(id),
+                Some(FunctionInputSignature::HypotheticalSetArguments)
+            ));
+        }
     }
 }

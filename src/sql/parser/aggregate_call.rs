@@ -8,6 +8,17 @@ use crate::sql::ast::AggregateQuantifier;
 mod text_call;
 
 pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
+    parse_function_with_ordered_set_validation(raw, true)
+}
+
+pub(super) fn parse_function_for_window(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
+    parse_function_with_ordered_set_validation(raw, false)
+}
+
+fn parse_function_with_ordered_set_validation(
+    raw: &str,
+    validate_ordered_set: bool,
+) -> Result<Option<FunctionCall>, SqlError> {
     let Some((open, _)) = super::clauses::find_top_level_keyword_span(raw, 0, "(") else {
         return Ok(None);
     };
@@ -87,17 +98,14 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
             "aggregate star does not accept ORDER BY".into(),
         ));
     }
-    if matches!(
-        crate::sql::functions::function(&resolved_name).map(|metadata| metadata.id),
-        Some(
-            crate::sql::functions::FunctionId::PercentileCont
-                | crate::sql::functions::FunctionId::PercentileDisc
-        )
-    ) && (!has_within_group || order_by.len() != 1)
-    {
-        return Err(SqlError::syntax(
-            "percentile aggregates require one WITHIN GROUP ORDER BY key".into(),
-        ));
+    if validate_ordered_set {
+        validate_ordered_set_call(
+            &resolved_name,
+            &args,
+            quantifier,
+            has_within_group,
+            &order_by,
+        )?;
     }
     Ok(Some(FunctionCall {
         name: resolved_name,
@@ -106,6 +114,55 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
         filter,
         order_by,
     }))
+}
+
+fn validate_ordered_set_call(
+    name: &str,
+    args: &[super::Expr],
+    quantifier: AggregateQuantifier,
+    has_within_group: bool,
+    order_by: &[super::OrderExpr],
+) -> Result<(), SqlError> {
+    match crate::sql::functions::function(name).map(|metadata| metadata.id) {
+        Some(
+            crate::sql::functions::FunctionId::PercentileCont
+            | crate::sql::functions::FunctionId::PercentileDisc,
+        ) if !has_within_group || order_by.len() != 1 => {
+            return Err(SqlError::syntax(
+                "percentile aggregates require one WITHIN GROUP ORDER BY key".into(),
+            ));
+        }
+        Some(crate::sql::functions::FunctionId::Mode)
+            if !has_within_group || !args.is_empty() || order_by.len() != 1 =>
+        {
+            return Err(SqlError::syntax(
+                "mode requires no direct arguments and one WITHIN GROUP ORDER BY key".into(),
+            ));
+        }
+        Some(
+            crate::sql::functions::FunctionId::Rank
+            | crate::sql::functions::FunctionId::DenseRank
+            | crate::sql::functions::FunctionId::PercentRank
+            | crate::sql::functions::FunctionId::CumeDist,
+        ) if !has_within_group || args.is_empty() || args.len() != order_by.len() => {
+            return Err(SqlError::syntax(
+                "hypothetical-set aggregates require matching direct arguments and WITHIN GROUP ORDER BY keys".into(),
+            ));
+        }
+        Some(
+            crate::sql::functions::FunctionId::Mode
+            | crate::sql::functions::FunctionId::Rank
+            | crate::sql::functions::FunctionId::DenseRank
+            | crate::sql::functions::FunctionId::PercentRank
+            | crate::sql::functions::FunctionId::CumeDist,
+        ) if quantifier != AggregateQuantifier::Default => {
+            return Err(SqlError::syntax(
+                "DISTINCT and ALL are not supported for ordered-set aggregates".into(),
+            ));
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn parse_within_group(raw: &str) -> Result<(Vec<super::OrderExpr>, &str), SqlError> {
@@ -196,6 +253,42 @@ mod tests {
         assert!(matches!(call.order_by[0].expr, Expr::Column(ref name) if name == "amount"));
         assert!(matches!(call.order_by[0].direction, SortDirection::Desc));
         assert_eq!(call.order_by[0].nulls, Some(NullsOrder::Last));
+    }
+
+    #[test]
+    fn should_parse_hypothetical_direct_arguments_against_each_ordering_key() {
+        // Arrange
+        let sql = "rank(2, 'gamma') WITHIN GROUP (ORDER BY score, label DESC NULLS FIRST)";
+
+        // Act
+        let call = parse_function(sql)
+            .expect("valid hypothetical-set syntax")
+            .expect("function call");
+
+        // Assert
+        assert_eq!(call.name, "rank");
+        assert_eq!(call.args.len(), 2);
+        assert_eq!(call.order_by.len(), 2);
+        assert!(matches!(call.order_by[0].expr, Expr::Column(ref name) if name == "score"));
+        assert!(matches!(call.order_by[1].expr, Expr::Column(ref name) if name == "label"));
+        assert_eq!(call.order_by[1].nulls, Some(NullsOrder::First));
+    }
+
+    #[test]
+    fn should_reject_hypothetical_calls_with_different_direct_and_ordering_arities() {
+        // Arrange
+        let sql = "rank(2, 'gamma') WITHIN GROUP (ORDER BY score)";
+
+        // Act
+        let rejected = parse_function(sql);
+
+        // Assert
+        assert_eq!(
+            rejected
+                .expect_err("each hypothetical direct argument needs an order key")
+                .kind(),
+            crate::sql::SqlErrorKind::Syntax
+        );
     }
 
     #[test]

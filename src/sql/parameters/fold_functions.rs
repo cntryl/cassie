@@ -187,12 +187,66 @@ impl Fold<'_, '_> {
                 Ok(Summary::unqualified())
             }
             Some(FunctionInputSignature::CommonArguments) => self.common_function(frame),
+            Some(FunctionInputSignature::OrderedSetOrderKey) => {
+                Ok(self.ordered_set_order_key(function, frame))
+            }
+            Some(FunctionInputSignature::HypotheticalSetArguments) => {
+                self.hypothetical_set_arguments(function, metadata, frame)
+            }
             None => {
                 self.occurrences
                     .unqualify_since(frame.occurrence_start, self.controls)?;
                 Ok(Summary::unqualified())
             }
         }
+    }
+
+    fn ordered_set_order_key(&self, function: &ast::FunctionCall, frame: &Frame<'_>) -> Summary {
+        let Some(order) = function.order_by.first() else {
+            return Summary::unqualified();
+        };
+        let Some(oid) = self.ordered_set_order_key_oid(&order.expr, frame) else {
+            return Summary::unqualified();
+        };
+        if oid == 0 || oid == 705 {
+            Summary::unqualified()
+        } else {
+            Summary::known(oid)
+        }
+    }
+
+    fn hypothetical_set_arguments(
+        &mut self,
+        function: &ast::FunctionCall,
+        metadata: Option<&functions::ScalarFunction>,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        if function.args.len() == function.order_by.len() {
+            for (index, order) in function.order_by.iter().enumerate() {
+                check_controls(self.controls)?;
+                let Some(oid) = self.ordered_set_order_key_oid(&order.expr, frame) else {
+                    continue;
+                };
+                if oid == 0 || oid == 705 {
+                    continue;
+                }
+                let Some(direct) = self.summaries.values.get_mut(frame.start + index) else {
+                    continue;
+                };
+                self.occurrences.coerce(direct, oid, true)?;
+            }
+        }
+        Ok(match metadata.map(|metadata| metadata.return_type) {
+            Some(functions::FunctionReturnType::BigInt) => Summary::known(20),
+            Some(functions::FunctionReturnType::Float) => Summary::known(701),
+            _ => Summary::unqualified(),
+        })
+    }
+
+    fn ordered_set_order_key_oid(&self, expression: &ast::Expr, frame: &Frame<'_>) -> Option<i32> {
+        let context = self.contexts.values.get(frame.context)?;
+        crate::sql::binder::known_expr_type(expression, &context.fields)
+            .map(|data_type| oid(&data_type))
     }
 
     fn catalog_arity(

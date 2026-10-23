@@ -714,7 +714,7 @@ pub(crate) fn infer_function_return_type(
         return Some(metadata.return_type.clone());
     }
     let metadata = crate::sql::functions::function(&name)?;
-    if let Some(data_type) = selected_percentile_return_type(
+    if let Some(data_type) = selected_ordered_set_return_type(
         function,
         metadata.id,
         source_schema,
@@ -822,7 +822,7 @@ fn primitive_cast_return_type(
     .then_some(target.data_type)
 }
 
-fn selected_percentile_return_type(
+fn selected_ordered_set_return_type(
     function: &FunctionCall,
     id: crate::sql::functions::FunctionId,
     source_schema: &Schema,
@@ -831,15 +831,16 @@ fn selected_percentile_return_type(
 ) -> Option<DataType> {
     if !matches!(
         id,
-        crate::sql::functions::FunctionId::PercentileCont
+        crate::sql::functions::FunctionId::Mode
+            | crate::sql::functions::FunctionId::PercentileCont
             | crate::sql::functions::FunctionId::PercentileDisc
     ) {
         return None;
     }
-    ordered_set_percentile_return_type(function, id, source_schema, user_functions, parameter_types)
+    ordered_set_return_type(function, id, source_schema, user_functions, parameter_types)
 }
 
-fn ordered_set_percentile_return_type(
+fn ordered_set_return_type(
     function: &FunctionCall,
     id: crate::sql::functions::FunctionId,
     source_schema: &Schema,
@@ -849,6 +850,9 @@ fn ordered_set_percentile_return_type(
     let order_type = function.order_by.first().and_then(|order| {
         infer_expr_type(&order.expr, source_schema, user_functions, parameter_types)
     })?;
+    if id == crate::sql::functions::FunctionId::Mode {
+        return Some(order_type);
+    }
     let result_element = match id {
         crate::sql::functions::FunctionId::PercentileCont
             if matches!(

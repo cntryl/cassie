@@ -159,7 +159,10 @@ fn infer_inputs(
         Some(FunctionInputSignature::CommonArguments) => {
             common_argument_type(function, field_types, catalog, inference)?
         }
-        None => None,
+        Some(FunctionInputSignature::HypotheticalSetArguments) => {
+            infer_hypothetical_set_inputs(function, field_types, catalog, inference)?
+        }
+        Some(FunctionInputSignature::OrderedSetOrderKey) | None => None,
     };
     if let Some(data_type) = data_type {
         for argument in &function.args {
@@ -167,6 +170,25 @@ fn infer_inputs(
         }
     }
     Ok(())
+}
+
+fn infer_hypothetical_set_inputs(
+    function: &FunctionCall,
+    field_types: &FieldTypeMap,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) -> Result<Option<DataType>, ParameterAdmissionError> {
+    if function.args.len() == function.order_by.len() {
+        for (argument, order) in function.args.iter().zip(&function.order_by) {
+            let ArgumentType::Known(data_type) =
+                argument_type(&order.expr, field_types, catalog, inference)?
+            else {
+                continue;
+            };
+            infer_parameter_type_from_expected_expr(argument, &data_type, inference);
+        }
+    }
+    Ok(None)
 }
 
 enum ArgumentType {

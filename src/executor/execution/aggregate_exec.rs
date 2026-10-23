@@ -510,7 +510,7 @@ fn evaluate_aggregate(
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
-    if ordered_set::is_percentile(function) {
+    if ordered_set::is_ordered_set(function) {
         return ordered_set::evaluate(function, rows, context);
     }
     let is_string_aggregate = crate::sql::functions::function(&function.name)

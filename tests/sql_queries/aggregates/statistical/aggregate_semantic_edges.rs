@@ -41,6 +41,226 @@ fn should_filter_regression_rows_pairwise_when_either_input_is_null() {
 }
 
 #[test]
+fn should_apply_regression_filter_before_evaluating_both_inputs() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-regression-filter-order",
+        &[
+            "CREATE TABLE issue_806_regression_filter_values (x INT, y INT)",
+            "INSERT INTO issue_806_regression_filter_values VALUES (1,2),(2,4)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regr_count(CAST(y AS FLOAT8), CAST(1 / (x - x) AS FLOAT8)) \
+         FILTER (WHERE y < 0) FROM issue_806_regression_filter_values",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("FILTER must short-circuit both regression inputs").rows(),
+        &[vec![Value::Int64(0)]]
+    );
+}
+
+#[test]
+fn should_coerce_numeric_regression_inputs_to_float8() {
+    // Arrange
+    let fixture = sql_fixture("issue-806-regression-numeric-inputs", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regr_avgx(y, x), regr_avgy(y, x) \
+         FROM (VALUES (2::NUMERIC, 1::NUMERIC), (4::NUMERIC, 2::NUMERIC)) AS pairs(y, x)",
+    );
+
+    // Assert
+    let result = result.expect("numeric regression inputs cast to FLOAT8");
+    assert_eq!(result.rows(), &[vec![Value::Float64(1.5), Value::Float64(3.0)]]);
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![701, 701]
+    );
+}
+
+#[test]
+fn should_return_horizontal_line_regression_results() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-horizontal-regression-line",
+        &[
+            "CREATE TABLE issue_806_horizontal_regression_values (x FLOAT8, y FLOAT8)",
+            "INSERT INTO issue_806_horizontal_regression_values VALUES (1,5),(2,5),(3,5)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT corr(y, x), regr_slope(y, x), regr_intercept(y, x), regr_r2(y, x) \
+         FROM issue_806_horizontal_regression_values",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("horizontal regression line").rows(),
+        &[vec![
+            Value::Null,
+            Value::Float64(0.0),
+            Value::Float64(5.0),
+            Value::Float64(1.0),
+        ]]
+    );
+}
+
+#[test]
+fn should_return_null_results_for_vertical_line_regression() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-vertical-regression-line",
+        &[
+            "CREATE TABLE issue_806_vertical_regression_values (x FLOAT8, y FLOAT8)",
+            "INSERT INTO issue_806_vertical_regression_values VALUES (7,1),(7,2),(7,3)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT corr(y, x), regr_slope(y, x), regr_intercept(y, x), regr_r2(y, x) \
+         FROM issue_806_vertical_regression_values",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("vertical regression line").rows(),
+        &[vec![Value::Null, Value::Null, Value::Null, Value::Null]]
+    );
+}
+
+#[test]
+fn should_reject_numeric_regression_input_outside_float8_range() {
+    // Arrange
+    let fixture = sql_fixture("issue-806-regression-numeric-range", &[]);
+
+    // Act
+    let results = [
+        fixture.execute("SELECT regr_count(1::NUMERIC, 1e10000::NUMERIC)"),
+        fixture.execute("SELECT regr_count(1::NUMERIC, 1e-10000::NUMERIC)"),
+    ];
+
+    // Assert
+    for result in &results {
+        assert!(matches!(
+            result,
+            Err(cassie::app::CassieError::FloatInput(
+                cassie::types::FloatInputError::Range
+            ))
+        ), "unexpected regression result: {result:?}");
+    }
+}
+
+#[test]
+fn should_propagate_first_row_nonfinite_regression_moments() {
+    // Arrange
+    let fixture = sql_fixture("issue-806-regression-nonfinite-first-row", &[]);
+
+    // Act
+    let x_infinity = fixture.execute(
+        "SELECT regr_sxx(1::FLOAT8, 'Infinity'::FLOAT8), \
+         regr_sxy(1::FLOAT8, 'Infinity'::FLOAT8)",
+    );
+    let y_nan = fixture.execute(
+        "SELECT regr_syy('NaN'::FLOAT8, 1::FLOAT8), \
+         regr_sxy('NaN'::FLOAT8, 1::FLOAT8)",
+    );
+
+    // Assert
+    for result in [x_infinity, y_nan] {
+        let result = result.expect("non-finite regression moments");
+        let row = &result.rows()[0];
+        assert!(row.iter().all(|value| matches!(value, Value::Float64(value) if value.is_nan())));
+    }
+}
+
+#[test]
+fn should_propagate_later_nonfinite_regression_moments() {
+    // Arrange
+    let fixture = sql_fixture("issue-806-regression-nonfinite-later-row", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT kind, regr_sxx(y, x), regr_syy(y, x), regr_sxy(y, x) FROM (VALUES \
+         ('x_infinity',1::FLOAT8,1::FLOAT8), \
+         ('x_infinity','Infinity'::FLOAT8,2::FLOAT8), \
+         ('y_nan',1::FLOAT8,1::FLOAT8), \
+         ('y_nan',2::FLOAT8,'NaN'::FLOAT8)) AS pairs(kind,x,y) \
+         GROUP BY kind ORDER BY kind",
+    );
+
+    // Assert
+    let result = result.expect("later non-finite regression moments");
+    let rows = result.rows();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0][0], Value::String("x_infinity".into()));
+    assert!(matches!(rows[0][1], Value::Float64(value) if value.is_nan()));
+    assert_eq!(rows[0][2], Value::Float64(0.5));
+    assert!(matches!(rows[0][3], Value::Float64(value) if value.is_nan()));
+    assert_eq!(rows[1][0], Value::String("y_nan".into()));
+    assert_eq!(rows[1][1], Value::Float64(0.5));
+    assert!(matches!(rows[1][2], Value::Float64(value) if value.is_nan()));
+    assert!(matches!(rows[1][3], Value::Float64(value) if value.is_nan()));
+}
+
+#[test]
+fn should_reject_distinct_regression_aggregates() {
+    // Arrange
+    let fixture = sql_fixture("issue-806-regression-distinct", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT corr(DISTINCT y, x) \
+         FROM (VALUES (1::FLOAT8, 2::FLOAT8)) AS pairs(y, x)",
+    );
+
+    // Assert
+    assert!(matches!(result, Err(cassie::app::CassieError::Unsupported(_))));
+}
+
+#[test]
+fn should_reject_ordered_regression_aggregates() {
+    // Arrange
+    let fixture = sql_fixture("issue-806-regression-order-by", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT corr(y, x ORDER BY x) \
+         FROM (VALUES (1::FLOAT8, 2::FLOAT8)) AS pairs(y, x)",
+    );
+
+    // Assert
+    assert!(matches!(result, Err(cassie::app::CassieError::Unsupported(_))));
+}
+
+#[test]
+fn should_reject_regression_window_aggregates() {
+    // Arrange
+    let fixture = sql_fixture("issue-806-regression-window", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT corr(y, x) OVER (ORDER BY x) \
+         FROM (VALUES (1::FLOAT8, 2::FLOAT8), (2::FLOAT8, 3::FLOAT8)) AS pairs(y, x)",
+    );
+
+    // Assert
+    assert!(matches!(result, Err(cassie::app::CassieError::Unsupported(_))));
+}
+
+#[test]
 fn should_return_population_zero_for_singleton_statistics() {
     // Arrange
     let fixture = sql_fixture(

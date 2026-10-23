@@ -9,15 +9,19 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
         return true;
     }
     match id {
-        id if super::statistical::is_statistical_function(id) => matches!(
-            data_type,
-            DataType::Null
-                | DataType::SmallInt
-                | DataType::Int
-                | DataType::BigInt
-                | DataType::Float
-                | DataType::Extended(ExtendedType::Numeric(_) | ExtendedType::Real)
-        ),
+        id if super::statistical::is_statistical_function(id)
+            || super::regression::is_regression_function(id) =>
+        {
+            matches!(
+                data_type,
+                DataType::Null
+                    | DataType::SmallInt
+                    | DataType::Int
+                    | DataType::BigInt
+                    | DataType::Float
+                    | DataType::Extended(ExtendedType::Numeric(_) | ExtendedType::Real)
+            )
+        }
         FunctionId::Sum | FunctionId::Avg => matches!(
             data_type,
             DataType::Null
@@ -99,6 +103,9 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
         FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
+        id if super::regression::is_regression_function(id) => {
+            Some(FunctionInputSignature::Positional(&[701, 701]))
+        }
         id if super::statistical::is_statistical_function(id) => {
             Some(FunctionInputSignature::CommonArguments)
         }

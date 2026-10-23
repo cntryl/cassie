@@ -6,6 +6,7 @@ mod datum_size;
 mod numeric_identity;
 mod object_identity;
 mod percentile_identity;
+pub(crate) mod regression;
 mod sequences;
 pub(crate) mod statistical;
 pub(crate) use numeric_identity::has_unselected_numeric;
@@ -57,6 +58,18 @@ pub enum FunctionId {
     StddevPop,
     StddevSamp,
     Stddev,
+    Corr,
+    CovarPop,
+    CovarSamp,
+    RegrCount,
+    RegrSlope,
+    RegrIntercept,
+    RegrR2,
+    RegrSxx,
+    RegrSxy,
+    RegrSyy,
+    RegrAvgx,
+    RegrAvgy,
     Min,
     Max,
     StringAgg,
@@ -241,6 +254,7 @@ pub fn registry() -> Vec<ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
         .chain(statistical::FUNCTIONS)
+        .chain(regression::FUNCTIONS)
         .chain(text::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
@@ -257,6 +271,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
         .chain(statistical::FUNCTIONS)
+        .chain(regression::FUNCTIONS)
         .chain(text::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
@@ -297,11 +312,15 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                             .iter()
                             .chain(math::FUNCTIONS)
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                        || regression::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
                 .and_then(|local| {
                     SCALAR_FUNCTIONS
                         .iter()
                         .chain(statistical::FUNCTIONS)
+                        .chain(regression::FUNCTIONS)
                         .chain(text::FUNCTIONS)
                         .chain(bytea::FUNCTIONS)
                         .chain(catalog::FUNCTIONS)
@@ -951,49 +970,5 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
 ];
 
 #[cfg(test)]
-mod tests {
-    use std::collections::{HashMap, HashSet};
-
-    use super::{function, registry, FunctionArity, FunctionId, FunctionReturnType};
-
-    #[test]
-    fn should_define_one_metadata_mapping_per_function_id() {
-        // Arrange
-        let functions = registry();
-        let mut names = HashSet::new();
-        let mut mappings = HashMap::new();
-
-        // Act
-        for metadata in functions {
-            assert!(names.insert(metadata.name.to_ascii_lowercase()));
-            let mapping = (metadata.return_type, metadata.arity);
-            if let Some(existing) = mappings.insert(metadata.id, mapping) {
-                assert_eq!(
-                    existing, mapping,
-                    "divergent metadata for {:?}",
-                    metadata.id
-                );
-            }
-        }
-
-        // Assert
-        assert!(!mappings.is_empty());
-        assert!(mappings.values().all(|(return_type, arity)| {
-            !matches!(return_type, FunctionReturnType::Unknown)
-                || matches!(arity, FunctionArity::Exact(_))
-        }));
-    }
-
-    #[test]
-    fn should_resolve_supported_qualified_function_alias() {
-        // Arrange
-        let qualified_name = "pg_catalog.pg_show_all_settings";
-
-        // Act
-        let metadata = function(qualified_name).expect("qualified alias should resolve");
-
-        // Assert
-        assert_eq!(metadata.id, FunctionId::PgShowAllSettings);
-        assert!(metadata.bypass_arity_validation);
-    }
-}
+#[path = "functions/tests.rs"]
+mod tests;

@@ -47,6 +47,7 @@ pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
         text("conrelid"),
         int("conrelid_oid"),
         text("contype"),
+        text("conindid"),
         int("connamespace_oid"),
         text("conkey"),
         text("confrelid"),
@@ -76,7 +77,7 @@ pub(super) fn table_constraints(
                     &mut rows,
                     &mut seen,
                     &collection.name,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
                     "PRIMARY KEY",
                 );
             }
@@ -85,7 +86,7 @@ pub(super) fn table_constraints(
                     &mut rows,
                     &mut seen,
                     &collection.name,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
                     "UNIQUE",
                 );
             }
@@ -94,7 +95,7 @@ pub(super) fn table_constraints(
                     &mut rows,
                     &mut seen,
                     &collection.name,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::Check),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::Check),
                     "CHECK",
                 );
             }
@@ -103,7 +104,7 @@ pub(super) fn table_constraints(
                     &mut rows,
                     &mut seen,
                     &collection.name,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
                     "FOREIGN KEY",
                 );
             }
@@ -129,7 +130,7 @@ pub(super) fn key_column_usage(
                 rows.push(key_column_usage_row(
                     &collection.name,
                     &constraint.field,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
                     constraint.primary_key_ordinal.unwrap_or(1),
                     None,
                 ));
@@ -138,7 +139,7 @@ pub(super) fn key_column_usage(
                 rows.push(key_column_usage_row(
                     &collection.name,
                     &constraint.field,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
                     constraint.unique_ordinal.unwrap_or(1),
                     None,
                 ));
@@ -148,7 +149,7 @@ pub(super) fn key_column_usage(
                 rows.push(key_column_usage_row(
                     &collection.name,
                     &constraint.field,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
                     ordinal,
                     Some(ordinal),
                 ));
@@ -225,7 +226,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
                     "p",
                     None,
                     None,
@@ -236,7 +237,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
                     "u",
                     None,
                     None,
@@ -247,7 +248,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::Check),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::Check),
                     "c",
                     None,
                     None,
@@ -258,7 +259,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    crate::catalog::generated_constraint_name(
+                    &crate::catalog::generated_constraint_name(
                         &collection.name,
                         &constraint.field,
                         "n",
@@ -273,7 +274,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
+                    &constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
                     "f",
                     constraint.references_table.as_deref(),
                     constraint.references_field.as_deref(),
@@ -289,12 +290,12 @@ fn push_table_constraint(
     rows: &mut Vec<VirtualRow>,
     seen: &mut BTreeSet<(String, String, String)>,
     collection: &str,
-    constraint_name: String,
+    constraint_name: &str,
     constraint_type: &str,
 ) {
     if seen.insert((
         collection.to_string(),
-        constraint_name.clone(),
+        constraint_name.to_string(),
         constraint_type.to_string(),
     )) {
         rows.push(vec![
@@ -309,7 +310,7 @@ fn push_table_constraint(
 fn key_column_usage_row(
     collection: &str,
     field: &str,
-    constraint_name: String,
+    constraint_name: &str,
     ordinal_position: u32,
     unique_position: Option<u32>,
 ) -> VirtualRow {
@@ -330,7 +331,7 @@ fn pg_constraint_row(
     catalog: &Catalog,
     collection: &str,
     field: &str,
-    constraint_name: String,
+    constraint_name: &str,
     constraint_type: &str,
     referenced_table: Option<&str>,
     referenced_field: Option<&str>,
@@ -340,15 +341,25 @@ fn pg_constraint_row(
     vec![
         int_value(
             "oid",
-            super::virtual_views_pg::constraint_oid(collection, &constraint_name),
+            super::virtual_views_pg::constraint_oid(collection, constraint_name),
         ),
-        string("conname", constraint_name),
+        string("conname", constraint_name.to_string()),
         string("conrelid", local_name(collection)),
         int_value(
             "conrelid_oid",
             super::virtual_views_pg::relation_oid(catalog, collection),
         ),
         string("contype", constraint_type),
+        (
+            "conindid".to_string(),
+            if matches!(constraint_type, "p" | "u") {
+                catalog
+                    .get_index(collection, constraint_name)
+                    .map_or(Value::Null, |index| Value::String(local_name(&index.name)))
+            } else {
+                Value::Null
+            },
+        ),
         int_value(
             "connamespace_oid",
             super::virtual_views_pg::namespace_oid(

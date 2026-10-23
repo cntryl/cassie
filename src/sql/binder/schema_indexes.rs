@@ -159,7 +159,12 @@ pub(super) fn validate_scalar_storage_options(
     let storage_options = statement
         .options
         .keys()
-        .filter(|key| key.as_str() != IndexMeta::ACCESS_METHOD_OPTION)
+        .filter(|key| {
+            !matches!(
+                key.as_str(),
+                IndexMeta::ACCESS_METHOD_OPTION | IndexMeta::NULLS_NOT_DISTINCT_OPTION
+            )
+        })
         .filter(|key| !key.starts_with("__cassie_index_key_"))
         .cloned()
         .collect::<Vec<_>>();

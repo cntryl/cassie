@@ -43,7 +43,8 @@ pub use column_defaults::{
 };
 pub use composite_unique::{
     composite_unique_constraints, composite_unique_indexes, conflicting_unique_membership,
-    enforces_single_column_uniqueness, is_composite_unique_member, CompositeUnique,
+    enforces_single_column_uniqueness, is_composite_unique_member, unique_constraint_indexes,
+    CompositeUnique,
 };
 pub use consistency::{
     ProjectionConsistencyReportMeta, ProjectionManifestHashMetadata,
@@ -53,6 +54,7 @@ pub use consistency::{
 pub use constraints::{
     generated_constraint_name, merge_constraint_set, ConstraintCheck, ConstraintOperator,
     DefaultSequenceOwnership, FieldConstraint, IdentityGeneration, NotNullOwnership,
+    UniqueNullPolicy,
 };
 pub use graphs::GraphMeta;
 pub use indexes::{

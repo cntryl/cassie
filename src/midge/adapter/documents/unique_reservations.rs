@@ -117,6 +117,7 @@ impl Midge {
                 continue;
             };
             if value.is_null()
+                && constraint.unique_null_policy != crate::catalog::UniqueNullPolicy::NotDistinct
                 && !row_schema.fields.iter().any(|field_meta| {
                     field_meta.name == constraint.field
                         && matches!(field_meta.data_type, crate::types::DataType::Json)

@@ -193,6 +193,10 @@ fn apply_field_constraint(
             constraint.unique_name = pending_constraint_name.take();
             constraint.unique_ordinal = Some(1);
         }
+        "nulls" => {
+            constraint.unique_null_policy =
+                parse_field_unique_null_policy(parts, constraint.unique)?;
+        }
         "primary" => {
             let next = parts
                 .next()
@@ -258,6 +262,35 @@ fn apply_field_constraint(
         other => return Err(SqlError::new(format!("unsupported constraint '{other}'"))),
     }
     Ok(false)
+}
+
+fn parse_field_unique_null_policy(
+    parts: &mut impl Iterator<Item = String>,
+    unique: bool,
+) -> Result<crate::catalog::UniqueNullPolicy, SqlError> {
+    if !unique {
+        return Err(SqlError::unsupported(
+            "NULLS [NOT] DISTINCT requires a UNIQUE constraint".to_string(),
+        ));
+    }
+    let next = parts
+        .next()
+        .ok_or_else(|| SqlError::new("NULLS requires DISTINCT or NOT DISTINCT".into()))?;
+    if next.eq_ignore_ascii_case("not") {
+        let distinct = parts
+            .next()
+            .ok_or_else(|| SqlError::new("NULLS NOT requires DISTINCT".into()))?;
+        if !distinct.eq_ignore_ascii_case("distinct") {
+            return Err(SqlError::new("NULLS NOT requires DISTINCT".into()));
+        }
+        Ok(crate::catalog::UniqueNullPolicy::NotDistinct)
+    } else if next.eq_ignore_ascii_case("distinct") {
+        Ok(crate::catalog::UniqueNullPolicy::Distinct)
+    } else {
+        Err(SqlError::new(
+            "NULLS requires DISTINCT or NOT DISTINCT".into(),
+        ))
+    }
 }
 
 pub(super) fn apply_default_constraint(

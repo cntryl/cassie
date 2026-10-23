@@ -534,8 +534,8 @@ fn alter_table_add_constraint(
             cassie.validate_existing_foreign_key_rows(table, constraints)?;
             let mut merged = existing;
             crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
-            let composite_indexes = crate::catalog::composite_unique_indexes(table, constraints);
-            for index in &composite_indexes {
+            let unique_indexes = crate::catalog::unique_constraint_indexes(table, constraints);
+            for index in &unique_indexes {
                 cassie
                     .midge
                     .put_index_with_held_collection_gate(index)
@@ -546,7 +546,7 @@ fn alter_table_add_constraint(
                 .save_constraints_with_unique_reservations(table, merged.as_slice())
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_constraints(table, merged);
-            for index in composite_indexes {
+            for index in unique_indexes {
                 cassie.catalog.register_index(index);
             }
             Ok(())

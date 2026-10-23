@@ -88,6 +88,14 @@ impl NotNullOwnership {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UniqueNullPolicy {
+    #[default]
+    Distinct,
+    NotDistinct,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldConstraint {
     pub field: String,
@@ -115,6 +123,8 @@ pub struct FieldConstraint {
     pub not_null_ownership: NotNullOwnership,
     #[serde(default)]
     pub unique: bool,
+    #[serde(default)]
+    pub unique_null_policy: UniqueNullPolicy,
     #[serde(default)]
     pub primary_key: bool,
     #[serde(default)]
@@ -174,6 +184,7 @@ impl FieldConstraint {
             not_null: false,
             not_null_ownership: NotNullOwnership::None,
             unique: false,
+            unique_null_policy: UniqueNullPolicy::Distinct,
             primary_key: false,
             default_value: None,
             default_expression: None,
@@ -293,6 +304,9 @@ fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
         existing.not_null_ownership = existing.not_null_ownership.with_primary_key();
     }
     existing.unique |= next.unique;
+    if next.unique_null_policy == UniqueNullPolicy::NotDistinct {
+        existing.unique_null_policy = UniqueNullPolicy::NotDistinct;
+    }
     existing.primary_key |= next.primary_key;
     if next.primary_key_name.is_some() {
         existing.primary_key_name = next.primary_key_name;

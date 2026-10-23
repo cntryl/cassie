@@ -60,10 +60,30 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     let (kind, access_method, remainder) = parse_index_kind(remainder)?;
     let (fields, expressions, key_options, remainder) = parse_index_fields(remainder)?;
     let (include_fields, remainder) = parse_index_include_fields(remainder)?;
+    let (leading_nulls_policy, remainder) = parse_index_nulls_policy(remainder)?;
     let (predicate, remainder) = parse_index_predicate(remainder)?;
     let (mut options, remainder) = parse_index_options(remainder)?;
+    let (trailing_nulls_policy, remainder) = parse_index_nulls_policy(remainder)?;
+    if leading_nulls_policy.is_some() && trailing_nulls_policy.is_some() {
+        return Err(SqlError::new(
+            "CREATE INDEX has more than one NULLS DISTINCT policy".to_string(),
+        ));
+    }
     reject_reserved_index_options(&options)?;
     options.extend(key_options);
+    let nulls_policy = leading_nulls_policy.or(trailing_nulls_policy);
+    if nulls_policy.is_some() && (!unique || kind != IndexKind::Scalar) {
+        return Err(SqlError::unsupported(
+            "NULLS [NOT] DISTINCT is supported only for unique scalar indexes".to_string(),
+        ));
+    }
+    let nulls_not_distinct = nulls_policy.unwrap_or(false);
+    if nulls_not_distinct {
+        options.insert(
+            crate::catalog::IndexMeta::NULLS_NOT_DISTINCT_OPTION.to_string(),
+            "true".to_string(),
+        );
+    }
 
     if !remainder.is_empty() {
         return Err(SqlError::new("unsupported CREATE INDEX syntax".to_string()));
@@ -103,6 +123,27 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
             options,
         }),
     })
+}
+
+fn parse_index_nulls_policy(raw: &str) -> Result<(Option<bool>, &str), SqlError> {
+    let raw = raw.trim_start();
+    if !starts_with_keyword(raw, "nulls") {
+        return Ok((None, raw));
+    }
+    let rest = raw["nulls".len()..].trim_start();
+    if starts_with_keyword(rest, "not") {
+        let distinct = rest["not".len()..].trim_start();
+        if !starts_with_keyword(distinct, "distinct") {
+            return Err(SqlError::new("NULLS NOT requires DISTINCT".to_string()));
+        }
+        return Ok((Some(true), distinct["distinct".len()..].trim_start()));
+    }
+    if starts_with_keyword(rest, "distinct") {
+        return Ok((Some(false), rest["distinct".len()..].trim_start()));
+    }
+    Err(SqlError::new(
+        "NULLS requires DISTINCT or NOT DISTINCT".to_string(),
+    ))
 }
 
 pub(in crate::sql::parser) fn parse_drop_index_statement(

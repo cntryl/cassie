@@ -119,7 +119,7 @@ fn create_table_gated(
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
     let mut primary_key_indexes = primary_key_indexes(table, constraints.as_slice());
-    primary_key_indexes.extend(catalog::composite_unique_indexes(
+    primary_key_indexes.extend(catalog::unique_constraint_indexes(
         table,
         constraints.as_slice(),
     ));

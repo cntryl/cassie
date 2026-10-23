@@ -20,7 +20,9 @@ impl Cassie {
             let Some(value) = payload.get(&constraint.field) else {
                 continue;
             };
-            if super::field_value_is_sql_null(Some(value), schema.as_ref(), &constraint.field) {
+            if constraint.unique_null_policy != crate::catalog::UniqueNullPolicy::NotDistinct
+                && super::field_value_is_sql_null(Some(value), schema.as_ref(), &constraint.field)
+            {
                 continue;
             }
             // Only the materialized primary index proves an absent committed owner.
@@ -87,7 +89,15 @@ impl Cassie {
             let fields = index.normalized_fields();
             let key_matches = |candidate: &serde_json::Value| -> Result<Option<Vec<serde_json::Value>>, CassieError> {
                 if !Midge::payload_matches_scalar_index_predicate(&index, candidate, &row_schema)?
-                    || fields.iter().any(|field| super::field_value_is_sql_null(candidate.get(field), schema.as_ref(), field)) {
+                    || (!index.nulls_not_distinct()
+                        && fields.iter().any(|field| {
+                            super::field_value_is_sql_null(
+                                candidate.get(field),
+                                schema.as_ref(),
+                                field,
+                            )
+                        }))
+                {
                     return Ok(None);
                 }
                 Midge::scalar_index_key_values(&index, candidate, &row_schema)
@@ -122,6 +132,7 @@ fn published_owner(
     };
     if !stored.unique
         || stored.kind != IndexKind::Scalar
+        || stored.nulls_not_distinct() != index.nulls_not_distinct()
         || stored.normalized_fields() != index.normalized_fields()
         || stored.normalized_expressions() != index.normalized_expressions()
         || stored.predicate != index.predicate

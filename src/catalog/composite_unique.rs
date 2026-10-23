@@ -9,7 +9,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{FieldConstraint, IndexKind, IndexMeta};
+use super::{FieldConstraint, IndexKind, IndexMeta, UniqueNullPolicy};
 
 /// One composite UNIQUE constraint: its name and its columns in declared order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,19 +93,77 @@ pub fn composite_unique_indexes(
 ) -> Vec<IndexMeta> {
     composite_unique_constraints(constraints)
         .into_iter()
-        .map(|composite| IndexMeta {
-            collection: collection.to_string(),
-            name: composite.name,
-            field: composite.fields[0].clone(),
-            fields: composite.fields,
-            expressions: Vec::new(),
-            include_fields: Vec::new(),
-            predicate: None,
-            kind: IndexKind::Scalar,
-            unique: true,
-            options: BTreeMap::new(),
+        .map(|composite| {
+            let nulls_not_distinct = constraints.iter().any(|constraint| {
+                constraint.unique
+                    && constraint.unique_null_policy == UniqueNullPolicy::NotDistinct
+                    && constraint
+                        .unique_name
+                        .as_ref()
+                        .is_some_and(|name| name.eq_ignore_ascii_case(&composite.name))
+            });
+            let mut options = BTreeMap::new();
+            if nulls_not_distinct {
+                options.insert(
+                    IndexMeta::NULLS_NOT_DISTINCT_OPTION.to_string(),
+                    "true".to_string(),
+                );
+            }
+            IndexMeta {
+                collection: collection.to_string(),
+                name: composite.name,
+                field: composite.fields[0].clone(),
+                fields: composite.fields,
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                kind: IndexKind::Scalar,
+                unique: true,
+                options,
+            }
         })
         .collect()
+}
+
+/// Returns the scalar indexes that back every single-column and composite
+/// UNIQUE constraint on `collection`.
+#[must_use]
+pub fn unique_constraint_indexes(
+    collection: &str,
+    constraints: &[FieldConstraint],
+) -> Vec<IndexMeta> {
+    let mut indexes = constraints
+        .iter()
+        .filter(|constraint| {
+            constraint.unique
+                && !constraint.primary_key
+                && !is_composite_unique_member(constraint, constraints)
+        })
+        .map(|constraint| {
+            let name = constraint.unique_constraint_name(collection);
+            let mut options = BTreeMap::new();
+            if constraint.unique_null_policy == UniqueNullPolicy::NotDistinct {
+                options.insert(
+                    IndexMeta::NULLS_NOT_DISTINCT_OPTION.to_string(),
+                    "true".to_string(),
+                );
+            }
+            IndexMeta {
+                collection: collection.to_string(),
+                name,
+                field: constraint.field.clone(),
+                fields: vec![constraint.field.clone()],
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                kind: IndexKind::Scalar,
+                unique: true,
+                options,
+            }
+        })
+        .collect::<Vec<_>>();
+    indexes.extend(composite_unique_indexes(collection, constraints));
+    indexes
 }
 
 /// Returns a message when `additions` would put a column into a second

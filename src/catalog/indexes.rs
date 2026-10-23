@@ -111,6 +111,14 @@ impl IndexMeta {
     const STORAGE_ID_OPTION: &'static str = "__cassie_storage_id";
     const RELATION_ID_OPTION: &'static str = "__cassie_relation_id";
     pub(crate) const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
+    pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = "__cassie_nulls_not_distinct";
+
+    #[must_use]
+    pub(crate) fn nulls_not_distinct(&self) -> bool {
+        self.options
+            .get(Self::NULLS_NOT_DISTINCT_OPTION)
+            .is_some_and(|value| value == "true")
+    }
 
     #[must_use]
     pub(crate) fn key_option_name(position: usize, option: &str) -> String {

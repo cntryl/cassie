@@ -457,6 +457,56 @@ fn should_apply_postgres_regex_inverse_partial_newline_flag() {
 }
 
 #[test]
+fn should_match_postgres_regex_newline_flag_matrix() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-newline-flag-matrix", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_like('a\nb', '^b$', 'n'), regexp_like('a\nb', '^b$', 'm'), regexp_like('a\nb', '^b$', 'p'), regexp_like('a\nb', '^b$', 'w'), regexp_like('a\nb', '^b$', 's'), regexp_like('a\nb', 'a.b', 'n'), regexp_like('a\nb', 'a.b', 'm'), regexp_like('a\nb', 'a.b', 'p'), regexp_like('a\nb', 'a.b', 'w'), regexp_like('a\nb', 'a.b', 's')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("PostgreSQL newline-sensitive anchor and dot behavior").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
+fn should_apply_the_last_conflicting_regex_mode_flag() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-flag-precedence", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_like('A', 'a', 'ic'), regexp_like('A', 'a', 'ci'), regexp_like('a\nb', 'a.b', 'ns'), regexp_like('a\nb', 'a.b', 'sn')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("last conflicting regular-expression mode flag").rows(),
+        &[vec![
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+        ]]
+    );
+}
+
+#[test]
 fn should_apply_postgres_regex_tight_syntax_flag() {
     // Arrange
     let fixture = sql_fixture("issue-799-regex-tight-syntax", &[]);
@@ -502,6 +552,278 @@ fn should_count_matches_with_postgres_regex_start_options() {
         result.expect("regexp_count").rows(),
         &[vec![Value::Int64(3), Value::Int64(4), Value::Int64(3)]]
     );
+}
+
+#[test]
+fn should_count_the_longest_alternative_before_advancing() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-leftmost-longest", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('aaa', 'a|aa')");
+
+    // Assert
+    assert_eq!(
+        result.expect("leftmost-longest regexp_count matches").rows(),
+        &[vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
+fn should_keep_leftmost_longest_count_selection_for_lazy_quantifiers() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-lazy-selection", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('aaa', 'a+?')");
+
+    // Assert
+    assert_eq!(
+        result.expect("leftmost-longest lazy-quantifier count").rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_case_fold_unicode_letters_in_regexp_like() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-like-unicode-case", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_like('é', 'É', 'i')");
+
+    // Assert
+    assert_eq!(
+        result.expect("Unicode case-insensitive regexp_like").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_count_unicode_case_insensitive_regex_matches() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-unicode-case", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('Éé', 'é', 1, 'i')");
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("Unicode case-insensitive regexp_count")
+            .rows(),
+        &[vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
+fn should_match_unicode_letters_with_the_regex_word_class() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-like-unicode-word-class", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_like('猫', '\\w')");
+
+    // Assert
+    assert_eq!(
+        result.expect("Unicode regular-expression word class").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_count_nonoverlapping_zero_width_regex_matches() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-zero-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('aaa', 'a*')");
+
+    // Assert
+    assert_eq!(
+        result.expect("non-overlapping zero-width regexp_count matches").rows(),
+        &[vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
+fn should_count_regex_matches_from_a_one_based_unicode_character_start() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-unicode-start", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('éaé', 'é', 2)");
+
+    // Assert
+    assert_eq!(
+        result.expect("regexp_count Unicode character start").rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_count_an_empty_match_at_the_end_position() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-empty-at-end", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('abc', '', 4)");
+
+    // Assert
+    assert_eq!(
+        result.expect("empty match at end position").rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_count_empty_input_position_boundaries() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-empty-input-boundaries", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_count('', ''), regexp_count('', 'a'), regexp_count('', '', 1), regexp_count('', '', 2), regexp_count('', '', 2147483647)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("empty regexp_count input boundaries").rows(),
+        &[vec![
+            Value::Int64(1),
+            Value::Int64(0),
+            Value::Int64(1),
+            Value::Int64(0),
+            Value::Int64(0),
+        ]]
+    );
+}
+
+#[test]
+fn should_return_zero_for_maximum_regexp_count_start_on_nonempty_text() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-maximum-start", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_count('abc', '', 2147483647), regexp_count('abc', 'a', 2147483647)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("maximum regexp_count start on nonempty text").rows(),
+        &[vec![Value::Int64(0), Value::Int64(0)]]
+    );
+}
+
+#[test]
+fn should_return_zero_when_regexp_count_starts_beyond_the_end_position() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-beyond-end", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('abc', '', 5)");
+
+    // Assert
+    assert_eq!(
+        result.expect("no matches beyond end position").rows(),
+        &[vec![Value::Int64(0)]]
+    );
+}
+
+#[test]
+fn should_propagate_null_inputs_through_selected_regex_functions() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-selected-regex-null-inputs", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_like(NULL::TEXT, 'x'), regexp_like('x', NULL::TEXT), regexp_like('x', 'x', NULL::TEXT), regexp_count(NULL::TEXT, 'x'), regexp_count('x', NULL::TEXT), regexp_count('abc', 'a', NULL::INT4), regexp_count('abc', 'a', 1, NULL::TEXT), regexp_count('abc', 'a', NULL::INT4, NULL::TEXT), regexp_like(string => 'x', pattern => 'x', flags => NULL::TEXT), regexp_count(string => 'abc', pattern => 'a', start => NULL::INT4), regexp_count(string => 'abc', pattern => 'a', start => 1, flags => NULL::TEXT)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("NULL regular-expression inputs").rows(),
+        &[vec![
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+        ]]
+    );
+}
+
+#[test]
+fn should_report_2201b_for_invalid_regexp_like_patterns() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-invalid-pattern", &[]);
+
+    // Act
+    let error = fixture
+        .execute("SELECT regexp_like('x', '[')")
+        .expect_err("invalid pattern should fail");
+
+    // Assert
+    assert!(matches!(
+        error,
+        CassieError::Diagnostic(ref diagnostic) if diagnostic.sql_state == "2201B"
+    ));
+}
+
+#[test]
+fn should_report_2201b_for_invalid_regexp_like_flags() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-invalid-flag", &[]);
+
+    // Act
+    let error = fixture
+        .execute("SELECT regexp_like('x', 'x', 'z')")
+        .expect_err("invalid flags should fail");
+
+    // Assert
+    assert!(matches!(
+        error,
+        CassieError::Diagnostic(ref diagnostic) if diagnostic.sql_state == "2201B"
+    ));
+}
+
+#[test]
+fn should_reject_postgres_are_backreferences_outside_the_selected_regex_profile() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-like-are-boundary", &[]);
+
+    // Act
+    let error = fixture
+        .execute("SELECT regexp_like('abab', '^(ab)\\1$')")
+        .expect_err("backreferences are outside the selected regex profile");
+
+    // Assert
+    assert!(matches!(
+        error,
+        CassieError::Diagnostic(ref diagnostic) if diagnostic.sql_state == "2201B"
+    ));
+}
+
+#[test]
+fn should_reject_nonpositive_regexp_count_start_positions() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regexp-count-invalid-start", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT regexp_count('x', 'x', 0)");
+
+    // Assert
+    assert!(matches!(
+        result.expect_err("zero start position should fail"),
+        CassieError::InvalidParameterValue(_)
+    ));
 }
 
 #[test]
@@ -811,6 +1133,104 @@ fn should_accept_named_arguments_for_regexp_substr() {
         result.expect("named regexp_substr arguments").rows(),
         &[vec![Value::String("FGH".to_owned())]]
     );
+}
+
+#[test]
+fn should_evaluate_pg_catalog_qualified_regex_function_aliases() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-qualified-regex-functions", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT pg_catalog.regexp_like('Thomas', 'thomas', 'i'), pg_catalog.regexp_count('ABCABC', 'A.', 1, 'i'), pg_catalog.regexp_like(string => 'Hello', pattern => 'hello', flags => 'i'), pg_catalog.regexp_count(string => 'ABCABC', pattern => 'A.', start => 1, flags => 'i')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("qualified regular-expression function aliases").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Int64(2),
+            Value::Bool(true),
+            Value::Int64(2),
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_invalid_selected_regex_named_arguments() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-invalid-named-arguments", &[]);
+    let cases = [
+        (
+            "SELECT regexp_like(string => 'x', pattern => 'x', pattern => 'y')",
+            "duplicate named argument 'pattern'",
+        ),
+        (
+            "SELECT regexp_like('x', pattern => 'x')",
+            "cannot mix positional and named function arguments",
+        ),
+        (
+            "SELECT regexp_like(string => 'x')",
+            "requires named arguments 'string' and 'pattern'",
+        ),
+        (
+            "SELECT regexp_count(string => 'x', pattern => 'x', mode => 'i')",
+            "unknown named argument 'mode'",
+        ),
+    ];
+
+    // Act
+    let results = cases
+        .iter()
+        .map(|(sql, _)| fixture.execute(sql))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for ((sql, expected_message), result) in cases.iter().zip(results) {
+        let error = result.expect_err("invalid named arguments should fail");
+        match error {
+            CassieError::InvalidQuery(message) => assert!(
+                message.contains(expected_message),
+                "{sql}: expected {expected_message:?}, got {message:?}"
+            ),
+            other => panic!("{sql}: expected a parser error, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn should_reject_unsupported_positional_regex_function_arities() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-invalid-positional-arities", &[]);
+    let cases = [
+        ("SELECT regexp_like('x')", "regexp_like"),
+        ("SELECT regexp_like('x', 'x', 'i', 'extra')", "regexp_like"),
+        ("SELECT regexp_count('x')", "regexp_count"),
+        (
+            "SELECT regexp_count('x', 'x', 1, 'i', 'extra')",
+            "regexp_count",
+        ),
+    ];
+
+    // Act
+    let results = cases
+        .iter()
+        .map(|(sql, _)| fixture.execute(sql))
+        .collect::<Vec<_>>();
+
+    // Assert
+    for ((sql, function), result) in cases.iter().zip(results) {
+        let error = result.expect_err("unsupported arity should fail");
+        match error {
+            CassieError::Planner(message) => assert!(
+                message.starts_with(&format!("function '{function}' expects "))
+                    && message.contains(", got "),
+                "{sql}: expected an invalid arity error, got {message:?}"
+            ),
+            other => panic!("{sql}: expected an invalid arity error, got {other:?}"),
+        }
+    }
 }
 
 #[test]

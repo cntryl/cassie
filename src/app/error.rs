@@ -574,6 +574,12 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
     if message == "window functions are not allowed in GROUP BY" {
         return bad_request_descriptor("42P20", message.to_string());
     }
+    if message.starts_with("function '")
+        && message.contains("' expects ")
+        && message.contains(", got ")
+    {
+        return bad_request_descriptor("42883", message.to_string());
+    }
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
     }
@@ -682,7 +688,9 @@ impl From<crate::sql::SqlError> for CassieError {
     fn from(value: crate::sql::SqlError) -> Self {
         match value.kind() {
             crate::sql::SqlErrorKind::Syntax => CassieError::InvalidQuery(value.to_string()),
-            crate::sql::SqlErrorKind::NumericRange | crate::sql::SqlErrorKind::DuplicateColumn => {
+            crate::sql::SqlErrorKind::NumericRange
+            | crate::sql::SqlErrorKind::DuplicateColumn
+            | crate::sql::SqlErrorKind::UndefinedFunction => {
                 CassieError::Execution(value.to_string())
             }
             crate::sql::SqlErrorKind::Unsupported => CassieError::Unsupported(value.to_string()),
@@ -874,6 +882,19 @@ mod tests {
 
         // Assert
         assert_eq!(descriptor.sql_state, "42P10");
+    }
+
+    #[test]
+    fn should_map_builtin_function_arity_mismatch_to_undefined_function() {
+        // Arrange
+        let error =
+            CassieError::Planner("function 'regexp_like' expects 2 to 3 args, got 1".to_string());
+
+        // Act
+        let descriptor = error.descriptor();
+
+        // Assert
+        assert_eq!(descriptor.sql_state, "42883");
     }
 
     #[test]

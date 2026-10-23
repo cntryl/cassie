@@ -2,6 +2,8 @@ use std::fmt;
 
 #[path = "parser/aggregate_call.rs"]
 mod aggregate_call;
+#[path = "parser/pattern_function_call.rs"]
+mod pattern_function_call;
 
 use crate::catalog::{ConstraintCheck, ConstraintOperator, FieldConstraint, IndexKind};
 use crate::sql::ast::{
@@ -31,6 +33,7 @@ pub enum SqlErrorKind {
     NumericRange,
     DuplicateColumn,
     ResourceLimit,
+    UndefinedFunction,
     /// A type modifier outside its documented range (SQLSTATE 22023).
     InvalidParameterValue,
 }
@@ -60,6 +63,14 @@ impl SqlError {
     pub fn unsupported(message: String) -> Self {
         Self {
             kind: SqlErrorKind::Unsupported,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn undefined_function(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::UndefinedFunction,
             message,
         }
     }

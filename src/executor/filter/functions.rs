@@ -22,6 +22,8 @@ pub(super) mod math;
 mod math_functions;
 #[path = "math_random.rs"]
 mod math_random;
+#[path = "regex_functions.rs"]
+mod regex_functions;
 #[path = "runtime_information.rs"]
 mod runtime_information;
 #[path = "text_format.rs"]
@@ -101,6 +103,10 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                 .or_else(|| math::evaluate(local, args))
                 .or_else(|| catalog_sizes::evaluate(local, args))
                 .or_else(|| text_selection::evaluate(local, args))
+                .or_else(|| {
+                    crate::sql::functions::function(name)
+                        .and_then(|metadata| regex_functions::evaluate(metadata.id, args, controls))
+                })
                 .or_else(|| text_transform::evaluate(local, args, controls))
                 .or_else(|| text_scalar::evaluate(local, args))
                 .or_else(|| text_format::evaluate(local, args, controls))

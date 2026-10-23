@@ -6,6 +6,7 @@ mod datum_size;
 mod numeric_identity;
 mod object_identity;
 mod ordered_set;
+mod pattern_matching;
 mod percentile_identity;
 pub(crate) mod regression;
 mod sequences;
@@ -141,6 +142,8 @@ pub enum FunctionId {
     BitLength,
     Ascii,
     Chr,
+    RegexpLike,
+    RegexpCount,
     StartsWith,
     NumNulls,
     NumNonNulls,
@@ -263,6 +266,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(statistical::FUNCTIONS)
         .chain(regression::FUNCTIONS)
         .chain(text::FUNCTIONS)
+        .chain(pattern_matching::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
         .chain(object_identity::FUNCTIONS)
@@ -281,6 +285,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(statistical::FUNCTIONS)
         .chain(regression::FUNCTIONS)
         .chain(text::FUNCTIONS)
+        .chain(pattern_matching::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
         .chain(catalog::FUNCTIONS)
         .chain(object_identity::FUNCTIONS)
@@ -316,6 +321,9 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         || text::FUNCTIONS
                             .iter()
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                        || pattern_matching::FUNCTIONS
+                            .iter()
+                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || bytea::FUNCTIONS
                             .iter()
                             .chain(math::FUNCTIONS)
@@ -330,6 +338,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(statistical::FUNCTIONS)
                         .chain(regression::FUNCTIONS)
                         .chain(text::FUNCTIONS)
+                        .chain(pattern_matching::FUNCTIONS)
                         .chain(bytea::FUNCTIONS)
                         .chain(catalog::FUNCTIONS)
                         .chain(object_identity::FUNCTIONS)

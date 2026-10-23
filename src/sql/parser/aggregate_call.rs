@@ -75,24 +75,27 @@ fn parse_function_with_ordered_set_validation(
     } else {
         aggregate_order_by
     };
-    let (resolved_name, args) = if let Some(call) = text_call::arguments(name, args_raw)? {
-        call
-    } else {
-        let arguments = if lexical::trim_separators(args_raw).is_empty() {
-            Vec::new()
+    let (resolved_name, args) =
+        if let Some(call) = super::pattern_function_call::arguments(name, args_raw)? {
+            call
+        } else if let Some(call) = text_call::arguments(name, args_raw)? {
+            call
         } else {
-            split_csv(args_raw)
-                .into_iter()
-                .map(|raw| {
-                    if lexical::trim_separators(raw).is_empty() {
-                        return Err(SqlError::syntax("missing function argument".into()));
-                    }
-                    parse_expression(raw)
-                })
-                .collect::<Result<Vec<_>, _>>()?
+            let arguments = if lexical::trim_separators(args_raw).is_empty() {
+                Vec::new()
+            } else {
+                split_csv(args_raw)
+                    .into_iter()
+                    .map(|raw| {
+                        if lexical::trim_separators(raw).is_empty() {
+                            return Err(SqlError::syntax("missing function argument".into()));
+                        }
+                        parse_expression(raw)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            (name.to_owned(), arguments)
         };
-        (name.to_owned(), arguments)
-    };
     if !order_by.is_empty() && lexical::trim_separators(args_raw) == "*" {
         return Err(SqlError::syntax(
             "aggregate star does not accept ORDER BY".into(),

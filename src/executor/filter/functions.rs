@@ -30,6 +30,8 @@ mod text_format;
 mod text_scalar;
 #[path = "text_selection.rs"]
 mod text_selection;
+#[path = "text_transform.rs"]
+mod text_transform;
 
 pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -99,6 +101,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                 .or_else(|| math::evaluate(local, args))
                 .or_else(|| catalog_sizes::evaluate(local, args))
                 .or_else(|| text_selection::evaluate(local, args))
+                .or_else(|| text_transform::evaluate(local, args, controls))
                 .or_else(|| text_scalar::evaluate(local, args))
                 .or_else(|| text_format::evaluate(local, args, controls))
                 .or_else(|| evaluate_text_function(local, args))

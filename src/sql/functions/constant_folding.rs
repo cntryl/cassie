@@ -22,6 +22,14 @@ pub(crate) fn is_immutable_scalar(id: FunctionId) -> bool {
                 | FunctionId::Format
                 | FunctionId::Left
                 | FunctionId::Right
+                | FunctionId::Overlay
+                | FunctionId::Lpad
+                | FunctionId::Rpad
+                | FunctionId::Repeat
+                | FunctionId::Reverse
+                | FunctionId::Initcap
+                | FunctionId::Translate
+                | FunctionId::ConcatWs
                 | FunctionId::OctetLength
                 | FunctionId::BitLength
                 | FunctionId::Ascii

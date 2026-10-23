@@ -60939,11 +60939,11 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs::should_cancel_boolean_aggregate_input_without_publishing_partial_output",
-      "name": "should_cancel_boolean_aggregate_input_without_publishing_partial_output",
+      "id": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs::should_cancel_boolean_aggregate_query_without_publishing_partial_output",
+      "name": "should_cancel_boolean_aggregate_query_without_publishing_partial_output",
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs",
       "line": 86,
-      "end_line": 182,
+      "end_line": 187,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -60951,7 +60951,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_aggregate_cancellation::should_cancel_boolean_aggregate_input_without_publishing_partial_output"
+          "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_aggregate_cancellation::should_cancel_boolean_aggregate_query_without_publishing_partial_output"
         }
       ],
       "attributes": [

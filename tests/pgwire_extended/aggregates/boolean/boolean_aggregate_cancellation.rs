@@ -10,14 +10,6 @@ use cassie::config::CassieRuntimeConfig;
 use tokio::io::AsyncWriteExt;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
-struct FixtureDirectory(String);
-
-impl Drop for FixtureDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 struct TestServer {
     address: SocketAddr,
     handle: tokio::task::JoinHandle<Result<(), CassieError>>,
@@ -37,24 +29,20 @@ fn current_thread_runtime() -> tokio::runtime::Runtime {
         .expect("runtime")
 }
 
-fn configured_instance(_path: &str, config: CassieRuntimeConfig) -> Cassie {
+fn configured_instance(config: CassieRuntimeConfig) -> Arc<Cassie> {
     let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     cassie.startup().expect("start Boolean aggregate fixture");
-    cassie
+    Arc::new(cassie)
 }
 
-async fn start_server(instance: Cassie, config: CassieRuntimeConfig) -> TestServer {
+async fn start_server(instance: Arc<Cassie>, config: CassieRuntimeConfig) -> TestServer {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind pgwire listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
-    let handle = tokio::spawn(cassie::pgwire::server::run(
-        address.to_string(),
-        Arc::new(instance),
-        config,
+    let handle = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener, instance, config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     TestServer { address, handle }
 }
 
@@ -68,49 +56,67 @@ async fn connect(address: SocketAddr) -> (OwnedReadHalf, OwnedWriteHalf, i32, i3
     (reader, writer, process_id, secret_key)
 }
 
-fn boolean_over_value_product(cardinality: usize) -> String {
-    let values = (1..=cardinality)
-        .map(|value| format!("({value})"))
-        .collect::<Vec<_>>()
-        .join(",");
+fn boolean_aggregate_with_sleep(interval: &str) -> String {
     format!(
-        "SELECT BOOL_AND(a.n = b.n AND c.n = 1) AS every_match, \
-         BOOL_OR(a.n = b.n AND c.n = 1) AS any_match \
-         FROM (VALUES {values}) AS a(n) \
-         CROSS JOIN (VALUES {values}) AS b(n) \
-         CROSS JOIN (VALUES {values}) AS c(n)"
+        "SELECT \
+         BOOL_AND(flag AND pg_sleep_for(INTERVAL '{interval}') IS NOT NULL) AS every_match, \
+         BOOL_OR(flag AND pg_sleep_for(INTERVAL '{interval}') IS NOT NULL) AS any_match \
+         FROM (VALUES (TRUE), (FALSE)) AS inputs(flag)"
     )
 }
 
+async fn wait_for_running_query(cassie: &Cassie, baseline: u64) -> u64 {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let running = cassie.metrics()["running_queries"]
+            .as_u64()
+            .expect("running query metric");
+        if running > baseline {
+            return running;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Boolean aggregate query must be admitted before cancellation"
+        );
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+}
+
 #[test]
-fn should_cancel_boolean_aggregate_input_without_publishing_partial_output() {
+fn should_cancel_boolean_aggregate_query_without_publishing_partial_output() {
     // Arrange
-    let path = wire::data_dir("issue-805-boolean-aggregate-cancellation");
-    let _directory = FixtureDirectory(path.clone());
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.query_timeout_ms = 3_000;
+    config.limits.query_timeout_ms = 30_000;
 
     // Act
     let (baseline, cancelled, recovery, cancel_elapsed) = runtime.block_on(async {
-        let cassie = configured_instance(&path, config.clone());
-        let server = start_server(cassie, config).await;
+        let cassie = configured_instance(config.clone());
+        let server = start_server(Arc::clone(&cassie), config).await;
         let (mut reader, mut writer, process_id, secret_key) = connect(server.address).await;
 
         wire::write_frames(
             &mut writer,
-            vec![wire::simple_query_frame(&boolean_over_value_product(5))],
+            vec![wire::simple_query_frame(&boolean_aggregate_with_sleep(
+                "0 seconds",
+            ))],
         )
         .await;
         let baseline =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+        let baseline_running_queries = cassie.metrics()["running_queries"]
+            .as_u64()
+            .expect("running query metric");
 
         wire::write_frames(
             &mut writer,
-            vec![wire::simple_query_frame(&boolean_over_value_product(256))],
+            vec![wire::simple_query_frame(&boolean_aggregate_with_sleep(
+                "60 seconds",
+            ))],
         )
         .await;
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        let active_queries = wait_for_running_query(&cassie, baseline_running_queries).await;
+        assert_eq!(active_queries, baseline_running_queries + 1);
         let mut cancel_socket = tokio::net::TcpStream::connect(server.address)
             .await
             .expect("cancel connection");
@@ -170,7 +176,7 @@ fn should_cancel_boolean_aggregate_input_without_publishing_partial_output() {
     assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
     assert!(
         cancel_elapsed < Duration::from_secs(2),
-        "explicit cancellation should stop Boolean aggregate input before the query deadline: {cancel_elapsed:?}"
+        "explicit cancellation should interrupt the Boolean aggregate query before the query deadline: {cancel_elapsed:?}"
     );
 
     assert_eq!(wire::error_code(&recovery), None);

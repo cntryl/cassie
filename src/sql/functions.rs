@@ -95,6 +95,8 @@ pub enum FunctionId {
     Rtrim,
     SplitPart,
     Strpos,
+    Replace,
+    Format,
     Left,
     Right,
     OctetLength,

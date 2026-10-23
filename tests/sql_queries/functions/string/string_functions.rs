@@ -204,6 +204,39 @@ fn should_replace_all_occurrences_of_a_substring() {
 }
 
 #[test]
+fn should_preserve_source_when_replace_search_is_empty() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-replace-empty-search", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT replace('abc', '', 'X'), replace('', '', 'X')");
+
+    // Assert
+    assert_eq!(
+        result.expect("empty replacement search").rows(),
+        &[vec![
+            Value::String("abc".to_owned()),
+            Value::String(String::new())
+        ]]
+    );
+}
+
+#[test]
+fn should_propagate_null_for_replace_arguments() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-replace-null-arguments", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT replace('abc', NULL, 'X'), replace(NULL, '', 'X')");
+
+    // Assert
+    assert_eq!(
+        result.expect("null replacement arguments").rows(),
+        &[vec![Value::Null, Value::Null]]
+    );
+}
+
+#[test]
 fn should_return_zero_for_a_missing_substring_with_strpos() {
     // Arrange
     let fixture = sql_fixture("issue-803-strpos", &[]);
@@ -311,6 +344,156 @@ fn should_format_all_supported_argument_kinds() {
             Value::String("\"Foo bar\"|'O''Reilly'|42".to_owned()),
             Value::String("second first".to_owned()),
         ]]
+    );
+}
+
+#[test]
+fn should_format_dynamic_width_from_integer_text() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-dynamic-width-text", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%*s]', '3', 'x')");
+
+    // Assert
+    assert_eq!(
+        result.expect("text dynamic width").rows(),
+        &[vec![Value::String("[  x]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_default_null_dynamic_width_to_zero() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-null-dynamic-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%*s]', NULL, 'y')");
+
+    // Assert
+    assert_eq!(
+        result.expect("null dynamic width").rows(),
+        &[vec![Value::String("[y]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_format_negative_dynamic_width_as_left_justified() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-negative-dynamic-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%*s]', -3, 'x')");
+
+    // Assert
+    assert_eq!(
+        result.expect("negative dynamic width").rows(),
+        &[vec![Value::String("[x  ]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_format_unicode_width_by_characters() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-unicode-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%2$3s]|[%2$-3s]', 'unused', '🙂')");
+
+    // Assert
+    assert_eq!(
+        result.expect("Unicode format width").rows(),
+        &[vec![Value::String("[  🙂]|[🙂  ]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_count_identifier_quotes_in_format_width() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-identifier-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%10I]', 'select')");
+
+    // Assert
+    assert_eq!(
+        result.expect("identifier format width").rows(),
+        &[vec![Value::String("[  \"select\"]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_count_embedded_identifier_quotes_in_format_width() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-embedded-identifier-quote-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%8I]', 'a\"b')");
+
+    // Assert
+    assert_eq!(
+        result.expect("embedded identifier quote width").rows(),
+        &[vec![Value::String("[  \"a\"\"b\"]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_count_literal_escaping_in_format_width() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-literal-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%12L]', 'O''Reilly')");
+
+    // Assert
+    assert_eq!(
+        result.expect("literal format width").rows(),
+        &[vec![Value::String("[ 'O''Reilly']".to_owned())]]
+    );
+}
+
+#[test]
+fn should_count_multibyte_literal_width_with_escaped_quotes() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-multibyte-literal-width", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('[%10L]', 'é''a''')");
+
+    // Assert
+    assert_eq!(
+        result.expect("multibyte literal format width").rows(),
+        &[vec![Value::String("[  'é''a''']".to_owned())]]
+    );
+}
+
+#[test]
+fn should_quote_reserved_identifiers_in_format_identifier_conversion() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-format-reserved-identifiers", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT format('%I|%I', 'group', 'window')");
+
+    // Assert
+    assert_eq!(
+        result.expect("reserved identifier quoting").rows(),
+        &[vec![Value::String("\"group\"|\"window\"".to_owned())]]
+    );
+}
+
+#[test]
+fn should_leave_nonreserved_identifiers_unquoted_with_quote_ident() {
+    // Arrange
+    let fixture = sql_fixture("issue-803-quote-ident-nonreserved", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT quote_ident('view')");
+
+    // Assert
+    assert_eq!(
+        result.expect("nonreserved identifier quoting").rows(),
+        &[vec![Value::String("view".to_owned())]]
     );
 }
 

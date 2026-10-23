@@ -18,6 +18,8 @@ pub(crate) fn is_immutable_scalar(id: FunctionId) -> bool {
                 | FunctionId::Rtrim
                 | FunctionId::SplitPart
                 | FunctionId::Strpos
+                | FunctionId::Replace
+                | FunctionId::Format
                 | FunctionId::Left
                 | FunctionId::Right
                 | FunctionId::OctetLength

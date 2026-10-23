@@ -73,7 +73,7 @@ fn should_return_22004_given_a_null_identifier_when_identifier_formatting_is_req
     assert_eq!(wire::error_code(valid_control), None);
     assert_eq!(
         wire::data_rows(valid_control),
-        vec![vec![Some("\"field\"".to_owned())]]
+        vec![vec![Some("field".to_owned())]]
     );
     assert_eq!(
         wire::error_code(null_identifier).as_deref(),

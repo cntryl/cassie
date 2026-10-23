@@ -127,4 +127,28 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         FunctionArity::Exact(2),
         FunctionReturnType::Int,
     ),
+    scalar(
+        FunctionId::Replace,
+        "replace",
+        FunctionArity::Exact(3),
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::Replace,
+        "pg_catalog.replace",
+        FunctionArity::Exact(3),
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::Format,
+        "format",
+        FunctionArity::AtLeast(1),
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::Format,
+        "pg_catalog.format",
+        FunctionArity::AtLeast(1),
+        FunctionReturnType::Text,
+    ),
 ];

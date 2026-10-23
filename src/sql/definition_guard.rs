@@ -80,6 +80,7 @@ pub(crate) fn statement(query: &ParsedStatement) -> Result<(), CassieError> {
         QueryStatement::CreateFunction(definition) => expression_sql(&definition.body)?,
         QueryStatement::CreateProcedure(definition) => query_sql(&definition.body)?,
         QueryStatement::CreateMaterializedProjection(definition) => query_sql(&definition.query)?,
+        QueryStatement::CreateMaterializedView(definition) => query_sql(&definition.query)?,
         QueryStatement::CreateIndex(definition) => {
             for expr in definition.expressions.iter().chain(&definition.predicate) {
                 expression(expr)?;

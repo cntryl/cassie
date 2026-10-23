@@ -41,7 +41,10 @@ fn transactional_ddl_supported(catalog: &Catalog, statement: &QueryStatement) ->
         | QueryStatement::AlterTable(_)
         | QueryStatement::CreateSchema(_)
         | QueryStatement::DropSchema(_)
-        | QueryStatement::AlterSchema(_) => true,
+        | QueryStatement::AlterSchema(_)
+        | QueryStatement::CreateMaterializedView(_)
+        | QueryStatement::RefreshMaterializedView(_)
+        | QueryStatement::DropMaterializedView(_) => true,
         QueryStatement::CreateIndex(index) => index.kind == crate::catalog::IndexKind::Scalar,
         QueryStatement::DropIndex(index) => catalog
             .all_indexes_snapshot()

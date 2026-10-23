@@ -107,6 +107,11 @@ fn execute_projection_command_group(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Option<CommandExecution> {
+    if let Some(execution) =
+        execute_materialized_view_command(cassie, session, command, user_functions, controls)
+    {
+        return Some(execution);
+    }
     match command {
         LogicalCommand::CreateRollup(statement) => Some(CommandExecution::invalidating(
             super::rollups::create_rollup(cassie, statement, user_functions, controls),
@@ -188,6 +193,39 @@ fn execute_projection_command_group(
         )),
         LogicalCommand::RepairProjection(statement) => Some(CommandExecution::new(
             super::projection_repair::repair_projection(cassie, statement, controls),
+        )),
+        _ => None,
+    }
+}
+
+fn execute_materialized_view_command(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    command: &LogicalCommand,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Option<CommandExecution> {
+    match command {
+        LogicalCommand::CreateMaterializedView(statement) => Some(CommandExecution::invalidating(
+            super::materialized_projection::create_materialized_view(
+                cassie,
+                session,
+                statement,
+                user_functions,
+                controls,
+            ),
+        )),
+        LogicalCommand::RefreshMaterializedView(statement) => Some(CommandExecution::invalidating(
+            super::materialized_projection::refresh_materialized_view(
+                cassie,
+                session,
+                statement,
+                user_functions,
+                controls,
+            ),
+        )),
+        LogicalCommand::DropMaterializedView(statement) => Some(CommandExecution::invalidating(
+            super::materialized_projection::drop_materialized_view(cassie, statement, controls),
         )),
         _ => None,
     }

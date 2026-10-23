@@ -89,6 +89,9 @@ pub enum LogicalCommand {
     CreateMaterializedProjection(crate::sql::ast::CreateMaterializedProjectionStatement),
     RefreshMaterializedProjection(crate::sql::ast::RefreshMaterializedProjectionStatement),
     DropMaterializedProjection(DropMaterializedProjectionStatement),
+    CreateMaterializedView(crate::sql::ast::CreateMaterializedViewStatement),
+    RefreshMaterializedView(crate::sql::ast::RefreshMaterializedViewStatement),
+    DropMaterializedView(crate::sql::ast::DropMaterializedViewStatement),
     AlterMaterializedProjection(crate::sql::ast::AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(crate::sql::ast::DropMaterializedProjectionVersionStatement),
     VerifyProjection(VerifyProjectionStatement),
@@ -348,6 +351,21 @@ fn plan_projection_statement(
             &statement.name,
             "DROP MATERIALIZED PROJECTION requires a name",
             LogicalCommand::DropMaterializedProjection(statement.clone()),
+        ),
+        ProjectionStatementRef::CreateMaterializedView(statement) => plan_named_command(
+            &statement.name,
+            "CREATE MATERIALIZED VIEW requires a name",
+            LogicalCommand::CreateMaterializedView(statement.clone()),
+        ),
+        ProjectionStatementRef::RefreshMaterializedView(statement) => plan_named_command(
+            &statement.name,
+            "REFRESH MATERIALIZED VIEW requires a name",
+            LogicalCommand::RefreshMaterializedView(statement.clone()),
+        ),
+        ProjectionStatementRef::DropMaterializedView(statement) => plan_named_command(
+            &statement.name,
+            "DROP MATERIALIZED VIEW requires a name",
+            LogicalCommand::DropMaterializedView(statement.clone()),
         ),
         ProjectionStatementRef::AlterMaterializedProjection(statement) => plan_named_command(
             &statement.name,

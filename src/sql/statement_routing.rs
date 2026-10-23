@@ -5,15 +5,16 @@ use super::{
     AlterSchemaStatement, AlterSequenceStatement, AlterTableStatement, CallProcedureStatement,
     CompareProjectionStatement, CopyStatement, CreateDatabaseStatement, CreateFunctionStatement,
     CreateGraphStatement, CreateIndexStatement, CreateMaterializedProjectionStatement,
-    CreateProcedureStatement, CreateRetentionPolicyStatement, CreateRoleStatement,
-    CreateRollupStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
-    CreateViewStatement, DatabaseConnectPrivilegeStatement, DeleteStatement,
+    CreateMaterializedViewStatement, CreateProcedureStatement, CreateRetentionPolicyStatement,
+    CreateRoleStatement, CreateRollupStatement, CreateSchemaStatement, CreateSequenceStatement,
+    CreateTableStatement, CreateViewStatement, DatabaseConnectPrivilegeStatement, DeleteStatement,
     DiffProjectionStatement, DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
     DropMaterializedProjectionStatement, DropMaterializedProjectionVersionStatement,
-    DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement,
-    DropSchemaStatement, DropSequenceStatement, DropTableStatement, DropViewStatement,
-    EnforceRetentionPolicyStatement, ExplainStatement, InsertStatement, MergeStatement,
-    PlanRepairProjectionStatement, QueryStatement, RefreshMaterializedProjectionStatement,
+    DropMaterializedViewStatement, DropProcedureStatement, DropRetentionPolicyStatement,
+    DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropSequenceStatement,
+    DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, ExplainStatement,
+    InsertStatement, MergeStatement, PlanRepairProjectionStatement, QueryStatement,
+    RefreshMaterializedProjectionStatement, RefreshMaterializedViewStatement,
     RefreshRollupStatement, RepairProjectionStatement, SelectStatement, SessionObjectStatement,
     SetStatement, ShowStatement, TransactionStatement, TruncateStatement, UpdateStatement,
     VerifyProjectionStatement,
@@ -89,6 +90,9 @@ pub enum ProjectionStatementRef<'a> {
     CreateMaterializedProjection(&'a CreateMaterializedProjectionStatement),
     RefreshMaterializedProjection(&'a RefreshMaterializedProjectionStatement),
     DropMaterializedProjection(&'a DropMaterializedProjectionStatement),
+    CreateMaterializedView(&'a CreateMaterializedViewStatement),
+    RefreshMaterializedView(&'a RefreshMaterializedViewStatement),
+    DropMaterializedView(&'a DropMaterializedViewStatement),
     AlterMaterializedProjection(&'a AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(&'a DropMaterializedProjectionVersionStatement),
     VerifyProjection(&'a VerifyProjectionStatement),
@@ -164,6 +168,9 @@ pub enum ProjectionStatement {
     CreateMaterializedProjection(CreateMaterializedProjectionStatement),
     RefreshMaterializedProjection(RefreshMaterializedProjectionStatement),
     DropMaterializedProjection(DropMaterializedProjectionStatement),
+    CreateMaterializedView(CreateMaterializedViewStatement),
+    RefreshMaterializedView(RefreshMaterializedViewStatement),
+    DropMaterializedView(DropMaterializedViewStatement),
     AlterMaterializedProjection(AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(DropMaterializedProjectionVersionStatement),
     VerifyProjection(VerifyProjectionStatement),
@@ -228,6 +235,9 @@ impl QueryStatement {
             | Self::CreateMaterializedProjection(_)
             | Self::RefreshMaterializedProjection(_)
             | Self::DropMaterializedProjection(_)
+            | Self::CreateMaterializedView(_)
+            | Self::RefreshMaterializedView(_)
+            | Self::DropMaterializedView(_)
             | Self::AlterMaterializedProjection(_)
             | Self::DropMaterializedProjectionVersion(_)
             | Self::VerifyProjection(_)
@@ -331,6 +341,15 @@ impl QueryStatement {
             }
             Self::DropMaterializedProjection(statement) => {
                 ProjectionStatementRef::DropMaterializedProjection(statement)
+            }
+            Self::CreateMaterializedView(statement) => {
+                ProjectionStatementRef::CreateMaterializedView(statement)
+            }
+            Self::RefreshMaterializedView(statement) => {
+                ProjectionStatementRef::RefreshMaterializedView(statement)
+            }
+            Self::DropMaterializedView(statement) => {
+                ProjectionStatementRef::DropMaterializedView(statement)
             }
             Self::AlterMaterializedProjection(statement) => {
                 ProjectionStatementRef::AlterMaterializedProjection(statement)
@@ -440,6 +459,15 @@ impl QueryStatement {
             }
             Self::DropMaterializedProjection(statement) => {
                 ProjectionStatement::DropMaterializedProjection(statement)
+            }
+            Self::CreateMaterializedView(statement) => {
+                ProjectionStatement::CreateMaterializedView(statement)
+            }
+            Self::RefreshMaterializedView(statement) => {
+                ProjectionStatement::RefreshMaterializedView(statement)
+            }
+            Self::DropMaterializedView(statement) => {
+                ProjectionStatement::DropMaterializedView(statement)
             }
             Self::AlterMaterializedProjection(statement) => {
                 ProjectionStatement::AlterMaterializedProjection(statement)

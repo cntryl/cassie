@@ -298,6 +298,15 @@ pub struct MaterializedProjectionMeta {
     pub last_built_ms: Option<u64>,
 }
 
+impl MaterializedProjectionMeta {
+    #[must_use]
+    pub(crate) fn is_sql_materialized_view(&self) -> bool {
+        self.options
+            .get(crate::catalog::SQL_MATERIALIZED_VIEW_OPTION)
+            .is_some_and(|value| value == "true")
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectionVersionMeta {
     pub version_id: String,

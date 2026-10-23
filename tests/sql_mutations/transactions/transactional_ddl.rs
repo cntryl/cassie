@@ -1,7 +1,7 @@
 //! PostgreSQL 18.6 transactional catalog publication tracked by #833.
 
 use super::support_sql_fixture::sql_fixture;
-use cassie::app::{Cassie, CassieSession};
+use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::types::Value;
 
 const MATERIALIZED_VIEW_NAME: &str = "issue833_transactional_materialized_view";
@@ -360,6 +360,244 @@ fn should_rollback_materialized_view_publication_with_transaction() {
         source_rows,
         vec![vec![Value::Int64(1), Value::String("retained".to_owned())]]
     );
+}
+
+#[test]
+fn should_publish_materialized_view_after_commit() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-materialized-view-commit",
+        &[
+            "CREATE TABLE public.issue833_mv_commit_source \
+               (id INT PRIMARY KEY, label TEXT NOT NULL)",
+            "INSERT INTO public.issue833_mv_commit_source VALUES (1, 'committed')",
+        ],
+    );
+    let observer = fixture.cassie.create_session("observer", None);
+    fixture.execute("BEGIN").expect("begin the DDL transaction");
+
+    // Act
+    fixture
+        .execute(
+            "CREATE MATERIALIZED VIEW public.issue833_transactional_materialized_view AS \
+             SELECT id, label FROM public.issue833_mv_commit_source",
+        )
+        .expect("create and populate materialized view in transaction");
+    let writer_view = visible_materialized_view(&fixture.cassie, &fixture.session);
+    let observer_view_before_commit = visible_materialized_view(&fixture.cassie, &observer);
+    fixture.execute("COMMIT").expect("commit materialized view");
+    let observer_view_after_commit = visible_materialized_view(&fixture.cassie, &observer);
+    let observer_rows = fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            "SELECT id, label \
+             FROM public.issue833_transactional_materialized_view ORDER BY id",
+            vec![],
+        )
+        .expect("read committed materialized-view output")
+        .rows()
+        .to_vec();
+
+    // Assert
+    let materialized_view = vec![vec![Value::String(MATERIALIZED_VIEW_NAME.to_owned())]];
+    let no_materialized_view: &[Vec<Value>] = &[];
+    assert_eq!(writer_view, materialized_view);
+    assert_eq!(observer_view_before_commit, no_materialized_view);
+    assert_eq!(observer_view_after_commit, materialized_view);
+    assert_eq!(
+        observer_rows,
+        vec![vec![Value::Int64(1), Value::String("committed".to_owned())]]
+    );
+}
+
+#[test]
+fn should_remove_failed_materialized_view_creation() {
+    // Arrange
+    let fixture = sql_fixture("issue-826-materialized-view-failed-create", &[]);
+    let name = "public.issue826_failed_materialized_view";
+
+    // Act
+    let result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "CREATE MATERIALIZED VIEW public.issue826_failed_materialized_view AS \
+         SELECT 1 / 0 AS value",
+        vec![],
+    );
+    let visible_views = fixture.rows(
+        "SELECT matviewname FROM pg_catalog.pg_matviews \
+         WHERE matviewname = 'issue826_failed_materialized_view'",
+    );
+    let stored_metadata = fixture.cassie.catalog.get_materialized_projection(name);
+
+    // Assert
+    assert!(result.is_err(), "the view query divides by zero");
+    assert_eq!(visible_views, Vec::<Vec<Value>>::new());
+    assert!(stored_metadata.is_none());
+}
+
+#[test]
+fn should_rollback_materialized_view_refresh() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-833-materialized-view-refresh-rollback",
+        &[
+            "CREATE TABLE public.issue833_mv_refresh_source \
+               (id INT PRIMARY KEY, label TEXT NOT NULL)",
+            "INSERT INTO public.issue833_mv_refresh_source VALUES (1, 'retained')",
+            "CREATE MATERIALIZED VIEW public.issue833_mv_refresh_view AS \
+               SELECT id, label FROM public.issue833_mv_refresh_source WITH NO DATA",
+        ],
+    );
+    let observer = fixture.cassie.create_session("observer", None);
+    fixture.execute("BEGIN").expect("begin refresh transaction");
+
+    // Act
+    fixture
+        .execute("REFRESH MATERIALIZED VIEW public.issue833_mv_refresh_view")
+        .expect("refresh materialized view in transaction");
+    let writer_population = fixture.rows(
+        "SELECT ispopulated FROM pg_catalog.pg_matviews \
+         WHERE matviewname = 'issue833_mv_refresh_view'",
+    );
+    let writer_rows =
+        fixture.rows("SELECT id, label FROM public.issue833_mv_refresh_view ORDER BY id");
+    let observer_population = fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            "SELECT ispopulated FROM pg_catalog.pg_matviews \
+             WHERE matviewname = 'issue833_mv_refresh_view'",
+            vec![],
+        )
+        .expect("read observer materialized-view population")
+        .rows()
+        .to_vec();
+    let observer_scan = fixture.cassie.execute_sql(
+        &observer,
+        "SELECT id, label FROM public.issue833_mv_refresh_view",
+        vec![],
+    );
+    fixture.execute("ROLLBACK").expect("roll back refresh");
+    let writer_population_after_rollback = fixture.rows(
+        "SELECT ispopulated FROM pg_catalog.pg_matviews \
+         WHERE matviewname = 'issue833_mv_refresh_view'",
+    );
+    let writer_scan_after_rollback = fixture.cassie.execute_sql(
+        &fixture.session,
+        "SELECT id, label FROM public.issue833_mv_refresh_view",
+        vec![],
+    );
+
+    // Assert
+    assert_eq!(writer_population, vec![vec![Value::Bool(true)]]);
+    assert_eq!(
+        writer_rows,
+        vec![vec![Value::Int64(1), Value::String("retained".to_owned())]]
+    );
+    assert_eq!(observer_population, vec![vec![Value::Bool(false)]]);
+    assert!(
+        observer_scan.is_err(),
+        "observer should see the unpopulated view"
+    );
+    assert_eq!(
+        writer_population_after_rollback,
+        vec![vec![Value::Bool(false)]]
+    );
+    assert!(
+        writer_scan_after_rollback.is_err(),
+        "rollback should restore the unpopulated view"
+    );
+}
+
+#[test]
+fn should_reject_view_commands_for_materialized_projection() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-826-materialized-projection-view-commands",
+        &[
+            "CREATE TABLE public.issue826_projection_source (id INT PRIMARY KEY)",
+            "INSERT INTO public.issue826_projection_source VALUES (1)",
+            "CREATE MATERIALIZED PROJECTION public.issue826_projection \
+               AS SELECT id FROM public.issue826_projection_source",
+        ],
+    );
+
+    // Act
+    let refresh_result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "REFRESH MATERIALIZED VIEW public.issue826_projection",
+        vec![],
+    );
+    let drop_result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "DROP MATERIALIZED VIEW public.issue826_projection",
+        vec![],
+    );
+    let drop_if_exists_result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "DROP MATERIALIZED VIEW IF EXISTS public.issue826_projection",
+        vec![],
+    );
+    let projection = fixture
+        .cassie
+        .catalog
+        .get_materialized_projection("public.issue826_projection");
+
+    // Assert
+    assert!(refresh_result.is_err());
+    assert!(drop_result.is_err());
+    assert!(drop_if_exists_result.is_ok());
+    assert!(projection.is_some());
+}
+
+#[test]
+fn should_report_unpopulated_view_scan_inside_transaction() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-826-unpopulated-view-transaction-scan",
+        &["CREATE TABLE public.issue826_unpopulated_source (id INT PRIMARY KEY)"],
+    );
+    let observer = fixture.cassie.create_session("observer", None);
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture
+        .execute(
+            "CREATE MATERIALIZED VIEW public.issue826_unpopulated_view AS \
+             SELECT id FROM public.issue826_unpopulated_source WITH NO DATA",
+        )
+        .expect("create unpopulated materialized view");
+
+    // Act
+    let writer_scan = fixture.cassie.execute_sql(
+        &fixture.session,
+        "SELECT id FROM public.issue826_unpopulated_view",
+        vec![],
+    );
+    let observer_catalog = fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            "SELECT matviewname FROM pg_catalog.pg_matviews \
+             WHERE matviewname = 'issue826_unpopulated_view'",
+            vec![],
+        )
+        .expect("read observer catalog");
+    fixture
+        .execute("ROLLBACK")
+        .expect("roll back view creation");
+    let writer_catalog_after_rollback = fixture.rows(
+        "SELECT matviewname FROM pg_catalog.pg_matviews \
+         WHERE matviewname = 'issue826_unpopulated_view'",
+    );
+
+    // Assert
+    assert!(matches!(
+        writer_scan,
+        Err(CassieError::Diagnostic(error)) if error.sql_state == "55000"
+    ));
+    let no_catalog_rows: &[Vec<Value>] = &[];
+    assert_eq!(observer_catalog.rows(), no_catalog_rows);
+    assert_eq!(writer_catalog_after_rollback, Vec::<Vec<Value>>::new());
 }
 
 #[test]

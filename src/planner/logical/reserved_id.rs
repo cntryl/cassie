@@ -50,8 +50,20 @@ use crate::types::row_identity::{is_legacy_id_column as is_reserved_id, ROW_IDEN
 #[must_use]
 pub fn collection_declares_id(catalog: &Catalog, collection: &str) -> bool {
     catalog
-        .get_schema(collection)
-        .is_some_and(|schema| schema.declares_id())
+        .get_materialized_projection(collection)
+        .and_then(|projection| projection.materialized)
+        .is_some_and(|materialized| {
+            crate::types::row_identity::declares_id(
+                materialized
+                    .output_schema
+                    .fields
+                    .iter()
+                    .map(|field| field.name.as_str()),
+            )
+        })
+        || catalog
+            .get_schema(collection)
+            .is_some_and(|schema| schema.declares_id())
 }
 
 /// Rewrites a single expression in place exactly as

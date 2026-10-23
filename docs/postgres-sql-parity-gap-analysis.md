@@ -113,7 +113,7 @@ survey labels are narrower historical observations, not whole-family parity.
 | CREATE OR REPLACE VIEW, ALTER VIEW, updatable views | Absent | #839 |
 | Multi-name DROP, CASCADE/RESTRICT, IF EXISTS everywhere | Partial | #839 |
 | CREATE TABLE AS, LIKE, SELECT INTO, UNLOGGED | Absent | #826 |
-| Materialized views | Absent (Cassie projections instead) | #826 |
+| Materialized views | Partial: selected CREATE/REFRESH/DROP forms, WITH DATA/NO DATA state, `pg_matviews`, transaction rollback, and restart; concurrent refresh, rename/access-method behavior, and dependent metadata remain pending | #826, #839, #842, #843, #845, #846 |
 | Generated and identity columns, OVERRIDING | Absent | #826, #841 |
 | PK, UNIQUE, FK actions, NOT NULL, DEFAULT | Supported | — |
 | General CHECK expressions | Partial (column vs constant) | #824 |

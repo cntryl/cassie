@@ -139,6 +139,11 @@ impl Walk<'_> {
                 self.child()
                     .statement_names(&parsed, &Names::default(), false)
             }
+            QueryStatement::CreateMaterializedView(view) => {
+                let parsed = crate::sql::parser::parse_statement(&view.query)?;
+                self.child()
+                    .statement_names(&parsed, &Names::default(), false)
+            }
             _ => Ok(()),
         }
     }

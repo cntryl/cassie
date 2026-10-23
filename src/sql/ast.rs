@@ -110,6 +110,9 @@ pub enum QueryStatement {
     CreateMaterializedProjection(CreateMaterializedProjectionStatement),
     RefreshMaterializedProjection(RefreshMaterializedProjectionStatement),
     DropMaterializedProjection(DropMaterializedProjectionStatement),
+    CreateMaterializedView(CreateMaterializedViewStatement),
+    RefreshMaterializedView(RefreshMaterializedViewStatement),
+    DropMaterializedView(DropMaterializedViewStatement),
     AlterMaterializedProjection(AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(DropMaterializedProjectionVersionStatement),
     VerifyProjection(VerifyProjectionStatement),
@@ -361,6 +364,27 @@ pub struct RefreshMaterializedProjectionStatement {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropMaterializedProjectionStatement {
+    pub name: String,
+    pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMaterializedViewStatement {
+    pub name: String,
+    pub if_not_exists: bool,
+    pub columns: Vec<String>,
+    pub query: String,
+    pub with_data: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RefreshMaterializedViewStatement {
+    pub name: String,
+    pub with_data: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DropMaterializedViewStatement {
     pub name: String,
     pub if_exists: bool,
 }

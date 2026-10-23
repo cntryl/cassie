@@ -526,6 +526,9 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CreateMaterializedProjection(_) => "CREATE MATERIALIZED PROJECTION",
         QueryStatement::RefreshMaterializedProjection(_) => "REFRESH MATERIALIZED PROJECTION",
         QueryStatement::DropMaterializedProjection(_) => "DROP MATERIALIZED PROJECTION",
+        QueryStatement::CreateMaterializedView(_) => "CREATE MATERIALIZED VIEW",
+        QueryStatement::RefreshMaterializedView(_) => "REFRESH MATERIALIZED VIEW",
+        QueryStatement::DropMaterializedView(_) => "DROP MATERIALIZED VIEW",
         QueryStatement::AlterMaterializedProjection(_) => "ALTER MATERIALIZED PROJECTION",
         QueryStatement::DropMaterializedProjectionVersion(_) => {
             "DROP MATERIALIZED PROJECTION VERSION"

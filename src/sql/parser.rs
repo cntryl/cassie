@@ -147,6 +147,8 @@ mod with_statement;
 pub(crate) use lexical::{dollar_quoted_content, dollar_quoted_end, escape_string_prefix};
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
+#[path = "parser/materialized_view.rs"]
+mod materialized_view;
 #[path = "parser/operators.rs"]
 mod operators;
 #[path = "parser/order_ordinals.rs"]
@@ -180,6 +182,10 @@ use materialized_projection::{
     parse_drop_materialized_projection_version_statement, parse_plan_repair_projection_statement,
     parse_refresh_materialized_projection_statement, parse_repair_projection_statement,
     parse_verify_projection_statement,
+};
+use materialized_view::{
+    parse_create_materialized_view_statement, parse_drop_materialized_view_statement,
+    parse_refresh_materialized_view_statement,
 };
 pub(crate) use preflight::preflight_sql;
 use query::{
@@ -352,14 +358,20 @@ fn parse_view_or_index_statement(
     trimmed: &str,
     lower: &str,
 ) -> Result<Option<ParsedStatement>, SqlError> {
-    if starts_statement(lower, "create view") {
+    if starts_statement(lower, "create materialized view") {
+        Ok(Some(parse_create_materialized_view_statement(trimmed)?))
+    } else if starts_statement(lower, "create view") {
         Ok(Some(parse_create_view_statement(trimmed)?))
     } else if starts_statement(lower, "create materialized projection") {
         Ok(Some(parse_create_materialized_projection_statement(
             trimmed,
         )?))
+    } else if starts_statement(lower, "drop materialized view") {
+        Ok(Some(parse_drop_materialized_view_statement(trimmed)?))
     } else if starts_statement(lower, "drop view") {
         Ok(Some(parse_drop_view_statement(trimmed)?))
+    } else if starts_statement(lower, "refresh materialized view") {
+        Ok(Some(parse_refresh_materialized_view_statement(trimmed)?))
     } else if starts_statement(lower, "refresh materialized projection") {
         Ok(Some(parse_refresh_materialized_projection_statement(
             trimmed,

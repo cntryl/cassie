@@ -35,6 +35,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         | QueryStatement::RevokeDatabaseConnect(_)
         | QueryStatement::CreateIndex(_)
         | QueryStatement::DropIndex(_)
+        | QueryStatement::Reindex(_)
         | QueryStatement::CreateRollup(_)
         | QueryStatement::RefreshRollup(_)
         | QueryStatement::DropRollup(_)

@@ -10,9 +10,9 @@ use crate::sql::{
         DropMaterializedProjectionStatement, DropProcedureStatement, DropRetentionPolicyStatement,
         DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropTableStatement,
         DropViewStatement, EnforceRetentionPolicyStatement, Expr, IdentifierPath, InsertStatement,
-        OrderExpr, ProjectionStatementRef, QuerySource, RefreshRollupStatement,
-        RetentionStatementRef, RuntimeStatementRef, SelectItem, SelectStatement, SetStatement,
-        ShowStatement, StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
+        OrderExpr, ProjectionStatementRef, QuerySource, RefreshRollupStatement, ReindexStatement,
+        ReindexTarget, RetentionStatementRef, RuntimeStatementRef, SelectItem, SelectStatement,
+        SetStatement, ShowStatement, StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
     },
     binder::BoundStatement,
 };
@@ -83,6 +83,7 @@ pub enum LogicalCommand {
     DropView(DropViewStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    Reindex(ReindexStatement),
     CreateRollup(crate::sql::ast::CreateRollupStatement),
     RefreshRollup(RefreshRollupStatement),
     DropRollup(DropRollupStatement),
@@ -264,6 +265,28 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
             "DROP FUNCTION requires a name",
             LogicalCommand::DropFunction(statement.clone()),
         ),
+        CatalogStatementRef::CreateProcedure(_)
+        | CatalogStatementRef::DropProcedure(_)
+        | CatalogStatementRef::CallProcedure(_) => plan_procedure_statement(statement),
+        CatalogStatementRef::CreateIndex(_)
+        | CatalogStatementRef::DropIndex(_)
+        | CatalogStatementRef::Reindex(_) => plan_index_statement(statement),
+    }
+}
+
+fn plan_index_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalPlan, CassieError> {
+    match statement {
+        CatalogStatementRef::CreateIndex(statement) => plan_create_index(statement),
+        CatalogStatementRef::DropIndex(statement) => plan_drop_index(statement),
+        CatalogStatementRef::Reindex(statement) => plan_reindex(statement),
+        _ => unreachable!("statement should be an index command"),
+    }
+}
+
+fn plan_procedure_statement(
+    statement: CatalogStatementRef<'_>,
+) -> Result<LogicalPlan, CassieError> {
+    match statement {
         CatalogStatementRef::CreateProcedure(statement) => plan_named_command(
             &statement.name,
             "CREATE PROCEDURE requires a name",
@@ -279,8 +302,7 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
             "CALL requires a procedure name",
             LogicalCommand::CallProcedure(statement.clone()),
         ),
-        CatalogStatementRef::CreateIndex(statement) => plan_create_index(statement),
-        CatalogStatementRef::DropIndex(statement) => plan_drop_index(statement),
+        _ => unreachable!("statement should be a procedure command"),
     }
 }
 
@@ -550,6 +572,19 @@ fn plan_drop_index(statement: &DropIndexStatement) -> Result<LogicalPlan, Cassie
             LogicalCommand::DropIndex(statement.clone()),
         )
     }
+}
+
+fn plan_reindex(statement: &ReindexStatement) -> Result<LogicalPlan, CassieError> {
+    let collection = match &statement.target {
+        ReindexTarget::Index { collection, .. } => collection,
+        ReindexTarget::Table { name } => name,
+    };
+    require_name(collection, "REINDEX requires an indexed table")?;
+    plan_table_command(
+        collection,
+        "REINDEX requires an indexed table",
+        LogicalCommand::Reindex(statement.clone()),
+    )
 }
 
 fn command_plan(

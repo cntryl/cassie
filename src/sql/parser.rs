@@ -207,6 +207,7 @@ use schema::{
     parse_database_connect_privilege_statement, parse_drop_database_statement,
     parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
     parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
+    parse_reindex_statement,
 };
 use statements::{
     is_transaction_control_statement, is_unsupported_transaction_control_statement,
@@ -420,6 +421,8 @@ fn parse_view_or_index_statement(
         Ok(Some(parse_create_index_statement(trimmed)?))
     } else if starts_statement(lower, "drop index") {
         Ok(Some(parse_drop_index_statement(trimmed)?))
+    } else if starts_statement(lower, "reindex") {
+        Ok(Some(parse_reindex_statement(trimmed)?))
     } else {
         Ok(None)
     }

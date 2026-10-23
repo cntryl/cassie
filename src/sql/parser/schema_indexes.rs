@@ -482,3 +482,84 @@ pub(in crate::sql::parser) fn parse_index_options(
 
     Ok((options, ""))
 }
+
+pub(in crate::sql::parser) fn parse_reindex_statement(
+    sql: &str,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let mut remainder = trimmed["reindex".len()..].trim();
+
+    if remainder.starts_with('(') {
+        let close = find_matching_paren(remainder, 0)
+            .ok_or_else(|| SqlError::syntax("unterminated REINDEX options".to_string()))?;
+        let options = &remainder[1..close];
+        for option in split_csv(options) {
+            let mut parts = option.split_whitespace();
+            let name = parts.next().unwrap_or_default();
+            let value = parts.next().unwrap_or_default();
+            if parts.next().is_some() || value.is_empty() {
+                return Err(SqlError::syntax(format!(
+                    "invalid REINDEX option '{option}'"
+                )));
+            }
+            match (
+                name.to_ascii_lowercase().as_str(),
+                value.to_ascii_lowercase().as_str(),
+            ) {
+                ("verbose" | "concurrently", "false") => {}
+                ("concurrently", "true") => {
+                    return Err(SqlError::unsupported(
+                        "REINDEX CONCURRENTLY is not supported".to_string(),
+                    ));
+                }
+                ("verbose", "true") => {
+                    return Err(SqlError::unsupported(
+                        "verbose REINDEX output is not supported".to_string(),
+                    ));
+                }
+                _ => {
+                    return Err(SqlError::unsupported(format!(
+                        "unsupported REINDEX option '{option}'"
+                    )));
+                }
+            }
+        }
+        remainder = remainder[close + 1..].trim();
+    }
+
+    let (object, raw_name) = if starts_with_keyword(remainder, "index") {
+        ("index", remainder["index".len()..].trim())
+    } else if starts_with_keyword(remainder, "table") {
+        ("table", remainder["table".len()..].trim())
+    } else {
+        return Err(SqlError::unsupported(
+            "REINDEX currently supports INDEX and TABLE targets".to_string(),
+        ));
+    };
+
+    if starts_with_keyword(raw_name, "concurrently") {
+        return Err(SqlError::unsupported(
+            "REINDEX CONCURRENTLY is not supported".to_string(),
+        ));
+    }
+    if raw_name.is_empty() {
+        return Err(SqlError::syntax(format!(
+            "REINDEX {object} requires a name"
+        )));
+    }
+
+    let name = super::schema_identifiers::parse_identifier(raw_name)?;
+    let target = if object == "index" {
+        crate::sql::ast::ReindexTarget::Index {
+            collection: String::new(),
+            name,
+        }
+    } else {
+        crate::sql::ast::ReindexTarget::Table { name }
+    };
+
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Reindex(crate::sql::ast::ReindexStatement { target }),
+    })
+}

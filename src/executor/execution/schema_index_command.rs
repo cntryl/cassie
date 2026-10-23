@@ -3,7 +3,7 @@ use super::{
     catalog, empty_command, refresh_table_cardinality_stats, schema_constraint_helpers,
     schema_foreign_keys, Cassie, QueryError, QueryExecutionControls, QueryResult,
 };
-use crate::sql::ast::DropIndexStatement;
+use crate::sql::ast::{DropIndexStatement, ReindexStatement, ReindexTarget};
 
 pub(in crate::executor::execution) fn drop_index(
     cassie: &Cassie,
@@ -43,5 +43,50 @@ pub(in crate::executor::execution) fn drop_index(
     cassie.catalog.unregister_index(table, &statement.name);
     refresh_table_cardinality_stats(cassie, table)?;
 
+    Ok(output)
+}
+
+pub(in crate::executor::execution) fn reindex(
+    cassie: &Cassie,
+    statement: &ReindexStatement,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let output = empty_command("REINDEX", controls)?;
+    match &statement.target {
+        ReindexTarget::Index { collection, name } => {
+            let index = cassie
+                .midge
+                .get_index(collection, name)
+                .map_err(|error| QueryError::General(error.to_string()))?
+                .ok_or_else(|| {
+                    QueryError::General(format!("index '{name}' disappeared before REINDEX"))
+                })?;
+            if index.kind != catalog::IndexKind::Scalar {
+                return Err(QueryError::General(
+                    "REINDEX INDEX currently supports scalar indexes only".to_string(),
+                ));
+            }
+            cassie
+                .midge
+                .rebuild_scalar_index_for_index(&index)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+        }
+        ReindexTarget::Table { name } => {
+            if cassie
+                .catalog
+                .list_indexes(name)
+                .iter()
+                .any(|index| index.kind != catalog::IndexKind::Scalar)
+            {
+                return Err(QueryError::General(
+                    "REINDEX TABLE currently supports scalar indexes only".to_string(),
+                ));
+            }
+            cassie
+                .midge
+                .rebuild_scalar_indexes_for_collection(name)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+        }
+    }
     Ok(output)
 }

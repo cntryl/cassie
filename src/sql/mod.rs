@@ -30,9 +30,9 @@ pub use ast::{
     DeleteStatement, DropMaterializedViewStatement, DropSchemaStatement, DropTableStatement,
     DropViewStatement, FieldDefinition, IdentifierComponent, IdentifierPath, InsertStatement,
     ParsedStatement, ProjectionStatement, ProjectionStatementRef, QuerySource, QueryStatement,
-    RefreshMaterializedViewStatement, RetentionStatement, RetentionStatementRef, RuntimeStatement,
-    RuntimeStatementRef, SelectItem, SelectStatement, StatementFamily, StatementRoute,
-    StatementRouteRef, UpdateStatement,
+    RefreshMaterializedViewStatement, ReindexStatement, ReindexTarget, RetentionStatement,
+    RetentionStatementRef, RuntimeStatement, RuntimeStatementRef, SelectItem, SelectStatement,
+    StatementFamily, StatementRoute, StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub(crate) use column_identifier::ColumnIdentifierPath;

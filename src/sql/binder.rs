@@ -52,8 +52,8 @@ use crate::sql::ast::{
     DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropSchemaStatement, DropSequenceStatement,
     DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr, ParsedStatement,
-    ProjectionStatement, QuerySource, QueryStatement, RuntimeStatement, SelectItem, SelectSet,
-    SelectStatement, StatementRoute,
+    ProjectionStatement, QuerySource, QueryStatement, ReindexStatement, ReindexTarget,
+    RuntimeStatement, SelectItem, SelectSet, SelectStatement, StatementRoute,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -430,6 +430,11 @@ fn bind_catalog_route(
         CatalogStatement::DropIndex(statement) => {
             bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
         }
+        CatalogStatement::Reindex(statement) => bind_catalog_statement(
+            raw_sql,
+            schema::bind_reindex(statement, catalog, context),
+            QueryStatement::Reindex,
+        ),
         statement => bind_catalog_definition_route(statement, catalog, raw_sql, context),
     }
 }
@@ -529,7 +534,8 @@ fn bind_catalog_definition_route(
         | CatalogStatement::DropProcedure(_)
         | CatalogStatement::CallProcedure(_)
         | CatalogStatement::CreateIndex(_)
-        | CatalogStatement::DropIndex(_) => unreachable!("routine and index routes are extracted"),
+        | CatalogStatement::DropIndex(_)
+        | CatalogStatement::Reindex(_) => unreachable!("routine and index routes are extracted"),
     }
 }
 

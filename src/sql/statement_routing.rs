@@ -15,9 +15,9 @@ use super::{
     DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, ExplainStatement,
     InsertStatement, MergeStatement, PlanRepairProjectionStatement, QueryStatement,
     RefreshMaterializedProjectionStatement, RefreshMaterializedViewStatement,
-    RefreshRollupStatement, RepairProjectionStatement, SelectStatement, SessionObjectStatement,
-    SetStatement, ShowStatement, TransactionStatement, TruncateStatement, UpdateStatement,
-    VerifyProjectionStatement,
+    RefreshRollupStatement, ReindexStatement, RepairProjectionStatement, SelectStatement,
+    SessionObjectStatement, SetStatement, ShowStatement, TransactionStatement, TruncateStatement,
+    UpdateStatement, VerifyProjectionStatement,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +80,7 @@ pub enum CatalogStatementRef<'a> {
     CallProcedure(&'a CallProcedureStatement),
     CreateIndex(&'a CreateIndexStatement),
     DropIndex(&'a DropIndexStatement),
+    Reindex(&'a ReindexStatement),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -159,6 +160,7 @@ pub enum CatalogStatement {
     CallProcedure(CallProcedureStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
+    Reindex(ReindexStatement),
 }
 
 pub enum ProjectionStatement {
@@ -228,7 +230,8 @@ impl QueryStatement {
             | Self::DropProcedure(_)
             | Self::CallProcedure(_)
             | Self::CreateIndex(_)
-            | Self::DropIndex(_) => StatementFamily::Catalog,
+            | Self::DropIndex(_)
+            | Self::Reindex(_) => StatementFamily::Catalog,
             Self::CreateRollup(_)
             | Self::RefreshRollup(_)
             | Self::DropRollup(_)
@@ -324,6 +327,7 @@ impl QueryStatement {
             Self::CallProcedure(statement) => CatalogStatementRef::CallProcedure(statement),
             Self::CreateIndex(statement) => CatalogStatementRef::CreateIndex(statement),
             Self::DropIndex(statement) => CatalogStatementRef::DropIndex(statement),
+            Self::Reindex(statement) => CatalogStatementRef::Reindex(statement),
             _ => unreachable!("statement family should match catalog route"),
         }
     }
@@ -442,6 +446,7 @@ impl QueryStatement {
             Self::CallProcedure(statement) => CatalogStatement::CallProcedure(statement),
             Self::CreateIndex(statement) => CatalogStatement::CreateIndex(statement),
             Self::DropIndex(statement) => CatalogStatement::DropIndex(statement),
+            Self::Reindex(statement) => CatalogStatement::Reindex(statement),
             _ => unreachable!("statement family should match catalog route"),
         }
     }

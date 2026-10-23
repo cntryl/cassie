@@ -5,7 +5,7 @@ use super::{
     virtual_views, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
     AlterTableStatement, BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema,
     CreateViewStatement, DataType, DistanceMetric, DropIndexStatement, DropSchemaStatement,
-    DropViewStatement, Expr, HashSet, QueryStatement,
+    DropViewStatement, Expr, HashSet, QueryStatement, ReindexStatement, ReindexTarget,
 };
 
 #[path = "schema_alter_constraints.rs"]
@@ -492,6 +492,54 @@ pub(super) fn bind_drop_index(
 
     statement.table = table;
     statement.name = name;
+    Ok(statement)
+}
+
+pub(super) fn bind_reindex(
+    mut statement: ReindexStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<ReindexStatement, CassieError> {
+    match &mut statement.target {
+        ReindexTarget::Index { collection, name } => {
+            let raw_name = name.clone();
+            let Some(index) = schema_indexes::resolve_drop_index_name(name, catalog, context)?
+            else {
+                return Err(CassieError::CatalogObjectNotFound {
+                    kind: CatalogObjectKind::Index,
+                    name: raw_name,
+                });
+            };
+            if index.kind != crate::catalog::IndexKind::Scalar {
+                return Err(CassieError::Unsupported(
+                    "REINDEX INDEX currently supports scalar indexes only".to_string(),
+                ));
+            }
+            *collection = index.collection;
+            *name = index.name;
+        }
+        ReindexTarget::Table { name } => {
+            let table = resolve_relation_name(name, catalog, context)?;
+            if table.is_empty() {
+                return Err(CassieError::Planner(
+                    "REINDEX TABLE requires a table name".to_string(),
+                ));
+            }
+            if !catalog.exists(&table) {
+                return Err(CassieError::CollectionNotFound(table));
+            }
+            if catalog
+                .list_indexes(&table)
+                .iter()
+                .any(|index| index.kind != crate::catalog::IndexKind::Scalar)
+            {
+                return Err(CassieError::Unsupported(
+                    "REINDEX TABLE currently supports scalar indexes only".to_string(),
+                ));
+            }
+            *name = table;
+        }
+    }
     Ok(statement)
 }
 

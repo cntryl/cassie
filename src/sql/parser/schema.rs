@@ -38,6 +38,7 @@ use schema_identifiers::{
 };
 pub(super) use schema_indexes::{
     parse_create_index_statement, parse_drop_index_statement, parse_index_options,
+    parse_reindex_statement,
 };
 use schema_like::{is_like_table_element, parse_create_table_like_clause};
 use schema_literals::parse_constant_literal;

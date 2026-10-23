@@ -120,6 +120,15 @@ impl Midge {
         &self,
         index: &IndexMeta,
     ) -> Result<(), CassieError> {
+        let write_gate = self.collection_write_gate(&index.collection);
+        let _write_guard = write_gate.lock();
+        let Some(current_index) = self.get_index(&index.collection, &index.name)? else {
+            return Ok(());
+        };
+        self.rebuild_scalar_index_for_index_locked(&current_index)
+    }
+
+    fn rebuild_scalar_index_for_index_locked(&self, index: &IndexMeta) -> Result<(), CassieError> {
         if !Self::scalar_index_supports_storage(index) {
             self.delete_scalar_index_data(&index.collection, &index.name)?;
             return Ok(());
@@ -589,6 +598,9 @@ fn query_value_to_json(value: Value) -> Result<serde_json::Value, CassieError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{mpsc, Arc};
+    use std::thread;
+    use std::time::Duration;
 
     #[test]
     fn should_bound_prepared_scalar_index_publication_batches() {
@@ -625,5 +637,157 @@ mod tests {
         // Assert
         assert_eq!(exact_interval_flushes, vec![4, 8, 12, 16, 20]);
         assert_eq!(partial_interval_flushes, vec![4, 8, 10]);
+    }
+
+    #[test]
+    fn should_serialize_scalar_index_rebuild_with_collection_writes() {
+        // Arrange
+        let midge = Arc::new(Midge::new_in_memory("postgres").expect("create Midge"));
+        midge
+            .create_collection(
+                "scalar_reindex_gate",
+                super::super::Schema {
+                    fields: vec![super::super::FieldSchema {
+                        name: "value".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .expect("create collection");
+        midge
+            .put_document(
+                "scalar_reindex_gate",
+                Some("row-1".to_string()),
+                serde_json::json!({"value": "alpha"}),
+            )
+            .expect("seed collection row");
+        let index = IndexMeta {
+            collection: "scalar_reindex_gate".to_string(),
+            name: "scalar_reindex_gate_value".to_string(),
+            field: "value".to_string(),
+            fields: vec!["value".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
+        midge.put_index(&index).expect("publish scalar index");
+        let index = midge
+            .get_index("scalar_reindex_gate", "scalar_reindex_gate_value")
+            .expect("read scalar index")
+            .expect("published scalar index");
+        let collection = midge.canonical_collection_name(&index.collection);
+        let gate = midge.collection_write_gate(&collection);
+        let write_guard = gate.lock();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (completed_tx, completed_rx) = mpsc::channel();
+        let worker_midge = Arc::clone(&midge);
+        let worker_gate = Arc::clone(&gate);
+
+        let worker = thread::spawn(move || {
+            started_tx
+                .send(worker_gate.try_lock().is_none())
+                .expect("signal that the collection gate is held");
+            let result = worker_midge.rebuild_scalar_index_for_index(&index);
+            completed_tx
+                .send(result)
+                .expect("signal scalar index rebuild finish");
+        });
+        let gate_was_held = started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("rebuild worker should reach the gate check");
+
+        // Act
+        let early_result = completed_rx.recv_timeout(Duration::from_millis(100)).ok();
+        let blocked_while_write_guard_held = early_result.is_none();
+        drop(write_guard);
+        let result = early_result.unwrap_or_else(|| {
+            completed_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("rebuild should finish after the collection gate is released")
+        });
+        worker.join().expect("join scalar index rebuild worker");
+
+        // Assert
+        assert!(gate_was_held);
+        assert!(blocked_while_write_guard_held);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn should_not_rebuild_scalar_index_from_metadata_removed_before_gate_acquisition() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("create Midge");
+        midge
+            .create_collection(
+                "scalar_reindex_removed_index",
+                super::super::Schema {
+                    fields: vec![super::super::FieldSchema {
+                        name: "value".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    }],
+                },
+            )
+            .expect("create collection");
+        midge
+            .put_document(
+                "scalar_reindex_removed_index",
+                Some("row-1".to_string()),
+                serde_json::json!({"value": "alpha"}),
+            )
+            .expect("seed collection row");
+        let declared_index = IndexMeta {
+            collection: "scalar_reindex_removed_index".to_string(),
+            name: "scalar_reindex_removed_index_value".to_string(),
+            field: "value".to_string(),
+            fields: vec!["value".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
+        midge
+            .put_index(&declared_index)
+            .expect("publish scalar index");
+        let stale_index = midge
+            .get_index(
+                "scalar_reindex_removed_index",
+                "scalar_reindex_removed_index_value",
+            )
+            .expect("read scalar index")
+            .expect("published scalar index");
+        let (relation_id, index_id) = Midge::scalar_index_storage_ids(&stale_index)
+            .expect("read scalar index storage identity");
+        let index_prefix = Midge::scalar_index_data_prefix(relation_id, index_id);
+        midge
+            .delete_index(
+                "scalar_reindex_removed_index",
+                "scalar_reindex_removed_index_value",
+            )
+            .expect("drop the index after the caller has read its metadata");
+
+        // Act
+        midge
+            .rebuild_scalar_index_for_index(&stale_index)
+            .expect("rebuild after the index has been dropped");
+        let remaining_entries = midge
+            .raw_scan_prefix_for_collection("scalar_reindex_removed_index", &index_prefix)
+            .expect("inspect the dropped index's storage prefix");
+        let remaining_metadata = midge
+            .get_index(
+                "scalar_reindex_removed_index",
+                "scalar_reindex_removed_index_value",
+            )
+            .expect("check index catalog after the drop");
+
+        // Assert
+        assert!(remaining_metadata.is_none());
+        assert_eq!(remaining_entries, Vec::new());
     }
 }

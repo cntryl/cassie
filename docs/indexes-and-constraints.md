@@ -82,6 +82,26 @@ Supported predicate shapes include:
 - A modifier-bearing key list that mixes field and expression keys is rejected with SQLSTATE `0A000`; the current scalar index metadata does not preserve that mixed key order.
 - For compatibility with the existing Cassie catalog surface, `pg_index.indexrelid` and `indrelid` are text display labels; `indexrelid_oid` and `indrelid_oid` provide their numeric OIDs. This does not claim PostgreSQL's native `pg_index` column types.
 
+### Rebuilding scalar indexes
+
+`REINDEX INDEX name` rebuilds one existing scalar index from stored rows.
+`REINDEX TABLE name` rebuilds every scalar index on the table. These forms run
+outside active transactions; REINDEX is not part of Cassie's selected transactional
+DDL set. Both forms
+accept an optional `(VERBOSE FALSE, CONCURRENTLY FALSE)` option list; concurrent
+rebuilds and verbose output are unsupported. Schema, database, and system
+targets are also outside the selected support surface. `REINDEX TABLE` is
+rejected when the table has a non-scalar index, so it never silently skips an
+index type. Rebuilds take the collection writer gate and replace each index's
+stored key prefix in a Midge data transaction. Focused coverage is in
+[`should_rebuild_an_existing_index_with_reindex`](../tests/compatibility/lifecycle/indexes/index.rs),
+[`should_rebuild_all_indexes_for_a_table`](../tests/compatibility/lifecycle/indexes/index.rs),
+[`should_preserve_partial_index_results_after_reindex_with_null_keys`](../tests/compatibility/lifecycle/indexes/reindex_options.rs),
+[`should_reindex_with_explicit_nonconcurrent_options_while_preserving_rows`](../tests/compatibility/lifecycle/indexes/reindex_options.rs),
+[`should_reject_reindex_inside_an_explicit_transaction`](../tests/compatibility/lifecycle/indexes/reindex_options.rs),
+[`should_serialize_scalar_index_rebuild_with_collection_writes`](../src/midge/adapter/scalar_indexes.rs),
+and [`should_not_rebuild_scalar_index_from_metadata_removed_before_gate_acquisition`](../src/midge/adapter/scalar_indexes.rs).
+
 NULL and non-finite values:
 
 - Rows whose index key contains NULL are not stored in scalar indexes. The planner uses a scalar index when every key column is compared with a value in the filter or is declared `NOT NULL` (or is part of the primary key).

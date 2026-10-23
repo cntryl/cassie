@@ -284,6 +284,11 @@ impl Analyzer<'_> {
                 ),
                 SelectItem::WindowFunction { function, alias } => {
                     let value = match function.name.to_ascii_lowercase().as_str() {
+                        "row_number" | "rank" | "dense_rank" => {
+                            super::OutputType::fixed(DataType::BigInt)
+                        }
+                        "percent_rank" | "cume_dist" => super::OutputType::fixed(DataType::Float),
+                        "ntile" => super::OutputType::fixed(DataType::Int),
                         "lag" | "lead" | "first_value" | "last_value" => function
                             .args
                             .first()

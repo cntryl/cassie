@@ -18,7 +18,13 @@ pub(super) fn parse_create_materialized_view_statement(
 
     let as_position = find_top_level_keyword(rest, 0, "as")
         .ok_or_else(|| SqlError::syntax("CREATE MATERIALIZED VIEW requires AS".into()))?;
-    let (name, columns) = parse_materialized_view_name(rest[..as_position].trim())?;
+    let relation_definition = rest[..as_position].trim();
+    if find_top_level_keyword(relation_definition, 0, "using").is_some() {
+        return Err(SqlError::unsupported(
+            "CREATE MATERIALIZED VIEW access methods are not supported".into(),
+        ));
+    }
+    let (name, columns) = parse_materialized_view_name(relation_definition)?;
     let (query, with_data) = parse_population_suffix(rest[as_position + 2..].trim());
     if query.is_empty() {
         return Err(SqlError::syntax(
@@ -173,7 +179,7 @@ mod tests {
     use crate::sql::{ast::QueryStatement, parse_statement};
 
     #[test]
-    fn should_parse_materialized_view_population_and_columns() {
+    fn should_parse_materialized_view_population_with_named_columns() {
         // Arrange
         let sql = "CREATE MATERIALIZED VIEW public.records_copy (item_id, item_name) AS \
                    SELECT id, name FROM public.records WITH NO DATA";
@@ -192,20 +198,31 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_materialized_view_refresh_and_drop() {
-        // Arrange / Act
-        let refresh = parse_statement("REFRESH MATERIALIZED VIEW public.records_copy WITH DATA")
-            .expect("parse materialized-view refresh");
-        let drop_view = parse_statement("DROP MATERIALIZED VIEW IF EXISTS public.records_copy")
-            .expect("parse materialized-view drop");
+    fn should_parse_materialized_view_refresh_with_data() {
+        // Arrange
+        let sql = "REFRESH MATERIALIZED VIEW public.records_copy WITH DATA";
+
+        // Act
+        let parsed = parse_statement(sql).expect("parse materialized-view refresh");
 
         // Assert
         assert!(matches!(
-            refresh.statement,
+            parsed.statement,
             QueryStatement::RefreshMaterializedView(statement) if statement.with_data
         ));
+    }
+
+    #[test]
+    fn should_parse_materialized_view_drop_if_exists() {
+        // Arrange
+        let sql = "DROP MATERIALIZED VIEW IF EXISTS public.records_copy";
+
+        // Act
+        let parsed = parse_statement(sql).expect("parse materialized-view drop");
+
+        // Assert
         assert!(matches!(
-            drop_view.statement,
+            parsed.statement,
             QueryStatement::DropMaterializedView(statement) if statement.if_exists
         ));
     }
@@ -240,5 +257,20 @@ mod tests {
         assert!(error
             .message()
             .contains("CONCURRENTLY and WITH NO DATA options cannot be used together"));
+    }
+
+    #[test]
+    fn should_accept_using_as_a_materialized_view_output_column_name() {
+        // Arrange
+        let sql = "CREATE MATERIALIZED VIEW compat_using_column (using) AS SELECT 17 AS value";
+
+        // Act
+        let parsed = parse_statement(sql);
+
+        // Assert
+        assert!(
+            parsed.is_ok(),
+            "USING inside the output-column list is not an access-method clause"
+        );
     }
 }

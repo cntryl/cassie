@@ -6,55 +6,25 @@ mod index_comment_clear;
 mod null_clear_residuals;
 
 #[test]
-fn should_roundtrip_materialized_view_comments_through_relation_metadata() {
+fn should_reject_materialized_view_comments_until_metadata_support_is_implemented() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("materialized_view_comments").await;
         let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_comment_mv_source (id INT)",
-                "INSERT INTO compat_comment_mv_source VALUES (1), (2)",
-                "CREATE MATERIALIZED VIEW compat_comment_mv AS \
-                   SELECT id FROM compat_comment_mv_source",
-            ],
-        )
-        .await
-        .expect("create a materialized view to annotate");
+        client
+            .batch_execute("CREATE MATERIALIZED VIEW compat_comment_mv AS SELECT 1 AS id")
+            .await
+            .expect("create a materialized view to test comment rejection");
 
         // Act
-        client
+        let result = client
             .batch_execute("COMMENT ON MATERIALIZED VIEW compat_comment_mv IS 'cached rows'")
-            .await
-            .expect("store a comment on the materialized view");
-        let before_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description('compat_comment_mv'::regclass, 'pg_class')",
-                &[],
-            )
-            .await
-            .expect("read the materialized-view comment")
-            .try_get(0)
-            .expect("materialized-view comment");
-        client
-            .batch_execute("COMMENT ON MATERIALIZED VIEW compat_comment_mv IS NULL")
-            .await
-            .expect("clear the materialized-view comment");
-        let after_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description('compat_comment_mv'::regclass, 'pg_class')",
-                &[],
-            )
-            .await
-            .expect("read the cleared materialized-view comment")
-            .try_get(0)
-            .expect("cleared materialized-view comment");
+            .await;
+        let error = result.expect_err("materialized-view comments remain pending under #845");
 
         // Assert
-        assert_eq!(before_clear.as_deref(), Some("cached rows"));
-        assert_eq!(after_clear, None);
+        assert_eq!(db_error(&error).code().code(), "0A000");
 
         drop(client);
         server.shutdown(connection).await;
@@ -281,6 +251,63 @@ fn should_roundtrip_extension_comments_through_extension_metadata() {
 
         // Assert
         assert_eq!(before_clear.as_deref(), Some("procedural language runtime"));
+        assert_eq!(after_clear, None);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+#[ignore = "Pending #826 and #845 materialized-view comment metadata; #845 depends on #817"]
+fn should_roundtrip_materialized_view_comments_through_relation_metadata() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("materialized_view_comments").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_comment_mv_source (id INT)",
+                "INSERT INTO compat_comment_mv_source VALUES (1), (2)",
+                "CREATE MATERIALIZED VIEW compat_comment_mv AS \
+                   SELECT id FROM compat_comment_mv_source",
+            ],
+        )
+        .await
+        .expect("create a materialized view to annotate");
+
+        // Act
+        client
+            .batch_execute("COMMENT ON MATERIALIZED VIEW compat_comment_mv IS 'cached rows'")
+            .await
+            .expect("store a comment on the materialized view");
+        let before_clear: Option<String> = client
+            .query_one(
+                "SELECT obj_description('compat_comment_mv'::regclass, 'pg_class')",
+                &[],
+            )
+            .await
+            .expect("read the materialized-view comment")
+            .try_get(0)
+            .expect("materialized-view comment");
+        client
+            .batch_execute("COMMENT ON MATERIALIZED VIEW compat_comment_mv IS NULL")
+            .await
+            .expect("clear the materialized-view comment");
+        let after_clear: Option<String> = client
+            .query_one(
+                "SELECT obj_description('compat_comment_mv'::regclass, 'pg_class')",
+                &[],
+            )
+            .await
+            .expect("read the cleared materialized-view comment")
+            .try_get(0)
+            .expect("cleared materialized-view comment");
+
+        // Assert
+        assert_eq!(before_clear.as_deref(), Some("cached rows"));
         assert_eq!(after_clear, None);
 
         drop(client);

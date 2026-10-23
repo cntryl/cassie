@@ -290,3 +290,71 @@ fn should_fallback_to_row_blobs_for_grouped_aggregates() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_fallback_to_rows_given_aggregate_local_modifiers_when_column_summaries_are_eligible() {
+    // Arrange
+    let path = data_dir("aggregate_accel_local_modifiers");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE aggregate_accel_local_modifiers (included BOOLEAN, amount INT)",
+                vec![],
+            )
+            .unwrap();
+        for sql in [
+            "INSERT INTO aggregate_accel_local_modifiers VALUES (true, 2)",
+            "INSERT INTO aggregate_accel_local_modifiers VALUES (true, 2)",
+            "INSERT INTO aggregate_accel_local_modifiers VALUES (true, 3)",
+            "INSERT INTO aggregate_accel_local_modifiers VALUES (false, 9)",
+            "INSERT INTO aggregate_accel_local_modifiers VALUES (true, NULL)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).unwrap();
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_aggregate_accel_local_modifiers ON aggregate_accel_local_modifiers USING column (included, amount) WITH (segment_size = 2)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let baseline = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN SELECT SUM(amount) FROM aggregate_accel_local_modifiers",
+                vec![],
+            )
+            .unwrap();
+        let sql = "SELECT SUM(amount), SUM(DISTINCT amount ORDER BY amount DESC) FILTER (WHERE included) FROM aggregate_accel_local_modifiers";
+        let result = cassie.execute_sql(&session, sql, vec![]).unwrap();
+        let explain = cassie
+            .execute_sql(&session, &format!("EXPLAIN {sql}"), vec![])
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            result.rows(),
+            vec![vec![Value::Int64(16), Value::Int64(5)]]
+        );
+        let Value::String(baseline_plan) = &baseline.rows()[0][0] else {
+            panic!("expected textual baseline plan");
+        };
+        assert!(baseline_plan.contains("aggregate_acceleration=true"));
+        let Value::String(plan) = &explain.rows()[0][0] else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("aggregate_acceleration=false"));
+    });
+
+    let _ = std::fs::remove_dir_all(path);
+}

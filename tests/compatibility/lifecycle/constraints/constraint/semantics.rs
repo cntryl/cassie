@@ -135,13 +135,27 @@ fn should_protect_constraint_owned_index_until_constraint_drop() {
                 "CREATE TABLE compat_constraint_index_dependency (id INT, payload TEXT)",
                 "CREATE UNIQUE INDEX compat_constraint_index_dependency_index \
                    ON compat_constraint_index_dependency (id)",
-                "ALTER TABLE compat_constraint_index_dependency \
-                   ADD CONSTRAINT compat_constraint_index_dependency_key \
-                   UNIQUE USING INDEX compat_constraint_index_dependency_index",
             ],
         )
         .await
-        .expect("attach the unique index to a named table constraint");
+        .expect("create the table and unique index to attach");
+        let original_index_oid: i64 = client
+            .query_one(
+                "SELECT indexrelid_oid::BIGINT FROM pg_catalog.pg_index \
+                 WHERE indexrelid = 'compat_constraint_index_dependency_index'",
+                &[],
+            )
+            .await
+            .expect("read the existing index relation identity")
+            .get(0);
+        client
+            .batch_execute(
+                "ALTER TABLE compat_constraint_index_dependency \
+                 ADD CONSTRAINT compat_constraint_index_dependency_key \
+                 UNIQUE USING INDEX compat_constraint_index_dependency_index",
+            )
+            .await
+            .expect("attach the unique index to a named table constraint");
 
         // Act
         let rejected_index_drop = client
@@ -151,12 +165,12 @@ fn should_protect_constraint_owned_index_until_constraint_drop() {
         let dependency = client
             .query_one(
                 "SELECT constraint_row.conindid = index_row.indexrelid, \
-                        index_class.relname \
+                        index_class.relname, index_row.indexrelid_oid::BIGINT \
                  FROM pg_catalog.pg_constraint AS constraint_row \
                  JOIN pg_catalog.pg_index AS index_row \
                    ON index_row.indexrelid = constraint_row.conindid \
                  JOIN pg_catalog.pg_class AS index_class \
-                   ON index_class.oid = index_row.indexrelid \
+                   ON index_class.oid = index_row.indexrelid_oid \
                  WHERE constraint_row.conname = \
                    'compat_constraint_index_dependency_key'",
                 &[],
@@ -196,6 +210,7 @@ fn should_protect_constraint_owned_index_until_constraint_drop() {
             dependency.get::<_, String>(1),
             "compat_constraint_index_dependency_key"
         );
+        assert_eq!(dependency.get::<_, i64>(2), original_index_oid);
         assert_eq!(remaining.get::<_, i64>(0), 0);
         assert_eq!(remaining.get::<_, i64>(1), 0);
         assert_eq!(duplicate_rows, 2);

@@ -107,6 +107,15 @@ pub struct FieldConstraint {
     pub unique_name: Option<String>,
     #[serde(default)]
     pub unique_ordinal: Option<u32>,
+    /// Backing index name for a UNIQUE or PRIMARY KEY constraint.
+    #[serde(default)]
+    pub constraint_index_name: Option<String>,
+    /// INCLUDE payload fields on a UNIQUE or PRIMARY KEY constraint.
+    #[serde(default)]
+    pub constraint_index_include_fields: Vec<String>,
+    /// User supplied storage parameters on a UNIQUE or PRIMARY KEY constraint.
+    #[serde(default)]
+    pub constraint_index_options: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub check_name: Option<String>,
     #[serde(default)]
@@ -176,6 +185,9 @@ impl FieldConstraint {
             primary_key_ordinal: None,
             unique_name: None,
             unique_ordinal: None,
+            constraint_index_name: None,
+            constraint_index_include_fields: Vec::new(),
+            constraint_index_options: std::collections::BTreeMap::new(),
             check_name: None,
             foreign_key_name: None,
             foreign_key_ordinal: None,

@@ -674,6 +674,20 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
+        AlterTableOperation::AddUniqueConstraintUsingIndex {
+            constraint_name,
+            index_name,
+        } => {
+            if constraint_name
+                .as_ref()
+                .is_some_and(|name| name.trim().is_empty())
+                || index_name.trim().is_empty()
+            {
+                return Err(CassieError::Planner(
+                    "UNIQUE USING INDEX requires a valid index name".into(),
+                ));
+            }
+        }
         AlterTableOperation::DropConstraint { name, .. } => {
             if name.trim().is_empty() {
                 return Err(CassieError::Planner(

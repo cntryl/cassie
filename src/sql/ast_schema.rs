@@ -23,6 +23,10 @@ pub enum AlterTableOperation {
     AddConstraint {
         constraints: Vec<FieldConstraint>,
     },
+    AddUniqueConstraintUsingIndex {
+        constraint_name: Option<String>,
+        index_name: String,
+    },
     DropConstraint {
         name: String,
         if_exists: bool,

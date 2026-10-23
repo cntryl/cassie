@@ -2,6 +2,68 @@ use super::super::index_publication::PendingIndexPublication;
 use super::super::{check_index_publication_failure_point, CassieError, IndexMeta, Midge};
 
 impl Midge {
+    /// Adopts a unique index and persists its constraint metadata in one data transaction.
+    /// The caller must hold the collection's canonical write gate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the source is missing, the destination exists, or storage fails.
+    pub(crate) fn adopt_unique_index_and_constraints_with_held_collection_gate(
+        &self,
+        collection: &str,
+        current_name: &str,
+        next_name: &str,
+        constraints: &[crate::catalog::FieldConstraint],
+    ) -> Result<IndexMeta, CassieError> {
+        crate::sql::definition_guard::constraints(constraints)?;
+        let collection = self.canonical_collection_name(collection);
+        let current_key = Midge::index_key(&collection, current_name);
+        let next_key = Midge::index_key(&collection, next_name);
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        let raw = tx
+            .get(&current_key)
+            .map_err(CassieError::from)?
+            .ok_or_else(|| CassieError::CatalogObjectNotFound {
+                kind: crate::app::CatalogObjectKind::Index,
+                name: current_name.to_string(),
+            })?;
+        if current_key != next_key && tx.get(&next_key).map_err(CassieError::from)?.is_some() {
+            return Err(CassieError::CatalogObjectAlreadyExists {
+                kind: crate::app::CatalogObjectKind::Index,
+                name: next_name.to_string(),
+            });
+        }
+        let mut metadata: IndexMeta = serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
+        metadata.set_catalog_oid_if_missing(crate::catalog::object_identity::stable_index_oid(
+            &metadata.name,
+        ));
+        if metadata.unique {
+            let reservation_name = metadata.name.clone();
+            metadata.set_unique_reservation_name_if_missing(&reservation_name);
+        }
+        metadata.name = next_name.to_string();
+        if current_key != next_key {
+            tx.delete(current_key).map_err(CassieError::from)?;
+        }
+        tx.put(
+            next_key,
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.put(
+            Midge::constraints_key(&collection),
+            serde_json::to_vec(constraints)
+                .map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(metadata)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

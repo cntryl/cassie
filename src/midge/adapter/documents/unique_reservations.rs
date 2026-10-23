@@ -150,7 +150,7 @@ impl Midge {
             };
             let key = key_encoding::unique_scalar_index_reservation_key(
                 collection,
-                &index.name,
+                index.unique_reservation_name(),
                 &values,
             )?;
             targets.push((

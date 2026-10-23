@@ -175,7 +175,7 @@ impl Midge {
                 &index.collection,
                 &key_encoding::unique_scalar_index_reservation_prefix(
                     &index.collection,
-                    &index.name,
+                    index.unique_reservation_name(),
                 ),
             )?;
         }
@@ -198,7 +198,7 @@ impl Midge {
                 if let Some(values) = reservation_values {
                     let reservation = key_encoding::unique_scalar_index_reservation_key(
                         &index.collection,
-                        &index.name,
+                        index.unique_reservation_name(),
                         &values,
                     )?;
                     tx.put(reservation, row.id.as_bytes().to_vec(), None)
@@ -237,7 +237,7 @@ impl Midge {
             };
             let key = key_encoding::unique_scalar_index_reservation_key(
                 &index.collection,
-                &index.name,
+                index.unique_reservation_name(),
                 &values,
             )?;
             if owners.insert(key, row.id.clone()).is_some() {

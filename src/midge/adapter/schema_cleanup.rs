@@ -214,12 +214,15 @@ impl Midge {
                 self.delete_column_batches(&metadata.collection, &metadata.name)?;
             }
         }
-        let (collection, index_name) = metadata.map_or_else(
+        let (collection, reservation_name) = metadata.map_or_else(
             || (self.canonical_collection_name(table), index.to_string()),
-            |metadata| (metadata.collection, metadata.name),
+            |metadata| {
+                let reservation_name = metadata.unique_reservation_name().to_string();
+                (metadata.collection, reservation_name)
+            },
         );
         let reservation_prefix =
-            key_encoding::unique_scalar_index_reservation_prefix(&collection, &index_name);
+            key_encoding::unique_scalar_index_reservation_prefix(&collection, &reservation_name);
         self.delete_data_keys_with_prefix_in_batches(&collection, &reservation_prefix)?;
         self.delete_index(table, index)
     }

@@ -265,6 +265,7 @@ fn rewrite_expr(expr: &mut Expr) {
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             rewrite_expr(expr);
             rewrite_expr(low);

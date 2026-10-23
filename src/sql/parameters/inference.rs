@@ -634,6 +634,7 @@ fn infer_like_parameter_type_oids(
         expr,
         pattern,
         escape,
+        ..
     } = expression
     else {
         unreachable!("LIKE inference dispatch")

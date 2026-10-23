@@ -190,6 +190,7 @@ pub(super) fn canonicalize_typed_predicate_literals(
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             canonicalize_column_literal_pair(expr, low, field_types)?;
             canonicalize_column_literal_pair(expr, high, field_types)?;

@@ -23,10 +23,12 @@ pub(super) fn like<'a>(
     expr: &'a Expr,
     pattern: &'a Expr,
     escape: &'a Expr,
+    case_insensitive: bool,
 ) -> ExprResolution<'a> {
     Ok(Expr::Like {
         expr: Box::new(resolve_exists_expr(context, expr)?),
         pattern: Box::new(resolve_exists_expr(context, pattern)?),
         escape: Box::new(resolve_exists_expr(context, escape)?),
+        case_insensitive,
     })
 }

@@ -485,7 +485,8 @@ fn projection_expr_key(expr: &Expr) -> String {
             expr,
             pattern,
             escape,
-        } => like_expr_key(expr, pattern, escape),
+            case_insensitive,
+        } => like_expr_key(expr, pattern, escape, *case_insensitive),
         Expr::Between {
             expr,
             low,
@@ -530,10 +531,11 @@ impl ProjectionOp {
     }
 }
 
-fn like_expr_key(expr: &Expr, pattern: &Expr, escape: &Expr) -> String {
+fn like_expr_key(expr: &Expr, pattern: &Expr, escape: &Expr, case_insensitive: bool) -> String {
     format!(
-        "({} LIKE {} ESCAPE {})",
+        "({} {} {} ESCAPE {})",
         projection_expr_key(expr),
+        if case_insensitive { "ILIKE" } else { "LIKE" },
         projection_expr_key(pattern),
         projection_expr_key(escape)
     )

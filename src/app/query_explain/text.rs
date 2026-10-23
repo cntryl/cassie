@@ -273,6 +273,7 @@ fn collect_expr_columns(
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             collect_expr_columns(expr, fields, allocation)?;
             collect_expr_columns(low, fields, allocation)?;

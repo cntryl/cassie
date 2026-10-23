@@ -232,6 +232,7 @@ fn visit_expr(
             expr,
             pattern: low,
             escape: high,
+            ..
         } => {
             visit_expr(expr, visitor, controls)?;
             visit_expr(low, visitor, controls)?;

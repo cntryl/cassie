@@ -482,6 +482,8 @@ enum NormalizedExprShape {
         expr: Box<NormalizedExprShape>,
         pattern: Box<NormalizedExprShape>,
         escape: Box<NormalizedExprShape>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        case_insensitive: bool,
     },
     Between {
         expr: Box<NormalizedExprShape>,
@@ -665,10 +667,12 @@ fn normalized_predicate(expr: &Expr) -> NormalizedExprShape {
             expr,
             pattern,
             escape,
+            case_insensitive,
         } => Shape::Like {
             expr: Box::new(Shape::from(expr.as_ref())),
             pattern: Box::new(Shape::from(pattern.as_ref())),
             escape: Box::new(Shape::from(escape.as_ref())),
+            case_insensitive: *case_insensitive,
         },
         Expr::Between {
             expr,

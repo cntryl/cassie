@@ -386,14 +386,8 @@ impl Folder<'_> {
                 expr,
                 pattern,
                 escape,
-            } => {
-                self.fold_operands([&**expr, &**pattern, &**escape], true, true)?;
-                Ok(match self.evaluate(predicate)? {
-                    Some(ScalarValue::Null) => Fold::Decided(None),
-                    Some(ScalarValue::Bool(value)) => Fold::Decided(Some(value)),
-                    _ => Fold::Variable,
-                })
-            }
+                ..
+            } => self.fold_like(predicate, expr, pattern, escape),
             Expr::Between {
                 expr,
                 low,
@@ -415,6 +409,21 @@ impl Folder<'_> {
             } => self.fold_case(operand.as_deref(), branches, else_expr.as_deref()),
             Expr::Function(function) => self.fold_function(function),
         }
+    }
+
+    fn fold_like(
+        &self,
+        predicate: &Expr,
+        expr: &Expr,
+        pattern: &Expr,
+        escape: &Expr,
+    ) -> Result<Fold, QueryError> {
+        self.fold_operands([expr, pattern, escape], true, true)?;
+        Ok(match self.evaluate(predicate)? {
+            Some(ScalarValue::Null) => Fold::Decided(None),
+            Some(ScalarValue::Bool(value)) => Fold::Decided(Some(value)),
+            _ => Fold::Variable,
+        })
     }
 
     fn fold_row(&self, comparison: &crate::sql::ast::RowComparison) -> Result<Fold, QueryError> {

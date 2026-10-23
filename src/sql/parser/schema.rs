@@ -12,6 +12,8 @@ use super::{
     SqlError, Value,
 };
 
+#[path = "schema_access_methods.rs"]
+mod schema_access_methods;
 #[path = "schema_create_table_as.rs"]
 mod schema_create_table_as;
 #[path = "schema_fields.rs"]
@@ -78,6 +80,8 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         return Err(SqlError::new("missing table name".into()));
     }
 
+    let trailing =
+        schema_access_methods::strip_heap_access_method_clause(trailing, "CREATE TABLE")?;
     let (options, trailing) = parse_index_options(trailing)?;
     if !trailing.is_empty() {
         return Err(SqlError::new(
@@ -424,6 +428,17 @@ pub(super) fn parse_alter_table_operation(
     raw: &str,
 ) -> Result<AlterTableOperation, SqlError> {
     let lower = raw.to_lowercase();
+    if starts_with_keyword(raw, "set access method") {
+        let clause = raw["set access method".len()..].trim_start();
+        let (method, trailing) = schema_access_methods::take_access_method_identifier(clause)?;
+        let access_method = schema_access_methods::parse_heap_access_method(method, "ALTER TABLE")?;
+        if !trailing.trim().is_empty() {
+            return Err(SqlError::new(
+                "unexpected tokens after ALTER TABLE access method".to_string(),
+            ));
+        }
+        return Ok(AlterTableOperation::SetAccessMethod { access_method });
+    }
     if lower.starts_with("add column") {
         let field_def = raw["add column".len()..].trim();
         let (if_not_exists, field_def) = parse_if_not_exists(field_def);

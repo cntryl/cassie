@@ -136,6 +136,7 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         ]),
         "pg_catalog.pg_namespace" => Some(virtual_views_pg::namespace_schema()),
         "pg_catalog.pg_class" => Some(virtual_views_pg::class_schema()),
+        "pg_catalog.pg_am" => Some(virtual_views_pg::access_method_schema()),
         "pg_catalog.pg_attribute" => Some(virtual_views_pg::attribute_schema()),
         "pg_catalog.pg_indexes" => Some(virtual_views_pg::indexes_schema()),
         "pg_catalog.pg_index" => Some(virtual_views_pg::index_schema()),
@@ -410,6 +411,7 @@ fn pg_catalog_core_rows(
             Some(virtual_views_pg::pg_namespace(catalog, current_database))
         }
         "pg_catalog.pg_class" => Some(virtual_views_pg::pg_class(catalog, current_database)),
+        "pg_catalog.pg_am" => Some(virtual_views_pg::pg_am()),
         "pg_catalog.pg_attribute" => {
             Some(virtual_views_pg::pg_attribute(catalog, current_database))
         }

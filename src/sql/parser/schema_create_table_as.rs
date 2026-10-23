@@ -60,17 +60,10 @@ pub(super) fn parse_create_table_as_statement(
 fn parse_target(
     target: &str,
 ) -> Result<(crate::sql::ast::IdentifierPath, Vec<String>), super::SqlError> {
-    let target = if let Some(using_position) = super::find_top_level_keyword(target, 0, "using") {
-        let access_method = target[using_position + "using".len()..].trim();
-        if !access_method.eq_ignore_ascii_case("heap") {
-            return Err(super::SqlError::unsupported(format!(
-                "unsupported CREATE TABLE access method '{access_method}'"
-            )));
-        }
-        target[..using_position].trim()
-    } else {
-        target.trim()
-    };
+    let target = super::schema_access_methods::strip_create_table_target_access_method(
+        target,
+        "CREATE TABLE",
+    )?;
 
     if let Some(open) = target.find('(') {
         let close = super::find_matching_paren(target, open)

@@ -371,6 +371,15 @@ fn execute_alter_table_operation(
         AlterTableOperation::RenameTo { table } => {
             alter_table_rename_table(cassie, &statement.table, table)
         }
+        AlterTableOperation::SetAccessMethod { access_method } => {
+            if access_method == "heap" {
+                Ok(())
+            } else {
+                Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
+                    format!("unsupported ALTER TABLE access method '{access_method}'"),
+                )))
+            }
+        }
         AlterTableOperation::AlterColumnSetDefault {
             field,
             default_value,

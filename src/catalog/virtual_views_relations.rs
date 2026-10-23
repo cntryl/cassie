@@ -23,6 +23,15 @@ pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("viewowner"),
             text("definition"),
         ],
+        "pg_catalog.pg_matviews" => vec![
+            text("schemaname"),
+            text("matviewname"),
+            text("matviewowner"),
+            text("tablespace"),
+            boolean("hasindexes"),
+            boolean("ispopulated"),
+            text("definition"),
+        ],
         "pg_catalog.pg_sequences" => vec![
             text("schemaname"),
             text("sequencename"),
@@ -89,6 +98,7 @@ pub(super) fn rows(
                 ]
             })
             .collect(),
+        "pg_catalog.pg_matviews" => materialized_view_rows(catalog, database),
         "pg_catalog.pg_sequences" => catalog
             .list_sequences()
             .into_iter()
@@ -129,6 +139,40 @@ pub(super) fn rows(
             .then_with(|| left[1].1.as_str().cmp(&right[1].1.as_str()))
     });
     Some(rows)
+}
+
+fn materialized_view_rows(catalog: &Catalog, database: Option<&str>) -> Vec<VirtualRow> {
+    catalog
+        .list_projection_metadata()
+        .into_iter()
+        .filter(|projection| {
+            projection.kind == crate::catalog::ProjectionKind::Materialized
+                && projection.materialized.as_ref().is_some_and(
+                    crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                )
+                && visible(&projection.collection, database)
+        })
+        .map(|projection| {
+            vec![
+                string("schemaname", relation_schema_name(&projection.collection)),
+                string("matviewname", local_name(&projection.collection)),
+                null("matviewowner"),
+                null("tablespace"),
+                flag(
+                    "hasindexes",
+                    !catalog.list_indexes(&projection.collection).is_empty(),
+                ),
+                flag("ispopulated", projection.active_version.is_some()),
+                string(
+                    "definition",
+                    projection
+                        .materialized
+                        .as_ref()
+                        .map_or_else(String::new, |materialized| materialized.query.clone()),
+                ),
+            ]
+        })
+        .collect()
 }
 
 fn sequence_row(sequence: &SequenceMeta) -> VirtualRow {

@@ -144,10 +144,11 @@ pub(crate) use inference::{
 };
 use projections::{
     bind_alter_materialized_projection_statement, bind_compare_projection_statement,
-    bind_create_materialized_projection_statement, bind_diff_projection_statement,
-    bind_drop_materialized_projection_statement,
-    bind_drop_materialized_projection_version_statement, bind_plan_repair_projection_statement,
-    bind_refresh_materialized_projection_statement, bind_repair_projection_statement,
+    bind_create_materialized_projection_statement, bind_create_materialized_view_statement,
+    bind_diff_projection_statement, bind_drop_materialized_projection_statement,
+    bind_drop_materialized_projection_version_statement, bind_drop_materialized_view_statement,
+    bind_plan_repair_projection_statement, bind_refresh_materialized_projection_statement,
+    bind_refresh_materialized_view_statement, bind_repair_projection_statement,
     bind_verify_projection_statement,
 };
 use recursive::bind_recursive_cte_query;
@@ -667,6 +668,15 @@ fn bind_projection_route(
         }
         ProjectionStatement::DropMaterializedProjection(statement) => {
             bind_drop_materialized_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::CreateMaterializedView(statement) => {
+            bind_create_materialized_view_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::RefreshMaterializedView(statement) => {
+            bind_refresh_materialized_view_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::DropMaterializedView(statement) => {
+            bind_drop_materialized_view_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::AlterMaterializedProjection(statement) => {
             bind_alter_materialized_projection_statement(statement, catalog, raw_sql, context)

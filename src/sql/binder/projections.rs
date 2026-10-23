@@ -24,6 +24,36 @@ pub(super) fn bind_create_materialized_projection_statement(
     ))
 }
 
+pub(super) fn bind_create_materialized_view_statement(
+    statement: crate::sql::ast::CreateMaterializedViewStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    let projection = crate::sql::ast::CreateMaterializedProjectionStatement {
+        name: statement.name,
+        if_not_exists: statement.if_not_exists,
+        options: std::collections::BTreeMap::new(),
+        query: statement.query,
+    };
+    let bound =
+        bind_create_materialized_projection_statement(projection, catalog, raw_sql, context)?;
+    let QueryStatement::CreateMaterializedProjection(projection) = bound.statement else {
+        unreachable!("projection binder returns its input statement family")
+    };
+    let statement = crate::sql::ast::CreateMaterializedViewStatement {
+        name: projection.name,
+        query: projection.query,
+        if_not_exists: statement.if_not_exists,
+        columns: statement.columns,
+        with_data: statement.with_data,
+    };
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::CreateMaterializedView(statement),
+    ))
+}
+
 pub(super) fn bind_refresh_materialized_projection_statement(
     mut statement: crate::sql::ast::RefreshMaterializedProjectionStatement,
     catalog: &Catalog,
@@ -41,6 +71,27 @@ pub(super) fn bind_refresh_materialized_projection_statement(
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::RefreshMaterializedProjection(statement),
+    ))
+}
+
+pub(super) fn bind_refresh_materialized_view_statement(
+    statement: crate::sql::ast::RefreshMaterializedViewStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    let crate::sql::ast::RefreshMaterializedViewStatement {
+        name: raw_name,
+        with_data,
+    } = statement;
+    let name = resolve_existing_name(raw_name.trim(), context, |name| {
+        is_sql_materialized_view(catalog, name)
+    })?;
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::RefreshMaterializedView(
+            crate::sql::ast::RefreshMaterializedViewStatement { name, with_data },
+        ),
     ))
 }
 
@@ -62,6 +113,39 @@ pub(super) fn bind_drop_materialized_projection_statement(
         raw_sql,
         QueryStatement::DropMaterializedProjection(statement),
     ))
+}
+
+pub(super) fn bind_drop_materialized_view_statement(
+    statement: crate::sql::ast::DropMaterializedViewStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    let crate::sql::ast::DropMaterializedViewStatement {
+        name: raw_name,
+        if_exists,
+    } = statement;
+    let name = resolve_existing_name(raw_name.trim(), context, |name| {
+        is_sql_materialized_view(catalog, name)
+    })?;
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::DropMaterializedView(crate::sql::ast::DropMaterializedViewStatement {
+            name,
+            if_exists,
+        }),
+    ))
+}
+
+fn is_sql_materialized_view(catalog: &Catalog, name: &str) -> bool {
+    catalog
+        .get_materialized_projection(name)
+        .is_some_and(|projection| {
+            projection
+                .materialized
+                .as_ref()
+                .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        })
 }
 
 pub(super) fn bind_alter_materialized_projection_statement(

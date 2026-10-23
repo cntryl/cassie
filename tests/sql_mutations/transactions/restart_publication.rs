@@ -84,6 +84,29 @@ fn prepare_transactional_restart_state(path: &str) {
     execute(&cassie, &session, "ROLLBACK");
 }
 
+fn prepare_materialized_view_restart_state(path: &str) {
+    let cassie = Cassie::new_with_data_dir(path).expect("create first Cassie instance");
+    cassie.startup().expect("start first Cassie instance");
+    let session = cassie.create_session("tester", None);
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE public.issue826_restart_source \
+                   (id INT PRIMARY KEY, label TEXT NOT NULL)",
+    );
+    execute(
+        &cassie,
+        &session,
+        "INSERT INTO public.issue826_restart_source VALUES (1, 'retained')",
+    );
+    execute(
+        &cassie,
+        &session,
+        "CREATE MATERIALIZED VIEW public.issue826_restart_view AS \
+                   SELECT id, label FROM public.issue826_restart_source",
+    );
+}
+
 #[test]
 fn should_preserve_transactional_catalog_publication_across_restart() {
     // Arrange
@@ -162,4 +185,44 @@ fn should_preserve_transactional_catalog_publication_across_restart() {
         ]]
     );
     assert_eq!(rolled_back_table_count, vec![vec![Value::Int64(0)]]);
+}
+
+#[test]
+fn should_recover_persisted_materialized_view_after_restart() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("issue-826-materialized-view-restart");
+    let _directory = DataDirectory(path.clone());
+
+    // Act
+    prepare_materialized_view_restart_state(&path);
+    let reopened = Cassie::new_with_data_dir(&path).expect("reopen Cassie instance");
+    reopened
+        .startup()
+        .expect("recover materialized-view metadata and output rows");
+    let session = reopened.create_session("tester", None);
+    let catalog_rows = rows(
+        &reopened,
+        &session,
+        "SELECT matviewname, ispopulated FROM pg_catalog.pg_matviews \
+         WHERE matviewname = 'issue826_restart_view'",
+    );
+    let materialized_rows = rows(
+        &reopened,
+        &session,
+        "SELECT id, label FROM public.issue826_restart_view ORDER BY id",
+    );
+
+    // Assert
+    assert_eq!(
+        catalog_rows,
+        vec![vec![
+            Value::String("issue826_restart_view".to_owned()),
+            Value::Bool(true),
+        ]]
+    );
+    assert_eq!(
+        materialized_rows,
+        vec![vec![Value::Int64(1), Value::String("retained".to_owned()),]]
+    );
 }

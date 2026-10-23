@@ -25,11 +25,12 @@ pub(crate) use source_types::{
 pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     CatalogStatement, CatalogStatementRef, CommonTableExpression, CopyFormat, CopyStatement,
-    CreateSchemaStatement, CreateTableLikeClause, CreateTableLikeFeature, CreateTableLikeOption,
-    CreateTableStatement, CreateViewStatement, DeleteStatement, DropSchemaStatement,
-    DropTableStatement, DropViewStatement, FieldDefinition, IdentifierComponent, IdentifierPath,
-    InsertStatement, ParsedStatement, ProjectionStatement, ProjectionStatementRef, QuerySource,
-    QueryStatement, RetentionStatement, RetentionStatementRef, RuntimeStatement,
+    CreateMaterializedViewStatement, CreateSchemaStatement, CreateTableLikeClause,
+    CreateTableLikeFeature, CreateTableLikeOption, CreateTableStatement, CreateViewStatement,
+    DeleteStatement, DropMaterializedViewStatement, DropSchemaStatement, DropTableStatement,
+    DropViewStatement, FieldDefinition, IdentifierComponent, IdentifierPath, InsertStatement,
+    ParsedStatement, ProjectionStatement, ProjectionStatementRef, QuerySource, QueryStatement,
+    RefreshMaterializedViewStatement, RetentionStatement, RetentionStatementRef, RuntimeStatement,
     RuntimeStatementRef, SelectItem, SelectStatement, StatementFamily, StatementRoute,
     StatementRouteRef, UpdateStatement,
 };

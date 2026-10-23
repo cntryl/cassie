@@ -177,14 +177,25 @@ fn execute_materialized_projection_source(
     qualify: bool,
     row_budget: Option<usize>,
 ) -> SourceExecution {
-    let output_collection = projection
-        .active_output_collection()
-        .ok_or_else(|| {
-            QueryError::General(format!(
-                "materialized projection '{name}' has no active version"
-            ))
-        })?
-        .to_string();
+    let Some(output_collection) = projection.active_output_collection() else {
+        let is_materialized_view = projection
+            .materialized
+            .as_ref()
+            .is_some_and(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view);
+        if is_materialized_view {
+            return Err(QueryError::Cassie(
+                crate::app::DiagnosticError::new(
+                    "55000",
+                    format!("materialized view '{name}' has not been populated"),
+                )
+                .into(),
+            ));
+        }
+        return Err(QueryError::General(format!(
+            "materialized projection '{name}' has no active version"
+        )));
+    };
+    let output_collection = output_collection.to_string();
     let batches =
         source_collection::scan_collection(env, &output_collection, row_budget, qualify, name)?;
     let text_fields = projection

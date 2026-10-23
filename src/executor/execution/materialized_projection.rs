@@ -42,53 +42,156 @@ pub(super) fn create_materialized_projection(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    if statement.if_not_exists && cassie.catalog.relation_exists(&statement.name) {
-        return empty_command("CREATE MATERIALIZED PROJECTION", controls);
+    create_materialized_relation(
+        cassie,
+        session,
+        MaterializedRelationSpec {
+            name: &statement.name,
+            if_not_exists: statement.if_not_exists,
+            query: &statement.query,
+            options: &statement.options,
+            output_columns: &[],
+            with_data: true,
+            initial_materialization: InitialMaterialization::AfterCatalogPublish,
+            require_source_collection: true,
+            command_tag: "CREATE MATERIALIZED PROJECTION",
+        },
+        user_functions,
+        controls,
+    )
+}
+
+pub(super) fn create_materialized_view(
+    cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
+    statement: &crate::sql::ast::CreateMaterializedViewStatement,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let mut options = std::collections::BTreeMap::new();
+    options.insert(
+        catalog::SQL_MATERIALIZED_VIEW_OPTION.to_string(),
+        "true".to_string(),
+    );
+    create_materialized_relation(
+        cassie,
+        session,
+        MaterializedRelationSpec {
+            name: &statement.name,
+            if_not_exists: statement.if_not_exists,
+            query: &statement.query,
+            options: &options,
+            output_columns: &statement.columns,
+            with_data: statement.with_data,
+            initial_materialization: InitialMaterialization::BeforeCatalogPublish,
+            require_source_collection: false,
+            command_tag: "CREATE MATERIALIZED VIEW",
+        },
+        user_functions,
+        controls,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum InitialMaterialization {
+    BeforeCatalogPublish,
+    AfterCatalogPublish,
+}
+
+#[derive(Clone, Copy)]
+struct MaterializedRelationSpec<'a> {
+    name: &'a str,
+    if_not_exists: bool,
+    query: &'a str,
+    options: &'a std::collections::BTreeMap<String, String>,
+    output_columns: &'a [String],
+    with_data: bool,
+    initial_materialization: InitialMaterialization,
+    require_source_collection: bool,
+    command_tag: &'a str,
+}
+
+fn create_materialized_relation(
+    cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
+    spec: MaterializedRelationSpec<'_>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let MaterializedRelationSpec {
+        name,
+        if_not_exists,
+        query,
+        options,
+        output_columns,
+        with_data,
+        initial_materialization,
+        require_source_collection,
+        command_tag,
+    } = spec;
+    if if_not_exists && cassie.catalog.relation_exists(name) {
+        return empty_command(command_tag, controls);
     }
-    if cassie.catalog.relation_exists(&statement.name)
-        || virtual_views::schema(&statement.name).is_some()
-    {
+    if cassie.catalog.relation_exists(name) || virtual_views::schema(name).is_some() {
         return Err(QueryError::General(format!(
-            "relation '{}' already exists",
-            statement.name
+            "relation '{name}' already exists"
         )));
     }
 
-    let context = projection_binding_context(cassie, session, Some(&statement.name));
-    let build = plan_projection_query(cassie, &statement.query, user_functions, &context)?;
-    reject_unsupported_sources(cassie, &build.source_collections)?;
+    let context = projection_binding_context(cassie, session, Some(name));
+    let mut build = plan_projection_query(cassie, query, user_functions, &context)?;
+    reject_unsupported_sources(cassie, &build.source_collections, require_source_collection)?;
     reject_nondeterministic_select(&build.select, user_functions)?;
+    rename_output_schema(&mut build.schema, output_columns)?;
 
-    let metadata = catalog::ProjectionMeta::materialized(catalog::MaterializedProjectionSpec {
-        name: statement.name.clone(),
-        query: statement.query.clone(),
+    let mut metadata = catalog::ProjectionMeta::materialized(catalog::MaterializedProjectionSpec {
+        name: name.to_string(),
+        query: query.to_string(),
         source_collections: build.source_collections,
-        output_schema: build.schema.clone(),
-        options: statement.options.clone(),
+        output_schema: build.schema,
+        options: options.clone(),
         schema_epoch: cassie.catalog.version(),
-        definition_fingerprint: stable_projection_fingerprint(&statement.query),
+        definition_fingerprint: stable_projection_fingerprint(query),
         created_ms: now_ms(),
     });
-    let output = empty_command("CREATE MATERIALIZED PROJECTION", controls)?;
+    let output = empty_command(command_tag, controls)?;
     let created = cassie.midge.with_collection_gates(
-        std::slice::from_ref(&statement.name),
+        &[name.to_string()],
         || -> Result<bool, QueryError> {
-            if statement.if_not_exists && cassie.catalog.relation_exists(&statement.name) {
+            if if_not_exists && cassie.catalog.relation_exists(name) {
                 return Ok(false);
             }
-            if cassie.catalog.relation_exists(&statement.name)
-                || virtual_views::schema(&statement.name).is_some()
-            {
+            if cassie.catalog.relation_exists(name) || virtual_views::schema(name).is_some() {
                 return Err(QueryError::General(format!(
-                    "relation '{}' already exists",
-                    statement.name
+                    "relation '{name}' already exists"
                 )));
             }
 
-            cassie
-                .midge
-                .put_projection_metadata(&metadata)
-                .map_err(|error| QueryError::General(error.to_string()))?;
+            if with_data
+                && matches!(
+                    initial_materialization,
+                    InitialMaterialization::BeforeCatalogPublish
+                )
+            {
+                if let Err(error) =
+                    build_active_version(cassie, &mut metadata, user_functions, controls)
+                {
+                    discard_unpublished_output(cassie, &metadata);
+                    return Err(error);
+                }
+            }
+
+            if let Err(error) = cassie.midge.put_projection_metadata(&metadata) {
+                if with_data
+                    && matches!(
+                        initial_materialization,
+                        InitialMaterialization::BeforeCatalogPublish
+                    )
+                {
+                    discard_unpublished_output(cassie, &metadata);
+                }
+                return Err(QueryError::General(error.to_string()));
+            }
             cassie.catalog.register_projection_metadata(metadata);
             Ok(true)
         },
@@ -96,14 +199,60 @@ pub(super) fn create_materialized_projection(
     if !created {
         return Ok(output);
     }
-    refresh_materialized_projection_data(
-        cassie,
-        session,
-        &statement.name,
-        user_functions,
-        controls,
-    )?;
+    if with_data
+        && matches!(
+            initial_materialization,
+            InitialMaterialization::AfterCatalogPublish
+        )
+    {
+        refresh_materialized_projection_data(cassie, session, name, user_functions, controls)?;
+    }
     Ok(output)
+}
+
+fn discard_unpublished_output(cassie: &Cassie, metadata: &catalog::ProjectionMeta) {
+    for version in &metadata.versions {
+        if cassie
+            .midge
+            .collection_schema(&version.output_collection)
+            .is_some()
+        {
+            if let Err(error) = cassie.midge.drop_collection(&version.output_collection) {
+                tracing::warn!(
+                    collection = version.output_collection.as_str(),
+                    error = error.to_string().as_str(),
+                    "failed to discard an unpublished materialized-view output collection"
+                );
+            }
+        }
+        let _ = cassie
+            .catalog
+            .unregister_collection(&version.output_collection);
+    }
+}
+
+fn rename_output_schema(schema: &mut Schema, column_names: &[String]) -> Result<(), QueryError> {
+    if column_names.is_empty() {
+        return Ok(());
+    }
+    if column_names.len() != schema.fields.len() {
+        return Err(QueryError::General(format!(
+            "materialized-view column list has {} names for {} query columns",
+            column_names.len(),
+            schema.fields.len()
+        )));
+    }
+    let mut seen = std::collections::HashSet::with_capacity(column_names.len());
+    for (field, name) in schema.fields.iter_mut().zip(column_names) {
+        let key = name.to_ascii_lowercase();
+        if !seen.insert(key) {
+            return Err(QueryError::General(format!(
+                "materialized-view column '{name}' specified more than once"
+            )));
+        }
+        field.name.clone_from(name);
+    }
+    Ok(())
 }
 
 pub(super) fn refresh_materialized_projection(
@@ -116,6 +265,50 @@ pub(super) fn refresh_materialized_projection(
     let output = empty_command("REFRESH MATERIALIZED PROJECTION", controls)?;
     refresh_materialized_projection_data(cassie, session, name, user_functions, controls)?;
     Ok(output)
+}
+
+pub(super) fn refresh_materialized_view(
+    cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
+    statement: &crate::sql::ast::RefreshMaterializedViewStatement,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let output = empty_command("REFRESH MATERIALIZED VIEW", controls)?;
+    require_sql_materialized_view(cassie, &statement.name)?;
+    if statement.with_data {
+        refresh_materialized_projection_data(
+            cassie,
+            session,
+            &statement.name,
+            user_functions,
+            controls,
+        )?;
+    } else {
+        clear_materialized_view_data(cassie, &statement.name)?;
+    }
+    Ok(output)
+}
+
+fn clear_materialized_view_data(cassie: &Cassie, name: &str) -> Result<(), QueryError> {
+    let mut metadata = sql_materialized_view_metadata(cassie, name)?;
+    if let Some(active) = metadata.active_version.take() {
+        if let Some(version) = metadata
+            .versions
+            .iter_mut()
+            .find(|version| version.version_id == active)
+        {
+            version.state = catalog::ProjectionVersionState::Retired;
+            version.retired_ms = Some(now_ms());
+        }
+    }
+    metadata.freshness = catalog::ProjectionFreshness::Unknown;
+    metadata.rebuild_state = catalog::ProjectionRebuildState::Idle;
+    metadata.verification = catalog::ProjectionRebuildVerificationMeta::default();
+    if let Some(materialized) = metadata.materialized.as_mut() {
+        materialized.state = catalog::MaterializedProjectionState::Building;
+    }
+    persist_projection_metadata(cassie, metadata)
 }
 
 pub(super) fn refresh_materialized_projection_data(
@@ -160,16 +353,93 @@ pub(super) fn drop_materialized_projection(
     if_exists: bool,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let Some(metadata) = cassie.catalog.get_materialized_projection(name) else {
-        if if_exists {
-            return empty_command("DROP MATERIALIZED PROJECTION", controls);
+    drop_materialized_relation(
+        cassie,
+        name,
+        if_exists,
+        "DROP MATERIALIZED PROJECTION",
+        controls,
+    )
+}
+
+pub(super) fn drop_materialized_view(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::DropMaterializedViewStatement,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    if !is_sql_materialized_view(cassie, &statement.name) {
+        if statement.if_exists {
+            return empty_command("DROP MATERIALIZED VIEW", controls);
         }
         return Err(QueryError::General(format!(
-            "materialized projection '{name}' does not exist"
+            "materialized view '{}' does not exist",
+            statement.name
+        )));
+    }
+    drop_materialized_relation(
+        cassie,
+        &statement.name,
+        statement.if_exists,
+        "DROP MATERIALIZED VIEW",
+        controls,
+    )
+}
+
+fn require_sql_materialized_view(cassie: &Cassie, name: &str) -> Result<(), QueryError> {
+    if is_sql_materialized_view(cassie, name) {
+        Ok(())
+    } else {
+        Err(QueryError::General(format!(
+            "materialized view '{name}' does not exist"
+        )))
+    }
+}
+
+fn is_sql_materialized_view(cassie: &Cassie, name: &str) -> bool {
+    cassie
+        .catalog
+        .get_materialized_projection(name)
+        .is_some_and(|projection| {
+            projection
+                .materialized
+                .as_ref()
+                .is_some_and(catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        })
+}
+
+fn sql_materialized_view_metadata(
+    cassie: &Cassie,
+    name: &str,
+) -> Result<catalog::ProjectionMeta, QueryError> {
+    cassie
+        .catalog
+        .get_materialized_projection(name)
+        .filter(|projection| {
+            projection
+                .materialized
+                .as_ref()
+                .is_some_and(catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        })
+        .ok_or_else(|| QueryError::General(format!("materialized view '{name}' does not exist")))
+}
+
+fn drop_materialized_relation(
+    cassie: &Cassie,
+    name: &str,
+    if_exists: bool,
+    command_tag: &str,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let Some(metadata) = cassie.catalog.get_materialized_projection(name) else {
+        if if_exists {
+            return empty_command(command_tag, controls);
+        }
+        return Err(QueryError::General(format!(
+            "materialized relation '{name}' does not exist"
         )));
     };
 
-    let output = empty_command("DROP MATERIALIZED PROJECTION", controls)?;
+    let output = empty_command(command_tag, controls)?;
     // Storage and catalog removal use exact keys, so drop the stored projection
     // name rather than the name as it was typed.
     let projection = metadata.collection.clone();
@@ -373,7 +643,14 @@ pub(super) fn build_specific_version(
         ))
     })?;
     let context = projection_binding_context(cassie, None, Some(&metadata.collection));
-    let build = plan_projection_query(cassie, &materialized.query, user_functions, &context)?;
+    let mut build = plan_projection_query(cassie, &materialized.query, user_functions, &context)?;
+    let output_columns = materialized
+        .output_schema
+        .fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect::<Vec<_>>();
+    rename_output_schema(&mut build.schema, &output_columns)?;
     let output_collection = metadata
         .versions
         .iter()
@@ -600,8 +877,12 @@ fn projection_binding_context(
     }
 }
 
-fn reject_unsupported_sources(cassie: &Cassie, sources: &[String]) -> Result<(), QueryError> {
-    if sources.is_empty() {
+fn reject_unsupported_sources(
+    cassie: &Cassie,
+    sources: &[String],
+    require_source_collection: bool,
+) -> Result<(), QueryError> {
+    if require_source_collection && sources.is_empty() {
         return Err(QueryError::General(
             "materialized projection requires at least one source collection".into(),
         ));
@@ -686,12 +967,20 @@ fn replace_output_rows_gated(
         .enumerate()
         .map(|(index, row)| {
             let _operator_parent = row.operator_memory();
-            let payload = row
-                .into_entries()
+            let entries = row.into_entries();
+            if entries.len() != schema.fields.len() {
+                return Err(QueryError::General(format!(
+                    "materialized projection produced {} values for {} output columns",
+                    entries.len(),
+                    schema.fields.len()
+                )));
+            }
+            let payload = entries
                 .into_iter()
-                .map(|(name, value)| {
+                .zip(&schema.fields)
+                .map(|((_, value), field)| {
                     try_value_to_json(value)
-                        .map(|value| (name, value))
+                        .map(|value| (field.name.clone(), value))
                         .map_err(|error| {
                             QueryError::General(format!("materialized projection output {error}"))
                         })

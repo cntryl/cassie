@@ -8,15 +8,24 @@ fn should_export_the_materialized_snapshot_from_a_populated_view() {
         let server = CompatibilityServer::start("copy_materialized_view_to").await;
         let (client, connection) = server.connect().await;
         client
+            .batch_execute("CREATE TABLE compat_copy_mv_source (id INT PRIMARY KEY, label TEXT)")
+            .await
+            .expect("create the materialized-view source table");
+        client
+            .batch_execute("INSERT INTO compat_copy_mv_source VALUES (1, 'snapshot')")
+            .await
+            .expect("insert the source row before materializing the snapshot");
+        client
             .batch_execute(
-                "CREATE TABLE compat_copy_mv_source (id INT PRIMARY KEY, label TEXT); \
-                 INSERT INTO compat_copy_mv_source VALUES (1, 'snapshot'); \
-                 CREATE MATERIALIZED VIEW compat_copy_mv AS \
-                   SELECT id, label FROM compat_copy_mv_source; \
-                 UPDATE compat_copy_mv_source SET label = 'current' WHERE id = 1",
+                "CREATE MATERIALIZED VIEW compat_copy_mv AS SELECT id, label \
+                 FROM compat_copy_mv_source",
             )
             .await
-            .expect("create a populated materialized view and change its source row");
+            .expect("materialize the initial source row");
+        client
+            .batch_execute("UPDATE compat_copy_mv_source SET label = 'current' WHERE id = 1")
+            .await
+            .expect("change the source row after materializing the snapshot");
 
         let socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -82,10 +91,11 @@ fn should_force_quote_every_csv_copy_output_column() {
         let server = CompatibilityServer::start("copy_force_quote_star").await;
         let (client, connection) = server.connect().await;
         client
-            .batch_execute(
-                "CREATE TABLE compat_copy_force_quote_star (id INT, label TEXT); \
-                 INSERT INTO compat_copy_force_quote_star VALUES (1, 'plain')",
-            )
+            .batch_execute("CREATE TABLE compat_copy_force_quote_star (id INT, label TEXT)")
+            .await
+            .expect("create the CSV COPY output table");
+        client
+            .batch_execute("INSERT INTO compat_copy_force_quote_star VALUES (1, 'plain')")
             .await
             .expect("create the CSV COPY source row");
 

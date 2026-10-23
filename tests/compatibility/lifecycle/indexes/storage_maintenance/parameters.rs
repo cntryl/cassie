@@ -1,75 +1,38 @@
 #[test]
-fn should_roundtrip_gin_storage_parameters() {
+fn should_reject_gin_storage_parameters_until_the_method_is_supported() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("gin_storage_parameter_roundtrip").await;
         let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_gin_storage_rows (document TSVECTOR)",
-                "CREATE INDEX compat_gin_storage_idx \
-                   ON compat_gin_storage_rows USING gin (document) \
-                   WITH (fastupdate = off, gin_pending_list_limit = 2048)",
-            ],
-        )
-        .await
-        .expect("create a GIN index with nondefault pending-list options");
+        client
+            .batch_execute("CREATE TABLE compat_gin_storage_rows (value INT)")
+            .await
+            .expect("create a table for the unsupported GIN method");
 
         // Act
-        let created: Option<String> = client
-            .query_one(
-                "SELECT reloptions::text FROM pg_catalog.pg_class \
-                 WHERE oid = 'compat_gin_storage_idx'::regclass",
-                &[],
-            )
-            .await
-            .expect("read initial GIN storage parameters")
-            .try_get(0)
-            .expect("initial GIN options");
-        client
+        let rejected = client
             .batch_execute(
-                "ALTER INDEX compat_gin_storage_idx \
-                 SET (fastupdate = on, gin_pending_list_limit = 4096)",
+                "CREATE INDEX compat_gin_storage_idx \
+                   ON compat_gin_storage_rows USING gin (value) \
+                   WITH (fastupdate = off, gin_pending_list_limit = 2048)",
             )
             .await
-            .expect("change both GIN storage parameters");
-        let altered: Option<String> = client
+            .expect_err("GIN storage parameters must not imply support for the GIN method");
+        let index_count: i64 = client
             .query_one(
-                "SELECT reloptions::text FROM pg_catalog.pg_class \
-                 WHERE oid = 'compat_gin_storage_idx'::regclass",
+                "SELECT count(*) FROM pg_catalog.pg_indexes \
+                 WHERE indexname = 'compat_gin_storage_idx'",
                 &[],
             )
             .await
-            .expect("read updated GIN storage parameters")
+            .expect("check that the rejected GIN index was not published")
             .try_get(0)
-            .expect("updated GIN options");
-        client
-            .batch_execute("ALTER INDEX compat_gin_storage_idx RESET (fastupdate)")
-            .await
-            .expect("restore the default GIN fast-update setting");
-        let reset: Option<String> = client
-            .query_one(
-                "SELECT reloptions::text FROM pg_catalog.pg_class \
-                 WHERE oid = 'compat_gin_storage_idx'::regclass",
-                &[],
-            )
-            .await
-            .expect("read GIN options after reset")
-            .try_get(0)
-            .expect("reset GIN options");
+            .expect("index count");
 
         // Assert
-        assert_eq!(
-            created.as_deref(),
-            Some("{fastupdate=off,gin_pending_list_limit=2048}")
-        );
-        assert_eq!(
-            altered.as_deref(),
-            Some("{fastupdate=on,gin_pending_list_limit=4096}")
-        );
-        assert_eq!(reset.as_deref(), Some("{gin_pending_list_limit=4096}"));
+        assert_eq!(db_error(&rejected).code().code(), "0A000");
+        assert_eq!(index_count, 0);
 
         drop(client);
         server.shutdown(connection).await;

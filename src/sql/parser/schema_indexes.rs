@@ -272,10 +272,9 @@ pub(in crate::sql::parser) fn parse_index_kind(
         return Ok((IndexKind::Scalar, Some("hash"), remainder[4..].trim_start()));
     }
     if starts_with_keyword(remainder, "gin") {
-        return Ok((
-            IndexKind::FullText,
-            Some("gin"),
-            remainder[3..].trim_start(),
+        return Err(SqlError::unsupported(
+            "SQL GIN indexes are unsupported; use USING fulltext for Cassie full-text indexes"
+                .into(),
         ));
     }
     if starts_with_keyword(remainder, "fulltext") {

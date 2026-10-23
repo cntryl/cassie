@@ -241,6 +241,18 @@ unsupported. Focused evidence is in
 [`should_update_index_storage_parameter_catalog_state`](../tests/compatibility/lifecycle/indexes/storage_parameter_options.rs),
 [`should_store_btree_deduplicate_items_option`](../tests/compatibility/lifecycle/indexes/storage_maintenance/semantics.rs),
 and [`should_ignore_alter_index_if_exists_for_a_missing_index`](../tests/compatibility/lifecycle/indexes/storage_maintenance/semantics.rs).
+SQL GIN, GiST, BRIN, and SP-GiST access methods and their method-specific
+operator classes are unsupported; Cassie's full-text retrieval uses a separate
+internal index path. GIN pending-list cleanup and BRIN range-maintenance
+functions are not implemented. PostgreSQL `VACUUM` and `ANALYZE` statements are
+unsupported and do not change table rows. Rejection evidence is in
+[`selected_access_methods.rs`](../tests/compatibility/lifecycle/indexes/selected_access_methods.rs),
+[`should_reject_gin_storage_parameters_until_the_method_is_supported`](../tests/compatibility/lifecycle/indexes/storage_maintenance/parameters.rs),
+[`should_reject_brin_pages_per_range_until_the_method_is_supported`](../tests/compatibility/lifecycle/indexes/storage_maintenance/semantics.rs),
+and the storage-maintenance rejection tests in that file. `ALTER INDEX ...
+ALTER COLUMN ... SET STATISTICS` is also unsupported: index-attribute rows and
+statistics targets remain pending under [#817](https://github.com/cntryl/cassie/issues/817),
+which still depends on the selected #777 catalog/client workflow.
 
 ## Retrieval and Analytics
 

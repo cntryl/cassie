@@ -790,6 +790,21 @@ fn should_keep_excluded_aggregate_combinations_on_existing_fallback() {
             Value::Int64(3),
         ),
         (
+            "SELECT COUNT(DISTINCT n) AS counted FROM fallback",
+            vec![],
+            Value::Int64(2),
+        ),
+        (
+            "SELECT SUM(n) FILTER (WHERE label='keep') AS total FROM fallback",
+            vec![],
+            Value::Int64(5),
+        ),
+        (
+            "SELECT SUM(n ORDER BY n DESC) AS total FROM fallback",
+            vec![],
+            Value::Int64(7),
+        ),
+        (
             "SELECT SUM(CASE WHEN n > 0 THEN n ELSE 0 END) AS total FROM fallback",
             vec![],
             Value::Int64(7),

@@ -135,16 +135,16 @@ impl ModifierAccumulator {
         row: &BatchRow,
         context: &AggregateExecutionContext<'_>,
     ) -> Result<(), QueryError> {
-        if !AggregateAccumulator::row_filter_matches(function, row, context)? {
+        if !super::state_input::row_filter_matches(function, row, context)? {
             return Ok(());
         }
         let input_memory = context
             .controls
             .reserve_query_memory(input_bound(function, row, context)?)?;
-        let value = AggregateAccumulator::selected_row_input(function, row, context)?;
+        let value = super::state_input::selected_row_input(function, row, context)?;
         let delimiter = crate::sql::functions::function(&function.name)
             .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
-            .then(|| AggregateAccumulator::selected_row_argument(function, 1, row, context))
+            .then(|| super::state_input::selected_row_argument(function, 1, row, context))
             .transpose()?;
         let key_memory = context.controls.reserve_query_memory(add(
             add(

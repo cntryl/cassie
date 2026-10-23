@@ -1,27 +1,22 @@
 use crate::types::numeric::{self, i128_to_f64, i64_to_f64, usize_to_f64};
 use std::collections::HashMap;
 
-use crate::app::CassieSession;
+use crate::app::{CassieError, CassieSession};
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::BatchRow;
 use crate::executor::filter;
 use crate::executor::semantic::{compare_values, SemanticValue};
-use crate::sql::ast::{Expr, FunctionCall};
+use crate::sql::ast::FunctionCall;
 use crate::types::extended::numeric::{math as numeric_math, Numeric};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
 use super::boolean::BooleanState;
+use super::regression::RegressionAccumulator;
 use super::retained_change::{value_retained_bytes, RetainedChange};
+use super::state_input::{self, AggregateValueContext};
 use super::statistical::StatisticalAccumulator;
 use super::{AggregateExecutionContext, AggregateSpec, QueryError};
-
-struct AggregateValueContext<'a> {
-    params: &'a [Value],
-    search_context: Option<&'a filter::SearchContext>,
-    user_functions: &'a HashMap<String, FunctionMeta>,
-    session: Option<&'a CassieSession>,
-}
 
 #[derive(Clone)]
 pub(super) struct PartialAggregateGroup {
@@ -105,6 +100,7 @@ pub(super) enum AggregateAccumulator {
     },
     /// `sum`/`avg` over `interval` inputs.
     Interval(super::interval_aggregate::IntervalAggregate),
+    Regression(RegressionAccumulator),
     Statistical(StatisticalAccumulator),
 }
 
@@ -122,6 +118,9 @@ impl AggregateAccumulator {
                 .saturating_add(value_retained_bytes(value))
                 .saturating_add(key.as_ref().map_or(0, SemanticValue::estimated_bytes)),
             Self::StringAgg { value: Some(value) } => inline.saturating_add(value.len()),
+            Self::Regression(_) => {
+                inline.saturating_add(RegressionAccumulator::retained_heap_bytes())
+            }
             Self::Statistical(state) => inline.saturating_add(state.retained_heap_bytes()),
             _ => inline,
         }
@@ -133,6 +132,17 @@ impl AggregateAccumulator {
         rows: &[BatchRow],
         context: &AggregateExecutionContext<'_>,
     ) -> Result<Value, QueryError> {
+        let is_regression =
+            crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+                crate::sql::functions::regression::is_regression_function(metadata.id)
+            });
+        if is_regression && (function.is_distinct() || !function.order_by.is_empty()) {
+            return Err(CassieError::Unsupported(
+                "DISTINCT and aggregate-local ORDER BY are not supported for regression aggregates"
+                    .into(),
+            )
+            .into());
+        }
         if is_string_aggregate(function) || function.is_distinct() || !function.order_by.is_empty()
         {
             return super::modifiers::evaluate(function, rows, context);
@@ -152,6 +162,7 @@ impl AggregateAccumulator {
             )?;
             let bytes = match &accumulator {
                 Self::MinMax { key: Some(key), .. } => key.estimated_bytes(),
+                Self::Regression(_) => RegressionAccumulator::retained_heap_bytes(),
                 Self::Statistical(state) => state.retained_heap_bytes(),
                 _ => 0,
             };
@@ -162,6 +173,9 @@ impl AggregateAccumulator {
     }
 
     pub(super) fn new(function: &FunctionCall) -> Self {
+        if let Some(state) = RegressionAccumulator::new(function) {
+            return Self::Regression(state);
+        }
         if let Some(state) = StatisticalAccumulator::new(function) {
             return Self::Statistical(state);
         }
@@ -209,11 +223,16 @@ impl AggregateAccumulator {
             user_functions,
             session,
         };
-        let Some(value) = Self::selected_input(function, row, &value_context)? else {
+        let Some(value) = state_input::selected_input(function, row, &value_context)? else {
             return Ok(RetainedChange::default());
         };
-        let delimiter = if matches!(self, Self::StringAgg { .. }) {
-            Some(Self::evaluate_argument(function, 1, row, &value_context)?)
+        let second_argument = if matches!(self, Self::StringAgg { .. } | Self::Regression(_)) {
+            Some(state_input::evaluate_argument(
+                function,
+                1,
+                row,
+                &value_context,
+            )?)
         } else {
             None
         };
@@ -226,7 +245,7 @@ impl AggregateAccumulator {
         } else {
             None
         };
-        self.update_values(function, value, key, delimiter)
+        self.update_values(function, value, key, second_argument)
     }
 
     pub(super) fn update_values(
@@ -234,7 +253,7 @@ impl AggregateAccumulator {
         function: &FunctionCall,
         value: Value,
         new_key: Option<SemanticValue>,
-        delimiter: Option<Value>,
+        second_argument: Option<Value>,
     ) -> Result<RetainedChange, QueryError> {
         if let Some(change) = super::interval_aggregate::update(self, &value) {
             return change;
@@ -249,6 +268,12 @@ impl AggregateAccumulator {
                     after: state.retained_heap_bytes(),
                 });
             }
+            Self::Regression(state) => {
+                let second = second_argument.as_ref().ok_or_else(|| {
+                    QueryError::General(format!("{} requires two FLOAT8 inputs", function.name))
+                })?;
+                state.update(&function.name, &value, second)?;
+            }
             Self::Boolean(state) => match value {
                 Value::Bool(value) => state.update(value),
                 Value::Null => {}
@@ -260,48 +285,10 @@ impl AggregateAccumulator {
                 }
             }
             Self::StringAgg { value: output } => {
-                return update_string_aggregate(output, function, value, delimiter);
+                return update_string_aggregate(output, function, value, second_argument);
             }
-            Self::Sum { sum, seen } => match value {
-                Value::Int64(value) => {
-                    sum.add_int(value);
-                    *seen = true;
-                }
-                Value::Typed(TypedValue::Numeric(value)) => {
-                    sum.add_numeric(&value)?;
-                    *seen = true;
-                }
-                Value::Typed(TypedValue::Real(value)) => {
-                    sum.add_real(value);
-                    *seen = true;
-                }
-                Value::Float64(value) => {
-                    sum.add_float(value);
-                    *seen = true;
-                }
-                Value::Null => {}
-                value => return Err(non_numeric_input(function, &value)),
-            },
-            Self::Avg { sum, count } => match value {
-                Value::Int64(value) => {
-                    sum.add_int(value);
-                    *count += 1;
-                }
-                Value::Typed(TypedValue::Numeric(value)) => {
-                    sum.add_numeric(&value)?;
-                    *count += 1;
-                }
-                Value::Typed(TypedValue::Real(value)) => {
-                    sum.add_float(f64::from(value));
-                    *count += 1;
-                }
-                Value::Float64(value) => {
-                    sum.add_float(value);
-                    *count += 1;
-                }
-                Value::Null => {}
-                value => return Err(non_numeric_input(function, &value)),
-            },
+            Self::Sum { sum, seen } => update_sum(sum, seen, function, value)?,
+            Self::Avg { sum, count } => update_average(sum, count, function, value)?,
             Self::MinMax { selected, key, max } => {
                 if matches!(value, Value::Null) {
                     return Ok(RetainedChange::default());
@@ -337,6 +324,7 @@ impl AggregateAccumulator {
         match (self, other) {
             (Self::Boolean(state), Self::Boolean(later)) => state.merge(later)?,
             (Self::Interval(state), Self::Interval(later)) => state.merge(later)?,
+            (Self::Regression(state), Self::Regression(later)) => state.merge(later)?,
             (Self::Statistical(state), Self::Statistical(later)) => {
                 let before = state.retained_heap_bytes();
                 state.merge(later)?;
@@ -427,6 +415,7 @@ impl AggregateAccumulator {
             }
             Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
             Self::Interval(state) => state.finish()?,
+            Self::Regression(state) => state.finish(),
             Self::Statistical(state) => state.finish()?,
         })
     }
@@ -437,32 +426,13 @@ impl AggregateAccumulator {
         match self {
             Self::Sum { sum, .. } => sum.requires_row_order(),
             Self::Avg { sum, .. } => sum.requires_row_order(),
+            Self::Regression(_) => RegressionAccumulator::requires_row_order(),
             Self::Statistical(state) => state.requires_row_order(),
             Self::StringAgg { .. } => true,
             Self::Boolean(_) | Self::Count { .. } | Self::MinMax { .. } | Self::Interval(_) => {
                 false
             }
         }
-    }
-
-    fn evaluate_input(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-    ) -> Result<Option<Value>, QueryError> {
-        let Some(expr) = function.args.first() else {
-            return Ok(None);
-        };
-        filter::evaluate_expr_value(
-            row,
-            expr,
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )
-        .map(Some)
     }
 
     pub(super) fn retained_heap_bytes(&self) -> Result<usize, QueryError> {
@@ -476,144 +446,69 @@ impl AggregateAccumulator {
                 key.as_ref().map_or(0, SemanticValue::estimated_bytes),
             )?,
             Self::StringAgg { value: Some(value) } => value.len(),
+            Self::Regression(_) => RegressionAccumulator::retained_heap_bytes(),
             Self::Statistical(state) => state.retained_heap_bytes(),
             _ => 0,
         })
     }
+}
 
-    pub(super) fn selected_row_input(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateExecutionContext<'_>,
-    ) -> Result<Value, QueryError> {
-        Self::evaluate_selected_input(
-            function,
-            row,
-            &AggregateValueContext {
-                params: context.params,
-                search_context: context.search_context,
-                user_functions: context.user_functions,
-                session: context.session,
-            },
-        )
-    }
-
-    pub(super) fn selected_row_argument(
-        function: &FunctionCall,
-        index: usize,
-        row: &BatchRow,
-        context: &AggregateExecutionContext<'_>,
-    ) -> Result<Value, QueryError> {
-        Self::evaluate_argument(
-            function,
-            index,
-            row,
-            &AggregateValueContext {
-                params: context.params,
-                search_context: context.search_context,
-                user_functions: context.user_functions,
-                session: context.session,
-            },
-        )
-    }
-
-    pub(super) fn row_filter_matches(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateExecutionContext<'_>,
-    ) -> Result<bool, QueryError> {
-        Self::filter_matches(
-            function,
-            row,
-            &AggregateValueContext {
-                params: context.params,
-                search_context: context.search_context,
-                user_functions: context.user_functions,
-                session: context.session,
-            },
-        )
-    }
-
-    fn selected_input(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-    ) -> Result<Option<Value>, QueryError> {
-        if !Self::filter_matches(function, row, context)? {
-            return Ok(None);
+fn update_sum(
+    sum: &mut NumericSum,
+    seen: &mut bool,
+    function: &FunctionCall,
+    value: Value,
+) -> Result<(), QueryError> {
+    match value {
+        Value::Int64(value) => {
+            sum.add_int(value);
+            *seen = true;
         }
-        Self::evaluate_selected_input(function, row, context).map(Some)
-    }
-
-    fn filter_matches(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-    ) -> Result<bool, QueryError> {
-        if let Some(predicate) = &function.filter {
-            match filter::evaluate_expr_value(
-                row,
-                predicate,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                None,
-            )? {
-                Value::Bool(true) => {}
-                Value::Bool(false) | Value::Null => return Ok(false),
-                _ => {
-                    return Err(QueryError::General(
-                        "FILTER requires BOOLEAN or SQL NULL".into(),
-                    ))
-                }
-            }
+        Value::Typed(TypedValue::Numeric(value)) => {
+            sum.add_numeric(&value)?;
+            *seen = true;
         }
-        Ok(true)
-    }
-
-    fn evaluate_selected_input(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-    ) -> Result<Value, QueryError> {
-        let star = matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*");
-        let value = if star {
-            Value::Int64(1)
-        } else if let Some(value) = function
-            .args
-            .first()
-            .and_then(|expr| stored_json_column_value(row, expr))
-        {
-            value
-        } else {
-            Self::evaluate_input(function, row, context)?.unwrap_or(Value::Null)
-        };
-        Ok(value)
-    }
-
-    fn evaluate_argument(
-        function: &FunctionCall,
-        index: usize,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-    ) -> Result<Value, QueryError> {
-        let Some(expression) = function.args.get(index) else {
-            return Err(invalid_string_aggregate_input(function));
-        };
-        if index == 0 {
-            return Self::evaluate_selected_input(function, row, context);
+        Value::Typed(TypedValue::Real(value)) => {
+            sum.add_real(value);
+            *seen = true;
         }
-        filter::evaluate_expr_value(
-            row,
-            expression,
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )
+        Value::Float64(value) => {
+            sum.add_float(value);
+            *seen = true;
+        }
+        Value::Null => {}
+        value => return Err(non_numeric_input(function, &value)),
     }
+    Ok(())
+}
+
+fn update_average(
+    sum: &mut AvgSum,
+    count: &mut usize,
+    function: &FunctionCall,
+    value: Value,
+) -> Result<(), QueryError> {
+    match value {
+        Value::Int64(value) => {
+            sum.add_int(value);
+            *count += 1;
+        }
+        Value::Typed(TypedValue::Numeric(value)) => {
+            sum.add_numeric(&value)?;
+            *count += 1;
+        }
+        Value::Typed(TypedValue::Real(value)) => {
+            sum.add_float(f64::from(value));
+            *count += 1;
+        }
+        Value::Float64(value) => {
+            sum.add_float(value);
+            *count += 1;
+        }
+        Value::Null => {}
+        value => return Err(non_numeric_input(function, &value)),
+    }
+    Ok(())
 }
 
 fn is_string_aggregate(function: &FunctionCall) -> bool {
@@ -621,7 +516,7 @@ fn is_string_aggregate(function: &FunctionCall) -> bool {
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
 }
 
-fn invalid_string_aggregate_input(function: &FunctionCall) -> QueryError {
+pub(super) fn invalid_string_aggregate_input(function: &FunctionCall) -> QueryError {
     QueryError::General(format!(
         "function {}(text, text) does not exist",
         function.name.to_ascii_lowercase()
@@ -670,20 +565,6 @@ fn update_string_aggregate(
         before,
         after: output.len(),
     })
-}
-
-/// The stored value of a bare column reference that holds a JSON value (an
-/// array or json document), read directly from the row. Scalar expression
-/// evaluation flattens JSON to text, which would turn an array column's
-/// group key or MIN/MAX result into a string under an array-typed column.
-pub(super) fn stored_json_column_value(row: &BatchRow, expr: &Expr) -> Option<Value> {
-    let Expr::Column(name) = expr else {
-        return None;
-    };
-    match row.get(name) {
-        Some(value @ Value::Json(_)) => Some(value.clone()),
-        _ => None,
-    }
 }
 
 /// Running SUM state that reproduces the sequential row-order fold.

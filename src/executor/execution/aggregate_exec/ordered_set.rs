@@ -14,7 +14,6 @@ use crate::sql::ast::{Expr, FunctionCall, SortDirection};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
-use super::state::AggregateAccumulator;
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
 type EvaluatedFractions = (Vec<Option<f64>>, bool, QueryMemoryReservation);
@@ -122,7 +121,7 @@ fn collect_sorted_values(
     let mut retained = context.controls.reserve_query_memory(0)?;
     for row in rows {
         check_timeout(context.controls)?;
-        if !AggregateAccumulator::row_filter_matches(function, row, context)? {
+        if !super::state_input::row_filter_matches(function, row, context)? {
             continue;
         }
         let temporary =

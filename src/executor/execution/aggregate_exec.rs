@@ -23,11 +23,14 @@ mod interval_aggregate;
 mod modifiers;
 mod ordered_set;
 mod output_types;
+mod regression;
 mod retained_change;
 #[path = "aggregate_exec/rewrite.rs"]
 mod rewrite;
 #[path = "aggregate_exec/state.rs"]
 mod state;
+#[path = "aggregate_exec/state_input.rs"]
+mod state_input;
 mod statistical;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]
@@ -316,7 +319,7 @@ fn aggregate_group_values(
         .iter()
         .map(|expr| {
             let name = group_expr_name(expr);
-            if let Some(value) = state::stored_json_column_value(row, expr) {
+            if let Some(value) = state_input::stored_json_column_value(row, expr) {
                 return Ok((name, value));
             }
             let value = filter::evaluate_expr_value(
@@ -516,6 +519,9 @@ fn evaluate_aggregate(
         || is_string_aggregate
         || boolean::BooleanState::new(&function.name).is_some()
         || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+            crate::sql::functions::regression::is_regression_function(metadata.id)
+        })
+        || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
             crate::sql::functions::statistical::is_statistical_function(metadata.id)
         })
     {
@@ -534,6 +540,14 @@ pub(super) fn evaluate_window_aggregate<'a>(
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
 ) -> Result<Value, QueryError> {
+    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        crate::sql::functions::regression::is_regression_function(metadata.id)
+    }) {
+        return Err(crate::app::CassieError::Unsupported(
+            "regression aggregate window frames remain pending under #806".into(),
+        )
+        .into());
+    }
     window::evaluate(
         function,
         rows,

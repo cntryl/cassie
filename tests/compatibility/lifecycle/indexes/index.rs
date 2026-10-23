@@ -12,6 +12,8 @@ mod included_partial_indexes;
 mod maintenance_contracts;
 #[path = "maintenance_options.rs"]
 mod maintenance_options;
+#[path = "materialized_view_indexes.rs"]
+mod materialized_view_indexes;
 #[path = "nulls_not_distinct.rs"]
 mod nulls_not_distinct;
 #[path = "operator_class_key_modifiers.rs"]

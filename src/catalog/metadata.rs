@@ -53,6 +53,8 @@ pub struct Catalog {
     version: Arc<AtomicU64>,
 }
 
+#[path = "metadata/index_relations.rs"]
+mod index_relations;
 #[path = "metadata_databases.rs"]
 mod metadata_databases;
 #[path = "metadata_domains.rs"]
@@ -423,87 +425,6 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub fn register_index(&self, metadata: IndexMeta) {
-        let mut indexes = self.indexes.write();
-        indexes.insert(
-            Self::index_key(&metadata.collection, &metadata.name),
-            metadata,
-        );
-        self.bump_version();
-    }
-
-    pub fn unregister_index(&self, collection: &str, name: &str) {
-        let mut indexes = self.indexes.write();
-        let key = Self::index_key(collection, name);
-        if indexes.remove(&key).is_none() {
-            let matching_key = indexes
-                .iter()
-                .find(|(_, index)| {
-                    name_matches(&index.collection, collection) && name_matches(&index.name, name)
-                })
-                .map(|(stored_key, _)| stored_key.clone());
-            if let Some(stored_key) = matching_key {
-                indexes.remove(&stored_key);
-            }
-        }
-        self.bump_version();
-    }
-
-    #[must_use]
-    pub fn get_index(&self, collection: &str, name: &str) -> Option<IndexMeta> {
-        let indexes = self.indexes.read();
-        let metadata = indexes
-            .get(&Self::index_key(collection, name))
-            .cloned()
-            .or_else(|| {
-                indexes
-                    .values()
-                    .find(|index| {
-                        name_matches(&index.collection, collection)
-                            && name_matches(&index.name, name)
-                    })
-                    .cloned()
-            })?;
-        if matches!(
-            parse_name(collection),
-            Ok(crate::catalog::ParsedName::Unqualified(_))
-        ) {
-            let mut display = metadata;
-            display.collection = local_name(&display.collection);
-            Some(display)
-        } else {
-            Some(metadata)
-        }
-    }
-
-    #[must_use]
-    pub fn list_indexes(&self, collection: &str) -> Vec<IndexMeta> {
-        let indexes = self.indexes.read();
-        let mut out = indexes
-            .values()
-            .filter(|index| name_matches(&index.collection, collection))
-            .cloned()
-            .collect::<Vec<_>>();
-        out.sort_by_key(|index| index.name.to_ascii_lowercase());
-        out
-    }
-
-    #[must_use]
-    pub fn all_indexes_snapshot(&self) -> Vec<IndexMeta> {
-        let mut out = self.indexes.read().values().cloned().collect::<Vec<_>>();
-        out.sort_by(|left, right| {
-            left.collection
-                .to_ascii_lowercase()
-                .cmp(&right.collection.to_ascii_lowercase())
-                .then_with(|| {
-                    left.name
-                        .to_ascii_lowercase()
-                        .cmp(&right.name.to_ascii_lowercase())
-                })
-        });
-        out
-    }
-
     #[must_use]
     pub fn get_schema(&self, collection: &str) -> Option<CollectionSchema> {
         let schemas = self.schemas.read();
@@ -529,6 +450,16 @@ impl Catalog {
                     .map(|(_, view)| view)
             })
             .map(|view| view_schema_to_collection_schema(&view.name, &view.schema))
+            .or_else(|| {
+                let projection = self.get_materialized_projection(collection)?;
+                let materialized = projection.materialized?;
+                materialized.is_sql_materialized_view().then(|| {
+                    view_schema_to_collection_schema(
+                        &projection.collection,
+                        &materialized.output_schema,
+                    )
+                })
+            })
     }
 
     #[must_use]

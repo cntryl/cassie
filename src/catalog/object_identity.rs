@@ -180,7 +180,7 @@ impl<'a> ObjectScope<'a> {
 
     fn index_in_schema(&self, schema: &str, name: &str) -> Option<RelationIdentity> {
         self.catalog
-            .all_indexes_snapshot()
+            .logical_indexes_snapshot()
             .into_iter()
             .find_map(|index| {
                 let relation = crate::catalog::RelationId::parse_canonical(&index.collection)?;
@@ -216,7 +216,7 @@ impl<'a> ObjectScope<'a> {
         let id = u64::from(oid - FIRST_NORMAL_OBJECT_ID);
         if let Some(index) =
             self.catalog
-                .all_indexes_snapshot()
+                .logical_indexes_snapshot()
                 .into_iter()
                 .find(|index| {
                     catalog_index_oid(index) == oid

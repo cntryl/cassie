@@ -414,7 +414,7 @@ fn relation_has_indexes(catalog: &Catalog, name: &str) -> bool {
 }
 
 fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
-    let mut indexes = catalog.all_indexes_snapshot();
+    let mut indexes = catalog.logical_indexes_snapshot();
     indexes.sort_by_key(|index| {
         (
             index.collection.to_ascii_lowercase(),

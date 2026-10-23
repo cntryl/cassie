@@ -77,3 +77,40 @@ fn should_publish_unique_index_nulls_not_distinct_metadata() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_reject_null_policy_on_nonunique_index() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("nonunique_index_null_policy").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_nonunique_null_policy (key_value INT)")
+            .await
+            .expect("create the index target table");
+
+        // Act
+        let created = client
+            .batch_execute(
+                "CREATE INDEX compat_nonunique_null_policy_idx \
+                 ON compat_nonunique_null_policy (key_value) NULLS DISTINCT",
+            )
+            .await
+            .expect_err("NULLS DISTINCT is only supported for unique scalar indexes");
+        let remaining_indexes = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_index \
+                 WHERE indexrelid = 'compat_nonunique_null_policy_idx'",
+                &[],
+            )
+            .await
+            .expect("inspect index publication after rejection");
+
+        // Assert
+        assert_eq!(db_error(&created).code().code(), "0A000");
+        assert_eq!(remaining_indexes.get::<_, i64>(0), 0);
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

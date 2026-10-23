@@ -71,14 +71,13 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     }
     reject_reserved_index_options(&options)?;
     options.extend(key_options);
-    let nulls_not_distinct = leading_nulls_policy
-        .or(trailing_nulls_policy)
-        .unwrap_or(false);
-    if nulls_not_distinct && (!unique || kind != IndexKind::Scalar) {
+    let nulls_policy = leading_nulls_policy.or(trailing_nulls_policy);
+    if nulls_policy.is_some() && (!unique || kind != IndexKind::Scalar) {
         return Err(SqlError::unsupported(
-            "NULLS NOT DISTINCT is supported only for unique scalar indexes".to_string(),
+            "NULLS [NOT] DISTINCT is supported only for unique scalar indexes".to_string(),
         ));
     }
+    let nulls_not_distinct = nulls_policy.unwrap_or(false);
     if nulls_not_distinct {
         options.insert(
             crate::catalog::IndexMeta::NULLS_NOT_DISTINCT_OPTION.to_string(),

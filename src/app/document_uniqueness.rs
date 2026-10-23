@@ -141,7 +141,7 @@ fn published_owner(
     }
     cassie
         .midge
-        .unique_scalar_index_reservation_owner(collection, &index.name, key)
+        .unique_scalar_index_reservation_owner(collection, index.unique_reservation_name(), key)
         .map(PublishedOwner::Ready)
 }
 

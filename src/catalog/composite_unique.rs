@@ -93,7 +93,18 @@ pub fn composite_unique_indexes(
 ) -> Vec<IndexMeta> {
     composite_unique_constraints(constraints)
         .into_iter()
-        .map(|composite| {
+        .filter_map(|composite| {
+            let first_member = constraints.iter().find(|constraint| {
+                constraint.unique
+                    && constraint.unique_ordinal == Some(1)
+                    && constraint
+                        .unique_name
+                        .as_ref()
+                        .is_some_and(|name| name.eq_ignore_ascii_case(&composite.name))
+            });
+            if first_member.is_some_and(|constraint| constraint.constraint_index_name.is_some()) {
+                return None;
+            }
             let nulls_not_distinct = constraints.iter().any(|constraint| {
                 constraint.unique
                     && constraint.unique_null_policy == UniqueNullPolicy::NotDistinct
@@ -109,18 +120,23 @@ pub fn composite_unique_indexes(
                     "true".to_string(),
                 );
             }
-            IndexMeta {
+            if let Some(first_member) = first_member {
+                options.extend(first_member.constraint_index_options.clone());
+            }
+            Some(IndexMeta {
                 collection: collection.to_string(),
                 name: composite.name,
                 field: composite.fields[0].clone(),
                 fields: composite.fields,
                 expressions: Vec::new(),
-                include_fields: Vec::new(),
+                include_fields: first_member.map_or_else(Vec::new, |constraint| {
+                    constraint.constraint_index_include_fields.clone()
+                }),
                 predicate: None,
                 kind: IndexKind::Scalar,
                 unique: true,
                 options,
-            }
+            })
         })
         .collect()
 }
@@ -137,6 +153,7 @@ pub fn unique_constraint_indexes(
         .filter(|constraint| {
             constraint.unique
                 && !constraint.primary_key
+                && constraint.constraint_index_name.is_none()
                 && !is_composite_unique_member(constraint, constraints)
         })
         .map(|constraint| {
@@ -148,13 +165,14 @@ pub fn unique_constraint_indexes(
                     "true".to_string(),
                 );
             }
+            options.extend(constraint.constraint_index_options.clone());
             IndexMeta {
                 collection: collection.to_string(),
                 name,
                 field: constraint.field.clone(),
                 fields: vec![constraint.field.clone()],
                 expressions: Vec::new(),
-                include_fields: Vec::new(),
+                include_fields: constraint.constraint_index_include_fields.clone(),
                 predicate: None,
                 kind: IndexKind::Scalar,
                 unique: true,

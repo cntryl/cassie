@@ -1,7 +1,11 @@
-use super::schema_identifiers::{parse_column_identifier_list, parse_identifier};
+use super::schema_identifiers::{
+    parse_column_identifier, parse_column_identifier_list, parse_identifier,
+};
+use super::schema_indexes::{parse_index_include_fields, parse_index_options};
 use super::schema_references::parse_references_target_with_rest;
 use super::{
-    parse_check_constraint, starts_with_keyword, FieldConstraint, FieldDefinition, SqlError,
+    parse_check_constraint, starts_with_keyword, AlterTableOperation, FieldConstraint,
+    FieldDefinition, SqlError,
 };
 
 pub(super) fn parse_table_constraint(
@@ -58,9 +62,12 @@ fn name_unnamed_composite_unique(
 
 pub(super) fn apply_table_constraints(
     fields: &mut [FieldDefinition],
-    constraints: Vec<FieldConstraint>,
+    mut constraints: Vec<FieldConstraint>,
     table: &str,
 ) -> Result<(), SqlError> {
+    for constraint in &mut constraints {
+        normalize_constraint_include_fields(fields, constraint)?;
+    }
     let existing = fields
         .iter()
         .flat_map(|field| field.constraints.iter().cloned())
@@ -87,17 +94,50 @@ pub(super) fn apply_table_constraints(
     Ok(())
 }
 
-pub(super) fn parse_named_add_constraint(raw: &str) -> Result<Vec<FieldConstraint>, SqlError> {
+pub(super) fn parse_add_constraint(raw: &str) -> Result<AlterTableOperation, SqlError> {
     let raw = raw.trim();
-    if !starts_with_keyword(raw, "add constraint") {
-        return Err(SqlError::new(
-            "ADD CONSTRAINT requires a constraint clause".into(),
-        ));
+    if starts_with_keyword(raw, "add constraint") {
+        let rest = raw["add constraint".len()..].trim_start();
+        let (name, body) = split_constraint_name(rest)?;
+        if starts_with_keyword(body, "unique using index") {
+            return parse_unique_using_index(body, Some(name));
+        }
+        return Ok(AlterTableOperation::AddConstraint {
+            constraints: parse_table_constraint_body(body, Some(name.as_str()))?,
+        });
     }
 
-    let rest = raw["add constraint".len()..].trim_start();
-    let (name, body) = split_constraint_name(rest)?;
-    parse_table_constraint_body(body, Some(name.as_str()))
+    let body = raw
+        .get(..3)
+        .filter(|prefix| prefix.eq_ignore_ascii_case("add"))
+        .map(|_| raw[3..].trim_start())
+        .unwrap_or_default();
+    if starts_with_keyword(body, "unique using index") {
+        return parse_unique_using_index(body, None);
+    }
+    Err(SqlError::new("ADD requires a constraint clause".into()))
+}
+
+fn parse_unique_using_index(
+    raw: &str,
+    constraint_name: Option<String>,
+) -> Result<AlterTableOperation, SqlError> {
+    if !starts_with_keyword(raw, "unique using index") {
+        return Err(SqlError::new(
+            "UNIQUE USING INDEX requires an index name".into(),
+        ));
+    }
+    let rest = raw["unique using index".len()..].trim_start();
+    let (index_name, trailing) = split_constraint_name(rest)?;
+    if !trailing.is_empty() {
+        return Err(SqlError::unsupported(format!(
+            "unsupported UNIQUE USING INDEX option '{trailing}'"
+        )));
+    }
+    Ok(AlterTableOperation::AddUniqueConstraintUsingIndex {
+        constraint_name,
+        index_name,
+    })
 }
 
 fn split_constraint_name(raw: &str) -> Result<(String, &str), SqlError> {
@@ -143,7 +183,11 @@ fn parse_table_constraint_body(
 ) -> Result<Vec<FieldConstraint>, SqlError> {
     let raw = raw.trim();
     if starts_with_keyword(raw, "primary key") {
-        let fields = parse_parenthesized_field_list(raw["primary key".len()..].trim_start())?;
+        let (fields, rest) =
+            parse_parenthesized_field_list_with_rest(raw["primary key".len()..].trim_start())?;
+        if !rest.trim().is_empty() {
+            return Err(SqlError::new("unsupported tokens after field list".into()));
+        }
         return Ok(fields
             .into_iter()
             .enumerate()
@@ -162,8 +206,10 @@ fn parse_table_constraint_body(
     if starts_with_keyword(raw, "unique") {
         let (nulls_not_distinct, rest) =
             parse_unique_nulls_policy(raw["unique".len()..].trim_start())?;
-        let fields = parse_parenthesized_field_list(rest)?;
-        return Ok(fields
+        let (fields, rest) = parse_parenthesized_field_list_with_rest(rest)?;
+        let (include_fields, options) = parse_constraint_index_parameters(rest)?;
+        validate_constraint_include_fields(&fields, &include_fields)?;
+        let mut constraints = fields
             .into_iter()
             .enumerate()
             .map(|(idx, field)| {
@@ -178,7 +224,9 @@ fn parse_table_constraint_body(
                 constraint.unique_ordinal = Some(u32::try_from(idx + 1).unwrap_or(u32::MAX));
                 constraint
             })
-            .collect());
+            .collect::<Vec<_>>();
+        set_constraint_index_parameters(&mut constraints, include_fields, options);
+        return Ok(constraints);
     }
 
     if starts_with_keyword(raw, "foreign key") {
@@ -239,12 +287,106 @@ fn parse_unique_nulls_policy(raw: &str) -> Result<(bool, &str), SqlError> {
     ))
 }
 
-fn parse_parenthesized_field_list(raw: &str) -> Result<Vec<String>, SqlError> {
-    let (fields, rest) = parse_parenthesized_field_list_with_rest(raw)?;
-    if !rest.trim().is_empty() {
-        return Err(SqlError::new("unsupported tokens after field list".into()));
+fn parse_constraint_index_parameters(
+    raw: &str,
+) -> Result<(Vec<String>, std::collections::BTreeMap<String, String>), SqlError> {
+    let (include_fields, remainder) = parse_index_include_fields(raw)?;
+    let include_fields = include_fields
+        .into_iter()
+        .map(|field| parse_column_identifier(&field))
+        .collect::<Result<Vec<_>, _>>()?;
+    let (mut options, trailing) = parse_index_options(remainder)?;
+    if !trailing.trim().is_empty() {
+        return Err(SqlError::unsupported(format!(
+            "unsupported constraint index option '{}'",
+            trailing.trim()
+        )));
     }
-    Ok(fields)
+    for (name, value) in &mut options {
+        match name.as_str() {
+            "fillfactor" => {
+                let fillfactor = value
+                    .parse::<u8>()
+                    .ok()
+                    .filter(|value| (10..=100).contains(value))
+                    .ok_or_else(|| {
+                        SqlError::new("btree fillfactor must be between 10 and 100".into())
+                    })?;
+                *value = fillfactor.to_string();
+            }
+            "deduplicate_items" => {
+                *value = match value.to_ascii_lowercase().as_str() {
+                    "true" | "on" | "1" => "true".to_string(),
+                    "false" | "off" | "0" => "false".to_string(),
+                    _ => {
+                        return Err(SqlError::new(
+                            "btree deduplicate_items must be a boolean".into(),
+                        ));
+                    }
+                };
+            }
+            _ => {
+                return Err(SqlError::unsupported(format!(
+                    "unsupported btree storage parameter '{name}'"
+                )));
+            }
+        }
+    }
+    Ok((include_fields, options))
+}
+
+fn set_constraint_index_parameters(
+    constraints: &mut [FieldConstraint],
+    include_fields: Vec<String>,
+    options: std::collections::BTreeMap<String, String>,
+) {
+    if let Some(first) = constraints.first_mut() {
+        first.constraint_index_include_fields = include_fields;
+        first.constraint_index_options = options;
+    }
+}
+
+fn validate_constraint_include_fields(
+    key_fields: &[String],
+    include_fields: &[String],
+) -> Result<(), SqlError> {
+    let key_fields = key_fields
+        .iter()
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut seen = std::collections::BTreeSet::new();
+    for field in include_fields {
+        let normalized = crate::sql::ColumnIdentifierPath::stored_field_key(field);
+        if !seen.insert(normalized.clone()) {
+            return Err(SqlError::new(format!(
+                "INCLUDE field '{field}' is duplicated"
+            )));
+        }
+        if key_fields.contains(&normalized) {
+            return Err(SqlError::new(format!(
+                "INCLUDE field '{field}' duplicates a constraint key field"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn normalize_constraint_include_fields(
+    fields: &[FieldDefinition],
+    constraint: &mut FieldConstraint,
+) -> Result<(), SqlError> {
+    for include_field in &mut constraint.constraint_index_include_fields {
+        let include_key = crate::sql::ColumnIdentifierPath::stored_field_key(include_field);
+        let Some(declared) = fields.iter().find(|field| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name) == include_key
+        }) else {
+            return Err(SqlError::new(format!(
+                "constraint INCLUDE references unknown column '{include_field}'"
+            )));
+        };
+        include_field.clone_from(&declared.name);
+    }
+    Ok(())
 }
 
 fn parse_parenthesized_field_list_with_rest(raw: &str) -> Result<(Vec<String>, &str), SqlError> {

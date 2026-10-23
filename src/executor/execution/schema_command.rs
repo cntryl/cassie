@@ -356,6 +356,9 @@ fn execute_alter_table_operation(
         AlterTableOperation::AddConstraint { constraints } => {
             alter_table_add_constraint(cassie, &statement.table, constraints)
         }
+        AlterTableOperation::AddUniqueConstraintUsingIndex { .. } => Err(QueryError::General(
+            "UNIQUE USING INDEX was not resolved by the SQL binder".to_string(),
+        )),
         AlterTableOperation::DropConstraint { name, if_exists } => {
             alter_table_drop_constraint(cassie, &statement.table, name, *if_exists)
         }
@@ -515,9 +518,10 @@ fn alter_table_add_constraint(
     table: &str,
     constraints: &[crate::catalog::FieldConstraint],
 ) -> Result<(), QueryError> {
+    let mut additions = constraints.to_vec();
     let mut gated_collections = vec![table.to_string()];
     gated_collections.extend(
-        constraints
+        additions
             .iter()
             .filter_map(|constraint| constraint.references_table.clone()),
     );
@@ -526,25 +530,83 @@ fn alter_table_add_constraint(
         .with_collection_write_gates(&gated_collections, || {
             let existing = cassie.catalog.get_constraints(table);
             if let Some(message) =
-                crate::catalog::conflicting_unique_membership(table, &existing, constraints)
+                crate::catalog::conflicting_unique_membership(table, &existing, &additions)
             {
                 return Err(QueryError::General(message));
             }
-            cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
-            cassie.validate_existing_foreign_key_rows(table, constraints)?;
+            cassie.validate_existing_check_and_not_null_rows(table, &additions)?;
+            cassie.validate_existing_foreign_key_rows(table, &additions)?;
+            let attached_index_name = additions
+                .iter()
+                .find_map(|constraint| constraint.constraint_index_name.clone());
+            if let Some(attached_index_name) = attached_index_name.as_ref() {
+                let attached_index = cassie
+                    .catalog
+                    .get_index(table, attached_index_name)
+                    .ok_or_else(|| {
+                        QueryError::General(format!(
+                            "index '{attached_index_name}' disappeared before constraint attachment"
+                        ))
+                    })?;
+                if existing.iter().any(|constraint| {
+                    (constraint.unique || constraint.primary_key)
+                        && constraint
+                            .unique_constraint_name(table)
+                            .eq_ignore_ascii_case(&attached_index.name)
+                }) {
+                    return Err(QueryError::General(format!(
+                        "index '{}' already backs a table constraint",
+                        attached_index.name
+                    )));
+                }
+                if !attached_index.can_back_unique_constraint() {
+                    return Err(QueryError::General(format!(
+                        "index '{}' cannot back a UNIQUE constraint",
+                        attached_index.name
+                    )));
+                }
+                for constraint in &mut additions {
+                    if constraint.unique {
+                        constraint.constraint_index_name = Some(attached_index_name.clone());
+                    }
+                }
+            }
             let mut merged = existing;
-            crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
-            let unique_indexes = crate::catalog::unique_constraint_indexes(table, constraints);
-            for index in &unique_indexes {
+            crate::catalog::merge_constraint_set(&mut merged, additions.clone());
+            let unique_indexes = crate::catalog::unique_constraint_indexes(table, &additions);
+            if let Some(source_index_name) = attached_index_name {
+                let constraint_name = additions
+                    .iter()
+                    .find(|constraint| constraint.unique)
+                    .map(|constraint| constraint.unique_constraint_name(table))
+                    .ok_or_else(|| {
+                        QueryError::General(
+                            "UNIQUE USING INDEX has no unique constraint fields".to_string(),
+                        )
+                    })?;
+                let adopted_index = cassie
+                    .midge
+                    .adopt_unique_index_and_constraints_with_held_collection_gate(
+                        table,
+                        &source_index_name,
+                        &constraint_name,
+                        merged.as_slice(),
+                    )
+                    .map_err(QueryError::from)?;
+                cassie.catalog.unregister_index(table, &source_index_name);
+                cassie.catalog.register_index(adopted_index);
+            } else {
+                for index in &unique_indexes {
+                    cassie
+                        .midge
+                        .put_index_with_held_collection_gate(index)
+                        .map_err(QueryError::from)?;
+                }
                 cassie
                     .midge
-                    .put_index_with_held_collection_gate(index)
-                    .map_err(QueryError::from)?;
+                    .save_constraints_with_unique_reservations(table, merged.as_slice())
+                    .map_err(|error| QueryError::General(error.to_string()))?;
             }
-            cassie
-                .midge
-                .save_constraints_with_unique_reservations(table, merged.as_slice())
-                .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_constraints(table, merged);
             for index in unique_indexes {
                 cassie.catalog.register_index(index);

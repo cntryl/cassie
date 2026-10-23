@@ -232,7 +232,7 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
             vec![
                 string("indexrelid", local_name(&index.name)),
                 string("indrelid", local_name(&index.collection)),
-                int_value("indexrelid_oid", index_oid(&index.name)),
+                int_value("indexrelid_oid", index_oid(&index)),
                 int_value("indrelid_oid", relation_oid(catalog, &index.collection)),
                 bool_value("indisunique", index.unique),
                 bool_value("indisprimary", primary),
@@ -367,10 +367,7 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
     vec![
         int_value(
             "oid",
-            index.map_or_else(
-                || relation_oid(catalog, name),
-                |index| index_oid(&index.name),
-            ),
+            index.map_or_else(|| relation_oid(catalog, name), index_oid),
         ),
         string("relname", relation_name),
         string("relkind", kind),
@@ -430,7 +427,7 @@ fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
 pub(super) fn index_definition_by_oid(catalog: &Catalog, oid: i64) -> Option<String> {
     sorted_indexes(catalog)
         .into_iter()
-        .find(|index| index_oid(&index.name) == oid)
+        .find(|index| index_oid(index) == oid)
         .map(|index| index_definition(&index))
 }
 
@@ -718,8 +715,8 @@ pub(super) fn database_oid(name: &str) -> i64 {
     stable_catalog_oid("relation", name, 100_000)
 }
 
-pub(super) fn index_oid(name: &str) -> i64 {
-    i64::from(crate::catalog::object_identity::stable_index_oid(name))
+pub(super) fn index_oid(index: &IndexMeta) -> i64 {
+    i64::from(crate::catalog::object_identity::catalog_index_oid(index))
 }
 
 pub(super) fn constraint_oid(collection: &str, constraint: &str) -> i64 {

@@ -110,6 +110,8 @@ pub struct ColumnBatchRow {
 impl IndexMeta {
     const STORAGE_ID_OPTION: &'static str = "__cassie_storage_id";
     const RELATION_ID_OPTION: &'static str = "__cassie_relation_id";
+    const CATALOG_OID_OPTION: &'static str = "__cassie_catalog_oid";
+    const UNIQUE_RESERVATION_NAME_OPTION: &'static str = "__cassie_unique_reservation_name";
     pub(crate) const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
     pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = "__cassie_nulls_not_distinct";
 
@@ -147,10 +149,56 @@ impl IndexMeta {
     }
 
     #[must_use]
+    pub(crate) fn can_back_unique_constraint(&self) -> bool {
+        if !self.unique
+            || self.kind != IndexKind::Scalar
+            || !self.access_method().eq_ignore_ascii_case("btree")
+            || !self.expressions.is_empty()
+            || self.predicate.is_some()
+            || self.normalized_fields().is_empty()
+        {
+            return false;
+        }
+        (0..self.normalized_fields().len()).all(|position| {
+            self.key_option(position, "order")
+                .is_none_or(|value| value.eq_ignore_ascii_case("asc"))
+                && self
+                    .key_option(position, "nulls")
+                    .is_none_or(|value| value.eq_ignore_ascii_case("last"))
+        })
+    }
+
+    #[must_use]
     pub(crate) fn storage_id(&self) -> Option<u64> {
         self.options
             .get(Self::STORAGE_ID_OPTION)
             .and_then(|value| value.parse().ok())
+    }
+
+    #[must_use]
+    pub(crate) fn catalog_oid(&self) -> Option<u32> {
+        self.options
+            .get(Self::CATALOG_OID_OPTION)
+            .and_then(|value| value.parse().ok())
+    }
+
+    pub(crate) fn set_catalog_oid_if_missing(&mut self, oid: u32) {
+        self.options
+            .entry(Self::CATALOG_OID_OPTION.to_string())
+            .or_insert_with(|| oid.to_string());
+    }
+
+    #[must_use]
+    pub(crate) fn unique_reservation_name(&self) -> &str {
+        self.options
+            .get(Self::UNIQUE_RESERVATION_NAME_OPTION)
+            .map_or(&self.name, String::as_str)
+    }
+
+    pub(crate) fn set_unique_reservation_name_if_missing(&mut self, name: &str) {
+        self.options
+            .entry(Self::UNIQUE_RESERVATION_NAME_OPTION.to_string())
+            .or_insert_with(|| name.to_string());
     }
 
     #[must_use]

@@ -125,7 +125,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
         if let (Some(relation_id), Some(index_id)) = (index.relation_id(), index.storage_id()) {
             scalar_storage_ids.push((relation_id, index_id));
         }
-        scalar_names.push(index.name);
+        scalar_names.push(index.unique_reservation_name().to_string());
     }
 
     let mut time_series_names = Vec::new();

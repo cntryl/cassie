@@ -46,7 +46,7 @@ use schema_literals::parse_constant_literal;
 pub(super) use schema_literals::parse_constraint_literal;
 use schema_sequences::parse_alter_column_operation;
 use schema_table_constraints::{
-    apply_table_constraints, parse_named_add_constraint, parse_table_constraint,
+    apply_table_constraints, parse_add_constraint, parse_table_constraint,
 };
 
 pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -430,10 +430,8 @@ pub(super) fn parse_alter_table_operation(
     if lower.starts_with("alter column") {
         return parse_alter_column_operation(raw["alter column".len()..].trim());
     }
-    if lower.starts_with("add constraint") {
-        return Ok(AlterTableOperation::AddConstraint {
-            constraints: parse_named_add_constraint(raw)?,
-        });
+    if lower.starts_with("add constraint") || starts_with_keyword(raw, "add unique using index") {
+        return parse_add_constraint(raw);
     }
     if lower.starts_with("drop constraint") {
         let rest = raw["drop constraint".len()..].trim();

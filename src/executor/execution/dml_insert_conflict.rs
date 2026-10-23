@@ -141,10 +141,11 @@ pub(super) fn find_expression_index_conflict(
     let staged_changes = staged_snapshot
         .as_ref()
         .map(crate::app::StagedWriteSnapshot::ordered_changes);
-    let committed_owner =
-        cassie
-            .midge
-            .unique_scalar_index_reservation_owner(table, &index.name, &key)?;
+    let committed_owner = cassie.midge.unique_scalar_index_reservation_owner(
+        table,
+        index.unique_reservation_name(),
+        &key,
+    )?;
 
     if let Some(owner_id) = committed_owner.as_ref() {
         match staged_changes.and_then(|changes| changes.get(owner_id)) {

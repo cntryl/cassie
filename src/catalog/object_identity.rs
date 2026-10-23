@@ -192,7 +192,7 @@ impl<'a> ObjectScope<'a> {
                 {
                     return None;
                 }
-                let oid = stable_index_oid(&index.name);
+                let oid = catalog_index_oid(&index);
                 Some(RelationIdentity {
                     oid,
                     schema: relation_schema_name(&index.collection),
@@ -219,7 +219,7 @@ impl<'a> ObjectScope<'a> {
                 .all_indexes_snapshot()
                 .into_iter()
                 .find(|index| {
-                    stable_index_oid(&index.name) == oid
+                    catalog_index_oid(index) == oid
                         && crate::catalog::RelationId::parse_canonical(&index.collection)
                             .is_some_and(|relation| {
                                 relation
@@ -408,6 +408,14 @@ pub(crate) fn stable_index_oid(name: &str) -> u32 {
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
     u32::try_from(200_000_u64 + hash % 800_000).unwrap_or(0)
+}
+
+/// The catalog OID of an index, preserving the assigned identity across a rename.
+#[must_use]
+pub(crate) fn catalog_index_oid(index: &crate::catalog::IndexMeta) -> u32 {
+    index
+        .catalog_oid()
+        .unwrap_or_else(|| stable_index_oid(&index.name))
 }
 
 /// The OID of a schema by canonical name, including the fixed system schemas.

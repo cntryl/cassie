@@ -775,7 +775,7 @@ pub(super) fn bind_alter_table(
     }
     schema_defaults::bind_alter_defaults(&mut statement.operation, &schema)?;
     validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
-    bind_alter_constraint_targets(&mut statement.operation, &schema, catalog, context)?;
+    bind_alter_constraint_targets(&mut statement.operation, &table, &schema, catalog, context)?;
     schema_checks::bind_alter_checks(&mut statement.operation, &schema)?;
 
     statement.table = canonical_relation_path(&table)?;
@@ -794,6 +794,20 @@ pub(super) fn validate_alter_schema(
         }
         AlterTableOperation::AddConstraint { constraints } => {
             validate_alter_add_constraints(table, constraints, existing_fields)?;
+        }
+        AlterTableOperation::AddUniqueConstraintUsingIndex {
+            constraint_name,
+            index_name,
+        } => {
+            if constraint_name
+                .as_ref()
+                .is_some_and(|name| name.trim().is_empty())
+                || index_name.trim().is_empty()
+            {
+                return Err(CassieError::Planner(
+                    "UNIQUE USING INDEX requires a valid index name".into(),
+                ));
+            }
         }
         AlterTableOperation::DropConstraint { name, .. } => {
             if name.trim().is_empty() {

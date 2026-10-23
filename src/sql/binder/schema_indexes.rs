@@ -18,10 +18,16 @@ pub(super) fn bind_create_index(
             "CREATE INDEX requires a collection name".into(),
         ));
     }
-    if !catalog.exists(&table) {
+    let is_sql_materialized_view = catalog.is_sql_materialized_view(&table);
+    if !catalog.exists(&table) && !is_sql_materialized_view {
         return Err(CassieError::CollectionNotFound(table));
     }
     reject_unsupported_scalar_access_method(&statement)?;
+    if is_sql_materialized_view && statement.kind != crate::catalog::IndexKind::Scalar {
+        return Err(CassieError::Unsupported(
+            "only scalar btree indexes are supported on SQL materialized views".into(),
+        ));
+    }
 
     let mut name = if statement.name.trim().is_empty() {
         String::new()

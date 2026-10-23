@@ -282,10 +282,27 @@ pub(super) fn create_index(
     statement: &CreateIndexStatement,
     controls: &QueryExecutionControls,
 ) -> Result<CreationOutcome, QueryError> {
+    let logical_table = statement.table.to_string();
+    let storage_table = cassie
+        .catalog
+        .materialized_view_output_collection(&logical_table)
+        .or_else(|| {
+            (!cassie.catalog.is_sql_materialized_view(&logical_table))
+                .then(|| logical_table.clone())
+        })
+        .ok_or_else(|| {
+            QueryError::Cassie(
+                crate::app::DiagnosticError::new(
+                    "55000",
+                    format!("materialized view '{logical_table}' has not been populated"),
+                )
+                .into(),
+            )
+        })?;
     if statement.if_not_exists
         && cassie
             .catalog
-            .get_index(&statement.table, &statement.name)
+            .get_index(&logical_table, &statement.name)
             .is_some()
     {
         return CreationOutcome::unchanged("CREATE INDEX", controls);
@@ -293,7 +310,7 @@ pub(super) fn create_index(
 
     let is_column_store = cassie
         .catalog
-        .collection_storage_mode(&statement.table)
+        .collection_storage_mode(&storage_table)
         .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage);
     if is_column_store && matches!(statement.kind, catalog::IndexKind::Column) {
         return Err(QueryError::General(
@@ -301,7 +318,7 @@ pub(super) fn create_index(
         ));
     }
     let metadata = catalog::IndexMeta {
-        collection: statement.table.to_string(),
+        collection: storage_table.clone(),
         name: statement.name.clone(),
         field: statement.fields.first().cloned().unwrap_or_default(),
         fields: statement.fields.clone(),
@@ -327,6 +344,6 @@ pub(super) fn create_index(
         cassie.midge.put_index(&metadata)?;
         cassie.catalog.register_index(metadata);
     }
-    super::schema_command::refresh_table_cardinality_stats(cassie, &statement.table)?;
+    super::schema_command::refresh_table_cardinality_stats(cassie, &storage_table)?;
     Ok(CreationOutcome::created(output))
 }

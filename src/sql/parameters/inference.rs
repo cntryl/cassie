@@ -306,6 +306,11 @@ fn infer_select_item_parameter_type_oids(
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::SelectItem::WindowFunction { function, .. } => {
+            if function.name.eq_ignore_ascii_case("ntile") {
+                if let Some(argument) = function.args.first() {
+                    infer_parameter_type_from_expected_expr(argument, &DataType::Int, oids);
+                }
+            }
             for arg in &function.args {
                 infer_parameter_type_oids_expr(arg, field_types, catalog, oids);
             }

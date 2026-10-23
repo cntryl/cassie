@@ -180,6 +180,9 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
         "row_number"
             | "rank"
             | "dense_rank"
+            | "percent_rank"
+            | "cume_dist"
+            | "ntile"
             | "lag"
             | "lead"
             | "first_value"
@@ -200,13 +203,20 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
             function.name
         )));
     }
-    if matches!(function_name.as_str(), "row_number" | "rank" | "dense_rank")
-        && !function.args.is_empty()
+    if matches!(
+        function_name.as_str(),
+        "row_number" | "rank" | "dense_rank" | "percent_rank" | "cume_dist"
+    ) && !function.args.is_empty()
     {
         return Err(SqlError::new(format!(
             "{} window function expects no args",
             function.name
         )));
+    }
+    if function_name == "ntile" && function.args.len() != 1 {
+        return Err(SqlError::new(
+            "ntile window function expects one arg".into(),
+        ));
     }
     if matches!(
         function_name.as_str(),
@@ -462,7 +472,7 @@ mod window_aggregate_tests {
     use super::parse_window_function;
 
     #[test]
-    fn should_reject_distinct_and_aggregate_ordering_on_window_aggregates() {
+    fn should_reject_unsupported_modifiers_on_window_aggregates() {
         // Arrange
         let distinct =
             "SUM(DISTINCT n) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)";
@@ -477,6 +487,23 @@ mod window_aggregate_tests {
         // Assert
         assert_eq!(distinct_error.kind(), crate::sql::SqlErrorKind::Unsupported);
         assert_eq!(ordered_error.kind(), crate::sql::SqlErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn should_reject_arguments_given_percent_rank_and_cume_dist_window_functions() {
+        // Arrange
+        let percent_rank = "percent_rank(1) OVER (ORDER BY id)";
+        let cume_dist = "cume_dist(1) OVER (ORDER BY id)";
+
+        // Act
+        let percent_rank_error =
+            parse_window_function(percent_rank).expect_err("percent_rank takes no arguments");
+        let cume_dist_error =
+            parse_window_function(cume_dist).expect_err("cume_dist takes no arguments");
+
+        // Assert
+        assert_eq!(percent_rank_error.kind(), crate::sql::SqlErrorKind::Syntax);
+        assert_eq!(cume_dist_error.kind(), crate::sql::SqlErrorKind::Syntax);
     }
 }
 

@@ -16,6 +16,7 @@ use crate::types::Value;
 use super::{check_timeout, QueryError};
 
 mod exists;
+mod ranking;
 mod typed;
 pub(super) use exists::apply_resolving;
 
@@ -122,6 +123,8 @@ fn apply_single_window(
         ),
     )?;
     let data_type = match function_name.as_str() {
+        "ntile" => crate::types::DataType::Int,
+        "percent_rank" | "cume_dist" => crate::types::DataType::Float,
         "first_value" | "last_value" | "lag" | "lead" => rows
             .first()
             .zip(function.args.first())
@@ -184,6 +187,9 @@ fn validated_window_function_name(function: &WindowFunctionCall) -> Result<Strin
         "row_number"
             | "rank"
             | "dense_rank"
+            | "percent_rank"
+            | "cume_dist"
+            | "ntile"
             | "lag"
             | "lead"
             | "first_value"
@@ -257,44 +263,9 @@ fn evaluate_window_values(
     let mut values = vec![Value::Null; rows.len()];
     for indices in partitions.values_mut() {
         check_timeout(context.controls)?;
-        evaluate_window_partition(rows, function, function_name, indices, &mut values, context)?;
+        ranking::evaluate_partition(rows, function, function_name, indices, &mut values, context)?;
     }
     Ok(values)
-}
-
-fn evaluate_window_partition(
-    rows: &[BatchRow],
-    function: &WindowFunctionCall,
-    function_name: &str,
-    indices: &mut [usize],
-    values: &mut [Value],
-    context: &WindowExecutionContext<'_>,
-) -> Result<(), QueryError> {
-    sort_partition(rows, function, indices, context)?;
-    let frame = effective_window_frame(function);
-    let mut dense_rank = 1i64;
-    let mut previous_peer_key: Option<WindowPeerKey> = None;
-    for (position, index) in indices.iter().enumerate() {
-        check_timeout(context.controls)?;
-        let peer_key = window_peer_key(&rows[*index], &function.order_by, context)?;
-        if position > 0 && previous_peer_key.as_ref() != Some(&peer_key) {
-            dense_rank += 1;
-        }
-        previous_peer_key = Some(peer_key);
-        values[*index] = window_value_at(
-            WindowValuePosition {
-                position,
-                dense_rank,
-                frame: &frame,
-            },
-            rows,
-            function,
-            function_name,
-            indices,
-            context,
-        )?;
-    }
-    Ok(())
 }
 
 fn sort_partition(
@@ -338,7 +309,11 @@ fn sort_partition(
 #[derive(Clone, Copy)]
 struct WindowValuePosition<'a> {
     position: usize,
+    rank: i64,
     dense_rank: i64,
+    peer_end: usize,
+    partition_len: usize,
+    ntile_buckets: Option<usize>,
     frame: &'a WindowFrame,
 }
 
@@ -354,8 +329,11 @@ fn window_value_at(
         "row_number" => Ok(Value::Int64(
             i64::try_from(value_position.position + 1).unwrap_or(i64::MAX),
         )),
-        "rank" => rank_value(value_position.position, rows, function, indices, context),
+        "rank" => Ok(Value::Int64(value_position.rank)),
         "dense_rank" => Ok(Value::Int64(value_position.dense_rank)),
+        "percent_rank" => ranking::percent_rank_value(value_position),
+        "cume_dist" => ranking::cume_dist_value(value_position),
+        "ntile" => ranking::ntile_value_at(value_position),
         "lag" => window_arg_value(
             indices
                 .get(value_position.position.wrapping_sub(1))
@@ -778,26 +756,6 @@ fn resolve_frame_bound(bound: WindowFrameBound, position: usize, partition_len: 
         WindowFrameBound::Following(offset) => position + i128::from(offset),
         WindowFrameBound::UnboundedFollowing => partition_len,
     }
-}
-
-fn rank_value(
-    position: usize,
-    rows: &[BatchRow],
-    function: &WindowFunctionCall,
-    indices: &[usize],
-    context: &WindowExecutionContext<'_>,
-) -> Result<Value, QueryError> {
-    let current_peer_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
-    for (peer_position, candidate) in indices[..=position].iter().enumerate() {
-        if window_peer_key(&rows[*candidate], &function.order_by, context)? == current_peer_key {
-            return Ok(Value::Int64(
-                i64::try_from(peer_position + 1).unwrap_or(i64::MAX),
-            ));
-        }
-    }
-    Ok(Value::Int64(
-        i64::try_from(position + 1).unwrap_or(i64::MAX),
-    ))
 }
 
 fn append_window_values(

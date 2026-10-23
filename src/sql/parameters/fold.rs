@@ -8,6 +8,7 @@ use super::admission::{check_controls, reserve_vector, ReservedVector};
 use super::diagnostics::BooleanConstruct;
 use super::occurrences::{Occurrences, PrivateParameterTypeInput, Summary};
 use super::ParameterAdmissionError;
+use super::UNKNOWN_PARAMETER_TYPE_OID;
 
 #[path = "fold_bytea_functions.rs"]
 mod bytea_functions;
@@ -44,6 +45,7 @@ enum Node<'a> {
     Ctes(&'a [ast::CommonTableExpression]),
     Cte(&'a ast::CteQuery),
     Window(&'a ast::WindowFunctionCall),
+    WindowArguments(&'a ast::WindowFunctionCall),
 }
 
 struct Frame<'a> {
@@ -234,6 +236,17 @@ impl<'a, 'c> Fold<'a, 'c> {
             | Node::Cte(_)
             | Node::FunctionModifiers(_)
             | Node::Window(_) => None,
+            Node::WindowArguments(window) => {
+                if window.name.eq_ignore_ascii_case("ntile") {
+                    if let Some(summary) = self.summaries.values.get(frame.start).copied() {
+                        if !matches!(summary.oid, 0 | 21 | 23 | UNKNOWN_PARAMETER_TYPE_OID) {
+                            self.occurrences
+                                .undefined_function("ntile", 1, Some(summary.oid))?;
+                        }
+                    }
+                }
+                None
+            }
         };
         self.summaries.values.truncate(frame.start);
         if let Some(summary) = &mut summary {

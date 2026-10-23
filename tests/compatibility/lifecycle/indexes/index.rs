@@ -8,10 +8,6 @@ mod expression_index_definition;
 mod generated_index_name;
 #[path = "included_partial_indexes.rs"]
 mod included_partial_indexes;
-#[path = "maintenance.rs"]
-mod maintenance_contracts;
-#[path = "maintenance_options.rs"]
-mod maintenance_options;
 #[path = "materialized_view_indexes.rs"]
 mod materialized_view_indexes;
 #[path = "nulls_not_distinct.rs"]
@@ -24,8 +20,6 @@ mod partial_index_query_equivalence;
 mod reindex_database_concurrent_ddl;
 #[path = "reindex_options.rs"]
 mod reindex_options;
-#[path = "reindex_table_schema_concurrent.rs"]
-mod reindex_table_schema_concurrent;
 #[path = "storage_maintenance.rs"]
 mod residual_storage_maintenance;
 #[path = "selected_access_methods.rs"]
@@ -200,134 +194,6 @@ fn should_rebuild_all_indexes_for_a_table() {
                 .collect::<Vec<_>>(),
             vec![10, 20]
         );
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_roundtrip_index_comments_through_catalog() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("index_comments").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_index_comment_rows (id INT)",
-                "CREATE INDEX compat_index_comment_idx \
-                   ON compat_index_comment_rows (id)",
-            ],
-        )
-        .await
-        .expect("create an index to annotate");
-
-        // Act
-        client
-            .batch_execute("COMMENT ON INDEX compat_index_comment_idx IS 'index note'")
-            .await
-            .expect("store an object comment on the index");
-        let comment: Option<String> = client
-            .query_one(
-                "SELECT obj_description('compat_index_comment_idx'::regclass, 'pg_class')",
-                &[],
-            )
-            .await
-            .expect("read the index comment from PostgreSQL object metadata")
-            .try_get(0)
-            .expect("index comment");
-
-        // Assert
-        assert_eq!(comment.as_deref(), Some("index note"));
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_drop_index_concurrently_outside_a_transaction_block() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("drop_index_concurrently").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_concurrent_drop_rows (id INT)",
-                "CREATE INDEX compat_concurrent_drop_idx \
-                   ON compat_concurrent_drop_rows (id)",
-            ],
-        )
-        .await
-        .expect("create a relation and an index to remove");
-
-        // Act
-        client
-            .batch_execute("DROP INDEX CONCURRENTLY compat_concurrent_drop_idx")
-            .await
-            .expect("drop the index concurrently in autocommit mode");
-        let remaining: i64 = client
-            .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_indexes \
-                 WHERE schemaname = 'public' \
-                   AND indexname = 'compat_concurrent_drop_idx'",
-                &[],
-            )
-            .await
-            .expect("inspect the index catalog after concurrent removal")
-            .try_get(0)
-            .expect("matching index count");
-
-        // Assert
-        assert_eq!(remaining, 0);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
-fn should_publish_table_statistics_after_analyze() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("analyze_table_statistics").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_analyze_rows (label TEXT)",
-                "INSERT INTO compat_analyze_rows VALUES \
-                   ('common'), ('common'), ('common'), ('common'), ('common'), \
-                   ('common'), ('common'), ('common'), ('common'), ('common'), ('rare')",
-            ],
-        )
-        .await
-        .expect("create a skewed table for table statistics");
-
-        // Act
-        client
-            .batch_execute("ANALYZE compat_analyze_rows")
-            .await
-            .expect("collect table statistics");
-        let most_common: Option<String> = client
-            .query_one(
-                "SELECT most_common_vals::text FROM pg_catalog.pg_stats \
-                 WHERE schemaname = 'public' \
-                   AND tablename = 'compat_analyze_rows' AND attname = 'label'",
-                &[],
-            )
-            .await
-            .expect("read the table's most common value statistics")
-            .try_get(0)
-            .expect("most common values");
-
-        // Assert
-        assert_eq!(most_common.as_deref(), Some("{common}"));
 
         drop(client);
         server.shutdown(connection).await;

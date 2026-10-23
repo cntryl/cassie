@@ -11,7 +11,9 @@ pub use ast_identifier::{IdentifierComponent, IdentifierPath};
 
 #[path = "ast_create_table.rs"]
 mod ast_create_table;
-pub use ast_create_table::{CreateTableLikeClause, CreateTableLikeFeature, CreateTableLikeOption};
+pub use ast_create_table::{
+    CreateTableAsClause, CreateTableLikeClause, CreateTableLikeFeature, CreateTableLikeOption,
+};
 
 #[path = "ast_schema.rs"]
 mod ast_schema;
@@ -303,6 +305,8 @@ pub struct CreateTableStatement {
     pub fields: Vec<FieldDefinition>,
     pub if_not_exists: bool,
     pub storage_mode: crate::catalog::CollectionStorageMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub as_query: Option<CreateTableAsClause>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub like: Option<CreateTableLikeClause>,
 }

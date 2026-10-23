@@ -130,6 +130,7 @@ mod query;
 mod query_bind;
 mod query_bound;
 mod query_cache_keys;
+mod query_ctas;
 mod query_describe;
 mod query_explain;
 mod query_feedback;

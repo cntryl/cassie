@@ -136,7 +136,8 @@ fn should_materialize_explicit_with_data_ctas_rows() {
         let created = client
             .batch_execute(
                 "CREATE TABLE compat_ctas_with_data_result AS \
-                 SELECT id, label FROM compat_ctas_with_data_source \
+                 SELECT id, label, CAST(1.5 AS DOUBLE PRECISION) AS measure \
+                 FROM compat_ctas_with_data_source \
                  ORDER BY id WITH DATA",
             )
             .await;
@@ -168,15 +169,16 @@ fn should_materialize_explicit_with_data_ctas_rows() {
             .expect("read explicitly materialized CTAS rows");
 
         // Assert
-        assert!(
+        assert_eq!(
             columns
                 .iter()
                 .map(|row| (row.get::<_, String>(0), row.get::<_, String>(1)))
-                .collect::<Vec<_>>()
-                == vec![
-                    ("id".to_owned(), "integer".to_owned()),
-                    ("label".to_owned(), "text".to_owned()),
-                ],
+                .collect::<Vec<_>>(),
+            vec![
+                ("id".to_owned(), "integer".to_owned()),
+                ("label".to_owned(), "text".to_owned()),
+                ("measure".to_owned(), "double precision".to_owned()),
+            ],
             "CTAS should preserve the SELECT output names and types"
         );
         assert_eq!(rows.len(), 2);

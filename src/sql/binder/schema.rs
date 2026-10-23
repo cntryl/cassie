@@ -48,6 +48,11 @@ pub(super) fn bind_create_table(
         return Ok(statement);
     }
 
+    if statement.as_query.is_some() {
+        statement.table = canonical_relation_path(&name)?;
+        return Ok(statement);
+    }
+
     if matches!(
         statement.storage_mode,
         crate::catalog::CollectionStorageMode::ColumnIndexed

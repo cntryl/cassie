@@ -1,5 +1,7 @@
 use super::*;
 
+#[path = "table_forms/create_table_as.rs"]
+mod create_table_as_contracts;
 #[path = "materialized_view_create_no_data.rs"]
 mod materialized_view_create_no_data;
 #[path = "explicit_table_clone.rs"]

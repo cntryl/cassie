@@ -149,7 +149,7 @@ fn should_apply_frames_over_named_window_inheritance() {
 
     // Act
     let result = fixture.execute(
-        "SELECT bucket, id, SUM(n) OVER base, SUM(n) OVER (base ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM issue_806_named_window WINDOW base AS (PARTITION BY bucket) ORDER BY bucket, id",
+        "SELECT bucket, id, SUM(n) OVER base, SUM(n) OVER (base ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), SUM(n) OVER framed FROM issue_806_named_window WINDOW base AS (PARTITION BY bucket), framed AS (PARTITION BY bucket ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) ORDER BY bucket, id",
     );
 
     // Assert
@@ -161,12 +161,57 @@ fn should_apply_frames_over_named_window_inheritance() {
                 Value::Int64(1),
                 Value::Int64(5),
                 Value::Int64(2),
+                Value::Int64(2),
             ],
             vec![
                 Value::String("a".to_owned()),
                 Value::Int64(2),
                 Value::Int64(5),
                 Value::Int64(5),
+                Value::Int64(5),
+            ],
+            vec![
+                Value::String("b".to_owned()),
+                Value::Int64(1),
+                Value::Int64(5),
+                Value::Int64(5),
+                Value::Int64(5),
+            ],
+        ]
+    );
+}
+
+#[test]
+fn should_apply_chained_named_window_inheritance() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-chained-window-inheritance",
+        &[
+            "CREATE TABLE issue_806_chained_window (bucket TEXT, id INT, n INT)",
+            "INSERT INTO issue_806_chained_window VALUES ('a',1,2),('a',2,3),('b',1,5)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT bucket, id, SUM(n) OVER framed, SUM(n) OVER suffix FROM issue_806_chained_window WINDOW base AS (PARTITION BY bucket), ordered AS (base ORDER BY id), framed AS (ordered ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), suffix AS (ordered ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) ORDER BY bucket, id",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("chained named windows").rows(),
+        &[
+            vec![
+                Value::String("a".to_owned()),
+                Value::Int64(1),
+                Value::Int64(2),
+                Value::Int64(5),
+            ],
+            vec![
+                Value::String("a".to_owned()),
+                Value::Int64(2),
+                Value::Int64(5),
+                Value::Int64(3),
             ],
             vec![
                 Value::String("b".to_owned()),
@@ -176,6 +221,231 @@ fn should_apply_frames_over_named_window_inheritance() {
             ],
         ]
     );
+}
+
+#[test]
+fn should_apply_frame_only_inheritance_from_an_empty_named_window() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-frame-only-window-inheritance",
+        &[
+            "CREATE TABLE issue_806_frame_only_window (n INT)",
+            "INSERT INTO issue_806_frame_only_window VALUES (2)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT SUM(n) OVER framed FROM issue_806_frame_only_window WINDOW base AS (), framed AS (base ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("frame-only extension of an empty base").rows(),
+        &[vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
+fn should_fold_unquoted_named_window_identifiers() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-window-name-folding",
+        &[
+            "CREATE TABLE issue_806_window_name_folding (bucket TEXT, n INT)",
+            "INSERT INTO issue_806_window_name_folding VALUES ('a',2),('a',3)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT SUM(n) OVER base FROM issue_806_window_name_folding WINDOW Base AS (PARTITION BY bucket)",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("unquoted window identifiers fold case").rows(),
+        &[vec![Value::Int64(5)], vec![Value::Int64(5)]]
+    );
+}
+
+#[test]
+fn should_preserve_case_in_quoted_named_window_identifiers() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-quoted-window-name-case",
+        &[
+            "CREATE TABLE issue_806_quoted_window_name_case (n INT)",
+            "INSERT INTO issue_806_quoted_window_name_case VALUES (2)",
+        ],
+    );
+
+    // Act
+    let exact_reference = fixture.execute(
+        "SELECT SUM(n) OVER \"Base\" FROM issue_806_quoted_window_name_case WINDOW \"Base\" AS ()",
+    );
+    let folded_reference = fixture.execute(
+        "SELECT SUM(n) OVER base FROM issue_806_quoted_window_name_case WINDOW \"Base\" AS ()",
+    );
+
+    // Assert
+    assert_eq!(
+        exact_reference
+            .expect("quoted window name preserves case")
+            .rows(),
+        &[vec![Value::Int64(2)]]
+    );
+    assert!(
+        folded_reference.is_err(),
+        "an unquoted reference does not match a case-sensitive quoted name"
+    );
+}
+
+#[test]
+fn should_match_postgres_named_window_identifier_collisions() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-window-name-collisions",
+        &[
+            "CREATE TABLE issue_806_window_name_collisions (bucket TEXT, n INT)",
+            "INSERT INTO issue_806_window_name_collisions VALUES ('a',2),('b',3)",
+        ],
+    );
+
+    // Act
+    let mixed_case_duplicate = fixture.execute(
+        "SELECT SUM(n) OVER base FROM issue_806_window_name_collisions WINDOW Base AS (), base AS ()",
+    );
+    let quoted_lowercase_duplicate = fixture.execute(
+        "SELECT SUM(n) OVER base FROM issue_806_window_name_collisions WINDOW \"base\" AS (), base AS ()",
+    );
+    let distinct_quoted_case = fixture.execute(
+        "SELECT bucket, SUM(n) OVER \"Base\", SUM(n) OVER base FROM issue_806_window_name_collisions WINDOW \"Base\" AS (PARTITION BY bucket), base AS () ORDER BY bucket",
+    );
+
+    // Assert
+    assert!(mixed_case_duplicate.is_err());
+    assert!(quoted_lowercase_duplicate.is_err());
+    assert_eq!(
+        distinct_quoted_case
+            .expect("quoted uppercase and folded lowercase names are distinct")
+            .rows(),
+        &[
+            vec![
+                Value::String("a".to_owned()),
+                Value::Int64(2),
+                Value::Int64(5),
+            ],
+            vec![
+                Value::String("b".to_owned()),
+                Value::Int64(3),
+                Value::Int64(5),
+            ],
+        ]
+    );
+}
+
+#[test]
+fn should_reject_window_clause_after_order_by() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-window-clause-order",
+        &["CREATE TABLE issue_806_window_clause_order (id INT, n INT)"],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT SUM(n) OVER base FROM issue_806_window_clause_order ORDER BY id WINDOW base AS ()",
+    );
+
+    // Assert
+    assert!(result.is_err(), "WINDOW must precede ORDER BY");
+}
+
+#[test]
+fn should_accept_window_clause_after_having_before_pagination() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-window-clause-position",
+        &[
+            "CREATE TABLE issue_806_window_clause_position (bucket TEXT, n INT)",
+            "INSERT INTO issue_806_window_clause_position VALUES ('a',1),('a',2),('b',3)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT bucket, COUNT(*) OVER base FROM issue_806_window_clause_position WHERE n > 0 GROUP BY bucket HAVING COUNT(*) > 0 WINDOW base AS (PARTITION BY bucket) ORDER BY bucket LIMIT 2 OFFSET 0",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("WINDOW follows HAVING and precedes pagination").rows(),
+        &[
+            vec![Value::String("a".to_owned()), Value::Int64(1)],
+            vec![Value::String("b".to_owned()), Value::Int64(1)],
+        ]
+    );
+}
+
+#[test]
+fn should_reject_having_after_window_clause() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-having-after-window",
+        &[
+            "CREATE TABLE issue_806_having_after_window (bucket TEXT, n INT)",
+            "INSERT INTO issue_806_having_after_window VALUES ('a',1)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT bucket, COUNT(*) OVER base FROM issue_806_having_after_window GROUP BY bucket WINDOW base AS (PARTITION BY bucket) HAVING COUNT(*) > 0",
+    );
+
+    // Assert
+    assert!(result.is_err(), "WINDOW must follow HAVING");
+}
+
+#[test]
+fn should_reject_copying_a_framed_named_window() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-framed-window-copy",
+        &[
+            "CREATE TABLE issue_806_framed_window_copy (id INT, n INT)",
+            "INSERT INTO issue_806_framed_window_copy VALUES (1,2),(2,3)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT SUM(n) OVER (base) FROM issue_806_framed_window_copy WINDOW base AS (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+    );
+
+    // Assert
+    assert!(result.is_err(), "a framed window cannot be copied");
+}
+
+#[test]
+fn should_reject_adding_partition_by_to_an_inherited_window() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-inherited-partition",
+        &[
+            "CREATE TABLE issue_806_inherited_partition (bucket TEXT, id INT, n INT)",
+            "INSERT INTO issue_806_inherited_partition VALUES ('a',1,2),('a',2,3)",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT SUM(n) OVER (base PARTITION BY bucket) FROM issue_806_inherited_partition WINDOW base AS ()",
+    );
+
+    // Assert
+    assert!(result.is_err(), "an inherited window cannot add PARTITION BY");
 }
 
 #[test]

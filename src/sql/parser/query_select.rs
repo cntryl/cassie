@@ -1,6 +1,7 @@
 use super::{
-    parse_parenthesized_prefix, parse_projection_item, parse_query_source, CommonTableExpression,
-    Expr, HashSet, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SqlError,
+    parse_named_windows, parse_parenthesized_prefix, parse_projection_item_with_named_windows,
+    parse_query_source, CommonTableExpression, Expr, HashSet, NamedWindows, OrderExpr,
+    ParsedStatement, QuerySource, QueryStatement, SqlError,
 };
 use crate::sql::ast::{SelectSet, SelectStatement, SetOperator};
 use crate::sql::parser::clauses::{
@@ -47,7 +48,13 @@ pub(super) fn parse_select_statement(
     let clauses = parse_clauses(&rest)?;
     let source = resolve_select_source(&rest, &clauses, source)?;
     let parsed_clauses = parse_select_clauses(&rest, &clauses)?;
-    let projection = parse_projection_items(&select_part)?;
+    let named_windows = parsed_clauses
+        .window_sql
+        .as_deref()
+        .map(parse_named_windows)
+        .transpose()?
+        .unwrap_or_default();
+    let projection = parse_projection_items(&select_part, &named_windows)?;
     let filter = parsed_clauses
         .where_sql
         .as_deref()
@@ -401,7 +408,9 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
                 }
                 offset = pagination::parse_offset(raw_value)?;
             }
-            Clause::Where | Clause::Group | Clause::Having => unreachable!(),
+            Clause::Where | Clause::Group | Clause::Having | Clause::Window => {
+                unreachable!()
+            }
         }
     }
 
@@ -527,12 +536,16 @@ fn resolve_select_source(
     parse_query_source(from_source)
 }
 
-fn parse_projection_items(select_part: &str) -> Result<Vec<super::SelectItem>, SqlError> {
+fn parse_projection_items(
+    select_part: &str,
+    named_windows: &NamedWindows,
+) -> Result<Vec<super::SelectItem>, SqlError> {
     let projection_tokens: Vec<&str> = split_csv(select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
     for token in projection_tokens {
-        projection.push(parse_projection_item(
+        projection.push(parse_projection_item_with_named_windows(
             crate::sql::parser::lexical::trim_separators(token),
+            named_windows,
         )?);
     }
     Ok(projection)
@@ -577,6 +590,7 @@ struct ParsedSelectClauses {
     where_sql: Option<String>,
     group_sql: Option<String>,
     having_sql: Option<String>,
+    window_sql: Option<String>,
     order_sql: Option<String>,
     limit: Option<Expr>,
     offset: Option<Expr>,
@@ -587,10 +601,12 @@ fn parse_select_clauses(
     clauses: &[ClauseMatch],
 ) -> Result<ParsedSelectClauses, SqlError> {
     pagination::validate_fetch_order(clauses)?;
+    validate_window_clause_order(clauses)?;
     let mut parsed = ParsedSelectClauses {
         where_sql: None,
         group_sql: None,
         having_sql: None,
+        window_sql: None,
         order_sql: None,
         limit: None,
         offset: None,
@@ -634,6 +650,13 @@ fn parse_select_clauses(
                     raw_value.to_string(),
                     "duplicate HAVING clause",
                 )?,
+                Clause::Window => assign_clause(
+                    &mut seen,
+                    "window",
+                    &mut parsed.window_sql,
+                    raw_value.to_string(),
+                    "duplicate WINDOW clause",
+                )?,
                 Clause::Order => assign_clause(
                     &mut seen,
                     "order by",
@@ -662,6 +685,31 @@ fn parse_select_clauses(
     }
 
     Ok(parsed)
+}
+
+fn validate_window_clause_order(clauses: &[ClauseMatch]) -> Result<(), SqlError> {
+    let Some(window_index) = clauses
+        .iter()
+        .position(|clause| matches!(clause.token, ClauseToken::Recognized(Clause::Window)))
+    else {
+        return Ok(());
+    };
+    let follows_result_clause = clauses[..window_index].iter().any(|clause| {
+        matches!(
+            clause.token,
+            ClauseToken::Recognized(Clause::Order | Clause::Limit | Clause::Offset | Clause::Fetch)
+        )
+    });
+    let precedes_filter_clause = clauses[window_index + 1..].iter().any(|clause| {
+        matches!(
+            clause.token,
+            ClauseToken::Recognized(Clause::Where | Clause::Group | Clause::Having)
+        )
+    });
+    if follows_result_clause || precedes_filter_clause {
+        return Err(SqlError::syntax("WINDOW clause is out of order".into()));
+    }
+    Ok(())
 }
 
 fn clause_value<'a>(

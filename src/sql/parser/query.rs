@@ -2,8 +2,8 @@ use super::clauses::{find_top_level_keyword, split_top_level, strip_parentheses}
 use super::expr::{parse_alias, parse_expression, parse_function, parse_order_by, split_csv};
 use super::identifiers::parse_relation_path_prefix;
 use super::{
-    parse_statement, CommonTableExpression, Expr, HashSet, JoinKind, OrderExpr, ParsedStatement,
-    QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
+    parse_statement, CommonTableExpression, Expr, HashMap, HashSet, JoinKind, OrderExpr,
+    ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
 use crate::sql::ast::{
     AggregateQuantifier, WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
@@ -79,6 +79,13 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
 pub(super) fn parse_projection_items(
     raw: &str,
 ) -> Result<Vec<crate::sql::ast::SelectItem>, SqlError> {
+    parse_projection_items_with_named_windows(raw, &HashMap::new())
+}
+
+pub(super) fn parse_projection_items_with_named_windows(
+    raw: &str,
+    named_windows: &NamedWindows,
+) -> Result<Vec<crate::sql::ast::SelectItem>, SqlError> {
     let raw = super::lexical::trim_separators(raw);
     if raw.is_empty() {
         return Err(SqlError::new("missing projection".into()));
@@ -86,13 +93,19 @@ pub(super) fn parse_projection_items(
 
     let mut projection = Vec::new();
     for token in split_csv(raw) {
-        projection.push(parse_projection_item(token)?);
+        projection.push(parse_projection_item_with_named_windows(
+            token,
+            named_windows,
+        )?);
     }
 
     Ok(projection)
 }
 
-pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
+pub(super) fn parse_projection_item_with_named_windows(
+    raw: &str,
+    named_windows: &NamedWindows,
+) -> Result<SelectItem, SqlError> {
     let token = raw.trim();
     if token == "*" {
         return Ok(SelectItem::Wildcard);
@@ -112,7 +125,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
         return Err(SqlError::new("invalid projection item".into()));
     }
 
-    if let Some(function) = parse_window_function(expr_raw)? {
+    if let Some(function) = parse_window_function_with_named_windows(expr_raw, named_windows)? {
         return Ok(SelectItem::WindowFunction { function, alias });
     }
 
@@ -150,7 +163,10 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
     })
 }
 
-pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCall>, SqlError> {
+fn parse_window_function_with_named_windows(
+    raw: &str,
+    named_windows: &NamedWindows,
+) -> Result<Option<WindowFunctionCall>, SqlError> {
     let Some((function_raw, over_raw)) = split_top_level(raw, " over ") else {
         return Ok(None);
     };
@@ -179,9 +195,16 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
     };
     validate_window_function(&function, &function_name, aggregate_window)?;
 
-    let over_body = strip_parentheses(over_raw.trim())
-        .ok_or_else(|| SqlError::new("window function OVER clause requires parentheses".into()))?;
-    let (partition_by, order_by, frame) = parse_window_spec(over_body)?;
+    let (partition_by, order_by, frame) =
+        if let Some(over_body) = strip_parentheses(over_raw.trim()) {
+            parse_window_spec_with_named_windows(over_body, named_windows)?
+        } else {
+            let name = parse_window_name(over_raw.trim())?;
+            named_windows
+                .get(&name)
+                .cloned()
+                .ok_or_else(|| SqlError::new(format!("window \"{name}\" does not exist")))?
+        };
     Ok(Some(WindowFunctionCall {
         name: function.name,
         args: function.args,
@@ -307,7 +330,107 @@ fn lower_window_filter(
     Ok(function)
 }
 
-type WindowSpec = (Vec<Expr>, Vec<OrderExpr>, Option<WindowFrame>);
+pub(super) type WindowSpec = (Vec<Expr>, Vec<OrderExpr>, Option<WindowFrame>);
+pub(super) type NamedWindows = HashMap<String, WindowSpec>;
+
+pub(super) fn parse_named_windows(raw: &str) -> Result<NamedWindows, SqlError> {
+    let mut windows = NamedWindows::new();
+    for definition in split_csv(raw) {
+        let (name_raw, specification_raw) = split_top_level(definition, " as ")
+            .ok_or_else(|| SqlError::syntax("WINDOW definitions require AS".into()))?;
+        let name = parse_window_name(name_raw.trim())?;
+        if windows.contains_key(&name) {
+            return Err(SqlError::syntax(format!(
+                "window \"{name}\" is defined more than once"
+            )));
+        }
+        let specification = strip_parentheses(specification_raw.trim()).ok_or_else(|| {
+            SqlError::syntax(format!("WINDOW definition \"{name}\" requires parentheses"))
+        })?;
+        let parsed = parse_window_spec_with_named_windows(specification, &windows)?;
+        windows.insert(name, parsed);
+    }
+    Ok(windows)
+}
+
+fn parse_window_name(raw: &str) -> Result<String, SqlError> {
+    let path = crate::sql::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
+    if path.is_qualified() {
+        return Err(SqlError::syntax(
+            "window names cannot be schema-qualified".into(),
+        ));
+    }
+    Ok(path.declared_name())
+}
+
+fn parse_window_spec_with_named_windows(
+    raw: &str,
+    named_windows: &NamedWindows,
+) -> Result<WindowSpec, SqlError> {
+    let raw = super::lexical::trim_separators(raw);
+    if raw.is_empty() {
+        return Ok((Vec::new(), Vec::new(), None));
+    }
+
+    let first = raw.split_whitespace().next().unwrap_or_default();
+    if matches!(
+        first.to_ascii_lowercase().as_str(),
+        "partition" | "order" | "rows" | "range" | "groups"
+    ) {
+        return parse_window_spec(raw);
+    }
+
+    let name = parse_window_name(first)?;
+    let base = named_windows
+        .get(&name)
+        .cloned()
+        .ok_or_else(|| SqlError::new(format!("window \"{name}\" does not exist")))?;
+    if base.2.is_some() {
+        return Err(SqlError::syntax(format!(
+            "cannot copy window \"{name}\" because it has a frame clause"
+        )));
+    }
+    let rest = super::lexical::trim_separators(&raw[first.len()..]);
+    if rest.is_empty() {
+        return Ok(base);
+    }
+    let extension = parse_window_spec(rest)?;
+    inherit_window_spec(base, extension)
+}
+
+fn inherit_window_spec(base: WindowSpec, extension: WindowSpec) -> Result<WindowSpec, SqlError> {
+    let (base_partition, base_order, base_frame) = base;
+    let (extension_partition, extension_order, extension_frame) = extension;
+    if base_frame.is_some() {
+        return Err(SqlError::syntax(
+            "cannot copy a window that already has a frame clause".into(),
+        ));
+    }
+    if !extension_partition.is_empty() {
+        return Err(SqlError::syntax(
+            "cannot add PARTITION BY to an inherited window".into(),
+        ));
+    }
+    if !base_order.is_empty() && !extension_order.is_empty() {
+        return Err(SqlError::syntax(
+            "cannot override ORDER BY in an inherited window".into(),
+        ));
+    }
+
+    Ok((
+        if extension_partition.is_empty() {
+            base_partition
+        } else {
+            extension_partition
+        },
+        if extension_order.is_empty() {
+            base_order
+        } else {
+            extension_order
+        },
+        base_frame.or(extension_frame),
+    ))
+}
 
 pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
     let raw = super::lexical::trim_separators(raw);
@@ -336,6 +459,9 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
         (raw, None)
     };
     let spec_raw = super::lexical::trim_separators(spec_raw);
+    if spec_raw.is_empty() {
+        return Ok((Vec::new(), Vec::new(), frame));
+    }
     if let Some(end) = super::lexical::pattern_end(spec_raw, 0, "partition by") {
         let rest = super::lexical::trim_separators(&spec_raw[end..]);
         if let Some((partition_raw, order_raw)) = split_top_level(rest, " order by ") {
@@ -494,7 +620,7 @@ pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
 
 #[cfg(test)]
 mod window_aggregate_tests {
-    use super::parse_window_function;
+    use super::{parse_window_function_with_named_windows, NamedWindows};
 
     #[test]
     fn should_reject_unsupported_modifiers_on_window_aggregates() {
@@ -505,9 +631,11 @@ mod window_aggregate_tests {
             "SUM(n ORDER BY n) OVER (ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)";
 
         // Act
-        let distinct_error = parse_window_function(distinct).expect_err("DISTINCT is pending");
-        let ordered_error =
-            parse_window_function(ordered).expect_err("aggregate-local ordering is pending");
+        let distinct_error =
+            parse_window_function_with_named_windows(distinct, &NamedWindows::new())
+                .expect_err("DISTINCT is pending");
+        let ordered_error = parse_window_function_with_named_windows(ordered, &NamedWindows::new())
+            .expect_err("aggregate-local ordering is pending");
 
         // Assert
         assert_eq!(distinct_error.kind(), crate::sql::SqlErrorKind::Unsupported);
@@ -522,9 +650,11 @@ mod window_aggregate_tests {
 
         // Act
         let percent_rank_error =
-            parse_window_function(percent_rank).expect_err("percent_rank takes no arguments");
+            parse_window_function_with_named_windows(percent_rank, &NamedWindows::new())
+                .expect_err("percent_rank takes no arguments");
         let cume_dist_error =
-            parse_window_function(cume_dist).expect_err("cume_dist takes no arguments");
+            parse_window_function_with_named_windows(cume_dist, &NamedWindows::new())
+                .expect_err("cume_dist takes no arguments");
 
         // Assert
         assert_eq!(percent_rank_error.kind(), crate::sql::SqlErrorKind::Syntax);

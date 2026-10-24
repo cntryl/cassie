@@ -19,6 +19,9 @@ struct QueryResultPayload {
     /// The OIDs behind `reg*` columns, whose rows hold rendered names.
     #[serde(skip)]
     object_oids: Vec<(usize, Vec<Option<u32>>)>,
+    /// Columns whose direct text protocol output uses PostgreSQL array text.
+    #[serde(skip)]
+    postgres_array_text_columns: Vec<usize>,
     #[serde(skip)]
     memory: QueryMemoryReservation,
 }
@@ -62,6 +65,10 @@ impl QueryResult {
             .and_then(|(_, oids)| oids.get(row).copied().flatten())
     }
 
+    pub(crate) fn postgres_array_text_columns(&self) -> &[usize] {
+        &self.payload.postgres_array_text_columns
+    }
+
     #[must_use]
     pub fn command(&self) -> &str {
         &self.payload.command
@@ -87,6 +94,7 @@ impl QueryResult {
             rows: Vec::new(),
             command: String::new(),
             object_oids: Vec::new(),
+            postgres_array_text_columns: Vec::new(),
             memory,
             controls,
         })
@@ -135,6 +143,7 @@ impl QueryResult {
             self.rows(),
             self.command(),
             &self.payload.object_oids,
+            &self.payload.postgres_array_text_columns,
         )
     }
 
@@ -145,7 +154,14 @@ impl QueryResult {
         controls: &QueryExecutionControls,
         rows: &[Vec<Value>],
     ) -> Result<Self, CassieError> {
-        Self::try_rebuild(controls, self.columns(), rows, self.command(), &[])
+        Self::try_rebuild(
+            controls,
+            self.columns(),
+            rows,
+            self.command(),
+            &[],
+            &self.payload.postgres_array_text_columns,
+        )
     }
 
     /// # Errors
@@ -164,6 +180,7 @@ impl QueryResult {
             self.rows(),
             command,
             &self.payload.object_oids,
+            &self.payload.postgres_array_text_columns,
         )
     }
 
@@ -212,6 +229,7 @@ impl QueryResult {
         rows: &[Vec<Value>],
         command: &str,
         object_oids: &[(usize, Vec<Option<u32>>)],
+        postgres_array_text_columns: &[usize],
     ) -> Result<Self, CassieError> {
         let mut builder = Self::try_builder(controls)?;
         for column in columns {
@@ -223,6 +241,7 @@ impl QueryResult {
         for (column, oids) in object_oids {
             builder.try_set_object_oids(*column, oids.clone())?;
         }
+        builder.try_set_postgres_array_text_columns(postgres_array_text_columns)?;
         builder.try_set_command(command)?;
         builder.finish()
     }
@@ -235,6 +254,7 @@ pub struct QueryResultBuilder<'a> {
     rows: Vec<Vec<Value>>,
     command: String,
     object_oids: Vec<(usize, Vec<Option<u32>>)>,
+    postgres_array_text_columns: Vec<usize>,
     memory: QueryMemoryReservation,
     controls: &'a QueryExecutionControls,
 }
@@ -343,6 +363,24 @@ impl QueryResultBuilder<'_> {
         Ok(())
     }
 
+    /// Records columns whose evaluator carrier needs PostgreSQL array text output.
+    ///
+    /// # Errors
+    /// Returns a resource error when the column directory cannot be admitted.
+    pub(crate) fn try_set_postgres_array_text_columns(
+        &mut self,
+        columns: &[usize],
+    ) -> Result<(), CassieError> {
+        if columns.is_empty() {
+            return Ok(());
+        }
+        let (mut retained, memory) = try_reserve_vec(columns.len(), &self.memory)?;
+        retained.extend_from_slice(columns);
+        self.postgres_array_text_columns = retained;
+        self.memory.absorb(memory);
+        Ok(())
+    }
+
     /// # Errors
     /// Returns cancellation or a deadline error without publishing a result.
     pub fn finish(self) -> Result<QueryResult, CassieError> {
@@ -353,6 +391,7 @@ impl QueryResultBuilder<'_> {
                 rows: self.rows,
                 command: self.command,
                 object_oids: self.object_oids,
+                postgres_array_text_columns: self.postgres_array_text_columns,
                 memory: self.memory,
             }),
             exposure: None,

@@ -5,8 +5,11 @@ use super::{
 use crate::executor::batch::RowAccess;
 use crate::executor::semantic::{compare_values, SemanticKey};
 
-fn apply_query_output_oids(plan: &PhysicalPlan, columns: &mut [crate::executor::ColumnMeta]) {
-    aggregate::apply_percentile_array_oids_for_query(
+fn apply_query_output_oids(
+    plan: &PhysicalPlan,
+    columns: &mut [crate::executor::ColumnMeta],
+) -> Vec<usize> {
+    let array_text_columns = aggregate::apply_percentile_array_oids_for_query(
         &plan.logical.source,
         &plan.logical.ctes,
         &plan.logical.projection,
@@ -19,6 +22,8 @@ fn apply_query_output_oids(plan: &PhysicalPlan, columns: &mut [crate::executor::
         columns,
     );
     aggregate::apply_void_function_oids(&plan.logical.projection, columns);
+    aggregate::apply_pg_type_kind_oid(&plan.logical.source, &plan.logical.projection, columns);
+    array_text_columns
 }
 
 pub(super) fn build_select_result(
@@ -72,7 +77,7 @@ pub(super) fn build_select_result(
         user_functions,
         &[],
     );
-    apply_query_output_oids(plan, &mut columns);
+    let array_text_columns = apply_query_output_oids(plan, &mut columns);
     // Derived wildcard schemas display physical `_id` as `id`, so
     // declares_id alone cannot distinguish it from a real declared field.
     // Retain only the identity that survives the same source-row hiding rule
@@ -139,6 +144,7 @@ pub(super) fn build_select_result(
     for (column, oids) in object_oids {
         result.try_set_object_oids(column, oids)?;
     }
+    result.try_set_postgres_array_text_columns(&array_text_columns)?;
     result.try_set_command("SELECT")?;
     let output = result.finish()?;
     // Retire the source rows only after the complete managed output is admitted.

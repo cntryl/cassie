@@ -215,7 +215,7 @@ fn should_preserve_quoted_cte_prefix_descriptors_after_empty_output() {
                 .iter()
                 .map(|c| (c.name.as_str(), c.type_oid))
                 .collect::<Vec<_>>(),
-            vec![("X", 20), ("a", 34025)]
+            vec![("X", 20), ("a", 1009)]
         );
     }
     for pair in packets.as_chunks::<2>().0 {
@@ -230,7 +230,7 @@ fn should_preserve_quoted_cte_prefix_descriptors_after_empty_output() {
             for (index, description) in descriptions.iter().enumerate() {
                 assert_eq!(description.len(), 2);
                 for (column, (name, oid, length)) in
-                    description.iter().zip([("X", 20, 8), ("a", 34025, -1)])
+                    description.iter().zip([("X", 20, 8), ("a", 1009, -1)])
                 {
                     assert_eq!(
                         (

@@ -21,7 +21,7 @@ fn should_decode_text_array_parameters() {
             support::parse_frame_with_types(
                 "text_array_parameter_stmt",
                 "INSERT INTO text_array_parameters (values) VALUES ($1) RETURNING values",
-                &[34_023],
+                &[1_007],
             ),
             support::bind_frame_with_formats(
                 "text_array_parameter_portal",

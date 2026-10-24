@@ -206,7 +206,7 @@ impl Cassie {
             &user_functions,
             parameter_type_oids,
         );
-        crate::executor::aggregate::apply_percentile_array_oids_for_query(
+        let _ = crate::executor::aggregate::apply_percentile_array_oids_for_query(
             &logical.source,
             &logical.ctes,
             &logical.projection,
@@ -219,6 +219,11 @@ impl Cassie {
             &mut columns,
         );
         crate::executor::aggregate::apply_void_function_oids(&logical.projection, &mut columns);
+        crate::executor::aggregate::apply_pg_type_kind_oid(
+            &logical.source,
+            &logical.projection,
+            &mut columns,
+        );
         columns
     }
 

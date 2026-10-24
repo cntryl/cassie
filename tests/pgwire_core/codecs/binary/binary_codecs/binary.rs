@@ -238,7 +238,7 @@ fn should_decode_binary_vector_array_parameters() {
             support::parse_frame_with_types(
                 "binary_complex_parameter_stmt",
                 "INSERT INTO binary_parameter_complex (embedding, values) VALUES ($1, $2) RETURNING embedding, values",
-                &[100_002, 34_023],
+                &[100_002, 1_007],
             ),
             support::bind_frame_with_formats(
                 "binary_complex_parameter_portal",
@@ -287,7 +287,7 @@ fn should_store_empty_array_given_zero_dimension_binary_parameter() {
             support::parse_frame_with_types(
                 "empty_array_insert",
                 "INSERT INTO empty_arrays (id, vals) VALUES ('e', $1)",
-                &[34_023],
+                &[1_007],
             ),
             support::bind_frame_with_formats(
                 "empty_array_insert_portal",

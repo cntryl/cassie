@@ -48,7 +48,7 @@
             "expected_carrier": "Value::String"
           },
           {
-            "oid": 34025,
+            "oid": 1009,
             "format": 0,
             "utf8": "{\"x\",NULL}",
             "expected_carrier": "Value::Json(array)",
@@ -91,7 +91,7 @@
             "expected_carrier": "Value::String"
           },
           {
-            "oid": 34025,
+            "oid": 1009,
             "format": 0,
             "utf8": "{\"x\",NULL}",
             "expected_carrier": "Value::Json(array)",
@@ -134,7 +134,7 @@
             "expected_carrier": "Value::String"
           },
           {
-            "oid": 34025,
+            "oid": 1009,
             "format": 1,
             "bytes": null,
             "expected_carrier": "Value::Null",
@@ -177,7 +177,7 @@
             "expected_carrier": "Value::String"
           },
           {
-            "oid": 34025,
+            "oid": 1009,
             "format": 0,
             "utf8": "{}",
             "expected_carrier": "Value::Json(array)",
@@ -220,7 +220,7 @@
             "expected_carrier": "Value::String"
           },
           {
-            "oid": 34025,
+            "oid": 1009,
             "format": 0,
             "utf8": "{\"z\"}",
             "expected_carrier": "Value::Json(array)",
@@ -263,7 +263,7 @@
             "expected_carrier": "Value::String"
           },
           {
-            "oid": 34025,
+            "oid": 1009,
             "format": 0,
             "utf8": "{\"z\"}",
             "expected_carrier": "Value::Json(array)",
@@ -1488,7 +1488,7 @@
         },
         {
           "name": "a",
-          "oid": 34025,
+          "oid": 1009,
           "typlen": -1,
           "typmod": -1
         }
@@ -2366,7 +2366,7 @@
           null
         ]
       ],
-      "descriptors": "x:20,a:34025",
+      "descriptors": "x:20,a:1009",
       "pg_class": "row-compatible; PG array metadata separate",
       "comparison": "ordered unless singleton/empty",
       "executed": false,
@@ -2379,7 +2379,7 @@
         },
         {
           "name": "a",
-          "oid": 34025,
+          "oid": 1009,
           "typlen": -1,
           "typmod": -1
         }
@@ -2398,7 +2398,7 @@
             },
             {
               "name": "a",
-              "oid": 34025,
+              "oid": 1009,
               "typlen": -1,
               "typmod": -1,
               "format": 0
@@ -2422,7 +2422,7 @@
               },
               {
                 "name": "a",
-                "oid": 34025,
+                "oid": 1009,
                 "typlen": -1,
                 "typmod": -1,
                 "format": 0
@@ -2445,7 +2445,7 @@
               },
               {
                 "name": "a",
-                "oid": 34025,
+                "oid": 1009,
                 "typlen": -1,
                 "typmod": -1,
                 "format": 1

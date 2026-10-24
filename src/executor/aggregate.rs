@@ -207,6 +207,74 @@ pub(crate) fn apply_void_function_oids(projection: &[SelectItem], columns: &mut 
     }
 }
 
+/// Applies PostgreSQL's internal one-byte `char` identity to the
+/// `pg_type.typtype` result column without changing Cassie's SQL text type.
+pub(crate) fn apply_pg_type_kind_oid(
+    source: &crate::sql::ast::QuerySource,
+    projection: &[SelectItem],
+    columns: &mut [ColumnMeta],
+) {
+    if !query_source_contains_pg_type(source) {
+        return;
+    }
+
+    if projection
+        .iter()
+        .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        for column in columns {
+            if column.name.eq_ignore_ascii_case("typtype") {
+                apply_internal_char_identity(column);
+            }
+        }
+        return;
+    }
+
+    for (item, column) in projection.iter().zip(columns) {
+        if is_pg_type_kind_column(item) {
+            apply_internal_char_identity(column);
+        }
+    }
+}
+
+fn query_source_contains_pg_type(source: &crate::sql::ast::QuerySource) -> bool {
+    use crate::sql::ast::QuerySource;
+    match source {
+        QuerySource::Collection(name) => {
+            name.to_string().eq_ignore_ascii_case("pg_catalog.pg_type")
+        }
+        QuerySource::Aliased { source, .. } => query_source_contains_pg_type(source),
+        QuerySource::Join { left, right, .. } => {
+            query_source_contains_pg_type(left) || query_source_contains_pg_type(right)
+        }
+        QuerySource::Subquery { select, .. } => query_source_contains_pg_type(&select.source),
+        QuerySource::Values { .. }
+        | QuerySource::Cte(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::SingleRow => false,
+    }
+}
+
+fn is_pg_type_kind_column(item: &SelectItem) -> bool {
+    match item {
+        SelectItem::Column { name, .. } => {
+            crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|column| {
+                column
+                    .implicit_output_label()
+                    .eq_ignore_ascii_case("typtype")
+            })
+        }
+        _ => false,
+    }
+}
+
+fn apply_internal_char_identity(column: &mut ColumnMeta) {
+    "char".clone_into(&mut column.data_type);
+    column.type_oid = 18;
+    column.typlen = 1;
+    column.atttypmod = -1;
+}
+
 fn is_void_function(function: &FunctionCall) -> bool {
     crate::sql::functions::function(&function.name).is_some_and(|metadata| {
         matches!(
@@ -257,10 +325,11 @@ fn is_void_or_null_result_expression(expression: &Expr) -> bool {
     matches!(expression, Expr::Null) || is_void_result_expression(expression)
 }
 
-/// Applies PostgreSQL's built-in array OID to percentile array results only.
-/// General Cassie array identities continue to use the private OID range.
+/// Applies PostgreSQL's built-in array OID to percentile array results whose
+/// evaluator carrier does not retain the SQL array type identity.
 pub(crate) fn apply_percentile_array_oids(projection: &[SelectItem], columns: &mut [ColumnMeta]) {
-    apply_percentile_array_oids_for_query(&QuerySource::SingleRow, &[], projection, columns);
+    let _ =
+        apply_percentile_array_oids_for_query(&QuerySource::SingleRow, &[], projection, columns);
 }
 
 pub(crate) fn apply_percentile_array_oids_for_query(
@@ -268,15 +337,16 @@ pub(crate) fn apply_percentile_array_oids_for_query(
     ctes: &[CommonTableExpression],
     projection: &[SelectItem],
     columns: &mut [ColumnMeta],
-) {
+) -> Vec<usize> {
     if projection.len() != columns.len()
         || projection
             .iter()
             .any(|item| matches!(item, SelectItem::Wildcard))
     {
-        return;
+        return Vec::new();
     }
-    for (item, column) in projection.iter().zip(columns) {
+    let mut array_text_columns = Vec::new();
+    for (index, (item, column)) in projection.iter().zip(columns).enumerate() {
         let Ok(data_type) = DataType::parse_sql(&column.data_type) else {
             continue;
         };
@@ -304,8 +374,10 @@ pub(crate) fn apply_percentile_array_oids_for_query(
         };
         if let Some(oid) = output_oid {
             column.type_oid = oid;
+            array_text_columns.push(index);
         }
     }
+    array_text_columns
 }
 
 /// Applies PostgreSQL's ephemeral RECORD OIDs to direct recursive SEARCH and

@@ -1065,12 +1065,13 @@ pub(crate) fn known_expr_type(
     }
 }
 
-const OID_ARRAY_BASE: i32 = 34_000;
-const OID_ARRAY_LIMIT: i32 = 44_000;
-
 pub(super) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
-    if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&oid) {
-        let element_type = scalar_data_type_for_parameter_oid(oid - OID_ARRAY_BASE)?;
+    if let Some(element_oid) = u32::try_from(oid)
+        .ok()
+        .and_then(crate::catalog::builtin_identity::builtin_array_element_oid)
+    {
+        let element_oid = i32::try_from(element_oid).ok()?;
+        let element_type = scalar_data_type_for_parameter_oid(element_oid)?;
         return Some(DataType::Array(Box::new(element_type)));
     }
 

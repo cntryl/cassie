@@ -731,6 +731,11 @@ fn cast_source_type(
     ) {
         return None;
     }
+    if matches!(target, DataType::Text | DataType::Varchar { .. }) {
+        if let Some(source @ DataType::Array(_)) = types.expression_type(expr) {
+            return Some(source);
+        }
+    }
     // These selected output conversions need source identity. Unresolved
     // NUMERIC carriers must not be relabeled as proven FLOAT8, and no heap
     // type descriptor is cloned just to annotate an unrelated cast.

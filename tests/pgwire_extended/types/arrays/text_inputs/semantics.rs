@@ -71,7 +71,7 @@ fn should_round_trip_escaped_array_text() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (34_025, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(frames, (1_009, -1, -1), 0, true);
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some(

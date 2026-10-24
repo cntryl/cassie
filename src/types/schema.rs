@@ -3,14 +3,14 @@ use serde::{Deserialize, Serialize};
 use super::builtin::{type_metadata, TypeMetadata};
 
 /// First type OID of the `VECTOR(n)` family: `VECTOR(n)` is this plus `n`.
-/// The range sits above the array OIDs (`34000..44000`) so no vector width
-/// can resolve to an array type.
+/// The range sits above the private array fallback (`34000..44000`) so no
+/// vector width can resolve to an array type.
 pub const VECTOR_OID_BASE: i64 = 100_000;
 /// Widest vector the OID range covers; the binary vector format stores the
 /// dimension count as an `int16`.
 pub const VECTOR_OID_MAX_DIMENSIONS: usize = 32_767;
-/// Array element OIDs for vectors keep the historical `33000 + n` index so
-/// arrays of vectors do not move onto a scalar array's OID.
+/// Array element OIDs for vectors keep the historical `33000 + n` residue in
+/// the private fallback; VECTOR arrays remain excluded from pgwire.
 const LEGACY_VECTOR_ELEMENT_BASE: i64 = 33_000;
 
 /// Vector dimension count encoded in `type_oid`, if it is a vector OID.
@@ -100,7 +100,10 @@ impl DataType {
                     }
                     other => other.type_oid(),
                 };
-                OID_ARRAY_BASE + element % 10000
+                u32::try_from(element)
+                    .ok()
+                    .and_then(crate::catalog::builtin_identity::builtin_array_oid)
+                    .map_or_else(|| OID_ARRAY_BASE + element % 10000, i64::from)
             }
         }
     }

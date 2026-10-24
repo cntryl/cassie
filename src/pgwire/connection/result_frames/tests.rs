@@ -30,18 +30,18 @@ fn cells() -> Vec<(i64, Value)> {
             Value::Json(serde_json::json!({"escaped": "\"\\\nλ".repeat(128)})),
         ),
         (
-            34_023,
+            1_007,
             Value::Json(serde_json::json!([i32::MIN, null, i32::MAX])),
         ),
         (
-            34_025,
+            1_009,
             Value::Json(serde_json::json!(["\"\\\nλ".repeat(128), null, {"nested": [1, true]}])),
         ),
         (
-            34_114,
+            199,
             Value::Json(serde_json::json!([[1, 2], {"nested": true}, "\"\\\nλ", null])),
         ),
-        (34_023, Value::Json(serde_json::json!([]))),
+        (1_007, Value::Json(serde_json::json!([]))),
         (
             100_003,
             Value::Vector(Vector::new(vec![-f32::from_bits(1), f32::MAX, 0.0])),
@@ -76,7 +76,7 @@ fn should_bound_supported_cell_encodings_before_allocation() {
         .iter()
         .flat_map(|(oid, value)| {
             [0, 1].map(|format| {
-                let bound = cell_bytes(value, *oid, format).expect("admission bound");
+                let bound = cell_bytes(value, *oid, format, false).expect("admission bound");
                 let length = if matches!(value, Value::Null) {
                     0
                 } else if format == 0 {

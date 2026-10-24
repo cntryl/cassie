@@ -151,7 +151,7 @@ fn should_reject_unselected_postgres_name_type_spellings() {
 }
 
 #[test]
-fn should_bind_selected_postgres_type_spellings_with_cassie_array_identity() {
+fn should_bind_selected_postgres_type_spellings_with_postgres_array_identity() {
     // Arrange
     let fixture = sql_fixture("issue-796-type-name-oids", &[]);
     let cases = [
@@ -164,7 +164,7 @@ fn should_bind_selected_postgres_type_spellings_with_cassie_array_identity() {
         ("SELECT NULL::national character varying(4)", 1043),
         ("SELECT NULL::nchar(4)", 1042),
         ("SELECT NULL::char varying(4)", 1043),
-        ("SELECT NULL::integer[]", 34_023),
+        ("SELECT NULL::integer[]", 1_007),
         ("SELECT NULL::float4", 700),
         ("SELECT NULL::float8", 701),
         ("SELECT NULL::real", 700),

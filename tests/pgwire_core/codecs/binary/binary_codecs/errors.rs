@@ -97,7 +97,7 @@ fn should_reject_binary_array_lengths_that_exceed_the_payload() {
         // Act
         let (frames, server) = start_extended_query(
             cassie,
-            support::parse_frame_with_types("invalid_array_length_stmt", "SELECT $1", &[34_023]),
+            support::parse_frame_with_types("invalid_array_length_stmt", "SELECT $1", &[1_007]),
             support::bind_frame_with_formats(
                 "invalid_array_length_portal",
                 "invalid_array_length_stmt",

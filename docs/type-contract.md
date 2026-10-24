@@ -39,7 +39,7 @@ below according to the declared precision.
 | `timestamp` | 1114 | 8 | Without time zone |
 | `json` | 114 | -1 | `jsonb` is not a distinct supported type |
 | `vector(n)` | `100000 + n` | -1 | Private identity; finite positive dimension |
-| `T[]` | `34000 + (element identity mod 10000)` | -1 | Private identity; vector elements use a legacy residue and their wire arrays are excluded |
+| `T[]` | PostgreSQL's registered array OID for supported built-in element types | -1 | Standard identity; unsupported/private element families are excluded from pgwire |
 
 The `varchar` identity also accepts `char varying(n)`,
 `national character varying(n)` and `nchar varying(n)`. These spellings retain
@@ -55,16 +55,13 @@ SQL NULL on the wire is still a field length of -1. `oid` and the supported
 `reg*` aliases use their distinct registered PostgreSQL identities; their
 finite behavior is described under [Feature Support](feature-support.md#planning-execution-and-interfaces).
 
-The array formula is Cassie's existing identity adapter. For VECTOR elements,
-the adapter uses the legacy `33000 + n` element residue before applying the
-array formula. Neither formula defines the complete element-family, dimension,
-lower-bound or document-null behavior, and neither is the PostgreSQL standard
-array ABI. In particular, scalar support does not imply matching array support.
-ARRAY(VECTOR) remains excluded from pgwire. Ordered-set `percentile_cont` and
-`percentile_disc` array results are a bounded output exception: for registered
-built-in element types, result metadata and `pg_typeof` use PostgreSQL's
-built-in array OID, with PostgreSQL text and binary array output. This does not
-change array input binding or the private identity used by other SQL arrays.
+Supported arrays use the PostgreSQL catalog array OID registered for their
+element type (for example, `int4[]` uses OID 1007); Cassie legacy array OIDs are
+not accepted as wire identities. This identity rule does not define the complete
+element-family, dimension, lower-bound or document-null behavior, and scalar
+support does not imply matching array support. ARRAY(VECTOR) remains excluded
+from pgwire. Array parameter binding remains limited to the forms listed in
+[Feature Support](feature-support.md).
 
 ## Native extended identities
 

@@ -292,7 +292,7 @@ fn should_preserve_public_positional_prefix_metadata() {
             // Assert
             assert_eq!(result.rows(), vec![vec![Value::Null, Value::Int64(2)]]);
             assert_eq!(result.columns()[0].name, prefix[..63]);
-            assert_eq!(result.columns()[0].type_oid, 34025);
+            assert_eq!(result.columns()[0].type_oid, 1009);
             assert_eq!(result.columns()[1].name, "tail");
             assert_eq!(result.columns()[1].type_oid, 20);
         }

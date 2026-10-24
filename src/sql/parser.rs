@@ -24,7 +24,7 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SqlErrorKind {

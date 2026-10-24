@@ -247,8 +247,10 @@ fn should_copy_scalar_indexes_when_like_includes_indexes() {
         let server = CompatibilityServer::start("like_including_indexes").await;
         let (client, connection) = server.connect().await;
         for statement in [
-            "CREATE TABLE compat_like_indexes_source \
-               (id INT UNIQUE NULLS NOT DISTINCT, label TEXT)",
+            "CREATE TABLE compat_like_indexes_source (id INT, label TEXT, \
+               CONSTRAINT compat_like_indexes_unique \
+                 UNIQUE NULLS NOT DISTINCT (id) INCLUDE (label) \
+                 WITH (fillfactor=70, deduplicate_items=off))",
             "CREATE INDEX compat_like_indexes_source_label_idx \
              ON compat_like_indexes_source (label)",
             "CREATE TABLE compat_like_indexes_target \
@@ -269,6 +271,21 @@ fn should_copy_scalar_indexes_when_like_includes_indexes() {
 
         // Act
         let copied_indexes = count_like_indexes(&client, "compat_like_indexes_target").await;
+        let unique_metadata = client
+            .query_one(
+                "SELECT index_row.indnatts::INT, index_row.indnkeyatts::INT, \
+                        index_class.reloptions::TEXT \
+                 FROM pg_catalog.pg_index AS index_row \
+                 JOIN pg_catalog.pg_class AS index_class \
+                   ON index_class.oid = index_row.indexrelid_oid \
+                 JOIN pg_catalog.pg_class AS table_class \
+                   ON table_class.oid = index_row.indrelid_oid \
+                 WHERE table_class.relname = 'compat_like_indexes_target' \
+                   AND index_row.indisunique",
+                &[],
+            )
+            .await
+            .expect("inspect copied UNIQUE INCLUDE metadata");
         client
             .batch_execute("INSERT INTO compat_like_indexes_target VALUES (1, 'first')")
             .await
@@ -294,6 +311,12 @@ fn should_copy_scalar_indexes_when_like_includes_indexes() {
         drop(client);
         server.shutdown(connection).await;
         assert_eq!(copied_indexes, 2);
+        assert_eq!(unique_metadata.get::<_, i32>(0), 2);
+        assert_eq!(unique_metadata.get::<_, i32>(1), 1);
+        assert_eq!(
+            unique_metadata.get::<_, String>(2),
+            "{deduplicate_items=false,fillfactor=70}"
+        );
         assert_eq!(db_error(&duplicate_id).code().code(), "23505");
         assert_eq!(db_error(&duplicate_null).code().code(), "23505");
     });

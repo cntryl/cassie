@@ -4094,7 +4094,7 @@ No public API or persistent metadata format changed.
 The focused green evidence is:
 
 - `cargo test --locked --test compatibility should_apply_like_all_with_explicit_exclusions -- --nocapture` — passed; checks ordered exclusions, defaults, CHECK, scalar indexes, identity mode, and independent source/target sequences.
-- `cargo test --locked --test compatibility should_copy_scalar_indexes_when_like_includes_indexes -- --nocapture` — passed; checks copied UNIQUE and secondary indexes and duplicate rejection (`23505`).
+- `cargo test --locked --test compatibility should_copy_scalar_indexes_when_like_includes_indexes -- --nocapture` — passed; checks copied `UNIQUE NULLS NOT DISTINCT` and secondary indexes, included payload/key counts, copied `fillfactor` and `deduplicate_items` options, and duplicate key/NULL rejection (`23505`).
 - `cargo test --locked --test compatibility should_preserve_composite_unique_key_order_when_like_includes_indexes -- --nocapture` — passed; preserves `(b, a)` key order and rejects duplicate tuples (`23505`).
 - `cargo test --locked --test compatibility should_copy_partial_unique_indexes_independently_when_like_includes_indexes -- --nocapture` — passed; copies partial predicates, resolves same-field index-name collisions, and isolates source/target unique reservations.
 - `cargo test --locked --test compatibility should_exclude_only_defaults_when_like_includes_all -- --nocapture` — passed; the default is absent while CHECK and NOT NULL remain enforced (`23514`, `23502`).
@@ -4107,12 +4107,13 @@ The focused green evidence is:
 - `cntryl-tools validate-tests -f tests/compatibility/lifecycle/tables/table_forms/semantics.rs` — passed, 15/15 compliant after extraction.
 
 Jev's boundary decision selected the scoped #826 slice (0.73 probability,
-0.59 confidence). Its initial adversarial gap probability was 0.69. Focused
-probes were selected for composite UNIQUE key order, partial unique-index
-predicate and target identity, generated-name collisions, `NULLS NOT DISTINCT`,
-and default-versus-constraint action precedence; all passed. The final gap
-probability was 0.24, with no concrete defect identified. Requests and
-responses are retained under ignored `target/jev/like-all-*.json`. The official PostgreSQL 18
+0.59 confidence). Adversarial review gap estimates of 0.69 and 0.45 prompted
+focused probes for composite UNIQUE key order, partial unique-index predicate
+and target identity, generated-name collisions, `NULLS NOT DISTINCT`,
+default-versus-constraint action precedence, and UNIQUE INCLUDE payload/options.
+All probes passed; the post-probe gap probability was 0.20, with no concrete
+defect identified. Requests and responses are retained under ignored
+`target/jev/like-all-*.json`. The official PostgreSQL 18
 reference confirms that `INCLUDING INDEXES` copies primary/unique constraints
 and indexes with target-generated names and that later explicit options can
 override options selected by `INCLUDING ALL`:

@@ -574,61 +574,61 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
                         Value::String("bigint".to_string()),
                         Value::Int64(DataType::BigInt.type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("bytea".to_string()),
                         Value::Int64(DataType::Bytea.type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("bytea[]".to_string()),
                         Value::Int64(DataType::Array(Box::new(DataType::Bytea)).type_oid()),
                         Value::Int64(DataType::Bytea.type_oid()),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("char".to_string()),
                         Value::Int64(DataType::Char { length: Some(1) }.type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("int".to_string()),
                         Value::Int64(DataType::Int.type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("int[]".to_string()),
                         Value::Int64(DataType::Array(Box::new(DataType::Int)).type_oid()),
                         Value::Int64(DataType::Int.type_oid()),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("smallint".to_string()),
                         Value::Int64(DataType::SmallInt.type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("text".to_string()),
                         Value::Int64(DataType::Text.type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("varchar".to_string()),
                         Value::Int64(DataType::Varchar { length: Some(8) }.type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                     vec![
                         Value::String("vector(2)".to_string()),
                         Value::Int64(DataType::Vector(2).type_oid()),
                         Value::Int64(0),
-                        Value::String("pg_catalog".to_string())
+                        Value::Int64(11)
                     ],
                 ]
             );

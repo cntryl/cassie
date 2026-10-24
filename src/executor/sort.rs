@@ -440,7 +440,12 @@ impl EvalInput<'_> {
                 let data_type = row.has_array_types().then(|| {
                     super::array_order::expression_type(row, &order.expr, self.user_functions)
                 });
-                admitted = accounting::conversion_bytes(&value, data_type.flatten().as_ref())?;
+                admitted = accounting::order_conversion_bytes(
+                    row,
+                    &order.expr,
+                    &value,
+                    data_type.flatten().as_ref(),
+                )?;
                 memory.try_grow(admitted)?;
             }
             retention.before(SortRetentionPhase::SemanticPart)?;

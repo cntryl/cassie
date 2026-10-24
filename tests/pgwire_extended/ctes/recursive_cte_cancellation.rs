@@ -20,8 +20,34 @@ fn current_thread_runtime() -> tokio::runtime::Runtime {
         .expect("runtime")
 }
 
+const FINITE_CYCLE_COUNT_SQL: &str = r"
+WITH RECURSIVE edges(source_node,target_node) AS (
+    VALUES (1::INTEGER,2::INTEGER),(2,3),(3,1)
+), walk(node) AS (
+    SELECT 1::INTEGER
+    UNION ALL
+    SELECT edge.target_node FROM edges AS edge
+    JOIN walk AS parent ON edge.source_node = parent.node
+    WHERE pg_sleep_for(INTERVAL '0 seconds') IS NOT NULL
+) CYCLE node SET is_cycle USING path
+SELECT COUNT(*) FROM walk
+";
+
+const SLEEPING_CYCLE_COUNT_SQL: &str = r"
+WITH RECURSIVE edges(source_node,target_node) AS (
+    VALUES (1::INTEGER,2::INTEGER),(2,3),(3,1)
+), walk(node) AS (
+    SELECT 1::INTEGER
+    UNION ALL
+    SELECT edge.target_node FROM edges AS edge
+    JOIN walk AS parent ON edge.source_node = parent.node
+    WHERE pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL
+) CYCLE node SET is_cycle USING path
+SELECT COUNT(*) FROM walk
+";
+
 #[test]
-fn should_cancel_recursive_cte_execution_without_publishing_partial_rows() {
+fn should_cancel_recursive_cte_with_cycle_metadata_without_publishing_partial_rows() {
     // Arrange
     let path = wire::data_dir("issue-801-recursive-cte-cancel");
     let _directory = FixtureDirectory(path.clone());
@@ -43,15 +69,7 @@ fn should_cancel_recursive_cte_execution_without_publishing_partial_rows() {
 
         wire::write_frames(
             &mut writer,
-            vec![wire::simple_query_frame(
-                "WITH RECURSIVE walk(n) AS ( \
-                    VALUES (1::INTEGER) \
-                    UNION ALL \
-                    SELECT n + 1 FROM walk \
-                    WHERE n < 3 \
-                      AND pg_sleep_for(INTERVAL '0 seconds') IS NOT NULL \
-                 ) SELECT COUNT(*) FROM walk",
-            )],
+            vec![wire::simple_query_frame(FINITE_CYCLE_COUNT_SQL)],
         )
         .await;
         let baseline =
@@ -59,15 +77,7 @@ fn should_cancel_recursive_cte_execution_without_publishing_partial_rows() {
 
         wire::write_frames(
             &mut writer,
-            vec![wire::simple_query_frame(
-                "WITH RECURSIVE walk(n) AS ( \
-                    VALUES (1::INTEGER) \
-                    UNION ALL \
-                    SELECT n + 1 FROM walk \
-                    WHERE n < 3 \
-                      AND pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL \
-                 ) SELECT COUNT(*) FROM walk",
-            )],
+            vec![wire::simple_query_frame(SLEEPING_CYCLE_COUNT_SQL)],
         )
         .await;
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -106,7 +116,7 @@ fn should_cancel_recursive_cte_execution_without_publishing_partial_rows() {
         wire::parse_row_description(&baseline_description.1)[0].type_oid,
         20
     );
-    assert_eq!(wire::data_rows(&baseline), vec![vec![Some("3".to_owned())]]);
+    assert_eq!(wire::data_rows(&baseline), vec![vec![Some("4".to_owned())]]);
 
     assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
     assert_eq!(

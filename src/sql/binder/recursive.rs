@@ -3,6 +3,12 @@ use super::{
     bind_statement, recursive_cte_reference_count, recursive_cte_references_self, CassieError,
     Catalog, CteQuery, CteScope,
 };
+use crate::sql::ast::{CteCycle, CteSearch};
+
+pub(super) struct RecursiveCteClauses<'a> {
+    pub(super) search: Option<&'a CteSearch>,
+    pub(super) cycle: Option<&'a CteCycle>,
+}
 
 pub(super) fn bind_recursive_cte_query(
     query: CteQuery,
@@ -10,6 +16,7 @@ pub(super) fn bind_recursive_cte_query(
     catalog: &Catalog,
     outer_scope: &CteScope<'_>,
     cte_name: &str,
+    clauses: &RecursiveCteClauses<'_>,
     context: &super::context::BindingContext,
 ) -> Result<CteQuery, CassieError> {
     let CteQuery::Recursive {
@@ -40,18 +47,32 @@ pub(super) fn bind_recursive_cte_query(
         )));
     }
     let bound_base = bind_statement(*base, catalog, outer_scope, context)?;
-    let row_fields = anchor_fields(
+    let mut row_fields = anchor_fields(
         &bound_base,
         outer_scope,
         catalog,
         context,
         &recursive_aliases,
     )?;
+    let functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
+    super::wildcard::append_search_cycle_fields(
+        cte_name,
+        &mut row_fields,
+        clauses.search,
+        clauses.cycle,
+        &functions,
+    )?;
+    let visible = row_fields.iter().map(|field| field.name.clone()).collect();
     let mut recursive_scope = outer_scope.clone();
     recursive_scope.insert(
         cte_name_lc,
         super::CteBinding {
-            visible: recursive_aliases.clone(),
+            visible,
             row_fields,
         },
     );

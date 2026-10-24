@@ -215,6 +215,8 @@ fn relation(
             statement: QueryStatement::Select(Box::new(select)),
         })),
         materialization: crate::sql::ast::CteMaterialization::Materialized,
+        search: None,
+        cycle: None,
     }
 }
 

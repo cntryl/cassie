@@ -48,10 +48,11 @@ pub use ast_dml::{
     MERGE_ACTION_COLUMN,
 };
 pub use ast_query::{
-    AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression,
-    CteMaterialization, CteQuery, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource,
-    SelectItem, SelectSet, SelectStatement, SetOperator, SortDirection, UnaryNumericOp,
-    WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
+    AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression, CteCycle,
+    CteMaterialization, CteQuery, CteSearch, CteSearchOrder, Expr, FunctionCall, JoinKind,
+    NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement, SetOperator,
+    SortDirection, UnaryNumericOp, WindowFrame, WindowFrameBound, WindowFrameExclusion,
+    WindowFrameUnit, WindowFunctionCall,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

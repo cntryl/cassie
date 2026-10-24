@@ -5,11 +5,24 @@ use std::collections::HashMap;
 use std::ops::ControlFlow;
 
 use crate::catalog::FunctionMeta;
-use crate::sql::ast::Expr;
+use crate::sql::ast::{CteSearchOrder, Expr};
 use crate::types::{DataType, Schema, Value};
 
 use super::batch::RowAccess;
 use super::semantic::{compare_array_parts, SemanticValue};
+
+const CTE_LINEAGE_COLUMN_PREFIX: &str = "\0cassie_cte_lineage:";
+
+#[derive(serde::Deserialize)]
+struct SearchLineage {
+    search_path: Vec<Vec<Value>>,
+    #[serde(default)]
+    #[serde(rename = "search_column")]
+    column: Option<String>,
+    #[serde(default)]
+    #[serde(rename = "search_order")]
+    order: Option<CteSearchOrder>,
+}
 
 pub(super) fn expression_type<R: RowAccess + ?Sized>(
     row: &R,
@@ -46,6 +59,9 @@ pub(super) fn key<R: RowAccess + ?Sized>(
     value: &Value,
     functions: &HashMap<String, FunctionMeta>,
 ) -> SemanticValue {
+    if let Some(key) = search_order_key(row, expr) {
+        return key;
+    }
     let declared = match expr {
         Expr::Column(name) => row.column_type(name),
         Expr::Cast { data_type, .. } => Some(data_type),
@@ -58,6 +74,70 @@ pub(super) fn key<R: RowAccess + ?Sized>(
         return SemanticValue::from_value(value);
     }
     typed_key(value, expression_type(row, expr, functions).as_ref())
+}
+
+pub(super) fn search_order_metadata_bytes<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+) -> Option<usize> {
+    searched_column(expr)?;
+    let bytes = row
+        .entries()
+        .iter()
+        .filter(|(name, _)| name.starts_with(CTE_LINEAGE_COLUMN_PREFIX))
+        .filter_map(|(_, value)| match value {
+            Value::String(json) => Some(json.len()),
+            _ => None,
+        })
+        .fold(0usize, usize::saturating_add);
+    (bytes > 0).then_some(bytes)
+}
+
+fn search_order_key<R: RowAccess + ?Sized>(row: &R, expr: &Expr) -> Option<SemanticValue> {
+    let column = searched_column(expr)?;
+    row.entries()
+        .iter()
+        .filter(|(name, _)| name.starts_with(CTE_LINEAGE_COLUMN_PREFIX))
+        .find_map(|(_, value)| {
+            let Value::String(json) = value else {
+                return None;
+            };
+            let lineage = serde_json::from_str::<SearchLineage>(json).ok()?;
+            if lineage.column.as_deref() != Some(column.as_str()) {
+                return None;
+            }
+            match lineage.order? {
+                CteSearchOrder::DepthFirst => Some(SemanticValue::Array(
+                    lineage
+                        .search_path
+                        .into_iter()
+                        .map(|record| {
+                            SemanticValue::Array(
+                                record.iter().map(SemanticValue::from_value).collect(),
+                            )
+                        })
+                        .collect(),
+                )),
+                CteSearchOrder::BreadthFirst => {
+                    let keys = lineage.search_path.last()?;
+                    let depth = i64::try_from(lineage.search_path.len().saturating_sub(1))
+                        .unwrap_or(i64::MAX);
+                    let mut fields = Vec::with_capacity(keys.len() + 1);
+                    fields.push(SemanticValue::from_value(&Value::Int64(depth)));
+                    fields.extend(keys.iter().map(SemanticValue::from_value));
+                    Some(SemanticValue::Array(fields))
+                }
+            }
+        })
+}
+
+fn searched_column(expr: &Expr) -> Option<String> {
+    let Expr::Column(name) = expr else {
+        return None;
+    };
+    crate::sql::ColumnIdentifierPath::parse(name)
+        .ok()
+        .map(|column| column.final_name().to_owned())
 }
 
 fn typed_key(value: &Value, data_type: Option<&DataType>) -> SemanticValue {

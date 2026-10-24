@@ -3,7 +3,7 @@ use crate::app::CassieError;
 use crate::catalog::{Catalog, Volatility};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, QuerySource, SelectItem, SelectStatement};
-use crate::sql::functions::{self, FunctionId};
+use crate::sql::functions::{self, FunctionId, MathFunction};
 
 pub(super) fn select(
     select: &SelectStatement,
@@ -60,8 +60,10 @@ fn function_pure(
     controls: &QueryExecutionControls,
 ) -> Result<bool, CassieError> {
     controls.check_interruption()?;
-    let mut pure = if let Some(definition) = functions::function(&function.name) {
-        definition.id != FunctionId::SetConfig
+    let mut pure = if volatile_builtin_name(&function.name) {
+        false
+    } else if let Some(definition) = functions::function(&function.name) {
+        !volatile_builtin(&function.name, definition.id)
     } else {
         match catalog.function_volatility(&function.name) {
             Some(Volatility::Volatile) => false,
@@ -76,6 +78,32 @@ fn function_pure(
         pure &= expression(expr, catalog, controls)?;
     }
     Ok(pure)
+}
+
+fn volatile_builtin_name(name: &str) -> bool {
+    let short_name = name.rsplit('.').next().unwrap_or(name);
+    matches!(
+        short_name.to_ascii_lowercase().as_str(),
+        "gen_random_uuid" | "uuidv4" | "uuidv7"
+    )
+}
+
+fn volatile_builtin(name: &str, id: FunctionId) -> bool {
+    let short_name = name.rsplit('.').next().unwrap_or(name);
+    matches!(
+        id,
+        FunctionId::SetConfig
+            | FunctionId::Nextval
+            | FunctionId::Currval
+            | FunctionId::Setval
+            | FunctionId::Lastval
+            | FunctionId::Math(
+                MathFunction::Random | MathFunction::RandomNormal | MathFunction::Setseed
+            )
+    ) || matches!(
+        short_name.to_ascii_lowercase().as_str(),
+        "clock_timestamp" | "timeofday" | "pg_sleep" | "pg_sleep_for" | "pg_sleep_until"
+    )
 }
 
 fn expression(

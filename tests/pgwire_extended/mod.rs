@@ -63,7 +63,7 @@ mod aggregates_ordered_set_arrays;
 mod aggregates_ordered_set_resources;
 
 #[path = "ctes/cancellation.rs"]
-mod ctes_cancellation;
+mod cte_cycle_recovery;
 
 #[path = "functions/math/overload_errors.rs"]
 mod functions_math_overload_errors;

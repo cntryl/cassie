@@ -182,8 +182,8 @@ fn should_return_postgres_typed_breadth_first_search_sequences() {
 #[test]
 fn should_observe_filter_pushdown_across_cte_materialization_modes() {
     // Arrange
-    let materialized_sql = "WITH chosen AS MATERIALIZED (SELECT x, 10 / x AS quotient FROM (VALUES (0), (1)) AS input(x)) SELECT x, quotient FROM chosen WHERE x <> 0";
-    let not_materialized_sql = "WITH chosen AS NOT MATERIALIZED (SELECT x, 10 / x AS quotient FROM (VALUES (0), (1)) AS input(x)) SELECT x, quotient FROM chosen WHERE x <> 0";
+    let materialized_sql = "WITH chosen AS MATERIALIZED (SELECT x, 10 / x AS quotient FROM (VALUES (0), (1)) AS input(x)) SELECT x, CAST(quotient AS INT4) AS quotient FROM chosen WHERE x <> 0";
+    let not_materialized_sql = "WITH chosen AS NOT MATERIALIZED (SELECT x, 10 / x AS quotient FROM (VALUES (0), (1)) AS input(x)) SELECT x, CAST(quotient AS INT4) AS quotient FROM chosen WHERE x <> 0";
     let batches = run_script(
         "postgresql18-cte-materialization-observable",
         vec![

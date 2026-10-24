@@ -67,6 +67,12 @@ impl Cassie {
             &logical.projection,
             &mut columns,
         );
+        crate::executor::aggregate::apply_recursive_cte_record_oids_for_query(
+            &logical.source,
+            &logical.ctes,
+            &logical.projection,
+            &mut columns,
+        );
         let returning = match logical.command.as_ref() {
             Some(LogicalCommand::Insert(statement)) => {
                 Some((&statement.table, &statement.returning))

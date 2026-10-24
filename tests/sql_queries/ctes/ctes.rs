@@ -84,6 +84,41 @@ fn should_preserve_results_for_multiple_not_materialized_references() {
 }
 
 #[test]
+fn should_share_volatile_not_materialized_cte_results_across_references() {
+    // Arrange
+    let fixture = sql_fixture("issue-801-not-materialized-volatile-sharing", &[]);
+    fixture
+        .execute("SELECT setseed(0.5)")
+        .expect("seed the session random sequence");
+
+    // Act
+    let result = fixture.execute(
+        "WITH chosen AS NOT MATERIALIZED (SELECT random() AS value) SELECT first.value, second.value FROM chosen AS first CROSS JOIN chosen AS second",
+    );
+
+    // Assert
+    let result = result.expect("volatile CTE remains shared despite NOT MATERIALIZED");
+    let rows = result.rows();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0][0], rows[0][1]);
+}
+
+#[test]
+fn should_share_uuid_generation_not_materialized_cte_results_across_references() {
+    // Arrange
+    let fixture = sql_fixture("issue-801-not-materialized-uuid-sharing", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "WITH chosen AS NOT MATERIALIZED (SELECT gen_random_uuid() AS value) SELECT first.value = second.value FROM chosen AS first CROSS JOIN chosen AS second",
+    );
+
+    // Assert
+    let result = result.expect("volatile UUID CTE remains shared despite NOT MATERIALIZED");
+    assert_eq!(result.rows(), &[vec![Value::Bool(true)]]);
+}
+
+#[test]
 fn should_expose_distinct_materialized_inline_plan_shapes() {
     // Arrange
     let fixture = repeated_reference_fixture("issue-801-materialization-plan-distinction");
@@ -155,7 +190,7 @@ fn should_preserve_recursive_results_with_materialized_modifier() {
 fn should_return_recursive_results_beyond_sixty_four_steps() {
     // Arrange
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.cte_recursion_depth = 64;
+    config.limits.cte_recursion_depth = 128;
     let fixture = sql_fixture_with_config("issue-801-recursive-growth", &[], config);
 
     // Act
@@ -176,11 +211,11 @@ fn should_limit_recursive_cycle_path_rows_by_query_result_cap() {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.max_result_rows = 5;
     let fixture = sql_fixture_with_config("issue-801-cycle-result-row-cap", &[], config);
-    let query = "WITH RECURSIVE walk(node) AS (\
-        SELECT 1::INT4\
-        UNION ALL\
-        SELECT CASE WHEN node = 32 THEN 1 ELSE node + 1 END FROM walk WHERE node <= 32\
-    ) CYCLE node SET is_cycle USING path\
+    let query = "WITH RECURSIVE walk(node) AS ( \
+        SELECT 1::INT4 \
+        UNION ALL \
+        SELECT CASE WHEN node = 32 THEN 1 ELSE node + 1 END FROM walk WHERE node <= 32 \
+    ) CYCLE node SET is_cycle USING path \
     SELECT node, is_cycle, path FROM walk ORDER BY node, is_cycle";
     let before = current_accounted_memory_bytes(&fixture);
 
@@ -280,14 +315,14 @@ fn should_order_depth_first_search_by_each_declared_key() {
 
     // Act
     let result = fixture.execute(
-        "WITH RECURSIVE tree(parent, node, priority) AS (\
-             VALUES (NULL::INT4, 1::INT4, 0::INT4), (1, 2, 2), (1, 3, 1), (2, 4, 1), (3, 5, 2)\
-         ), walk(node, priority) AS (\
-             SELECT node, priority FROM tree WHERE parent IS NULL\
-             UNION ALL\
-             SELECT child.node, child.priority\
-             FROM tree AS child JOIN walk AS parent ON child.parent = parent.node\
-         ) SEARCH DEPTH FIRST BY priority, node SET sequence\
+        "WITH RECURSIVE tree(parent, node, priority) AS ( \
+             VALUES (NULL::INT4, 1::INT4, 0::INT4), (1, 2, 2), (1, 3, 1), (2, 4, 1), (3, 5, 2) \
+         ), walk(node, priority) AS ( \
+             SELECT node, priority FROM tree WHERE parent IS NULL \
+             UNION ALL \
+             SELECT child.node, child.priority \
+             FROM tree AS child JOIN walk AS parent ON child.parent = parent.node \
+         ) SEARCH DEPTH FIRST BY priority, node SET sequence \
          SELECT node FROM walk ORDER BY sequence",
     );
 
@@ -366,18 +401,18 @@ fn should_detect_cycles_only_after_all_declared_keys_repeat() {
 
     // Act
     let result = fixture.execute(
-        "WITH RECURSIVE edges(source_node, source_label, target_node, target_label) AS (\
-             VALUES (1::INT4, 'A'::TEXT, 2::INT4, 'B'::TEXT),\
-                    (2::INT4, 'B'::TEXT, 1::INT4, 'C'::TEXT),\
-                    (1::INT4, 'C'::TEXT, 2::INT4, 'D'::TEXT),\
-                    (2::INT4, 'D'::TEXT, 1::INT4, 'A'::TEXT)\
-         ), walk(node, label, depth) AS (\
-             SELECT 1::INT4, 'A'::TEXT, 0::INT4\
-             UNION ALL\
-             SELECT edge.target_node, edge.target_label, parent.depth + 1\
-             FROM edges AS edge JOIN walk AS parent\
-               ON edge.source_node = parent.node AND edge.source_label = parent.label\
-         ) CYCLE node, label SET is_cycle USING path\
+        "WITH RECURSIVE edges(source_node, source_label, target_node, target_label) AS ( \
+             VALUES (1::INT4, 'A'::TEXT, 2::INT4, 'B'::TEXT), \
+                    (2::INT4, 'B'::TEXT, 1::INT4, 'C'::TEXT), \
+                    (1::INT4, 'C'::TEXT, 2::INT4, 'D'::TEXT), \
+                    (2::INT4, 'D'::TEXT, 1::INT4, 'A'::TEXT) \
+         ), walk(node, label, depth) AS ( \
+             SELECT 1::INT4, 'A'::TEXT, 0::INT4 \
+             UNION ALL \
+             SELECT edge.target_node, edge.target_label, parent.depth + 1 \
+             FROM edges AS edge JOIN walk AS parent \
+               ON edge.source_node = parent.node AND edge.source_label = parent.label \
+         ) CYCLE node, label SET is_cycle USING path \
          SELECT node, label, depth, is_cycle, path, path::TEXT FROM walk ORDER BY depth",
     );
 

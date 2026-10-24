@@ -237,44 +237,15 @@ fn binary_operand_family(
     if selects_typed_operator(op, left_family, right_family) {
         return Ok(None);
     }
+    if matches!(op, BinaryOp::Sub) && left_family == Some(OperandFamily::Json) {
+        return json_delete_key_family(right, right_family, field_types);
+    }
     match op {
         BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
             json_key_operator_family(left, op, right, (left_family, right_family), field_types)
         }
         BinaryOp::ByteaConcat => Ok(Some(OperandFamily::Other)),
-        BinaryOp::Concat => {
-            // Parameter OIDs choose the text or BYTEA overload in the typed pass.
-            if expr_contains_parameters(left) || expr_contains_parameters(right) {
-                return Ok(None);
-            }
-            let family = |expr: &Expr, inferred| {
-                if matches!(expr, Expr::StringLiteral(_)) {
-                    Some(OperandFamily::Text)
-                } else {
-                    inferred
-                }
-            };
-            let left = family(left, left_family);
-            let right = family(right, right_family);
-            if [left, right].into_iter().flatten().any(|family| {
-                !matches!(
-                    family,
-                    OperandFamily::Numeric | OperandFamily::Boolean | OperandFamily::Text
-                )
-            }) {
-                return Err(CassieError::Unsupported(
-                    "concatenation for this input layout remains pending under #793/#796".into(),
-                ));
-            }
-            if left.is_some_and(|family| family != OperandFamily::Text)
-                && right.is_some_and(|family| family != OperandFamily::Text)
-            {
-                return Err(CassieError::Execution(
-                    "operator does not exist: non-text || non-text".into(),
-                ));
-            }
-            Ok(Some(OperandFamily::Text))
-        }
+        BinaryOp::Concat => concat_operand_family(left, right, left_family, right_family),
         BinaryOp::And | BinaryOp::Or | BinaryOp::Typed { .. } | BinaryOp::Quantified { .. } => {
             Ok(Some(OperandFamily::Boolean))
         }
@@ -333,6 +304,73 @@ fn binary_operand_family(
             Ok(Some(OperandFamily::Numeric))
         }
     }
+}
+
+fn concat_operand_family(
+    left: &Expr,
+    right: &Expr,
+    left_family: Option<OperandFamily>,
+    right_family: Option<OperandFamily>,
+) -> Result<Option<OperandFamily>, CassieError> {
+    // Parameter OIDs choose the text or BYTEA overload in the typed pass.
+    if expr_contains_parameters(left) || expr_contains_parameters(right) {
+        return Ok(None);
+    }
+    let family = |expr: &Expr, inferred| {
+        if matches!(expr, Expr::StringLiteral(_)) {
+            Some(OperandFamily::Text)
+        } else {
+            inferred
+        }
+    };
+    let left = family(left, left_family);
+    let right = family(right, right_family);
+    if [left, right].into_iter().flatten().any(|family| {
+        !matches!(
+            family,
+            OperandFamily::Numeric | OperandFamily::Boolean | OperandFamily::Text
+        )
+    }) {
+        return Err(CassieError::Unsupported(
+            "concatenation for this input layout remains pending under #793/#796".into(),
+        ));
+    }
+    if left.is_some_and(|family| family != OperandFamily::Text)
+        && right.is_some_and(|family| family != OperandFamily::Text)
+    {
+        return Err(CassieError::Execution(
+            "operator does not exist: non-text || non-text".into(),
+        ));
+    }
+    Ok(Some(OperandFamily::Text))
+}
+
+fn json_delete_key_family(
+    right: &Expr,
+    right_family: Option<OperandFamily>,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<OperandFamily>, CassieError> {
+    validate_json_delete_key_operand(right, right_family, field_types)?;
+    Ok(Some(OperandFamily::Json))
+}
+
+fn validate_json_delete_key_operand(
+    right: &Expr,
+    right_family: Option<OperandFamily>,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<(), CassieError> {
+    if matches!(right, Expr::StringLiteral(_) | Expr::Null | Expr::Param(_))
+        || right_family == Some(OperandFamily::Text)
+    {
+        return Ok(());
+    }
+    let right_type = super::known_expr_type(right, field_types).map_or_else(
+        || right_family.map_or_else(|| "unknown".to_owned(), |family| family.label().to_owned()),
+        |data_type| data_type.type_name(),
+    );
+    Err(CassieError::Execution(format!(
+        "operator does not exist: json - {right_type}"
+    )))
 }
 
 fn json_key_operator_family(

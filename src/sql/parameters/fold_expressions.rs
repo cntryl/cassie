@@ -200,6 +200,19 @@ impl Fold<'_, '_> {
         Ok(Some(Summary::known(16)))
     }
 
+    fn json_delete_key(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if !matches!(op, ast::BinaryOp::Sub) || self.summaries.values[frame.start].oid != 114 {
+            return Ok(None);
+        }
+        self.occurrences
+            .coerce(&mut self.summaries.values[frame.start + 1], 25, true)?;
+        Ok(Some(Summary::known(114)))
+    }
+
     fn shift_binary(
         &mut self,
         op: &ast::BinaryOp,
@@ -230,6 +243,9 @@ impl Fold<'_, '_> {
         op: &ast::BinaryOp,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if let Some(summary) = self.json_delete_key(op, frame)? {
+            return Ok(summary);
+        }
         if let Some(summary) = self.json_key_operator(op, frame)? {
             return Ok(summary);
         }

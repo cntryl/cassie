@@ -21,6 +21,8 @@ mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 /// Resolves a reached `EXISTS` or sublink node to its executed form.
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<Expr, QueryError> + 'a;
+#[path = "filter/json_delete.rs"]
+mod json_delete;
 #[path = "filter/json_key_exists.rs"]
 mod json_key_exists;
 #[path = "filter/quantified_array.rs"]
@@ -816,6 +818,18 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
+    if matches!(op, BinaryOp::Sub) && is_json_delete_input(row, left, &left_value) {
+        if matches!(&left_value, ScalarValue::Null) || matches!(&right_value, ScalarValue::Null) {
+            return Ok(ScalarValue::Null);
+        }
+        if !matches!(&left_value, ScalarValue::Json(_)) {
+            return Err(crate::app::CassieError::InvalidParameterValue(
+                "cannot delete from scalar".into(),
+            )
+            .into());
+        }
+        return json_delete::delete_text(&left_value, &right_value);
+    }
     if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {
         return result;
     }
@@ -839,6 +853,20 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
         }
     }
     binary_scalar(&left_value, op, &right_value)
+}
+
+fn is_json_delete_input<R: RowAccess + ?Sized>(
+    row: &R,
+    expression: &Expr,
+    value: &ScalarValue,
+) -> bool {
+    match expression {
+        Expr::Column(name) => row
+            .column_type(name)
+            .is_some_and(|data_type| *data_type == DataType::Json),
+        Expr::Cast { data_type, .. } if *data_type == DataType::Json => true,
+        _ => matches!(value, ScalarValue::Json(_)),
+    }
 }
 
 fn eval_is_null_expr<R: RowAccess + ?Sized>(

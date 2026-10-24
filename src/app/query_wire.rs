@@ -73,6 +73,7 @@ impl Cassie {
             &logical.projection,
             &mut columns,
         );
+        crate::executor::aggregate::apply_void_function_oids(&logical.projection, &mut columns);
         let returning = match logical.command.as_ref() {
             Some(LogicalCommand::Insert(statement)) => {
                 Some((&statement.table, &statement.returning))

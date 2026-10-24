@@ -179,7 +179,82 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
         })
         .collect::<Vec<_>>();
     apply_percentile_array_oids(projection, &mut columns);
+    apply_void_function_oids(projection, &mut columns);
     columns
+}
+
+/// Applies PostgreSQL's output-only pseudo-type identity to direct `void`
+/// function projections without adding `void` to Cassie's persisted type set.
+pub(crate) fn apply_void_function_oids(projection: &[SelectItem], columns: &mut [ColumnMeta]) {
+    if projection.len() != columns.len()
+        || projection
+            .iter()
+            .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        return;
+    }
+    for (item, column) in projection.iter().zip(columns) {
+        let is_void = match item {
+            SelectItem::Function { function, .. } => is_void_result_function(function),
+            SelectItem::Expr { expr, .. } => is_void_result_expression(expr),
+            _ => false,
+        };
+        if is_void {
+            column.type_oid = 2278;
+            column.typlen = 4;
+            column.atttypmod = -1;
+        }
+    }
+}
+
+fn is_void_function(function: &FunctionCall) -> bool {
+    crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::PgSleep
+                | crate::sql::functions::FunctionId::PgSleepFor
+                | crate::sql::functions::FunctionId::PgSleepUntil
+        )
+    })
+}
+
+fn is_void_result_function(function: &FunctionCall) -> bool {
+    if is_void_function(function) {
+        return true;
+    }
+    let is_coalesce = crate::sql::functions::function(&function.name)
+        .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::Coalesce);
+    is_coalesce
+        && function.args.iter().any(is_void_result_expression)
+        && function.args.iter().all(is_void_or_null_result_expression)
+}
+
+fn is_void_result_expression(expression: &Expr) -> bool {
+    match expression {
+        Expr::Function(function) => is_void_result_function(function),
+        Expr::Case {
+            branches,
+            else_expr,
+            ..
+        } => {
+            let has_void_result = branches
+                .iter()
+                .any(|(_, result)| is_void_result_expression(result))
+                || else_expr.as_deref().is_some_and(is_void_result_expression);
+            has_void_result
+                && branches
+                    .iter()
+                    .all(|(_, result)| is_void_or_null_result_expression(result))
+                && else_expr
+                    .as_deref()
+                    .is_none_or(is_void_or_null_result_expression)
+        }
+        _ => false,
+    }
+}
+
+fn is_void_or_null_result_expression(expression: &Expr) -> bool {
+    matches!(expression, Expr::Null) || is_void_result_expression(expression)
 }
 
 /// Applies PostgreSQL's built-in array OID to percentile array results only.

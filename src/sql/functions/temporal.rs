@@ -50,13 +50,39 @@ temporal_functions! {
     "timezone": 1..=2,
     "date_add": 2..=3,
     "date_subtract": 2..=3,
-    "pg_sleep": 1..=1,
-    "pg_sleep_for": 1..=1,
-    "pg_sleep_until": 1..=1,
     "pg_conf_load_time": 0..=0,
     "to_number": 2..=2,
     "pg_postmaster_start_time": 0..=0,
 }
+
+// The executor carries PostgreSQL `void` as an empty text value. The named
+// FunctionId lets pgwire restore OID 2278 on direct result projections.
+pub(super) const SLEEP_FUNCTIONS: &[ScalarFunction] = &[
+    ScalarFunction {
+        id: FunctionId::PgSleep,
+        name: "pg_sleep",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgSleepFor,
+        name: "pg_sleep_for",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgSleepUntil,
+        name: "pg_sleep_until",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+];
 
 const fn extended(kind: ExtendedType) -> DataType {
     DataType::Extended(kind)
@@ -197,7 +223,15 @@ pub(crate) fn clock_dependent(encoded: &str) -> bool {
 
 /// Whether `name` is a date/time builtin.
 pub(crate) fn is_temporal(name: &str) -> bool {
-    super::function(name).is_some_and(|metadata| metadata.id == FunctionId::Temporal)
+    super::function(name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            FunctionId::Temporal
+                | FunctionId::PgSleep
+                | FunctionId::PgSleepFor
+                | FunctionId::PgSleepUntil
+        )
+    })
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

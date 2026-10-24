@@ -181,6 +181,9 @@ pub enum FunctionId {
     Setval,
     Lastval,
     PgGetSerialSequence,
+    PgSleep,
+    PgSleepFor,
+    PgSleepUntil,
     Math(MathFunction),
     /// A date/time builtin; its result type depends on its arguments.
     Temporal,
@@ -274,6 +277,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
         .chain(math::FUNCTIONS)
+        .chain(temporal::SLEEP_FUNCTIONS)
         .cloned()
         .collect()
 }
@@ -294,6 +298,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(runtime::FUNCTIONS)
         .chain(math::FUNCTIONS)
         .chain(temporal::FUNCTIONS)
+        .chain(temporal::SLEEP_FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
         .or_else(|| {
             name.get(..11)
@@ -347,6 +352,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(runtime::FUNCTIONS)
                         .chain(math::FUNCTIONS)
                         .chain(temporal::FUNCTIONS)
+                        .chain(temporal::SLEEP_FUNCTIONS)
                         .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
                 })
         })

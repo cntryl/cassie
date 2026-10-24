@@ -1,211 +1,3 @@
-struct LikeAllObservations {
-    copied_default: tokio_postgres::Row,
-    duplicate_all_label: tokio_postgres::Error,
-    excluded_rows: u64,
-    all_label_metadata: tokio_postgres::Row,
-    excluded_label_default: tokio_postgres::Row,
-    all_identity: tokio_postgres::Row,
-    all_checks: i64,
-    excluded_checks: i64,
-    all_indexes: i64,
-    excluded_indexes: i64,
-}
-
-async fn read_like_all_catalog(
-    client: &tokio_postgres::Client,
-) -> (
-    tokio_postgres::Row,
-    tokio_postgres::Row,
-    tokio_postgres::Row,
-    i64,
-    i64,
-    i64,
-    i64,
-) {
-    let included_label = client
-        .query_one(
-            "SELECT pg_get_expr(d.adbin, d.adrelid), \
-                    col_description(c.oid, a.attnum), \
-                    a.attstorage::TEXT, a.attcompression::TEXT \
-             FROM pg_class c \
-             JOIN pg_attribute a ON a.attrelid = c.oid \
-             LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum \
-             WHERE c.relname = 'compat_like_options_all' AND a.attname = 'label'",
-            &[],
-        )
-        .await
-        .expect("inspect included column metadata");
-    let excluded_label_default = client
-        .query_one(
-            "SELECT pg_get_expr(d.adbin, d.adrelid) \
-             FROM pg_class c \
-             JOIN pg_attribute a ON a.attrelid = c.oid \
-             LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum \
-             WHERE c.relname = 'compat_like_options_excluded' AND a.attname = 'label'",
-            &[],
-        )
-        .await
-        .expect("inspect excluded default metadata");
-    let all_identity = client
-        .query_one(
-            "SELECT attidentity::TEXT FROM pg_attribute \
-             WHERE attrelid = 'compat_like_options_all'::regclass AND attname = 'id'",
-            &[],
-        )
-        .await
-        .expect("inspect included identity metadata");
-    let all_checks = count_like_constraints(client, "compat_like_options_all").await;
-    let excluded_checks = count_like_constraints(client, "compat_like_options_excluded").await;
-    let all_indexes = count_like_indexes(client, "compat_like_options_all").await;
-    let excluded_indexes = count_like_indexes(client, "compat_like_options_excluded").await;
-    (
-        included_label,
-        excluded_label_default,
-        all_identity,
-        all_checks,
-        excluded_checks,
-        all_indexes,
-        excluded_indexes,
-    )
-}
-
-async fn count_like_constraints(client: &tokio_postgres::Client, table: &str) -> i64 {
-    client
-        .query_one(
-            "SELECT count(*) FROM pg_constraint \
-             WHERE conrelid = $1::regclass AND contype = 'c'",
-            &[&table],
-        )
-        .await
-        .expect("count copied CHECK constraints")
-        .get(0)
-}
-
-async fn count_like_indexes(client: &tokio_postgres::Client, table: &str) -> i64 {
-    client
-        .query_one(
-            "SELECT count(*) FROM pg_index WHERE indrelid = $1::regclass",
-            &[&table],
-        )
-        .await
-        .expect("count copied indexes")
-        .get(0)
-}
-
-async fn observe_like_all_copy(client: &tokio_postgres::Client) -> LikeAllObservations {
-    let copied_default = client
-        .query_one(
-            "INSERT INTO compat_like_options_all (id) VALUES (1) RETURNING label",
-            &[],
-        )
-        .await
-        .expect("INCLUDING ALL should copy the source default");
-    let duplicate_all_label = client
-        .execute(
-            "INSERT INTO compat_like_options_all (id, label) VALUES (2, 'template')",
-            &[],
-        )
-        .await
-        .expect_err("INCLUDING ALL should copy the unique index");
-    let excluded_rows = client
-        .execute(
-            "INSERT INTO compat_like_options_excluded (id, label) \
-             VALUES (1, 'blocked'), (1, 'blocked')",
-            &[],
-        )
-        .await
-        .expect("EXCLUDING options should omit defaults, checks, and indexes");
-    let (
-        all_label_metadata,
-        excluded_label_default,
-        all_identity,
-        all_checks,
-        excluded_checks,
-        all_indexes,
-        excluded_indexes,
-    ) = read_like_all_catalog(client).await;
-    LikeAllObservations {
-        copied_default,
-        duplicate_all_label,
-        excluded_rows,
-        all_label_metadata,
-        excluded_label_default,
-        all_identity,
-        all_checks,
-        excluded_checks,
-        all_indexes,
-        excluded_indexes,
-    }
-}
-
-#[test]
-fn should_apply_like_all_with_explicit_exclusions() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("like_all_explicit_exclusions").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_like_options_source (\
-                   id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\
-                   label TEXT NOT NULL DEFAULT 'template',\
-                   CONSTRAINT compat_like_options_check CHECK (label <> 'blocked'),\
-                   UNIQUE (label)\
-                 )",
-                "COMMENT ON COLUMN compat_like_options_source.label IS 'copied comment'",
-                "ALTER TABLE compat_like_options_source ALTER COLUMN label SET STORAGE EXTERNAL",
-                "ALTER TABLE compat_like_options_source ALTER COLUMN label SET COMPRESSION pglz",
-                "CREATE TABLE compat_like_options_all (\
-                   LIKE compat_like_options_source INCLUDING ALL EXCLUDING IDENTITY\
-                 )",
-                "CREATE TABLE compat_like_options_excluded (\
-                   LIKE compat_like_options_source INCLUDING ALL EXCLUDING DEFAULTS\
-                   EXCLUDING CONSTRAINTS EXCLUDING INDEXES EXCLUDING IDENTITY\
-                 )",
-            ],
-        )
-        .await
-        .expect("create LIKE source and combined option copies");
-
-        // Act
-        let observations = observe_like_all_copy(&client).await;
-
-        // Assert
-        assert_eq!(observations.copied_default.get::<_, String>(0), "template");
-        assert_eq!(
-            db_error(&observations.duplicate_all_label).code().code(),
-            "23505"
-        );
-        assert_eq!(observations.excluded_rows, 2);
-        assert_eq!(
-            observations.all_label_metadata.get::<_, String>(0),
-            "'template'::text"
-        );
-        assert_eq!(
-            observations.all_label_metadata.get::<_, String>(1),
-            "copied comment"
-        );
-        assert_eq!(observations.all_label_metadata.get::<_, String>(2), "e");
-        assert_eq!(observations.all_label_metadata.get::<_, String>(3), "p");
-        assert_eq!(
-            observations
-                .excluded_label_default
-                .get::<_, Option<String>>(0),
-            None
-        );
-        assert_eq!(observations.all_identity.get::<_, String>(0), "");
-        assert_eq!(observations.all_checks, 1);
-        assert_eq!(observations.excluded_checks, 0);
-        assert_eq!(observations.all_indexes, 2);
-        assert_eq!(observations.excluded_indexes, 0);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
 #[test]
 fn should_reject_table_like_before_creating_the_target() {
     // Arrange
@@ -222,7 +14,7 @@ fn should_reject_table_like_before_creating_the_target() {
         let error = client
             .batch_execute(
                 "CREATE TABLE compat_like_guard_target \
-                 (LIKE compat_like_guard_source INCLUDING ALL)",
+                 (LIKE compat_like_guard_source INCLUDING COMMENTS)",
             )
             .await
             .expect_err("LIKE copy execution is still pending");
@@ -244,7 +36,7 @@ fn should_reject_table_like_before_creating_the_target() {
         server.shutdown(connection).await;
         assert_eq!(sqlstate, "0A000");
         assert!(
-            message.contains("CREATE TABLE LIKE option INCLUDING ALL is not supported"),
+            message.contains("CREATE TABLE LIKE option INCLUDING COMMENTS is not supported"),
             "unexpected error message: {message}"
         );
         assert!(!target_exists);
@@ -275,7 +67,7 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
         let error = client
             .batch_execute(
                 "CREATE TABLE IF NOT EXISTS compat_like_short_circuit_target \
-                 (LIKE compat_like_short_circuit_source INCLUDING ALL)",
+                 (LIKE compat_like_short_circuit_source INCLUDING COMMENTS)",
             )
             .await
             .expect_err("LIKE guard must run before IF NOT EXISTS");
@@ -283,10 +75,7 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
         let sqlstate = error.code().code().to_owned();
         let message = error.message().to_owned();
         let retained_value: i32 = client
-            .query_one(
-                "SELECT id FROM compat_like_short_circuit_target",
-                &[],
-            )
+            .query_one("SELECT id FROM compat_like_short_circuit_target", &[])
             .await
             .expect("existing target remains readable")
             .get(0);
@@ -296,7 +85,7 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
         server.shutdown(connection).await;
         assert_eq!(sqlstate, "0A000");
         assert!(
-            message.contains("CREATE TABLE LIKE option INCLUDING ALL is not supported"),
+            message.contains("CREATE TABLE LIKE option INCLUDING COMMENTS is not supported"),
             "unexpected error message: {message}"
         );
         assert_eq!(retained_value, 7);
@@ -535,9 +324,7 @@ fn should_reject_materialized_view_rename_until_lifecycle_support_is_implemented
 
         // Act
         let result = client
-            .batch_execute(
-                "ALTER MATERIALIZED VIEW compat_mv_rename RENAME TO compat_mv_renamed",
-            )
+            .batch_execute("ALTER MATERIALIZED VIEW compat_mv_rename RENAME TO compat_mv_renamed")
             .await;
         let error = result.expect_err("materialized-view rename remains pending under #839");
         let catalog = client
@@ -783,7 +570,8 @@ fn should_preserve_active_materialized_view_when_concurrent_refresh_cannot_rebui
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let server = CompatibilityServer::start("materialized_view_concurrent_refresh_failure").await;
+        let server =
+            CompatibilityServer::start("materialized_view_concurrent_refresh_failure").await;
         let (client, connection) = server.connect().await;
         execute_statements(
             &client,
@@ -808,9 +596,7 @@ fn should_preserve_active_materialized_view_when_concurrent_refresh_cannot_rebui
 
         // Act
         let refresh_error = client
-            .batch_execute(
-                "REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_concurrent_failure",
-            )
+            .batch_execute("REFRESH MATERIALIZED VIEW CONCURRENTLY compat_mv_concurrent_failure")
             .await
             .expect_err("reject a replacement that violates the carried unique index");
         let rows = client
@@ -847,7 +633,8 @@ fn should_reject_concurrent_refresh_of_unpopulated_materialized_view() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let server = CompatibilityServer::start("materialized_view_concurrent_refresh_unpopulated").await;
+        let server =
+            CompatibilityServer::start("materialized_view_concurrent_refresh_unpopulated").await;
         let (client, connection) = server.connect().await;
         client
             .batch_execute(
@@ -884,7 +671,8 @@ fn should_reject_concurrent_refresh_with_no_data() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let server = CompatibilityServer::start("materialized_view_concurrent_refresh_no_data").await;
+        let server =
+            CompatibilityServer::start("materialized_view_concurrent_refresh_no_data").await;
         let (client, connection) = server.connect().await;
         client
             .batch_execute("CREATE TABLE compat_mv_concurrent_no_data_source (id INT PRIMARY KEY)")

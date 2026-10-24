@@ -1,9 +1,16 @@
 use super::{
     collect_scan, key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta,
-    CollectionStorageMode, DocumentRef, FieldConstraint, HashSet, Instant, Midge, MidgeScanTimings,
-    ProjectionMeta, Query, RowFilter, RowSchema, Schema,
+    CollectionStorageMode, DocumentRef, FieldConstraint, HashSet, IndexKind, IndexMeta, Instant,
+    Midge, MidgeScanTimings, ProjectionMeta, Query, RowFilter, RowSchema, Schema,
 };
 use std::time::Duration;
+
+#[derive(Clone, Copy, Default)]
+struct InitialCollectionContents<'a> {
+    constraints: Option<&'a [FieldConstraint]>,
+    sequences: Option<&'a [crate::catalog::SequenceMeta]>,
+    indexes: Option<&'a [IndexMeta]>,
+}
 
 #[derive(Clone, Copy)]
 pub(crate) struct ColumnStoreScanRequest<'a> {
@@ -39,8 +46,14 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<u64, CassieError> {
-        self.create_collection_with_meta_inner(name, schema, metadata, false, None, None)
-            .map(|(_, storage_id)| storage_id)
+        self.create_collection_with_meta_inner(
+            name,
+            schema,
+            metadata,
+            false,
+            InitialCollectionContents::default(),
+        )
+        .map(|(_, storage_id)| storage_id)
     }
 
     /// Creates a collection only when no case-insensitive storage relation with
@@ -58,8 +71,14 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<Option<u64>, CassieError> {
-        self.create_collection_with_meta_inner(name, schema, metadata, true, None, None)
-            .map(|(created, storage_id)| created.then_some(storage_id))
+        self.create_collection_with_meta_inner(
+            name,
+            schema,
+            metadata,
+            true,
+            InitialCollectionContents::default(),
+        )
+        .map(|(created, storage_id)| created.then_some(storage_id))
     }
 
     /// Creates a collection, initial constraints, and owned identity sequences in one database-family transaction.
@@ -80,14 +99,55 @@ impl Midge {
         sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<Option<u64>, CassieError> {
         self.validate_initial_column_constraints(name, constraints, sequences)?;
-        let (created, storage_id) = self.create_collection_with_meta_inner(
-            name,
-            schema,
-            metadata,
-            true,
-            Some(constraints),
-            Some(sequences),
-        )?;
+        let initial = InitialCollectionContents {
+            constraints: Some(constraints),
+            sequences: Some(sequences),
+            ..InitialCollectionContents::default()
+        };
+        let (created, storage_id) =
+            self.create_collection_with_meta_inner(name, schema, metadata, true, initial)?;
+        Ok(created.then_some(storage_id))
+    }
+
+    /// Atomically creates an empty table clone with its supported constraints,
+    /// sequences, and scalar index metadata in the owning database family.
+    ///
+    /// The target has no rows, so its scalar indexes have no physical entries
+    /// to backfill before publication.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the initial metadata is invalid or storage fails.
+    pub(crate) fn create_collection_with_meta_constraints_sequences_and_indexes_if_absent(
+        &self,
+        name: &str,
+        schema: &Schema,
+        metadata: &CollectionMeta,
+        constraints: &[FieldConstraint],
+        sequences: &[crate::catalog::SequenceMeta],
+        indexes: &[IndexMeta],
+    ) -> Result<Option<u64>, CassieError> {
+        if indexes.is_empty()
+            && !constraints
+                .iter()
+                .any(|constraint| constraint.primary_key || constraint.unique)
+        {
+            return self.create_collection_with_meta_and_constraints_and_sequences_if_absent(
+                name,
+                schema,
+                metadata,
+                constraints,
+                sequences,
+            );
+        }
+        self.validate_initial_clone_constraints(name, constraints, sequences, indexes)?;
+        let initial = InitialCollectionContents {
+            constraints: Some(constraints),
+            sequences: Some(sequences),
+            indexes: Some(indexes),
+        };
+        let (created, storage_id) =
+            self.create_collection_with_meta_inner(name, schema, metadata, true, initial)?;
         Ok(created.then_some(storage_id))
     }
 
@@ -97,8 +157,7 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
         require_absent: bool,
-        initial_constraints: Option<&[FieldConstraint]>,
-        initial_sequences: Option<&[crate::catalog::SequenceMeta]>,
+        initial: InitialCollectionContents<'_>,
     ) -> Result<(bool, u64), CassieError> {
         let name = self.canonical_collection_name(name);
         let write_gate = self.collection_write_gate(&name);
@@ -125,7 +184,7 @@ impl Midge {
             return Ok((false, 0));
         }
 
-        self.validate_initial_sequences_absent(&mut tx, initial_sequences.unwrap_or(&[]))?;
+        self.validate_initial_sequences_absent(&mut tx, initial.sequences.unwrap_or(&[]))?;
 
         if !schema_exists {
             let schema_bytes = serde_json::to_vec(schema)
@@ -177,14 +236,17 @@ impl Midge {
         if existing_metadata.is_none() {
             Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
         }
-        if let Some(constraints) = initial_constraints {
+        if let Some(constraints) = initial.constraints {
             let value = serde_json::to_vec(constraints)
                 .map_err(|error| CassieError::Parse(error.to_string()))?;
             tx.put(Self::constraints_key(&name), value, None)
                 .map_err(CassieError::from)?;
         }
-        if let Some(sequences) = initial_sequences {
+        if let Some(sequences) = initial.sequences {
             self.save_initial_sequences_to_tx(&mut tx, sequences)?;
+        }
+        if let Some(indexes) = initial.indexes {
+            Self::save_initial_indexes_to_tx(&mut tx, &name, storage_id, indexes)?;
         }
 
         let mut collections = Self::load_collections(&tx)?;
@@ -200,6 +262,67 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok((!schema_exists && existing_metadata.is_none(), storage_id))
+    }
+
+    fn save_initial_indexes_to_tx(
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        name: &str,
+        relation_id: u64,
+        indexes: &[IndexMeta],
+    ) -> Result<(), CassieError> {
+        let mut seen_names = std::collections::HashSet::new();
+        for index in indexes {
+            let index = index.clone_for_relation(name, &index.name);
+            if !seen_names.insert(index.name.to_ascii_lowercase()) {
+                return Err(CassieError::CatalogObjectAlreadyExists {
+                    kind: crate::app::CatalogObjectKind::Index,
+                    name: index.name,
+                });
+            }
+            if index.kind != IndexKind::Scalar
+                || !index.access_method().eq_ignore_ascii_case("btree")
+            {
+                return Err(CassieError::Unsupported(
+                    "initial table clone publication supports scalar btree indexes only"
+                        .to_string(),
+                ));
+            }
+            for expression in index.expressions.iter().chain(&index.predicate) {
+                crate::sql::definition_guard::encoded_expression(expression)?;
+            }
+            let index_key = Self::index_key(name, &index.name);
+            if tx.get(&index_key).map_err(CassieError::from)?.is_some() {
+                return Err(CassieError::CatalogObjectAlreadyExists {
+                    kind: crate::app::CatalogObjectKind::Index,
+                    name: index.name,
+                });
+            }
+            Self::write_initial_index_metadata(tx, &index_key, relation_id, index)?;
+        }
+        Ok(())
+    }
+
+    fn write_initial_index_metadata(
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        index_key: &[u8],
+        relation_id: u64,
+        mut index: IndexMeta,
+    ) -> Result<(), CassieError> {
+        let index_storage_id = Self::allocate_object_id_to_tx(tx)?;
+        let index_name = index.name.clone();
+        index.set_storage_ids(relation_id, index_storage_id);
+        index.set_catalog_oid_if_missing(crate::catalog::object_identity::stable_index_oid(
+            &index_name,
+        ));
+        if index.unique {
+            index.set_unique_reservation_name_if_missing(&index_name);
+        }
+        tx.put(
+            index_key.to_vec(),
+            serde_json::to_vec(&index).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)
     }
 
     fn collection_storage_id_needed(
@@ -282,6 +405,68 @@ impl Midge {
             return Err(CassieError::Unsupported(
                 "initial identity metadata requires a matching target-owned sequence".to_string(),
             ));
+        }
+        Ok(())
+    }
+
+    fn validate_initial_clone_constraints(
+        &self,
+        table: &str,
+        constraints: &[FieldConstraint],
+        sequences: &[crate::catalog::SequenceMeta],
+        indexes: &[IndexMeta],
+    ) -> Result<(), CassieError> {
+        let mut initial_constraints = constraints.to_vec();
+        for constraint in &mut initial_constraints {
+            constraint.primary_key = false;
+            constraint.primary_key_name = None;
+            constraint.primary_key_ordinal = None;
+            constraint.unique = false;
+            constraint.unique_name = None;
+            constraint.unique_ordinal = None;
+            constraint.constraint_index_name = None;
+            constraint.constraint_index_include_fields.clear();
+            constraint.constraint_index_options.clear();
+        }
+        self.validate_initial_column_constraints(table, &initial_constraints, sequences)?;
+
+        for constraint in constraints
+            .iter()
+            .filter(|constraint| constraint.primary_key || constraint.unique)
+        {
+            let expected_fields = if let Some(unique_name) = &constraint.unique_name {
+                let mut members = constraints
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.unique
+                            && candidate
+                                .unique_name
+                                .as_ref()
+                                .is_some_and(|name| name.eq_ignore_ascii_case(unique_name))
+                    })
+                    .collect::<Vec<_>>();
+                members.sort_by_key(|member| member.unique_ordinal.unwrap_or(u32::MAX));
+                members
+                    .into_iter()
+                    .map(|member| member.field.as_str())
+                    .collect::<Vec<_>>()
+            } else {
+                vec![constraint.field.as_str()]
+            };
+            if !indexes.iter().any(|index| {
+                index.unique
+                    && index.can_back_unique_constraint()
+                    && index
+                        .normalized_fields()
+                        .iter()
+                        .map(String::as_str)
+                        .eq(expected_fields.iter().copied())
+            }) {
+                return Err(CassieError::Unsupported(
+                    "initial table clone publication requires an index for each copied primary or unique constraint"
+                        .to_string(),
+                ));
+            }
         }
         Ok(())
     }

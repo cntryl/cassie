@@ -199,6 +199,86 @@ fn should_preserve_pg_sleep_void_identity_through_coalesce_projection() {
 }
 
 #[test]
+fn should_preserve_pg_sleep_void_identity_with_explicit_null_result_arms() {
+    // Arrange
+    let sql = "SELECT CASE WHEN TRUE THEN PG_SLEEP(0.0) ELSE NULL END AS case_waited, COALESCE(PG_SLEEP(0.0), NULL) AS coalesced_waited";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-815-sleep-with-null-results", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let columns = wire::parse_row_description(
+        &batches[0]
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("sleep NULL result RowDescription")
+            .1,
+    );
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![2278, 2278]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some(String::new()), Some(String::new())]]
+    );
+}
+
+#[test]
+fn should_keep_pg_sleep_void_identity_for_null_case_result() {
+    // Arrange
+    let sql = "SELECT CASE WHEN FALSE THEN PG_SLEEP(0.0) END AS case_waited";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-815-sleep-null-case-result", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let columns = wire::parse_row_description(
+        &batches[0]
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("sleep NULL CASE RowDescription")
+            .1,
+    );
+    assert_eq!(columns.len(), 1);
+    assert_eq!(columns[0].type_oid, 2278);
+    assert_eq!(wire::data_rows(&batches[0]), vec![vec![None]]);
+}
+
+#[test]
+fn should_keep_pg_sleep_void_identity_for_late_coalesce_result() {
+    // Arrange
+    let sql = "SELECT COALESCE(NULL, PG_SLEEP(0.0)) AS waited";
+    let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])];
+
+    // Act
+    let batches = run_script("issue-815-sleep-late-coalesce-result", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let columns = wire::parse_row_description(
+        &batches[0]
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("sleep late COALESCE RowDescription")
+            .1,
+    );
+    assert_eq!(columns.len(), 1);
+    assert_eq!(columns[0].type_oid, 2278);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some(String::new())]]
+    );
+}
+
+#[test]
 fn should_recompute_wall_clock_for_each_prepared_statement_execution() {
     // Arrange
     let statement = "clock_timestamp_reuse";

@@ -141,8 +141,9 @@ fn should_preserve_cloned_table_defaults_constraints_indexes() {
             .expect_err("the cloned primary key must reject duplicate values");
         let primary_keys: i64 = client
             .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_constraint \
-                 WHERE conrelid = 'compat_like_copy'::regclass AND contype = 'p'",
+                "SELECT count(*) FROM information_schema.table_constraints \
+                 WHERE table_schema = 'public' AND table_name = 'compat_like_copy' \
+                   AND constraint_type = 'PRIMARY KEY'",
                 &[],
             )
             .await

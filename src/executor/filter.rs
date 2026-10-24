@@ -557,7 +557,7 @@ fn cast_scalar(
             "TIMESTAMP",
             crate::types::temporal::canonical_timestamp,
         ),
-        DataType::Json => Ok(ScalarValue::Json(cast_json_text(value))),
+        DataType::Json => cast_json_text(value, controls).map(ScalarValue::Json),
         DataType::Array(element) if **element == DataType::Text => text_arrays::cast(value),
         DataType::Array(_) => Err(QueryError::General(
             "cannot cast scalar value to ARRAY".to_string(),
@@ -611,15 +611,27 @@ fn cast_varchar_text(
     Ok(ScalarValue::Str(value))
 }
 
-fn cast_json_text(value: &ScalarValue) -> String {
-    match value {
+fn cast_json_text(
+    value: &ScalarValue,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<String, QueryError> {
+    let text = match value {
         ScalarValue::Bool(value) => value.to_string(),
         ScalarValue::Int(value) => value.to_string(),
         ScalarValue::Float(value) => value.to_string(),
         ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
         ScalarValue::Typed(value) => value.text(),
         ScalarValue::Null => "null".to_string(),
+    };
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
     }
+    serde_json::from_str::<serde::de::IgnoredAny>(&text)
+        .map_err(|_| QueryError::General("invalid input syntax for type json".to_string()))?;
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    Ok(text)
 }
 
 fn comparison_result(result: Option<bool>) -> ScalarValue {

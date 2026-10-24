@@ -118,6 +118,9 @@ pub(crate) fn diagnostic(input: &str, target: &DataType) -> Option<ScalarLiteral
                 crate::types::FloatInputError::Syntax => Syntax("double precision"),
                 crate::types::FloatInputError::Range => ScalarLiteralDiagnostic::FloatRange,
             }),
+        DataType::Json => serde_json::from_str::<serde::de::IgnoredAny>(input)
+            .err()
+            .map(|_| Syntax("json")),
         _ => None,
     }
 }

@@ -247,6 +247,45 @@ fn should_not_copy_identity_when_like_includes_only_defaults() {
     });
 }
 
+async fn create_like_constraint_tables(client: &tokio_postgres::Client) {
+    client
+        .batch_execute(
+            "CREATE TABLE compat_like_constraint_source (\
+               id INT, amount INT, \
+               CONSTRAINT compat_like_amount_positive CHECK (amount > 0), \
+               CONSTRAINT compat_like_id_unique UNIQUE (id)\
+             )",
+        )
+        .await
+        .expect("create a source table with a CHECK and unique constraint");
+
+    let included = client
+        .batch_execute(
+            "CREATE TABLE compat_like_constraint_target \
+             (LIKE compat_like_constraint_source INCLUDING CONSTRAINTS)",
+        )
+        .await;
+    if let Err(error) = &included {
+        let database_error = db_error(error);
+        panic!(
+            "PostgreSQL 18.6 accepts CREATE TABLE LIKE ... INCLUDING CONSTRAINTS; \
+             Cassie returned DbError code={}, message={:?}, position={:?}",
+            database_error.code().code(),
+            database_error.message(),
+            database_error.position()
+        );
+    }
+    included.expect("create a LIKE copy that includes CHECK constraints but not indexes");
+    client
+        .batch_execute(
+            "CREATE TABLE compat_like_constraint_excluded \
+             (LIKE compat_like_constraint_source INCLUDING CONSTRAINTS \
+                EXCLUDING CONSTRAINTS)",
+        )
+        .await
+        .expect("the final EXCLUDING CONSTRAINTS action disables copied checks");
+}
+
 #[test]
 fn should_create_table_like_with_including_constraints() {
     // Arrange
@@ -254,49 +293,25 @@ fn should_create_table_like_with_including_constraints() {
     runtime.block_on(async {
         let server = CompatibilityServer::start("like_named_check_constraint_clone").await;
         let (client, connection) = server.connect().await;
-        client
-            .batch_execute(
-                "CREATE TABLE compat_like_constraint_source (\
-                   id INT, amount INT, \
-                   CONSTRAINT compat_like_amount_positive CHECK (amount > 0), \
-                   CONSTRAINT compat_like_id_unique UNIQUE (id)\
-                 )",
-            )
-            .await
-            .expect("create a source table with a CHECK and unique constraint");
+        create_like_constraint_tables(&client).await;
 
         // Act
-        let cloned = client
-            .batch_execute(
-                "CREATE TABLE compat_like_constraint_target \
-                 (LIKE compat_like_constraint_source INCLUDING CONSTRAINTS)",
-            )
-            .await;
-        if let Err(error) = &cloned {
-            let database_error = db_error(error);
-            panic!(
-                "PostgreSQL 18.6 accepts CREATE TABLE LIKE ... INCLUDING CONSTRAINTS; \
-                 Cassie returned DbError code={}, message={:?}, position={:?}",
-                database_error.code().code(),
-                database_error.message(),
-                database_error.position()
-            );
-        }
-        cloned.expect("create a LIKE copy that includes CHECK constraints but not indexes");
         let copied_check = client
             .query_one(
                 "SELECT conname, contype::TEXT, convalidated \
-                 FROM pg_catalog.pg_constraint \
-                 WHERE conrelid = 'compat_like_constraint_target'::regclass \
-                   AND conname = 'compat_like_amount_positive'",
+                 FROM pg_catalog.pg_constraint c \
+                 JOIN pg_catalog.pg_class r ON r.relname = c.conrelid \
+                 WHERE r.relname = 'compat_like_constraint_target' \
+                   AND c.conname = 'compat_like_amount_positive'",
                 &[],
             )
             .await
             .expect("inspect the named CHECK copied to the target table");
         let target_indexes: i64 = client
             .query_one(
-                "SELECT count(*) FROM pg_catalog.pg_index \
-                 WHERE indrelid = 'compat_like_constraint_target'::regclass",
+                "SELECT count(*) FROM pg_catalog.pg_index i \
+                 JOIN pg_catalog.pg_class r ON r.relname = i.indrelid \
+                 WHERE r.relname = 'compat_like_constraint_target'",
                 &[],
             )
             .await
@@ -335,11 +350,272 @@ fn should_create_table_like_with_including_constraints() {
         assert_eq!(target_indexes, 0);
         assert_eq!(duplicate_ids, 2);
         assert_eq!(db_error(&rejected_check).code().code(), "23514");
+        assert_eq!(
+            db_error(&rejected_check).constraint(),
+            Some("compat_like_amount_positive")
+        );
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].get::<_, i32>(0), 1);
         assert_eq!(rows[0].get::<_, i32>(1), 4);
         assert_eq!(rows[1].get::<_, i32>(0), 1);
         assert_eq!(rows[1].get::<_, i32>(1), 5);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_multiple_named_checks_on_the_same_field_until_supported() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_multiple_named_checks").await;
+        let (client, connection) = server.connect().await;
+        let create_error = client
+            .batch_execute(
+                "CREATE TABLE compat_like_multiple_check_source (\
+                   amount INT, \
+                   CONSTRAINT compat_like_amount_positive CHECK (amount > 0), \
+                   CONSTRAINT compat_like_amount_bounded CHECK (amount < 10)\
+                 )",
+            )
+            .await
+            .expect_err("multiple CHECKs on one field remain unsupported");
+
+        // Act
+        let source_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_like_multiple_check_source')",
+                &[],
+            )
+            .await
+            .expect("check that rejected DDL did not publish the source relation")
+            .get(0);
+
+        // Assert
+        assert_eq!(db_error(&create_error).code().code(), "0A000");
+        assert!(!source_exists);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_multiple_inline_checks_on_the_same_field_until_supported() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_multiple_inline_checks").await;
+        let (client, connection) = server.connect().await;
+        let create_error = client
+            .batch_execute(
+                "CREATE TABLE compat_like_multiple_inline_checks (\
+                   amount INT CONSTRAINT compat_inline_amount_positive CHECK (amount > 0) \
+                     CONSTRAINT compat_inline_amount_bounded CHECK (amount < 10)\
+                 )",
+            )
+            .await
+            .expect_err("multiple inline CHECKs on one field remain unsupported");
+
+        // Act
+        let relation_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_like_multiple_inline_checks')",
+                &[],
+            )
+            .await
+            .expect("check that rejected DDL did not publish the relation")
+            .get(0);
+
+        // Assert
+        assert_eq!(db_error(&create_error).code().code(), "0A000");
+        assert!(!relation_exists);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_not_publish_like_target_when_included_check_conflicts_with_declared_check() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_conflicting_copied_check").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_like_conflicting_check_source (\
+                   amount INT, \
+                   CONSTRAINT compat_source_positive CHECK (amount > 0)\
+                 )",
+            )
+            .await
+            .expect("create source table with a supported named CHECK");
+
+        // Act
+        let create_error = client
+            .batch_execute(
+                "CREATE TABLE compat_like_conflicting_check_target (\
+                   LIKE compat_like_conflicting_check_source INCLUDING CONSTRAINTS, \
+                   CONSTRAINT compat_target_bounded CHECK (amount < 10)\
+                 )",
+            )
+            .await
+            .expect_err("the copied and declared CHECKs conflict on the same field");
+        let target_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_like_conflicting_check_target')",
+                &[],
+            )
+            .await
+            .expect("check that the rejected CREATE did not publish the target")
+            .get(0);
+        let source_checks: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_constraint \
+                 WHERE conname = 'compat_source_positive'",
+                &[],
+            )
+            .await
+            .expect("confirm source CHECK metadata survived target rejection")
+            .get(0);
+
+        // Assert
+        assert_eq!(db_error(&create_error).code().code(), "0A000");
+        assert!(!target_exists);
+        assert_eq!(source_checks, 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_exclude_checks_when_a_later_like_action_excludes_constraints() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_excluded_check_constraints").await;
+        let (client, connection) = server.connect().await;
+        create_like_constraint_tables(&client).await;
+
+        // Act
+        let excluded_checks: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_constraint c \
+                 JOIN pg_catalog.pg_class r ON r.relname = c.conrelid \
+                 WHERE r.relname = 'compat_like_constraint_excluded' \
+                   AND c.contype = 'c'",
+                &[],
+            )
+            .await
+            .expect("count checks excluded by the final LIKE option")
+            .try_get(0)
+            .expect("excluded check count");
+        let invalid_check = client
+            .execute(
+                "INSERT INTO compat_like_constraint_excluded VALUES (3, 0)",
+                &[],
+            )
+            .await
+            .expect("the final EXCLUDING CONSTRAINTS action leaves the check uncopied");
+
+        // Assert
+        assert_eq!(excluded_checks, 0);
+        assert_eq!(invalid_check, 1);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_copy_checks_when_a_later_like_action_reincludes_constraints() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_reincluded_check_constraints").await;
+        let (client, connection) = server.connect().await;
+        create_like_constraint_tables(&client).await;
+        client
+            .batch_execute(
+                "CREATE TABLE compat_like_constraint_reincluded \
+                 (LIKE compat_like_constraint_source EXCLUDING CONSTRAINTS \
+                    INCLUDING CONSTRAINTS)",
+            )
+            .await
+            .expect("the final INCLUDING CONSTRAINTS action restores copied checks");
+
+        // Act
+        let copied_checks: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_constraint c \
+                 JOIN pg_catalog.pg_class r ON r.relname = c.conrelid \
+                 WHERE r.relname = 'compat_like_constraint_reincluded' \
+                   AND c.contype = 'c'",
+                &[],
+            )
+            .await
+            .expect("inspect the final included CHECK")
+            .get(0);
+        let rejected_check = client
+            .execute(
+                "INSERT INTO compat_like_constraint_reincluded VALUES (4, 0)",
+                &[],
+            )
+            .await
+            .expect_err("the final include action enforces the copied CHECK");
+
+        // Assert
+        assert_eq!(copied_checks, 1);
+        assert_eq!(db_error(&rejected_check).code().code(), "23514");
+        assert_eq!(
+            db_error(&rejected_check).constraint(),
+            Some("compat_like_amount_positive")
+        );
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_column_check_when_expression_references_another_field() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("like_column_check_references_other_field").await;
+        let (client, connection) = server.connect().await;
+        let create_error = client
+            .batch_execute(
+                "CREATE TABLE compat_like_check_owner_source (\
+                   id INT, amount INT CONSTRAINT compat_like_positive_id \
+                     CHECK (ID > 0)\
+                 )",
+            )
+            .await
+            .expect_err("column CHECK support is limited to its owning field");
+
+        // Act
+        let source_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_like_check_owner_source')",
+                &[],
+            )
+            .await
+            .expect("check that rejected CREATE did not publish the source relation")
+            .get(0);
+
+        // Assert
+        assert_eq!(db_error(&create_error).code().code(), "0A000");
+        assert!(!source_exists);
 
         drop(client);
         server.shutdown(connection).await;

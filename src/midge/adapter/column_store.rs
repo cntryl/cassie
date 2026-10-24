@@ -64,8 +64,8 @@ impl Midge {
 
     /// Creates a collection and its initial column constraints in one database-family transaction.
     ///
-    /// The initial constraints are limited to column nullability and defaults; unlike general
-    /// constraint publication, they require no row scan or data-family writes.
+    /// Initial constraints may include nullability, defaults and checks. Unique and foreign-key
+    /// constraints remain outside this path because they require reservation or dependency work.
     ///
     /// # Errors
     ///
@@ -222,8 +222,6 @@ impl Midge {
                 || constraint.unique
                 || constraint.unique_name.is_some()
                 || constraint.unique_ordinal.is_some()
-                || constraint.check.is_some()
-                || constraint.check_name.is_some()
                 || constraint.foreign_key_name.is_some()
                 || constraint.foreign_key_ordinal.is_some()
                 || constraint.foreign_key_on_delete.is_some()
@@ -235,7 +233,7 @@ impl Midge {
                 || constraint.identity_options.is_some()
         }) {
             return Err(CassieError::Unsupported(
-                "initial collection publication supports only NOT NULL and default column metadata"
+                "initial collection publication supports only NOT NULL, CHECK, and default column metadata"
                     .to_string(),
             ));
         }

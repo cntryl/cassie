@@ -10,6 +10,18 @@ use std::collections::HashSet;
 pub(super) fn bind_create_checks(
     fields: &mut [FieldDefinition],
 ) -> Result<Vec<FieldConstraint>, CassieError> {
+    for field in fields.iter() {
+        if field.constraints.iter().any(|constraint| {
+            constraint.check.as_ref().is_some_and(|check| {
+                !crate::sql::ColumnIdentifierPath::matches_stored_field(&check.field, &field.name)
+            })
+        }) {
+            return Err(CassieError::Unsupported(
+                "column CHECK constraints may reference only their owning field".into(),
+            ));
+        }
+    }
+
     let booleans = boolean_fields(
         fields
             .iter()

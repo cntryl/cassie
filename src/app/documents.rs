@@ -717,11 +717,13 @@ impl Cassie {
                     return Err(CassieError::CheckViolation {
                         table: collection.to_string(),
                         column: check.field.clone(),
-                        constraint: crate::catalog::generated_constraint_name(
-                            collection,
-                            &check.field,
-                            "CHECK",
-                        ),
+                        constraint: constraint.check_name.clone().unwrap_or_else(|| {
+                            crate::catalog::generated_constraint_name(
+                                collection,
+                                &check.field,
+                                "CHECK",
+                            )
+                        }),
                     });
                 }
             }

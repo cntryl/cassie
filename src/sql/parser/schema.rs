@@ -767,6 +767,17 @@ pub(super) fn split_first_token(raw: &str) -> Option<(String, &str)> {
 
 pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {
     let expression = raw.trim();
+    let upper = expression.to_ascii_uppercase();
+    if upper.ends_with(" NOT ENFORCED") || upper.ends_with(" ENFORCED") {
+        return Err(SqlError::unsupported(
+            "CHECK constraint enforcement attributes are not supported".into(),
+        ));
+    }
+    if upper.ends_with(" NOT VALID") {
+        return Err(SqlError::unsupported(
+            "NOT VALID CHECK constraints are not supported".into(),
+        ));
+    }
     if !expression.starts_with('(') || !expression.ends_with(')') {
         return Err(SqlError::new(
             "CHECK expression must be parenthesized".to_string(),

@@ -30,6 +30,18 @@ pub(super) fn parse_field_definition_for_table(
         constraint.default_expression =
             Some(crate::catalog::canonical_nextval_expression(&sequence));
     }
+    let remaining_parts = parts.collect::<Vec<_>>();
+    if remaining_parts
+        .iter()
+        .filter(|token| token.eq_ignore_ascii_case("check"))
+        .count()
+        > 1
+    {
+        return Err(SqlError::unsupported(
+            "multiple CHECK constraints on one field are not supported".into(),
+        ));
+    }
+    let mut parts = remaining_parts.into_iter();
     let mut pending_constraint_name: Option<String> = None;
     while let Some(token) = parts.next() {
         if apply_field_constraint(

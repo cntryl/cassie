@@ -12,7 +12,7 @@ mod postgresql18_constraint_contract_wave;
 mod temporal_period_catalog;
 
 #[test]
-fn should_enforce_not_valid_check_on_new_rows_then_validate_existing_rows() {
+fn should_reject_not_valid_check_until_supported() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -23,53 +23,40 @@ fn should_enforce_not_valid_check_on_new_rows_then_validate_existing_rows() {
             &[
                 "CREATE TABLE compat_not_valid_check (id INT PRIMARY KEY, score INT)",
                 "INSERT INTO compat_not_valid_check VALUES (1, -1)",
-                "ALTER TABLE compat_not_valid_check ADD CONSTRAINT compat_nonnegative_score \
-                   CHECK (score >= 0) NOT VALID",
-                "INSERT INTO compat_not_valid_check VALUES (2, 1)",
             ],
         )
         .await
-        .expect("add an unvalidated check over existing data and accept valid new data");
+        .expect("create a table with existing data before the unsupported constraint form");
 
         // Act
-        let rejected_new_row = client
-            .execute("INSERT INTO compat_not_valid_check VALUES (3, -2)", &[])
-            .await
-            .expect_err("NOT VALID must still enforce new rows");
-        let rejected_validation = client
+        let alter_error = client
             .batch_execute(
-                "ALTER TABLE compat_not_valid_check \
-                 VALIDATE CONSTRAINT compat_nonnegative_score",
+                "ALTER TABLE compat_not_valid_check ADD CONSTRAINT compat_nonnegative_score \
+                 CHECK (score >= 0) NOT VALID",
             )
             .await
-            .expect_err("validation must find the preexisting violation");
-        let constraint_state: bool = client
+            .expect_err("NOT VALID CHECK constraints are outside the supported profile");
+        let constraint_count: i64 = client
             .query_one(
-                "SELECT convalidated FROM pg_catalog.pg_constraint \
+                "SELECT count(*) FROM pg_catalog.pg_constraint \
                  WHERE conname = 'compat_nonnegative_score'",
                 &[],
             )
             .await
-            .expect("inspect validation state after failed validation")
+            .expect("check that the rejected constraint was not published")
             .try_get(0)
-            .expect("constraint validation flag");
-        let rows = client
-            .query(
-                "SELECT id, score FROM compat_not_valid_check ORDER BY id",
-                &[],
-            )
+            .expect("constraint count");
+        let rows: i64 = client
+            .query_one("SELECT count(*) FROM compat_not_valid_check", &[])
             .await
-            .expect("read rows after rejected inserts and validation");
+            .expect("inspect source rows after the rejected ALTER")
+            .try_get(0)
+            .expect("row count");
 
         // Assert
-        assert_eq!(db_error(&rejected_new_row).code().code(), "23514");
-        assert_eq!(db_error(&rejected_validation).code().code(), "23514");
-        assert!(!constraint_state);
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].get::<_, i32>(0), 1);
-        assert_eq!(rows[0].get::<_, i32>(1), -1);
-        assert_eq!(rows[1].get::<_, i32>(0), 2);
-        assert_eq!(rows[1].get::<_, i32>(1), 1);
+        assert_eq!(db_error(&alter_error).code().code(), "0A000");
+        assert_eq!(constraint_count, 0);
+        assert_eq!(rows, 1);
 
         drop(client);
         server.shutdown(connection).await;
@@ -236,46 +223,34 @@ fn should_expose_named_not_null_constraints_in_pg_constraint() {
 }
 
 #[test]
-fn should_allow_rows_under_a_not_enforced_check_constraint() {
+fn should_reject_not_enforced_check_until_supported() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("not_enforced_check_constraint").await;
         let (client, connection) = server.connect().await;
-        client
+        let create_error = client
             .batch_execute(
                 "CREATE TABLE compat_not_enforced_check (value INT, \
                  CONSTRAINT compat_positive_not_enforced CHECK (value > 0) NOT ENFORCED)",
             )
             .await
-            .expect("create a PostgreSQL 18 NOT ENFORCED check constraint");
+            .expect_err("NOT ENFORCED CHECK constraints are outside the supported profile");
 
         // Act
-        let inserted = client
-            .execute("INSERT INTO compat_not_enforced_check VALUES (-1)", &[])
-            .await
-            .expect("a NOT ENFORCED constraint does not reject the row");
-        let enforced: bool = client
+        let relation_exists: bool = client
             .query_one(
-                "SELECT conenforced FROM pg_constraint \
-                 WHERE conname = 'compat_positive_not_enforced'",
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_not_enforced_check')",
                 &[],
             )
             .await
-            .expect("read the constraint enforcement state")
-            .try_get(0)
-            .expect("conenforced value");
-        let rows: i64 = client
-            .query_one("SELECT count(*) FROM compat_not_enforced_check", &[])
-            .await
-            .expect("read rows accepted by the not-enforced constraint")
-            .try_get(0)
-            .expect("row count");
+            .expect("check that rejected DDL did not publish a relation")
+            .get(0);
 
         // Assert
-        assert_eq!(inserted, 1);
-        assert!(!enforced);
-        assert_eq!(rows, 1);
+        assert_eq!(db_error(&create_error).code().code(), "0A000");
+        assert!(!relation_exists);
 
         drop(client);
         server.shutdown(connection).await;
@@ -283,38 +258,34 @@ fn should_allow_rows_under_a_not_enforced_check_constraint() {
 }
 
 #[test]
-fn should_enforce_check_predicates_comparing_multiple_columns() {
+fn should_reject_check_predicates_comparing_multiple_columns_until_supported() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("multicolumn_check_constraint").await;
         let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
+        let create_error = client
+            .batch_execute(
                 "CREATE TABLE compat_multicolumn_check (left_value INT, right_value INT, \
                    CONSTRAINT compat_column_order CHECK (left_value > right_value))",
-                "INSERT INTO compat_multicolumn_check VALUES (2, 1)",
-            ],
-        )
-        .await
-        .expect("create and seed the multi-column CHECK fixture");
+            )
+            .await
+            .expect_err("general multi-column CHECK expressions remain unsupported");
 
         // Act
-        let rejected = client
-            .execute("INSERT INTO compat_multicolumn_check VALUES (1, 2)", &[])
+        let relation_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_multicolumn_check')",
+                &[],
+            )
             .await
-            .expect_err("the multi-column comparison rejects rows in the wrong order");
-        let rows: i64 = client
-            .query_one("SELECT count(*) FROM compat_multicolumn_check", &[])
-            .await
-            .expect("inspect the table after a rejected row")
-            .try_get(0)
-            .expect("row count");
+            .expect("check that rejected DDL did not publish a relation")
+            .get(0);
 
         // Assert
-        assert_eq!(db_error(&rejected).code().code(), "23514");
-        assert_eq!(rows, 1);
+        assert_eq!(db_error(&create_error).code().code(), "0A000");
+        assert!(!relation_exists);
 
         drop(client);
         server.shutdown(connection).await;

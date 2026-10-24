@@ -4072,6 +4072,56 @@ Ordered final local validation on this source tree:
 The clean-main comparison was a targeted run of the upsert rollback test; the
 full suite was not run on `main`. No GitHub workflow was enabled or dispatched.
 
+## 2026-10-24 — #826 selected `LIKE INCLUDING ALL` and indexes
+
+At base `31d743f7`, the historical failing compatibility test stopped during
+setup at `COMMENT ON COLUMN` with SQLSTATE `0A000`, before exercising `LIKE`.
+The fixture was split so this batch tests only #826's selected clone behavior;
+column comments remain with #845, and column storage/compression and other
+unselected metadata remain explicitly pending. After that scope correction,
+the focused `INCLUDING ALL` test provided the implementation red with
+`0A000: CREATE TABLE LIKE option INCLUDING ALL is not supported yet`.
+
+The implemented `ALL` union is `DEFAULTS`, supported `CONSTRAINTS`, `IDENTITY`,
+and `INDEXES`. Ordered later actions override one feature at a time. Index
+copying is restricted to scalar btree indexes; copied indexes and supported
+primary/unique constraints receive target-derived names and target-owned
+catalog/storage identities. Composite primary keys and unsupported index
+forms reject before target publication. The selected catalog/Midge metadata
+is committed with the empty cloned collection; no index entries need backfill.
+No public API or persistent metadata format changed.
+
+The focused green evidence is:
+
+- `cargo test --locked --test compatibility should_apply_like_all_with_explicit_exclusions -- --nocapture` — passed; checks ordered exclusions, defaults, CHECK, scalar indexes, identity mode, and independent source/target sequences.
+- `cargo test --locked --test compatibility should_copy_scalar_indexes_when_like_includes_indexes -- --nocapture` — passed; checks copied `UNIQUE NULLS NOT DISTINCT` and secondary indexes, included payload/key counts, copied `fillfactor` and `deduplicate_items` options, and duplicate key/NULL rejection (`23505`).
+- `cargo test --locked --test compatibility should_preserve_composite_unique_key_order_when_like_includes_indexes -- --nocapture` — passed; preserves `(b, a)` key order and rejects duplicate tuples (`23505`).
+- `cargo test --locked --test compatibility should_copy_partial_unique_indexes_independently_when_like_includes_indexes -- --nocapture` — passed; copies partial predicates, resolves same-field index-name collisions, and isolates source/target unique reservations.
+- `cargo test --locked --test compatibility should_exclude_only_defaults_when_like_includes_all -- --nocapture` — passed; the default is absent while CHECK and NOT NULL remain enforced (`23514`, `23502`).
+- `cargo test --locked --test compatibility should_reject_table_like -- --nocapture` — passed, 2 tests; unsupported options reject before target publication and before `IF NOT EXISTS` short-circuiting.
+- `cargo test --locked --test compatibility postgresql18_explicit_table_clone_contracts:: -- --nocapture` — passed, 12 tests.
+- Identity-specific compatibility tests and the sequence-collision publication unit test — passed, 3 tests total.
+- Final readback after helper extraction and moving the focused cases into `like_options.rs`: `cargo test --locked --test compatibility like -- --nocapture` — passed, 19 tests.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` — passed after extracting typed option state, field cloning, and initial index metadata writes.
+- `cargo fmt --all -- --check`, `git diff --check`, and `cntryl-tools validate-tests -f tests/compatibility/lifecycle/tables/table_forms/like_options.rs` — passed; the new module is 5/5 compliant.
+- `cntryl-tools validate-tests -f tests/compatibility/lifecycle/tables/table_forms/semantics.rs` — passed, 15/15 compliant after extraction.
+
+Jev's boundary decision selected the scoped #826 slice (0.73 probability,
+0.59 confidence). Adversarial review gap estimates of 0.69 and 0.45 prompted
+focused probes for composite UNIQUE key order, partial unique-index predicate
+and target identity, generated-name collisions, `NULLS NOT DISTINCT`,
+default-versus-constraint action precedence, and UNIQUE INCLUDE payload/options.
+All probes passed; the post-probe gap probability was 0.20, with no concrete
+defect identified. Requests and responses are retained under ignored
+`target/jev/like-all-*.json`. The official PostgreSQL 18
+reference confirms that `INCLUDING INDEXES` copies primary/unique constraints
+and indexes with target-generated names and that later explicit options can
+override options selected by `INCLUDING ALL`:
+[CREATE TABLE](https://www.postgresql.org/docs/18/sql-createtable.html).
+This batch does not claim the full #826 contract or a green repository test
+gate. Full build and full test-suite runs were omitted at the user's direction;
+the hosted workflow is unavailable while GitHub Actions are disabled.
+
 ## 2026-10-20 — #796 parenthesized CAST result followed by postfix cast
 
 This qualification-only slice adds a focused witness for a remaining #796 cast

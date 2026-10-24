@@ -15,6 +15,9 @@ include!("table_forms/parameters.rs");
 
 include!("table_forms/resources.rs");
 
+#[path = "table_forms/like_options.rs"]
+mod like_options;
+
 include!("table_forms/restart.rs");
 
 include!("table_forms/semantics.rs");

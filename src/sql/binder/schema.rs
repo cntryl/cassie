@@ -143,9 +143,11 @@ fn validate_create_table_like_options(
         };
         if !matches!(
             feature,
-            crate::sql::ast::CreateTableLikeFeature::Defaults
+            crate::sql::ast::CreateTableLikeFeature::All
+                | crate::sql::ast::CreateTableLikeFeature::Defaults
                 | crate::sql::ast::CreateTableLikeFeature::Constraints
                 | crate::sql::ast::CreateTableLikeFeature::Identity
+                | crate::sql::ast::CreateTableLikeFeature::Indexes
         ) {
             return Err(CassieError::Unsupported(format!(
                 "CREATE TABLE LIKE option {action} {} is not supported yet",

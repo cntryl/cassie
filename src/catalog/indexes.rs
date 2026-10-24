@@ -116,6 +116,18 @@ impl IndexMeta {
     pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = "__cassie_nulls_not_distinct";
 
     #[must_use]
+    pub(crate) fn clone_for_relation(&self, collection: &str, name: &str) -> Self {
+        let mut cloned = self.clone();
+        cloned.collection = collection.to_string();
+        cloned.name = name.to_string();
+        cloned.options.remove(Self::STORAGE_ID_OPTION);
+        cloned.options.remove(Self::RELATION_ID_OPTION);
+        cloned.options.remove(Self::CATALOG_OID_OPTION);
+        cloned.options.remove(Self::UNIQUE_RESERVATION_NAME_OPTION);
+        cloned
+    }
+
+    #[must_use]
     pub(crate) fn nulls_not_distinct(&self) -> bool {
         self.options
             .get(Self::NULLS_NOT_DISTINCT_OPTION)

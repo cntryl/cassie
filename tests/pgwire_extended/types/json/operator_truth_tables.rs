@@ -17,7 +17,7 @@ fn should_scope_jsonb_key_existence_to_top_level_values() {
         ),
     ];
     let cycle = fixture::execute_cycle(
-        "SELECT id, document ? 'foo', document ? 'null' FROM issue_809_jsonb_key_scope ORDER BY id",
+        "SELECT id, document ? 'foo', document ? 'null', document ? NULL::TEXT FROM issue_809_jsonb_key_scope ORDER BY id",
         None,
         0,
         true,
@@ -38,7 +38,7 @@ fn should_scope_jsonb_key_existence_to_top_level_values() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![23, 16, 16]
+        vec![23, 16, 16, 16]
     );
     assert_eq!(
         wire::data_rows(frames),
@@ -46,23 +46,27 @@ fn should_scope_jsonb_key_existence_to_top_level_values() {
             vec![
                 Some("1".to_owned()),
                 Some("t".to_owned()),
-                Some("f".to_owned())
+                Some("f".to_owned()),
+                None
             ],
             vec![
                 Some("2".to_owned()),
                 Some("f".to_owned()),
-                Some("f".to_owned())
+                Some("f".to_owned()),
+                None
             ],
-            vec![Some("3".to_owned()), None, None],
+            vec![Some("3".to_owned()), None, None, None],
             vec![
                 Some("4".to_owned()),
                 Some("f".to_owned()),
-                Some("f".to_owned())
+                Some("f".to_owned()),
+                None
             ],
             vec![
                 Some("5".to_owned()),
                 Some("t".to_owned()),
-                Some("f".to_owned())
+                Some("f".to_owned()),
+                None
             ],
         ]
     );

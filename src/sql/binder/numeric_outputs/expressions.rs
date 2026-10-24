@@ -127,7 +127,10 @@ impl Analyzer<'_> {
             | BinaryOp::Gte
             | BinaryOp::Typed { .. }
             | BinaryOp::Quantified { .. }
-            | BinaryOp::Like => OutputType::fixed(DataType::Boolean),
+            | BinaryOp::Like
+            | BinaryOp::JsonbKeyExists
+            | BinaryOp::JsonbKeyExistsAny
+            | BinaryOp::JsonbKeyExistsAll => OutputType::fixed(DataType::Boolean),
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 OutputType::fixed(DataType::Float)
             }

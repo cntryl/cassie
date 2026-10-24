@@ -362,6 +362,9 @@ fn index_binary_operator(operator: &crate::sql::ast::BinaryOp) -> Option<String>
             BinaryOp::Div => "/",
             BinaryOp::Modulo => "%",
             BinaryOp::Power => "^",
+            BinaryOp::JsonbKeyExists => "?",
+            BinaryOp::JsonbKeyExistsAny => "?|",
+            BinaryOp::JsonbKeyExistsAll => "?&",
             BinaryOp::Like => "LIKE",
             BinaryOp::Bitwise { operation } | BinaryOp::Integer { operation, .. } => {
                 return Some(operation.symbol().to_string());

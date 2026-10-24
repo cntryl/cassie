@@ -223,12 +223,30 @@ fn should_match_any_jsonb_object_key_from_a_text_array() {
             Vec::new(),
         ),
     ];
-    let sql =
-        "SELECT document ?| '{b,missing}', document ?| '{missing}' FROM issue_809_jsonb_any_keys";
+    let sql = "SELECT document?|'{b,missing}', document ?| '{missing}', \
+        document ?| '{}'::TEXT[], document ?| NULL::TEXT[], \
+        document ?| '{b}'::TEXT[], document ?| '{NULL,b}'::TEXT[], \
+        document ?| '{NULL}'::TEXT[] FROM issue_809_jsonb_any_keys";
     let cycle = fixture::execute_cycle(sql, None, 0, true);
+    let parameter = fixture::execute_cycle(
+        "SELECT '{\"a\":1,\"b\":2}'::JSONB ?| $1",
+        Some((0, 0, Some(b"{b,missing}"))),
+        0,
+        true,
+    );
+    let invalid_operand = fixture::execute_cycle(
+        "SELECT '{\"a\":1}'::JSONB ?| TRUE",
+        None,
+        0,
+        true,
+    );
 
     // Act
-    let batches = fixture::run_cycles("issue-809-jsonb-any-key-array", &setup, vec![cycle]);
+    let batches = fixture::run_cycles(
+        "issue-809-jsonb-any-key-array",
+        &setup,
+        vec![cycle, parameter, invalid_operand],
+    );
 
     // Assert
     let frames = &batches[0];
@@ -244,12 +262,29 @@ fn should_match_any_jsonb_object_key_from_a_text_array() {
         .iter()
         .map(|column| column.type_oid)
         .collect::<Vec<_>>(),
-        vec![16, 16]
+        vec![16, 16, 16, 16, 16, 16, 16]
     );
     assert_eq!(
         wire::data_rows(frames),
-        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
+        vec![vec![
+            Some("t".to_owned()),
+            Some("f".to_owned()),
+            Some("f".to_owned()),
+            None,
+            Some("t".to_owned()),
+            Some("t".to_owned()),
+            Some("f".to_owned())
+        ]]
     );
+    let parameter_frames = &batches[1];
+    fixture::assert_success(parameter_frames);
+    let parameter_types = parameter_frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("text-array operator ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [1009]);
+    assert_eq!(wire::data_rows(parameter_frames), vec![vec![Some("t".to_owned())]]);
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
 }
 
 #[test]
@@ -265,19 +300,47 @@ fn should_require_every_jsonb_object_key_from_a_text_array() {
             Vec::new(),
         ),
     ];
-    let sql = "SELECT document ?& '{a,b}', document ?& '{a,missing}' FROM issue_809_jsonb_all_keys";
+    let sql = "SELECT document?&'{a,b}', document ?& '{a,missing}', \
+        document ?& '{}'::TEXT[], document ?& NULL::TEXT[], \
+        document ?& '{NULL,a,b}'::TEXT[], document ?& '{NULL}'::TEXT[] \
+        FROM issue_809_jsonb_all_keys";
     let cycle = fixture::execute_cycle(sql, None, 0, true);
+    let parameter = fixture::execute_cycle(
+        "SELECT '{\"a\":1,\"b\":2}'::JSONB ?& $1",
+        Some((0, 0, Some(b"{a,b}"))),
+        0,
+        true,
+    );
 
     // Act
-    let batches = fixture::run_cycles("issue-809-jsonb-all-key-array", &setup, vec![cycle]);
+    let batches = fixture::run_cycles(
+        "issue-809-jsonb-all-key-array",
+        &setup,
+        vec![cycle, parameter],
+    );
 
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
     assert_eq!(
         wire::data_rows(frames),
-        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
+        vec![vec![
+            Some("t".to_owned()),
+            Some("f".to_owned()),
+            Some("t".to_owned()),
+            None,
+            Some("t".to_owned()),
+            Some("t".to_owned())
+        ]]
     );
+    let parameter_frames = &batches[1];
+    fixture::assert_success(parameter_frames);
+    let parameter_types = parameter_frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("text-array operator ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [1009]);
+    assert_eq!(wire::data_rows(parameter_frames), vec![vec![Some("t".to_owned())]]);
 }
 
 #[test]
@@ -535,14 +598,30 @@ fn should_detect_jsonb_object_key_presence_without_other_operators() {
         ),
     ];
     let cycle = fixture::execute_cycle(
-        "SELECT document ? 'present', document ? 'missing' FROM issue_809_key_presence_values",
+        "SELECT document?'present', document ? 'missing' FROM issue_809_key_presence_values",
+        None,
+        0,
+        true,
+    );
+    let parameter = fixture::execute_cycle(
+        "SELECT '{\"present\":null}'::JSONB ? $1",
+        Some((0, 0, Some(b"present"))),
+        0,
+        true,
+    );
+    let invalid_operand = fixture::execute_cycle(
+        "SELECT document ? TRUE FROM issue_809_key_presence_values",
         None,
         0,
         true,
     );
 
     // Act
-    let batches = fixture::run_cycles("issue-809-jsonb-key-presence", &setup, vec![cycle]);
+    let batches = fixture::run_cycles(
+        "issue-809-jsonb-key-presence",
+        &setup,
+        vec![cycle, parameter, invalid_operand],
+    );
 
     // Assert
     let frames = &batches[0];
@@ -551,6 +630,15 @@ fn should_detect_jsonb_object_key_presence_without_other_operators() {
         wire::data_rows(frames),
         vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
     );
+    let parameter_frames = &batches[1];
+    fixture::assert_success(parameter_frames);
+    let parameter_types = parameter_frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("text operator ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [25]);
+    assert_eq!(wire::data_rows(parameter_frames), vec![vec![Some("t".to_owned())]]);
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
 }
 
 #[test]

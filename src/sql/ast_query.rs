@@ -456,6 +456,12 @@ pub enum BinaryOp {
     },
     Modulo,
     Power,
+    /// PostgreSQL JSONB top-level key or string-array-member existence (`?`).
+    JsonbKeyExists,
+    /// PostgreSQL JSONB any-key text-array existence (`?|`).
+    JsonbKeyExistsAny,
+    /// PostgreSQL JSONB all-key text-array existence (`?&`).
+    JsonbKeyExistsAll,
     /// A selected builtin integer operator, retaining its operand/result domain.
     Integer {
         operation: crate::types::IntegerOperation,

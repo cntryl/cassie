@@ -25,6 +25,9 @@ pub(super) fn binary_scalar(
             )
             .into())
         }
+        BinaryOp::JsonbKeyExists
+        | BinaryOp::JsonbKeyExistsAny
+        | BinaryOp::JsonbKeyExistsAll => super::json_key_exists::evaluate(left, op, right)?,
         BinaryOp::ByteaConcat => super::bytea_casts::concatenate(left, right)?,
         BinaryOp::Concat => match (cast_to_text(left), cast_to_text(right)) {
             (Some(mut left), Some(right)) => {

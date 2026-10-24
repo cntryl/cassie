@@ -99,7 +99,8 @@ fn should_reject_casts_beyond_every_documented_type_boundary() {
         "CAST('not-a-number' AS INT)",
         "CAST('maybe' AS BOOLEAN)",
         "CAST('not-a-uuid' AS UUID)",
-        "CAST('not-hex' AS BYTEA)",
+        // Plain text is valid BYTEA input; malformed hex is the rejection case.
+        "CAST('\\xg1' AS BYTEA)",
         "CAST('not-a-timestamp' AS TIMESTAMP)",
         "CAST('not-a-date' AS DATE)",
         "CAST('25:00:00' AS TIME)",
@@ -116,13 +117,16 @@ fn should_reject_casts_beyond_every_documented_type_boundary() {
         let error = result
             .expect_err(&format!("{expr} should be rejected"))
             .to_string();
-        // `is_err()` alone cannot tell a validated rejection from a cast
-        // that was never implemented or a target the parser stopped
-        // recognizing, which is exactly what this evidence row exists to
-        // distinguish.
+        // A range error is a successful cast-validation path too: for
+        // example, PostgreSQL reports an out-of-range value for SMALLINT
+        // rather than a generic cast failure. Keep syntax and unsupported
+        // feature errors distinct from recognized conversion failures.
         assert!(
-            error.contains("cannot cast value to"),
-            "{expr} must be rejected by cast validation, got: {error}"
+            error.contains("cannot cast value to")
+                || error.contains("out of range")
+                || error.contains("invalid input syntax for type")
+                || error.contains("invalid hexadecimal digit"),
+            "{expr} must be rejected by cast/input validation, got: {error}"
         );
         assert!(
             !error.contains("unsupported feature"),

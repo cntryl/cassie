@@ -1,4 +1,41 @@
 #[test]
+fn should_export_declared_columns_for_quoted_schema_qualified_table_copy() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("copy_quoted_schema_table_to").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE SCHEMA \"CopySchema\"",
+                "CREATE TABLE \"CopySchema\".\"MixedTable\" (\"select\" TEXT, value INT)",
+                "INSERT INTO \"CopySchema\".\"MixedTable\" VALUES ('with,comma', 7)",
+            ],
+        )
+        .await
+        .expect("create the quoted schema-qualified COPY source row");
+
+        // Act
+        let frames = copy_to_stdout(
+            &server,
+            "COPY \"CopySchema\".\"MixedTable\" TO STDOUT WITH (FORMAT CSV, HEADER)",
+        )
+        .await;
+        let error_code = support_pgwire::error_code(&frames);
+        let payload = copy_payload(&frames);
+        let command = copy_command(&frames);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(error_code, None, "quoted table COPY SQLSTATE; frames: {frames:?}");
+        assert_eq!(payload, b"select,value\n\"with,comma\",7\n");
+        assert_eq!(command.as_deref(), Some("COPY 1"));
+    });
+}
+
+#[test]
 fn should_export_default_text_table_copy_escaped_rows() {
     // Arrange
     let runtime = current_thread_runtime();

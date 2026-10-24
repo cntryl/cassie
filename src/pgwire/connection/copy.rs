@@ -185,7 +185,28 @@ async fn bind_copy_request(
                 Ok(Some(BoundCopyRequest::From(request, statement)))
             }
             CopyDirection::ToStdout => {
-                let query_sql = request.query_sql();
+                let table_columns = match &request.target {
+                    request::CopyTarget::Table {
+                        relation, columns, ..
+                    } if columns.is_empty() => {
+                        let resolved = crate::sql::binder::resolve_relation_name(
+                            relation,
+                            &cassie.catalog,
+                            &context,
+                        )?;
+                        cassie.catalog.get_schema(&resolved).map(|schema| {
+                            schema
+                                .fields
+                                .iter()
+                                .map(|field| {
+                                    crate::catalog::object_identity::quote_identifier(&field.name)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                    }
+                    _ => None,
+                };
+                let query_sql = request.query_sql(table_columns.as_deref());
                 let parsed = crate::sql::parser::parse_statement(&query_sql)?;
                 if !matches!(
                     &parsed.statement,

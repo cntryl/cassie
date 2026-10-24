@@ -135,10 +135,9 @@ pub(crate) use context::normalize_new_relation_name;
 pub(crate) use context::normalize_new_relation_path;
 pub(crate) use context::normalize_relation_name;
 pub(crate) use context::resolve_existing_name;
+pub(crate) use context::resolve_relation_name;
 pub use context::BindingContext;
-use context::{
-    normalize_schema_name, resolve_relation_name, resolve_relation_path, resolve_schema_name,
-};
+use context::{normalize_schema_name, resolve_relation_path, resolve_schema_name};
 pub(crate) use inference::common_case_type;
 pub(crate) use inference::cte_collection_schema_with_functions;
 pub(crate) use inference::infer_projection_expr_type;

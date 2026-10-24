@@ -1,116 +1,5 @@
 use super::*;
 
-fn assert_named_check_lifecycle(
-    initially_validated: bool,
-    validated: bool,
-    original_name_survived: i64,
-    renamed_validated: i64,
-    remaining_constraints: i64,
-) {
-    assert!(!initially_validated);
-    assert!(validated);
-    assert_eq!(original_name_survived, 1);
-    assert_eq!(renamed_validated, 1);
-    assert_eq!(remaining_constraints, 0);
-}
-
-async fn run_named_check_lifecycle(client: &tokio_postgres::Client) -> (bool, bool, i64, i64, i64) {
-    execute_statements(
-        client,
-        &[
-            "CREATE TABLE compat_check_lifecycle (id INT, score INT)",
-            "INSERT INTO compat_check_lifecycle VALUES (1, 3), (2, 8)",
-            "ALTER TABLE compat_check_lifecycle ADD CONSTRAINT \
-               compat_check_lifecycle_name CHECK (score >= 0) NOT VALID",
-        ],
-    )
-    .await
-    .expect("add a named NOT VALID CHECK over existing valid rows");
-    let initially_validated = client
-        .query_one(
-            "SELECT convalidated FROM pg_catalog.pg_constraint \
-             WHERE conname = 'compat_check_lifecycle_name'",
-            &[],
-        )
-        .await
-        .expect("inspect the new constraint validation state")
-        .get(0);
-    client
-        .batch_execute(
-            "ALTER TABLE compat_check_lifecycle \
-             VALIDATE CONSTRAINT compat_check_lifecycle_name",
-        )
-        .await
-        .expect("validate a CHECK whose existing rows satisfy its predicate");
-    let validated = client
-        .query_one(
-            "SELECT convalidated FROM pg_catalog.pg_constraint \
-             WHERE conname = 'compat_check_lifecycle_name'",
-            &[],
-        )
-        .await
-        .expect("inspect successful validation state")
-        .get::<_, bool>(0);
-    client
-        .batch_execute(
-            "BEGIN; ALTER TABLE compat_check_lifecycle \
-             RENAME CONSTRAINT compat_check_lifecycle_name \
-             TO compat_check_lifecycle_rolled_back; ROLLBACK",
-        )
-        .await
-        .expect("roll back a constraint rename");
-    let original_name_survived = client
-        .query_one(
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conname = 'compat_check_lifecycle_name' AND convalidated",
-            &[],
-        )
-        .await
-        .expect("inspect the constraint name after rollback")
-        .get(0);
-    client
-        .batch_execute(
-            "ALTER TABLE compat_check_lifecycle \
-             RENAME CONSTRAINT compat_check_lifecycle_name \
-             TO compat_check_lifecycle_renamed",
-        )
-        .await
-        .expect("rename the validated CHECK constraint");
-    let renamed_validated = client
-        .query_one(
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conname = 'compat_check_lifecycle_renamed' AND convalidated",
-            &[],
-        )
-        .await
-        .expect("inspect the renamed constraint")
-        .get(0);
-    client
-        .batch_execute(
-            "ALTER TABLE compat_check_lifecycle \
-             DROP CONSTRAINT compat_check_lifecycle_renamed",
-        )
-        .await
-        .expect("drop the named CHECK constraint");
-    let remaining_constraints = client
-        .query_one(
-            "SELECT count(*) FROM pg_catalog.pg_constraint \
-             WHERE conname IN ('compat_check_lifecycle_name', \
-                               'compat_check_lifecycle_renamed')",
-            &[],
-        )
-        .await
-        .expect("inspect the catalog after dropping the CHECK")
-        .get(0);
-    (
-        initially_validated,
-        validated,
-        original_name_survived,
-        renamed_validated,
-        remaining_constraints,
-    )
-}
-
 fn assert_foreign_key_enforcement_lifecycle(
     initially_unenforced: &tokio_postgres::Row,
     failed_enable: &tokio_postgres::Error,
@@ -252,68 +141,92 @@ mod extended_constraint_forms;
 mod named_not_null_validation;
 
 #[test]
-fn should_enforce_composed_named_check_predicates() {
+fn should_reject_composed_named_check_predicates_until_supported() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
         let server = CompatibilityServer::start("composed_named_check_constraint").await;
         let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_composed_check (state TEXT, score INT, label TEXT, active BOOL, \
-                   CONSTRAINT compat_composed_check_name CHECK (CASE \
-                     WHEN state IN ('active', 'queued') THEN \
-                       score BETWEEN 0 AND 10 AND score IS NOT NULL \
-                       AND label IS NOT NULL AND length(label) > 0 \
-                       AND (active IS TRUE OR active IS FALSE) \
-                     WHEN state = 'inactive' THEN \
-                       score IS NULL AND label IS NULL AND active IS NULL \
-                     ELSE FALSE END))",
-                "INSERT INTO compat_composed_check VALUES \
-                   ('active', 5, 'ready', TRUE), ('queued', 0, 'waiting', FALSE), \
-                   ('inactive', NULL, NULL, NULL)",
-            ],
-        )
-        .await
-        .expect("create and seed the composed named CHECK fixture");
+        let create_error = client
+            .batch_execute(
+                "CREATE TABLE compat_composed_check \
+                   (state TEXT, score INT, label TEXT, active BOOL, \
+                    CONSTRAINT compat_composed_check_name CHECK (CASE \
+                      WHEN state IN ('active', 'queued') THEN \
+                        score BETWEEN 0 AND 10 AND score IS NOT NULL \
+                        AND label IS NOT NULL AND length(label) > 0 \
+                        AND (active IS TRUE OR active IS FALSE) \
+                      WHEN state = 'inactive' THEN \
+                        score IS NULL AND label IS NULL AND active IS NULL \
+                      ELSE FALSE END))",
+            )
+            .await
+            .expect_err("general composed CHECK expressions remain unsupported");
 
         // Act
-        let rejected = [
-            "INSERT INTO compat_composed_check VALUES ('active', 11, 'too high', TRUE)",
-            "INSERT INTO compat_composed_check VALUES ('active', 5, '', TRUE)",
-            "INSERT INTO compat_composed_check VALUES ('active', NULL, 'missing score', TRUE)",
-            "INSERT INTO compat_composed_check VALUES ('active', 5, NULL, TRUE)",
-            "INSERT INTO compat_composed_check VALUES ('active', 5, 'missing flag', NULL)",
-            "INSERT INTO compat_composed_check VALUES ('paused', 5, 'unknown state', TRUE)",
-            "INSERT INTO compat_composed_check VALUES (NULL, 5, 'missing state', TRUE)",
-        ];
-        for insert in rejected {
-            let error = client
-                .execute(insert, &[])
-                .await
-                .expect_err("every invalid branch of the CHECK must reject its row");
-            assert_eq!(db_error(&error).code().code(), "23514", "{insert}");
-        }
-        let remaining: i64 = client
-            .query_one("SELECT count(*) FROM compat_composed_check", &[])
-            .await
-            .expect("count rows after rejected CHECK inputs")
-            .try_get(0)
-            .expect("row count");
-        let catalog = client
+        let relation_exists: bool = client
             .query_one(
-                "SELECT contype::TEXT, convalidated FROM pg_catalog.pg_constraint \
-                 WHERE conname = 'compat_composed_check_name'",
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_name = 'compat_composed_check')",
                 &[],
             )
             .await
-            .expect("inspect the named CHECK catalog entry");
+            .expect("check that rejected DDL did not publish a relation")
+            .get(0);
 
         // Assert
-        assert_eq!(remaining, 3);
-        assert_eq!(catalog.get::<_, String>(0), "c");
-        assert!(catalog.get::<_, bool>(1));
+        assert_eq!(db_error(&create_error).code().code(), "0A000");
+        assert!(!relation_exists);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+async fn create_named_check_fixture(client: &tokio_postgres::Client) {
+    execute_statements(
+        client,
+        &[
+            "CREATE TABLE compat_check_lifecycle (id INT, score INT)",
+            "INSERT INTO compat_check_lifecycle VALUES (1, 3), (2, 8)",
+            "ALTER TABLE compat_check_lifecycle ADD CONSTRAINT \
+               compat_check_lifecycle_name CHECK (score >= 0)",
+        ],
+    )
+    .await
+    .expect("add a named CHECK before probing unsupported lifecycle forms");
+}
+
+#[test]
+fn should_reject_check_validation_without_mutating_catalog() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("named_check_validation_unsupported").await;
+        let (client, connection) = server.connect().await;
+        create_named_check_fixture(&client).await;
+
+        // Act
+        let validation_error = client
+            .batch_execute(
+                "ALTER TABLE compat_check_lifecycle \
+                 VALIDATE CONSTRAINT compat_check_lifecycle_name",
+            )
+            .await
+            .expect_err("CHECK validation remains outside the selected constraint profile");
+        let original_constraints: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_constraint \
+                 WHERE conname = 'compat_check_lifecycle_name'",
+                &[],
+            )
+            .await
+            .expect("inspect the original constraint after rejected commands")
+            .get(0);
+
+        // Assert
+        assert_eq!(db_error(&validation_error).code().code(), "0A000");
+        assert_eq!(original_constraints, 1);
 
         drop(client);
         server.shutdown(connection).await;
@@ -321,23 +234,46 @@ fn should_enforce_composed_named_check_predicates() {
 }
 
 #[test]
-fn should_complete_named_check_validation_rename_drop_lifecycle() {
+fn should_reject_check_constraint_rename_without_mutating_catalog() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
-        let server = CompatibilityServer::start("named_check_constraint_lifecycle").await;
+        let server = CompatibilityServer::start("named_check_rename_unsupported").await;
         let (client, connection) = server.connect().await;
+        create_named_check_fixture(&client).await;
+
         // Act
-        let observations = run_named_check_lifecycle(&client).await;
+        let rename_error = client
+            .batch_execute(
+                "ALTER TABLE compat_check_lifecycle \
+                 RENAME CONSTRAINT compat_check_lifecycle_name \
+                 TO compat_check_lifecycle_renamed",
+            )
+            .await
+            .expect_err("CHECK constraint rename remains unsupported");
+        let original_constraints: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_constraint \
+                 WHERE conname = 'compat_check_lifecycle_name'",
+                &[],
+            )
+            .await
+            .expect("inspect the original constraint after the rejected rename")
+            .get(0);
+        let renamed_constraints: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_constraint \
+                 WHERE conname = 'compat_check_lifecycle_renamed'",
+                &[],
+            )
+            .await
+            .expect("check that the rejected rename published no new name")
+            .get(0);
 
         // Assert
-        assert_named_check_lifecycle(
-            observations.0,
-            observations.1,
-            observations.2,
-            observations.3,
-            observations.4,
-        );
+        assert_eq!(db_error(&rename_error).code().code(), "0A000");
+        assert_eq!(original_constraints, 1);
+        assert_eq!(renamed_constraints, 0);
 
         drop(client);
         server.shutdown(connection).await;

@@ -72,6 +72,17 @@ pub(super) fn apply_table_constraints(
         .iter()
         .flat_map(|field| field.constraints.iter().cloned())
         .collect::<Vec<_>>();
+    let mut check_fields = std::collections::HashSet::new();
+    if existing.iter().chain(&constraints).any(|constraint| {
+        constraint.check.is_some()
+            && !check_fields.insert(crate::sql::ColumnIdentifierPath::stored_field_key(
+                &constraint.field,
+            ))
+    }) {
+        return Err(SqlError::unsupported(
+            "multiple CHECK constraints on one field are not supported".into(),
+        ));
+    }
     if let Some(message) =
         crate::catalog::conflicting_unique_membership(table, &existing, &constraints)
     {

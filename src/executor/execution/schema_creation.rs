@@ -162,23 +162,7 @@ fn copy_table_like_fields(
                 name: source.clone(),
             })?;
     let source_constraints = cassie.catalog.get_constraints(&source);
-    let mut include_defaults = false;
-    for option in &like.options {
-        match option {
-            crate::sql::ast::CreateTableLikeOption::Including(
-                crate::sql::ast::CreateTableLikeFeature::Defaults,
-            ) => include_defaults = true,
-            crate::sql::ast::CreateTableLikeOption::Excluding(
-                crate::sql::ast::CreateTableLikeFeature::Defaults,
-            ) => include_defaults = false,
-            _ => {
-                return Err(CassieError::Unsupported(
-                    "CREATE TABLE LIKE contains an unsupported option".to_string(),
-                )
-                .into());
-            }
-        }
-    }
+    let (include_defaults, include_constraints) = table_like_copy_options(like)?;
 
     validate_table_like_default_copy(&source_schema.fields, &source_constraints, include_defaults)?;
 
@@ -232,6 +216,16 @@ fn copy_table_like_fields(
             } else {
                 Vec::new()
             };
+            let mut constraints = constraints;
+            if include_constraints {
+                constraints.extend(
+                    source_constraints
+                        .iter()
+                        .filter(matches_field)
+                        .filter(|constraint| constraint.check.is_some())
+                        .cloned(),
+                );
+            }
             crate::sql::ast::FieldDefinition {
                 name: field.name,
                 data_type: field.data_type,
@@ -239,6 +233,36 @@ fn copy_table_like_fields(
             }
         })
         .collect())
+}
+
+fn table_like_copy_options(
+    like: &crate::sql::ast::CreateTableLikeClause,
+) -> Result<(bool, bool), QueryError> {
+    let mut include_defaults = false;
+    let mut include_constraints = false;
+    for option in &like.options {
+        match option {
+            crate::sql::ast::CreateTableLikeOption::Including(
+                crate::sql::ast::CreateTableLikeFeature::Defaults,
+            ) => include_defaults = true,
+            crate::sql::ast::CreateTableLikeOption::Excluding(
+                crate::sql::ast::CreateTableLikeFeature::Defaults,
+            ) => include_defaults = false,
+            crate::sql::ast::CreateTableLikeOption::Including(
+                crate::sql::ast::CreateTableLikeFeature::Constraints,
+            ) => include_constraints = true,
+            crate::sql::ast::CreateTableLikeOption::Excluding(
+                crate::sql::ast::CreateTableLikeFeature::Constraints,
+            ) => include_constraints = false,
+            _ => {
+                return Err(CassieError::Unsupported(
+                    "CREATE TABLE LIKE contains an unsupported option".to_string(),
+                )
+                .into());
+            }
+        }
+    }
+    Ok((include_defaults, include_constraints))
 }
 
 fn validate_table_like_default_copy(

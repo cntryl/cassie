@@ -556,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn should_preserve_copy_null_values_given_configured_null_markers() {
+    fn should_treat_quoted_copy_null_marker_as_literal() {
         // Arrange
         let payload = b"row-1,\\N,\"\\N\"\n";
 
@@ -564,7 +564,10 @@ mod tests {
         let rows = parse_csv_payload(payload).expect("null markers");
 
         // Assert
-        assert_eq!(rows[0], vec![Some("row-1".to_string()), None, None]);
+        assert_eq!(
+            rows[0],
+            vec![Some("row-1".to_string()), None, Some("\\N".to_string())]
+        );
     }
 
     #[test]

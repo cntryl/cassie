@@ -11,6 +11,33 @@ pub struct CommonTableExpression {
     pub query: CteQuery,
     #[serde(default, skip_serializing_if = "is_default")]
     pub materialization: CteMaterialization,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search: Option<CteSearch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cycle: Option<CteCycle>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CteSearch {
+    pub order: CteSearchOrder,
+    pub by: Vec<String>,
+    pub sequence_column: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CteSearchOrder {
+    DepthFirst,
+    BreadthFirst,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CteCycle {
+    pub by: Vec<String>,
+    pub mark_column: String,
+    pub mark_value: Expr,
+    pub default_value: Expr,
+    pub path_column: String,
 }
 
 /// Explicit CTE planning policy; recursive and volatile inputs retain sharing.

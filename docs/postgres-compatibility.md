@@ -223,7 +223,22 @@ document null retain their documented distinct meaning.
 A CTE reports the types of the query that defines it, in both `SELECT` results and a pre-execution
 `Describe`. Column aliases on the CTE (`WITH totals (name, seen) AS ...`) rename the columns while
 keeping those types, a later CTE sees the types of the ones before it, and a recursive CTE takes its
-types from the anchor term.
+types from the anchor term. Recursive `SEARCH DEPTH FIRST` and `SEARCH BREADTH FIRST` add the named
+sequence column, and `CYCLE` adds the named mark and path columns; the direct generated outputs use
+PostgreSQL RECORD/RECORD[] OIDs with Cassie's text value carrier. This does not provide general
+composite/record field operations or binary codecs; those remain scoped to [#828](https://github.com/cntryl/cassie/issues/828).
+Custom CYCLE mark/default literal constants are coerced to their common type for text, boolean,
+integer, and NUMERIC values; a NULL-only pair resolves to text. The parser rejects casts and other
+expressions in these positions, matching PostgreSQL's literal-only grammar.
+Cycle keys require equality support; JSON keys and arrays containing JSON are rejected during
+binding, matching PostgreSQL's missing equality operator for those types.
+
+Explicit `MATERIALIZED` CTE results are shared across references. `NOT MATERIALIZED` expands eligible
+side-effect-free simple queries; volatile CTEs retain one shared evaluation, and recursive CTEs keep
+their working-row behavior. Parameter inference inside a materialized CTE is preserved, and retained
+query memory is released when its result is dropped or a consumer fails. Nested expansion and routine
+volatility that cannot be resolved remain deterministic rejection boundaries. Focused evidence is in
+[`ctes.rs`](../tests/sql_queries/ctes/ctes.rs).
 
 ## Errors and Cancellation
 

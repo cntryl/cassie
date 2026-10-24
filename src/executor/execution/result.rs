@@ -5,6 +5,21 @@ use super::{
 use crate::executor::batch::RowAccess;
 use crate::executor::semantic::{compare_values, SemanticKey};
 
+fn apply_query_output_oids(plan: &PhysicalPlan, columns: &mut [crate::executor::ColumnMeta]) {
+    aggregate::apply_percentile_array_oids_for_query(
+        &plan.logical.source,
+        &plan.logical.ctes,
+        &plan.logical.projection,
+        columns,
+    );
+    aggregate::apply_recursive_cte_record_oids_for_query(
+        &plan.logical.source,
+        &plan.logical.ctes,
+        &plan.logical.projection,
+        columns,
+    );
+}
+
 pub(super) fn build_select_result(
     cassie: &Cassie,
     session: Option<&crate::app::CassieSession>,
@@ -56,12 +71,7 @@ pub(super) fn build_select_result(
         user_functions,
         &[],
     );
-    aggregate::apply_percentile_array_oids_for_query(
-        &plan.logical.source,
-        &plan.logical.ctes,
-        &plan.logical.projection,
-        &mut columns,
-    );
+    apply_query_output_oids(plan, &mut columns);
     // Derived wildcard schemas display physical `_id` as `id`, so
     // declares_id alone cannot distinguish it from a real declared field.
     // Retain only the identity that survives the same source-row hiding rule
@@ -112,8 +122,9 @@ pub(super) fn build_select_result(
         .unwrap_or_default();
     for row in &rows {
         let values = row.entries().iter().filter_map(|(name, value)| {
-            (keep_internal_identity_as_id
-                || !crate::types::row_identity::is_row_identity_column(name))
+            (!name.starts_with('\0')
+                && (keep_internal_identity_as_id
+                    || !crate::types::row_identity::is_row_identity_column(name)))
             .then_some(value)
         });
         match &object_labels {
@@ -235,7 +246,7 @@ pub(super) fn deduce_text_fields<R: RowAccess>(rows: &[R]) -> Vec<String> {
 
     for row in rows {
         for (name, value) in row.entries() {
-            if !matches!(value, Value::String(_) | Value::Json(_)) {
+            if name.starts_with('\0') || !matches!(value, Value::String(_) | Value::Json(_)) {
                 continue;
             }
 

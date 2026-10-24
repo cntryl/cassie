@@ -14,7 +14,7 @@ use crate::sql::ast::{
     CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
-    CteQuery, DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
+    DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
     DropIndexStatement, DropMaterializedProjectionStatement, DropProcedureStatement,
     DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
     DropSequenceStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,

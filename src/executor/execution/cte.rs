@@ -13,6 +13,7 @@ mod source_retention_tests;
 
 mod context;
 mod retention;
+mod search_cycle;
 mod seen;
 pub(super) use context::CteContext;
 use retention::RetainedRows;
@@ -122,79 +123,23 @@ pub(super) fn execute_cte<'a>(
                 controls,
             )?
         }
-        CteQuery::Recursive {
-            operator,
-            base,
-            recursive,
-        } => {
-            let base_plan = build_logical_plan(&cassie.catalog, base.as_ref())?;
-            let recursive_plan = build_logical_plan(&cassie.catalog, recursive.as_ref())?;
-            let mut rows = execute_cte_plan(
+        CteQuery::Recursive { .. } => {
+            let mut environment = RecursiveCteEnvironment {
                 cassie,
                 session,
-                &base_plan,
                 cte_context,
                 user_functions,
                 params,
                 controls,
-            )?;
-            rows = rows.rename(&cte.aliases, controls)?;
-
-            let mut seen = seen::SeenRows::new(controls)?;
-            if matches!(operator, SetOperator::Union) {
-                seen.retain_unique(&mut rows, controls)?;
-            }
-            let mut delta = RetainedRows::copy(&rows.rows, controls)?;
-            store_working_rows(cte_context, &cte_name, &delta.rows, &fields, controls)?;
-            let mut stabilized = false;
-
-            for _ in 0..controls.cte_recursion_depth {
-                check_timeout(controls)?;
-                let recursive_rows = execute_cte_plan(
-                    cassie,
-                    session,
-                    &recursive_plan,
-                    cte_context,
-                    user_functions,
-                    params,
-                    controls,
-                )?;
-                let mut recursive_rows = recursive_rows.rename(&cte.aliases, controls)?;
-
-                let new_rows = match operator {
-                    SetOperator::Union => {
-                        seen.retain_unique(&mut recursive_rows, controls)?;
-                        recursive_rows
-                    }
-                    SetOperator::UnionAll => recursive_rows,
-                    _ => {
-                        return Err(QueryError::General(
-                            "unsupported recursive CTE set operator".to_string(),
-                        ));
-                    }
-                };
-
-                if new_rows.is_empty() {
-                    stabilized = true;
-                    break;
-                }
-
-                rows.append(&new_rows.rows, controls)?;
-                delta = new_rows;
-                store_working_rows(cte_context, &cte_name, &delta.rows, &fields, controls)?;
-            }
-
-            if !stabilized {
-                return Err(recursion_depth_exceeded(
-                    &cte.name,
-                    controls.cte_recursion_depth,
-                ));
-            }
-
-            rows
+            };
+            execute_recursive_cte(&mut environment, cte, &fields)?
         }
     };
 
+    let mut output = output;
+    if cte.search.is_some() || cte.cycle.is_some() {
+        search_cycle::remove_lineage(&mut output, &cte_name, cte.search.is_some(), controls)?;
+    }
     let output = output.rename(&cte.aliases, controls)?;
     if let Some(previous_rows) = previous {
         cte_context.insert(&cte_name, previous_rows, controls)?;
@@ -208,6 +153,160 @@ pub(super) fn execute_cte<'a>(
         _rows_memory: Some(output.memory),
         _fields_memory: Some(fields_memory),
     })
+}
+
+struct RecursiveCteEnvironment<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    cte_context: &'a mut CteContext,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+}
+
+fn execute_recursive_cte(
+    environment: &mut RecursiveCteEnvironment<'_>,
+    cte: &CommonTableExpression,
+    fields: &[crate::types::FieldSchema],
+) -> Result<RetainedRows, QueryError> {
+    let CteQuery::Recursive {
+        operator,
+        base,
+        recursive,
+    } = &cte.query
+    else {
+        return Err(QueryError::General(
+            "recursive CTE execution received a non-recursive query".into(),
+        ));
+    };
+    let cte_name = cte.name.to_ascii_lowercase();
+    let base_plan = build_logical_plan(&environment.cassie.catalog, base.as_ref())?;
+    let recursive_statement = search_cycle::add_lineage_projection(
+        recursive.as_ref(),
+        &cte_name,
+        cte.search.as_ref(),
+        cte.cycle.as_ref(),
+    )?;
+    let recursive_plan = build_logical_plan(&environment.cassie.catalog, &recursive_statement)?;
+    let mut rows = execute_cte_plan(
+        environment.cassie,
+        environment.session,
+        &base_plan,
+        environment.cte_context,
+        environment.user_functions,
+        environment.params,
+        environment.controls,
+    )?;
+    rows = rows.rename(&cte.aliases, environment.controls)?;
+    search_cycle::append_base_metadata(
+        &mut rows,
+        &cte_name,
+        cte.search.as_ref(),
+        cte.cycle.as_ref(),
+        environment.controls,
+    )?;
+
+    let mut seen = seen::SeenRows::new(environment.controls)?;
+    if matches!(operator, SetOperator::Union) {
+        seen.retain_unique(&mut rows, environment.controls)?;
+    }
+    let mut delta = RetainedRows::copy(&rows.rows, environment.controls)?;
+    let working_fields =
+        search_cycle::working_fields(fields, &cte_name, cte.search.as_ref(), cte.cycle.as_ref());
+    store_working_rows(
+        environment.cte_context,
+        &cte_name,
+        &delta.rows,
+        &working_fields,
+        environment.controls,
+    )?;
+    let stabilized = execute_recursive_cte_steps(
+        environment,
+        cte,
+        &recursive_plan,
+        &working_fields,
+        &mut rows,
+        &mut delta,
+        &mut seen,
+    )?;
+    if !stabilized {
+        return Err(recursion_depth_exceeded(
+            &cte.name,
+            environment.controls.cte_recursion_depth,
+        ));
+    }
+    Ok(rows)
+}
+
+fn execute_recursive_cte_steps(
+    environment: &mut RecursiveCteEnvironment<'_>,
+    cte: &CommonTableExpression,
+    recursive_plan: &crate::planner::logical::LogicalPlan,
+    working_fields: &Vec<crate::types::FieldSchema>,
+    rows: &mut RetainedRows,
+    delta: &mut RetainedRows,
+    seen: &mut seen::SeenRows,
+) -> Result<bool, QueryError> {
+    let CteQuery::Recursive { operator, .. } = &cte.query else {
+        return Err(QueryError::General(
+            "recursive CTE execution received a non-recursive query".into(),
+        ));
+    };
+    for _ in 0..environment.controls.cte_recursion_depth {
+        check_timeout(environment.controls)?;
+        let recursive_rows = execute_cte_plan(
+            environment.cassie,
+            environment.session,
+            recursive_plan,
+            environment.cte_context,
+            environment.user_functions,
+            environment.params,
+            environment.controls,
+        )?;
+        let mut recursive_rows = recursive_rows.rename(&cte.aliases, environment.controls)?;
+        search_cycle::append_recursive_metadata(
+            &mut recursive_rows,
+            &cte.name.to_ascii_lowercase(),
+            cte.search.as_ref(),
+            cte.cycle.as_ref(),
+            environment.controls,
+        )?;
+
+        match operator {
+            SetOperator::Union => seen.retain_unique(&mut recursive_rows, environment.controls)?,
+            SetOperator::UnionAll => {}
+            _ => {
+                return Err(QueryError::General(
+                    "unsupported recursive CTE set operator".to_string(),
+                ));
+            }
+        }
+        if recursive_rows.is_empty() {
+            return Ok(true);
+        }
+
+        rows.append(&recursive_rows.rows, environment.controls)?;
+        if cte.cycle.is_some() {
+            search_cycle::prune_cycle_rows(
+                &mut recursive_rows,
+                &cte.name.to_ascii_lowercase(),
+                environment.controls,
+            )?;
+        }
+        if recursive_rows.is_empty() {
+            return Ok(true);
+        }
+
+        *delta = recursive_rows;
+        store_working_rows(
+            environment.cte_context,
+            &cte.name.to_ascii_lowercase(),
+            &delta.rows,
+            working_fields,
+            environment.controls,
+        )?;
+    }
+    Ok(false)
 }
 
 fn store_working_rows(

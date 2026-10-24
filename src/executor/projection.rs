@@ -85,7 +85,8 @@ where
                         .iter()
                         .any(|(name, _)| is_legacy_id_column(name));
                     projected.extend(row.entries().iter().filter_map(|(name, value)| {
-                        if is_window_value_key(name)
+                        if name.starts_with('\0')
+                            || is_window_value_key(name)
                             || (hide_internal_identity && is_row_identity_column(name))
                         {
                             None
@@ -334,7 +335,8 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
                 let hide_internal_identity =
                     entries.iter().any(|(name, _)| is_legacy_id_column(name));
                 for (name, value) in &mut entries {
-                    if is_window_value_key(name)
+                    if name.starts_with('\0')
+                        || is_window_value_key(name)
                         || (hide_internal_identity && is_row_identity_column(name))
                     {
                         continue;

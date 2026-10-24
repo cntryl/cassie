@@ -31,7 +31,8 @@ pub(super) fn projected<R: RowAccess>(
                         .iter()
                         .enumerate()
                         .filter(|(_, (name, _))| {
-                            !super::projection::is_window_value_key(name)
+                            !name.starts_with('\0')
+                                && !super::projection::is_window_value_key(name)
                                 && (!hide_identity
                                     || !crate::types::row_identity::is_row_identity_column(name))
                         })

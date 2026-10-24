@@ -1,15 +1,12 @@
-use super::clauses::{
-    find_top_level_keyword, find_top_level_union, split_top_level, strip_parentheses,
-};
+use super::clauses::{find_top_level_keyword, split_top_level, strip_parentheses};
 use super::expr::{parse_alias, parse_expression, parse_function, parse_order_by, split_csv};
 use super::identifiers::parse_relation_path_prefix;
 use super::{
-    parse_statement, CommonTableExpression, CteQuery, Expr, HashSet, JoinKind, OrderExpr,
-    ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
+    parse_statement, CommonTableExpression, Expr, HashSet, JoinKind, OrderExpr, ParsedStatement,
+    QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
 use crate::sql::ast::{
-    AggregateQuantifier, SetOperator, WindowFrame, WindowFrameBound, WindowFrameExclusion,
-    WindowFrameUnit,
+    AggregateQuantifier, WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
 };
 
 #[path = "query_select.rs"]
@@ -17,6 +14,11 @@ mod query_select;
 
 #[path = "relation_alias.rs"]
 mod relation_alias;
+
+#[path = "query_cte.rs"]
+mod query_cte;
+use query_cte::parse_cte_definitions;
+pub(super) use query_cte::parse_enclosed_parenthesized;
 
 pub(super) fn parse_select_statement(
     sql: &str,
@@ -724,143 +726,6 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
 
 pub(super) fn matching_closing_paren(raw: &str) -> Option<usize> {
     super::lexical::matching_paren(raw, 0)
-}
-
-pub(super) fn parse_cte_definitions(
-    raw: &str,
-    recursive: bool,
-) -> Result<Vec<CommonTableExpression>, SqlError> {
-    let mut out = Vec::new();
-    for definition in split_csv(raw) {
-        let definition = super::lexical::trim_separators(definition);
-        if definition.is_empty() {
-            continue;
-        }
-
-        let as_pos = find_top_level_keyword(definition, 0, "as").ok_or_else(|| {
-            SqlError::new(format!("invalid CTE definition '{definition}': missing AS"))
-        })?;
-        let head = super::lexical::trim_separators(&definition[..as_pos]);
-        let body = super::lexical::trim_separators(&definition[as_pos + 2..]);
-
-        let (name, aliases) = parse_cte_header(head)?;
-        let (materialization, body) = super::cte_materialization::parse(body);
-        let body_sql = parse_enclosed_parenthesized(body)
-            .ok_or_else(|| SqlError::new(format!("invalid CTE body for '{name}'")))?;
-        // UNION is also valid in an ordinary CTE; the WITH keyword controls
-        // whether its body may use the recursive representation.
-        let recursive_query = if recursive {
-            parse_recursive_cte_query(&body_sql)?
-        } else {
-            None
-        };
-        let query = if let Some(query) = recursive_query {
-            query
-        } else {
-            let parsed_body = parse_statement(&body_sql).map_err(|error| {
-                SqlError::new(format!("invalid CTE body for '{name}': {error}"))
-            })?;
-
-            CteQuery::Simple(Box::new(parsed_body))
-        };
-        out.push(CommonTableExpression {
-            name: name.clone(),
-            aliases,
-            query,
-            materialization,
-        });
-    }
-
-    if out.is_empty() {
-        return Err(SqlError::new("empty WITH clause".into()));
-    }
-
-    Ok(out)
-}
-
-pub(super) fn parse_recursive_cte_query(body: &str) -> Result<Option<CteQuery>, SqlError> {
-    let Some((set_pos, set_len, all)) = find_top_level_union(body) else {
-        return Ok(None);
-    };
-    let operator = if all {
-        SetOperator::UnionAll
-    } else {
-        SetOperator::Union
-    };
-
-    let base = body[..set_pos].trim();
-    let recursive = body[(set_pos + set_len)..].trim();
-    if base.is_empty() || recursive.is_empty() {
-        return Err(SqlError::new(
-            "recursive CTE requires anchor and recursive terms".into(),
-        ));
-    }
-
-    let base = parse_statement(base)
-        .map_err(|error| SqlError::new(format!("invalid recursive CTE anchor: {error}")))?;
-    let recursive = parse_statement(recursive)
-        .map_err(|error| SqlError::new(format!("invalid recursive CTE recursive term: {error}")))?;
-
-    Ok(Some(CteQuery::Recursive {
-        operator,
-        base: Box::new(base),
-        recursive: Box::new(recursive),
-    }))
-}
-
-pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlError> {
-    let raw = super::lexical::trim_separators(raw);
-    let open = raw.find('(').filter(|open| *open + 1 < raw.len());
-    if let Some(open) = open {
-        let close = raw
-            .rfind(')')
-            .ok_or_else(|| SqlError::new(format!("invalid CTE header '{raw}'")))?;
-        if close <= open {
-            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
-        }
-
-        let name = super::lexical::trim_separators(&raw[..open]);
-        if name.is_empty() || name.contains('(') || name.contains(')') {
-            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
-        }
-
-        if !super::lexical::trim_separators(&raw[close + 1..]).is_empty() {
-            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
-        }
-
-        let aliases = split_csv(&raw[(open + 1)..close])
-            .into_iter()
-            .map(super::lexical::trim_separators)
-            .filter(|alias| !alias.is_empty())
-            .map(|alias| {
-                let column =
-                    crate::sql::ColumnIdentifierPath::parse_sql(alias).map_err(SqlError::new)?;
-                if column.is_qualified() {
-                    return Err(SqlError::new(format!(
-                        "invalid column identifier '{alias}'"
-                    )));
-                }
-                Ok(column.declared_name())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if aliases.is_empty() {
-            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
-        }
-
-        Ok((super::identifiers::normalize_identifier(name)?, aliases))
-    } else {
-        if raw.contains('(') || raw.contains(')') {
-            return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
-        }
-
-        Ok((super::identifiers::normalize_identifier(raw)?, Vec::new()))
-    }
-}
-
-pub(super) fn parse_enclosed_parenthesized(raw: &str) -> Option<String> {
-    let raw = super::lexical::trim_separators(raw);
-    let close = super::lexical::matching_paren(raw, 0)?;
-    (close + 1 == raw.len()).then(|| raw[1..close].to_string())
 }
 
 pub(super) fn parse_parenthesized_prefix(raw: &str) -> Option<(String, &str)> {

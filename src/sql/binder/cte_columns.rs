@@ -4,7 +4,6 @@ use super::{CassieError, Catalog, CteQuery, HashMap, QuerySource};
 
 pub(super) fn binding(
     cte: &crate::sql::ast::CommonTableExpression,
-    previous: &[crate::sql::ast::CommonTableExpression],
     scope: &super::super::CteScope<'_>,
     catalog: &Catalog,
     context: &super::super::BindingContext,
@@ -20,19 +19,9 @@ pub(super) fn binding(
         .map(|(name, binding)| (name.clone(), binding.row_fields.clone()))
         .collect();
     let row_fields = super::super::wildcard::cte_row_fields(cte, &row_scope, catalog, &functions)?;
-    let mut ctes = previous.to_vec();
-    ctes.push(cte.clone());
-    let schema = super::super::source_schema::derived_source_schema(
-        &QuerySource::Cte(cte.name.clone()),
-        &ctes,
-        catalog,
-        &functions,
-    )
-    .ok_or_else(|| CassieError::Planner("cannot infer CTE output columns".into()))?;
-    let visible = schema
-        .fields
-        .into_iter()
-        .map(|field| field.name)
+    let visible = row_fields
+        .iter()
+        .map(|field| field.name.clone())
         .collect::<Vec<_>>();
     if visible.len() != row_fields.len() {
         return Err(CassieError::Planner(
@@ -98,6 +87,8 @@ fn wildcard_cte_columns(
         aliases: Vec::new(),
         query: query.clone(),
         materialization: crate::sql::ast::CteMaterialization::Default,
+        search: None,
+        cycle: None,
     });
     let schema = super::super::source_schema::derived_source_schema(
         &QuerySource::Cte(cte_name.to_string()),

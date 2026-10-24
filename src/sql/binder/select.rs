@@ -43,19 +43,12 @@ pub(super) fn bind_select_with_lateral_fields(
     let mut bound_ctes = Vec::with_capacity(ctes.len());
     for cte in ctes {
         let cte_name = cte.name.trim();
-        if cte_name.is_empty() {
-            return Err(CassieError::Planner("CTE name cannot be empty".into()));
-        }
-        let cte_name_lc = cte_name.to_ascii_lowercase();
-        if !local_names.insert(cte_name_lc.clone()) {
-            return Err(CassieError::Planner(format!(
-                "duplicate CTE name '{cte_name}'"
-            )));
-        }
+        let cte_name_lc = register_cte_name(cte_name, &mut local_names)?;
 
         let declared_aliases = cte.aliases.clone();
         let query = match cte.query {
             CteQuery::Simple(next) => {
+                reject_recursive_self_reference(select.recursive, cte_name, next.as_ref())?;
                 CteQuery::Simple(Box::new(bind_statement(*next, catalog, &scope, context)?))
             }
             CteQuery::Recursive {
@@ -72,6 +65,10 @@ pub(super) fn bind_select_with_lateral_fields(
                 catalog,
                 &scope,
                 cte_name,
+                &super::recursive::RecursiveCteClauses {
+                    search: cte.search.as_ref(),
+                    cycle: cte.cycle.as_ref(),
+                },
                 context,
             )?,
         };
@@ -83,8 +80,10 @@ pub(super) fn bind_select_with_lateral_fields(
             aliases: stored_aliases,
             query,
             materialization: cte.materialization,
+            search: cte.search,
+            cycle: cte.cycle,
         };
-        let binding = cte_columns::binding(&bound_cte, &bound_ctes, &scope, catalog, context)?;
+        let binding = cte_columns::binding(&bound_cte, &scope, catalog, context)?;
         scope.insert(cte_name_lc, binding);
         bound_ctes.push(bound_cte);
     }
@@ -141,6 +140,34 @@ pub(super) fn bind_select_with_lateral_fields(
     super::search_field_case::canonicalize_search_field_arguments(&mut select, catalog);
 
     Ok(select)
+}
+
+fn register_cte_name(name: &str, local_names: &mut HashSet<String>) -> Result<String, CassieError> {
+    if name.is_empty() {
+        return Err(CassieError::Planner("CTE name cannot be empty".into()));
+    }
+    let normalized = name.to_ascii_lowercase();
+    if !local_names.insert(normalized.clone()) {
+        return Err(CassieError::Planner(format!("duplicate CTE name '{name}'")));
+    }
+    Ok(normalized)
+}
+
+fn reject_recursive_self_reference(
+    recursive: bool,
+    cte_name: &str,
+    query: &crate::sql::ast::ParsedStatement,
+) -> Result<(), CassieError> {
+    if recursive && super::recursive_cte_references_self(query, cte_name) {
+        return Err(crate::app::DiagnosticError::new(
+            "42P19",
+            format!(
+                "recursive query \"{cte_name}\" does not have the form non-recursive-term UNION [ALL] recursive-term"
+            ),
+        )
+        .into());
+    }
+    Ok(())
 }
 
 pub(super) fn canonicalize_typed_predicate_literals(

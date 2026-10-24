@@ -97,3 +97,25 @@ fn should_parse_recursive_cycle_clause_with_custom_mark_values() {
         SelectItem::Column { name, .. } if name == "marker"
     ));
 }
+
+#[test]
+fn should_reject_nonliteral_cycle_mark_values() {
+    // Arrange
+    let queries = [
+        "WITH RECURSIVE walk(node) AS (SELECT 1 UNION ALL SELECT node + 1 FROM walk WHERE node < 2) CYCLE node SET marker TO CAST(1 AS INTEGER) DEFAULT 0 USING path SELECT marker FROM walk",
+        "WITH RECURSIVE walk(node) AS (SELECT 1 UNION ALL SELECT node + 1 FROM walk WHERE node < 2) CYCLE node SET marker TO 1 + 2 DEFAULT 0 USING path SELECT marker FROM walk",
+        "WITH RECURSIVE walk(node) AS (SELECT 1 UNION ALL SELECT node + 1 FROM walk WHERE node < 2) CYCLE node SET marker TO -1 DEFAULT 0 USING path SELECT marker FROM walk",
+    ];
+
+    // Act
+    let errors = queries.map(|sql| {
+        cassie::sql::parse_statement(sql)
+            .expect_err("PostgreSQL CYCLE mark values accept literal constants only")
+            .to_string()
+    });
+
+    // Assert
+    assert!(errors.iter().all(|error| {
+        error.contains("CYCLE mark and default values must be literal constants")
+    }));
+}

@@ -233,6 +233,132 @@ pub(crate) fn apply_percentile_array_oids_for_query(
     }
 }
 
+/// Applies PostgreSQL's ephemeral RECORD OIDs to direct recursive SEARCH and
+/// CYCLE outputs while retaining Cassie's text carrier and storage identity.
+pub(crate) fn apply_recursive_cte_record_oids_for_query(
+    source: &QuerySource,
+    ctes: &[CommonTableExpression],
+    projection: &[SelectItem],
+    columns: &mut [ColumnMeta],
+) {
+    let mut referenced = HashSet::new();
+    collect_cte_sources(source, &mut referenced);
+    let mut identities = HashMap::<String, Option<i64>>::new();
+    for cte in ctes {
+        if !referenced.contains(&cte.name.to_ascii_lowercase()) {
+            continue;
+        }
+        if let Some(search) = &cte.search {
+            let oid = match search.order {
+                crate::sql::ast::CteSearchOrder::DepthFirst => 2287,
+                crate::sql::ast::CteSearchOrder::BreadthFirst => 2249,
+            };
+            insert_record_identity(&mut identities, &search.sequence_column, oid);
+        }
+        if let Some(cycle) = &cte.cycle {
+            let empty_schema = Schema { fields: Vec::new() };
+            let no_functions = HashMap::new();
+            let mark_type = crate::sql::binder::infer_expr_type(
+                &cycle.mark_value,
+                &empty_schema,
+                &no_functions,
+                &[],
+            );
+            let default_type = crate::sql::binder::infer_expr_type(
+                &cycle.default_value,
+                &empty_schema,
+                &no_functions,
+                &[],
+            );
+            let mark_type = match (mark_type, default_type) {
+                (Some(DataType::Null), Some(other)) | (Some(other), Some(DataType::Null)) => {
+                    Some(other)
+                }
+                (Some(mark), Some(default)) => crate::sql::binder::common_case_type(mark, default),
+                _ => None,
+            };
+            let mark_oid = mark_type
+                .filter(|data_type| *data_type != DataType::Null)
+                .unwrap_or(DataType::Text)
+                .type_oid();
+            insert_record_identity(&mut identities, &cycle.mark_column, mark_oid);
+            insert_record_identity(&mut identities, &cycle.path_column, 2287);
+        }
+    }
+    if identities.is_empty() {
+        return;
+    }
+    if projection
+        .iter()
+        .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        for column in columns {
+            let Some(Some(oid)) = identities.get(&column.name) else {
+                continue;
+            };
+            column.type_oid = *oid;
+        }
+        return;
+    }
+    if projection.len() != columns.len() {
+        return;
+    }
+    for (item, column) in projection.iter().zip(columns) {
+        let Some(name) = direct_column_name(item) else {
+            continue;
+        };
+        let Some(Some(oid)) = identities.get(&name) else {
+            continue;
+        };
+        column.type_oid = *oid;
+    }
+}
+
+fn insert_record_identity(identities: &mut HashMap<String, Option<i64>>, name: &str, oid: i64) {
+    match identities.entry(name.to_owned()) {
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            entry.insert(Some(oid));
+        }
+        std::collections::hash_map::Entry::Occupied(mut entry) => {
+            if entry.get() != &Some(oid) {
+                entry.insert(None);
+            }
+        }
+    }
+}
+
+fn direct_column_name(item: &SelectItem) -> Option<String> {
+    let (SelectItem::Column { name, .. }
+    | SelectItem::Expr {
+        expr: Expr::Column(name),
+        ..
+    }) = item
+    else {
+        return None;
+    };
+    crate::sql::ColumnIdentifierPath::parse(name)
+        .ok()
+        .map(|column| column.final_name().to_owned())
+}
+
+fn collect_cte_sources(source: &QuerySource, names: &mut HashSet<String>) {
+    match source {
+        QuerySource::Cte(name) => {
+            names.insert(name.to_ascii_lowercase());
+        }
+        QuerySource::Aliased { source, .. } => collect_cte_sources(source, names),
+        QuerySource::Join { left, right, .. } => {
+            collect_cte_sources(left, names);
+            collect_cte_sources(right, names);
+        }
+        QuerySource::Subquery { select, .. } => collect_cte_sources(&select.source, names),
+        QuerySource::Values { .. }
+        | QuerySource::Collection(_)
+        | QuerySource::TableFunction { .. }
+        | QuerySource::SingleRow => {}
+    }
+}
+
 pub(crate) fn percentile_array_output_oid(
     function: &FunctionCall,
     data_type: &DataType,

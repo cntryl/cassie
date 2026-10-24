@@ -15,8 +15,8 @@ use super::inference::{
 };
 use super::select::table_function_columns;
 use super::{
-    CassieError, Catalog, CommonTableExpression, CteQuery, FieldSchema, HashMap, QuerySource,
-    Schema, SelectItem, SelectStatement,
+    CassieError, Catalog, CommonTableExpression, CteQuery, DataType, FieldSchema, HashMap, HashSet,
+    QuerySource, Schema, SelectItem, SelectStatement,
 };
 use crate::types::row_identity::{
     is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
@@ -162,9 +162,152 @@ fn cte_scope(
                 }
             }
         }
+        append_generated_cte_fields(cte, &mut fields, user_functions)?;
         scope.insert(cte.name.to_ascii_lowercase(), fields);
     }
     Ok(scope)
+}
+
+fn append_generated_cte_fields(
+    cte: &CommonTableExpression,
+    fields: &mut Vec<FieldSchema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Result<(), CassieError> {
+    append_search_cycle_fields(
+        &cte.name,
+        fields,
+        cte.search.as_ref(),
+        cte.cycle.as_ref(),
+        user_functions,
+    )
+}
+
+pub(super) fn append_search_cycle_fields(
+    cte_name: &str,
+    fields: &mut Vec<FieldSchema>,
+    search: Option<&crate::sql::ast::CteSearch>,
+    cycle: Option<&crate::sql::ast::CteCycle>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Result<(), CassieError> {
+    let mut names = fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect::<HashSet<_>>();
+    for key in search
+        .into_iter()
+        .flat_map(|search| search.by.iter())
+        .chain(cycle.into_iter().flat_map(|cycle| cycle.by.iter()))
+    {
+        if !fields.iter().any(|field| field.name == *key) {
+            return Err(CassieError::Planner(format!(
+                "CTE '{cte_name}' SEARCH or CYCLE key '{key}' is not an output column"
+            )));
+        }
+    }
+    if let Some(cycle) = cycle {
+        for key in &cycle.by {
+            let field = fields
+                .iter()
+                .find(|field| field.name == *key)
+                .ok_or_else(|| {
+                    CassieError::Planner(format!(
+                        "CTE '{cte_name}' CYCLE key '{key}' is not an output column"
+                    ))
+                })?;
+            if !crate::sql::functions::has_distinct_equality(&field.data_type) {
+                return Err(CassieError::Unsupported(format!(
+                    "CYCLE key type '{}' does not support equality",
+                    field.data_type.type_name()
+                )));
+            }
+        }
+    }
+    if let Some(search) = search {
+        push_generated_field(
+            &mut names,
+            fields,
+            cte_name,
+            &search.sequence_column,
+            DataType::Text,
+        )?;
+    }
+    if let Some(cycle) = cycle {
+        let source = Schema {
+            fields: fields.clone(),
+        };
+        let mark_type =
+            super::inference::infer_expr_type(&cycle.mark_value, &source, user_functions, &[])
+                .ok_or_else(|| CassieError::Planner("cannot infer CYCLE mark type".into()))?;
+        let default_type =
+            super::inference::infer_expr_type(&cycle.default_value, &source, user_functions, &[])
+                .ok_or_else(|| CassieError::Planner("cannot infer CYCLE default type".into()))?;
+        let mark_type = match (mark_type, default_type) {
+            (DataType::Null, DataType::Null) => DataType::Text,
+            (DataType::Null, other) | (other, DataType::Null) => other,
+            (mark, default) if mark == default => mark,
+            (mark, default) => {
+                super::inference::common_case_type(mark, default).ok_or_else(|| {
+                    CassieError::Planner(
+                        "CYCLE mark and default values have incompatible types".into(),
+                    )
+                })?
+            }
+        };
+        if !cycle_mark_type_has_inequality_operator(&mark_type) {
+            return Err(CassieError::Unsupported(format!(
+                "CYCLE mark type '{}' does not support inequality",
+                mark_type.type_name()
+            )));
+        }
+        push_generated_field(&mut names, fields, cte_name, &cycle.mark_column, mark_type)?;
+        push_generated_field(
+            &mut names,
+            fields,
+            cte_name,
+            &cycle.path_column,
+            DataType::Text,
+        )?;
+    }
+    Ok(())
+}
+
+fn cycle_mark_type_has_inequality_operator(data_type: &DataType) -> bool {
+    matches!(
+        data_type,
+        DataType::Boolean
+            | DataType::SmallInt
+            | DataType::Int
+            | DataType::BigInt
+            | DataType::Float
+            | DataType::Text
+            | DataType::Char { .. }
+            | DataType::Varchar { .. }
+            | DataType::Uuid
+            | DataType::Extended(
+                crate::types::extended::ExtendedType::Numeric(_)
+                    | crate::types::extended::ExtendedType::Real
+            )
+    )
+}
+
+fn push_generated_field(
+    names: &mut HashSet<String>,
+    fields: &mut Vec<FieldSchema>,
+    cte_name: &str,
+    name: &str,
+    data_type: DataType,
+) -> Result<(), CassieError> {
+    if !names.insert(name.to_owned()) {
+        return Err(CassieError::Planner(format!(
+            "CTE '{cte_name}' generated column '{name}' duplicates an output column"
+        )));
+    }
+    fields.push(FieldSchema {
+        name: name.to_owned(),
+        data_type,
+        nullable: false,
+    });
+    Ok(())
 }
 
 fn select_fields(
@@ -405,5 +548,44 @@ fn hide_shadowed_identity(fields: Vec<FieldSchema>) -> Vec<FieldSchema> {
             .collect()
     } else {
         fields
+    }
+}
+
+#[cfg(test)]
+mod cycle_key_tests {
+    use super::append_search_cycle_fields;
+    use crate::sql::ast::{CteCycle, Expr};
+    use crate::types::{DataType, FieldSchema};
+
+    #[test]
+    fn should_reject_cycle_key_arrays_without_element_equality() {
+        // Arrange
+        let cycle = CteCycle {
+            by: vec!["node".to_owned()],
+            mark_column: "is_cycle".to_owned(),
+            mark_value: Expr::BoolLiteral(true),
+            default_value: Expr::BoolLiteral(false),
+            path_column: "path".to_owned(),
+        };
+        let mut fields = vec![FieldSchema {
+            name: "node".to_owned(),
+            data_type: DataType::Array(Box::new(DataType::Json)),
+            nullable: false,
+        }];
+
+        // Act
+        let result = append_search_cycle_fields(
+            "walk",
+            &mut fields,
+            None,
+            Some(&cycle),
+            &std::collections::HashMap::new(),
+        );
+
+        // Assert
+        assert!(result
+            .expect_err("array element type JSON has no PostgreSQL equality operator")
+            .to_string()
+            .contains("CYCLE key type 'json[]' does not support equality"));
     }
 }

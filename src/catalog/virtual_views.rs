@@ -23,6 +23,8 @@ pub(crate) fn format_stored_expression(expression: &str) -> String {
 mod virtual_views_consistency;
 #[path = "virtual_views_constraints.rs"]
 mod virtual_views_constraints;
+#[path = "virtual_views_dependencies.rs"]
+mod virtual_views_dependencies;
 #[path = "virtual_views_empty.rs"]
 mod virtual_views_empty;
 #[path = "virtual_views_pg.rs"]
@@ -143,6 +145,7 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         "pg_catalog.pg_attrdef" => Some(virtual_views_pg::attrdef_schema()),
         "pg_catalog.pg_table_storage" => Some(virtual_views_storage::schema()),
         "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint_schema()),
+        "pg_catalog.pg_depend" => Some(virtual_views_dependencies::schema()),
         "pg_catalog.pg_roles" => Some(vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")]),
         "pg_catalog.pg_settings" => Some(vec![
             text("name"),
@@ -425,6 +428,7 @@ fn pg_catalog_core_rows(
             catalog,
             current_database,
         )),
+        "pg_catalog.pg_depend" => Some(virtual_views_dependencies::rows(catalog, current_database)),
         "pg_catalog.pg_roles" => Some(pg_roles_rows(catalog)),
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),

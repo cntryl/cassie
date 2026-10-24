@@ -84,6 +84,9 @@ impl<'a> QueryResultFrames<'a> {
         formats: &[i16],
     ) -> io::Result<()> {
         self.bytes.clear();
+        let postgres_array_text_columns = self
+            .result
+            .map_or(&[][..], QueryResult::postgres_array_text_columns);
         let binary_object_columns = self.result.map(|result| {
             (0..row.len())
                 .filter(|column| super::writers::result_format_for_index(formats, *column) == 1)
@@ -100,9 +103,21 @@ impl<'a> QueryResultFrames<'a> {
                 for (column, value) in replacements {
                     row[column] = value;
                 }
-                append_data_row_frame(&mut self.bytes, &row, columns, formats)
+                append_data_row_frame(
+                    &mut self.bytes,
+                    &row,
+                    columns,
+                    formats,
+                    postgres_array_text_columns,
+                )
             }
-            _ => append_data_row_frame(&mut self.bytes, row, columns, formats),
+            _ => append_data_row_frame(
+                &mut self.bytes,
+                row,
+                columns,
+                formats,
+                postgres_array_text_columns,
+            ),
         }
     }
 
@@ -145,6 +160,7 @@ fn scratch_bytes(
     let command = result.command().len().max(27);
     let mut largest_payload = description.max(add(command, 1)?);
     let mut largest_encoder = mul(largest_payload.max(8), 3)?;
+    let postgres_array_text_columns = result.postgres_array_text_columns();
     for row in rows {
         let mut payload = add(2, mul(row.len(), 4)?)?;
         let mut cell_scratch = 0;
@@ -158,7 +174,8 @@ fn scratch_bytes(
                 1 => formats[0],
                 _ => formats.get(index).copied().unwrap_or(0),
             };
-            let cell = cell_bytes(value, oid, format)?;
+            let postgres_array_text = postgres_array_text_columns.binary_search(&index).is_ok();
+            let cell = cell_bytes(value, oid, format, postgres_array_text)?;
             payload = add(payload, cell.encoded)?;
             cell_scratch = cell_scratch.max(cell.scratch);
         }
@@ -180,12 +197,20 @@ struct CellBytes {
     scratch: usize,
 }
 
-fn cell_bytes(value: &Value, oid: i64, format: i16) -> Result<CellBytes, CassieError> {
+fn cell_bytes(
+    value: &Value,
+    oid: i64,
+    format: i16,
+    postgres_array_text: bool,
+) -> Result<CellBytes, CassieError> {
     if matches!(value, Value::Null) {
         return Ok(CellBytes {
             encoded: 0,
             scratch: 0,
         });
+    }
+    if format == 0 && postgres_array_text {
+        return postgres_array_text_bytes(value);
     }
     if format == 0 || matches!(oid, 25 | 1042 | 1043 | 705) {
         return text_bytes(value);
@@ -197,20 +222,20 @@ fn cell_bytes(value: &Value, oid: i64, format: i16) -> Result<CellBytes, CassieE
             scratch: encoded,
         });
     }
-    if (34_000..44_000).contains(&oid) {
-        if let Value::Json(serde_json::Value::Array(values)) = value {
-            let mut encoded = if values.is_empty() { 12 } else { 20 };
-            let mut element_scratch = 0;
-            for value in values {
-                let cell = array_element_bytes(value, oid - 34_000)?;
-                encoded = add(encoded, add(4, cell.encoded)?)?;
-                element_scratch = element_scratch.max(cell.scratch);
-            }
-            return Ok(CellBytes {
-                encoded,
-                scratch: add(mul(encoded.max(8), 3)?, element_scratch)?,
-            });
+    if let (Some(element_oid), Value::Json(serde_json::Value::Array(values))) =
+        (array_element_oid(oid), value)
+    {
+        let mut encoded = if values.is_empty() { 12 } else { 20 };
+        let mut element_scratch = 0;
+        for value in values {
+            let cell = array_element_bytes(value, element_oid)?;
+            encoded = add(encoded, add(4, cell.encoded)?)?;
+            element_scratch = element_scratch.max(cell.scratch);
         }
+        return Ok(CellBytes {
+            encoded,
+            scratch: add(mul(encoded.max(8), 3)?, element_scratch)?,
+        });
     }
     if oid == 114 {
         return match value {
@@ -237,6 +262,14 @@ fn cell_bytes(value: &Value, oid: i64, format: i16) -> Result<CellBytes, CassieE
         _ => encoded,
     };
     Ok(CellBytes { encoded, scratch })
+}
+
+fn array_element_oid(array_oid: i64) -> Option<i64> {
+    if (34_000..44_000).contains(&array_oid) {
+        return Some(array_oid - 34_000);
+    }
+    let array_oid = u32::try_from(array_oid).ok()?;
+    crate::catalog::builtin_identity::builtin_array_element_oid(array_oid).map(i64::from)
 }
 
 fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
@@ -277,6 +310,22 @@ fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
     })
 }
 
+fn postgres_array_text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
+    let Value::Json(array) = value else {
+        return text_bytes(value);
+    };
+    let element_count = array.as_array().map_or(0, Vec::len);
+    let json_bytes = serialized_json_bytes(array)?;
+    // Array quoting can expand each element; also admit the temporary String
+    // directory used while joining PostgreSQL's text representation.
+    let encoded = add(add(mul(json_bytes, 4)?, mul(element_count, 2)?)?, 2)?;
+    let scratch = add(
+        mul(encoded.max(128), 3)?,
+        mul(element_count, size_of::<String>())?,
+    )?;
+    Ok(CellBytes { encoded, scratch })
+}
+
 fn json_bytes(value: &serde_json::Value) -> Result<CellBytes, CassieError> {
     let encoded = serialized_json_bytes(value)?;
     // serde_json::to_string starts a 128-byte buffer and grows geometrically.
@@ -297,14 +346,14 @@ fn array_element_bytes(value: &serde_json::Value, oid: i64) -> Result<CellBytes,
         return json_bytes(value);
     }
     match value {
-        serde_json::Value::Bool(value) => cell_bytes(&Value::Bool(*value), oid, 1),
+        serde_json::Value::Bool(value) => cell_bytes(&Value::Bool(*value), oid, 1, false),
         serde_json::Value::Number(value) => {
             let value = value
                 .as_i64()
                 .map(Value::Int64)
                 .or_else(|| value.as_f64().map(Value::Float64))
                 .unwrap_or(Value::Null);
-            cell_bytes(&value, oid, 1)
+            cell_bytes(&value, oid, 1, false)
         }
         serde_json::Value::String(text) => {
             let encoded = if matches!(oid, 25 | 1042 | 1043 | 705) {

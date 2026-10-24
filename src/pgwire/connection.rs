@@ -78,7 +78,7 @@ pub(crate) fn benchmark_encode_data_row(
     result_formats: &[i16],
 ) -> io::Result<Vec<u8>> {
     let mut frame = Vec::new();
-    writers::append_data_row_frame(&mut frame, row, columns, result_formats)?;
+    writers::append_data_row_frame(&mut frame, row, columns, result_formats, &[])?;
     Ok(frame)
 }
 

@@ -125,6 +125,41 @@ fn binary_array_copy_input_payload() -> Vec<u8> {
 }
 
 #[test]
+fn should_decode_pg_type_kind_as_internal_char() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pg_type_kind_internal_char").await;
+        let (client, connection) = server.connect().await;
+        let query = "SELECT t.typname, t.typtype, t.typelem, NULL::OID, \
+                     t.typbasetype, n.nspname, t.typrelid \
+                     FROM pg_catalog.pg_type t \
+                     INNER JOIN pg_catalog.pg_namespace n \
+                         ON t.typnamespace = n.oid \
+                     WHERE t.oid = $1";
+
+        // Act
+        let statement = client
+            .prepare(query)
+            .await
+            .expect("prepare the pg_type type-info query");
+        assert_eq!(statement.columns()[1].type_().oid(), 18);
+        let row = client
+            .query_one(&statement, &[&23_u32])
+            .await
+            .expect("read pg_type type info");
+        let kind = row.get::<_, i8>(1);
+        let type_oid = statement.columns()[1].type_().oid();
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(type_oid, 18);
+        assert_eq!(kind, b'b'.cast_signed());
+    });
+}
+
+#[test]
 fn should_export_binary_copy_rows_with_postgresql_scalar_type_encodings() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -225,7 +260,7 @@ fn should_import_binary_copy_null_empty_array_payloads() {
             .collect::<Vec<_>>();
         let rows = client
             .query(
-                "SELECT id, note, nums::text, payload::text \
+                "SELECT id, note, nums, nums::text, payload::text \
                  FROM compat_copy_binary_input_matrix ORDER BY id",
                 &[],
             )
@@ -247,21 +282,27 @@ fn should_import_binary_copy_null_empty_array_payloads() {
         assert_eq!(rows[0].get::<_, i32>(0), 42);
         assert_eq!(rows[0].get::<_, Option<String>>(1), None);
         assert_eq!(
-            rows[0].get::<_, Option<String>>(2).as_deref(),
-            Some("{1,NULL,3}")
+            rows[0].get::<_, Option<Vec<Option<i32>>>>(2),
+            Some(vec![Some(1), None, Some(3)])
         );
         assert_eq!(
             rows[0].get::<_, Option<String>>(3).as_deref(),
+            Some("{1,NULL,3}")
+        );
+        assert_eq!(
+            rows[0].get::<_, Option<String>>(4).as_deref(),
             Some("\\x00ff")
         );
         assert_eq!(rows[1].get::<_, i32>(0), 43);
         assert_eq!(rows[1].get::<_, Option<String>>(1).as_deref(), Some("text"));
-        assert_eq!(rows[1].get::<_, Option<String>>(2), None);
+        assert_eq!(rows[1].get::<_, Option<Vec<Option<i32>>>>(2), None);
         assert_eq!(rows[1].get::<_, Option<String>>(3), None);
+        assert_eq!(rows[1].get::<_, Option<String>>(4), None);
         assert_eq!(rows[2].get::<_, i32>(0), 44);
         assert_eq!(rows[2].get::<_, Option<String>>(1).as_deref(), Some(""));
-        assert_eq!(rows[2].get::<_, Option<String>>(2).as_deref(), Some("{}"));
-        assert_eq!(rows[2].get::<_, Option<String>>(3).as_deref(), Some("\\x"));
+        assert_eq!(rows[2].get::<_, Option<Vec<Option<i32>>>>(2), Some(vec![]));
+        assert_eq!(rows[2].get::<_, Option<String>>(3).as_deref(), Some("{}"));
+        assert_eq!(rows[2].get::<_, Option<String>>(4).as_deref(), Some("\\x"));
     });
 }
 

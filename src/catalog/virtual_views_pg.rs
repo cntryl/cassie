@@ -15,7 +15,7 @@ pub(super) fn namespace_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn class_schema() -> Vec<(String, DataType)> {
     vec![
-        int("oid"),
+        oid("oid"),
         text("relname"),
         text("relkind"),
         oid("relam"),
@@ -95,14 +95,16 @@ pub(super) fn attrdef_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn type_schema() -> Vec<(String, DataType)> {
     vec![
-        int("oid"),
+        oid("oid"),
         text("typname"),
-        text("typnamespace"),
+        oid("typnamespace"),
         int("typlen"),
         bool("typbyval"),
         text("typtype"),
         text("typcategory"),
-        int("typelem"),
+        oid("typelem"),
+        oid("typbasetype"),
+        oid("typrelid"),
     ]
 }
 
@@ -303,7 +305,7 @@ pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> V
 }
 
 pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
-    let mut rows = builtin_type_rows();
+    let mut rows = builtin_type_rows(catalog);
     let collection_types = catalog
         .list_collections_canonical()
         .into_iter()
@@ -336,7 +338,7 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
     rows.extend(
         dimensions
             .into_iter()
-            .map(|dimensions| type_row(&DataType::Vector(dimensions), "pg_catalog")),
+            .map(|dimensions| type_row(catalog, &DataType::Vector(dimensions), "pg_catalog")),
     );
     rows.sort_by_key(row_sort_key);
     rows
@@ -628,12 +630,12 @@ fn default_expression(value: &serde_json::Value) -> String {
     value.to_string()
 }
 
-fn builtin_type_rows() -> Vec<VirtualRow> {
+fn builtin_type_rows(catalog: &Catalog) -> Vec<VirtualRow> {
     let namespace = "pg_catalog";
     let types = crate::types::builtin::BUILTIN_TYPES;
     let mut rows: Vec<_> = types
         .iter()
-        .map(|metadata| type_row(&metadata.kind.data_type(), namespace))
+        .map(|metadata| type_row(catalog, &metadata.kind.data_type(), namespace))
         .collect();
     rows.extend(
         types
@@ -641,6 +643,7 @@ fn builtin_type_rows() -> Vec<VirtualRow> {
             .filter(|metadata| metadata.kind != crate::types::builtin::BuiltinKind::Unknown)
             .map(|metadata| {
                 type_row(
+                    catalog,
                     &DataType::Array(Box::new(metadata.kind.data_type())),
                     namespace,
                 )
@@ -650,17 +653,19 @@ fn builtin_type_rows() -> Vec<VirtualRow> {
     rows
 }
 
-fn type_row(data_type: &DataType, namespace: &str) -> VirtualRow {
+fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> VirtualRow {
     let typname = data_type.type_name();
     vec![
         int_value("oid", data_type.type_oid()),
         string("typname", typname),
-        string("typnamespace", namespace),
+        int_value("typnamespace", namespace_oid(catalog, namespace)),
         int_value("typlen", i64::from(data_type.typlen())),
         bool_value("typbyval", is_type_passed_by_value(data_type)),
         string("typtype", type_kind(data_type)),
         string("typcategory", type_category(data_type)),
         int_value("typelem", element_type_oid(data_type)),
+        int_value("typbasetype", 0),
+        int_value("typrelid", 0),
     ]
 }
 

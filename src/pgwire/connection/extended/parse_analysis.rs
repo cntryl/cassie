@@ -11,6 +11,14 @@ pub(super) fn admit(
     parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<AdmittedParameterTypes, ExtendedQueryError> {
+    if parameter_type_oids
+        .iter()
+        .any(|oid| (34_000..44_000).contains(oid))
+    {
+        return Err(ExtendedQueryError::unsupported(
+            "private Cassie array parameter OIDs are unsupported by pgwire",
+        ));
+    }
     let catalog_overlay = session.transaction_catalog_overlay();
     let mut scoped_cassie = cassie.clone();
     if let Some(catalog) = catalog_overlay.as_ref() {

@@ -1,4 +1,6 @@
-use super::codecs::{validate_result_formats, value_to_binary, value_to_text};
+use super::codecs::{
+    validate_result_formats, value_to_binary, value_to_postgres_array_text, value_to_text,
+};
 use super::errors::PgWireError;
 use super::result_frames::QueryResultFrames;
 use super::{AsyncWrite, AsyncWriteExt, CassieSession};
@@ -247,6 +249,7 @@ pub(super) fn append_data_row_frame(
     row: &[Value],
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
+    postgres_array_text_columns: &[usize],
 ) -> io::Result<()> {
     validate_result_formats(columns, result_formats)?;
     ensure_row_width(row, columns)?;
@@ -264,7 +267,13 @@ pub(super) fn append_data_row_frame(
             other => {
                 let format_code = result_format_for_index(result_formats, index);
                 let bytes = if format_code == 0 {
-                    value_to_text(other, columns[index].type_oid).into_bytes()
+                    if postgres_array_text_columns.binary_search(&index).is_ok() {
+                        value_to_postgres_array_text(other, columns[index].type_oid)
+                            .unwrap_or_else(|| value_to_text(other, columns[index].type_oid))
+                            .into_bytes()
+                    } else {
+                        value_to_text(other, columns[index].type_oid).into_bytes()
+                    }
                 } else if format_code == 1 {
                     value_to_binary(other, columns[index].type_oid)?
                 } else {

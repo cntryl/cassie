@@ -61,7 +61,7 @@ impl Cassie {
         } else {
             self.columns_for_plan(logical, session, declared_oids)
         };
-        crate::executor::aggregate::apply_percentile_array_oids_for_query(
+        let _ = crate::executor::aggregate::apply_percentile_array_oids_for_query(
             &logical.source,
             &logical.ctes,
             &logical.projection,
@@ -74,6 +74,11 @@ impl Cassie {
             &mut columns,
         );
         crate::executor::aggregate::apply_void_function_oids(&logical.projection, &mut columns);
+        crate::executor::aggregate::apply_pg_type_kind_oid(
+            &logical.source,
+            &logical.projection,
+            &mut columns,
+        );
         let returning = match logical.command.as_ref() {
             Some(LogicalCommand::Insert(statement)) => {
                 Some((&statement.table, &statement.returning))
@@ -104,6 +109,11 @@ impl Cassie {
             {
                 return Err(CassieError::Unsupported(
                     "VECTOR array result identities are not supported by pgwire".to_string(),
+                ));
+            }
+            if (34_000..44_000).contains(&column.type_oid) {
+                return Err(CassieError::Unsupported(
+                    "private Cassie array result OIDs are unsupported by pgwire".to_string(),
                 ));
             }
         }

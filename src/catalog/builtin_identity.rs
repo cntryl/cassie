@@ -131,8 +131,8 @@ pub fn builtin_identities() -> &'static BuiltinIdentities {
     IDENTITIES.get_or_init(load)
 }
 
-/// PostgreSQL's built-in array identity for a scalar element type, when one
-/// exists. Cassie's general SQL array identity remains private.
+/// PostgreSQL's built-in array identity for a registered element type, when one
+/// exists. Unsupported element families retain the private array fallback.
 #[must_use]
 pub(crate) fn builtin_array_oid(element_oid: u32) -> Option<u32> {
     builtin_identities()

@@ -14,18 +14,13 @@ use vector::{decode_vector, encode_vector};
 
 const OID_ARRAY_BASE: i64 = 34_000;
 const OID_ARRAY_LIMIT: i64 = 44_000;
+const POSTGRES_INTERNAL_CHAR_OID: i64 = 18;
 const POSTGRES_EPOCH_JULIAN_DAY: i32 = 2_451_545;
 const MICROSECONDS_PER_DAY: i64 = 86_400_000_000;
 
 /// Renders `value` with PostgreSQL's text output function for the column's
 /// declared `type_oid`.
 pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
-    if let (Value::Json(array), Some(element_type)) = (value, builtin_array_element_type(type_oid))
-    {
-        if let Some(formatted) = crate::types::array::format_text_array(array, &element_type) {
-            return formatted;
-        }
-    }
     match value {
         Value::Null => "NULL".to_string(),
         // boolout emits a single `t`/`f`; a JSON column keeps JSON's spelling.
@@ -60,7 +55,24 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
     }
 }
 
+pub(super) fn value_to_postgres_array_text(value: &Value, type_oid: i64) -> Option<String> {
+    let Value::Json(array) = value else {
+        return None;
+    };
+    let element_oid = u32::try_from(builtin_array_element_oid(type_oid)?).ok()?;
+    let element_type = crate::types::builtin::builtin_for_oid(element_oid)?
+        .kind
+        .data_type();
+    crate::types::array::format_text_array(array, &element_type)
+}
+
 pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
+    if type_oid == POSTGRES_INTERNAL_CHAR_OID {
+        return match value {
+            Value::String(value) if value.len() == 1 => Ok(value.as_bytes().to_vec()),
+            _ => invalid_value("char"),
+        };
+    }
     if type_oid == 2278 {
         return match value {
             Value::String(value) if value.is_empty() => Ok(Vec::new()),
@@ -141,11 +153,6 @@ fn builtin_array_element_oid(array_oid: i64) -> Option<i64> {
     crate::catalog::builtin_identity::builtin_array_element_oid(array_oid).map(i64::from)
 }
 
-fn builtin_array_element_type(array_oid: i64) -> Option<crate::types::DataType> {
-    let element_oid = u32::try_from(builtin_array_element_oid(array_oid)?).ok()?;
-    crate::types::builtin::builtin_for_oid(element_oid).map(|metadata| metadata.kind.data_type())
-}
-
 fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
     u32::try_from(type_oid)
         .ok()
@@ -154,6 +161,9 @@ fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
 }
 
 fn validate_binary_oid(type_oid: i64) -> io::Result<()> {
+    if type_oid == POSTGRES_INTERNAL_CHAR_OID {
+        return Ok(());
+    }
     if type_oid == 2278 {
         return Ok(());
     }
@@ -201,7 +211,10 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         return decode_vector(parameter, type_oid);
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
-        return decode_array(parameter, type_oid);
+        return decode_array(parameter, type_oid - OID_ARRAY_BASE);
+    }
+    if let Some(element_oid) = builtin_array_element_oid(type_oid) {
+        return decode_array(parameter, element_oid);
     }
     let codec = binary_codec_for_oid(type_oid)?;
     let original_parameter = parameter;
@@ -359,13 +372,15 @@ fn encode_array(value: &Value, type_oid: i64, element_oid: i64) -> io::Result<Ve
     Ok(encoded)
 }
 
-fn decode_array(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
+fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value> {
     let mut cursor = 0;
     let dimensions = read_i32(parameter, &mut cursor, "array")?;
     let has_null = read_i32(parameter, &mut cursor, "array")?;
     let element_oid = i64::from(read_i32(parameter, &mut cursor, "array")?);
-    let expected_oid = type_oid - OID_ARRAY_BASE;
-    if !matches!(dimensions, 0 | 1) || !matches!(has_null, 0 | 1) || element_oid != expected_oid {
+    if !matches!(dimensions, 0 | 1)
+        || !matches!(has_null, 0 | 1)
+        || element_oid != expected_element_oid
+    {
         return Err(invalid_data("array"));
     }
     binary_codec_for_oid(element_oid)?;

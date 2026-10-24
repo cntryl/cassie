@@ -55,9 +55,11 @@ pub(super) fn parse_binary_payload(
     let mut cursor = 0_usize;
     let signature = take(payload, &mut cursor, BINARY_SIGNATURE.len())?;
     if signature != BINARY_SIGNATURE {
-        return Err(CassieError::Parse(
-            "COPY binary payload has an invalid signature".to_string(),
-        ));
+        return Err(crate::app::DiagnosticError::new(
+            "22P04",
+            "COPY file signature not recognized",
+        )
+        .into());
     }
     let flags = i32::from_be_bytes(take(payload, &mut cursor, 4)?.try_into().map_err(|_| {
         CassieError::Parse("COPY binary payload has a truncated flags field".to_string())

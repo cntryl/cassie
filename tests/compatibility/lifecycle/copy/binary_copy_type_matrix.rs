@@ -143,8 +143,13 @@ fn should_export_binary_copy_rows_with_postgresql_scalar_type_encodings() {
                      moment TIMESTAMPTZ,
                      amount NUMERIC,
                      label TEXT
-                 );
-                 INSERT INTO compat_copy_binary_scalar_matrix VALUES (
+                 )",
+            )
+            .await
+            .expect("create the binary COPY scalar matrix");
+        client
+            .batch_execute(
+                "INSERT INTO compat_copy_binary_scalar_matrix VALUES (
                      -2, 258, TRUE, 1.5, decode('00ff', 'hex'),
                      DATE '2000-01-02',
                      TIMESTAMPTZ '2000-01-02 03:04:05.000006+00',
@@ -152,7 +157,7 @@ fn should_export_binary_copy_rows_with_postgresql_scalar_type_encodings() {
                  )",
             )
             .await
-            .expect("create and populate the binary COPY scalar matrix");
+            .expect("populate the binary COPY scalar matrix");
 
         // Act
         let frames = copy_out_frames(
@@ -269,11 +274,14 @@ fn should_reject_binary_copy_with_invalid_signature_atomically() {
         let (client, connection) = server.connect().await;
         client
             .batch_execute(
-                "CREATE TABLE compat_copy_binary_invalid_signature (id INT4 PRIMARY KEY); \
-                 INSERT INTO compat_copy_binary_invalid_signature VALUES (99)",
+                "CREATE TABLE compat_copy_binary_invalid_signature (id INT4 PRIMARY KEY)",
             )
             .await
-            .expect("create and seed the binary COPY target");
+            .expect("create the binary COPY target");
+        client
+            .batch_execute("INSERT INTO compat_copy_binary_invalid_signature VALUES (99)")
+            .await
+            .expect("seed the binary COPY target");
 
         // Act
         let (response_tag, response_payload, error_code, command) = super::copy_from_stdin(

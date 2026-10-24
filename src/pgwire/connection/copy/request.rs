@@ -60,14 +60,16 @@ impl CopyRequest {
         }
     }
 
-    pub(super) fn query_sql(&self) -> String {
+    pub(super) fn query_sql(&self, table_columns: Option<&[String]>) -> String {
         match &self.target {
             CopyTarget::Query(query) => query.clone(),
             CopyTarget::Table {
                 relation, columns, ..
             } => {
                 let projection = if columns.is_empty() {
-                    "*".to_string()
+                    table_columns
+                        .filter(|columns| !columns.is_empty())
+                        .map_or_else(|| "*".to_string(), |columns| columns.join(", "))
                 } else {
                     columns.join(", ")
                 };

@@ -2,7 +2,7 @@
 
 use crate::catalog::{Catalog, FunctionInputScope};
 use crate::runtime::QueryExecutionControls;
-use crate::sql::{ast, FieldTypeMap, QueryStatement};
+use crate::sql::{ast, functions as sql_functions, FieldTypeMap, QueryStatement};
 
 use super::admission::{check_controls, reserve_vector, ReservedVector};
 use super::diagnostics::BooleanConstruct;
@@ -237,14 +237,7 @@ impl<'a, 'c> Fold<'a, 'c> {
             | Node::FunctionModifiers(_)
             | Node::Window(_) => None,
             Node::WindowArguments(window) => {
-                if window.name.eq_ignore_ascii_case("ntile") {
-                    if let Some(summary) = self.summaries.values.get(frame.start).copied() {
-                        if !matches!(summary.oid, 0 | 21 | 23 | UNKNOWN_PARAMETER_TYPE_OID) {
-                            self.occurrences
-                                .undefined_function("ntile", 1, Some(summary.oid))?;
-                        }
-                    }
-                }
+                self.validate_window_argument_type(frame, window)?;
                 None
             }
         };
@@ -268,6 +261,80 @@ impl<'a, 'c> Fold<'a, 'c> {
                 )?;
             } else {
                 self.summaries.try_push(*summary, self.controls)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_window_argument_type(
+        &mut self,
+        frame: &Frame<'a>,
+        window: &ast::WindowFunctionCall,
+    ) -> Result<(), ParameterAdmissionError> {
+        let metadata = sql_functions::window_function(&window.name);
+        let integer_argument_index = if window.name.eq_ignore_ascii_case("ntile") {
+            Some(0)
+        } else {
+            metadata.and_then(|metadata| {
+                metadata
+                    .signature(window.args.len())?
+                    .iter()
+                    .position(|argument| *argument == sql_functions::WindowArgumentType::Int4)
+            })
+        };
+        let Some(argument_index) = integer_argument_index else {
+            return Ok(());
+        };
+        let Some(summary) = self
+            .summaries
+            .values
+            .get(frame.start.saturating_add(argument_index))
+            .copied()
+        else {
+            return Ok(());
+        };
+        let function_name = metadata.map_or("ntile", |metadata| metadata.name);
+        if !matches!(summary.oid, 0 | 21 | 23 | UNKNOWN_PARAMETER_TYPE_OID) {
+            self.occurrences.undefined_function(
+                function_name,
+                window.args.len(),
+                Some(summary.oid),
+            )?;
+        }
+        if matches!(
+            metadata.map(|metadata| metadata.id),
+            Some(sql_functions::FunctionId::Lag | sql_functions::FunctionId::Lead)
+        ) && window.args.len() == 3
+        {
+            let value = self.summaries.values.get(frame.start).copied();
+            let default = self
+                .summaries
+                .values
+                .get(frame.start.saturating_add(2))
+                .copied();
+            if let (Some(value), Some(default)) = (value, default) {
+                let concrete = |oid| !matches!(oid, 0 | UNKNOWN_PARAMETER_TYPE_OID);
+                if concrete(value.oid)
+                    && value.oid != 25
+                    && default.oid == UNKNOWN_PARAMETER_TYPE_OID
+                    && matches!(window.args.get(2), Some(ast::Expr::StringLiteral(_)))
+                {
+                    self.occurrences.pending_window_type_coercion()?;
+                }
+                if value.oid == UNKNOWN_PARAMETER_TYPE_OID
+                    && concrete(default.oid)
+                    && default.oid != 25
+                    && matches!(window.args.first(), Some(ast::Expr::StringLiteral(_)))
+                {
+                    self.occurrences.pending_window_type_coercion()?;
+                }
+                if concrete(value.oid) && concrete(default.oid) && value.oid != default.oid {
+                    self.occurrences.undefined_function(
+                        function_name,
+                        window.args.len(),
+                        Some(default.oid),
+                    )?;
+                }
             }
         }
         Ok(())

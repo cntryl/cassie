@@ -33,10 +33,12 @@ pub(crate) use temporal::{
     is_temporal as is_temporal_function, return_type as temporal_return_type,
 };
 mod text;
+mod window;
 pub(crate) use inputs::{
     aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
 };
 pub(crate) use math::MathFunction;
+pub(crate) use window::{window_function, WindowArgumentType, WindowFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {
@@ -84,6 +86,9 @@ pub enum FunctionId {
     DenseRank,
     PercentRank,
     CumeDist,
+    Lag,
+    Lead,
+    NthValue,
     Search,
     SearchScore,
     VectorDistance,

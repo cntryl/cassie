@@ -306,10 +306,59 @@ fn infer_select_item_parameter_type_oids(
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::SelectItem::WindowFunction { function, .. } => {
-            if function.name.eq_ignore_ascii_case("ntile") {
-                if let Some(argument) = function.args.first() {
-                    infer_parameter_type_from_expected_expr(argument, &DataType::Int, oids);
-                }
+            let metadata = crate::sql::functions::window_function(&function.name);
+            let integer_argument = if function.name.eq_ignore_ascii_case("ntile") {
+                function.args.first()
+            } else {
+                metadata.and_then(|metadata| {
+                    let argument_index =
+                        metadata
+                            .signature(function.args.len())?
+                            .iter()
+                            .position(|argument| {
+                                *argument == crate::sql::functions::WindowArgumentType::Int4
+                            })?;
+                    function.args.get(argument_index)
+                })
+            };
+            if let Some(argument) = integer_argument {
+                infer_parameter_type_from_expected_expr(argument, &DataType::Int, oids);
+            }
+            let default_input = if matches!(
+                metadata.map(|metadata| metadata.id),
+                Some(
+                    crate::sql::functions::FunctionId::Lag
+                        | crate::sql::functions::FunctionId::Lead
+                )
+            ) {
+                function
+                    .args
+                    .get(2)
+                    .zip(function.args.first())
+                    .and_then(|(default, value)| {
+                        let value_type = known_expr_type_with_parameters(value, field_types, oids);
+                        let default_type =
+                            known_expr_type_with_parameters(default, field_types, oids);
+                        let (input, resolve_unknown) = match (value_type, default_type) {
+                            (Some(data_type), _) if data_type != DataType::Null => {
+                                (Some((default, data_type)), false)
+                            }
+                            (_, Some(data_type)) if data_type != DataType::Null => {
+                                (Some((value, data_type)), false)
+                            }
+                            _ => (None, true),
+                        };
+                        if resolve_unknown {
+                            infer_parameter_type_from_expected_expr(value, &DataType::Text, oids);
+                            infer_parameter_type_from_expected_expr(default, &DataType::Text, oids);
+                        }
+                        input
+                    })
+            } else {
+                None
+            };
+            if let Some((default, data_type)) = default_input {
+                infer_parameter_type_from_expected_expr(default, &data_type, oids);
             }
             for arg in &function.args {
                 infer_parameter_type_oids_expr(arg, field_types, catalog, oids);
@@ -322,6 +371,23 @@ fn infer_select_item_parameter_type_oids(
             }
         }
     }
+}
+
+fn known_expr_type_with_parameters(
+    expr: &ast::Expr,
+    field_types: &FieldTypeMap,
+    oids: &ParameterInference,
+) -> Option<DataType> {
+    binder::known_expr_type(expr, field_types).or_else(|| {
+        let ast::Expr::Param(index) = expr else {
+            return None;
+        };
+        let oid = *oids.oids.get(*index)?;
+        if matches!(oid, 0 | UNKNOWN_PARAMETER_TYPE_OID) {
+            return None;
+        }
+        binder::parameter_data_type_for_oid(oid)
+    })
 }
 
 pub(super) fn infer_parameter_type_oids_expr(

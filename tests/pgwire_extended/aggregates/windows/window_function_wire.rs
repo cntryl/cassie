@@ -150,6 +150,335 @@ fn should_infer_ntile_bucket_parameters_as_int4() {
 }
 
 #[test]
+fn should_infer_integer_window_arguments_as_int4() {
+    // Arrange
+    let statements = [
+        ("lag_offset", "SELECT lag(42, $1) OVER ()"),
+        ("lead_offset", "SELECT lead(42, $1) OVER ()"),
+        ("nth_position", "SELECT nth_value(42, $1) OVER ()"),
+    ];
+    let mut steps = Vec::with_capacity(statements.len() * 2);
+    for (statement, sql) in statements {
+        steps.push(Step::ParseFlush(wire::parse_frame(statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-806-window-offset-parameter-oid", steps);
+
+    // Assert
+    for index in 0..statements.len() {
+        let parsed = &batches[index * 2];
+        let described = &batches[index * 2 + 1];
+        let parse_error = parsed
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload));
+        assert_eq!(
+            wire::error_code(parsed),
+            None,
+            "Parse case {index}: {parse_error:?}"
+        );
+        assert_eq!(wire::error_code(described), None, "Describe case {index}");
+        let parameters = described
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("window ParameterDescription");
+        assert_eq!(wire::parse_parameter_description(&parameters.1), [23]);
+        let description = described
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("window RowDescription");
+        assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 23);
+    }
+}
+
+#[test]
+fn should_infer_window_default_parameters_as_int4() {
+    // Arrange
+    let statements = [
+        ("lag_default", "SELECT lag(42, 1, $1) OVER ()"),
+        ("lead_default", "SELECT lead(42, 1, $1) OVER ()"),
+    ];
+    let mut steps = Vec::with_capacity(statements.len() * 2);
+    for (statement, sql) in statements {
+        steps.push(Step::ParseFlush(wire::parse_frame(statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-806-window-default-parameter-oid", steps);
+
+    // Assert
+    for index in 0..statements.len() {
+        let parsed = &batches[index * 2];
+        let described = &batches[index * 2 + 1];
+        let parse_error = parsed
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload));
+        assert_eq!(
+            wire::error_code(parsed),
+            None,
+            "Parse case {index}: {parse_error:?}"
+        );
+        assert_eq!(wire::error_code(described), None, "Describe case {index}");
+        let parameters = described
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("window ParameterDescription");
+        assert_eq!(wire::parse_parameter_description(&parameters.1), [23]);
+        let description = described
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("window RowDescription");
+        assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 23);
+    }
+}
+
+#[test]
+fn should_infer_lag_lead_parameters_from_explicit_default_types() {
+    // Arrange
+    let statements = [
+        ("lag_value_from_default", "SELECT lag($1, $2, $3) OVER ()"),
+        ("lead_value_from_default", "SELECT lead($1, $2, $3) OVER ()"),
+    ];
+    let mut steps = Vec::with_capacity(statements.len() * 2);
+    for (statement, sql) in statements {
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            sql,
+            &[0, 0, 23],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]));
+    }
+
+    let batches = run_script("issue-806-window-value-from-default-oid", steps);
+
+    // Act
+    for index in 0..statements.len() {
+        let parse = &batches[index * 2];
+        let described = &batches[index * 2 + 1];
+        let parse_error = parse
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload));
+
+        // Assert
+        assert_eq!(
+            wire::error_code(parse),
+            None,
+            "Parse case {index}: {parse_error:?}"
+        );
+        assert_eq!(wire::error_code(described), None, "Describe case {index}");
+        let parameters = described
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("window ParameterDescription");
+        assert_eq!(
+            wire::parse_parameter_description(&parameters.1),
+            [23, 23, 23]
+        );
+        let description = described
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("window RowDescription");
+        assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 23);
+    }
+}
+
+#[test]
+fn should_resolve_unknown_lag_lead_value_defaults_as_text() {
+    // Arrange
+    let statements = [
+        (
+            "lag_unknown_string_default",
+            "SELECT lag($1, $2, 'fallback') OVER ()",
+            &[25, 23][..],
+        ),
+        (
+            "lead_unknown_null_default",
+            "SELECT lead($1, $2, NULL) OVER ()",
+            &[25, 23][..],
+        ),
+        (
+            "lag_unknown_parameter_default",
+            "SELECT lag($1, $2, $3) OVER ()",
+            &[25, 23, 25][..],
+        ),
+        (
+            "lag_null_value_unknown_default",
+            "SELECT lag(NULL, $1, $2) OVER ()",
+            &[23, 25][..],
+        ),
+    ];
+    let mut steps = Vec::with_capacity(statements.len() * 2);
+    for (statement, sql, _) in statements {
+        steps.push(Step::ParseFlush(wire::parse_frame(statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]));
+    }
+
+    let batches = run_script("issue-806-window-all-unknown-parameters", steps);
+
+    // Act
+    for (index, (_, _, expected_parameters)) in statements.iter().enumerate() {
+        let parse = &batches[index * 2];
+        let described = &batches[index * 2 + 1];
+        let parse_error = parse
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .map(|(_, payload)| wire::parse_error_fields(payload));
+
+        // Assert
+        assert_eq!(
+            wire::error_code(parse),
+            None,
+            "Parse case {index}: {parse_error:?}"
+        );
+        assert_eq!(wire::error_code(described), None, "Describe case {index}");
+        let parameters = described
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("window ParameterDescription");
+        assert_eq!(
+            wire::parse_parameter_description(&parameters.1).as_slice(),
+            *expected_parameters
+        );
+        let description = described
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("window RowDescription");
+        assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 25);
+    }
+}
+
+#[test]
+fn should_reject_bigint_window_offset_parameters_with_undefined_function_sqlstate() {
+    // Arrange
+    let statements = [
+        ("lag_bigint_offset", "SELECT lag($1, $2) OVER ()"),
+        ("lead_bigint_offset", "SELECT lead($1, $2) OVER ()"),
+        ("nth_bigint_position", "SELECT nth_value($1, $2) OVER ()"),
+    ];
+    let mut steps = Vec::with_capacity(statements.len() * 2);
+    for (statement, sql) in statements {
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            sql,
+            &[23, 20],
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-806-window-wrong-offset-oid", steps);
+
+    // Assert
+    for index in 0..statements.len() {
+        let parse_error = wire::error_code(&batches[index * 2]);
+        let describe_error = wire::error_code(&batches[index * 2 + 1]);
+        assert_eq!(
+            parse_error.or(describe_error).as_deref(),
+            Some("42883"),
+            "window offset case {index}"
+        );
+    }
+}
+
+#[test]
+fn should_reject_incompatible_lag_default_parameter_types() {
+    // Arrange
+    let statement = "lag_incompatible_default";
+    let batches = run_script(
+        "issue-806-window-incompatible-default-oid",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                statement,
+                "SELECT lag($1, $2, $3) OVER ()",
+                &[23, 23, 25],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame(statement),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let error = batches.iter().find_map(|frames| wire::error_code(frames));
+
+    // Assert
+    assert_eq!(error.as_deref(), Some("42883"));
+}
+
+#[test]
+fn should_reject_unsupported_string_default_for_integer_value() {
+    // Arrange
+    let statement = "lag_integer_string_default";
+    let batches = run_script(
+        "issue-806-window-pending-default-coercion",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                statement,
+                "SELECT lag($1, 1, 'fallback') OVER ()",
+                &[23],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame(statement),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let error = batches.iter().find_map(|frames| wire::error_code(frames));
+
+    // Assert
+    assert_eq!(error.as_deref(), Some("0A000"));
+}
+
+#[test]
+fn should_reject_unsupported_string_value_for_integer_default() {
+    // Arrange
+    let statement = "lag_string_value_integer_default";
+    let batches = run_script(
+        "issue-806-window-pending-value-coercion",
+        vec![
+            Step::ParseFlush(wire::parse_frame_with_types(
+                statement,
+                "SELECT lag('value', 1, $1) OVER ()",
+                &[23],
+            )),
+            Step::ThroughReady(vec![
+                wire::describe_statement_frame(statement),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let error = batches.iter().find_map(|frames| wire::error_code(frames));
+
+    // Assert
+    assert_eq!(error.as_deref(), Some("0A000"));
+}
+
+#[test]
 fn should_reject_bigint_ntile_parameter_with_undefined_function_sqlstate() {
     // Arrange
     let statement = "ntile_bigint_parameter";
@@ -288,4 +617,16 @@ fn should_report_nth_value_frame_result_with_int4_identity() {
             vec![Some("4".to_owned()), None],
         ],
     );
+}
+
+#[test]
+fn should_reject_nonpositive_nth_value_with_sqlstate_22016() {
+    // Arrange
+    let sql = "SELECT nth_value(n, 0) OVER (PARTITION BY grp ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM issue_806_window_wire";
+
+    // Act
+    let frames = run_window_query("issue-806-window-nth-value-zero", sql);
+
+    // Assert
+    assert_eq!(wire::error_code(&frames).as_deref(), Some("22016"));
 }

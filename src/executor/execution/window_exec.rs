@@ -18,6 +18,7 @@ use super::{check_timeout, QueryError};
 mod exists;
 mod ranking;
 mod typed;
+mod value_functions;
 pub(super) use exists::apply_resolving;
 
 pub(super) fn apply_window_functions(
@@ -125,7 +126,7 @@ fn apply_single_window(
     let data_type = match function_name.as_str() {
         "ntile" => crate::types::DataType::Int,
         "percent_rank" | "cume_dist" => crate::types::DataType::Float,
-        "first_value" | "last_value" | "lag" | "lead" => rows
+        "first_value" | "last_value" | "lag" | "lead" | "nth_value" => rows
             .first()
             .zip(function.args.first())
             .and_then(|(row, expr)| {
@@ -194,6 +195,7 @@ fn validated_window_function_name(function: &WindowFunctionCall) -> Result<Strin
             | "lead"
             | "first_value"
             | "last_value"
+            | "nth_value"
             | "count"
             | "sum"
             | "bool_and"
@@ -334,18 +336,20 @@ fn window_value_at(
         "percent_rank" => ranking::percent_rank_value(value_position),
         "cume_dist" => ranking::cume_dist_value(value_position),
         "ntile" => ranking::ntile_value_at(value_position),
-        "lag" => window_arg_value(
-            indices
-                .get(value_position.position.wrapping_sub(1))
-                .copied(),
+        "lag" => value_functions::offset_window_arg_value(
+            value_position.position,
+            indices,
             rows,
             function,
+            false,
             context,
         ),
-        "lead" => window_arg_value(
-            indices.get(value_position.position + 1).copied(),
+        "lead" => value_functions::offset_window_arg_value(
+            value_position.position,
+            indices,
             rows,
             function,
+            true,
             context,
         ),
         "first_value" => framed_window_arg_value(
@@ -364,6 +368,14 @@ fn window_value_at(
             function,
             value_position.frame,
             false,
+            context,
+        ),
+        "nth_value" => value_functions::nth_window_arg_value(
+            value_position.position,
+            indices,
+            rows,
+            function,
+            value_position.frame,
             context,
         ),
         "count" | "sum" | "bool_and" | "bool_or" | "var_pop" | "var_samp" | "variance"
@@ -795,12 +807,20 @@ fn window_arg_value(
     let Some(expr) = function.args.first() else {
         return Ok(Value::Null);
     };
+    evaluate_window_expr(&rows[index], expr, context)
+}
+
+fn evaluate_window_expr(
+    row: &BatchRow,
+    expression: &crate::sql::ast::Expr,
+    context: &WindowExecutionContext<'_>,
+) -> Result<Value, QueryError> {
     if let Some(evaluate) = context.evaluate {
-        return evaluate(&rows[index], expr);
+        return evaluate(row, expression);
     }
     filter::evaluate_expr_value(
-        &rows[index],
-        expr,
+        row,
+        expression,
         context.params,
         context.search_context,
         context.user_functions,

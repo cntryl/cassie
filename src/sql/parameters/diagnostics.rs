@@ -8,6 +8,9 @@ const PENDING_DATUM_INPUT: &str = "direct pg_column_size parameter identity rema
 
 const PENDING_TYPE_FUNCTION_INPUT: &str = "type-function overload input remains pending under #793/#796; use an explicitly typed argument";
 
+const PENDING_WINDOW_TYPE_COERCION: &str =
+    "mixed-type LAG/LEAD default coercion remains pending under #806; use matching value/default types";
+
 const MAX_DECIMAL_DIGITS: usize = (usize::BITS as usize * 30_103) / 100_000 + 1;
 
 #[derive(Clone, Copy, Debug)]
@@ -111,6 +114,7 @@ pub(crate) enum ParameterSemanticDiagnostic {
     PendingNameInput,
     PendingDatumInput,
     PendingTypeFunctionInput,
+    PendingWindowTypeCoercion,
     AmbiguousFunction {
         function: &'static str,
     },
@@ -139,9 +143,10 @@ impl ParameterSemanticDiagnostic {
     pub(crate) const fn code(self) -> &'static str {
         match self {
             Self::ValuesWidth => "42601",
-            Self::PendingNameInput | Self::PendingDatumInput | Self::PendingTypeFunctionInput => {
-                "0A000"
-            }
+            Self::PendingNameInput
+            | Self::PendingDatumInput
+            | Self::PendingTypeFunctionInput
+            | Self::PendingWindowTypeCoercion => "0A000",
             Self::AmbiguousFunction { .. } => "42725",
             Self::DistinctAggregateOrder => "42P10",
             Self::MissingEquality { .. } | Self::UndefinedFunction { .. } => "42883",
@@ -164,6 +169,7 @@ impl ParameterSemanticDiagnostic {
             Self::PendingNameInput => PENDING_NAME_INPUT.len(),
             Self::PendingDatumInput => PENDING_DATUM_INPUT.len(),
             Self::PendingTypeFunctionInput => PENDING_TYPE_FUNCTION_INPUT.len(),
+            Self::PendingWindowTypeCoercion => PENDING_WINDOW_TYPE_COERCION.len(),
             Self::AmbiguousFunction { function } => {
                 "function (unknown) is not unique".len() + function.len()
             }
@@ -211,6 +217,7 @@ impl ParameterSemanticDiagnostic {
             Self::PendingNameInput => output.write_str(PENDING_NAME_INPUT),
             Self::PendingDatumInput => output.write_str(PENDING_DATUM_INPUT),
             Self::PendingTypeFunctionInput => output.write_str(PENDING_TYPE_FUNCTION_INPUT),
+            Self::PendingWindowTypeCoercion => output.write_str(PENDING_WINDOW_TYPE_COERCION),
             Self::ValuesWidth => output.write_str("VALUES lists must all be the same length"),
             Self::ValuesTypes { left, right } => write!(
                 output,
@@ -288,6 +295,7 @@ impl ParameterSemanticDiagnostic {
             | Self::PendingNameInput
             | Self::PendingDatumInput
             | Self::PendingTypeFunctionInput
+            | Self::PendingWindowTypeCoercion
             | Self::DistinctAggregateOrder
             | Self::ValuesTypes { .. }
             | Self::ValuesWidth

@@ -14,7 +14,34 @@ pub(crate) fn infer_window_return_type(
         "row_number" | "rank" | "dense_rank" => return DataType::BigInt,
         "percent_rank" | "cume_dist" => return DataType::Float,
         "ntile" => return DataType::Int,
-        "lag" | "lead" | "first_value" | "last_value" => {
+        "lag" | "lead" => {
+            let value = function
+                .args
+                .first()
+                .and_then(|arg| {
+                    super::inference::infer_expr_type(
+                        arg,
+                        source_schema,
+                        user_functions,
+                        parameter_types,
+                    )
+                })
+                .unwrap_or(DataType::Text);
+            let common = function
+                .args
+                .get(2)
+                .and_then(|default| {
+                    super::inference::infer_expr_type(
+                        default,
+                        source_schema,
+                        user_functions,
+                        parameter_types,
+                    )
+                })
+                .and_then(|default| super::inference::common_case_type(value.clone(), default));
+            return common.unwrap_or(value);
+        }
+        "first_value" | "last_value" | "nth_value" => {
             return function
                 .args
                 .first()

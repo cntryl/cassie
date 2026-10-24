@@ -1,7 +1,13 @@
 //! Borrowed child scheduling; Boolean arguments are coerced before their sibling.
 
-use super::{BooleanConstruct, Expected, Fold, Node, ParameterAdmissionError};
-use crate::sql::{ast, QueryStatement};
+use super::{
+    BooleanConstruct, Expected, Fold, Node, ParameterAdmissionError, UNKNOWN_PARAMETER_TYPE_OID,
+};
+use crate::sql::{
+    ast, binder,
+    functions::{self, WindowArgumentType},
+    QueryStatement,
+};
 
 pub(super) struct Child<'a> {
     pub(super) node: Node<'a>,
@@ -29,15 +35,24 @@ impl<'a> Fold<'a, '_> {
         frame_index: usize,
     ) -> Result<Option<Child<'a>>, ParameterAdmissionError> {
         loop {
-            let frame = &mut self.frames.values[frame_index];
-            if frame.next >= children(frame.node)? {
-                return Ok(None);
-            }
-            let index = frame.next;
-            frame.next += 1;
-            let context = frame.context;
-            let qualified = frame.qualified;
-            let child = match frame.node {
+            let (parent_node, index, context, qualified, start) = {
+                let frame = &mut self.frames.values[frame_index];
+                if frame.next >= children(frame.node)? {
+                    return Ok(None);
+                }
+                let index = frame.next;
+                frame.next += 1;
+                (
+                    frame.node,
+                    index,
+                    frame.context,
+                    frame.qualified,
+                    frame.start,
+                )
+            };
+            let window_value_oid = self.window_value_oid(parent_node, index, context);
+            let window_default_oid = self.window_default_oid(parent_node, index, start);
+            let child = match parent_node {
                 Node::Query(query) => query_child(query),
                 Node::Select(select) => select_child(select, index),
                 Node::Source(source) => source_child(source, index),
@@ -68,10 +83,130 @@ impl<'a> Fold<'a, '_> {
                 continue;
             };
             let mut child = Child::node(node, context, qualified);
-            qualify_child(frame.node, index, &mut child);
+            qualify_child(parent_node, index, &mut child);
+            if let Some(oid) =
+                window_default_oid.filter(|oid| !matches!(*oid, 0 | UNKNOWN_PARAMETER_TYPE_OID))
+            {
+                child.expected = Expected::Type(oid, true);
+                child.qualified = false;
+            }
+            if let Some(oid) = window_value_oid.filter(|oid| {
+                matches!(child.node, Node::Expr(ast::Expr::Param(_)))
+                    && !matches!(*oid, 0 | UNKNOWN_PARAMETER_TYPE_OID)
+            }) {
+                child.expected = Expected::Type(oid, true);
+                child.qualified = false;
+            }
             return Ok(Some(child));
         }
     }
+
+    fn window_value_oid(&self, node: Node<'_>, index: usize, context: usize) -> Option<i32> {
+        let Node::WindowArguments(window) = node else {
+            return None;
+        };
+        let metadata = functions::window_function(&window.name)?;
+        if index != 0
+            || !matches!(
+                metadata.id,
+                functions::FunctionId::Lag | functions::FunctionId::Lead
+            )
+            || !matches!(
+                window_argument_type(window, 0),
+                Some(WindowArgumentType::AnyElement | WindowArgumentType::AnyCompatible)
+            )
+        {
+            return None;
+        }
+        let parameters = &self.occurrences.slots.values;
+        let default_oid = (window_argument_type(window, 2)
+            == Some(WindowArgumentType::AnyCompatible))
+        .then(|| window.args.get(2))
+        .flatten()
+        .and_then(|default| {
+            known_window_argument_oid(default, &self.contexts.values[context].fields, parameters)
+        });
+        default_oid
+            .filter(|oid| !matches!(*oid, 0 | UNKNOWN_PARAMETER_TYPE_OID))
+            .or_else(|| {
+                window
+                    .args
+                    .first()
+                    .zip(window.args.get(2))
+                    .is_some_and(|(value, default)| {
+                        unknown_window_argument(value, parameters)
+                            && unknown_window_argument(default, parameters)
+                    })
+                    .then_some(25)
+            })
+    }
+
+    fn window_default_oid(&self, node: Node<'_>, index: usize, start: usize) -> Option<i32> {
+        let Node::WindowArguments(window) = node else {
+            return None;
+        };
+        let metadata = functions::window_function(&window.name)?;
+        if index != 2
+            || !matches!(
+                metadata.id,
+                functions::FunctionId::Lag | functions::FunctionId::Lead
+            )
+            || window_argument_type(window, 2) != Some(WindowArgumentType::AnyCompatible)
+        {
+            return None;
+        }
+        let value_oid = self
+            .summaries
+            .values
+            .get(start)
+            .map(|summary| summary.oid)
+            .filter(|oid| !matches!(*oid, 0 | UNKNOWN_PARAMETER_TYPE_OID));
+        value_oid.or_else(|| {
+            let parameters = &self.occurrences.slots.values;
+            window
+                .args
+                .first()
+                .zip(window.args.get(2))
+                .is_some_and(|(value, default)| {
+                    unknown_window_argument(value, parameters)
+                        && unknown_window_argument(default, parameters)
+                })
+                .then_some(25)
+        })
+    }
+}
+
+fn known_window_argument_oid(
+    expr: &ast::Expr,
+    fields: &crate::sql::FieldTypeMap,
+    parameter_types: &[i32],
+) -> Option<i32> {
+    match expr {
+        ast::Expr::Param(index) => parameter_types.get(*index).copied(),
+        ast::Expr::StringLiteral(_) | ast::Expr::Null => None,
+        _ => binder::known_expr_type(expr, fields)
+            .and_then(|data_type| i32::try_from(data_type.type_oid()).ok()),
+    }
+}
+
+fn unknown_window_argument(expr: &ast::Expr, parameter_types: &[i32]) -> bool {
+    match expr {
+        ast::Expr::Param(index) => parameter_types
+            .get(*index)
+            .is_none_or(|oid| matches!(*oid, 0 | UNKNOWN_PARAMETER_TYPE_OID)),
+        ast::Expr::StringLiteral(_) | ast::Expr::Null => true,
+        _ => false,
+    }
+}
+
+fn window_argument_type(
+    window: &ast::WindowFunctionCall,
+    index: usize,
+) -> Option<WindowArgumentType> {
+    functions::window_function(&window.name)?
+        .signature(window.args.len())?
+        .get(index)
+        .copied()
 }
 
 fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
@@ -412,10 +547,12 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
                 child.qualified = false;
             }
         }
-        Node::WindowArguments(window)
-            if index == 0 && window.name.eq_ignore_ascii_case("ntile") =>
-        {
-            child.expected = Expected::Type(23, true);
+        Node::WindowArguments(window) => {
+            let int4_argument = index == 0 && window.name.eq_ignore_ascii_case("ntile")
+                || window_argument_type(window, index) == Some(WindowArgumentType::Int4);
+            if int4_argument {
+                child.expected = Expected::Type(23, true);
+            }
             child.qualified = false;
         }
         Node::Expr(
@@ -425,7 +562,6 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
             | ast::Expr::Like { .. },
         )
         | Node::Window(_)
-        | Node::WindowArguments(_)
         | Node::Cte(ast::CteQuery::Recursive { .. }) => child.qualified = false,
         _ => {}
     }

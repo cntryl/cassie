@@ -211,6 +211,7 @@ impl Fold<'_, '_> {
                 }
                 Ok(Summary::known(16))
             }
+            Some(FunctionInputSignature::AnyElement) => self.any_element_input(frame),
             Some(FunctionInputSignature::BitwiseInteger) => {
                 let metadata = metadata.expect("bitwise aggregate signature metadata");
                 let summary = &mut self.summaries.values[frame.start];
@@ -259,6 +260,15 @@ impl Fold<'_, '_> {
                 Ok(Summary::unqualified())
             }
         }
+    }
+
+    fn any_element_input(&mut self, frame: &Frame<'_>) -> Result<Summary, ParameterAdmissionError> {
+        let summary = self.summaries.values[frame.start];
+        if matches!(summary.oid, 0 | 705) {
+            self.occurrences.polymorphic_unknown_input()?;
+            return Ok(Summary::unqualified());
+        }
+        Ok(Summary::known(summary.oid))
     }
 
     fn ordered_set_order_key(&self, function: &ast::FunctionCall, frame: &Frame<'_>) -> Summary {

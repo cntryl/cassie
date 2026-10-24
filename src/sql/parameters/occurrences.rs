@@ -174,6 +174,10 @@ impl<'a> Occurrences<'a> {
         self.report(ParameterSemanticDiagnostic::Unresolved { slot })
     }
 
+    pub(super) fn polymorphic_unknown_input(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PolymorphicUnknown)
+    }
+
     pub(super) fn pending_datum_input(&mut self) -> Result<(), ParameterAdmissionError> {
         self.report(ParameterSemanticDiagnostic::PendingDatumInput)
     }

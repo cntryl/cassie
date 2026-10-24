@@ -370,7 +370,7 @@ fn parallel_aggregation_eligibility(
     if specs.iter().any(|spec| {
         !matches!(
             spec.function.name.to_ascii_lowercase().as_str(),
-            "count" | "sum" | "avg" | "min" | "max"
+            "count" | "sum" | "avg" | "min" | "max" | "any_value"
         ) && boolean::BooleanState::new(&spec.function.name).is_none()
             && !crate::sql::functions::function(&spec.function.name).is_some_and(|metadata| {
                 crate::sql::functions::statistical::is_statistical_function(metadata.id)
@@ -420,7 +420,10 @@ fn expr_supports_parallel_aggregation(
                 return false;
             }
             if crate::sql::functions::is_aggregate_function(&function.name)
-                && !matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
+                && !matches!(
+                    name.as_str(),
+                    "count" | "sum" | "avg" | "min" | "max" | "any_value"
+                )
                 && boolean::BooleanState::new(&function.name).is_none()
                 && !crate::sql::functions::function(&function.name).is_some_and(|metadata| {
                     crate::sql::functions::statistical::is_statistical_function(metadata.id)
@@ -519,9 +522,12 @@ fn evaluate_aggregate(
     let is_string_aggregate = crate::sql::functions::function(&function.name)
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg);
     let is_bitwise_aggregate = BitwiseState::new(function).is_some();
+    let is_any_value_aggregate = crate::sql::functions::function(&function.name)
+        .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::AnyValue);
     if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
         || is_string_aggregate
         || is_bitwise_aggregate
+        || is_any_value_aggregate
         || boolean::BooleanState::new(&function.name).is_some()
         || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
             crate::sql::functions::regression::is_regression_function(metadata.id)

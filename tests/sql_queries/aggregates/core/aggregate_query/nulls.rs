@@ -41,16 +41,17 @@ fn should_apply_explicit_all_to_nullable_count_sum() {
 fn should_return_any_non_null_input_from_any_value_aggregate() {
     // Arrange
     let fixture = sql_fixture(
-        "issue-806-any-value-aggregate",
+        "issue-1063-any-value-aggregate",
         &[
-            "CREATE TABLE issue_806_any_values (bucket INT, item INT)",
-            "INSERT INTO issue_806_any_values VALUES (1,10),(1,20),(2,NULL)",
+            "CREATE TABLE issue_1063_any_values (bucket INT, item INT)",
+            "INSERT INTO issue_1063_any_values VALUES (1,10),(1,20),(2,NULL)",
+            "CREATE TABLE issue_1063_any_value_empty (item INT)",
         ],
     );
 
     // Act
     let result = fixture.execute(
-        "SELECT bucket, any_value(item), COUNT(item) FROM issue_806_any_values GROUP BY bucket ORDER BY bucket",
+        "SELECT bucket, pg_catalog.any_value(item), COUNT(item) FROM issue_1063_any_values GROUP BY bucket ORDER BY bucket",
     );
 
     // Assert
@@ -68,4 +69,33 @@ fn should_return_any_non_null_input_from_any_value_aggregate() {
         result.rows()[1],
         vec![Value::Int64(2), Value::Null, Value::Int64(0)]
     );
+
+    let filtered = fixture
+        .execute(
+            "SELECT bucket, pg_catalog.any_value(item) FILTER (WHERE item > 10) FROM issue_1063_any_values GROUP BY bucket ORDER BY bucket",
+        )
+        .expect("filtered ANY_VALUE over grouped input");
+    assert_eq!(filtered.columns()[1].type_oid, 23);
+    assert_eq!(
+        filtered.rows(),
+        &[
+            vec![Value::Int64(1), Value::Int64(20)],
+            vec![Value::Int64(2), Value::Null],
+        ]
+    );
+
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![23, 23, 20]
+    );
+
+    let empty = fixture
+        .execute("SELECT ANY_VALUE(item) FROM issue_1063_any_value_empty")
+        .expect("ANY_VALUE over an empty input");
+    assert_eq!(empty.rows(), &[vec![Value::Null]]);
+    assert_eq!(empty.columns()[0].type_oid, 23);
 }

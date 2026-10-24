@@ -81,6 +81,9 @@ impl PartialAggregateGroup {
 pub(super) enum AggregateAccumulator {
     Boolean(BooleanState),
     Bitwise(BitwiseState),
+    AnyValue {
+        selected: Option<Value>,
+    },
     Count {
         count: i64,
     },
@@ -119,6 +122,9 @@ impl AggregateAccumulator {
             } => inline
                 .saturating_add(value_retained_bytes(value))
                 .saturating_add(key.as_ref().map_or(0, SemanticValue::estimated_bytes)),
+            Self::AnyValue {
+                selected: Some(value),
+            } => inline.saturating_add(value_retained_bytes(value)),
             Self::StringAgg { value: Some(value) } => inline.saturating_add(value.len()),
             Self::Regression(_) => {
                 inline.saturating_add(RegressionAccumulator::retained_heap_bytes())
@@ -164,6 +170,9 @@ impl AggregateAccumulator {
             )?;
             let bytes = match &accumulator {
                 Self::MinMax { key: Some(key), .. } => key.estimated_bytes(),
+                Self::AnyValue {
+                    selected: Some(value),
+                } => crate::executor::retained_memory::value_clone_bytes(value)?,
                 Self::Regression(_) => RegressionAccumulator::retained_heap_bytes(),
                 Self::Statistical(state) => state.retained_heap_bytes(),
                 _ => 0,
@@ -186,6 +195,11 @@ impl AggregateAccumulator {
         }
         if let Some(state) = BitwiseState::new(function) {
             return Self::Bitwise(state);
+        }
+        if crate::sql::functions::function(&function.name)
+            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::AnyValue)
+        {
+            return Self::AnyValue { selected: None };
         }
         if is_string_aggregate(function) {
             return Self::StringAgg { value: None };
@@ -285,6 +299,13 @@ impl AggregateAccumulator {
                 value => return Err(non_numeric_input(function, &value)),
             },
             Self::Bitwise(state) => state.update(function, value)?,
+            Self::AnyValue { selected } => {
+                if selected.is_none() && !matches!(value, Value::Null) {
+                    let change = RetainedChange::replaced(selected.as_ref(), &value, None, None);
+                    *selected = Some(value);
+                    return Ok(change);
+                }
+            }
             Self::Count { count } => {
                 if !matches!(value, Value::Null) {
                     *count = count.checked_add(1).ok_or_else(integer_overflow)?;
@@ -330,6 +351,16 @@ impl AggregateAccumulator {
         match (self, other) {
             (Self::Boolean(state), Self::Boolean(later)) => state.merge(later)?,
             (Self::Bitwise(state), Self::Bitwise(later)) => state.merge(later)?,
+            (
+                Self::AnyValue { selected },
+                Self::AnyValue {
+                    selected: Some(value),
+                },
+            ) if selected.is_none() => {
+                let change = RetainedChange::replaced(None, value, None, None);
+                *selected = Some(value.clone());
+                return Ok(change);
+            }
             (Self::Interval(state), Self::Interval(later)) => state.merge(later)?,
             (Self::Regression(state), Self::Regression(later)) => state.merge(later)?,
             (Self::Statistical(state), Self::Statistical(later)) => {
@@ -405,6 +436,9 @@ impl AggregateAccumulator {
         Ok(match self {
             Self::Boolean(state) => state.finish(),
             Self::Bitwise(state) => state.finish(),
+            Self::AnyValue { selected } | Self::MinMax { selected, .. } => {
+                selected.unwrap_or(Value::Null)
+            }
             Self::Count { count } => Value::Int64(count),
             Self::StringAgg { value } => value.map_or(Value::Null, Value::String),
             Self::Sum { sum, seen } => {
@@ -421,7 +455,6 @@ impl AggregateAccumulator {
                     sum.finish_mean(count)?
                 }
             }
-            Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
             Self::Interval(state) => state.finish()?,
             Self::Regression(state) => state.finish(),
             Self::Statistical(state) => state.finish()?,
@@ -439,6 +472,7 @@ impl AggregateAccumulator {
             Self::StringAgg { .. } => true,
             Self::Boolean(_)
             | Self::Bitwise(_)
+            | Self::AnyValue { .. }
             | Self::Count { .. }
             | Self::MinMax { .. }
             | Self::Interval(_) => false,
@@ -456,6 +490,9 @@ impl AggregateAccumulator {
                 key.as_ref().map_or(0, SemanticValue::estimated_bytes),
             )?,
             Self::StringAgg { value: Some(value) } => value.len(),
+            Self::AnyValue {
+                selected: Some(value),
+            } => crate::executor::retained_memory::value_clone_bytes(value)?,
             Self::Regression(_) => RegressionAccumulator::retained_heap_bytes(),
             Self::Statistical(state) => state.retained_heap_bytes(),
             _ => 0,

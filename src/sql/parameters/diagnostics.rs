@@ -115,6 +115,7 @@ pub(crate) enum ParameterSemanticDiagnostic {
     PendingDatumInput,
     PendingTypeFunctionInput,
     PendingWindowTypeCoercion,
+    PolymorphicUnknown,
     AmbiguousFunction {
         function: &'static str,
     },
@@ -133,6 +134,7 @@ impl ParameterSemanticDiagnostic {
                 | Self::ValuesTypes { .. }
                 | Self::MissingEquality { .. }
                 | Self::AmbiguousFunction { .. }
+                | Self::PolymorphicUnknown
                 | Self::UndefinedFunction { .. }
                 | Self::BooleanOperand {
                     construct: BooleanConstruct::Filter | BooleanConstruct::Truth(..),
@@ -152,7 +154,9 @@ impl ParameterSemanticDiagnostic {
             Self::MissingEquality { .. } | Self::UndefinedFunction { .. } => "42883",
             Self::Inconsistent { .. } | Self::Indeterminate { .. } => "42P08",
             Self::Unresolved { .. } => "42P18",
-            Self::ValuesTypes { .. } | Self::BooleanOperand { .. } => "42804",
+            Self::ValuesTypes { .. } | Self::BooleanOperand { .. } | Self::PolymorphicUnknown => {
+                "42804"
+            }
         }
     }
 
@@ -170,6 +174,9 @@ impl ParameterSemanticDiagnostic {
             Self::PendingDatumInput => PENDING_DATUM_INPUT.len(),
             Self::PendingTypeFunctionInput => PENDING_TYPE_FUNCTION_INPUT.len(),
             Self::PendingWindowTypeCoercion => PENDING_WINDOW_TYPE_COERCION.len(),
+            Self::PolymorphicUnknown => {
+                "could not determine polymorphic type because input has type unknown".len()
+            }
             Self::AmbiguousFunction { function } => {
                 "function (unknown) is not unique".len() + function.len()
             }
@@ -218,6 +225,8 @@ impl ParameterSemanticDiagnostic {
             Self::PendingDatumInput => output.write_str(PENDING_DATUM_INPUT),
             Self::PendingTypeFunctionInput => output.write_str(PENDING_TYPE_FUNCTION_INPUT),
             Self::PendingWindowTypeCoercion => output.write_str(PENDING_WINDOW_TYPE_COERCION),
+            Self::PolymorphicUnknown => output
+                .write_str("could not determine polymorphic type because input has type unknown"),
             Self::ValuesWidth => output.write_str("VALUES lists must all be the same length"),
             Self::ValuesTypes { left, right } => write!(
                 output,
@@ -296,6 +305,7 @@ impl ParameterSemanticDiagnostic {
             | Self::PendingDatumInput
             | Self::PendingTypeFunctionInput
             | Self::PendingWindowTypeCoercion
+            | Self::PolymorphicUnknown
             | Self::DistinctAggregateOrder
             | Self::ValuesTypes { .. }
             | Self::ValuesWidth

@@ -83,6 +83,7 @@ pub(crate) fn has_distinct_equality(data_type: &DataType) -> bool {
 pub(crate) enum FunctionInputSignature {
     Text,
     Boolean,
+    AnyElement,
     CommonArguments,
     PercentileFraction,
     OrderedSetOrderKey,
@@ -120,6 +121,7 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
         FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
+        FunctionId::AnyValue => Some(FunctionInputSignature::AnyElement),
         FunctionId::BitAnd | FunctionId::BitOr | FunctionId::BitXor => {
             Some(FunctionInputSignature::BitwiseInteger)
         }
@@ -258,5 +260,20 @@ mod tests {
                 Some(FunctionInputSignature::HypotheticalSetArguments)
             ));
         }
+    }
+
+    #[test]
+    fn should_define_postgresql_polymorphic_input_for_any_value() {
+        // Arrange
+        let function_id = FunctionId::AnyValue;
+
+        // Act
+        let signature = input_signature(function_id);
+
+        // Assert
+        assert!(matches!(
+            signature,
+            Some(FunctionInputSignature::AnyElement)
+        ));
     }
 }

@@ -259,6 +259,44 @@ fn should_complete_active_aggregate_workers_with_deadlines_disabled() {
 }
 
 #[test]
+fn should_cancel_any_value_partition_without_returning_partial_group() {
+    // Arrange
+    let fixture = Fixture::new(0);
+    let plan = aggregate_plan("SELECT ANY_VALUE(item) AS selected FROM events");
+    let specs = aggregate_specs(&plan);
+    let functions = HashMap::new();
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &fixture.cassie.runtime.limits(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let mut context = aggregate_context(&plan, &functions, &controls);
+    let observer = |processed_rows| {
+        if processed_rows == 1 {
+            cancellation.cancel();
+        }
+    };
+    context.after_partition_row = Some(&observer);
+    let rows = ["first", "later"]
+        .into_iter()
+        .map(|item| BatchRow::new(vec![("item".to_owned(), Value::String(item.to_owned()))]))
+        .collect::<Vec<_>>();
+
+    // Act
+    let result = aggregate_partitions(&rows, &specs, &context, 1);
+
+    // Assert
+    let error = CassieError::from(match result {
+        Ok(_) => panic!("cancelled partition must not publish"),
+        Err(error) => error,
+    });
+    assert!(matches!(error, CassieError::QueryCancelled));
+    assert_eq!(error.descriptor().sql_state, "57014");
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_reject_cancelled_aggregate_merge_without_publishing_success() {
     // Arrange
     let fixture = Fixture::new(0);

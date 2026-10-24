@@ -983,6 +983,7 @@ fn infer_binary_type(
         BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
             Some(DataType::Boolean)
         }
+        BinaryOp::JsonbDeletePath => Some(DataType::Json),
         BinaryOp::Sub
             if infer_expr_type(left, source_schema, user_functions, parameter_types)
                 == Some(DataType::Json) =>
@@ -1052,8 +1053,8 @@ pub(crate) fn integer_literal_type(value: i64) -> DataType {
     }
 }
 
-/// Returns the type of a column, cast, or literal expression without a
-/// resolved source schema; other expressions return `None`.
+/// Returns the known type of an expression without catalog access; expressions
+/// needing a resolved source schema return `None`.
 pub(crate) fn known_expr_type(
     expr: &Expr,
     field_types: &crate::sql::FieldTypeMap,
@@ -1061,6 +1062,7 @@ pub(crate) fn known_expr_type(
     match expr {
         Expr::Column(name) => crate::sql::field_type_for_column(field_types, name).cloned(),
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        Expr::Subquery(subquery) => subquery.result_type(),
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
         Expr::UnaryNumeric { expr, op } => {

@@ -10,7 +10,7 @@ pub(super) fn binary_scalar(
     right: &ScalarValue,
 ) -> Result<ScalarValue, QueryError> {
     if matches!(op, BinaryOp::Sub) && matches!(left, ScalarValue::Json(_)) {
-        return super::json_delete::delete_text(left, right);
+        return super::json_delete::delete_operator(left, right);
     }
     if let Some(result) = super::extended_ops::binary(left, op, right) {
         return result;
@@ -31,6 +31,7 @@ pub(super) fn binary_scalar(
         BinaryOp::JsonbKeyExists
         | BinaryOp::JsonbKeyExistsAny
         | BinaryOp::JsonbKeyExistsAll => super::json_key_exists::evaluate(left, op, right)?,
+        BinaryOp::JsonbDeletePath => super::json_delete::delete_path(left, right)?,
         BinaryOp::ByteaConcat => super::bytea_casts::concatenate(left, right)?,
         BinaryOp::Concat => match (cast_to_text(left), cast_to_text(right)) {
             (Some(mut left), Some(right)) => {

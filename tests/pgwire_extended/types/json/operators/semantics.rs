@@ -497,7 +497,7 @@ fn should_propagate_sql_null_for_jsonb_text_key_deletion() {
 }
 
 #[test]
-fn should_reject_unimplemented_jsonb_deletion_operand_overloads() {
+fn should_reject_jsonb_deletion_with_unsupported_operand_types() {
     // Arrange
     let setup = [
         (
@@ -515,14 +515,8 @@ fn should_reject_unimplemented_jsonb_deletion_operand_overloads() {
         0,
         true,
     );
-    let pending_integer = fixture::execute_cycle(
-        "SELECT document - 1 FROM issue_809_jsonb_delete_overload_values",
-        None,
-        0,
-        true,
-    );
-    let pending_array = fixture::execute_cycle(
-        "SELECT document - '{a}'::TEXT[] FROM issue_809_jsonb_delete_overload_values",
+    let unsupported_bigint = fixture::execute_cycle(
+        "SELECT document - 1::BIGINT FROM issue_809_jsonb_delete_overload_values",
         None,
         0,
         true,
@@ -532,13 +526,12 @@ fn should_reject_unimplemented_jsonb_deletion_operand_overloads() {
     let batches = fixture::run_cycles(
         "issue-809-jsonb-delete-overload-values",
         &setup,
-        vec![invalid_boolean, pending_integer, pending_array],
+        vec![invalid_boolean, unsupported_bigint],
     );
 
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
     assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("42883"));
-    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("42883"));
 }
 
 #[test]

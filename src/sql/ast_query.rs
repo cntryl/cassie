@@ -462,6 +462,8 @@ pub enum BinaryOp {
     JsonbKeyExistsAny,
     /// PostgreSQL JSONB all-key text-array existence (`?&`).
     JsonbKeyExistsAll,
+    /// PostgreSQL JSONB nested-path deletion (`#-`).
+    JsonbDeletePath,
     /// A selected builtin integer operator, retaining its operand/result domain.
     Integer {
         operation: crate::types::IntegerOperation,

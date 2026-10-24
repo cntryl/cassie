@@ -9,6 +9,9 @@ pub(super) fn binary_scalar(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Result<ScalarValue, QueryError> {
+    if matches!(op, BinaryOp::Sub) && matches!(left, ScalarValue::Json(_)) {
+        return super::json_delete::delete_text(left, right);
+    }
     if let Some(result) = super::extended_ops::binary(left, op, right) {
         return result;
     }

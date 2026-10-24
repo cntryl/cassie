@@ -105,6 +105,10 @@ impl Analyzer<'_> {
         right: &Expr,
         lookup: &[OutputField],
     ) -> Result<OutputType, CassieError> {
+        if matches!(op, BinaryOp::Sub) && self.expression(left, lookup)?.data_type == DataType::Json
+        {
+            return Ok(OutputType::fixed(DataType::Json));
+        }
         if let Some(operator) = op.typed_operator() {
             let left_type = self.expression(left, lookup)?.data_type;
             let right_type = self.expression(right, lookup)?.data_type;

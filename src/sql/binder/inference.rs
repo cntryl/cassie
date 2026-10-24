@@ -983,6 +983,12 @@ fn infer_binary_type(
         BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
             Some(DataType::Boolean)
         }
+        BinaryOp::Sub
+            if infer_expr_type(left, source_schema, user_functions, parameter_types)
+                == Some(DataType::Json) =>
+        {
+            Some(DataType::Json)
+        }
         BinaryOp::Power => Some(power_type(
             left,
             right,

@@ -555,6 +555,14 @@ fn infer_binary_parameter_type_oids(
     if !oids.check() {
         return;
     }
+    if matches!(op, ast::BinaryOp::Sub)
+        && binder::known_expr_type(left, field_types) == Some(DataType::Json)
+    {
+        infer_parameter_type_from_expected_expr(right, &DataType::Text, oids);
+        infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+        infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+        return;
+    }
     match op {
         ast::BinaryOp::JsonbKeyExists
         | ast::BinaryOp::JsonbKeyExistsAny

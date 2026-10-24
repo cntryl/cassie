@@ -1072,3 +1072,15 @@ executor retain each signature and meaning. No JSON scalar function names are
 introduced here; those remain under #810. Containment, concatenation,
 deletion, extraction, path predicates and the remaining #809 acceptance stay
 pending and are not excluded by this selection.
+
+The next #809 slice selects only `json - text`. It deletes a matching top-level
+object key or every matching top-level string member of an array; a missing key
+leaves the document unchanged. SQL NULL is strict, a scalar document returns
+22023, and the result retains JSON OID 114 with inferred right parameters at
+TEXT OID 25. Known unsupported right operand families return 42883. Object
+keys use PostgreSQL JSONB byte-length/byte ordering; nested values are rendered
+recursively, with exact numeric parsing that preserves decimal scale and
+normalizes exponent notation without floating-point conversion. The integer,
+text-array and path-deletion overloads remain pending under #809. The runtime
+reuses the existing subtraction AST operator; it adds no public operator
+variant, type identity, codec or durable representation.

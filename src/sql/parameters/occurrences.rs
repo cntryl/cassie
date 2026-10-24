@@ -172,6 +172,10 @@ impl<'a> Occurrences<'a> {
         self.report(ParameterSemanticDiagnostic::PendingTypeFunctionInput)
     }
 
+    pub(super) fn pending_window_type_coercion(&mut self) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::PendingWindowTypeCoercion)
+    }
+
     pub(super) fn ambiguous_function(
         &mut self,
         function: &'static str,

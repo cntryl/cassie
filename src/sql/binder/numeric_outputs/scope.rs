@@ -289,7 +289,21 @@ impl Analyzer<'_> {
                         }
                         "percent_rank" | "cume_dist" => super::OutputType::fixed(DataType::Float),
                         "ntile" => super::OutputType::fixed(DataType::Int),
-                        "lag" | "lead" | "first_value" | "last_value" => function
+                        "lag" | "lead" => {
+                            let mut arguments = Vec::with_capacity(2);
+                            for index in [0, 2] {
+                                if let Some(argument) = function.args.get(index) {
+                                    arguments.push(self.expression(argument, lookup)?);
+                                }
+                            }
+                            let common = super::OutputType::common_result(&arguments)?;
+                            if common.data_type == DataType::Null {
+                                super::OutputType::fixed(DataType::Text)
+                            } else {
+                                common
+                            }
+                        }
+                        "first_value" | "last_value" | "nth_value" => function
                             .args
                             .first()
                             .map(|argument| self.expression(argument, lookup))

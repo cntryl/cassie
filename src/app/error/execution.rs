@@ -24,6 +24,9 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message == "negative substring length not allowed" {
         return bad_request_descriptor("22011", message.to_owned());
     }
+    if message == "argument of nth_value must be greater than zero" {
+        return bad_request_descriptor("22016", message.to_owned());
+    }
     let pagination_state = pagination_sql_state(message);
     if let Some(sql_state) = pagination_state {
         return bad_request_descriptor(sql_state, message.to_string());

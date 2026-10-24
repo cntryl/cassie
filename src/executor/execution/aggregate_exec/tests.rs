@@ -567,6 +567,57 @@ fn should_merge_boolean_row_groups_given_null_only_partitions_when_workers_finis
 }
 
 #[test]
+fn should_merge_any_value_partitions_while_accounting_retained_non_null_values() {
+    // Arrange
+    let plan = aggregate_plan("SELECT ANY_VALUE(item) AS selected FROM records");
+    let specs = aggregate_specs(&plan);
+    let controls = controls_with_budget(CassieRuntimeLimits::default().query_memory_budget_bytes);
+    let functions = HashMap::new();
+    let context = aggregate_context(&plan, &functions, &controls);
+    let rows = [
+        Value::Null,
+        Value::String("first".to_owned()),
+        Value::Null,
+        Value::String("second".to_owned()),
+    ]
+    .into_iter()
+    .map(|value| BatchRow::new(vec![("item".to_owned(), value)]))
+    .collect::<Vec<_>>();
+
+    // Act
+    let partials = aggregate_partitions(&rows, &specs, &context, 4).expect("worker partitions");
+    let mut merged = PartialAggregateGroup::new(Vec::new(), &specs);
+    for partial in &partials {
+        for group in partial.groups.values() {
+            merged.merge(group).expect("merge ANY_VALUE partial state");
+        }
+    }
+    let retained = merged.accumulators[0]
+        .retained_heap_bytes()
+        .expect("retained ANY_VALUE heap bytes");
+    let retained_accumulator = merged.accumulators[0].retained_bytes();
+    let partial_memory_is_reserved = controls.current_query_memory_bytes() > 0;
+    let selected = merged
+        .accumulators
+        .into_iter()
+        .next()
+        .expect("ANY_VALUE accumulator")
+        .finish()
+        .expect("finish merged ANY_VALUE state");
+    drop(partials);
+
+    // Assert
+    assert!(matches!(
+        selected,
+        Value::String(ref value) if value == "first" || value == "second"
+    ));
+    assert!(retained > 0);
+    assert!(retained_accumulator > std::mem::size_of::<AggregateAccumulator>());
+    assert!(partial_memory_is_reserved);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_merge_integer_bitwise_aggregates_across_parallel_partitions() {
     // Arrange
     let plan = aggregate_plan("SELECT bit_and(value), bit_or(value), bit_xor(value) FROM records");

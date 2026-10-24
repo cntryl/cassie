@@ -5,6 +5,9 @@ use super::{
     CassieErrorDescriptor,
 };
 pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
+    if message == "could not determine polymorphic type because input has type unknown" {
+        return bad_request_descriptor("42804", message.to_owned());
+    }
     if ["VALUES types ", "GREATEST types ", "LEAST types "]
         .iter()
         .any(|prefix| message.starts_with(prefix))

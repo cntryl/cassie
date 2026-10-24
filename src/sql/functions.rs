@@ -20,6 +20,7 @@ pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 mod table;
 pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
 pub(crate) use table::{catalog_table_columns, is_catalog_table, is_options_table};
+mod any_value;
 mod bitwise;
 mod bytea;
 pub(crate) mod hashing;
@@ -93,6 +94,7 @@ pub enum FunctionId {
     Lag,
     Lead,
     NthValue,
+    AnyValue,
     Search,
     SearchScore,
     VectorDistance,
@@ -275,6 +277,7 @@ pub fn aggregate_arity(name: &str) -> Option<usize> {
 pub fn registry() -> Vec<ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
+        .chain(any_value::FUNCTIONS)
         .chain(bitwise::FUNCTIONS)
         .chain(ordered_set::FUNCTIONS)
         .chain(statistical::FUNCTIONS)
@@ -296,6 +299,7 @@ pub fn registry() -> Vec<ScalarFunction> {
 pub fn function(name: &str) -> Option<&'static ScalarFunction> {
     SCALAR_FUNCTIONS
         .iter()
+        .chain(any_value::FUNCTIONS)
         .chain(bitwise::FUNCTIONS)
         .chain(ordered_set::FUNCTIONS)
         .chain(statistical::FUNCTIONS)
@@ -323,6 +327,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         "power",
                         "abs",
                         "string_agg",
+                        "any_value",
                     ]
                     .iter()
                     .any(|candidate| candidate.eq_ignore_ascii_case(local))
@@ -355,6 +360,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                 .and_then(|local| {
                     SCALAR_FUNCTIONS
                         .iter()
+                        .chain(any_value::FUNCTIONS)
                         .chain(bitwise::FUNCTIONS)
                         .chain(statistical::FUNCTIONS)
                         .chain(regression::FUNCTIONS)

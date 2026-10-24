@@ -4,7 +4,10 @@
 //! finalization is local to an eligible COALESCE, not a statement-wide fallback.
 
 use super::inference::{infer_parameter_type_from_expected_expr, infer_parameter_type_oids_expr};
-use super::{ParameterAdmissionError, ParameterInference, UNKNOWN_PARAMETER_TYPE_OID};
+use super::{
+    ParameterAdmissionError, ParameterInference, ParameterSemanticDiagnostic,
+    UNKNOWN_PARAMETER_TYPE_OID,
+};
 use crate::app::CassieError;
 use crate::catalog::Catalog;
 use crate::sql::ast::{CallProcedureStatement, Expr, FunctionCall};
@@ -111,6 +114,10 @@ fn infer_inputs(
         }
         Some(FunctionInputSignature::Text) => Some(DataType::Text),
         Some(FunctionInputSignature::Boolean) => Some(DataType::Boolean),
+        Some(FunctionInputSignature::AnyElement) => {
+            validate_any_element_input(function, field_types, catalog, inference)?;
+            None
+        }
         Some(FunctionInputSignature::BitwiseInteger) => {
             let input_type = function
                 .args
@@ -156,6 +163,28 @@ fn infer_inputs(
         for argument in &function.args {
             infer_parameter_type_from_expected_expr(argument, &data_type, inference);
         }
+    }
+    Ok(())
+}
+
+fn validate_any_element_input(
+    function: &FunctionCall,
+    field_types: &FieldTypeMap,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) -> Result<(), ParameterAdmissionError> {
+    let Some(argument) = function.args.first() else {
+        return Ok(());
+    };
+    if functions::primitive_casts::unknown_literal(argument)
+        || matches!(
+            argument_type(argument, field_types, catalog, inference)?,
+            ArgumentType::Unknown
+        )
+    {
+        return Err(ParameterAdmissionError::Semantic(
+            ParameterSemanticDiagnostic::PolymorphicUnknown,
+        ));
     }
     Ok(())
 }
@@ -398,6 +427,20 @@ fn function_result_type(
     };
     match functions::input_signature(metadata.id) {
         Some(FunctionInputSignature::Boolean) => Ok(ArgumentType::Known(DataType::Boolean)),
+        Some(FunctionInputSignature::AnyElement) => {
+            let Some(argument) = function.args.first() else {
+                return Ok(ArgumentType::Unqualified);
+            };
+            if functions::primitive_casts::unknown_literal(argument) {
+                return Ok(ArgumentType::Unqualified);
+            }
+            Ok(
+                match argument_type(argument, field_types, catalog, inference)? {
+                    ArgumentType::Known(data_type) => ArgumentType::Known(data_type),
+                    ArgumentType::Unknown | ArgumentType::Unqualified => ArgumentType::Unqualified,
+                },
+            )
+        }
         Some(FunctionInputSignature::BitwiseInteger) => {
             let Some(argument) = function.args.first() else {
                 return Ok(ArgumentType::Unqualified);

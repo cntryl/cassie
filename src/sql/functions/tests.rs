@@ -120,3 +120,32 @@ fn should_register_integer_bitwise_aggregates_with_typed_signatures() {
         assert!(!aggregate_accepts_input(id, &DataType::Float));
     }
 }
+
+#[test]
+fn should_register_any_value_with_a_named_polymorphic_aggregate_identity() {
+    // Arrange
+    let metadata = function("any_value").expect("ANY_VALUE registry entry");
+
+    // Act
+    let qualified = function("pg_catalog.any_value");
+
+    // Assert
+    assert_eq!(metadata.id, FunctionId::AnyValue);
+    assert_eq!(metadata.arity, FunctionArity::Exact(1));
+    assert_eq!(
+        metadata.return_type,
+        FunctionReturnType::FirstNonNullArgument
+    );
+    assert!(metadata.is_aggregate);
+    assert_eq!(
+        qualified.map(|metadata| metadata.id),
+        Some(FunctionId::AnyValue)
+    );
+    assert!(registry()
+        .iter()
+        .any(|registered| registered.id == FunctionId::AnyValue));
+    assert!(matches!(
+        input_signature(FunctionId::AnyValue),
+        Some(FunctionInputSignature::AnyElement)
+    ));
+}

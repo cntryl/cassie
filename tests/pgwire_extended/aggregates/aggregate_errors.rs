@@ -16,5 +16,6 @@ mod boolean_value_semantics;
 mod distinct_order_by_argument;
 
 include!("core/aggregate_errors.rs");
+include!("core/any_value.rs");
 
 include!("boolean/aggregate_errors.rs");

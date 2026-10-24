@@ -204,19 +204,40 @@ pub(super) fn persist_created_sequences(
     cassie: &Cassie,
     sequences: Vec<crate::catalog::SequenceMeta>,
 ) -> Result<(), QueryError> {
-    for mut sequence in sequences {
-        sequence.object_id = cassie
-            .midge
-            .allocate_object_id()
-            .map_err(QueryError::from)?;
-        let sequence = canonicalize_sequence_metadata(cassie, sequence);
+    let sequences = prepare_created_sequences(cassie, sequences)?;
+    for sequence in &sequences {
         cassie
             .midge
-            .put_sequence(&sequence)
+            .put_sequence(sequence)
             .map_err(QueryError::from)?;
+    }
+    register_created_sequences(cassie, sequences);
+    Ok(())
+}
+
+pub(super) fn prepare_created_sequences(
+    cassie: &Cassie,
+    sequences: Vec<crate::catalog::SequenceMeta>,
+) -> Result<Vec<crate::catalog::SequenceMeta>, QueryError> {
+    sequences
+        .into_iter()
+        .map(|mut sequence| {
+            sequence.object_id = cassie
+                .midge
+                .allocate_object_id()
+                .map_err(QueryError::from)?;
+            Ok(canonicalize_sequence_metadata(cassie, sequence))
+        })
+        .collect()
+}
+
+pub(super) fn register_created_sequences(
+    cassie: &Cassie,
+    sequences: Vec<crate::catalog::SequenceMeta>,
+) {
+    for sequence in sequences {
         cassie.catalog.register_sequence(sequence);
     }
-    Ok(())
 }
 
 pub(super) fn canonicalize_sequence_metadata(

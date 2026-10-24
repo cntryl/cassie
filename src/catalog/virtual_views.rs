@@ -39,6 +39,8 @@ mod virtual_views_repair;
 mod virtual_views_sequences;
 #[path = "virtual_views_session_objects.rs"]
 mod virtual_views_session_objects;
+#[path = "virtual_views_shared_dependencies.rs"]
+mod virtual_views_shared_dependencies;
 #[path = "virtual_views_storage.rs"]
 mod virtual_views_storage;
 #[path = "virtual_views_timezones.rs"]
@@ -146,6 +148,7 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         "pg_catalog.pg_table_storage" => Some(virtual_views_storage::schema()),
         "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint_schema()),
         "pg_catalog.pg_depend" => Some(virtual_views_dependencies::schema()),
+        "pg_catalog.pg_shdepend" => Some(virtual_views_shared_dependencies::schema()),
         "pg_catalog.pg_roles" => Some(vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")]),
         "pg_catalog.pg_settings" => Some(vec![
             text("name"),
@@ -429,6 +432,7 @@ fn pg_catalog_core_rows(
             current_database,
         )),
         "pg_catalog.pg_depend" => Some(virtual_views_dependencies::rows(catalog, current_database)),
+        "pg_catalog.pg_shdepend" => Some(virtual_views_shared_dependencies::rows(catalog)),
         "pg_catalog.pg_roles" => Some(pg_roles_rows(catalog)),
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),

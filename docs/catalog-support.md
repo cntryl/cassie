@@ -91,11 +91,11 @@ weaken retained tests that require native type identities.
 Table/view/sequence discovery reads real current-database catalog objects.
 Create/drop/restart, database isolation, index presence and supported serial
 allocation probes qualify the selected rows. Ordinary column identity and
-generation fields report NO/NULL/NEVER. Empty
-stand-ins for dependency, rewrite, statistics, operator-family or built-in
-text-search catalogs are omitted: implemented objects require their actual
-semantic rows. The finite `pg_depend` sequence-ownership rows added below are
-derived only from existing sequence and owner metadata.
+generation fields report NO/NULL/NEVER. Empty stand-ins for dependency,
+rewrite, statistics, operator-family or built-in text-search catalogs are
+omitted: implemented objects require their actual semantic rows. The finite
+`pg_depend` sequence-ownership rows and `pg_shdepend` database CONNECT grant
+rows documented below are derived only from existing catalog metadata.
 Compiled plans rebuild at epoch 14. No persistent metadata or layout changes
 are selected by this batch.
 
@@ -135,6 +135,18 @@ unimplemented and are not represented by empty or fabricated rows. This read
 model slice changes no persistent metadata or public Rust API.
 The selected native index flag probes cover pre/post-create states, not this
 unimplemented post-drop law.
+
+### Shared database grant dependencies (2026-10-24)
+
+`pg_shdepend` exposes its seven selected PostgreSQL 18 columns and rows for
+database CONNECT grants present in Cassie's role metadata. These shared rows
+use `dbid = 0`, `classid = 1262` (`pg_database`), `objid` for the granted
+database, `objsubid = 0`, `refclassid = 1260` (`pg_authid`), the granted role's
+OID as `refobjid`, and `deptype = 'a'` for the ACL dependency. Grant and revoke
+updates are reflected in subsequent catalog reads across database sessions.
+Relation-owner dependencies and other shared dependency families remain
+unimplemented and are not fabricated. This slice changes no persistent
+metadata format or public Rust API.
 
 ## Experimental scalar catalog helpers (2026-10-17)
 

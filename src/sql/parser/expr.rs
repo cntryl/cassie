@@ -203,10 +203,13 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 /// The "any other operator" tokens split at the prefix-expression level.
-fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 10] {
+fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 13] {
     use crate::types::extended::TypedOperator;
     use crate::types::IntegerOperation;
     [
+        ("?|", Some(BinaryOp::JsonbKeyExistsAny)),
+        ("?&", Some(BinaryOp::JsonbKeyExistsAll)),
+        ("?", Some(BinaryOp::JsonbKeyExists)),
         ("||", Some(BinaryOp::Concat)),
         (
             "|",

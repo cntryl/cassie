@@ -1050,3 +1050,25 @@ Native receipts are retained in ignored target/autopilot-batch-16-*.json. Jev's 
 Native overload refinement: an unknown first argument is not enough to select BYTEA for bit_count/get_bit/set_bit. bit_count(unknown) and get_bit/set_bit with an unknown index are ambiguous (42725, complete native signature). An INT8 index selects the BYTEA overload; an INT4/SMALLINT index with an unknown first argument selects the separate pending BIT carrier and must stay explicitly unsupported under #793/#816. Typed BYTEA remains accepted with every supported integer index through INT8 widening. Do not infer BYTEA merely because BIT is not yet implemented.
 
 Rebuildable plan-cache epoch 31 covers the new fixed signatures and their diagnostics. Typed ByteaIndex and AmbiguousFunction errors preserve native SQLSTATEs without changing stored rows. Declared SQL function names are qualified before builtin evaluation, and a declared routine with a different arity must not hide a matching fixed builtin. These probes do not qualify general SQL routine overloading or the remaining #811 contract.
+
+
+### Staged JSON key-existence operators (2026-10-24)
+
+The first #809 runtime slice selects only `?`, `?|` and `?&`. It operates on
+the existing `DataType::Json` carrier and retains its current JSON OID 114
+identity; `JSONB` remains an alias under the active Type Contract. Distinct
+JSONB identity, canonicalization, numeric-domain, codec and durable-layout
+work remain outside this bounded slice under the active type qualification
+program. This does not qualify JSONB as a distinct SQL or wire type.
+
+The selected signatures are `(json,text) -> boolean` for `?` and
+`(json,text[]) -> boolean` for `?|` and `?&`, with Boolean OID 16 results.
+`?` checks only an object's top-level keys or top-level string members of an
+array; nested keys and scalar documents do not match. `?|` returns true when
+any array member matches, while `?&` requires every member and returns true
+for an empty array. SQL NULL in either operand yields SQL NULL. The operator
+AST receives named variants so the parser, binder, parameter inference and
+executor retain each signature and meaning. No JSON scalar function names are
+introduced here; those remain under #810. Containment, concatenation,
+deletion, extraction, path predicates and the remaining #809 acceptance stay
+pending and are not excluded by this selection.

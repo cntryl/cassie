@@ -183,11 +183,56 @@ impl Fold<'_, '_> {
             .map(Summary::known))
     }
 
+    fn json_key_operator(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let right_oid = match op {
+            ast::BinaryOp::JsonbKeyExists => 25,
+            ast::BinaryOp::JsonbKeyExistsAny | ast::BinaryOp::JsonbKeyExistsAll => 1009,
+            _ => return Ok(None),
+        };
+        self.occurrences
+            .coerce(&mut self.summaries.values[frame.start], 114, true)?;
+        self.occurrences
+            .coerce(&mut self.summaries.values[frame.start + 1], right_oid, true)?;
+        Ok(Some(Summary::known(16)))
+    }
+
+    fn shift_binary(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let ast::BinaryOp::Bitwise { operation } = op else {
+            return Ok(None);
+        };
+        if !operation.is_shift() {
+            return Ok(None);
+        }
+        let left = &mut self.summaries.values[frame.start];
+        if matches!(left.oid, 0 | 705) {
+            self.occurrences.coerce(left, 23, true)?;
+        }
+        let result = left.oid;
+        let right = &mut self.summaries.values[frame.start + 1];
+        if !matches!(right.oid, 0 | 705 | 21 | 23) {
+            self.occurrences
+                .undefined_function(operation.symbol(), 2, Some(right.oid))?;
+        }
+        self.occurrences.coerce(right, 23, true)?;
+        Ok(Some(Summary::known(result)))
+    }
+
     fn binary(
         &mut self,
         op: &ast::BinaryOp,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if let Some(summary) = self.json_key_operator(op, frame)? {
+            return Ok(summary);
+        }
         if matches!(
             op,
             ast::BinaryOp::And | ast::BinaryOp::Or | ast::BinaryOp::Quantified { .. }
@@ -231,21 +276,8 @@ impl Fold<'_, '_> {
             }
             return Ok(Summary::known(25));
         }
-        if let ast::BinaryOp::Bitwise { operation } = op {
-            if operation.is_shift() {
-                let left = &mut self.summaries.values[frame.start];
-                if matches!(left.oid, 0 | 705) {
-                    self.occurrences.coerce(left, 23, true)?;
-                }
-                let result = left.oid;
-                let right = &mut self.summaries.values[frame.start + 1];
-                if !matches!(right.oid, 0 | 705 | 21 | 23) {
-                    self.occurrences
-                        .undefined_function(operation.symbol(), 2, Some(right.oid))?;
-                }
-                self.occurrences.coerce(right, 23, true)?;
-                return Ok(Summary::known(result));
-            }
+        if let Some(summary) = self.shift_binary(op, frame)? {
+            return Ok(summary);
         }
         self.comparison_inputs(frame)?;
         Ok(match op {
@@ -283,6 +315,9 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::Gt
             | ast::BinaryOp::Gte
             | ast::BinaryOp::Like
+            | ast::BinaryOp::JsonbKeyExists
+            | ast::BinaryOp::JsonbKeyExistsAny
+            | ast::BinaryOp::JsonbKeyExistsAll
             | ast::BinaryOp::And
             | ast::BinaryOp::Or => Summary::known(16),
         })

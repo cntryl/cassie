@@ -980,6 +980,9 @@ fn infer_binary_type(
         | BinaryOp::Gt
         | BinaryOp::Gte
         | BinaryOp::Like => Some(DataType::Boolean),
+        BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
+            Some(DataType::Boolean)
+        }
         BinaryOp::Power => Some(power_type(
             left,
             right,

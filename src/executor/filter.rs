@@ -21,6 +21,8 @@ mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 /// Resolves a reached `EXISTS` or sublink node to its executed form.
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<Expr, QueryError> + 'a;
+#[path = "filter/json_key_exists.rs"]
+mod json_key_exists;
 #[path = "filter/quantified_array.rs"]
 mod quantified_array;
 #[path = "filter/subquery_value.rs"]

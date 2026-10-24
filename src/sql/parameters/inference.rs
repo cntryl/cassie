@@ -555,6 +555,23 @@ fn infer_binary_parameter_type_oids(
     if !oids.check() {
         return;
     }
+    match op {
+        ast::BinaryOp::JsonbKeyExists
+        | ast::BinaryOp::JsonbKeyExistsAny
+        | ast::BinaryOp::JsonbKeyExistsAll => {
+            let right_type = if matches!(op, ast::BinaryOp::JsonbKeyExists) {
+                DataType::Text
+            } else {
+                DataType::Array(Box::new(DataType::Text))
+            };
+            infer_parameter_type_from_expected_expr(left, &DataType::Json, oids);
+            infer_parameter_type_from_expected_expr(right, &right_type, oids);
+            infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+            infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+            return;
+        }
+        _ => {}
+    }
     if matches!(op, ast::BinaryOp::Bitwise { operation } | ast::BinaryOp::Integer { operation, .. } if operation.is_shift())
     {
         if let ast::Expr::Param(slot) = left {

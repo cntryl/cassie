@@ -23,6 +23,8 @@ pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<Expr, QueryError> + 'a;
 #[path = "filter/json_concat.rs"]
 mod json_concat;
+#[path = "filter/json_containment.rs"]
+mod json_containment;
 #[path = "filter/json_delete.rs"]
 mod json_delete;
 #[path = "filter/json_document.rs"]
@@ -851,6 +853,22 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
         } else {
             json_delete::delete_operator(&left_value, &right_value)
         };
+    }
+    if json_containment::handles(op)
+        && (is_json_typed_input(row, left, &left_value)
+            || is_json_typed_input(row, right, &right_value))
+    {
+        let left_value = if is_json_typed_input(row, left, &left_value) {
+            json_concat::as_json_document(&left_value)?
+        } else {
+            left_value
+        };
+        let right_value = if is_json_typed_input(row, right, &right_value) {
+            json_concat::as_json_document(&right_value)?
+        } else {
+            right_value
+        };
+        return json_containment::evaluate(op, &left_value, &right_value);
     }
     if *op == BinaryOp::Concat {
         let left_is_json = is_json_typed_input(row, left, &left_value);

@@ -280,6 +280,33 @@ impl Fold<'_, '_> {
         Ok(Some(Summary::known(json_oid)))
     }
 
+    fn json_containment(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let Some(symbol) = crate::sql::binder::json_containment::operator_symbol(op) else {
+            return Ok(None);
+        };
+        let args = &mut self.summaries.values[frame.start..];
+        let json_oid = super::expressions::oid(&crate::types::DataType::Json);
+        if !args.iter().any(|argument| argument.oid == json_oid) {
+            return Ok(None);
+        }
+        if args
+            .iter()
+            .any(|argument| !matches!(argument.oid, 0 | 705) && argument.oid != json_oid)
+        {
+            self.occurrences.undefined_function(symbol, 2, None)?;
+        }
+        for argument in args.iter_mut() {
+            if matches!(argument.oid, 0 | 705) {
+                self.occurrences.coerce(argument, json_oid, true)?;
+            }
+        }
+        Ok(Some(Summary::known(16)))
+    }
+
     fn specialized_binary(
         &mut self,
         op: &ast::BinaryOp,
@@ -299,6 +326,9 @@ impl Fold<'_, '_> {
             ast::BinaryOp::And | ast::BinaryOp::Or | ast::BinaryOp::Quantified { .. }
         ) {
             return Ok(Some(Summary::known(16)));
+        }
+        if let Some(summary) = self.json_containment(op, frame)? {
+            return Ok(Some(summary));
         }
         if let Some(summary) = self.extended_binary(op, frame)? {
             return Ok(Some(summary));

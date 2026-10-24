@@ -5,6 +5,8 @@ mod function_validation;
 mod grouped_projection;
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
+#[path = "binder/json_containment.rs"]
+pub(crate) mod json_containment;
 mod like_predicates;
 mod pagination_references;
 #[path = "binder/string_operators.rs"]

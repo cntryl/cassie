@@ -237,6 +237,21 @@ fn binary_operand_family(
     if matches!(op, BinaryOp::JsonbDeletePath) {
         return json_delete_path_family(left, right, left_family, right_family, field_types);
     }
+    if let Some(symbol) = super::json_containment::operator_symbol(op) {
+        if left_family == Some(OperandFamily::Json) || right_family == Some(OperandFamily::Json) {
+            let json_or_unknown = |expression: &Expr, family: Option<OperandFamily>| {
+                family == Some(OperandFamily::Json)
+                    || family.is_none()
+                    || matches!(expression, Expr::Null | Expr::StringLiteral(_))
+            };
+            if json_or_unknown(left, left_family) && json_or_unknown(right, right_family) {
+                return Ok(Some(OperandFamily::Boolean));
+            }
+            return Err(CassieError::Execution(format!(
+                "operator does not exist: jsonb {symbol} incompatible operands"
+            )));
+        }
+    }
     if selects_typed_operator(op, left_family, right_family) {
         return Ok(None);
     }

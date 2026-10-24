@@ -565,6 +565,13 @@ fn resolve_integer_operator(
     right: &mut Expr,
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
+    super::json_containment::qualify(
+        left,
+        op,
+        right,
+        types.expression_type(left).as_ref(),
+        types.expression_type(right).as_ref(),
+    );
     super::string_operators::qualify(
         left,
         op,

@@ -203,7 +203,7 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 /// The "any other operator" tokens split at the prefix-expression level.
-fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 14] {
+fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 16] {
     use crate::types::extended::TypedOperator;
     use crate::types::IntegerOperation;
     [
@@ -230,6 +230,18 @@ fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 14] {
             }),
         ),
         ("#-", Some(BinaryOp::JsonbDeletePath)),
+        (
+            "@>",
+            Some(BinaryOp::Typed {
+                operator: TypedOperator::ContainsOrEqual,
+            }),
+        ),
+        (
+            "<@",
+            Some(BinaryOp::Typed {
+                operator: TypedOperator::ContainedOrEqual,
+            }),
+        ),
         (
             "<<",
             Some(BinaryOp::Bitwise {

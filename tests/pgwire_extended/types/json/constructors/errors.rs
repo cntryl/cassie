@@ -12,6 +12,8 @@ mod json_collection_sql_json_wave;
 mod json_query_quote_policies;
 #[path = "../json_query_returning_alias.rs"]
 mod json_query_returning_alias;
+#[path = "../operators/containment.rs"]
+mod jsonb_containment;
 #[path = "../jsonb_string_scalar_key_boundary.rs"]
 mod jsonb_string_scalar_key_boundary;
 #[path = "../jsonpath/jsonpath_accessor_grammar.rs"]

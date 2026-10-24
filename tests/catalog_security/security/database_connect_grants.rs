@@ -1,5 +1,6 @@
-use cassie::app::{Cassie, CassieError, CatalogObjectKind};
+use cassie::app::{Cassie, CassieError, CassieSession, CatalogObjectKind};
 use cassie::sql::ast::QueryStatement;
+use cassie::types::Value;
 
 fn cassie(_label: &str) -> Cassie {
     let cassie = Cassie::new_in_memory_with_config(
@@ -147,6 +148,181 @@ fn should_revoke_live_database_access_given_a_connect_grant_removal() {
     assert!(matches!(revoked, CassieError::InsufficientPrivilege));
     assert_eq!(hits_after_revoked_query, hits_after_warm);
     assert!(restored.is_ok());
+}
+
+struct PgShdependGrantFixture {
+    cassie: Cassie,
+    admin: CassieSession,
+    database_oid: i64,
+    role_oid: i64,
+}
+
+impl PgShdependGrantFixture {
+    fn new() -> Self {
+        let cassie = cassie("pg-shdepend-connect-grant");
+        let admin = cassie
+            .authenticate_role("root", Some("postgres"), Some("postgres".to_owned()))
+            .expect("admin");
+        cassie
+            .execute_sql(&admin, "CREATE DATABASE shdepend_analytics", Vec::new())
+            .expect("database");
+        cassie
+            .execute_sql(
+                &admin,
+                "CREATE ROLE shdepend_reader LOGIN PASSWORD 'reader-secret'",
+                Vec::new(),
+            )
+            .expect("reader");
+        let database_oid = read_oid(
+            &cassie,
+            &admin,
+            "SELECT oid FROM pg_catalog.pg_database \
+             WHERE datname = 'shdepend_analytics'",
+        );
+        let role_oid = read_oid(&cassie, &admin, "SELECT 'shdepend_reader'::regrole::oid");
+
+        Self {
+            cassie,
+            admin,
+            database_oid,
+            role_oid,
+        }
+    }
+
+    fn dependency_rows(&self) -> Vec<Vec<Value>> {
+        self.dependency_rows_for_database(self.database_oid)
+    }
+
+    fn dependency_rows_for_database(&self, database_oid: i64) -> Vec<Vec<Value>> {
+        let dependency_sql = format!(
+            "SELECT dbid, classid, objid, objsubid, refclassid, refobjid, deptype \
+             FROM pg_catalog.pg_shdepend \
+             WHERE classid = 1262 AND objid = {database_oid} \
+               AND refclassid = 1260 AND refobjid = {} AND deptype = 'a'",
+            self.role_oid
+        );
+        self.cassie
+            .execute_sql(&self.admin, &dependency_sql, Vec::new())
+            .expect("read shared dependencies")
+            .rows()
+            .to_vec()
+    }
+
+    fn grant_connect(&self) {
+        self.grant_connect_to("shdepend_analytics");
+    }
+
+    fn grant_connect_to(&self, database: &str) {
+        let sql = format!("GRANT CONNECT ON DATABASE {database} TO shdepend_reader");
+        self.cassie
+            .execute_sql(&self.admin, &sql, Vec::new())
+            .expect("grant connect");
+    }
+
+    fn revoke_connect(&self) {
+        self.cassie
+            .execute_sql(
+                &self.admin,
+                "REVOKE CONNECT ON DATABASE shdepend_analytics FROM shdepend_reader",
+                Vec::new(),
+            )
+            .expect("revoke connect");
+    }
+
+    fn expected_dependency_rows(&self, database_oid: i64) -> Vec<Vec<Value>> {
+        vec![vec![
+            Value::Int64(0),
+            Value::Int64(1262),
+            Value::Int64(database_oid),
+            Value::Int64(0),
+            Value::Int64(1260),
+            Value::Int64(self.role_oid),
+            Value::String("a".to_owned()),
+        ]]
+    }
+}
+
+fn read_oid(cassie: &Cassie, session: &CassieSession, query: &str) -> i64 {
+    let result = cassie
+        .execute_sql(session, query, Vec::new())
+        .expect("read object identity");
+    match &result.rows()[0][0] {
+        Value::Int64(oid) => *oid,
+        value => panic!("object OID is not an integer: {value:?}"),
+    }
+}
+
+#[test]
+fn should_expose_recorded_database_connect_grants_in_pg_shdepend() {
+    // Arrange
+    let fixture = PgShdependGrantFixture::new();
+    let without_grant = fixture.dependency_rows();
+
+    // Act
+    fixture.grant_connect();
+    let with_grant = fixture.dependency_rows();
+
+    // Assert
+    assert_eq!(without_grant, Vec::<Vec<Value>>::new());
+    assert_eq!(
+        with_grant,
+        fixture.expected_dependency_rows(fixture.database_oid)
+    );
+}
+
+#[test]
+fn should_remove_pg_shdepend_row_after_database_connect_revoke() {
+    // Arrange
+    let fixture = PgShdependGrantFixture::new();
+    fixture.grant_connect();
+    let before_revoke = fixture.dependency_rows();
+
+    // Act
+    fixture.revoke_connect();
+    let after_revoke = fixture.dependency_rows();
+
+    // Assert
+    assert_eq!(
+        before_revoke,
+        fixture.expected_dependency_rows(fixture.database_oid)
+    );
+    assert_eq!(after_revoke, Vec::<Vec<Value>>::new());
+}
+
+#[test]
+fn should_emit_one_dependency_row_per_live_database_connect_grant() {
+    // Arrange
+    let fixture = PgShdependGrantFixture::new();
+    fixture
+        .cassie
+        .execute_sql(
+            &fixture.admin,
+            "CREATE DATABASE shdepend_reporting",
+            Vec::new(),
+        )
+        .expect("reporting database");
+    let reporting_database_oid = read_oid(
+        &fixture.cassie,
+        &fixture.admin,
+        "SELECT oid FROM pg_catalog.pg_database \
+         WHERE datname = 'shdepend_reporting'",
+    );
+    fixture.grant_connect();
+    fixture.grant_connect_to("shdepend_reporting");
+
+    // Act
+    let analytics_rows = fixture.dependency_rows_for_database(fixture.database_oid);
+    let reporting_rows = fixture.dependency_rows_for_database(reporting_database_oid);
+
+    // Assert
+    assert_eq!(
+        analytics_rows,
+        fixture.expected_dependency_rows(fixture.database_oid)
+    );
+    assert_eq!(
+        reporting_rows,
+        fixture.expected_dependency_rows(reporting_database_oid)
+    );
 }
 
 #[test]

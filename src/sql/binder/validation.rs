@@ -320,6 +320,21 @@ fn concat_operand_family(
     if expr_contains_parameters(left) || expr_contains_parameters(right) {
         return Ok(None);
     }
+    if left_family == Some(OperandFamily::Json) || right_family == Some(OperandFamily::Json) {
+        let json_or_null_or_literal = |expr: &Expr, family: Option<OperandFamily>| {
+            family == Some(OperandFamily::Json)
+                || family.is_none()
+                || matches!(expr, Expr::StringLiteral(_))
+        };
+        if json_or_null_or_literal(left, left_family)
+            && json_or_null_or_literal(right, right_family)
+        {
+            return Ok(Some(OperandFamily::Json));
+        }
+        return Err(CassieError::Execution(
+            "operator does not exist: jsonb || incompatible operands".into(),
+        ));
+    }
     let family = |expr: &Expr, inferred| {
         if matches!(expr, Expr::StringLiteral(_)) {
             Some(OperandFamily::Text)

@@ -110,6 +110,15 @@ impl Analyzer<'_> {
         {
             return Ok(OutputType::fixed(DataType::Json));
         }
+        if *op == BinaryOp::Concat
+            && [
+                self.expression(left, lookup)?.data_type,
+                self.expression(right, lookup)?.data_type,
+            ]
+            .contains(&DataType::Json)
+        {
+            return Ok(OutputType::fixed(DataType::Json));
+        }
         if let Some(operator) = op.typed_operator() {
             let left_type = self.expression(left, lookup)?.data_type;
             let right_type = self.expression(right, lookup)?.data_type;

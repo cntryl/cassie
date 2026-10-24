@@ -153,6 +153,8 @@ include!("../operators/nulls.rs");
 
 include!("../operators/semantics.rs");
 
+include!("../operators/concat.rs");
+
 include!("../sql_json/nulls.rs");
 
 include!("../sql_json/semantics.rs");

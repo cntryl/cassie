@@ -21,8 +21,12 @@ mod exists_value;
 pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 /// Resolves a reached `EXISTS` or sublink node to its executed form.
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<Expr, QueryError> + 'a;
+#[path = "filter/json_concat.rs"]
+mod json_concat;
 #[path = "filter/json_delete.rs"]
 mod json_delete;
+#[path = "filter/json_document.rs"]
+mod json_document;
 #[path = "filter/json_key_exists.rs"]
 mod json_key_exists;
 #[path = "filter/quantified_array.rs"]
@@ -831,7 +835,7 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
     if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
-        && is_json_delete_input(row, left, &left_value)
+        && is_json_typed_input(row, left, &left_value)
     {
         if matches!(&left_value, ScalarValue::Null) || matches!(&right_value, ScalarValue::Null) {
             return Ok(ScalarValue::Null);
@@ -847,6 +851,23 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
         } else {
             json_delete::delete_operator(&left_value, &right_value)
         };
+    }
+    if *op == BinaryOp::Concat {
+        let left_is_json = is_json_typed_input(row, left, &left_value);
+        let right_is_json = is_json_typed_input(row, right, &right_value);
+        if left_is_json || right_is_json {
+            let left_value = if left_is_json {
+                json_concat::as_json_document(&left_value)?
+            } else {
+                left_value
+            };
+            let right_value = if right_is_json {
+                json_concat::as_json_document(&right_value)?
+            } else {
+                right_value
+            };
+            return json_concat::concatenate(&left_value, &right_value);
+        }
     }
     if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {
         return result;
@@ -873,7 +894,7 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     binary_scalar(&left_value, op, &right_value)
 }
 
-fn is_json_delete_input<R: RowAccess + ?Sized>(
+fn is_json_typed_input<R: RowAccess + ?Sized>(
     row: &R,
     expression: &Expr,
     value: &ScalarValue,
@@ -990,6 +1011,9 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
     identity: crate::sql::ast::CastIdentity,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    if *data_type == DataType::Json && source_type == Some(&DataType::Json) {
+        return json_concat::as_json_document(&eval_scalar_with_context(row, expr, context)?);
+    }
     if matches!(data_type, DataType::Text | DataType::Varchar { .. })
         && percentile_array_expression(expr)
     {

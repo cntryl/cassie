@@ -818,7 +818,9 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
-    if matches!(op, BinaryOp::Sub) && is_json_delete_input(row, left, &left_value) {
+    if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
+        && is_json_delete_input(row, left, &left_value)
+    {
         if matches!(&left_value, ScalarValue::Null) || matches!(&right_value, ScalarValue::Null) {
             return Ok(ScalarValue::Null);
         }
@@ -828,7 +830,11 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
             )
             .into());
         }
-        return json_delete::delete_text(&left_value, &right_value);
+        return if matches!(op, BinaryOp::JsonbDeletePath) {
+            json_delete::delete_path(&left_value, &right_value)
+        } else {
+            json_delete::delete_operator(&left_value, &right_value)
+        };
     }
     if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {
         return result;

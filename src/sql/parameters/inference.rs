@@ -563,6 +563,14 @@ fn infer_binary_parameter_type_oids(
         infer_parameter_type_oids_expr(right, field_types, catalog, oids);
         return;
     }
+    if matches!(op, ast::BinaryOp::JsonbDeletePath) {
+        let path_type = DataType::Array(Box::new(DataType::Text));
+        infer_parameter_type_from_expected_expr(left, &DataType::Json, oids);
+        infer_parameter_type_from_expected_expr(right, &path_type, oids);
+        infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+        infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+        return;
+    }
     match op {
         ast::BinaryOp::JsonbKeyExists
         | ast::BinaryOp::JsonbKeyExistsAny

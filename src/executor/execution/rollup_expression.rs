@@ -181,6 +181,7 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::JsonbKeyExists => "?",
         BinaryOp::JsonbKeyExistsAny => "?|",
         BinaryOp::JsonbKeyExistsAll => "?&",
+        BinaryOp::JsonbDeletePath => "#-",
         BinaryOp::Like => "LIKE",
         BinaryOp::PgvectorCosine => "<=>",
         BinaryOp::PgvectorL2 => "<->",

@@ -105,7 +105,8 @@ impl Analyzer<'_> {
         right: &Expr,
         lookup: &[OutputField],
     ) -> Result<OutputType, CassieError> {
-        if matches!(op, BinaryOp::Sub) && self.expression(left, lookup)?.data_type == DataType::Json
+        if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
+            && self.expression(left, lookup)?.data_type == DataType::Json
         {
             return Ok(OutputType::fixed(DataType::Json));
         }
@@ -135,6 +136,7 @@ impl Analyzer<'_> {
             | BinaryOp::JsonbKeyExists
             | BinaryOp::JsonbKeyExistsAny
             | BinaryOp::JsonbKeyExistsAll => OutputType::fixed(DataType::Boolean),
+            BinaryOp::JsonbDeletePath => OutputType::fixed(DataType::Json),
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 OutputType::fixed(DataType::Float)
             }

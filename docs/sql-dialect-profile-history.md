@@ -1084,3 +1084,20 @@ normalizes exponent notation without floating-point conversion. The integer,
 text-array and path-deletion overloads remain pending under #809. The runtime
 reuses the existing subtraction AST operator; it adds no public operator
 variant, type identity, codec or durable representation.
+
+On 2026-10-24, the selected `json - smallint/integer`, `json - text[]`, and
+`json #- text[]` overloads were implemented over the same JSON carrier. Integer
+deletion removes an array index, including negative indexes; text-array
+deletion removes object keys or matching top-level string elements and ignores
+NULL keys; path deletion handles nested object keys and array indexes, with
+missing and empty paths unchanged. Array path indexes use PostgreSQL integer
+syntax within INT4 bounds; malformed text or integer overflow returns 22P02,
+while valid array-out-of-bounds indexes are unchanged. The result retains JSON
+OID 114. The public AST adds `BinaryOp::JsonbDeletePath` to distinguish `#-`
+from `-`; the user approved this representation before the PR. Untyped
+`- $1` infers TEXT OID 25, while `#- $1` infers TEXT[] OID 1009. SQL NULL is
+strict; scalar documents and object/integer deletion return 22023, NULL path
+elements return 22004, malformed array indexes return 22P02, and unsupported
+overloads such as BIGINT return 42883. This does not introduce a distinct
+JSONB type or complete #809; extraction, containment, concatenation and
+JSONPath operators remain pending.

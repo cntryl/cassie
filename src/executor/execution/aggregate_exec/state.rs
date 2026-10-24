@@ -11,6 +11,7 @@ use crate::types::extended::numeric::{math as numeric_math, Numeric};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
+use super::bitwise::BitwiseState;
 use super::boolean::BooleanState;
 use super::regression::RegressionAccumulator;
 use super::retained_change::{value_retained_bytes, RetainedChange};
@@ -79,6 +80,7 @@ impl PartialAggregateGroup {
 #[derive(Clone)]
 pub(super) enum AggregateAccumulator {
     Boolean(BooleanState),
+    Bitwise(BitwiseState),
     Count {
         count: i64,
     },
@@ -182,6 +184,9 @@ impl AggregateAccumulator {
         if let Some(state) = BooleanState::new(&function.name) {
             return Self::Boolean(state);
         }
+        if let Some(state) = BitwiseState::new(function) {
+            return Self::Bitwise(state);
+        }
         if is_string_aggregate(function) {
             return Self::StringAgg { value: None };
         }
@@ -279,6 +284,7 @@ impl AggregateAccumulator {
                 Value::Null => {}
                 value => return Err(non_numeric_input(function, &value)),
             },
+            Self::Bitwise(state) => state.update(function, value)?,
             Self::Count { count } => {
                 if !matches!(value, Value::Null) {
                     *count = count.checked_add(1).ok_or_else(integer_overflow)?;
@@ -323,6 +329,7 @@ impl AggregateAccumulator {
     fn merge(&mut self, other: &Self) -> Result<RetainedChange, QueryError> {
         match (self, other) {
             (Self::Boolean(state), Self::Boolean(later)) => state.merge(later)?,
+            (Self::Bitwise(state), Self::Bitwise(later)) => state.merge(later)?,
             (Self::Interval(state), Self::Interval(later)) => state.merge(later)?,
             (Self::Regression(state), Self::Regression(later)) => state.merge(later)?,
             (Self::Statistical(state), Self::Statistical(later)) => {
@@ -397,6 +404,7 @@ impl AggregateAccumulator {
     pub(super) fn finish(self) -> Result<Value, QueryError> {
         Ok(match self {
             Self::Boolean(state) => state.finish(),
+            Self::Bitwise(state) => state.finish(),
             Self::Count { count } => Value::Int64(count),
             Self::StringAgg { value } => value.map_or(Value::Null, Value::String),
             Self::Sum { sum, seen } => {
@@ -429,9 +437,11 @@ impl AggregateAccumulator {
             Self::Regression(_) => RegressionAccumulator::requires_row_order(),
             Self::Statistical(state) => state.requires_row_order(),
             Self::StringAgg { .. } => true,
-            Self::Boolean(_) | Self::Count { .. } | Self::MinMax { .. } | Self::Interval(_) => {
-                false
-            }
+            Self::Boolean(_)
+            | Self::Bitwise(_)
+            | Self::Count { .. }
+            | Self::MinMax { .. }
+            | Self::Interval(_) => false,
         }
     }
 

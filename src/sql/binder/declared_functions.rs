@@ -167,7 +167,7 @@ fn needs_function_qualification(function: &FunctionCall) -> bool {
             || metadata.id == functions::FunctionId::Lower
             || matches!(
                 functions::input_signature(metadata.id),
-                Some(FunctionInputSignature::Boolean)
+                Some(FunctionInputSignature::Boolean | FunctionInputSignature::BitwiseInteger)
             )
     })
 }

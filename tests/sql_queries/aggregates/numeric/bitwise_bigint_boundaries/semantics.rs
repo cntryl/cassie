@@ -11,7 +11,7 @@ fn should_preserve_bigint_boundary_bits_in_aggregates() {
         "issue-806-bigint-bitwise-boundaries",
         &[
             "CREATE TABLE issue_806_bigint_bitwise_boundaries (value BIGINT)",
-            "INSERT INTO issue_806_bigint_bitwise_boundaries VALUES ('-9223372036854775808'), ('9223372036854775807')",
+            "INSERT INTO issue_806_bigint_bitwise_boundaries VALUES (-9223372036854775808), (9223372036854775807)",
         ],
     );
 

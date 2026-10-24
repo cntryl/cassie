@@ -31,6 +31,10 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
                 | DataType::Float
                 | DataType::Extended(ExtendedType::Numeric(_) | ExtendedType::Real)
         ),
+        FunctionId::BitAnd | FunctionId::BitOr | FunctionId::BitXor => matches!(
+            data_type,
+            DataType::Null | DataType::SmallInt | DataType::Int | DataType::BigInt
+        ),
         FunctionId::Min
         | FunctionId::Max
         | FunctionId::Mode
@@ -83,6 +87,7 @@ pub(crate) enum FunctionInputSignature {
     PercentileFraction,
     OrderedSetOrderKey,
     HypotheticalSetArguments,
+    BitwiseInteger,
     RegexpReplace,
     Positional(&'static [i32]),
 }
@@ -115,6 +120,9 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
         FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
+        FunctionId::BitAnd | FunctionId::BitOr | FunctionId::BitXor => {
+            Some(FunctionInputSignature::BitwiseInteger)
+        }
         id if super::regression::is_regression_function(id) => {
             Some(FunctionInputSignature::Positional(&[701, 701]))
         }

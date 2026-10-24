@@ -56,6 +56,30 @@ fn should_reject_pretty_untyped_parameter_given_native_signature_resolution_when
 }
 
 #[test]
+fn should_reject_untyped_bitwise_inputs_given_ambiguous_integer_overloads_when_parse_is_attempted()
+{
+    // Arrange
+    let cases = [
+        ("parameter", "SELECT bit_and($1)"),
+        ("null", "SELECT bit_and(NULL)"),
+        ("literal", "SELECT bit_and('1')"),
+    ];
+
+    // Act
+    let batches = cases.map(|(name, sql)| {
+        (
+            name,
+            errors::parse(&format!("catalog-parse-bitwise-{name}"), sql),
+        )
+    });
+
+    // Assert
+    for (_, batches) in batches {
+        errors::assert_parse_result(&batches, "42725", "function bit_and(unknown) is not unique");
+    }
+}
+
+#[test]
 fn should_reject_bytes_integer_given_native_signature_resolution_when_parse_is_attempted() {
     // Arrange
     let sql = "SELECT pg_size_bytes(1)";

@@ -14,6 +14,8 @@ use crate::types::Value;
 
 use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 
+#[path = "aggregate_exec/bitwise.rs"]
+mod bitwise;
 mod boolean;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
@@ -39,6 +41,7 @@ pub(super) mod typed;
 #[path = "aggregate_exec/window.rs"]
 mod window;
 
+use bitwise::BitwiseState;
 use group_memory::GroupMemory;
 pub(super) use rewrite::{
     contains_aggregate, rewrite_aggregate_expr, rewrite_aggregate_order,
@@ -515,8 +518,10 @@ fn evaluate_aggregate(
     }
     let is_string_aggregate = crate::sql::functions::function(&function.name)
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg);
+    let is_bitwise_aggregate = BitwiseState::new(function).is_some();
     if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
         || is_string_aggregate
+        || is_bitwise_aggregate
         || boolean::BooleanState::new(&function.name).is_some()
         || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
             crate::sql::functions::regression::is_regression_function(metadata.id)

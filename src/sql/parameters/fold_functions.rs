@@ -42,6 +42,25 @@ impl Fold<'_, '_> {
         if let Some(summary) = self.catalog_arity(function)? {
             return Ok(summary);
         }
+        let bitwise_metadata = functions::function(&function.name).filter(|metadata| {
+            metadata.arity.matches(function.args.len())
+                && matches!(
+                    functions::input_signature(metadata.id),
+                    Some(FunctionInputSignature::BitwiseInteger)
+                )
+        });
+        if function.args.len() == 1
+            && self
+                .summaries
+                .values
+                .get(frame.start)
+                .is_some_and(|summary| matches!(summary.oid, 0 | 705))
+        {
+            if let Some(metadata) = bitwise_metadata {
+                self.occurrences.ambiguous_function(metadata.name)?;
+                return Ok(Summary::unqualified());
+            }
+        }
         if function.args.is_empty()
             && !common_parent
             && boolean_metadata.is_none()
@@ -191,6 +210,25 @@ impl Fold<'_, '_> {
                     }
                 }
                 Ok(Summary::known(16))
+            }
+            Some(FunctionInputSignature::BitwiseInteger) => {
+                let metadata = metadata.expect("bitwise aggregate signature metadata");
+                let summary = &mut self.summaries.values[frame.start];
+                match summary.oid {
+                    0 | 705 => {
+                        self.occurrences.ambiguous_function(metadata.name)?;
+                        Ok(Summary::unqualified())
+                    }
+                    oid @ (20 | 21 | 23) => Ok(Summary::known(oid)),
+                    oid => {
+                        self.occurrences.undefined_function(
+                            metadata.name,
+                            function.args.len(),
+                            Some(oid),
+                        )?;
+                        Ok(Summary::unqualified())
+                    }
+                }
             }
             Some(FunctionInputSignature::Text) => {
                 for summary in &mut self.summaries.values[frame.start..] {

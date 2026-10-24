@@ -332,6 +332,49 @@ fn should_preserve_legacy_parameter_metadata_results() {
 }
 
 #[test]
+fn should_reject_untyped_bitwise_parameters_as_ambiguous() {
+    // Arrange
+    let statement = parse_statement("SELECT bit_and($1)").expect("bitwise aggregate SQL");
+    let catalog = Catalog::new();
+    let controls = controls(64 * 1_024);
+
+    // Act
+    let untyped = checked_parse_parameter_types(&statement, &[0], &catalog, &controls);
+
+    // Assert
+    assert!(
+        matches!(
+            &untyped,
+            Err(ParameterAdmissionError::Semantic(diagnostic))
+                if diagnostic.code() == "42725"
+                    && diagnostic.message() == "function bit_and(unknown) is not unique"
+        ),
+        "{untyped:?}"
+    );
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_declared_bitwise_parameter_widths() {
+    // Arrange
+    let statement = parse_statement("SELECT bit_and($1)").expect("bitwise aggregate SQL");
+    let catalog = Catalog::new();
+    let controls = controls(64 * 1_024);
+
+    // Act
+    let declared = [21, 23, 20].map(|oid| {
+        checked_parse_parameter_types(&statement, &[oid], &catalog, &controls)
+            .expect("declared integer width should be accepted")
+            .into_vec()
+            .expect("declared parameter types")
+    });
+
+    // Assert
+    assert_eq!(declared, [[21], [23], [20]]);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_check_cancellation_again_before_consuming_admitted_oids() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();

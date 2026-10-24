@@ -1,6 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use super::{function, registry, FunctionArity, FunctionId, FunctionReturnType};
+use super::{
+    aggregate_accepts_input, function, input_signature, registry, FunctionArity, FunctionId,
+    FunctionInputSignature, FunctionReturnType,
+};
+use crate::types::DataType;
 
 #[test]
 fn should_define_one_metadata_mapping_per_function_id() {
@@ -69,5 +73,50 @@ fn should_preserve_named_void_identities_for_temporal_sleep_functions() {
                 .any(|registered| registered.id == expected_id),
             "{name} appears in the public function registry"
         );
+    }
+}
+
+#[test]
+fn should_register_integer_bitwise_aggregates_with_typed_signatures() {
+    // Arrange
+    let cases = [
+        ("bit_and", FunctionId::BitAnd),
+        ("bit_or", FunctionId::BitOr),
+        ("bit_xor", FunctionId::BitXor),
+    ];
+
+    // Act
+    // Assert
+    for (name, id) in cases {
+        let metadata = function(name).expect("integer bitwise aggregate should be registered");
+        assert_eq!(metadata.id, id, "{name} registry identity");
+        assert_eq!(
+            function(&format!("pg_catalog.{name}")).map(|metadata| metadata.id),
+            Some(id),
+            "{name} qualified identity"
+        );
+        assert_eq!(metadata.arity, FunctionArity::Exact(1), "{name} arity");
+        assert_eq!(
+            metadata.return_type,
+            FunctionReturnType::FirstComparedArgument,
+            "{name} result width follows its input"
+        );
+        assert!(metadata.is_aggregate, "{name} is an aggregate");
+        assert!(matches!(
+            input_signature(id),
+            Some(FunctionInputSignature::BitwiseInteger)
+        ));
+        for data_type in [
+            DataType::Null,
+            DataType::SmallInt,
+            DataType::Int,
+            DataType::BigInt,
+        ] {
+            assert!(
+                aggregate_accepts_input(id, &data_type),
+                "{name} accepts {data_type:?}"
+            );
+        }
+        assert!(!aggregate_accepts_input(id, &DataType::Float));
     }
 }

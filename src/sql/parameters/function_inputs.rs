@@ -111,6 +111,18 @@ fn infer_inputs(
         }
         Some(FunctionInputSignature::Text) => Some(DataType::Text),
         Some(FunctionInputSignature::Boolean) => Some(DataType::Boolean),
+        Some(FunctionInputSignature::BitwiseInteger) => {
+            let input_type = function
+                .args
+                .first()
+                .map(|argument| argument_type(argument, field_types, catalog, inference));
+            match input_type.transpose()? {
+                Some(ArgumentType::Known(
+                    data_type @ (DataType::SmallInt | DataType::Int | DataType::BigInt),
+                )) => Some(data_type),
+                _ => None,
+            }
+        }
         Some(FunctionInputSignature::PercentileFraction) => {
             let array_argument = function.args.first().is_some_and(|argument| {
                 matches!(
@@ -386,6 +398,21 @@ fn function_result_type(
     };
     match functions::input_signature(metadata.id) {
         Some(FunctionInputSignature::Boolean) => Ok(ArgumentType::Known(DataType::Boolean)),
+        Some(FunctionInputSignature::BitwiseInteger) => {
+            let Some(argument) = function.args.first() else {
+                return Ok(ArgumentType::Unqualified);
+            };
+            Ok(
+                match argument_type(argument, field_types, catalog, inference)? {
+                    ArgumentType::Known(
+                        data_type @ (DataType::SmallInt | DataType::Int | DataType::BigInt),
+                    ) => ArgumentType::Known(data_type),
+                    ArgumentType::Unknown | ArgumentType::Known(_) | ArgumentType::Unqualified => {
+                        ArgumentType::Unqualified
+                    }
+                },
+            )
+        }
         Some(FunctionInputSignature::CommonArguments) => {
             Ok(
                 common_argument_type(function, field_types, catalog, inference)?

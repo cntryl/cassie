@@ -565,3 +565,42 @@ fn should_merge_boolean_row_groups_given_null_only_partitions_when_workers_finis
     );
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_merge_integer_bitwise_aggregates_across_parallel_partitions() {
+    // Arrange
+    let plan = aggregate_plan("SELECT bit_and(value), bit_or(value), bit_xor(value) FROM records");
+    let specs = aggregate_specs(&plan);
+    let controls = controls_with_budget(CassieRuntimeLimits::default().query_memory_budget_bytes);
+    let functions = HashMap::new();
+    let context = aggregate_context(&plan, &functions, &controls);
+    let rows = [
+        Value::Int64(7),
+        Value::Int64(3),
+        Value::Int64(5),
+        Value::Null,
+    ]
+    .into_iter()
+    .map(|value| BatchRow::new(vec![("value".to_owned(), value)]))
+    .collect::<Vec<_>>();
+
+    // Act
+    let partials = aggregate_partitions(&rows, &specs, &context, 4).expect("worker partitions");
+    let mut merged = PartialAggregateGroup::new(Vec::new(), &specs);
+    for partial in &partials {
+        for group in partial.groups.values() {
+            merged.merge(group).expect("merge bitwise aggregate states");
+        }
+    }
+    let values = merged
+        .accumulators
+        .into_iter()
+        .map(AggregateAccumulator::finish)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("finish merged bitwise states");
+    drop(partials);
+
+    // Assert
+    assert_eq!(values, [Value::Int64(1), Value::Int64(7), Value::Int64(1)]);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

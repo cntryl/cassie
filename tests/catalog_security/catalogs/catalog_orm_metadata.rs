@@ -22,7 +22,7 @@ fn assert_orm_columns(rows: &OrmMetadataRows) {
                 Value::String("id".to_string()),
                 Value::Int64(1),
                 Value::String("NO".to_string()),
-                Value::String("int".to_string()),
+                Value::String("integer".to_string()),
                 Value::String("int4".to_string()),
                 Value::String("7".to_string()),
                 Value::Null,

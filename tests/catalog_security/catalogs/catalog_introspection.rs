@@ -113,7 +113,7 @@ fn should_list_columns_through_information_schema_after_restart() {
                     ],
                     vec![
                         Value::String("score".to_string()),
-                        Value::String("int".to_string())
+                        Value::String("integer".to_string())
                     ]
                 ]
             );

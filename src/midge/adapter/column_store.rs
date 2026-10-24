@@ -39,7 +39,7 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<u64, CassieError> {
-        self.create_collection_with_meta_inner(name, schema, metadata, false, None)
+        self.create_collection_with_meta_inner(name, schema, metadata, false, None, None)
             .map(|(_, storage_id)| storage_id)
     }
 
@@ -58,32 +58,35 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<Option<u64>, CassieError> {
-        self.create_collection_with_meta_inner(name, schema, metadata, true, None)
+        self.create_collection_with_meta_inner(name, schema, metadata, true, None, None)
             .map(|(created, storage_id)| created.then_some(storage_id))
     }
 
-    /// Creates a collection and its initial column constraints in one database-family transaction.
+    /// Creates a collection, initial constraints, and owned identity sequences in one database-family transaction.
     ///
-    /// Initial constraints may include nullability, defaults and checks. Unique and foreign-key
-    /// constraints remain outside this path because they require reservation or dependency work.
+    /// Initial constraints may include nullability, defaults, checks, and identity metadata paired
+    /// with its new sequence. Unique and foreign-key constraints remain outside this path because
+    /// they require reservation or dependency work.
     ///
     /// # Errors
     ///
     /// Returns an error when validation or storage fails.
-    pub(crate) fn create_collection_with_meta_and_constraints_if_absent(
+    pub(crate) fn create_collection_with_meta_and_constraints_and_sequences_if_absent(
         &self,
         name: &str,
         schema: &Schema,
         metadata: &CollectionMeta,
         constraints: &[FieldConstraint],
+        sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<Option<u64>, CassieError> {
-        Self::validate_initial_column_constraints(constraints)?;
+        self.validate_initial_column_constraints(name, constraints, sequences)?;
         let (created, storage_id) = self.create_collection_with_meta_inner(
             name,
             schema,
             metadata,
             true,
             Some(constraints),
+            Some(sequences),
         )?;
         Ok(created.then_some(storage_id))
     }
@@ -95,6 +98,7 @@ impl Midge {
         metadata: &CollectionMeta,
         require_absent: bool,
         initial_constraints: Option<&[FieldConstraint]>,
+        initial_sequences: Option<&[crate::catalog::SequenceMeta]>,
     ) -> Result<(bool, u64), CassieError> {
         let name = self.canonical_collection_name(name);
         let write_gate = self.collection_write_gate(&name);
@@ -120,6 +124,8 @@ impl Midge {
         if require_absent && (schema_exists || existing_metadata.is_some() || storage_name_exists) {
             return Ok((false, 0));
         }
+
+        self.validate_initial_sequences_absent(&mut tx, initial_sequences.unwrap_or(&[]))?;
 
         if !schema_exists {
             let schema_bytes = serde_json::to_vec(schema)
@@ -177,6 +183,9 @@ impl Midge {
             tx.put(Self::constraints_key(&name), value, None)
                 .map_err(CassieError::from)?;
         }
+        if let Some(sequences) = initial_sequences {
+            self.save_initial_sequences_to_tx(&mut tx, sequences)?;
+        }
 
         let mut collections = Self::load_collections(&tx)?;
         if !collections.iter().any(|entry| entry == &name) {
@@ -212,7 +221,10 @@ impl Midge {
     }
 
     fn validate_initial_column_constraints(
+        &self,
+        table: &str,
         constraints: &[FieldConstraint],
+        sequences: &[crate::catalog::SequenceMeta],
     ) -> Result<(), CassieError> {
         crate::sql::definition_guard::constraints(constraints)?;
         if constraints.iter().any(|constraint| {
@@ -228,14 +240,90 @@ impl Midge {
                 || constraint.foreign_key_on_update.is_some()
                 || constraint.references_table.is_some()
                 || constraint.references_field.is_some()
-                || constraint.default_sequence_owned.is_owned()
-                || constraint.identity.is_some()
-                || constraint.identity_options.is_some()
+                || (constraint.default_sequence_owned.is_owned() != constraint.identity.is_some())
+                || (constraint.identity_options.is_some() && constraint.identity.is_none())
         }) {
             return Err(CassieError::Unsupported(
-                "initial collection publication supports only NOT NULL, CHECK, and default column metadata"
+                "initial collection publication supports only NOT NULL, CHECK, default, and identity metadata"
                     .to_string(),
             ));
+        }
+        let matches_sequence =
+            |constraint: &FieldConstraint, sequence: &crate::catalog::SequenceMeta| {
+                constraint.identity.is_some()
+                    && constraint.default_sequence.as_deref().is_some_and(|name| {
+                        self.canonical_collection_name(&sequence.name)
+                            == self.canonical_collection_name(name)
+                            && sequence.owned_by.as_ref().is_some_and(|owner| {
+                                self.canonical_collection_name(&owner.table)
+                                    == self.canonical_collection_name(table)
+                                    && crate::sql::ColumnIdentifierPath::stored_field_key(
+                                        &owner.column,
+                                    ) == crate::sql::ColumnIdentifierPath::stored_field_key(
+                                        &constraint.field,
+                                    )
+                            })
+                    })
+            };
+        if constraints
+            .iter()
+            .filter(|constraint| constraint.identity.is_some())
+            .any(|constraint| {
+                !sequences
+                    .iter()
+                    .any(|sequence| matches_sequence(constraint, sequence))
+            })
+            || sequences.iter().any(|sequence| {
+                !constraints
+                    .iter()
+                    .any(|constraint| matches_sequence(constraint, sequence))
+            })
+        {
+            return Err(CassieError::Unsupported(
+                "initial identity metadata requires a matching target-owned sequence".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_initial_sequences_absent(
+        &self,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        sequences: &[crate::catalog::SequenceMeta],
+    ) -> Result<(), CassieError> {
+        let mut sequence_names = std::collections::HashSet::new();
+        for sequence in sequences {
+            let sequence_name = self.canonical_collection_name(&sequence.name);
+            if !sequence_names.insert(sequence_name.clone())
+                || tx
+                    .get(&super::key_encoding::sequence_key(&sequence_name))
+                    .map_err(CassieError::from)?
+                    .is_some()
+            {
+                return Err(CassieError::CatalogObjectAlreadyExists {
+                    kind: crate::app::CatalogObjectKind::Sequence,
+                    name: sequence_name,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn save_initial_sequences_to_tx(
+        &self,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
+        sequences: &[crate::catalog::SequenceMeta],
+    ) -> Result<(), CassieError> {
+        for sequence in sequences {
+            let mut sequence = sequence.clone();
+            sequence.name = self.canonical_collection_name(&sequence.name);
+            if let Some(owner) = sequence.owned_by.as_mut() {
+                owner.table = self.canonical_collection_name(&owner.table);
+            }
+            let key = super::key_encoding::sequence_key(&sequence.name);
+            let value = serde_json::to_vec(&sequence)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            tx.put(key, value, None).map_err(CassieError::from)?;
         }
         Ok(())
     }

@@ -94,7 +94,8 @@ allocation probes qualify the selected rows. Ordinary column identity and
 generation fields report NO/NULL/NEVER. Empty
 stand-ins for dependency, rewrite, statistics, operator-family or built-in
 text-search catalogs are omitted: implemented objects require their actual
-semantic rows.
+semantic rows. The finite `pg_depend` sequence-ownership rows added below are
+derived only from existing sequence and owner metadata.
 Compiled plans rebuild at epoch 14. No persistent metadata or layout changes
 are selected by this batch.
 
@@ -121,6 +122,17 @@ A focused native probe shows PostgreSQL's hasindexes flag remains true after
 DROP INDEX until maintenance clears it. The current read model reports current
 index presence and clears it immediately; this historical-flag compatibility
 cell remains open under #817 and requires its persistent-state/lifecycle design.
+
+### Sequence ownership dependencies (2026-10-24)
+
+`pg_depend` exposes its seven selected PostgreSQL 18 columns and real ownership
+rows for sequences with a valid `OWNED BY` table column. SERIAL and explicit
+sequence ownership use dependency type `a`; identity sequences use `i`. The
+referenced table OID and one-based column position come from the current
+catalog schema, and sequence/table OIDs use their existing `pg_class` identities.
+Unowned sequences produce no dependency row. Other dependency families remain
+unimplemented and are not represented by empty or fabricated rows. This read
+model slice changes no persistent metadata or public Rust API.
 The selected native index flag probes cover pre/post-create states, not this
 unimplemented post-drop law.
 

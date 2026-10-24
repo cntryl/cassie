@@ -29,6 +29,18 @@ pub(super) fn resolve(
         *op = BinaryOp::ByteaConcat;
         return Ok(());
     }
+    if left == Some(&DataType::Json) || right == Some(&DataType::Json) {
+        if [left, right]
+            .into_iter()
+            .flatten()
+            .all(|kind| matches!(kind, DataType::Json | DataType::Null))
+        {
+            return Ok(());
+        }
+        return Err(CassieError::Execution(
+            "operator does not exist: jsonb || incompatible operands".into(),
+        ));
+    }
     let text = |kind: &DataType| {
         matches!(
             kind,
@@ -74,17 +86,48 @@ pub(super) fn qualify(
     if *op != BinaryOp::Concat {
         return;
     }
+    let json_left = left_type == Some(&DataType::Json);
+    let json_right = right_type == Some(&DataType::Json);
     let bytea_left = left_type == Some(&DataType::Bytea);
     let bytea_right = right_type == Some(&DataType::Bytea);
-    if bytea_left && matches!(right, Expr::StringLiteral(_)) {
+    if json_left && matches!(right, Expr::StringLiteral(_)) {
+        cast(right, DataType::Json, None);
+    } else if json_right && matches!(left, Expr::StringLiteral(_)) {
+        cast(left, DataType::Json, None);
+    }
+    if json_left && !is_json_cast(left) {
+        cast(left, DataType::Json, Some(DataType::Json));
+    }
+    if json_right && !is_json_cast(right) {
+        cast(right, DataType::Json, Some(DataType::Json));
+    }
+    if !json_left && !json_right && bytea_left && matches!(right, Expr::StringLiteral(_)) {
         cast(right, DataType::Bytea, None);
-    } else if bytea_right && matches!(left, Expr::StringLiteral(_)) {
+    } else if !json_left && !json_right && bytea_right && matches!(left, Expr::StringLiteral(_)) {
         cast(left, DataType::Bytea, None);
-    } else if bytea_left && matches!(right_type, Some(DataType::Text | DataType::Varchar { .. })) {
+    } else if !json_left
+        && !json_right
+        && bytea_left
+        && matches!(right_type, Some(DataType::Text | DataType::Varchar { .. }))
+    {
         cast(left, DataType::Text, Some(DataType::Bytea));
-    } else if bytea_right && matches!(left_type, Some(DataType::Text | DataType::Varchar { .. })) {
+    } else if !json_left
+        && !json_right
+        && bytea_right
+        && matches!(left_type, Some(DataType::Text | DataType::Varchar { .. }))
+    {
         cast(right, DataType::Text, Some(DataType::Bytea));
     }
+}
+
+fn is_json_cast(expression: &Expr) -> bool {
+    matches!(
+        expression,
+        Expr::Cast {
+            data_type: DataType::Json,
+            ..
+        }
+    )
 }
 
 fn cast(expression: &mut Expr, data_type: DataType, source_type: Option<DataType>) {

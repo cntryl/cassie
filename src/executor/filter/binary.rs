@@ -9,6 +9,9 @@ pub(super) fn binary_scalar(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Result<ScalarValue, QueryError> {
+    if let Some(result) = json_concatenation(left, op, right) {
+        return result;
+    }
     if matches!(op, BinaryOp::Sub) && matches!(left, ScalarValue::Json(_)) {
         return super::json_delete::delete_operator(left, right);
     }
@@ -107,4 +110,14 @@ pub(super) fn binary_scalar(
         }
     };
     Ok(result)
+}
+
+fn json_concatenation(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+) -> Option<Result<ScalarValue, QueryError>> {
+    (*op == BinaryOp::Concat
+        && (matches!(left, ScalarValue::Json(_)) || matches!(right, ScalarValue::Json(_))))
+    .then(|| super::json_concat::concatenate(left, right))
 }

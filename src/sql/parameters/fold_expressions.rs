@@ -253,27 +253,65 @@ impl Fold<'_, '_> {
         Ok(Some(Summary::known(result)))
     }
 
-    fn binary(
+    fn json_concat(
         &mut self,
         op: &ast::BinaryOp,
         frame: &Frame<'_>,
-    ) -> Result<Summary, ParameterAdmissionError> {
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if *op != ast::BinaryOp::Concat {
+            return Ok(None);
+        }
+        let args = &mut self.summaries.values[frame.start..];
+        let json_oid = super::expressions::oid(&crate::types::DataType::Json);
+        if !args.iter().any(|argument| argument.oid == json_oid) {
+            return Ok(None);
+        }
+        if args
+            .iter()
+            .any(|argument| !matches!(argument.oid, 0 | 705) && argument.oid != json_oid)
+        {
+            self.occurrences.undefined_function("||", 2, None)?;
+        }
+        for argument in args.iter_mut() {
+            if matches!(argument.oid, 0 | 705) {
+                self.occurrences.coerce(argument, json_oid, true)?;
+            }
+        }
+        Ok(Some(Summary::known(json_oid)))
+    }
+
+    fn specialized_binary(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
         if let Some(summary) = self.json_delete_path(op, frame)? {
-            return Ok(summary);
+            return Ok(Some(summary));
         }
         if let Some(summary) = self.json_delete_key(op, frame)? {
-            return Ok(summary);
+            return Ok(Some(summary));
         }
         if let Some(summary) = self.json_key_operator(op, frame)? {
-            return Ok(summary);
+            return Ok(Some(summary));
         }
         if matches!(
             op,
             ast::BinaryOp::And | ast::BinaryOp::Or | ast::BinaryOp::Quantified { .. }
         ) {
-            return Ok(Summary::known(16));
+            return Ok(Some(Summary::known(16)));
         }
         if let Some(summary) = self.extended_binary(op, frame)? {
+            return Ok(Some(summary));
+        }
+        self.json_concat(op, frame)
+    }
+
+    fn binary(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        if let Some(summary) = self.specialized_binary(op, frame)? {
             return Ok(summary);
         }
         if matches!(op, ast::BinaryOp::Concat | ast::BinaryOp::ByteaConcat) {

@@ -654,12 +654,14 @@ fn should_concatenate_jsonb_array_scalar_shapes() {
         (
             "INSERT INTO issue_809_jsonb_concat_shapes VALUES \
              (1, '[1,2]', '[3]'), (2, '[1,2]', '3'), \
-             (3, '1', '[2,3]'), (4, '{\"a\":1}', '[2]')",
+             (3, '1', '[2,3]'), (4, '{\"a\":1}', '[2]'), \
+             (5, '[[1],2]', '[[3]]'), (6, 'null', '[2]'), \
+             (7, '\"a\"', '[\"b\"]'), (8, 'true', '[false]')",
             Vec::new(),
         ),
     ];
     let cycle = fixture::execute_cycle(
-        "SELECT (left_document || right_document)::TEXT \
+        "SELECT left_document || right_document \
          FROM issue_809_jsonb_concat_shapes ORDER BY case_id",
         None,
         0,
@@ -672,7 +674,7 @@ fn should_concatenate_jsonb_array_scalar_shapes() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (25, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
     assert_eq!(
         wire::data_rows(frames),
         vec![
@@ -680,6 +682,65 @@ fn should_concatenate_jsonb_array_scalar_shapes() {
             vec![Some("[1, 2, 3]".to_owned())],
             vec![Some("[1, 2, 3]".to_owned())],
             vec![Some("[{\"a\": 1}, 2]".to_owned())],
+            vec![Some("[[1], 2, [3]]".to_owned())],
+            vec![Some("[null, 2]".to_owned())],
+            vec![Some("[\"a\", \"b\"]".to_owned())],
+            vec![Some("[true, false]".to_owned())],
         ]
     );
+}
+
+#[test]
+fn should_infer_jsonb_concat_parameter_type() {
+    // Arrange
+    let parameter = fixture::execute_cycle(
+        "SELECT '{\"base\":1}'::JSONB || $1",
+        Some((0, 0, Some(b"2"))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-concat-parameter", &[], vec![parameter]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let parameter_types = frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("JSON parameter ParameterDescription");
+    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [114]);
+    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("[{\"base\": 1}, 2]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_propagate_sql_null_through_jsonb_concatenation() {
+    // Arrange
+    let cycle = fixture::execute_cycle("SELECT '{\"base\":1}'::JSONB || NULL", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-concat-null", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
+    assert_eq!(wire::data_rows(frames), vec![vec![None]]);
+}
+
+#[test]
+fn should_reject_incompatible_jsonb_concatenation_operand() {
+    // Arrange
+    let cycle = fixture::execute_cycle("SELECT '{}'::JSONB || 1", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-concat-invalid-operand", &[], vec![cycle]);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
 }

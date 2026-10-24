@@ -119,6 +119,7 @@ fn scalar_input_syntax(message: &str) -> bool {
         "invalid input syntax for type smallint"
             | "invalid input syntax for type integer"
             | "invalid input syntax for type bigint"
+            | "invalid input syntax for type json"
     ) {
         return true;
     }
@@ -131,6 +132,7 @@ fn scalar_input_syntax(message: &str) -> bool {
                 "integer:",
                 "bigint:",
                 "double precision:",
+                "json:",
                 "uuid:",
             ]
             .iter()

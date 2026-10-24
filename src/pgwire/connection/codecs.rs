@@ -61,6 +61,12 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
 }
 
 pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
+    if type_oid == 2278 {
+        return match value {
+            Value::String(value) if value.is_empty() => Ok(Vec::new()),
+            _ => Err(invalid_data("void")),
+        };
+    }
     if vector_dimensions_for_oid(type_oid).is_some() {
         return encode_vector(value, type_oid);
     }
@@ -148,6 +154,9 @@ fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
 }
 
 fn validate_binary_oid(type_oid: i64) -> io::Result<()> {
+    if type_oid == 2278 {
+        return Ok(());
+    }
     if vector_dimensions_for_oid(type_oid).is_some() {
         return Ok(());
     }

@@ -18,6 +18,7 @@ fn apply_query_output_oids(plan: &PhysicalPlan, columns: &mut [crate::executor::
         &plan.logical.projection,
         columns,
     );
+    aggregate::apply_void_function_oids(&plan.logical.projection, columns);
 }
 
 pub(super) fn build_select_result(

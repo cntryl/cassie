@@ -42,3 +42,32 @@ fn should_resolve_supported_qualified_function_alias() {
     assert_eq!(metadata.id, FunctionId::PgShowAllSettings);
     assert!(metadata.bypass_arity_validation);
 }
+
+#[test]
+fn should_preserve_named_void_identities_for_temporal_sleep_functions() {
+    // Arrange
+    let sleep_functions = [
+        ("pg_sleep", FunctionId::PgSleep),
+        ("pg_sleep_for", FunctionId::PgSleepFor),
+        ("pg_sleep_until", FunctionId::PgSleepUntil),
+    ];
+
+    // Act
+    // Assert
+    for (name, expected_id) in sleep_functions {
+        let metadata = function(name).expect("registered temporal sleep function");
+        assert_eq!(metadata.id, expected_id, "{name} identity");
+        assert_eq!(
+            metadata.return_type,
+            FunctionReturnType::Text,
+            "{name} carrier"
+        );
+        assert_eq!(metadata.arity, FunctionArity::Exact(1), "{name} arity");
+        assert!(
+            registry()
+                .iter()
+                .any(|registered| registered.id == expected_id),
+            "{name} appears in the public function registry"
+        );
+    }
+}

@@ -99,6 +99,9 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Sha256
         | FunctionId::Sha384
         | FunctionId::Sha512 => Some(FunctionInputSignature::Positional(&[17])),
+        FunctionId::PgSleep => Some(FunctionInputSignature::Positional(&[701])),
+        FunctionId::PgSleepFor => Some(FunctionInputSignature::Positional(&[1186])),
+        FunctionId::PgSleepUntil => Some(FunctionInputSignature::Positional(&[1184])),
         FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
         FunctionId::PgCharToEncoding
         | FunctionId::PgSizeBytes
@@ -207,6 +210,22 @@ mod tests {
             input_signature(FunctionId::RegexpReplace),
             Some(FunctionInputSignature::RegexpReplace)
         ));
+    }
+
+    #[test]
+    fn should_define_postgresql_input_types_for_sleep_functions() {
+        // Arrange
+        let signatures = [
+            (FunctionId::PgSleep, &[701][..]),
+            (FunctionId::PgSleepFor, &[1186][..]),
+            (FunctionId::PgSleepUntil, &[1184][..]),
+        ];
+
+        // Act
+        // Assert
+        for (function, expected) in signatures {
+            assert_eq!(positional(function), expected, "{function:?}");
+        }
     }
 
     #[test]

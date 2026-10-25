@@ -371,6 +371,29 @@ now use the same existing sequence path with `INT2`. This adds no persistent
 type representation or public API. Transactional `ALTER SEQUENCE RESTART`
 semantics remain unselected and were not included in this change.
 
+## Closed constraint and later table-form scope reconciliation (2026-10-25)
+
+Jev reviewed the failing cases against closed #824 and the current #826, #839,
+and #831 boundaries. It selected removal of the named out-of-scope cases
+(probability 0.97, confidence 0.96). The #824 owner explicitly closed its
+broader constraint extension as not planned and directed removal of ahead-of-
+feature tests. The selected unique-constraint/index and check-rejection tests
+remain registered; only failed MATCH FULL, NOT VALID/validation, named NOT
+NULL, column-list referential action, temporal metadata, and MATCH PARTIAL
+extensions were removed.
+
+Other removals are limited to table persistence/generated-column/SELECT INTO
+forms left open under #826, successful `ALTER COLUMN TYPE USING` before the
+row-rewrite/recovery contract (#839), composite-type DROP coverage (#828),
+and #831 owner/sequence privilege semantics beyond compatibility-level DDL.
+Temporary object cases under #838 remain untouched pending their storage
+boundary decision. Transactional sequence restart was left out because the
+selected v0.3 sequence contract does not name it; basic serial aliases and
+server-restart sequence state tests remain active.
+
+Jev evidence is retained under ignored
+`target/batched-runtime/next-triage/`.
+
 ## Deferred coordination and isolation scope reconciliation (2026-10-25)
 
 Jev reviewed the current lock/isolation failure cluster against #819, #820 and

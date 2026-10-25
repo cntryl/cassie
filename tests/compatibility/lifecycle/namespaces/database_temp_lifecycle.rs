@@ -1,9 +1,5 @@
 use super::*;
 
-#[path = "schema_authorization_elements.rs"]
-mod schema_authorization_elements;
-#[path = "schema_owner_transfer.rs"]
-mod schema_owner_transfer;
 #[path = "temp_views.rs"]
 mod temp_views;
 

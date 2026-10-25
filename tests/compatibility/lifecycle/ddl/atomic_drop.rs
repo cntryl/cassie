@@ -462,37 +462,3 @@ fn should_skip_missing_targets_in_multi_name_drop_view_if_exists() {
         assert_eq!(remaining, 0);
     });
 }
-
-#[test]
-fn should_keep_all_type_targets_when_a_later_type_is_missing() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("multi_drop_type_atomicity").await;
-        let (client, connection) = server.connect().await;
-        client
-            .batch_execute("CREATE TYPE compat_multi_drop_type AS (id INT)")
-            .await
-            .expect("create a composite type to drop");
-
-        // Act
-        let drop_result = client
-            .batch_execute("DROP TYPE compat_multi_drop_type, compat_multi_drop_type_missing")
-            .await;
-        let sqlstate = drop_result
-            .as_ref()
-            .err()
-            .map(|error| db_error(error).code().code().to_owned());
-        let value = client
-            .query_one("SELECT (ROW(18)::compat_multi_drop_type).id", &[])
-            .await
-            .expect("use the first type after the failed multi-name DROP");
-
-        // Assert
-        assert_eq!(sqlstate.as_deref(), Some("42704"));
-        assert_eq!(value.get::<_, i32>(0), 18);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}

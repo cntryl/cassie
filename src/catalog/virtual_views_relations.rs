@@ -8,19 +8,19 @@ use crate::types::{DataType, Value};
 pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
     Some(match name {
         "pg_catalog.pg_tables" => vec![
-            text("schemaname"),
-            text("tablename"),
-            text("tableowner"),
-            text("tablespace"),
+            name_type("schemaname"),
+            name_type("tablename"),
+            name_type("tableowner"),
+            name_type("tablespace"),
             boolean("hasindexes"),
             boolean("hasrules"),
             boolean("hastriggers"),
             boolean("rowsecurity"),
         ],
         "pg_catalog.pg_views" => vec![
-            text("schemaname"),
-            text("viewname"),
-            text("viewowner"),
+            name_type("schemaname"),
+            name_type("viewname"),
+            name_type("viewowner"),
             text("definition"),
         ],
         "pg_catalog.pg_matviews" => vec![
@@ -215,6 +215,10 @@ fn oid(name: &str, kind: crate::types::ObjectIdKind) -> (String, DataType) {
 
 fn text(name: &str) -> (String, DataType) {
     (name.to_owned(), DataType::Text)
+}
+
+fn name_type(name: &str) -> (String, DataType) {
+    (name.to_owned(), DataType::Name)
 }
 fn bigint(name: &str) -> (String, DataType) {
     (name.to_owned(), DataType::BigInt)

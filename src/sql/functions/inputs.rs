@@ -143,6 +143,11 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Ascii
         | FunctionId::Format => Some(FunctionInputSignature::Positional(&[25])),
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
+        FunctionId::PgGetFunctionArguments
+        | FunctionId::PgGetFunctionIdentityArguments
+        | FunctionId::PgGetFunctionResult
+        | FunctionId::PgIsOtherTempSchema => Some(FunctionInputSignature::Positional(&[26])),
+        FunctionId::PgMyTempSchema => Some(FunctionInputSignature::Positional(&[])),
         FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
         FunctionId::AnyValue => Some(FunctionInputSignature::AnyElement),

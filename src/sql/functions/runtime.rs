@@ -138,6 +138,38 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         is_aggregate: false,
         bypass_arity_validation: false,
     },
+    ScalarFunction {
+        id: FunctionId::PgMyTempSchema,
+        name: "pg_my_temp_schema",
+        arity: FunctionArity::Exact(0),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::Oid),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgMyTempSchema,
+        name: "pg_catalog.pg_my_temp_schema",
+        arity: FunctionArity::Exact(0),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::Oid),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgIsOtherTempSchema,
+        name: "pg_is_other_temp_schema",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgIsOtherTempSchema,
+        name: "pg_catalog.pg_is_other_temp_schema",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
 ];
 pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
     matches!(
@@ -154,6 +186,8 @@ pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
             | FunctionId::PgRelationFilenode
             | FunctionId::PgRelationFilepath
             | FunctionId::PgFilenodeRelation
+            | FunctionId::PgMyTempSchema
+            | FunctionId::PgIsOtherTempSchema
     )
 }
 pub(crate) fn is_loaded_modules(name: &str) -> bool {

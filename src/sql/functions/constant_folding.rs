@@ -8,6 +8,9 @@ pub(crate) fn is_immutable_scalar(id: FunctionId) -> bool {
             FunctionId::UnicodeVersion
                 | FunctionId::PgSizeBytes
                 | FunctionId::PgSizePretty
+                | FunctionId::PgGetFunctionArguments
+                | FunctionId::PgGetFunctionIdentityArguments
+                | FunctionId::PgGetFunctionResult
                 | FunctionId::Coalesce
                 | FunctionId::Length
                 | FunctionId::Lower

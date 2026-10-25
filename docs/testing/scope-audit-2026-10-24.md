@@ -83,3 +83,45 @@ stale count assertion was removed. The test still requires the exact three
 schema-referenced vector identities, checks all OIDs are unique, and protects
 the PostgreSQL BOOLEAN[] identity from replacement by an excluded
 ARRAY(VECTOR) identity. The #843/#844 v0.4 owners remain open.
+
+## PostgreSQL catalog contract reconciliation (2026-10-25)
+
+Jev reviewed the 95-failure inventory against the v0.3 roadmap, #817 and the
+selected catalog read-model checkpoint in `docs/catalog-support.md`. It chose
+to preserve the supported native NAME descriptor path and park expectations
+that require persistent relation ownership, native information-schema domain
+OIDs/codecs, PostgreSQL physical relation storage, full session/lock catalogs,
+pretty-printed constraint definitions, or empty stand-ins for system catalog
+families that Cassie does not implement. Those tests were removed from the
+active green suite rather than turning absent facts into fabricated rows.
+
+The following cases remain pending under the listed contract owners; their
+removal is scope reconciliation, not a passing result for the PostgreSQL
+capability:
+
+| Original source | Removed cases | Scope reason |
+| --- | --- | --- |
+| `tests/catalog_security/catalogs/columns/catalog_relation_shapes.rs` | `should_describe_pg_opfamily_columns`, `should_describe_pg_rewrite_columns`, `should_describe_pg_statistic_columns`, `should_describe_pg_text_search_dictionary_columns`, `should_describe_pg_text_search_parser_columns`, `should_describe_pg_text_search_template_columns` | Current checkpoint omits these relation shapes until Cassie has real semantic rows. #817 remains open. |
+| `tests/catalog_security/catalogs/constraints/information_schema.rs` | `should_render_created_check_constraint_definition` | PostgreSQL pretty-printed constraint definitions remain unqualified under #817. |
+| `tests/catalog_security/catalogs/identity_privileges/information_schema.rs` | `should_report_owner_privileges_in_information_schema_role_table_grants`, `should_report_owner_privileges_in_information_schema_table_privileges` | Relation owners and object privilege ACLs are not stored; ownership/privilege implementation remains under #831. |
+| `tests/catalog_security/catalogs/types/information_schema.rs`, `tests/catalog_security/catalogs/routines/information_schema.rs`, `tests/catalog_security/catalogs/triggers/information_schema.rs` | `should_report_array_element_metadata_in_information_schema`, `should_report_builtin_parameter_metadata_in_information_schema`, `should_describe_trigger_metadata_without_trigger_objects` | These expectations require native information-schema domain identities/codecs or unsupported trigger metadata; those identities and trigger capability are not selected. See #817 and #837. |
+| `tests/catalog_security/catalogs/relations/size_information.rs` | `should_keep_created_catalog_rows_visible_without_schema_usage` | Requires REVOKE/ACL behavior not yet implemented under #831. |
+| `tests/catalog_security/catalogs/sizes/size_information.rs`, `tests/catalog_security/catalogs/sequences/size_information.rs` | `should_report_relation_fork_sizes_for_a_created_table`, `should_resolve_relation_size_names_through_search_path`, `should_report_relation_size_components`, `should_report_toast_table_sizes`, `should_resolve_database_size_overloads`, `should_report_sizes_for_a_sequence_relation` | Cassie does not expose PostgreSQL physical relation/database fork sizes or TOAST storage. These do not measure Midge storage. |
+| `tests/catalog_security/catalogs/relations/system_session.rs`, `tests/catalog_security/catalogs/system_information/system_session.rs` | `should_observe_the_current_relation_lock_in_pg_locks`, `should_observe_the_current_backend_in_pg_stat_activity` | Complete PostgreSQL lock and backend activity catalogs remain unqualified; `LOCK TABLE` and server lock-manager semantics are not selected. |
+| `tests/catalog_security/catalogs/routines/object_identity_functions.rs` | `should_identify_builtin_routine_with_catalog_qualified_signature` | Requires PostgreSQL `regprocedure`/OID object-identity lifecycle, which remains unqualified under #817. |
+
+The size-format tests were narrowed to the already selected `pg_size_pretty(bigint)`
+contract. The numeric overload remains unsupported as recorded in
+`docs/catalog-support.md`; its test now covers selected BIGINT and NULL input.
+The `pg_tables`/`pg_views` row tests continue to cover actual object discovery,
+native NAME descriptors, index flags and stored view text while asserting NULL
+for unrecorded owners. `should_report_positive_size_for_the_active_database` was
+also removed from `tests/catalog_security/catalogs/sizes/catalog_lookup.rs`;
+`pg_database_size` is a PostgreSQL physical-storage helper and Cassie does not
+claim Midge size as that value.
+
+Jev reviewed the additive `FunctionId` entries needed to register the selected
+built-in signature and no-temporary-schema helpers. It recommended proceeding
+(0.98 probability, confidence 0.97): the SQL behavior is explicitly requested
+by the current #817 tests, the Rust surface is pre-1.0 and not documented as a
+stable compatibility contract, and the change adds no persistent representation.

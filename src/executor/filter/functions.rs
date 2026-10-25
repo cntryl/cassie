@@ -17,6 +17,8 @@ use crate::executor::batch::RowAccess;
 
 #[path = "bytea_functions.rs"]
 mod bytea_functions;
+#[path = "catalog_introspection.rs"]
+mod catalog_introspection;
 #[path = "catalog_sizes.rs"]
 mod catalog_sizes;
 #[path = "datum_size.rs"]
@@ -106,6 +108,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
             result.map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
         })
         .or_else(|| toast_identity::evaluate(name, args))
+        .or_else(|| catalog_introspection::evaluate(name, args))
         .or_else(|| relation_locations::evaluate(name, args))
         .or_else(|| session_setting_flags::evaluate(name, args))
         .or_else(|| runtime_information::evaluate(name, args, session))

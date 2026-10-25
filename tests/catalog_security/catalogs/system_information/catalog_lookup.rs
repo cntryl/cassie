@@ -144,7 +144,7 @@ fn should_report_zero_is_not_another_session_temporary_schema() {
 
     // Act
     let selected = fixture
-        .execute("SELECT pg_catalog.pg_is_other_temp_schema(0)")
+        .execute("SELECT pg_catalog.pg_is_other_temp_schema(0::oid)")
         .expect("check whether the schema belongs to another session");
 
     // Assert

@@ -99,6 +99,17 @@ rows documented below are derived only from existing catalog metadata.
 Compiled plans rebuild at epoch 14. No persistent metadata or layout changes
 are selected by this batch.
 
+`pg_tables` and `pg_views` expose native NAME descriptors for their schema and
+object names. Their owner fields remain NULL because relation ownership is not
+stored. `pg_constraint.conenforced` is true for the constraints Cassie stores;
+the rest of its experimental catalog columns retain their current logical
+carriers. Built-in `pg_get_function_arguments`,
+`pg_get_function_identity_arguments`, and `pg_get_function_result` resolve the
+pinned built-in `pg_proc` identity table; user-defined routine signatures are
+not implied by this helper. `pg_my_temp_schema()` returns OID 0 and
+`pg_is_other_temp_schema(oid)` returns false because Cassie does not create
+temporary schemas.
+
 Sequence probes use the implemented SERIAL/BIGSERIAL column defaults and
 omitted-field INSERT path. Standalone nextval() and CREATE SEQUENCE AS are not
 implemented; exploratory native probes confirm their required state/bounds law,

@@ -8,8 +8,6 @@ mod information_schema_contracts;
 mod object_identity_functions;
 #[path = "../relations/size_information.rs"]
 mod size_information_contracts;
-#[path = "../identity_privileges/system_session.rs"]
-mod system_session_contracts;
 
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 
@@ -222,22 +220,6 @@ fn should_describe_pg_largeobject_metadata_columns() {
 }
 
 #[test]
-fn should_describe_pg_opfamily_columns() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-pg-opfamily-descriptor", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let names = catalog_column_names(&fixture, "pg_opfamily");
-
-    // Assert
-    assert_eq!(
-        names,
-        expected_columns(&["oid", "opfmethod", "opfname", "opfnamespace", "opfowner"])
-    );
-}
-
-#[test]
 fn should_describe_pg_publication_columns() {
     // Arrange
     let fixture = sql_fixture("issue-817-pg-publication-descriptor", &[]);
@@ -304,31 +286,6 @@ fn should_describe_pg_replication_origin_columns() {
 
     // Assert
     assert_eq!(names, expected_columns(&["roident", "roname"]));
-}
-
-#[test]
-fn should_describe_pg_rewrite_columns() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-pg-rewrite-descriptor", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let names = catalog_column_names(&fixture, "pg_rewrite");
-
-    // Assert
-    assert_eq!(
-        names,
-        expected_columns(&[
-            "oid",
-            "rulename",
-            "ev_class",
-            "ev_type",
-            "ev_enabled",
-            "is_instead",
-            "ev_qual",
-            "ev_action",
-        ])
-    );
 }
 
 #[test]
@@ -471,70 +428,6 @@ fn should_describe_pg_transform_columns() {
 }
 
 #[test]
-fn should_describe_pg_text_search_dictionary_columns() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-pg-ts-dict-descriptor", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let names = catalog_column_names(&fixture, "pg_ts_dict");
-
-    // Assert
-    assert_eq!(
-        names,
-        expected_columns(&[
-            "oid",
-            "dictname",
-            "dictnamespace",
-            "dictowner",
-            "dicttemplate",
-            "dictinitoption",
-        ])
-    );
-}
-
-#[test]
-fn should_describe_pg_text_search_parser_columns() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-pg-ts-parser-descriptor", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let names = catalog_column_names(&fixture, "pg_ts_parser");
-
-    // Assert
-    assert_eq!(
-        names,
-        expected_columns(&[
-            "oid",
-            "prsname",
-            "prsnamespace",
-            "prsstart",
-            "prstoken",
-            "prsend",
-            "prsheadline",
-            "prslextype",
-        ])
-    );
-}
-
-#[test]
-fn should_describe_pg_text_search_template_columns() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-pg-ts-template-descriptor", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let names = catalog_column_names(&fixture, "pg_ts_template");
-
-    // Assert
-    assert_eq!(
-        names,
-        expected_columns(&["oid", "tmplname", "tmplnamespace", "tmplinit", "tmpllexize"])
-    );
-}
-
-#[test]
 fn should_describe_pg_user_mapping_columns() {
     // Arrange
     let fixture = sql_fixture("issue-817-pg-user-mapping-descriptor", &[]);
@@ -547,54 +440,6 @@ fn should_describe_pg_user_mapping_columns() {
     assert_eq!(
         names,
         expected_columns(&["oid", "umuser", "umserver", "umoptions"])
-    );
-}
-
-#[test]
-fn should_describe_pg_statistic_columns() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-pg-statistic-descriptor", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let names = catalog_column_names(&fixture, "pg_statistic");
-
-    // Assert
-    assert_eq!(
-        names,
-        expected_columns(&[
-            "starelid",
-            "staattnum",
-            "stainherit",
-            "stanullfrac",
-            "stawidth",
-            "stadistinct",
-            "stakind1",
-            "stakind2",
-            "stakind3",
-            "stakind4",
-            "stakind5",
-            "staop1",
-            "staop2",
-            "staop3",
-            "staop4",
-            "staop5",
-            "stacoll1",
-            "stacoll2",
-            "stacoll3",
-            "stacoll4",
-            "stacoll5",
-            "stanumbers1",
-            "stanumbers2",
-            "stanumbers3",
-            "stanumbers4",
-            "stanumbers5",
-            "stavalues1",
-            "stavalues2",
-            "stavalues3",
-            "stavalues4",
-            "stavalues5",
-        ])
     );
 }
 

@@ -53,6 +53,7 @@ pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
         text("confrelid"),
         int("confrelid_oid"),
         text("confkey"),
+        bool("conenforced"),
         bool("convalidated"),
         bool("condeferrable"),
         bool("condeferred"),
@@ -388,6 +389,7 @@ fn pg_constraint_row(
                 .map(|field| field_number(catalog, referenced_table, field))
                 .unwrap_or_default(),
         ),
+        bool_value("conenforced", true),
         bool_value("convalidated", true),
         bool_value("condeferrable", false),
         bool_value("condeferred", false),

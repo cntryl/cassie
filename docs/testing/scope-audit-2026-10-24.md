@@ -424,3 +424,19 @@ registered. In particular, this scope decision does not resolve the separately
 pending #838 temporary storage boundary. Tests removed here remain owned by
 #819/#820/#822 and are not considered passing behavior. Jev evidence is retained
 under ignored `target/batched-runtime/next-triage/`.
+
+## Session workflow scope reconciliation (#821, 2026-10-25)
+
+Jev reviewed the remaining session failures against the explicit #821 setting,
+cursor and reset scope and the #819/#820/#822 boundaries. It selected removal
+of `START TRANSACTION ... SERIALIZABLE` (READ COMMITTED remains authoritative),
+row-lock timeout recovery and positioned cursor mutation (both require deferred
+row-lock behavior), LATIN1 `SET NAMES` (non-UTF8 client encoding is not selected),
+and persistent per-role GUC defaults (not selected by #821/#831).
+
+The mixed `DISCARD ALL` test was narrowed to application_name, SQL PREPARE and a
+holdable cursor over a persistent relation. This keeps the selected reset path
+active without folding deferred advisory locks, LISTEN/NOTIFY or #838 temporary
+relation cleanup into its acceptance. Other selected session setting, timeout,
+cursor and reset tests remain active. Jev evidence is retained under ignored
+`target/batched-runtime/next-triage/`.

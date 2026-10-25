@@ -4,8 +4,6 @@ use super::*;
 mod cursor_sensitivity;
 #[path = "discard_all_state.rs"]
 mod discard_all_state;
-#[path = "role_setting_defaults.rs"]
-mod role_setting_defaults;
 #[path = "set_session.rs"]
 mod set_session_contracts;
 #[path = "../transactions/statement_timeout.rs"]

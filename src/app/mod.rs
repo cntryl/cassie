@@ -161,6 +161,7 @@ pub(crate) use transaction_unique_waits::{
 };
 mod transaction_semantics;
 pub use transaction_error::TransactionErrorKind;
+pub(crate) use transaction_semantics::implicit_ddl_supported;
 mod vector_helpers;
 mod vector_search;
 pub(crate) use vector_search::VectorSearchInput;

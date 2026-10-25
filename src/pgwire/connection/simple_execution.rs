@@ -6,7 +6,7 @@ use super::{
     write_error_response, AsyncWrite, Cassie, CassieSession,
 };
 use crate::runtime::RuntimeState;
-use crate::sql::ast::ParsedStatement;
+use crate::sql::ast::{ParsedStatement, QueryStatement};
 use std::sync::Arc;
 
 pub(super) async fn run_batch(
@@ -26,9 +26,10 @@ pub(super) async fn run_batch(
             .map_err(|_| ())?;
     }
     for (statement, parsed) in statements.into_iter().zip(parsed) {
+        let notice = missing_relation_notice(&cassie, &parsed);
         if !session.is_transaction_active()
             && !session.is_transaction_failed()
-            && transactions::eligible(&parsed)
+            && transactions::eligible(&parsed, &cassie.catalog)
         {
             if let Err(error) = session.begin_implicit_transaction() {
                 let _ = write_error_response(write_half, &cassie_pg_error(&error)).await;
@@ -42,6 +43,7 @@ pub(super) async fn run_batch(
             state,
             session,
             (statement, Arc::clone(&frontend_sql)),
+            notice,
         )
         .await?
         {
@@ -50,4 +52,26 @@ pub(super) async fn run_batch(
         }
     }
     Ok(())
+}
+
+fn missing_relation_notice(cassie: &Cassie, parsed: &ParsedStatement) -> Option<String> {
+    match &parsed.statement {
+        QueryStatement::DropTable(statement)
+            if statement.if_exists && !cassie.catalog.exists(&statement.table) =>
+        {
+            Some(format!(
+                "table \"{}\" does not exist, skipping",
+                statement.table
+            ))
+        }
+        QueryStatement::AlterTable(statement)
+            if statement.if_exists && !cassie.catalog.exists(&statement.table) =>
+        {
+            Some(format!(
+                "relation \"{}\" does not exist, skipping",
+                statement.table
+            ))
+        }
+        _ => None,
+    }
 }

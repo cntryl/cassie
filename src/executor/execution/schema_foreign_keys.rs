@@ -56,6 +56,67 @@ pub(super) fn reject_referenced_table_drop(cassie: &Cassie, table: &str) -> Resu
     Ok(())
 }
 
+/// Removes FOREIGN KEY constraints that depend on a table dropped with CASCADE.
+pub(super) fn drop_referencing_foreign_keys_on_table(
+    cassie: &Cassie,
+    table: &str,
+) -> Result<(), QueryError> {
+    drop_referencing_foreign_keys(cassie, table, None)
+}
+
+/// Removes FOREIGN KEY constraints that depend on a column dropped with CASCADE.
+pub(super) fn drop_referencing_foreign_keys_on_column(
+    cassie: &Cassie,
+    table: &str,
+    field: &str,
+) -> Result<(), QueryError> {
+    drop_referencing_foreign_keys(cassie, table, Some(field))
+}
+
+fn drop_referencing_foreign_keys(
+    cassie: &Cassie,
+    table: &str,
+    field: Option<&str>,
+) -> Result<(), QueryError> {
+    let dependents = cassie
+        .catalog
+        .list_collections_canonical()
+        .into_iter()
+        .flat_map(|collection| {
+            let table_name = collection.name;
+            let constraint_table = table_name.clone();
+            cassie
+                .catalog
+                .get_constraints(&table_name)
+                .into_iter()
+                .filter(|constraint| {
+                    references_table(constraint, table)
+                        && field.is_none_or(|field| references_field(constraint, field))
+                        && !(table_name.eq_ignore_ascii_case(table)
+                            && field.is_some_and(|field| {
+                                crate::sql::ColumnIdentifierPath::stored_field_key(
+                                    &constraint.field,
+                                ) == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                            }))
+                })
+                .map(move |constraint| {
+                    let name = constraint.foreign_key_constraint_name(&constraint_table);
+                    (constraint_table.clone(), name)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    for (dependent_table, constraint_name) in dependents {
+        super::schema_constraint_helpers::alter_table_drop_constraint(
+            cassie,
+            &dependent_table,
+            &constraint_name,
+            false,
+        )?;
+    }
+    Ok(())
+}
+
 /// Refuses to drop the unique index that is the only uniqueness backing a
 /// FOREIGN KEY's referenced column, as PostgreSQL refuses to drop an index a
 /// constraint depends on.

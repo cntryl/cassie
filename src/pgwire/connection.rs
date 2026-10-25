@@ -623,6 +623,7 @@ async fn execute_simple_statement(
     state: &mut SessionState,
     session: &CassieSession,
     query: (String, Arc<str>),
+    notice: Option<String>,
 ) -> Result<bool, ()> {
     let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
     let transaction_generation = session.transaction_generation();
@@ -647,33 +648,40 @@ async fn execute_simple_statement(
     }
 
     match query_result {
-        Ok(result) => match write_simple_query_result(write_half, result).await {
-            Ok(()) => Ok(true),
-            Err(error) if writers::query_memory_error(&error).is_some() => {
-                session.mark_transaction_failed();
-                let error = writers::query_memory_error(&error).expect("query memory error");
-                write_error_response(write_half, &cassie_pg_error(error))
+        Ok(result) => {
+            if let Some(notice) = notice {
+                write_notice_response(write_half, &notice)
                     .await
-                    .map(|()| false)
-                    .map_err(|_| ())
+                    .map_err(|_| ())?;
             }
-            Err(error) if writers::is_backend_frame_too_large(&error) => {
-                session.mark_transaction_failed();
-                let resource_limit = CassieError::ResourceLimit(error.to_string());
-                write_error_response(write_half, &cassie_pg_error(&resource_limit))
-                    .await
-                    .map(|()| false)
-                    .map_err(|_| ())
+            match write_simple_query_result(write_half, result).await {
+                Ok(()) => Ok(true),
+                Err(error) if writers::query_memory_error(&error).is_some() => {
+                    session.mark_transaction_failed();
+                    let error = writers::query_memory_error(&error).expect("query memory error");
+                    write_error_response(write_half, &cassie_pg_error(error))
+                        .await
+                        .map(|()| false)
+                        .map_err(|_| ())
+                }
+                Err(error) if writers::is_backend_frame_too_large(&error) => {
+                    session.mark_transaction_failed();
+                    let resource_limit = CassieError::ResourceLimit(error.to_string());
+                    write_error_response(write_half, &cassie_pg_error(&resource_limit))
+                        .await
+                        .map(|()| false)
+                        .map_err(|_| ())
+                }
+                Err(error) if writers::is_row_shape_mismatch(&error) => {
+                    session.mark_transaction_failed();
+                    write_error_response(write_half, &PgWireError::internal(error.to_string()))
+                        .await
+                        .map(|()| false)
+                        .map_err(|_| ())
+                }
+                Err(_) => Err(()),
             }
-            Err(error) if writers::is_row_shape_mismatch(&error) => {
-                session.mark_transaction_failed();
-                write_error_response(write_half, &PgWireError::internal(error.to_string()))
-                    .await
-                    .map(|()| false)
-                    .map_err(|_| ())
-            }
-            Err(_) => Err(()),
-        },
+        }
         Err(error) => {
             runtime.record_pgwire_protocol_error();
             let pg_error = cassie_pg_error(&error);

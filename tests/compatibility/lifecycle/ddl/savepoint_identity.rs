@@ -15,12 +15,14 @@ struct CommittedState {
 async fn read_relation_identity(client: &tokio_postgres::Client) -> tokio_postgres::Row {
     client
         .query_one(
-            "SELECT relation.oid::BIGINT, index_metadata.indexrelid::BIGINT \
+            "SELECT relation.oid::BIGINT, index_relation.oid::BIGINT \
              FROM pg_catalog.pg_class AS relation \
              JOIN pg_catalog.pg_namespace AS relation_schema \
-               ON relation_schema.oid = relation.relnamespace \
+               ON relation_schema.nspname = relation.relnamespace \
              JOIN pg_catalog.pg_index AS index_metadata \
-               ON index_metadata.indrelid = relation.oid \
+               ON index_metadata.indrelid = relation.relname \
+             JOIN pg_catalog.pg_class AS index_relation \
+               ON index_relation.relname = index_metadata.indexrelid \
              WHERE relation_schema.nspname = 'public' \
                AND relation.relname = 'compat_issue839_savepoint_rows' \
                AND index_metadata.indisprimary",

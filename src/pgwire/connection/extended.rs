@@ -572,7 +572,13 @@ async fn handle_execute(
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error));
     };
-    let standalone = transaction_boundary::admit_statement(state, session, &parsed, first_execute)?;
+    let standalone = transaction_boundary::admit_statement(
+        state,
+        session,
+        &parsed,
+        &cassie.catalog,
+        first_execute,
+    )?;
     if streamable_portal_query(&prepared, max_rows) {
         return execute_streaming_portal_page(
             cassie,
@@ -590,6 +596,49 @@ async fn handle_execute(
         )
         .await;
     }
+    execute_prepared_portal(
+        cassie,
+        runtime,
+        write_half,
+        state,
+        session,
+        PreparedPortalRequest {
+            portal_name: &portal_name,
+            portal: &portal,
+            prepared: &prepared,
+            parsed,
+            max_rows,
+            standalone,
+        },
+    )
+    .await
+}
+
+struct PreparedPortalRequest<'a> {
+    portal_name: &'a str,
+    portal: &'a PortalExecution,
+    prepared: &'a PreparedStatement,
+    parsed: crate::sql::ast::ParsedStatement,
+    max_rows: usize,
+    standalone: bool,
+}
+
+async fn execute_prepared_portal(
+    cassie: Arc<Cassie>,
+    runtime: &RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
+    session: &CassieSession,
+    request: PreparedPortalRequest<'_>,
+) -> Result<(), ExtendedQueryError> {
+    let PreparedPortalRequest {
+        portal_name,
+        portal,
+        prepared,
+        parsed,
+        max_rows,
+        standalone,
+    } = request;
     let execution_session = session.clone();
     let sql = prepared.query.clone();
     let params = portal.params.clone();
@@ -628,9 +677,9 @@ async fn handle_execute(
         write_half,
         FreshPortalWriteRequest {
             state,
-            portal_name: &portal_name,
-            portal: &portal,
-            prepared: &prepared,
+            portal_name,
+            portal,
+            prepared,
             result,
             cancellation: suspended_cancellation,
             max_rows,
@@ -638,7 +687,7 @@ async fn handle_execute(
         },
     )
     .await?;
-    if standalone && state.remove_portal(&portal_name).is_some() {
+    if standalone && state.remove_portal(portal_name).is_some() {
         runtime.record_pgwire_portal_delta(-1);
     }
     Ok(())

@@ -201,3 +201,41 @@ and 330 catalog security tests. Strict workspace clippy, formatting, build, and
 COPY test validation passed. Jev selected the bounded #839 DROP lifecycle batch
 next (probability 0.70, confidence 0.65); the request and response are retained
 under ignored `target/batched-runtime/jev-next-after-copy-*`.
+
+## DROP lifecycle and implicit DDL slice (#839, 2026-10-25)
+
+The #839 batch adds token-bounded dependent-view discovery and CASCADE/RESTRICT
+forms for schema, table, and column drops; `ALTER TABLE IF EXISTS`; multiple
+ALTER actions; and atomic execution for supported catalog DDL inside implicit
+Query/Sync boundaries. Regression coverage includes cross-schema foreign-key
+cleanup and rollback after a later multi-action constraint failure through
+extended protocol, Simple Query, and an explicit savepoint. It also carries an
+evolving declared-column set across ordered ALTER actions. A later unique
+constraint can target a newly added or renamed column, and a failed constraint
+validation rolls back a defaulted column through both protocols. CTE-backed
+view dependencies are detected: RESTRICT returns `2BP01` and CASCADE removes
+the dependent view.
+
+Jev's initial review assigned a 0.63 probability to a material gap. A focused
+`should_drop_an_index_without_an_on_clause` probe reproduced a Midge value
+assertion when recreating an index after implicit DROP INDEX. Jev's decision
+slightly favored excluding DROP INDEX from implicit wrapping (0.50 vs. 0.47
+for changing staged storage semantics); the standalone path now remains intact
+while explicit transactional DROP INDEX remains supported. Jev next selected
+the dependent multi-action ALTER probe, which failed red because the binder
+validated against the original schema; sequential field-state binding fixed
+it. Jev also selected rollback of a defaulted new column when a later UNIQUE
+constraint fails, and add/rename/constraint ordering. Both pass with expected
+rollback and uniqueness behavior. A final CTE dependency probe confirmed the
+existing scanner walks CTE query bodies. Jev's final residual gap probability
+was 0.24.
+
+The focused `ddl_extensions` group reports 151 passed, 40 failed, and 6
+ignored. The complete workspace run reports 348 compatibility passed, 219
+failed, and 15 ignored; the full tests, build, strict Clippy, formatting, and
+all five touched-test validators completed. Unit (1,350), integration (186),
+backend CI (2), bench operations (16), and catalog security (330) suites pass.
+The remaining compatibility failures in this group are extension/pgcrypto,
+temporary relations, type conversion, broader object drops, maintenance, and
+privilege behaviors outside this slice. `ALTER COLUMN TYPE USING` remains
+blocked on the persistent rewrite/recovery contract.

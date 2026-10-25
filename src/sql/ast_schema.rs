@@ -7,11 +7,16 @@ use crate::types::DataType;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterTableStatement {
     pub table: IdentifierPath,
+    #[serde(default)]
+    pub if_exists: bool,
     pub operation: AlterTableOperation,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AlterTableOperation {
+    Multiple {
+        operations: Vec<AlterTableOperation>,
+    },
     AddColumn {
         field: String,
         data_type: DataType,
@@ -33,6 +38,8 @@ pub enum AlterTableOperation {
     },
     DropColumn {
         field: String,
+        #[serde(default)]
+        cascade: bool,
     },
     RenameColumn {
         from: String,

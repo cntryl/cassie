@@ -721,9 +721,18 @@ pub(super) fn bind_drop_table(
 }
 
 pub(super) fn bind_alter_table(
+    statement: AlterTableStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<AlterTableStatement, CassieError> {
+    bind_alter_table_with_schema(statement, catalog, context, None)
+}
+
+fn bind_alter_table_with_schema(
     mut statement: AlterTableStatement,
     catalog: &Catalog,
     context: &BindingContext,
+    schema_override: Option<&CollectionSchema>,
 ) -> Result<AlterTableStatement, CassieError> {
     let source_table = statement.table.clone();
     let table = resolve_relation_path(&statement.table, catalog, context)?;
@@ -738,16 +747,95 @@ pub(super) fn bind_alter_table(
         )));
     }
 
-    let schema = catalog
-        .get_schema(&table)
-        .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
+    let Some(catalog_schema) = catalog.get_schema(&table) else {
+        if statement.if_exists {
+            statement.table = canonical_relation_path(&table)?;
+            return Ok(statement);
+        }
+        return Err(CassieError::CollectionNotFound(table.clone()));
+    };
+    let schema = schema_override.cloned().unwrap_or(catalog_schema);
+    if let AlterTableOperation::Multiple { operations } = &statement.operation {
+        let mut bound_operations = Vec::with_capacity(operations.len());
+        let mut working_schema = schema;
+        for operation in operations.iter().cloned() {
+            let bound = bind_alter_table_with_schema(
+                AlterTableStatement {
+                    table: source_table.clone(),
+                    if_exists: statement.if_exists,
+                    operation,
+                },
+                catalog,
+                context,
+                Some(&working_schema),
+            )?;
+            apply_bound_alter_to_schema(&mut working_schema, &bound.operation);
+            bound_operations.push(bound.operation);
+        }
+        statement.table = canonical_relation_path(&table)?;
+        statement.operation = AlterTableOperation::Multiple {
+            operations: bound_operations,
+        };
+        return Ok(statement);
+    }
 
+    bind_existing_alter_table(
+        &mut statement,
+        &source_table,
+        &table,
+        &schema,
+        catalog,
+        context,
+    )?;
+    Ok(statement)
+}
+
+fn apply_bound_alter_to_schema(schema: &mut CollectionSchema, operation: &AlterTableOperation) {
+    match operation {
+        AlterTableOperation::AddColumn {
+            field, data_type, ..
+        } => {
+            if !schema.fields.iter().any(|stored| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(&stored.name)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            }) {
+                schema.fields.push(crate::catalog::FieldMeta {
+                    name: field.clone(),
+                    data_type: data_type.clone(),
+                    is_indexed: false,
+                    boost: None,
+                });
+            }
+        }
+        AlterTableOperation::DropColumn { field, .. } => {
+            schema.fields.retain(|stored| {
+                !crate::sql::ColumnIdentifierPath::matches_stored_field(field, &stored.name)
+            });
+        }
+        AlterTableOperation::RenameColumn { from, to } => {
+            if let Some(stored) = schema.fields.iter_mut().find(|stored| {
+                crate::sql::ColumnIdentifierPath::matches_stored_field(from, &stored.name)
+            }) {
+                stored.name.clone_from(to);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn bind_existing_alter_table(
+    statement: &mut AlterTableStatement,
+    source_table: &str,
+    table: &str,
+    schema: &CollectionSchema,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
     let existing_fields = schema
         .fields
         .iter()
         .map(|field| field.name.clone())
         .collect::<HashSet<_>>();
-
     let add_column_already_exists = match &statement.operation {
         AlterTableOperation::AddColumn {
             field,
@@ -760,12 +848,12 @@ pub(super) fn bind_alter_table(
         _ => false,
     };
     if add_column_already_exists {
-        statement.table = canonical_relation_path(&table)?;
-        return Ok(statement);
+        statement.table = canonical_relation_path(table)?;
+        return Ok(());
     }
 
     if let AlterTableOperation::RenameTo { table: target } = &mut statement.operation {
-        *target = rename_target_in_source_schema(&table, target.trim(), context)?;
+        *target = rename_target_in_source_schema(table, target.trim(), context)?;
     }
     if let AlterTableOperation::SetSchema { schema: target } = &mut statement.operation {
         *target = resolve_schema_name(target.trim(), catalog, context)?;
@@ -774,7 +862,7 @@ pub(super) fn bind_alter_table(
                 "namespace '{target}' is reserved"
             )));
         }
-        let source = crate::catalog::RelationId::parse_canonical(&table).ok_or_else(|| {
+        let source = crate::catalog::RelationId::parse_canonical(table).ok_or_else(|| {
             CassieError::Planner(format!(
                 "relation '{table}' has no canonical database identity"
             ))
@@ -796,7 +884,7 @@ pub(super) fn bind_alter_table(
         ..
     } = &mut statement.operation
     {
-        let resolved = resolve_default_sequence(sequence, &table, catalog, context)?;
+        let resolved = resolve_default_sequence(sequence, table, catalog, context)?;
         *default_expression = Some(crate::catalog::canonical_nextval_expression(&resolved));
         *sequence = resolved;
     }
@@ -805,21 +893,21 @@ pub(super) fn bind_alter_table(
     } = &mut statement.operation
     {
         requalify_alter_add_column_sequences(
-            &source_table,
-            &table,
+            source_table,
+            table,
             field,
             constraints,
             catalog,
             context,
         )?;
     }
-    schema_defaults::bind_alter_defaults(&mut statement.operation, &schema)?;
-    validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
-    bind_alter_constraint_targets(&mut statement.operation, &table, &schema, catalog, context)?;
-    schema_checks::bind_alter_checks(&mut statement.operation, &schema)?;
+    schema_defaults::bind_alter_defaults(&mut statement.operation, schema)?;
+    validate_alter_schema(table, &statement.operation, &existing_fields, catalog)?;
+    bind_alter_constraint_targets(&mut statement.operation, table, schema, catalog, context)?;
+    schema_checks::bind_alter_checks(&mut statement.operation, schema)?;
 
-    statement.table = canonical_relation_path(&table)?;
-    Ok(statement)
+    statement.table = canonical_relation_path(table)?;
+    Ok(())
 }
 
 pub(super) fn validate_alter_schema(
@@ -829,6 +917,11 @@ pub(super) fn validate_alter_schema(
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
     match operation {
+        AlterTableOperation::Multiple { operations } => {
+            for operation in operations {
+                validate_alter_schema(table, operation, existing_fields, catalog)?;
+            }
+        }
         AlterTableOperation::AddColumn { field, .. } => {
             validate_alter_add_column(table, field, existing_fields)?;
         }
@@ -856,50 +949,11 @@ pub(super) fn validate_alter_schema(
                 ));
             }
         }
-        AlterTableOperation::DropColumn { field } => {
+        AlterTableOperation::DropColumn { field, .. } => {
             validate_alter_drop_column(table, field, existing_fields)?;
         }
         AlterTableOperation::RenameColumn { from, to } => {
-            let from = from.trim();
-            if from.is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE RENAME COLUMN requires a source field".into(),
-                ));
-            }
-            let to = to.trim();
-            if to.is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE RENAME COLUMN requires a target field".into(),
-                ));
-            }
-            if crate::types::row_identity::is_row_identity_column(to) {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE RENAME COLUMN cannot rename to reserved field '_id'".into(),
-                ));
-            }
-            if crate::sql::ColumnIdentifierPath::reference_field_key(from)
-                == crate::sql::ColumnIdentifierPath::stored_field_key(to)
-            {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE cannot rename column to same name".into(),
-                ));
-            }
-            if !existing_fields
-                .iter()
-                .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(from, field))
-            {
-                return Err(CassieError::Planner(format!(
-                    "ALTER TABLE '{table}' has no field '{from}'"
-                )));
-            }
-            if existing_fields.iter().any(|field| {
-                crate::sql::ColumnIdentifierPath::stored_field_key(field)
-                    == crate::sql::ColumnIdentifierPath::stored_field_key(to)
-            }) {
-                return Err(CassieError::Planner(format!(
-                    "cannot rename column to existing field '{to}' on collection '{table}'"
-                )));
-            }
+            validate_alter_rename_column(table, from, to, existing_fields)?;
         }
         AlterTableOperation::RenameTo { table: target } => {
             let target = target.trim();
@@ -927,6 +981,55 @@ pub(super) fn validate_alter_schema(
         }
     }
 
+    Ok(())
+}
+
+fn validate_alter_rename_column(
+    table: &str,
+    from: &str,
+    to: &str,
+    existing_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let from = from.trim();
+    let to = to.trim();
+    if from.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE RENAME COLUMN requires a source field".into(),
+        ));
+    }
+    if to.is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE RENAME COLUMN requires a target field".into(),
+        ));
+    }
+    if crate::types::row_identity::is_row_identity_column(to) {
+        return Err(CassieError::Planner(
+            "ALTER TABLE RENAME COLUMN cannot rename to reserved field '_id'".into(),
+        ));
+    }
+    if crate::sql::ColumnIdentifierPath::reference_field_key(from)
+        == crate::sql::ColumnIdentifierPath::stored_field_key(to)
+    {
+        return Err(CassieError::Planner(
+            "ALTER TABLE cannot rename column to same name".into(),
+        ));
+    }
+    if !existing_fields
+        .iter()
+        .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(from, field))
+    {
+        return Err(CassieError::Planner(format!(
+            "ALTER TABLE '{table}' has no field '{from}'"
+        )));
+    }
+    if existing_fields.iter().any(|field| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(to)
+    }) {
+        return Err(CassieError::Planner(format!(
+            "cannot rename column to existing field '{to}' on collection '{table}'"
+        )));
+    }
     Ok(())
 }
 

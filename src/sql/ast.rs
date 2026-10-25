@@ -623,6 +623,7 @@ pub enum ReindexTarget {
 pub struct DropTableStatement {
     pub table: String,
     pub if_exists: bool,
+    pub cascade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -686,6 +687,7 @@ pub struct DropDatabaseStatement {
 pub struct DropSchemaStatement {
     pub schema: String,
     pub if_exists: bool,
+    pub cascade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

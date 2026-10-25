@@ -76,12 +76,14 @@ impl ExtendedCycle {
     }
 }
 
-pub(super) fn eligible(statement: &ParsedStatement) -> bool {
-    statement.statement.family() == StatementFamily::Runtime
-        && !matches!(
+pub(super) fn eligible(statement: &ParsedStatement, catalog: &crate::catalog::Catalog) -> bool {
+    if statement.statement.family() == StatementFamily::Runtime {
+        return !matches!(
             statement.statement,
             QueryStatement::Transaction(_) | QueryStatement::Copy(_)
-        )
+        );
+    }
+    crate::app::implicit_ddl_supported(catalog, &statement.statement)
 }
 
 pub(super) fn preflight(statements: &[String]) -> Result<Vec<ParsedStatement>, CassieError> {

@@ -1,4 +1,5 @@
 use super::expr::split_csv;
+use super::lexical::strip_keyword_suffix;
 use super::{
     find_matching_paren, find_top_level_keyword, parse_enclosed_parenthesized,
     parse_optional_role_password, split_keyword, strip_parentheses, AlterIndexOperation,
@@ -300,7 +301,13 @@ pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, S
     let rest = trimmed[10..].trim();
 
     let (if_exists, rest) = parse_if_exists(rest);
-    let table = rest.trim();
+    let (cascade, table) = if let Some(table) = strip_keyword_suffix(rest, "cascade") {
+        (true, table.trim())
+    } else if let Some(table) = strip_keyword_suffix(rest, "restrict") {
+        (false, table.trim())
+    } else {
+        (false, rest.trim())
+    };
     if table.is_empty() {
         return Err(SqlError::new("missing table name in DROP TABLE".into()));
     }
@@ -315,6 +322,7 @@ pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, S
         statement: QueryStatement::DropTable(DropTableStatement {
             table: table.to_string(),
             if_exists,
+            cascade,
         }),
     })
 }
@@ -324,7 +332,13 @@ pub(super) fn parse_drop_schema_statement(sql: &str) -> Result<ParsedStatement, 
     let rest = trimmed[11..].trim();
 
     let (if_exists, rest) = parse_if_exists(rest);
-    let schema = rest.trim();
+    let (cascade, schema) = if let Some(schema) = strip_keyword_suffix(rest, "cascade") {
+        (true, schema.trim())
+    } else if let Some(schema) = strip_keyword_suffix(rest, "restrict") {
+        (false, schema.trim())
+    } else {
+        (false, rest.trim())
+    };
     if schema.is_empty() {
         return Err(SqlError::new("missing schema name in DROP SCHEMA".into()));
     }
@@ -339,6 +353,7 @@ pub(super) fn parse_drop_schema_statement(sql: &str) -> Result<ParsedStatement, 
         statement: QueryStatement::DropSchema(DropSchemaStatement {
             schema: schema.to_string(),
             if_exists,
+            cascade,
         }),
     })
 }
@@ -398,11 +413,6 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
     let rest = trimmed[11..].trim();
 
     let (if_exists, rest) = parse_if_exists(rest);
-    if if_exists {
-        return Err(SqlError::new(
-            "ALTER TABLE IF EXISTS is not supported".into(),
-        ));
-    }
     let (table, op_clause) = split_first_token(rest)
         .ok_or_else(|| SqlError::new("missing table name in ALTER TABLE".into()))?;
     let table = parse_relation_path(&table)?;
@@ -419,7 +429,11 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
-        statement: QueryStatement::AlterTable(AlterTableStatement { table, operation }),
+        statement: QueryStatement::AlterTable(AlterTableStatement {
+            table,
+            if_exists,
+            operation,
+        }),
     })
 }
 
@@ -427,6 +441,14 @@ pub(super) fn parse_alter_table_operation(
     table: &str,
     raw: &str,
 ) -> Result<AlterTableOperation, SqlError> {
+    let actions = split_csv(raw);
+    if actions.len() > 1 {
+        return actions
+            .into_iter()
+            .map(|action| parse_alter_table_operation(table, action.trim()))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|operations| AlterTableOperation::Multiple { operations });
+    }
     let lower = raw.to_lowercase();
     if starts_with_keyword(raw, "set access method") {
         let clause = raw["set access method".len()..].trim_start();
@@ -468,30 +490,10 @@ pub(super) fn parse_alter_table_operation(
         return Ok(AlterTableOperation::DropConstraint { name, if_exists });
     }
     if lower.starts_with("drop column") {
-        let field = parse_column_reference(raw["drop column".len()..].trim())?;
-        if field.is_empty() {
-            return Err(SqlError::new("DROP COLUMN requires a column name".into()));
-        }
-        return Ok(AlterTableOperation::DropColumn { field });
+        return parse_alter_drop_column(raw);
     }
     if lower.starts_with("rename column") {
-        let rest = raw["rename column".len()..].trim();
-        let (from, to) = split_keyword(rest, "to")
-            .ok_or_else(|| SqlError::new("RENAME COLUMN requires TO clause".into()))?;
-        if from.split_whitespace().count() != 1 {
-            return Err(SqlError::new(
-                "RENAME COLUMN supports only one source column".into(),
-            ));
-        }
-        if to.split_whitespace().count() != 1 {
-            return Err(SqlError::new(
-                "RENAME COLUMN supports only one target column".into(),
-            ));
-        }
-        return Ok(AlterTableOperation::RenameColumn {
-            from: parse_column_reference(from)?,
-            to: parse_column_identifier(to)?,
-        });
+        return parse_alter_rename_column(raw);
     }
     if lower.starts_with("rename to") {
         let table = raw["rename to".len()..].trim();
@@ -514,6 +516,42 @@ pub(super) fn parse_alter_table_operation(
     }
 
     Err(SqlError::new("unsupported ALTER TABLE operation".into()))
+}
+
+fn parse_alter_drop_column(raw: &str) -> Result<AlterTableOperation, SqlError> {
+    let rest = raw["drop column".len()..].trim();
+    let (cascade, field) = if let Some(field) = strip_keyword_suffix(rest, "cascade") {
+        (true, field.trim())
+    } else if let Some(field) = strip_keyword_suffix(rest, "restrict") {
+        (false, field.trim())
+    } else {
+        (false, rest)
+    };
+    let field = parse_column_reference(field)?;
+    if field.is_empty() {
+        return Err(SqlError::new("DROP COLUMN requires a column name".into()));
+    }
+    Ok(AlterTableOperation::DropColumn { field, cascade })
+}
+
+fn parse_alter_rename_column(raw: &str) -> Result<AlterTableOperation, SqlError> {
+    let rest = raw["rename column".len()..].trim();
+    let (from, to) = split_keyword(rest, "to")
+        .ok_or_else(|| SqlError::new("RENAME COLUMN requires TO clause".into()))?;
+    if from.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "RENAME COLUMN supports only one source column".into(),
+        ));
+    }
+    if to.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "RENAME COLUMN supports only one target column".into(),
+        ));
+    }
+    Ok(AlterTableOperation::RenameColumn {
+        from: parse_column_reference(from)?,
+        to: parse_column_identifier(to)?,
+    })
 }
 
 pub(super) fn parse_create_sequence_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

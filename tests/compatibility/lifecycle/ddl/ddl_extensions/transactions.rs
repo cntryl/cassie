@@ -113,6 +113,79 @@ fn should_rollback_alter_table_column_addition() {
 }
 
 #[test]
+fn should_rollback_multi_action_alter_to_savepoint_after_constraint_failure() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("transactional_multi_alter_savepoint").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_multi_alter_savepoint \
+                 (id INT, duplicate_key INT)",
+                "INSERT INTO compat_multi_alter_savepoint VALUES (1, 8), (2, 8)",
+                "BEGIN",
+                "SAVEPOINT before_multi_alter",
+            ],
+        )
+        .await
+        .expect("create duplicate keys and establish a savepoint");
+
+        // Act
+        let alter_result = client
+            .batch_execute(
+                "ALTER TABLE compat_multi_alter_savepoint \
+                 ADD COLUMN transient INT, \
+                 ADD CONSTRAINT unique_duplicate_key_savepoint UNIQUE (duplicate_key)",
+            )
+            .await;
+        client
+            .batch_execute("ROLLBACK TO SAVEPOINT before_multi_alter")
+            .await
+            .expect("recover the transaction to the savepoint after ALTER fails");
+        let transient_columns: i64 = client
+            .query_one(
+                "SELECT count(*) FROM information_schema.columns \
+                 WHERE table_name = 'compat_multi_alter_savepoint' \
+                   AND column_name = 'transient'",
+                &[],
+            )
+            .await
+            .expect("inspect the relation after savepoint rollback")
+            .get(0);
+        client
+            .batch_execute(
+                "ALTER TABLE compat_multi_alter_savepoint ADD COLUMN committed INT",
+            )
+            .await
+            .expect("apply another supported ALTER after savepoint recovery");
+        client
+            .batch_execute("COMMIT")
+            .await
+            .expect("commit the recovered transaction");
+        let committed_columns: i64 = client
+            .query_one(
+                "SELECT count(*) FROM information_schema.columns \
+                 WHERE table_name = 'compat_multi_alter_savepoint' \
+                   AND column_name = 'committed'",
+                &[],
+            )
+            .await
+            .expect("inspect the successfully committed action")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        let error = alter_result.expect_err("duplicate values must reject the UNIQUE action");
+        assert_eq!(db_error(&error).code().code(), "23505");
+        assert_eq!(transient_columns, 0);
+        assert_eq!(committed_columns, 1);
+    });
+}
+
+#[test]
 fn should_apply_added_literal_default_to_rows_staged_before_alter_commit() {
     // Arrange
     let runtime = current_thread_runtime();

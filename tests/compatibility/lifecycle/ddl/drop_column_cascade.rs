@@ -78,3 +78,54 @@ fn should_remove_dependent_view_when_dropping_column_with_cascade() {
         assert_eq!(retained_row.get::<_, i32>(1), 42);
     });
 }
+
+#[test]
+fn should_remove_foreign_key_when_dropping_referenced_column_with_cascade() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_839_drop_column_fk_cascade").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_839_fk_parent \
+                 (parent_id INT PRIMARY KEY, retained TEXT)",
+                "CREATE TABLE compat_839_fk_child \
+                 (parent_id INT REFERENCES compat_839_fk_parent(parent_id))",
+                "INSERT INTO compat_839_fk_parent VALUES (1, 'kept')",
+                "INSERT INTO compat_839_fk_child VALUES (1)",
+                "CREATE VIEW compat_839_fk_parent_view \
+                 AS SELECT parent_id FROM compat_839_fk_parent",
+            ],
+        )
+        .await
+        .expect("create a referenced key, foreign key and dependent view");
+
+        // Act
+        client
+            .batch_execute(
+                "ALTER TABLE compat_839_fk_parent \
+                 DROP COLUMN parent_id CASCADE",
+            )
+            .await
+            .expect("drop the referenced key and all dependent objects with CASCADE");
+        let foreign_key_insert = client
+            .execute("INSERT INTO compat_839_fk_child VALUES (99)", &[])
+            .await;
+        let retained_value: String = client
+            .query_one("SELECT retained FROM compat_839_fk_parent", &[])
+            .await
+            .expect("read the surviving parent column")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert!(
+            foreign_key_insert.is_ok(),
+            "CASCADE should remove the foreign key constraint: {foreign_key_insert:?}"
+        );
+        assert_eq!(retained_value, "kept");
+    });
+}

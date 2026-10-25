@@ -156,9 +156,24 @@ pub(super) fn drop_table(
     if statement.if_exists && !cassie.catalog.exists(&statement.table) {
         return empty_command("DROP TABLE", controls);
     }
-    schema_foreign_keys::reject_referenced_table_drop(cassie, &statement.table)?;
+    let dependent_views = views_depending_on(cassie, &statement.table, None);
+    if !statement.cascade && !dependent_views.is_empty() {
+        return Err(dependent_object_error(
+            "table",
+            &statement.table,
+            &dependent_views,
+        ));
+    }
+    if statement.cascade {
+        schema_foreign_keys::drop_referencing_foreign_keys_on_table(cassie, &statement.table)?;
+    } else {
+        schema_foreign_keys::reject_referenced_table_drop(cassie, &statement.table)?;
+    }
 
     let output = empty_command("DROP TABLE", controls)?;
+    for view in dependent_views {
+        drop_stored_view(cassie, &view)?;
+    }
     cassie
         .midge
         .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
@@ -172,12 +187,85 @@ pub(super) fn drop_table(
     Ok(output)
 }
 
+fn drop_stored_view(cassie: &Cassie, view: &crate::catalog::ViewMeta) -> Result<(), QueryError> {
+    cassie
+        .midge
+        .defer_drop_view(&view.name, cassie.runtime.schema_epoch())
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie.catalog.unregister_view(&view.name);
+    Ok(())
+}
+
+fn views_depending_on(
+    cassie: &Cassie,
+    relation: &str,
+    column: Option<&str>,
+) -> Vec<crate::catalog::ViewMeta> {
+    let relation_name = relation.rsplit('.').next().unwrap_or(relation);
+    let relation_token = relation_name.to_ascii_lowercase();
+    let column_token = column.map(str::to_ascii_lowercase);
+    cassie
+        .catalog
+        .list_views()
+        .into_iter()
+        .filter(|view| {
+            let tokens = view
+                .query
+                .split(|character: char| {
+                    character.is_whitespace() || matches!(character, '(' | ')' | ',')
+                })
+                .filter(|token| !token.is_empty())
+                .map(|token| {
+                    token
+                        .trim_matches(|character| matches!(character, '"' | '`' | ';'))
+                        .to_ascii_lowercase()
+                })
+                .collect::<Vec<_>>();
+            let relation_matches_source = tokens.iter().enumerate().any(|(index, token)| {
+                matches!(token.as_str(), "from" | "join")
+                    && tokens
+                        .get(index + 1)
+                        .and_then(|source| source.rsplit('.').next())
+                        .is_some_and(|source| source == relation_token)
+            });
+            relation_matches_source
+                && column_token
+                    .as_ref()
+                    .is_none_or(|column| tokens.contains(column))
+        })
+        .collect()
+}
+
+fn dependent_object_error(
+    kind: &str,
+    name: &str,
+    views: &[crate::catalog::ViewMeta],
+) -> QueryError {
+    let display_name = name.rsplit('.').next().unwrap_or(name);
+    let dependent = views
+        .iter()
+        .map(|view| format!("view {}", view.name))
+        .collect::<Vec<_>>()
+        .join(", ");
+    QueryError::Cassie(
+        crate::app::DiagnosticError::new(
+            "2BP01",
+            format!("cannot drop {kind} {display_name} because other objects depend on it"),
+        )
+        .with_detail(format!("dependent objects: {dependent}"))
+        .into(),
+    )
+}
+
 pub(super) fn alter_table(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &AlterTableStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    if statement.if_exists && !cassie.catalog.exists(&statement.table) {
+        return empty_command("ALTER TABLE", controls);
+    }
     let is_column_store = cassie
         .catalog
         .collection_storage_mode(&statement.table)
@@ -247,7 +335,7 @@ pub(super) fn drop_schema(
     if statement.if_exists && !cassie.catalog.namespace_exists(&statement.schema) {
         return empty_command("DROP SCHEMA", controls);
     }
-    if !schema_is_empty(cassie, &statement.schema) {
+    if !statement.cascade && !schema_is_empty(cassie, &statement.schema) {
         return Err(QueryError::General(format!(
             "namespace '{}' is not empty",
             statement.schema
@@ -255,6 +343,54 @@ pub(super) fn drop_schema(
     }
 
     let output = empty_command("DROP SCHEMA", controls)?;
+    if statement.cascade {
+        let schema_views = cassie
+            .catalog
+            .list_views()
+            .into_iter()
+            .filter(|view| object_in_schema(&view.name, &statement.schema))
+            .collect::<Vec<_>>();
+        for view in schema_views {
+            cassie
+                .midge
+                .defer_drop_view(&view.name, cassie.runtime.schema_epoch())
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_view(&view.name);
+        }
+
+        let schema_collections = cassie
+            .catalog
+            .list_collections_canonical()
+            .into_iter()
+            .filter(|collection| object_in_schema(&collection.name, &statement.schema))
+            .collect::<Vec<_>>();
+        for collection in schema_collections {
+            schema_foreign_keys::drop_referencing_foreign_keys_on_table(cassie, &collection.name)?;
+            cassie
+                .midge
+                .defer_drop_collection(&collection.name, cassie.runtime.schema_epoch())
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            schema_sequence_rename::drop_owned_table_sequences(cassie, &collection.name)?;
+            cassie
+                .catalog
+                .unregister_collection(&collection.name)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+        }
+
+        let schema_sequences = cassie
+            .catalog
+            .list_sequences()
+            .into_iter()
+            .filter(|sequence| object_in_schema(&sequence.name, &statement.schema))
+            .collect::<Vec<_>>();
+        for sequence in schema_sequences {
+            cassie
+                .midge
+                .delete_sequence(&sequence.name)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_sequence(&sequence.name);
+        }
+    }
     cassie
         .midge
         .drop_namespace(&statement.schema)
@@ -340,6 +476,21 @@ fn execute_alter_table_operation(
     is_column_store: bool,
 ) -> Result<(), QueryError> {
     match &statement.operation {
+        AlterTableOperation::Multiple { operations } => {
+            for operation in operations {
+                execute_alter_table_operation(
+                    cassie,
+                    session,
+                    &AlterTableStatement {
+                        table: statement.table.clone(),
+                        if_exists: statement.if_exists,
+                        operation: operation.clone(),
+                    },
+                    is_column_store,
+                )?;
+            }
+            Ok(())
+        }
         AlterTableOperation::AddColumn {
             field,
             data_type,
@@ -363,8 +514,8 @@ fn execute_alter_table_operation(
         AlterTableOperation::DropConstraint { name, if_exists } => {
             alter_table_drop_constraint(cassie, &statement.table, name, *if_exists)
         }
-        AlterTableOperation::DropColumn { field } => {
-            alter_table_drop_column(cassie, &statement.table, field, is_column_store)
+        AlterTableOperation::DropColumn { field, cascade } => {
+            alter_table_drop_column(cassie, &statement.table, field, *cascade, is_column_store)
         }
         AlterTableOperation::RenameColumn { from, to } => {
             alter_table_rename_column(cassie, &statement.table, from, to, is_column_store)
@@ -641,11 +792,23 @@ fn alter_table_drop_column(
     cassie: &Cassie,
     table: &str,
     field: &str,
+    cascade: bool,
     is_column_store: bool,
 ) -> Result<(), QueryError> {
     ensure_row_store_alter_supported(is_column_store, "ALTER TABLE DROP COLUMN")?;
-    schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
     schema_graph_rename::reject_graph_column_drop(cassie, table, field)?;
+    if cascade {
+        schema_foreign_keys::drop_referencing_foreign_keys_on_column(cassie, table, field)?;
+    } else {
+        schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
+    }
+    let dependent_views = views_depending_on(cassie, table, Some(field));
+    if !cascade && !dependent_views.is_empty() {
+        return Err(dependent_object_error("column", field, &dependent_views));
+    }
+    for view in dependent_views {
+        drop_stored_view(cassie, &view)?;
+    }
     schema_constraint_helpers::drop_composite_unique_constraints_on_column(cassie, table, field)?;
     cassie
         .midge

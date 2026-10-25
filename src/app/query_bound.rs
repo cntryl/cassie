@@ -119,7 +119,7 @@ impl Cassie {
             Some(self.midge.enter_transactional_ddl_scope(
                 session.current_database().unwrap_or(&self.default_database),
                 session.transaction_storage_overlay(),
-                catalog_statement && !session.is_implicit_transaction(),
+                catalog_statement,
             )?)
         } else {
             None
@@ -150,6 +150,13 @@ impl Cassie {
         let _entry_overlay_scope = super::SessionReadScope::enter(None);
         self.ensure_session_database_access(session)?;
         self.ensure_statement_can_execute(session, &parsed, controls)?;
+        if let QueryStatement::AlterTable(statement) = &parsed.statement {
+            if statement.if_exists && !self.catalog.exists(statement.table.as_str()) {
+                let mut result = QueryResult::try_builder(controls)?;
+                result.try_set_command("ALTER TABLE")?;
+                return result.finish();
+            }
+        }
         Self::mark_statement_transaction_query(session, &parsed.statement);
         if let QueryStatement::SessionObject(statement) = &parsed.statement {
             let call = super::session_objects::SessionObjectCall {

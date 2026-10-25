@@ -736,7 +736,8 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
         | AlterTableOperation::AlterColumnDropDefault { field }
         | AlterTableOperation::AlterColumnSetNotNull { field }
         | AlterTableOperation::AlterColumnDropNotNull { field }
-        | AlterTableOperation::AlterColumnIdentity { field, .. } => {
+        | AlterTableOperation::AlterColumnIdentity { field, .. }
+        | AlterTableOperation::AlterColumnType { field, .. } => {
             if field.trim().is_empty() {
                 return Err(CassieError::Planner(
                     "ALTER TABLE ALTER COLUMN requires a field".into(),

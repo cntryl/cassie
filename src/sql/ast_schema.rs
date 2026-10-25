@@ -75,6 +75,11 @@ pub enum AlterTableOperation {
         field: String,
         action: IdentityAlteration,
     },
+    AlterColumnType {
+        field: String,
+        data_type: DataType,
+        using: super::Expr,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

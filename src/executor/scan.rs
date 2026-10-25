@@ -529,7 +529,10 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
     }
 }
 
-fn document_to_row(document: &DocumentRef, schema: Option<&CollectionSchema>) -> BatchRow {
+pub(crate) fn document_to_row(
+    document: &DocumentRef,
+    schema: Option<&CollectionSchema>,
+) -> BatchRow {
     let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
     let mut row = Vec::new();
     push_row_identity(&mut row, &document.id);

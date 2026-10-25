@@ -851,6 +851,15 @@ fn apply_bound_alter_to_schema(schema: &mut CollectionSchema, operation: &AlterT
                 stored.name.clone_from(to);
             }
         }
+        AlterTableOperation::AlterColumnType {
+            field, data_type, ..
+        } => {
+            if let Some(stored) = schema.fields.iter_mut().find(|stored| {
+                crate::sql::ColumnIdentifierPath::matches_stored_field(field, &stored.name)
+            }) {
+                stored.data_type.clone_from(data_type);
+            }
+        }
         _ => {}
     }
 }
@@ -1010,6 +1019,14 @@ pub(super) fn validate_alter_schema(
         | AlterTableOperation::AlterColumnDropNotNull { .. }
         | AlterTableOperation::AlterColumnIdentity { .. } => {
             validate_alter_column_operation(table, operation, existing_fields, catalog)?;
+        }
+        AlterTableOperation::AlterColumnType { field, .. } => {
+            validate_alter_column_operation(table, operation, existing_fields, catalog)?;
+            if field.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE ALTER COLUMN TYPE requires a field".to_string(),
+                ));
+            }
         }
     }
 

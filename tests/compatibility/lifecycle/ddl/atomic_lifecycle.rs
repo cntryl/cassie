@@ -116,21 +116,6 @@ fn should_apply_using_conversion_with_column_addition_in_one_alter() {
         } else {
             None
         };
-        let amount_typmod = if alter_result.is_ok() {
-            Some(
-                client
-                    .query_one(
-                        "SELECT atttypmod FROM pg_catalog.pg_attribute \
-                         WHERE attrelid = 'compat_issue839_alter_rows'::regclass \
-                           AND attname = 'amount'",
-                        &[],
-                    )
-                    .await,
-            )
-        } else {
-            None
-        };
-
         // Assert
         drop(client);
         server.shutdown(connection).await;
@@ -162,10 +147,7 @@ fn should_apply_using_conversion_with_column_addition_in_one_alter() {
             .expect("read the converted column descriptor after ALTER")
             .expect("describe converted numeric column");
         assert_eq!(amount_descriptor.columns()[0].type_().oid(), 1700);
-        let amount_typmod = amount_typmod
-            .expect("read the converted column typmod after ALTER")
-            .expect("read numeric precision and scale");
-        assert_eq!(amount_typmod.get::<_, i32>(0), 1_310_724);
+        assert_eq!(amount_descriptor.columns()[0].type_modifier(), 1_310_724);
     });
 }
 
@@ -238,6 +220,63 @@ fn should_rollback_multi_action_alter_after_using_failure() {
                 .collect::<Vec<_>>(),
             vec![(1, 22), (2, 24)]
         );
+    });
+}
+
+#[test]
+fn should_reject_type_using_that_violates_unique_constraint_without_partial_rewrite() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_839_alter_unique_collision").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_issue839_unique_rows \
+                 (id INT PRIMARY KEY, amount INT UNIQUE)",
+                "INSERT INTO compat_issue839_unique_rows VALUES (1, 22), (2, 24)",
+            ],
+        )
+        .await
+        .expect("create rows protected by a unique constraint");
+
+        // Act
+        let alter_result = client
+            .batch_execute(
+                "ALTER TABLE compat_issue839_unique_rows \
+                 ALTER COLUMN amount TYPE NUMERIC(20,0) USING 1::numeric",
+            )
+            .await;
+        let rows = client
+            .query(
+                "SELECT id, amount FROM compat_issue839_unique_rows ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read original values after a rejected conversion");
+        let columns = client
+            .query(
+                "SELECT data_type FROM information_schema.columns \
+                 WHERE table_name = 'compat_issue839_unique_rows' AND column_name = 'amount'",
+                &[],
+            )
+            .await
+            .expect("read the original declared type after a rejected conversion");
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        let error = alter_result.expect_err("converted duplicate values must violate UNIQUE");
+        assert_eq!(db_error(&error).code().code(), "23505");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.get::<_, i32>(0), row.get::<_, i32>(1)))
+                .collect::<Vec<_>>(),
+            vec![(1, 22), (2, 24)]
+        );
+        assert_eq!(columns.len(), 1);
+        assert_eq!(columns[0].get::<_, String>(0), "integer");
     });
 }
 

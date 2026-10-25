@@ -38,7 +38,7 @@ impl Cassie {
         declared_oids: &[i32],
         controls: &QueryExecutionControls,
     ) -> Result<Vec<ColumnMeta>, CassieError> {
-        let output = if declared_oids.is_empty() {
+        let output = if declared_oids.is_empty() && logical.set.is_none() {
             None
         } else {
             let context = self.binding_context_for_session(session);

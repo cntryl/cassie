@@ -267,3 +267,26 @@ fn should_infer_integer_type_for_a_union_with_an_unknown_null_row() {
     assert_eq!(descriptions[1][0].type_oid, 23, "PostgreSQL int4 OID");
     assert_eq!(wire::data_rows(frames), vec![vec![None]]);
 }
+
+#[test]
+fn should_infer_text_type_for_all_unknown_union_branches() {
+    // Arrange
+    let sql = "SELECT NULL AS value UNION ALL SELECT NULL";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("type-unknown-union-text", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let descriptions = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .map(|(_, body)| wire::parse_row_description(body))
+        .collect::<Vec<_>>();
+    assert_eq!(descriptions.len(), 2, "statement and portal describe");
+    assert_eq!(descriptions[0][0].type_oid, 25, "PostgreSQL text OID");
+    assert_eq!(descriptions[1][0].type_oid, 25, "PostgreSQL text OID");
+    assert_eq!(wire::data_rows(frames), vec![vec![None], vec![None]]);
+}

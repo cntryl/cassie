@@ -30,7 +30,11 @@ pub(crate) fn infer_expr_type(
                     infer_expr_type(value, source_schema, user_functions, parameter_types)?,
                 )?;
             }
-            Some(result)
+            Some(if result == DataType::Null {
+                DataType::Text
+            } else {
+                result
+            })
         }
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
         Expr::Function(function) => {

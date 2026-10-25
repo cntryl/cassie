@@ -7,6 +7,8 @@ pub(crate) use expressions::{
 #[path = "inference_types.rs"]
 mod types;
 pub(crate) use types::common_case_type;
+#[path = "inference_set.rs"]
+mod set;
 
 use super::{
     virtual_views, BinaryOp, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr,
@@ -165,6 +167,7 @@ pub(super) fn infer_select_schema_with_outer(
                 right_schema.fields.len()
             )));
         }
+        set::inherit_unknown_union_types(&mut fields, &right_schema, set.operator);
     }
 
     for group_expr in &select.group_by {

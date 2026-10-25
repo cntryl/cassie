@@ -32,6 +32,7 @@ pub(crate) use bytea::{
 };
 pub(crate) mod math;
 mod temporal;
+mod unsupported_server_control;
 mod unsupported_server_files;
 pub(crate) use temporal::{
     binary_type as temporal_binary_type, clock_dependent as temporal_clock_dependent,
@@ -43,6 +44,9 @@ pub(crate) use inputs::{
     aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
 };
 pub(crate) use math::MathFunction;
+pub(crate) use unsupported_server_control::{
+    is_server_control_helper, rejection as reject_server_control,
+};
 pub(crate) use unsupported_server_files::{
     is_server_file_helper, rejection as reject_server_file_access,
 };

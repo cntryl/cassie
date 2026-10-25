@@ -1,11 +1,11 @@
-//! Permission checks precede the selected physical server signaling rejection.
+//! Session-role boundaries and selected physical server signaling rejection.
 
 use crate::support_backend_sessions::assert_rows;
 use crate::support_catalog_policy as policy;
+use crate::support_pgwire as wire;
 
 #[test]
-fn should_enforce_signal_permissions_given_restricted_roles_when_server_signaling_functions_are_called(
-) {
+fn should_reject_selected_server_signaling_helpers() {
     // Arrange
     let statements = [
         "CREATE ROLE signal_policy_limited",
@@ -14,11 +14,8 @@ fn should_enforce_signal_permissions_given_restricted_roles_when_server_signalin
         "SELECT pg_reload_conf()",
         "SELECT pg_rotate_logfile()",
         "SELECT pg_log_backend_memory_contexts(0)",
-        "RESET ROLE",
-        "SELECT pg_reload_conf()",
-        "SELECT pg_rotate_logfile()",
-        "SELECT pg_log_backend_memory_contexts(0)",
         "SELECT 42",
+        "DROP ROLE signal_policy_limited",
     ];
 
     // Act
@@ -27,13 +24,18 @@ fn should_enforce_signal_permissions_given_restricted_roles_when_server_signalin
     // Assert
     assert_rows(&batches[0], &[]);
     policy::assert_registered(&batches[1]);
-    assert_rows(&batches[2], &[]);
-    for frames in &batches[3..6] {
-        policy::assert_error(frames, "42501");
+    policy::assert_error(&batches[2], "0A000");
+    for (function, frames) in [
+        ("pg_reload_conf", &batches[3]),
+        ("pg_rotate_logfile", &batches[4]),
+        ("pg_log_backend_memory_contexts", &batches[5]),
+    ] {
+        assert_eq!(
+            wire::error_code(frames).as_deref(),
+            Some("0A000"),
+            "server helper {function} must reject with the selected feature SQLSTATE"
+        );
     }
-    assert_rows(&batches[6], &[]);
-    for frames in &batches[7..10] {
-        policy::assert_error(frames, "0A000");
-    }
-    assert_rows(&batches[10], &[&["42"]]);
+    assert_rows(&batches[6], &[&["42"]]);
+    assert_rows(&batches[7], &[]);
 }

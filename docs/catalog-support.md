@@ -269,6 +269,10 @@ types unqualified under the current feature and v1.0 qualification records.
 the validated UTF8 session setting. NAME values reuse the existing string row
 tag; general `name[]` parameters, constructors, operators, and assignment paths
 remain unqualified.
+`SET ROLE` and `SET SESSION AUTHORIZATION` return `0A000`; authenticated role
+switching and restricted-role privilege matrices remain under #831.
+PostgreSQL backend-statistics reset helpers also return `0A000`: Midge does not
+maintain PostgreSQL backend statistics for Cassie to reset.
 
 
 Selected `pg_column_size(any)` support returns INT (OID 23). Explicit existing

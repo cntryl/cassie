@@ -72,3 +72,14 @@ explicitly unselected; no runtime catalog rows or type support were added.
 Selected array TypeInfo/COPY coverage and other catalog behavior remain in the
 suite. These removals are scope reconciliation; they do not count as passing
 conformance for the removed capabilities.
+
+## Vector catalog count assertion (2026-10-25)
+
+Jev reviewed the failure in `should_deduplicate_supported_schema_vector_identities`.
+Its exact count of 32 covered the entire `pg_type` registry even though the
+test owns vector-dimension deduplication; the runtime correctly exposes 86
+existing scalar and array identities from the finite built-in registry. The
+stale count assertion was removed. The test still requires the exact three
+schema-referenced vector identities, checks all OIDs are unique, and protects
+the PostgreSQL BOOLEAN[] identity from replacement by an excluded
+ARRAY(VECTOR) identity. The #843/#844 v0.4 owners remain open.

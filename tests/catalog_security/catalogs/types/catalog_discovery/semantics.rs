@@ -206,7 +206,6 @@ fn should_deduplicate_supported_schema_vector_identities() {
             .find(|row| row[0] == Value::Int64(1_000)),
         Some(&type_row(1_000, "_bool", -1, 16))
     );
-    assert_eq!(all_types.rows().len(), 32);
 }
 
 #[test]

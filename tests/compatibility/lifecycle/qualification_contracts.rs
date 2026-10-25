@@ -8,5 +8,3 @@ fn lifecycle_wave_runtime() -> tokio::runtime::Runtime {
 }
 
 include!("comments/lifecycle/transactions.rs");
-
-include!("security/privileges/lifecycle/semantics.rs");

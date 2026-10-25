@@ -347,6 +347,21 @@ extension compatibility or ANALYZE support and do not count as passing
 conformance for the removed capabilities. Jev request and response are retained
 under ignored `target/batched-runtime/next-triage/`.
 
+## Security semantics scope reconciliation (2026-10-25)
+
+The live #831 rescope comment selects compatibility-level acceptance for role,
+grant/revoke and ownership syntax, and explicitly excludes row-level security
+and full privilege enforcement because that could imply a security guarantee
+Cassie does not provide. Jev reviewed the failing RLS, policy, privilege
+enforcement, membership-option, role-state and default-privilege cases and
+selected removal of those security-semantic expectations (probability 0.97,
+confidence 0.96). No test that only checks a selected DDL token's acceptance is
+removed by this disposition. The unresolved privilege contract remains open in
+the scope map; these removals do not imply safe authorization behavior.
+
+Jev request and response are retained under ignored
+`target/batched-runtime/next-triage/`.
+
 ## Deferred coordination and isolation scope reconciliation (2026-10-25)
 
 Jev reviewed the current lock/isolation failure cluster against #819, #820 and

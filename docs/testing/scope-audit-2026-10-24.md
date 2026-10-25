@@ -307,10 +307,20 @@ inference test used DROP and same-name recreation to reset between cases, which
 failed on the second CREATE TABLE with a Midge value-assertion conflict. The
 index-inference assertions do not cover relation recreation, so the cases now
 use separate relation names and retain all six partial/full inference outcomes.
-Both focused tests pass. The exposed same-name recreation failure belongs to
-the separate #839 relation-lifecycle owner and remains in the next-batch queue.
-The completed build and full locked run report 362 compatibility passed, 211
-failed and 15 ignored; unit 1,350, analytics 186, backend CI 2, bench operations
-16, and catalog security 330 passed before Cargo stopped at the compatibility
-target. Strict workspace Clippy, formatting and both touched-test validators
-passed.
+Both focused tests pass. The exposed same-name recreation failure was promoted
+to a dedicated #839 regression. It reproduced after DROP TABLE returned while
+the old collection schema was still present. The pgwire handler already retried
+deferred cleanup after its running-query guard drained, but that retry occurred
+inside the blocking worker. `run_pgwire_blocking` now retries cleanup after that
+worker returns, preserving the schema-epoch gate. The regression recreates the
+table and partial unique index, inserts into the new relation, and verifies the
+old row is gone. Jev selected completing pending cleanup (0.82); its focused
+review favored keeping the post-worker retry (0.61) over moving cleanup entirely
+to that boundary (0.37). The focused test passes.
+
+The completed locked build passes. The full locked run reports 364 compatibility
+passed, 210 failed and 15 ignored; unit 1,350, analytics 186, backend CI 2,
+bench operations 16, and catalog security 330 passed before Cargo stopped at
+the compatibility target. Strict workspace Clippy, formatting, and the
+recreation test validator pass. The remaining compatibility failures continue
+as the next triage queue; this batch does not claim a green full suite.

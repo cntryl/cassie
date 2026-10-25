@@ -10,6 +10,8 @@ mod extension_schema_relocation;
 mod issue_839_atomic_lifecycle;
 #[path = "../namespaces/database_temp_lifecycle.rs"]
 mod postgresql18_database_temp_lifecycle;
+#[path = "recreate_relation.rs"]
+mod recreate_relation;
 #[path = "../sequences/sequence_identity.rs"]
 mod sequence_identity_wave7;
 

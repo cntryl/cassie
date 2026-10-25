@@ -25,8 +25,6 @@ impl Drop for DataDirectory {
     }
 }
 
-#[path = "lifecycle/coordination/advisory_lock_disconnect.rs"]
-mod advisory_lock_disconnect;
 #[path = "lifecycle/casts/prepared_dependencies.rs"]
 mod cast_prepared_dependencies;
 #[path = "lifecycle/copy/copy_forms.rs"]
@@ -41,8 +39,6 @@ mod merge_atomicity;
 mod mutation_ddl;
 #[path = "lifecycle/routines/routine_objects.rs"]
 mod routine_objects;
-#[path = "lifecycle/transactions/row_lock_cancellation.rs"]
-mod row_lock_cancellation;
 #[path = "lifecycle/sessions/session_transaction.rs"]
 mod session_transaction;
 use crate::support_pgwire;

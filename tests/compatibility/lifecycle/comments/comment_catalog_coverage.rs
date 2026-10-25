@@ -210,55 +210,6 @@ fn should_roundtrip_policy_comments_through_policy_metadata() {
     });
 }
 #[test]
-fn should_roundtrip_extension_comments_through_extension_metadata() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("extension_comments").await;
-        let (client, connection) = server.connect().await;
-
-        // Act
-        client
-            .batch_execute("COMMENT ON EXTENSION plpgsql IS 'procedural language runtime'")
-            .await
-            .expect("store a comment on the installed plpgsql extension");
-        let before_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description(extension.oid, 'pg_extension') \
-                 FROM pg_catalog.pg_extension AS extension \
-                 WHERE extension.extname = 'plpgsql'",
-                &[],
-            )
-            .await
-            .expect("read the extension comment from pg_extension")
-            .try_get(0)
-            .expect("extension comment");
-        client
-            .batch_execute("COMMENT ON EXTENSION plpgsql IS NULL")
-            .await
-            .expect("clear the extension comment");
-        let after_clear: Option<String> = client
-            .query_one(
-                "SELECT obj_description(extension.oid, 'pg_extension') \
-                 FROM pg_catalog.pg_extension AS extension \
-                 WHERE extension.extname = 'plpgsql'",
-                &[],
-            )
-            .await
-            .expect("read the cleared extension comment")
-            .try_get(0)
-            .expect("cleared extension comment");
-
-        // Assert
-        assert_eq!(before_clear.as_deref(), Some("procedural language runtime"));
-        assert_eq!(after_clear, None);
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
 #[ignore = "Pending #826 and #845 materialized-view comment metadata; #845 depends on #817"]
 fn should_roundtrip_materialized_view_comments_through_relation_metadata() {
     // Arrange

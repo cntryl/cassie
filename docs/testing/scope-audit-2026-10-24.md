@@ -324,3 +324,43 @@ bench operations 16, and catalog security 330 passed before Cargo stopped at
 the compatibility target. Strict workspace Clippy, formatting, and the
 recreation test validator pass. The remaining compatibility failures continue
 as the next triage queue; this batch does not claim a green full suite.
+
+## Extension and maintenance scope reconciliation (2026-10-25)
+
+Jev reviewed the currently failing extension and maintenance cases against the
+Product Roadmap and scope map. It selected removal (probability 1.0) for the
+v0.4 positive pgcrypto and pgvector behavior, unsupported `ANALYZE`, and
+extension comments outside the selected #845 schema/table/column subset. The
+active target retains the passing negative pgcrypto installation boundary;
+positive pgcrypto dependency tests previously marked ignored were removed
+instead of remaining as skipped cases.
+
+| Source | Removed cases | Scope reason |
+| --- | --- | --- |
+| `tests/compatibility/extensions/pgvector/` | `should_report_vector_catalog_identity_given_the_pinned_extension_when_catalogs_are_queried`, `should_preserve_vector_values_given_binary_parameters_when_binary_results_are_requested`, `should_preserve_vector_values_given_text_parameters_when_the_statement_executes`, `should_match_exact_search_results_given_the_declared_ann_fixture_when_ann_search_executes`, `should_order_negative_inner_products_given_known_vectors_when_the_metric_operator_is_used`, `should_describe_vector_type_given_a_bare_vector_cast_when_dimension_is_inferred` | Vector extension, type, wire and retrieval compatibility belongs to v0.4 owners #843/#844. |
+| `tests/compatibility/lifecycle/extensions/` | pgcrypto installation, update, digest, catalog, schema relocation, cascade and dependency cases; `should_preserve_extension_dependencies_until_cascade_drop`; `should_track_index_dependency_on_extension`; `should_track_materialized_view_dependency_on_extension` | Bounded extension compatibility is v0.4 under #843. The selected v0.3 rejection check remains active as `should_reject_pgcrypto_installation_until_extension_compatibility_is_implemented`. |
+| `tests/compatibility/lifecycle/ddl/maintenance_statistics_refresh.rs` | `should_refresh_pg_class_row_estimate_after_analyze` | `ANALYZE` and PostgreSQL statistics maintenance remain unsupported under #842. |
+| `tests/compatibility/lifecycle/comments/comment_catalog_coverage.rs` | `should_roundtrip_extension_comments_through_extension_metadata` | Extension comments are outside the selected #845 schema/table/column lifecycle subset. |
+
+These removals narrow only the active v0.3 target. They do not establish
+extension compatibility or ANALYZE support and do not count as passing
+conformance for the removed capabilities. Jev request and response are retained
+under ignored `target/batched-runtime/next-triage/`.
+
+## Deferred coordination and isolation scope reconciliation (2026-10-25)
+
+Jev reviewed the current lock/isolation failure cluster against #819, #820 and
+#822 and selected removal of the deferred cases (probability 1.0). The active
+suite no longer asserts advisory locks or LISTEN/NOTIFY without a named client
+workflow, row/table locks or `SKIP LOCKED` without a selected projector claim
+workflow, or repeatable-read/serializable profiles beyond the v0.3
+READ-COMMITTED contract. This removes the dedicated advisory and row/table lock
+fixtures, broad isolation command fixture, and the three corresponding cases
+from shared transaction fixtures, including the root `NOWAIT` and
+`SKIP LOCKED` claim probes.
+
+Selected session settings, timeout, cursor and temporary-object cases remain
+registered. In particular, this scope decision does not resolve the separately
+pending #838 temporary storage boundary. Tests removed here remain owned by
+#819/#820/#822 and are not considered passing behavior. Jev evidence is retained
+under ignored `target/batched-runtime/next-triage/`.

@@ -73,7 +73,6 @@ fn assert_metadata_cycle(
 #[test]
 fn should_report_declared_type_oids_for_direct_projection_wire_rows() {
     // Arrange
-    let path = wire::data_dir("direct_projection_type_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -126,5 +125,4 @@ fn should_report_declared_type_oids_for_direct_projection_wire_rows() {
         );
     });
     drop(runtime);
-    std::fs::remove_dir_all(path).expect("remove fixture");
 }

@@ -5,7 +5,6 @@ use tokio::io::BufReader;
 #[test]
 fn should_preserve_wire_pagination_contract() {
     // Arrange
-    let path = crate::support_sql::data_dir("pagination-wire");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -36,7 +35,6 @@ fn should_preserve_wire_pagination_contract() {
         server.stop().await;
     });
     // Assert
-    std::fs::remove_dir_all(path).expect("cleanup");
 }
 
 async fn verify_cumulative_portal(

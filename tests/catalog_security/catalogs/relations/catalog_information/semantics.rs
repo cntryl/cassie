@@ -76,6 +76,49 @@ fn should_render_a_created_view_definition() {
 }
 
 #[test]
+fn should_resolve_view_definition_through_the_session_search_path() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-search-path-view-definition",
+        &[
+            "CREATE SCHEMA view_definition_first",
+            "CREATE SCHEMA view_definition_second",
+            "CREATE VIEW view_definition_second.answer AS SELECT 99 AS value",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("SET search_path TO view_definition_first, view_definition_second")
+        .expect("set the view lookup path");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_catalog.pg_get_viewdef('answer')")
+        .expect("resolve a view in the session search path");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String(" SELECT 99 AS value;".to_owned())]]
+    );
+}
+
+#[test]
+fn should_return_null_for_null_view_definition_input() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-null-view-definition", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_catalog.pg_get_viewdef(NULL)")
+        .expect("evaluate a null view name");
+
+    // Assert
+    assert_eq!(selected.rows(), vec![vec![Value::Null]]);
+}
+
+#[test]
 fn should_list_created_views_in_pg_views() {
     // Arrange
     let fixture = sql_fixture(

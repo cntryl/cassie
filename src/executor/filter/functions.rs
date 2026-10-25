@@ -221,6 +221,9 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "pg_get_indexdef" | "pg_catalog.pg_get_indexdef" => {
             Some(evaluate_pg_get_indexdef(name, args, session))
         }
+        "pg_get_viewdef" | "pg_catalog.pg_get_viewdef" => {
+            Some(evaluate_pg_get_viewdef(name, args, session))
+        }
         "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
             Some(require_arg_count(name, args, 1).map(|()| Value::String("root".to_string())))
         }
@@ -273,6 +276,38 @@ fn evaluate_pg_get_indexdef(
         }
         _ => None,
     };
+    Ok(definition.map_or(Value::Null, Value::String))
+}
+
+fn evaluate_pg_get_viewdef(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count(name, args, 1)?;
+    let Some(argument) = args.first() else {
+        return Err(QueryError::General(format!("{name} requires 1 arg")));
+    };
+    if matches!(argument, Value::Null) {
+        return Ok(Value::Null);
+    }
+    let Value::String(view_name) = argument else {
+        return Ok(Value::Null);
+    };
+    let Some((catalog, context)) = session.and_then(CassieSession::object_lookup_context) else {
+        return Ok(Value::Null);
+    };
+    let definition = context
+        .relation_search_order()
+        .into_iter()
+        .find_map(|schema| {
+            let mut scoped_context = context.clone();
+            scoped_context.search_path = vec![schema.to_owned()];
+            let canonical_name =
+                crate::sql::binder::normalize_relation_name(view_name, &scoped_context).ok()?;
+            catalog.get_view(&canonical_name)
+        })
+        .map(|view| format!(" {};", view.query.trim().trim_end_matches(';')));
     Ok(definition.map_or(Value::Null, Value::String))
 }
 

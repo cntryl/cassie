@@ -290,7 +290,7 @@ pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> V
             let Some(constraint) = constraint_for_field(&constraints, &field.name) else {
                 continue;
             };
-            let Some(default) = constraint_default_expression(constraint) else {
+            let Some(default) = constraint_default_expression(constraint, &field.data_type) else {
                 continue;
             };
             rows.push(vec![
@@ -613,18 +613,30 @@ fn constraint_has_default(constraint: Option<&FieldConstraint>) -> bool {
     })
 }
 
-pub(super) fn constraint_default_expression(constraint: &FieldConstraint) -> Option<String> {
+pub(super) fn constraint_default_expression(
+    constraint: &FieldConstraint,
+    data_type: &crate::types::DataType,
+) -> Option<String> {
     if let Some(expression) = constraint.default_expression.as_ref() {
         return Some(expression.clone());
     }
-    constraint.default_value.as_ref().map(default_expression)
+    constraint
+        .default_value
+        .as_ref()
+        .map(|value| default_expression(value, data_type))
 }
 
-fn default_expression(value: &serde_json::Value) -> String {
+fn default_expression(value: &serde_json::Value, data_type: &crate::types::DataType) -> String {
     if value.is_null() {
         return "NULL".to_string();
     }
     if let Some(value) = value.as_str() {
+        if matches!(
+            data_type,
+            crate::types::DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
+        ) {
+            return value.to_owned();
+        }
         return format!("'{}'", value.replace('\'', "''"));
     }
     value.to_string()

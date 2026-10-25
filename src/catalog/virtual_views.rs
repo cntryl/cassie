@@ -694,7 +694,9 @@ fn information_schema_column_row(
             // Identity columns report their generation, not a default.
             constraint
                 .filter(|constraint| constraint.identity.is_none())
-                .and_then(virtual_views_pg::constraint_default_expression),
+                .and_then(|constraint| {
+                    virtual_views_pg::constraint_default_expression(constraint, data_type)
+                }),
         ),
         string(
             "udt_catalog",

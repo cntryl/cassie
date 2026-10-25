@@ -25,8 +25,6 @@ impl Drop for DataDirectory {
     }
 }
 
-#[path = "lifecycle/casts/prepared_dependencies.rs"]
-mod cast_prepared_dependencies;
 #[path = "lifecycle/copy/copy_forms.rs"]
 mod copy_forms;
 #[path = "lifecycle/ddl/ddl_extensions.rs"]

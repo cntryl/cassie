@@ -394,6 +394,19 @@ server-restart sequence state tests remain active.
 Jev evidence is retained under ignored
 `target/batched-runtime/next-triage/`.
 
+## Later custom type and cast scope reconciliation (2026-10-25)
+
+Jev selected removal of the failing composite/record/domain, user-defined cast,
+custom `regtype`, and custom-type-comment cases under #828/#796/#818/#845,
+while preserving enum cases for the separate #827 scope decision. The active
+enum tests remain unchanged pending that product decision because #827's live
+milestone and the scope map conflict, and enum durable identity requires an
+explicit representation/migration contract. Basic built-in types and the
+selected relation `regclass` lifecycle test remain active.
+
+Jev request and response are retained under ignored
+`target/batched-runtime/next-triage/`.
+
 ## Deferred coordination and isolation scope reconciliation (2026-10-25)
 
 Jev reviewed the current lock/isolation failure cluster against #819, #820 and

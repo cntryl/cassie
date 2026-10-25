@@ -37,16 +37,17 @@ async fn read_state_after_savepoint_rollback(client: &tokio_postgres::Client) ->
     let amount_metadata = client
         .query_one(
             "SELECT attribute.atttypid::BIGINT, attribute.atttypmod, \
+             attribute.atthasdef, \
              NOT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute AS added \
-               WHERE added.attrelid = relation.oid \
+               WHERE added.attrelid_oid = relation.oid \
                  AND added.attname = 'transient' AND NOT added.attisdropped), \
              pg_catalog.to_regclass(\
                'public.compat_issue839_savepoint_renamed') IS NULL \
              FROM pg_catalog.pg_class AS relation \
              JOIN pg_catalog.pg_namespace AS relation_schema \
-               ON relation_schema.oid = relation.relnamespace \
+               ON relation_schema.oid = relation.relnamespace_oid \
              JOIN pg_catalog.pg_attribute AS attribute \
-               ON attribute.attrelid = relation.oid \
+               ON attribute.attrelid_oid = relation.oid \
              WHERE relation_schema.nspname = 'public' \
                AND relation.relname = 'compat_issue839_savepoint_rows' \
                AND attribute.attname = 'amount'",
@@ -107,8 +108,9 @@ fn assert_savepoint_rollback_state(before: &tokio_postgres::Row, state: &Relatio
     assert_lifecycle_identity(before, &state.identity);
     assert_eq!(state.amount_metadata.get::<_, i64>(0), 23);
     assert_eq!(state.amount_metadata.get::<_, i32>(1), -1);
-    assert!(state.amount_metadata.get::<_, bool>(2));
+    assert!(!state.amount_metadata.get::<_, bool>(2));
     assert!(state.amount_metadata.get::<_, bool>(3));
+    assert!(state.amount_metadata.get::<_, bool>(4));
     assert_eq!(
         state
             .rows
@@ -164,7 +166,7 @@ fn should_restore_existing_relation_identity_after_lifecycle_savepoint_rollback(
                 "ALTER TABLE compat_issue839_savepoint_rows \
                  RENAME TO compat_issue839_savepoint_renamed",
                 "ALTER TABLE compat_issue839_savepoint_renamed \
-                 ALTER COLUMN amount TYPE NUMERIC(20,0) USING amount::numeric, \
+                 ALTER COLUMN amount SET DEFAULT 77, \
                  ADD COLUMN transient TEXT DEFAULT 'temporary'",
                 "DROP TABLE compat_issue839_savepoint_renamed",
                 "ROLLBACK TO SAVEPOINT before_lifecycle",

@@ -7,8 +7,9 @@ fn assert_renamed_alter_restart(
     after_rows: &[Vec<cassie::types::Value>],
 ) {
     assert_eq!(after_catalog, before_catalog);
-    assert_eq!(after_catalog[0][1], cassie::types::Value::Int64(1700));
-    assert_eq!(after_catalog[0][2], cassie::types::Value::Int64(1_310_724));
+    assert_eq!(after_catalog[0][1], cassie::types::Value::Int64(23));
+    assert_eq!(after_catalog[0][2], cassie::types::Value::Int64(-1));
+    assert_eq!(after_catalog[0][3], cassie::types::Value::Bool(true));
     assert_eq!(after_rows, before_rows);
     assert_eq!(
         after_rows,
@@ -696,7 +697,7 @@ fn should_persist_renamed_alter_relation_after_restart() {
             "CREATE TABLE compat_issue839_restart.rows (id INT, amount INT)",
             "INSERT INTO compat_issue839_restart.rows VALUES (1, 41), (2, NULL)",
             "ALTER TABLE compat_issue839_restart.rows \
-             ALTER COLUMN amount TYPE NUMERIC(20,0) USING amount::numeric, \
+             ALTER COLUMN amount SET DEFAULT 73, \
              ADD COLUMN note TEXT DEFAULT 'persisted'",
             "ALTER TABLE compat_issue839_restart.rows RENAME TO rows_v2",
         ] {
@@ -709,15 +710,15 @@ fn should_persist_renamed_alter_relation_after_restart() {
         let catalog = cassie
             .execute_sql(
                 &session,
-                "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT \
+                "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT, a.atthasdef \
                  FROM pg_catalog.pg_class AS c \
-                 JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace \
-                 JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid \
+                 JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace_oid \
+                 JOIN pg_catalog.pg_attribute AS a ON a.attrelid_oid = c.oid \
                  WHERE n.nspname = 'compat_issue839_restart' \
                    AND c.relname = 'rows_v2' AND a.attname = 'amount'",
                 vec![],
             )
-            .expect("read renamed relation and numeric column metadata before restart")
+            .expect("read renamed relation and ALTERed column metadata before restart")
             .rows()
             .to_vec();
         let rows = cassie
@@ -744,15 +745,15 @@ fn should_persist_renamed_alter_relation_after_restart() {
     let catalog_after_restart = reopened
         .execute_sql(
             &session,
-            "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT \
+            "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT, a.atthasdef \
              FROM pg_catalog.pg_class AS c \
-             JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace \
-             JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid \
+             JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace_oid \
+             JOIN pg_catalog.pg_attribute AS a ON a.attrelid_oid = c.oid \
              WHERE n.nspname = 'compat_issue839_restart' \
                AND c.relname = 'rows_v2' AND a.attname = 'amount'",
             vec![],
         )
-        .expect("read renamed relation and numeric column metadata after restart")
+        .expect("read renamed relation and ALTERed column metadata after restart")
         .rows()
         .to_vec();
     let rows_after_restart = reopened

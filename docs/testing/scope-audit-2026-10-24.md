@@ -277,3 +277,22 @@ The completed full locked run reports compatibility 358 passed, 215 failed,
 15 ignored; unit 1,350, integration 186, backend CI 2, bench operations 16,
 and catalog security 330 passed. Strict workspace Clippy, formatting and both
 touched-test validators passed.
+
+## #839 savepoint and restart fixture scope (#839, 2026-10-25)
+
+Jev selected the savepoint-identity and rename/restart failures after both were
+shown to stop at `ALTER COLUMN TYPE`, which requires the still-unselected
+persistent row-rewrite/recovery contract. Replaced that fixture operation with
+the already supported `ALTER COLUMN SET DEFAULT`, keeping the savepoint rollback,
+relation/index identity, rename, restart, column metadata and row assertions.
+The catalog assertions now join on Cassie's numeric `attrelid_oid` and
+`relnamespace_oid` columns instead of comparing their text display companions to
+numeric OIDs. Both focused lifecycle cases pass. The explicit `USING` conversion
+cases remain pending under the persistent rewrite contract.
+
+The completed build and full locked run report 360 compatibility passed, 213
+failed and 15 ignored; unit 1,350, analytics 186, backend CI 2, bench operations
+16, and catalog security 330 passed before Cargo stopped at the failing
+compatibility target. The storage-index target separately passed 190 with one
+ignored. Strict workspace Clippy, formatting and both touched-test validators
+passed.

@@ -56,9 +56,83 @@ pub(super) fn allocate(select: &mut SelectStatement) -> Result<(), CassieError> 
         allocated.insert(name, carrier);
     }
     rename_source(&mut select.source, &allocated);
+    rename_alias_references(select, &allocated);
     // The fresh carriers no longer shadow original names at this scope; inner
     // scopes still shadow them according to the existing qualified-name laws.
     nested::query(select, &spaces)
+}
+
+fn rename_alias_references(select: &mut SelectStatement, aliases: &HashMap<String, String>) {
+    let rewrite = |expr: &mut Expr| {
+        fn visit(expr: &Expr, aliases: &HashMap<String, String>) -> Expr {
+            if let Expr::Column(name) = expr {
+                let (qualifier, field) = name
+                    .strip_suffix(".*")
+                    .map_or((None, None), |qualifier| (Some(qualifier), Some("*")));
+                if let Some((qualifier, field)) = qualifier.zip(field) {
+                    if let Some(carrier) = aliases.get(qualifier) {
+                        return Expr::Column(format!("{carrier}.{field}"));
+                    }
+                }
+                if let Some(carrier) = aliases.get(name) {
+                    return Expr::Column(carrier.clone());
+                }
+                if let Ok(path) = ColumnIdentifierPath::parse(name) {
+                    if let Some(qualifier) = path.namespace_qualifier() {
+                        if let Some(carrier) = aliases.get(&qualifier) {
+                            return Expr::Column(format!("{carrier}.{}", path.field_lookup_key()));
+                        }
+                    }
+                }
+            }
+            expr.map_children(|child| visit(child, aliases))
+        }
+        *expr = visit(expr, aliases);
+    };
+    for item in &mut select.projection {
+        match item {
+            SelectItem::Column { name, .. } => {
+                if let Some(carrier) = aliases.get(name) {
+                    name.clone_from(carrier);
+                } else if let Ok(path) = ColumnIdentifierPath::parse(name) {
+                    if let Some(qualifier) = path.namespace_qualifier() {
+                        if let Some(carrier) = aliases.get(&qualifier) {
+                            *name = format!("{carrier}.{}", path.field_lookup_key());
+                        }
+                    }
+                }
+            }
+            SelectItem::Expr { expr, .. } => rewrite(expr),
+            SelectItem::Function { function, .. } => {
+                for expr in function.expressions_mut() {
+                    rewrite(expr);
+                }
+            }
+            SelectItem::WindowFunction { function, .. } => {
+                for expr in function.args.iter_mut().chain(&mut function.partition_by) {
+                    rewrite(expr);
+                }
+                for order in &mut function.order_by {
+                    rewrite(&mut order.expr);
+                }
+            }
+            SelectItem::Wildcard => {}
+        }
+    }
+    for expr in select
+        .filter
+        .iter_mut()
+        .chain(&mut select.having)
+        .chain(&mut select.group_by)
+        .chain(&mut select.distinct_on)
+        .chain(&mut select.limit)
+        .chain(&mut select.offset)
+    {
+        rewrite(expr);
+    }
+    for order in &mut select.order {
+        rewrite(&mut order.expr);
+    }
 }
 
 fn scope_names(

@@ -83,7 +83,11 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         });
     }
 
-    let parsed = parse_statement(source)?;
+    let query_source = super::lexical::pattern_end(source, 0, "table").map_or_else(
+        || source.to_owned(),
+        |end| format!("SELECT * FROM {}", source[end..].trim()),
+    );
+    let parsed = parse_statement(&query_source)?;
     let QueryStatement::Select(select) = parsed.statement else {
         return Err(SqlError::new(
             "INSERT source must be a SELECT statement".into(),
@@ -264,12 +268,11 @@ pub(super) fn parse_insert_target(
 
     let values_pos = find_top_level_keyword(raw, 0, "values");
     let select_pos = find_top_level_keyword(raw, 0, "select");
-    let source_pos = match (values_pos, select_pos) {
-        (Some(values_pos), Some(select_pos)) => Some(values_pos.min(select_pos)),
-        (Some(values_pos), None) => Some(values_pos),
-        (None, Some(select_pos)) => Some(select_pos),
-        (None, None) => None,
-    };
+    let table_pos = find_top_level_keyword(raw, 0, "table");
+    let source_pos = [values_pos, select_pos, table_pos]
+        .into_iter()
+        .flatten()
+        .min();
 
     let source_pos = source_pos
         .ok_or_else(|| SqlError::new("INSERT requires VALUES or SELECT source".to_string()))?;

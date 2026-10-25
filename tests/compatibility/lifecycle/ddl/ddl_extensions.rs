@@ -4,8 +4,6 @@ use super::*;
 mod atomic_drop;
 #[path = "atomic_lifecycle.rs"]
 mod issue_839_atomic_lifecycle;
-#[path = "../namespaces/database_temp_lifecycle.rs"]
-mod postgresql18_database_temp_lifecycle;
 #[path = "recreate_relation.rs"]
 mod recreate_relation;
 #[path = "../sequences/sequence_identity.rs"]

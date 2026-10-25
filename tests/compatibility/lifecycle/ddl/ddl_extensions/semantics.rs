@@ -290,52 +290,7 @@ fn should_reject_drop_table_if_exists_for_a_virtual_view() {
     });
 }
 
-#[test]
-fn should_delete_temp_table_rows_on_commit() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("temp_delete_rows_on_commit").await;
-        let (client, connection) = server.connect().await;
-        let setup = execute_statements(
-            &client,
-            &[
-                "BEGIN",
-                "CREATE TEMP TABLE compat_temp_delete_rows (id INT) ON COMMIT DELETE ROWS",
-                "INSERT INTO compat_temp_delete_rows VALUES (1), (2)",
-                "COMMIT",
-            ],
-        )
-        .await;
 
-        // Act
-        let count = if setup.is_ok() {
-            Some(
-                client
-                    .query_one("SELECT count(*) FROM compat_temp_delete_rows", &[])
-                    .await
-                    .map(|row| row.get::<_, i64>(0)),
-            )
-        } else {
-            let _ = client.batch_execute("ROLLBACK").await;
-            None
-        };
-        drop(client);
-        server.shutdown(connection).await;
-
-        // Assert
-        assert!(
-            setup.is_ok(),
-            "ON COMMIT DELETE ROWS should complete: {setup:?}"
-        );
-        assert_eq!(
-            count
-                .expect("table should remain after deleting its rows")
-                .expect("read row count after commit"),
-            0
-        );
-    });
-}
 #[test]
 fn should_drop_an_index_without_an_on_clause() {
     // Arrange

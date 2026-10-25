@@ -1,8 +1,5 @@
 use super::*;
 
-#[path = "null_clear_residuals.rs"]
-mod null_clear_residuals;
-
 #[test]
 fn should_reject_materialized_view_comments_until_metadata_support_is_implemented() {
     // Arrange

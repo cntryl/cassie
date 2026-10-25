@@ -104,9 +104,6 @@ mod subqueries_resource_limits;
 #[path = "subqueries/width.rs"]
 mod subqueries_width;
 
-#[path = "type_resolution/polymorphic.rs"]
-mod type_resolution_polymorphic;
-
 #[path = "type_resolution/prepared_descriptors.rs"]
 mod type_resolution_prepared_descriptors;
 

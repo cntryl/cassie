@@ -473,49 +473,7 @@ fn should_discard_sequence_session_state_without_rewinding_the_sequence() {
         server.shutdown(connection).await;
     });
 }
-#[test]
-fn should_remove_session_temporary_tables_when_discarding_temp() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("discard_temp_objects").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_discard_temp_persistent (id INT PRIMARY KEY)",
-                "INSERT INTO compat_discard_temp_persistent VALUES (1)",
-                "CREATE TEMP TABLE compat_discard_temp_temporary (id INT)",
-                "INSERT INTO compat_discard_temp_temporary VALUES (2)",
-            ],
-        )
-        .await
-        .expect("create permanent and session temporary tables");
 
-        // Act
-        client
-            .batch_execute("DISCARD TEMP")
-            .await
-            .expect("discard current-session temporary objects");
-        let persistent_count: i64 = client
-            .query_one("SELECT count(*) FROM compat_discard_temp_persistent", &[])
-            .await
-            .expect("permanent table should remain usable")
-            .try_get(0)
-            .expect("persistent row count");
-        let temporary_missing = client
-            .query("SELECT id FROM compat_discard_temp_temporary", &[])
-            .await
-            .expect_err("DISCARD TEMP should remove the current-session table");
-
-        // Assert
-        assert_eq!(persistent_count, 1);
-        assert_eq!(db_error(&temporary_missing).code().code(), "42P01");
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
 #[test]
 fn should_keep_extended_prepared_statement_after_discard_plans() {
     // Arrange

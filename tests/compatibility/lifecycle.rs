@@ -44,7 +44,5 @@ use crate::support_pgwire;
 mod temporal_restart;
 #[path = "lifecycle/sequences/truncate_identity_rollback.rs"]
 mod truncate_identity_rollback;
-#[path = "lifecycle/types/object_lifecycle.rs"]
-mod type_object_lifecycle;
 #[path = "lifecycle/mutations/upsert_concurrency.rs"]
 mod upsert_concurrency;

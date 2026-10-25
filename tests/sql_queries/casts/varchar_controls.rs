@@ -12,10 +12,13 @@ fn should_reject_ascii_given_a_varchar_column_when_assignment_exceeds_its_width(
     // Act
     let result = fixture.execute("INSERT INTO vc VALUES ('abcdef')");
     // Assert
-    assert!(result
-        .expect_err("strict assignment")
-        .to_string()
-        .contains("expects varchar(3)"));
+    let error = result.expect_err("strict assignment");
+    assert!(matches!(
+        error,
+        cassie::app::CassieError::Diagnostic(ref diagnostic)
+            if diagnostic.sql_state == "22001"
+                && diagnostic.message == "value too long for type character varying(3)"
+    ));
     assert_eq!(fixture.rows("SELECT v FROM vc"), Vec::<Vec<Value>>::new());
 }
 
@@ -46,10 +49,13 @@ fn should_reject_unicode_given_a_varchar_column_when_assignment_exceeds_its_widt
     // Act
     let result = fixture.execute("INSERT INTO vc VALUES ('a🙂文z')");
     // Assert
-    assert!(result
-        .expect_err("strict assignment")
-        .to_string()
-        .contains("expects varchar(3)"));
+    let error = result.expect_err("strict assignment");
+    assert!(matches!(
+        error,
+        cassie::app::CassieError::Diagnostic(ref diagnostic)
+            if diagnostic.sql_state == "22001"
+                && diagnostic.message == "value too long for type character varying(3)"
+    ));
     assert_eq!(fixture.rows("SELECT v FROM vc"), Vec::<Vec<Value>>::new());
 }
 

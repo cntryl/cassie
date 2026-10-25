@@ -362,6 +362,29 @@ the scope map; these removals do not imply safe authorization behavior.
 Jev request and response are retained under ignored
 `target/batched-runtime/next-triage/`.
 
+## Catalog annotation and routine scope reconciliation (#818, #830, #845, 2026-10-25)
+
+Jev reviewed the remaining catalog-identity and routine failures against the
+live issue dispositions. The broad `regclass` catalog/search-path lifecycle
+case was removed under v0.4 #818; it is not the narrow identifier conversion
+needed by a selected v0.3 sequence workflow. The failed signature-qualified
+routine alteration and built-in variadic/schema-qualified invocation tests
+were removed under closed, not-planned #830 and v0.4 array owner #807. Existing
+narrow scalar UDF and procedure/CALL behavior remains registered.
+
+For #845, the v0.3 target retains schema, table and column comment roundtrip,
+clear, ownership, transaction and restart cases. Tests for comments on indexes,
+constraints, domains and other types, policies, sequences, roles, databases,
+views and materialized views were removed from the active target; those forms
+are outside the selected migration/admin workflow. The retained column comment
+case needs a durable metadata representation because `FieldSchema` has no
+comment field. No representation change is made in this batch pending the
+product decision required by `AGENTS.md`. Jev classified the #839 `USING`
+conversion/multi-action tests as requiring contract clarification before
+implementation; those two explicit failures remain active pending that
+decision. Jev request and response are retained under ignored
+`target/batched-runtime/next-triage/`.
+
 ## Small integer serial aliases (#841, 2026-10-25)
 
 Jev selected the `SMALLSERIAL`/`SERIAL2` alias gap (probability 0.95,

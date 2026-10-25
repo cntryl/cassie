@@ -7,6 +7,25 @@ pub(super) enum CopyDirection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CopyHeader {
+    None,
+    Skip,
+    Match,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CopyOnError {
+    Stop,
+    Ignore,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CopyLogVerbosity {
+    Default,
+    Verbose,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CopyWireFormat {
     Text,
     Csv,
@@ -40,9 +59,16 @@ pub(super) enum CopyTarget {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CopyOptions {
     format: CopyWireFormat,
-    header: bool,
+    header: CopyHeader,
     delimiter: Option<char>,
+    quote: char,
+    escape: char,
     null_marker: Option<String>,
+    default_marker: Option<String>,
+    encoding: Option<String>,
+    on_error: CopyOnError,
+    reject_limit: Option<usize>,
+    log_verbosity: CopyLogVerbosity,
     force_quote: ForceQuote,
     force_null: ColumnSelection,
     force_not_null: ColumnSelection,
@@ -53,9 +79,17 @@ pub(super) struct CopyRequest {
     pub(super) target: CopyTarget,
     pub(super) direction: CopyDirection,
     pub(super) format: CopyWireFormat,
-    pub(super) header: bool,
+    pub(super) header: CopyHeader,
     pub(super) delimiter: Option<char>,
+    pub(super) quote: char,
+    pub(super) escape: char,
     pub(super) null_marker: Option<String>,
+    pub(super) default_marker: Option<String>,
+    pub(super) encoding: Option<String>,
+    pub(super) on_error: CopyOnError,
+    pub(super) reject_limit: Option<usize>,
+    pub(super) log_verbosity: CopyLogVerbosity,
+    pub(super) where_clause: Option<String>,
     pub(super) force_quote: ForceQuote,
     pub(super) force_null: ColumnSelection,
     pub(super) force_not_null: ColumnSelection,
@@ -66,7 +100,7 @@ impl CopyRequest {
         match &self.target {
             CopyTarget::Table { target_sql, .. } => Some(format!(
                 "COPY {target_sql} FROM STDIN WITH (FORMAT CSV, HEADER {})",
-                self.header
+                self.header != CopyHeader::None
             )),
             CopyTarget::Query(_) => None,
         }
@@ -159,7 +193,15 @@ pub(super) fn parse_copy_request(sql: &str) -> Result<Option<CopyRequest>, Cassi
             }
         )));
     };
-    let options = parse_options(after_destination.trim())?;
+    let destination_options = after_destination.trim();
+    let (destination_options, where_clause) = split_copy_where(destination_options);
+    let (options, legacy_delimiter) =
+        if let Some(raw) = strip_keyword_prefix(destination_options, "USING DELIMITERS") {
+            let delimiter = parse_delimiter(Some(raw.trim()))?;
+            (parse_options("")?, Some(delimiter))
+        } else {
+            (parse_options(destination_options)?, None)
+        };
     if direction == CopyDirection::FromStdin && options.force_quote != ForceQuote::None {
         return Err(CassieError::Parse(
             "FORCE_QUOTE is only supported for COPY TO STDOUT".to_string(),
@@ -188,14 +230,14 @@ pub(super) fn parse_copy_request(sql: &str) -> Result<Option<CopyRequest>, Cassi
         )));
     }
     if options.format != CopyWireFormat::Csv
-        && (options.header || options.force_quote != ForceQuote::None)
+        && (options.header != CopyHeader::None || options.force_quote != ForceQuote::None)
     {
         return Err(CassieError::Parse(
             "HEADER and FORCE_QUOTE require FORMAT CSV".to_string(),
         ));
     }
     if options.format == CopyWireFormat::Binary
-        && (options.header
+        && (options.header != CopyHeader::None
             || options.delimiter.is_some()
             || options.null_marker.is_some()
             || options.force_quote != ForceQuote::None)
@@ -209,8 +251,16 @@ pub(super) fn parse_copy_request(sql: &str) -> Result<Option<CopyRequest>, Cassi
         direction,
         format: options.format,
         header: options.header,
-        delimiter: options.delimiter,
+        delimiter: legacy_delimiter.or(options.delimiter),
+        quote: options.quote,
+        escape: options.escape,
         null_marker: options.null_marker,
+        default_marker: options.default_marker,
+        encoding: options.encoding,
+        on_error: options.on_error,
+        reject_limit: options.reject_limit,
+        log_verbosity: options.log_verbosity,
+        where_clause,
         force_quote: options.force_quote,
         force_null: options.force_null,
         force_not_null: options.force_not_null,
@@ -324,9 +374,16 @@ fn parse_options(raw: &str) -> Result<CopyOptions, CassieError> {
     if raw.is_empty() {
         return Ok(CopyOptions {
             format: CopyWireFormat::Text,
-            header: false,
+            header: CopyHeader::None,
             delimiter: None,
+            quote: '"',
+            escape: '"',
             null_marker: None,
+            default_marker: None,
+            encoding: None,
+            on_error: CopyOnError::Stop,
+            reject_limit: None,
+            log_verbosity: CopyLogVerbosity::Default,
             force_quote: ForceQuote::None,
             force_null: ColumnSelection::None,
             force_not_null: ColumnSelection::None,
@@ -349,9 +406,16 @@ fn parse_options(raw: &str) -> Result<CopyOptions, CassieError> {
 
     let mut parsed = CopyOptions {
         format: CopyWireFormat::Csv,
-        header: false,
+        header: CopyHeader::None,
         delimiter: None,
+        quote: '"',
+        escape: '"',
         null_marker: None,
+        default_marker: None,
+        encoding: None,
+        on_error: CopyOnError::Stop,
+        reject_limit: None,
+        log_verbosity: CopyLogVerbosity::Default,
         force_quote: ForceQuote::None,
         force_null: ColumnSelection::None,
         force_not_null: ColumnSelection::None,
@@ -390,13 +454,61 @@ fn parse_option_item(
         "CSV" | "TEXT" | "BINARY" if value.is_none() => {
             options.format = parse_format(&key)?;
         }
-        "HEADER" => options.header = value.map_or(Ok(true), parse_bool)?,
+        "HEADER" => {
+            if value.is_some_and(|value| value.trim().eq_ignore_ascii_case("MATCH")) {
+                options.header = CopyHeader::Match;
+            } else {
+                options.header = if value.map_or(Ok(true), parse_bool)? {
+                    CopyHeader::Skip
+                } else {
+                    CopyHeader::None
+                };
+            }
+        }
         "DELIMITER" => options.delimiter = Some(parse_delimiter(value)?),
+        "QUOTE" => options.quote = parse_delimiter(value)?,
+        "ESCAPE" => options.escape = parse_delimiter(value)?,
         "NULL" => {
             options.null_marker =
                 Some(parse_string_literal(value.ok_or_else(|| {
                     CassieError::Parse("COPY NULL requires a string".to_string())
                 })?)?);
+        }
+        "DEFAULT" => {
+            options.default_marker = Some(parse_string_literal(value.ok_or_else(|| {
+                CassieError::Parse("COPY DEFAULT requires a string".to_string())
+            })?)?);
+        }
+        "ENCODING" => {
+            options.encoding = Some(parse_string_literal(value.ok_or_else(|| {
+                CassieError::Parse("COPY ENCODING requires a string".to_string())
+            })?)?);
+        }
+        "ON_ERROR" => {
+            let value = value
+                .ok_or_else(|| CassieError::Parse("COPY ON_ERROR requires a value".to_string()))?;
+            if !value.eq_ignore_ascii_case("ignore") {
+                return Err(CassieError::Unsupported(format!(
+                    "unsupported COPY ON_ERROR value '{value}'"
+                )));
+            }
+            options.on_error = CopyOnError::Ignore;
+        }
+        "REJECT_LIMIT" => {
+            let value = value.ok_or_else(|| {
+                CassieError::Parse("COPY REJECT_LIMIT requires a value".to_string())
+            })?;
+            options.reject_limit = Some(value.parse().map_err(|_| {
+                CassieError::Parse("COPY REJECT_LIMIT must be a non-negative integer".into())
+            })?);
+        }
+        "LOG_VERBOSITY" => {
+            if !value.is_some_and(|value| value.eq_ignore_ascii_case("verbose")) {
+                return Err(CassieError::Unsupported(
+                    "COPY only supports LOG_VERBOSITY verbose".to_string(),
+                ));
+            }
+            options.log_verbosity = CopyLogVerbosity::Verbose;
         }
         "FORCE_QUOTE" => options.force_quote = parse_force_quote(value)?,
         "FORCE_NULL" => options.force_null = parse_column_selection("FORCE_NULL", value)?,
@@ -410,6 +522,49 @@ fn parse_option_item(
         }
     }
     Ok(())
+}
+
+fn split_copy_where(raw: &str) -> (&str, Option<String>) {
+    let bytes = raw.as_bytes();
+    let mut quote = None;
+    let mut depth = 0_usize;
+    let mut index = 0_usize;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if let Some(quote_byte) = quote {
+            if byte == quote_byte {
+                if bytes.get(index + 1) == Some(&quote_byte) {
+                    index += 2;
+                    continue;
+                }
+                quote = None;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'\'' | b'"' => quote = Some(byte),
+            b'(' => depth = depth.saturating_add(1),
+            b')' => depth = depth.saturating_sub(1),
+            _ if depth == 0
+                && keyword_at(bytes, index, "WHERE")
+                && bytes.get(index + 5).is_some_and(u8::is_ascii_whitespace) =>
+            {
+                let expression = raw[index + 5..].trim();
+                let expression = if expression.starts_with('(') {
+                    matching_close(expression, 0, '(', ')')
+                        .filter(|close| expression[*close + 1..].trim().is_empty())
+                        .map_or(expression, |close| &expression[1..close])
+                } else {
+                    expression
+                };
+                return (raw[..index].trim(), Some(expression.trim().to_string()));
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    (raw.trim(), None)
 }
 
 fn parse_delimiter(value: Option<&str>) -> Result<char, CassieError> {

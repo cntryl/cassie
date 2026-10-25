@@ -111,7 +111,9 @@ mod auth;
 pub(crate) use auth::AuthenticatedPrincipal;
 mod auth_rate_limit;
 mod bulk_ingest;
-pub(crate) use bulk_ingest::{copy_columns, parse_copy_csv_payload_with_force, CopyColumn};
+pub(crate) use bulk_ingest::{
+    copy_columns, parse_copy_csv_payload_with_force, CopyColumn, CopyCsvOptions, CopyIngestOptions,
+};
 mod consistency;
 mod database_images;
 mod databases;

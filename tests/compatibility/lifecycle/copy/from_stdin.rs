@@ -5,11 +5,10 @@ fn notice_messages(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
         .iter()
         .filter(|(tag, _)| *tag == b'N')
         .flat_map(|(_, payload)| {
-            let fields = payload.split(|byte| *byte == 0).collect::<Vec<_>>();
-            fields
-                .windows(2)
-                .filter(|pair| pair[0] == b"M")
-                .map(|pair| String::from_utf8_lossy(pair[1]).into_owned())
+            support_pgwire::parse_error_fields(payload)
+                .into_iter()
+                .filter(|(kind, _)| *kind == 'M')
+                .map(|(_, message)| message)
                 .collect::<Vec<_>>()
         })
         .collect()

@@ -177,9 +177,27 @@ with OIDs (`pg_attribute.attrelid` against `regclass`, and
 `pg_index.indexrelid` against `pg_class.oid`). The assertions now compare
 logical relation names. Both focused tests pass; no runtime behavior changed.
 
-For the next batch, Jev selected the bounded #846 COPY/rebuild migration-I/O
-slice (probability 0.97, confidence 0.96). The roadmap map explicitly allows
-this local v0.3 slice while #780 remains open; this does not qualify or close
-the broader wire/client dependency. The full compatibility suite currently
-reports 324 passed, 235 failed, and 15 ignored; the failing COPY group has 13
-tests, including options, filtering, malformed rows, and cancellation.
+Jev selected the bounded #846 COPY/rebuild migration-I/O slice (probability
+0.97, confidence 0.96). The roadmap map explicitly allows this local v0.3
+slice while #780 remains open; this does not qualify or close the broader
+wire/client dependency. The batch adds CSV header matching, custom quote and
+escape parsing, default markers, LATIN1 decoding, ignored conversion errors
+with atomic rejection limits, WHERE filtering, legacy delimiters, cancellation
+response, and verbose skipped-row notices. The 47-test COPY group passes.
+
+Jev's focused review selected a possible notice-contract gap (probability 0.73,
+confidence 0.69). Source inspection and the focused test showed that
+`write_notice_response` already emitted PostgreSQL's tag-plus-C-string field
+encoding; the COPY test helper incorrectly split the message tag from its
+value. Jev reviewed the corrected evidence and selected the test-helper-only
+fix with probability 1.0. The helper now uses `support_pgwire::parse_error_fields`,
+and the focused verbose-notice test passes. No runtime wire change was needed.
+
+The full compatibility baseline before this batch was 324 passed, 235 failed,
+and 15 ignored. The completed full workspace run now reports 337 passed, 222
+failed, and 15 ignored in compatibility; no COPY failures remain. Other workspace
+suites passed: 1,350 unit, 186 integration, 2 backend CI, 16 bench operations,
+and 330 catalog security tests. Strict workspace clippy, formatting, build, and
+COPY test validation passed. Jev selected the bounded #839 DROP lifecycle batch
+next (probability 0.70, confidence 0.65); the request and response are retained
+under ignored `target/batched-runtime/jev-next-after-copy-*`.

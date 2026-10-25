@@ -2,12 +2,14 @@ use super::state::SessionState;
 use super::writers::write_command_complete;
 use super::{
     cassie_pg_error, read_frontend_message, run_pgwire_blocking, write_copy_data, write_copy_done,
-    write_copy_in_response, write_copy_out_response, write_error_response, write_ready_for_query,
-    Arc, AsyncWrite, Cassie, CassieError, CassieSession, FrontendMessage, HandshakeError,
-    PgWireError, PgWireSeverity, PgwireReader, MAX_FRONTEND_MESSAGE_BYTES,
+    write_copy_in_response, write_copy_out_response, write_error_response, write_notice_response,
+    write_ready_for_query, Arc, AsyncWrite, Cassie, CassieError, CassieSession, FrontendMessage,
+    HandshakeError, PgWireError, PgWireSeverity, PgwireReader, MAX_FRONTEND_MESSAGE_BYTES,
 };
 use crate::sql::ast::CopyStatement;
 
+#[path = "copy/filter.rs"]
+mod filter;
 #[path = "copy/input.rs"]
 mod input;
 #[path = "copy/output.rs"]
@@ -15,7 +17,9 @@ mod output;
 #[path = "copy/request.rs"]
 mod request;
 
-use request::{CopyDirection, CopyRequest, CopyWireFormat};
+use request::{
+    CopyDirection, CopyHeader, CopyLogVerbosity, CopyOnError, CopyRequest, CopyWireFormat,
+};
 
 pub(super) enum SimpleCopyOutcome {
     Handled,
@@ -678,6 +682,12 @@ async fn handle_simple_copy_from_stdin(
     let error = loop {
         match read_frontend_message(reader).await {
             Ok(FrontendMessage::CopyData(chunk)) => {
+                if cancellation
+                    .as_ref()
+                    .is_some_and(crate::runtime::QueryCancellationHandle::is_cancelled)
+                {
+                    break cassie_pg_error(&CassieError::QueryCancelled);
+                }
                 if payload.len().saturating_add(chunk.len()) > MAX_FRONTEND_MESSAGE_BYTES {
                     break cassie_pg_error(&CassieError::ResourceLimit(format!(
                         "COPY FROM STDIN payload exceeds {MAX_FRONTEND_MESSAGE_BYTES} bytes"
@@ -744,8 +754,15 @@ async fn finish_simple_copy(
     })
     .await;
     match result {
-        Ok(command) => {
-            write_command_complete(write_half, &command).await.is_ok()
+        Ok(completion) => {
+            for notice in &completion.notices {
+                if write_notice_response(write_half, notice).await.is_err() {
+                    return false;
+                }
+            }
+            write_command_complete(write_half, &completion.command)
+                .await
+                .is_ok()
                 && write_ready_for_query(write_half, &session).await.is_ok()
         }
         Err(error) => matches!(
@@ -755,6 +772,11 @@ async fn finish_simple_copy(
     }
 }
 
+struct CopyCompletion {
+    command: String,
+    notices: Vec<String>,
+}
+
 fn execute_copy_payload(
     cassie: &Cassie,
     session: &CassieSession,
@@ -762,47 +784,130 @@ fn execute_copy_payload(
     statement: &CopyStatement,
     payload: &[u8],
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
-) -> Result<String, CassieError> {
+) -> Result<CopyCompletion, CassieError> {
+    let decoded_payload = decode_copy_payload(payload, request.encoding.as_deref())?;
+    let payload = decoded_payload.as_deref().unwrap_or(payload);
+    let target_columns = copy_target_columns(cassie, statement)?;
+    let force_null = request::CopyRequest::force_indices(&request.force_null, &target_columns);
+    let force_not_null =
+        request::CopyRequest::force_indices(&request.force_not_null, &target_columns);
     let mut rows = match request.format {
         CopyWireFormat::Csv => crate::app::parse_copy_csv_payload_with_force(
             payload,
-            request.csv_delimiter(),
-            request.null_marker(),
-            &request::CopyRequest::force_indices(
-                &request.force_null,
-                &crate::app::copy_columns(
-                    statement,
-                    &cassie
-                        .catalog
-                        .get_schema(&statement.table)
-                        .ok_or_else(|| {
-                            CassieError::Parse("COPY target schema disappeared".to_string())
-                        })?
-                        .fields,
-                )?,
-            ),
-            &request::CopyRequest::force_indices(
-                &request.force_not_null,
-                &crate::app::copy_columns(
-                    statement,
-                    &cassie
-                        .catalog
-                        .get_schema(&statement.table)
-                        .ok_or_else(|| {
-                            CassieError::Parse("COPY target schema disappeared".to_string())
-                        })?
-                        .fields,
-                )?,
-            ),
+            crate::app::CopyCsvOptions {
+                delimiter: request.csv_delimiter(),
+                quote: request.quote,
+                escape: request.escape,
+                null_marker: request.null_marker(),
+                force_null: &force_null,
+                force_not_null: &force_not_null,
+            },
         )?,
         CopyWireFormat::Text => {
             input::parse_text_payload(payload, request.text_delimiter(), request.null_marker())?
         }
         CopyWireFormat::Binary => input::parse_binary_payload(payload, cassie, statement)?,
     };
-    if request.header && !rows.is_empty() {
+    if request.header == CopyHeader::Match && !rows.is_empty() {
+        let fields = cassie
+            .catalog
+            .get_schema(&statement.table)
+            .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
+        let columns = crate::app::copy_columns(statement, &fields.fields)?;
+        let matches = rows[0].len() == columns.len()
+            && rows[0].iter().zip(&columns).all(|(header, column)| {
+                let expected = match column {
+                    crate::app::CopyColumn::Field(field) => field.name.as_str(),
+                    crate::app::CopyColumn::RowId => "id",
+                };
+                header.as_deref() == Some(expected)
+            });
+        if !matches {
+            return Err(crate::app::DiagnosticError::new(
+                "22P04",
+                "COPY CSV header does not match the target column list",
+            )
+            .into());
+        }
+    }
+    if request.header != CopyHeader::None && !rows.is_empty() {
         rows.remove(0);
     }
-    let count = cassie.ingest_copy_rows(session, statement, rows, cancellation)?;
-    Ok(format!("COPY {count}"))
+    if let Some(predicate) = request.where_clause.as_deref() {
+        rows = filter::filter_rows(cassie, session, statement, rows, predicate)?;
+    }
+    let result = cassie.ingest_copy_rows_with_default_marker(
+        session,
+        statement,
+        rows,
+        cancellation,
+        crate::app::CopyIngestOptions {
+            default_marker: request.default_marker.as_deref(),
+            on_error_ignore: request.on_error == CopyOnError::Ignore,
+            reject_limit: request.reject_limit,
+        },
+    )?;
+    let mut notices = Vec::new();
+    if request.log_verbosity == CopyLogVerbosity::Verbose {
+        for skipped in &result.skipped {
+            notices.push(format!(
+                "skipping row due to data type incompatibility at line {} for column \"{}\": \"{}\"",
+                skipped.line, skipped.column, skipped.value
+            ));
+        }
+        if !result.skipped.is_empty() {
+            let count = result.skipped.len();
+            let noun = if count == 1 { "row was" } else { "rows were" };
+            notices.push(format!(
+                "{count} {noun} skipped due to data type incompatibility"
+            ));
+        }
+    }
+    Ok(CopyCompletion {
+        command: format!("COPY {}", result.count),
+        notices,
+    })
+}
+
+fn copy_target_columns(
+    cassie: &Cassie,
+    statement: &CopyStatement,
+) -> Result<Vec<crate::app::CopyColumn>, CassieError> {
+    let fields = cassie
+        .catalog
+        .get_schema(&statement.table)
+        .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
+    crate::app::copy_columns(statement, &fields.fields)
+}
+
+fn decode_copy_payload(
+    payload: &[u8],
+    encoding: Option<&str>,
+) -> Result<Option<Vec<u8>>, CassieError> {
+    let Some(encoding) = encoding else {
+        return Ok(None);
+    };
+    match encoding.trim().to_ascii_uppercase().as_str() {
+        "UTF8" | "UTF-8" | "UNICODE" => {
+            std::str::from_utf8(payload).map_err(|error| {
+                crate::app::DiagnosticError::new(
+                    "22P04",
+                    format!("COPY payload is not valid UTF8: {error}"),
+                )
+            })?;
+            Ok(None)
+        }
+        "LATIN1" | "ISO-8859-1" | "ISO8859-1" => {
+            let decoded = payload
+                .iter()
+                .copied()
+                .map(char::from)
+                .collect::<String>()
+                .into_bytes();
+            Ok(Some(decoded))
+        }
+        _ => Err(CassieError::Unsupported(format!(
+            "COPY encoding '{encoding}' is not supported"
+        ))),
+    }
 }

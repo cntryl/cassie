@@ -187,6 +187,7 @@ pub enum FunctionId {
     UnicodeVersion,
     PgColumnCompression,
     PgColumnSize,
+    PgColumnToastChunkId,
     PgTypeof,
     ToRegClass,
     ToRegCollation,

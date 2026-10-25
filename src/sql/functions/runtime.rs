@@ -58,6 +58,22 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         is_aggregate: false,
         bypass_arity_validation: false,
     },
+    ScalarFunction {
+        id: FunctionId::PgColumnToastChunkId,
+        name: "pg_column_toast_chunk_id",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::Oid),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgColumnToastChunkId,
+        name: "pg_catalog.pg_column_toast_chunk_id",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::Oid),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
 ];
 pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
     matches!(
@@ -69,6 +85,7 @@ pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
             | FunctionId::UnicodeVersion
             | FunctionId::PgColumnCompression
             | FunctionId::PgColumnSize
+            | FunctionId::PgColumnToastChunkId
     )
 }
 pub(crate) fn is_loaded_modules(name: &str) -> bool {

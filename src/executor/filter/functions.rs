@@ -41,6 +41,8 @@ mod text_scalar;
 mod text_selection;
 #[path = "text_transform.rs"]
 mod text_transform;
+#[path = "toast_identity.rs"]
+mod toast_identity;
 
 pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -99,6 +101,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         .map(|result| {
             result.map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
         })
+        .or_else(|| toast_identity::evaluate(name, args))
         .or_else(|| runtime_information::evaluate(name, args, session))
         .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
         .or_else(|| super::sequence_functions::evaluate(name, args, session))

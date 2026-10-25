@@ -50,8 +50,6 @@ mod postgresql18_text_compat;
 mod postgresql18_uuid_hash_lsn_compat;
 #[path = "aggregates/windows/window_function_wire.rs"]
 mod postgresql18_window_function_wire;
-#[path = "routines/record_functions.rs"]
-mod record_functions;
 #[path = "subqueries/scalar_subqueries.rs"]
 mod scalar_subqueries;
 

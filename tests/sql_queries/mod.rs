@@ -34,8 +34,6 @@ mod postgresql18_tablesample;
 mod postgresql18_temporal;
 #[path = "functions/temporal/temporal_functions.rs"]
 mod postgresql18_temporal_functions;
-#[path = "text_search/text_search.rs"]
-mod postgresql18_text_search;
 #[path = "types/uuid_lsn/uuid_hash_lsn.rs"]
 mod postgresql18_uuid_hash_lsn;
 #[path = "set_returning/values_aggregates.rs"]

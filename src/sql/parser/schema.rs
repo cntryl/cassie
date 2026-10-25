@@ -502,6 +502,16 @@ pub(super) fn parse_alter_table_operation(
             table: parse_relation_path(table)?.into_string(),
         });
     }
+    if starts_with_keyword(raw, "set schema") {
+        let schema = raw["set schema".len()..].trim();
+        let path = parse_relation_path(schema)?;
+        if path.components().len() != 1 {
+            return Err(SqlError::new("SET SCHEMA requires one schema name".into()));
+        }
+        return Ok(AlterTableOperation::SetSchema {
+            schema: path.into_string(),
+        });
+    }
 
     Err(SqlError::new("unsupported ALTER TABLE operation".into()))
 }

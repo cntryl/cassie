@@ -351,13 +351,13 @@ fn should_preserve_relation_index_identity_across_schema_move() {
                         table_schema.nspname, index_schema.nspname \
                  FROM pg_catalog.pg_class AS table_class \
                  JOIN pg_catalog.pg_namespace AS table_schema \
-                   ON table_schema.oid = table_class.relnamespace \
+                   ON table_schema.nspname = table_class.relnamespace \
                  JOIN pg_catalog.pg_index AS index_metadata \
-                   ON index_metadata.indrelid = table_class.oid \
+                   ON index_metadata.indrelid = table_class.relname \
                  JOIN pg_catalog.pg_class AS index_class \
-                   ON index_class.oid = index_metadata.indexrelid \
+                   ON index_class.relname = index_metadata.indexrelid \
                  JOIN pg_catalog.pg_namespace AS index_schema \
-                   ON index_schema.oid = index_class.relnamespace \
+                   ON index_schema.nspname = index_class.relnamespace \
                  WHERE table_schema.nspname = 'compat_issue839_move_source' \
                    AND table_class.relname = 'rows' \
                    AND index_class.relname = 'compat_issue839_move_note_idx'",
@@ -380,13 +380,13 @@ fn should_preserve_relation_index_identity_across_schema_move() {
                         table_schema.nspname, index_schema.nspname \
                  FROM pg_catalog.pg_class AS table_class \
                  JOIN pg_catalog.pg_namespace AS table_schema \
-                   ON table_schema.oid = table_class.relnamespace \
+                   ON table_schema.nspname = table_class.relnamespace \
                  JOIN pg_catalog.pg_index AS index_metadata \
-                   ON index_metadata.indrelid = table_class.oid \
+                   ON index_metadata.indrelid = table_class.relname \
                  JOIN pg_catalog.pg_class AS index_class \
-                   ON index_class.oid = index_metadata.indexrelid \
+                   ON index_class.relname = index_metadata.indexrelid \
                  JOIN pg_catalog.pg_namespace AS index_schema \
-                   ON index_schema.oid = index_class.relnamespace \
+                   ON index_schema.nspname = index_class.relnamespace \
                  WHERE table_schema.nspname = 'compat_issue839_move_target' \
                    AND table_class.relname = 'rows' \
                    AND index_class.relname = 'compat_issue839_move_note_idx'",

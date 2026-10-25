@@ -767,6 +767,29 @@ pub(super) fn bind_alter_table(
     if let AlterTableOperation::RenameTo { table: target } = &mut statement.operation {
         *target = rename_target_in_source_schema(&table, target.trim(), context)?;
     }
+    if let AlterTableOperation::SetSchema { schema: target } = &mut statement.operation {
+        *target = resolve_schema_name(target.trim(), catalog, context)?;
+        if is_reserved_namespace(&local_name(target)) {
+            return Err(CassieError::Unsupported(format!(
+                "namespace '{target}' is reserved"
+            )));
+        }
+        let source = crate::catalog::RelationId::parse_canonical(&table).ok_or_else(|| {
+            CassieError::Planner(format!(
+                "relation '{table}' has no canonical database identity"
+            ))
+        })?;
+        let destination = crate::catalog::SchemaId::parse_canonical(target).ok_or_else(|| {
+            CassieError::Planner(format!(
+                "schema '{target}' has no canonical database identity"
+            ))
+        })?;
+        if source.database != destination.database {
+            return Err(CassieError::Planner(
+                "ALTER TABLE SET SCHEMA cannot move a relation between databases".into(),
+            ));
+        }
+    }
     if let AlterTableOperation::AlterColumnSetDefault {
         default_expression,
         default_sequence: Some(sequence),
@@ -891,6 +914,7 @@ pub(super) fn validate_alter_schema(
                 ));
             }
         }
+        AlterTableOperation::SetSchema { schema } => validate_alter_set_schema(schema)?,
         AlterTableOperation::SetAccessMethod { access_method } => {
             validate_alter_table_access_method(access_method)?;
         }
@@ -913,6 +937,15 @@ fn validate_alter_table_access_method(access_method: &str) -> Result<(), CassieE
     Err(CassieError::Unsupported(format!(
         "unsupported ALTER TABLE access method '{access_method}'"
     )))
+}
+
+fn validate_alter_set_schema(schema: &str) -> Result<(), CassieError> {
+    if schema.trim().is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE SET SCHEMA requires a schema name".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn requalify_alter_add_column_sequences(

@@ -41,6 +41,9 @@ pub enum AlterTableOperation {
     RenameTo {
         table: String,
     },
+    SetSchema {
+        schema: String,
+    },
     SetAccessMethod {
         access_method: String,
     },

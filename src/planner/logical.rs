@@ -730,6 +730,9 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
+        AlterTableOperation::SetSchema { schema } => {
+            validate_alter_set_schema(schema)?;
+        }
         AlterTableOperation::SetAccessMethod { access_method } => {
             if access_method != "heap" {
                 return Err(CassieError::Unsupported(format!(
@@ -748,6 +751,15 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+fn validate_alter_set_schema(schema: &str) -> Result<(), CassieError> {
+    if schema.trim().is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE SET SCHEMA requires a schema name".into(),
+        ));
     }
     Ok(())
 }

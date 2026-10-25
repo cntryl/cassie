@@ -185,7 +185,7 @@ pub(super) fn alter_table(
     let output = empty_command("ALTER TABLE", controls)?;
     let staged_default =
         session.and_then(|session| staged_add_column_default(cassie, session, statement));
-    execute_alter_table_operation(cassie, statement, is_column_store)?;
+    execute_alter_table_operation(cassie, session, statement, is_column_store)?;
     if let (Some(session), Some((field, default_value))) = (session, staged_default) {
         session
             .apply_literal_default_to_staged_rows(&statement.table, &field, &default_value)
@@ -335,6 +335,7 @@ pub(super) fn alter_schema(
 
 fn execute_alter_table_operation(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &AlterTableStatement,
     is_column_store: bool,
 ) -> Result<(), QueryError> {
@@ -370,6 +371,9 @@ fn execute_alter_table_operation(
         }
         AlterTableOperation::RenameTo { table } => {
             alter_table_rename_table(cassie, &statement.table, table)
+        }
+        AlterTableOperation::SetSchema { schema } => {
+            alter_table_set_schema(cassie, session, &statement.table, schema)
         }
         AlterTableOperation::SetAccessMethod { access_method } => {
             if access_method == "heap" {
@@ -721,6 +725,57 @@ fn alter_table_rename_table(
     schema_sequence_rename::rename_owned_table_sequences(cassie, next_table)?;
     schema_graph_rename::rename_graph_tables(cassie, table, next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
+}
+
+fn alter_table_set_schema(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    target_schema: &str,
+) -> Result<(), QueryError> {
+    let relation = crate::catalog::RelationId::parse_canonical(table).ok_or_else(|| {
+        QueryError::General(format!(
+            "relation '{table}' has no canonical database identity"
+        ))
+    })?;
+    let schema = crate::catalog::SchemaId::parse_canonical(target_schema).ok_or_else(|| {
+        QueryError::General(format!(
+            "schema '{target_schema}' has no canonical database identity"
+        ))
+    })?;
+    let next_table =
+        crate::catalog::RelationId::new(relation.database.clone(), schema.schema, relation.name)
+            .canonical_name();
+    if table == next_table {
+        return Ok(());
+    }
+    if cassie.catalog.exists(&next_table) {
+        return Err(QueryError::General(format!(
+            "collection '{next_table}' already exists"
+        )));
+    }
+
+    cassie
+        .midge
+        .rename_collection(table, &next_table)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .catalog
+        .rename_collection(table, &next_table)
+        .map_err(QueryError::Cassie)?;
+    if let Some(session) = session {
+        session
+            .rename_transaction_collections(&[(table.to_owned(), next_table.clone())])
+            .map_err(QueryError::Cassie)?;
+    }
+    schema_sequence_rename::rename_owned_table_sequences(cassie, &next_table)?;
+    schema_graph_rename::rename_graph_tables(cassie, table, &next_table)?;
+    schema_foreign_keys::rename_referenced_table(cassie, table, &next_table)?;
+    cassie
+        .bump_schema_epoch_and_invalidate_query_cache()
+        .map_err(QueryError::Cassie)?;
+    super::materialized_projection::mark_source_projections_stale(cassie, table)?;
+    Ok(())
 }
 
 fn ensure_row_store_alter_supported(

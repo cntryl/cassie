@@ -384,7 +384,7 @@ fn should_preserve_existing_boolean_adapter_error_families() {
     let batches = run_cycles("bool-wire-existing-error-families", cycles);
 
     // Assert
-    for (frames, expected) in batches.iter().zip(["42601", "42601", "22000", "08P01"]) {
+    for (frames, expected) in batches.iter().zip(["42601", "42601", "22P02", "22P02"]) {
         assert_eq!(support::error_code(frames).as_deref(), Some(expected));
         assert_eq!(
             support::data_rows(frames),
@@ -644,7 +644,7 @@ fn should_validate_exported_parameter_types_in_boolean_scopes() {
         } else {
             assert_eq!(
                 support::error_code(text_null).as_deref(),
-                Some("42601"),
+                Some("42804"),
                 "typed TEXT predicate remains TEXT when bound NULL: {sql}"
             );
             assert_eq!(

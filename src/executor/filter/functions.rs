@@ -35,6 +35,8 @@ mod regex_functions;
 mod relation_locations;
 #[path = "runtime_information.rs"]
 mod runtime_information;
+#[path = "session_setting_flags.rs"]
+mod session_setting_flags;
 #[path = "text_format.rs"]
 mod text_format;
 #[path = "text_scalar.rs"]
@@ -105,6 +107,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         })
         .or_else(|| toast_identity::evaluate(name, args))
         .or_else(|| relation_locations::evaluate(name, args))
+        .or_else(|| session_setting_flags::evaluate(name, args))
         .or_else(|| runtime_information::evaluate(name, args, session))
         .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
         .or_else(|| super::sequence_functions::evaluate(name, args, session))

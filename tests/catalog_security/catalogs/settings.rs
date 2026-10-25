@@ -71,7 +71,9 @@ fn should_report_setting_flags_given_known_and_unknown_settings_when_pg_settings
     let result = fixture
         .execute(
             "SELECT pg_catalog.pg_settings_get_flags('work_mem')::text, \
-                    pg_catalog.pg_settings_get_flags('issue_817_unknown_setting') IS NULL",
+                    pg_catalog.pg_settings_get_flags('issue_817_unknown_setting') IS NULL, \
+                    pg_catalog.pg_settings_get_flags('work_mem'), \
+                    pg_catalog.pg_settings_get_flags(NULL) IS NULL",
         )
         .expect("read flags for one known and one missing configuration setting");
 
@@ -82,13 +84,15 @@ fn should_report_setting_flags_given_known_and_unknown_settings_when_pg_settings
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        [25, 16]
+        [25, 16, 1_009, 16]
     );
     assert_eq!(
         result.rows(),
         &[vec![
             Value::String("{EXPLAIN}".to_owned()),
-            Value::Bool(true)
+            Value::Bool(true),
+            Value::Json(serde_json::json!(["EXPLAIN"])),
+            Value::Bool(true),
         ]]
     );
 }

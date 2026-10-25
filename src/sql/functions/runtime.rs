@@ -75,6 +75,22 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
+        id: FunctionId::PgSettingsGetFlags,
+        name: "pg_settings_get_flags",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::TextArray,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgSettingsGetFlags,
+        name: "pg_catalog.pg_settings_get_flags",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::TextArray,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
         id: FunctionId::PgRelationFilenode,
         name: "pg_relation_filenode",
         arity: FunctionArity::Exact(1),
@@ -134,6 +150,7 @@ pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
             | FunctionId::PgColumnCompression
             | FunctionId::PgColumnSize
             | FunctionId::PgColumnToastChunkId
+            | FunctionId::PgSettingsGetFlags
             | FunctionId::PgRelationFilenode
             | FunctionId::PgRelationFilepath
             | FunctionId::PgFilenodeRelation

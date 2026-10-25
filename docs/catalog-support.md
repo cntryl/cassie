@@ -169,6 +169,11 @@ OID 25 and the selected name coercion. Non-ASCII lookup observations are pinned
 to the recorded Darwin oracle; broader locale/encoding qualification remains
 under #821. This helper retains stable rather than immutable classification.
 
+`pg_settings_get_flags(text)` returns PostgreSQL flag metadata for the finite
+known name `work_mem` (`{EXPLAIN}`) and SQL NULL for unknown names. This does not
+add `work_mem` to Cassie's supported session-setting registry or make it
+available through `current_setting`/`SET`.
+
 The additive `SizeInputError`/`CassieError::SizeInput` API carries typed invalid
 size, numeric syntax, numeric range and bigint range failures. Size constants
 report failures during Bind planning, preserving statements across Sync for

@@ -10,6 +10,7 @@ impl FunctionReturnType {
             Self::Bytea => DataType::Bytea,
             Self::Float => DataType::Float,
             Self::Text => DataType::Text,
+            Self::TextArray => DataType::Array(Box::new(DataType::Text)),
             Self::Name => DataType::Name,
             Self::Int => DataType::Int,
             Self::BigInt => DataType::BigInt,

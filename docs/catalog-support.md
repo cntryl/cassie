@@ -278,11 +278,18 @@ types unqualified under the current feature and v1.0 qualification records.
 
 `current_catalog`, `current_user`, `session_user`, `current_role`,
 `current_database()`, and `pg_client_encoding()` return native `name` identity
-(OID 19). `current_schemas(boolean)` returns native
-`name[]` identity (OID 1003, element OID 19). `pg_client_encoding()` reports
-the validated UTF8 session setting. NAME values reuse the existing string row
-tag; general `name[]` parameters, constructors, operators, and assignment paths
-remain unqualified.
+(OID 19). Explicit NAME casts, assignments, parameters, and results preserve
+that identity in text and binary formats; text input truncates at a complete
+UTF-8 boundary of 63 bytes and binary input rejects longer values.
+`current_schemas(boolean)` returns native `name[]` identity (OID 1003, element
+OID 19). The selected one-dimensional NAME[] text/binary parameter, assignment,
+and result paths reuse the existing array carrier. NAME[] text input uses
+PostgreSQL array syntax, direct array text results retain Cassie's JSON-array
+spelling, and explicit casts to text use PostgreSQL array text; binary values
+use PostgreSQL array framing. `pg_client_encoding()` reports the validated
+UTF8 session setting. NAME values reuse the existing string row tag; no
+persistent row layout changes. Locale-sensitive catalog ordering and wider
+NAME[] bounds/assignment semantics remain pending.
 `SET ROLE` and `SET SESSION AUTHORIZATION` return `0A000`; authenticated role
 switching and restricted-role privilege matrices remain under #831.
 PostgreSQL backend-statistics reset helpers also return `0A000`: Midge does not

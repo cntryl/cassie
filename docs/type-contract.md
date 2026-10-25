@@ -44,21 +44,25 @@ below according to the declared precision.
 | `vector(n)` | `100000 + n` | -1 | Private identity; finite positive dimension |
 | `T[]` | PostgreSQL's registered array OID for supported built-in element types | -1 | Standard identity; unsupported/private element families are excluded from pgwire |
 
-### Selected NAME introspection identity
+### Native NAME and NAME[] values
 
-`name` (OID 19, `typlen` 64) is selected for `current_catalog`,
+`name` (OID 19, `typlen` 64) is a native scalar type for explicit casts,
+assignment, parameters, and results, as well as `current_catalog`,
 `current_user`, `session_user`, `current_role`, `current_database()`, and
-`pg_client_encoding()` results; `name[]` (OID 1003)
-is selected for `current_schemas(boolean)`. The runtime uses UTF-8 strings and the
-existing JSON array carrier; row persistence reuses the existing string and
-array tags, so no prior row format changes. Text NAME input clips to the
-longest UTF-8 prefix of at most 63 bytes, matching PostgreSQL's `namein`;
-binary NAME input rejects 64-byte values, matching `namerecv`. NAME binary
-output sends the unpadded text bytes, matching `namesend`.
-
-This selection does not add general `name[]` parameter, constructor, operator,
-or assignment qualification. Those remain pending until their own issue tests
-exercise those paths.
+`pg_client_encoding()`. `name[]` (OID 1003, element OID 19) supports the
+existing one-dimensional array input, assignment, and result paths, as well as
+`current_schemas(boolean)`. Text and binary parameter/result formats preserve
+these PostgreSQL OIDs. The runtime uses UTF-8 strings and the existing JSON
+array carrier; row persistence reuses the existing string and array tags, so
+no prior row format changes. NAME[] text input uses PostgreSQL array syntax,
+while direct array text results retain Cassie's existing JSON-array spelling;
+binary NAME[] values use PostgreSQL array framing. Explicit casts from NAME[]
+to text use PostgreSQL array text. Text NAME input clips to the longest UTF-8
+prefix of at most 63 bytes, matching PostgreSQL's `namein`; binary NAME input
+rejects values longer than 63 bytes, matching `namerecv`. NAME binary output
+sends the unpadded text bytes, matching `namesend`. Locale-sensitive PostgreSQL
+catalog ordering and wider `name[]` bounds/assignment semantics remain outside
+this finite carrier contract.
 
 ### Selected JSONB contract (2026-10-24)
 

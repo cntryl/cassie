@@ -60,5 +60,5 @@ fn should_reject_nested_block_comments_beyond_one_hundred_twenty_eight_levels() 
         !result.iter().any(|frame| frame.0 == b'T'),
         "resource error precedes metadata"
     );
-    assert!(wire::data_rows(result).is_empty());
+    assert_eq!(wire::data_rows(result), Vec::<Vec<Option<String>>>::new());
 }

@@ -44,9 +44,7 @@ fn should_reject_join_using_forms_outside_the_selected_sql_profile() {
     ];
     let steps = queries
         .iter()
-        .map(|sql| {
-            Step::ThroughReady(vec![wire::simple_query_frame(sql)])
-        })
+        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
         .collect();
     let batches = run_script("join-using-unselected", steps);
 
@@ -56,12 +54,7 @@ fn should_reject_join_using_forms_outside_the_selected_sql_profile() {
     // Assert
     assert_eq!(results.len(), queries.len());
     for (sql, frames) in queries.into_iter().zip(results) {
-        assert_error(
-            &frames,
-            "42601",
-            "JOIN requires ON predicate",
-            sql,
-        );
+        assert_error(&frames, "42601", "JOIN requires ON predicate", sql);
         assert!(wire::data_rows(&frames).is_empty(), "{sql}");
         assert!(!frames.iter().any(|frame| frame.0 == b'T'), "{sql}");
     }

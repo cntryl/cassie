@@ -163,6 +163,7 @@ fn validate(
                     | DataType::Int
                     | DataType::BigInt
                     | DataType::Float
+                    | DataType::Name
                     | DataType::Text
                     | DataType::Char { .. }
                     | DataType::Varchar { .. }

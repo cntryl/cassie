@@ -733,7 +733,7 @@ fn should_bind_selected_integer_aliases_given_pg_catalog_qualification() {
 }
 
 #[test]
-fn should_reject_unselected_name_type_casts() {
+fn should_parse_native_name_type_casts() {
     // Arrange
     let statements = [
         ("SELECT 'word'::name", "name"),
@@ -744,14 +744,8 @@ fn should_reject_unselected_name_type_casts() {
     let parsed = statements.map(|(sql, _)| parse_statement(sql));
 
     // Assert
-    for ((sql, type_name), result) in statements.into_iter().zip(parsed) {
-        let error = result.expect_err("unselected NAME type must reject");
-        assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
-        assert_eq!(
-            error.message(),
-            format!("unsupported data type '{type_name}'"),
-            "the cast must be rejected by type resolution: {sql}"
-        );
+    for ((sql, _), result) in statements.into_iter().zip(parsed) {
+        assert!(result.is_ok(), "native NAME cast should parse: {sql}");
     }
 }
 

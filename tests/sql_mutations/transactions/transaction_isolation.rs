@@ -1,140 +1,55 @@
-//! PostgreSQL 18.6 transaction snapshots tracked by #819.
+//! PostgreSQL 18.6 transaction isolation boundaries tracked by #819.
 
 use super::support_sql_fixture::sql_fixture;
-use cassie::types::Value;
+use cassie::app::CassieError;
 
 #[test]
-fn should_keep_repeatable_read_snapshot_after_concurrent_commit() {
+fn should_reject_repeatable_read_transaction_isolation() {
     // Arrange
-    let fixture = sql_fixture(
-        "issue-819-repeatable-read-snapshot",
-        &[
-            "CREATE TABLE issue_819_snapshot (id INT PRIMARY KEY, value INT)",
-            "INSERT INTO issue_819_snapshot VALUES (1, 10)",
-        ],
-    );
-    let reader = fixture.session.clone();
-    let writer = fixture.cassie.create_session("writer", None);
+    let fixture = sql_fixture("issue-819-repeatable-read-isolation", &[]);
+    let session = fixture.session.clone();
 
     // Act
-    fixture
+    let error = fixture
         .cassie
         .execute_sql(
-            &reader,
+            &session,
             "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
             vec![],
         )
-        .expect("begin a read-only repeatable-read transaction");
-    let before_commit = fixture
-        .cassie
-        .execute_sql(
-            &reader,
-            "SELECT value FROM issue_819_snapshot WHERE id = 1",
-            vec![],
-        )
-        .expect("read the initial snapshot");
-    fixture
-        .cassie
-        .execute_sql(
-            &writer,
-            "UPDATE issue_819_snapshot SET value = 20 WHERE id = 1",
-            vec![],
-        )
-        .expect("commit an update from another session");
-    let after_commit = fixture
-        .cassie
-        .execute_sql(
-            &reader,
-            "SELECT value FROM issue_819_snapshot WHERE id = 1",
-            vec![],
-        )
-        .expect("read again inside the same snapshot");
-    fixture
-        .cassie
-        .execute_sql(&reader, "COMMIT", vec![])
-        .expect("finish the reader transaction");
+        .expect_err("repeatable read is outside the selected transaction profile");
 
     // Assert
-    assert_eq!(before_commit.rows(), &[vec![Value::Int64(10)]]);
-    assert_eq!(after_commit.rows(), &[vec![Value::Int64(10)]]);
+    assert!(matches!(error, CassieError::Unsupported(_)));
+    assert_eq!(session.transaction_status(), "idle");
 }
 
 #[test]
-fn should_apply_repeatable_read_set_transaction_before_snapshot() {
+fn should_reject_repeatable_read_set_transaction_before_snapshot() {
     // Arrange
-    let fixture = sql_fixture(
-        "issue-819-set-transaction-repeatable-read",
-        &[
-            "CREATE TABLE issue_819_set_transaction_snapshot \
-               (id INT PRIMARY KEY, value INT)",
-            "INSERT INTO issue_819_set_transaction_snapshot VALUES (1, 10)",
-        ],
-    );
-    let reader = fixture.session.clone();
-    let writer = fixture.cassie.create_session("writer", None);
+    let fixture = sql_fixture("issue-819-set-transaction-repeatable-read", &[]);
+    let session = fixture.session.clone();
     fixture
         .cassie
-        .execute_sql(&reader, "BEGIN", vec![])
+        .execute_sql(&session, "BEGIN", vec![])
         .expect("begin with the default READ COMMITTED mode");
 
     // Act
-    fixture
+    let error = fixture
         .cassie
         .execute_sql(
-            &reader,
+            &session,
             "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
             vec![],
         )
-        .expect("select REPEATABLE READ before the first snapshot");
-    let before_update = fixture
-        .cassie
-        .execute_sql(
-            &reader,
-            "SELECT value FROM issue_819_set_transaction_snapshot WHERE id = 1",
-            vec![],
-        )
-        .expect("establish the repeatable-read snapshot")
-        .rows()
-        .to_vec();
-    fixture
-        .cassie
-        .execute_sql(
-            &writer,
-            "UPDATE issue_819_set_transaction_snapshot SET value = 20 WHERE id = 1",
-            vec![],
-        )
-        .expect("commit a concurrent update from the writer session");
-    let inside_snapshot_after_update = fixture
-        .cassie
-        .execute_sql(
-            &reader,
-            "SELECT value FROM issue_819_set_transaction_snapshot WHERE id = 1",
-            vec![],
-        )
-        .expect("read again from the same repeatable-read snapshot")
-        .rows()
-        .to_vec();
-    fixture
-        .cassie
-        .execute_sql(&reader, "COMMIT", vec![])
-        .expect("finish the repeatable-read transaction");
-    let after_reader_commit = fixture
-        .cassie
-        .execute_sql(
-            &reader,
-            "SELECT value FROM issue_819_set_transaction_snapshot WHERE id = 1",
-            vec![],
-        )
-        .expect("read using the next transaction snapshot")
-        .rows()
-        .to_vec();
+        .expect_err("SET TRANSACTION must reject the unsupported isolation level");
 
     // Assert
-    assert_eq!(before_update, vec![vec![Value::Int64(10)]]);
-    assert_eq!(
-        inside_snapshot_after_update,
-        vec![vec![Value::Int64(10)]],
-        "the repeatable-read snapshot must not absorb the writer's later commit"
-    );
-    assert_eq!(after_reader_commit, vec![vec![Value::Int64(20)]]);
+    assert!(matches!(error, CassieError::Unsupported(_)));
+    assert_eq!(session.transaction_status(), "failed");
+    fixture
+        .cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback the transaction after the rejected setting");
+    assert_eq!(session.transaction_status(), "idle");
 }

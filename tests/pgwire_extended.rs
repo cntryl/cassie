@@ -82,6 +82,8 @@ mod support_temp_dirs;
 #[path = "support/typed_portal.rs"]
 mod support_typed_portal;
 
+#[path = "pgwire_extended/types/native_name.rs"]
+mod pgwire_native_name;
 #[path = "pgwire_extended/types/json/json_array_nulls.rs"]
 mod pgwire_type_json_array_nulls;
 #[path = "pgwire_extended/types/json/constructors/errors.rs"]

@@ -296,3 +296,21 @@ failed and 15 ignored; unit 1,350, analytics 186, backend CI 2, bench operations
 compatibility target. The storage-index target separately passed 190 with one
 ignored. Strict workspace Clippy, formatting and both touched-test validators
 passed.
+
+## #842 maintenance and inference fixture isolation (#842, 2026-10-25)
+
+Jev selected the scalar-index maintenance and partial-inference failures as one
+#842 batch. The maintenance test used unsupported `CREATE INDEX CONCURRENTLY`;
+it now creates the same ordered index normally and retains its `REINDEX INDEX`,
+catalog visibility, drop and indexed-result assertions. The partial/full
+inference test used DROP and same-name recreation to reset between cases, which
+failed on the second CREATE TABLE with a Midge value-assertion conflict. The
+index-inference assertions do not cover relation recreation, so the cases now
+use separate relation names and retain all six partial/full inference outcomes.
+Both focused tests pass. The exposed same-name recreation failure belongs to
+the separate #839 relation-lifecycle owner and remains in the next-batch queue.
+The completed build and full locked run report 362 compatibility passed, 211
+failed and 15 ignored; unit 1,350, analytics 186, backend CI 2, bench operations
+16, and catalog security 330 passed before Cargo stopped at the compatibility
+target. Strict workspace Clippy, formatting and both touched-test validators
+passed.

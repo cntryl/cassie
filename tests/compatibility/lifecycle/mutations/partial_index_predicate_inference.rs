@@ -95,14 +95,30 @@ fn should_preserve_valid_index_inference_given_partial_or_full_arbiters_when_fil
         let (client, connection) = server.connect().await;
         let mut observed = Vec::new();
         for full in [false, true] {
-            execute_statements(&client, &[
-                "DROP TABLE IF EXISTS valid_partial_probe",
-                "CREATE TABLE valid_partial_probe (id INT PRIMARY KEY, email TEXT, active BOOLEAN, version INT)",
-                "CREATE UNIQUE INDEX valid_partial_probe_key ON valid_partial_probe(email) WHERE active",
-                "INSERT INTO valid_partial_probe VALUES (1, 'x', TRUE, 1)",
-            ]).await.expect("seed partial unique arbiter");
+            let table = if full {
+                "valid_partial_full_probe"
+            } else {
+                "valid_partial_only_probe"
+            };
+            let partial_index = format!("{table}_partial_key");
+            for statement in [
+                format!(
+                    "CREATE TABLE {table} (id INT PRIMARY KEY, email TEXT, active BOOLEAN, version INT)"
+                ),
+                format!(
+                    "CREATE UNIQUE INDEX {partial_index} ON {table}(email) WHERE active"
+                ),
+                format!("INSERT INTO {table} VALUES (1, 'x', TRUE, 1)"),
+            ] {
+                client
+                    .batch_execute(&statement)
+                    .await
+                    .unwrap_or_else(|error| panic!("{statement}: {error:?}"));
+            }
             if full {
-                client.batch_execute("CREATE UNIQUE INDEX valid_full_probe_key ON valid_partial_probe(email)")
+                client.batch_execute(&format!(
+                    "CREATE UNIQUE INDEX {table}_full_key ON {table}(email)"
+                ))
                     .await.expect("create competing full unique index");
             }
 
@@ -111,13 +127,13 @@ fn should_preserve_valid_index_inference_given_partial_or_full_arbiters_when_fil
                 if !full && predicate.is_empty() { continue; }
                 for action in ["DO NOTHING", "DO UPDATE SET version = EXCLUDED.version"] {
                     let changed = client.execute(&format!(
-                        "INSERT INTO valid_partial_probe VALUES (2, 'x', TRUE, 2) ON CONFLICT (email){predicate} {action}"
+                        "INSERT INTO {table} VALUES (2, 'x', TRUE, 2) ON CONFLICT (email){predicate} {action}"
                     ), &[]).await.expect("valid index inference");
                     observed.push(changed);
                 }
             }
         }
-        let row = client.query_one("SELECT id, version FROM valid_partial_probe", &[])
+        let row = client.query_one("SELECT id, version FROM valid_partial_full_probe", &[])
             .await.expect("read final conflicting row");
         drop(client);
         server.shutdown(connection).await;

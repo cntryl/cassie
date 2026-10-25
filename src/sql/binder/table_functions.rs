@@ -7,6 +7,9 @@ fn validate_graph_table_function(
     function: &FunctionCall,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
+    if crate::sql::functions::is_server_file_helper(&function.name) {
+        return Err(crate::sql::functions::reject_server_file_access());
+    }
     if function.name.eq_ignore_ascii_case("jsonb_path_query")
         || function.name.eq_ignore_ascii_case("jsonb_path_query_tz")
     {

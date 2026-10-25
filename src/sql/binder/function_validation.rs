@@ -63,6 +63,9 @@ pub(super) fn validate_function_calls(
         {
             continue;
         }
+        if crate::sql::functions::is_server_file_helper(&function.name) {
+            return Err(crate::sql::functions::reject_server_file_access());
+        }
         let lookup = function.name.to_ascii_lowercase();
         let Some(metadata) = user_functions.get(&lookup) else {
             return Err(CassieError::Planner(format!(

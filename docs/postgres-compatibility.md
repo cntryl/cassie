@@ -307,6 +307,7 @@ with the archived dispatch interface in the [Compatibility Probes workflow at th
 ## Intentional Differences
 
 - No full PostgreSQL parity or extension ABI.
+- PostgreSQL server filesystem helpers may have built-in `pg_proc` identities for catalog lookup, but invoking them returns SQLSTATE `0A000`; Cassie does not expose server file or directory access.
 - No distributed or serializable transaction promise.
 - No trigger or stored-procedure business-logic platform.
 - No cross-database queries.

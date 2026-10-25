@@ -870,6 +870,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
                 | "jsonb_path_query"
                 | "jsonb_path_query_tz"
         ) || crate::sql::functions::is_catalog_table(&lower_name)
+            || crate::sql::functions::is_server_file_helper(&lower_name)
         {
             return Ok(QuerySource::TableFunction {
                 name: lower_name,

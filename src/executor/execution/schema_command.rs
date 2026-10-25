@@ -126,17 +126,20 @@ pub(super) fn drop_view(
     statement: &DropViewStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let Some(view) = cassie.catalog.get_view(&statement.name) else {
-        if statement.if_exists {
-            return empty_command("DROP VIEW", controls);
-        }
-        return Err(QueryError::General(format!(
-            "view '{}' does not exist",
-            statement.name
-        )));
-    };
-
     let output = empty_command("DROP VIEW", controls)?;
+    for name in std::iter::once(&statement.name).chain(&statement.additional_names) {
+        drop_view_target(cassie, name, statement.if_exists)?;
+    }
+    Ok(output)
+}
+
+fn drop_view_target(cassie: &Cassie, name: &str, if_exists: bool) -> Result<(), QueryError> {
+    let Some(view) = cassie.catalog.get_view(name) else {
+        if if_exists {
+            return Ok(());
+        }
+        return Err(QueryError::General(format!("view '{name}' does not exist")));
+    };
     // Storage and catalog removal use exact keys, so drop the stored view name
     // rather than the name as it was typed.
     cassie
@@ -145,7 +148,7 @@ pub(super) fn drop_view(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.unregister_view(&view.name);
 
-    Ok(output)
+    Ok(())
 }
 
 pub(super) fn drop_table(
@@ -153,38 +156,46 @@ pub(super) fn drop_table(
     statement: &DropTableStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    if statement.if_exists && !cassie.catalog.exists(&statement.table) {
-        return empty_command("DROP TABLE", controls);
+    let output = empty_command("DROP TABLE", controls)?;
+    for table in std::iter::once(&statement.table).chain(&statement.additional_tables) {
+        drop_table_target(cassie, table, statement.if_exists, statement.cascade)?;
     }
-    let dependent_views = views_depending_on(cassie, &statement.table, None);
-    if !statement.cascade && !dependent_views.is_empty() {
-        return Err(dependent_object_error(
-            "table",
-            &statement.table,
-            &dependent_views,
-        ));
+    Ok(output)
+}
+
+fn drop_table_target(
+    cassie: &Cassie,
+    table: &str,
+    if_exists: bool,
+    cascade: bool,
+) -> Result<(), QueryError> {
+    if if_exists && !cassie.catalog.exists(table) {
+        return Ok(());
     }
-    if statement.cascade {
-        schema_foreign_keys::drop_referencing_foreign_keys_on_table(cassie, &statement.table)?;
+    let dependent_views = views_depending_on(cassie, table, None);
+    if !cascade && !dependent_views.is_empty() {
+        return Err(dependent_object_error("table", table, &dependent_views));
+    }
+    if cascade {
+        schema_foreign_keys::drop_referencing_foreign_keys_on_table(cassie, table)?;
     } else {
-        schema_foreign_keys::reject_referenced_table_drop(cassie, &statement.table)?;
+        schema_foreign_keys::reject_referenced_table_drop(cassie, table)?;
     }
 
-    let output = empty_command("DROP TABLE", controls)?;
     for view in dependent_views {
         drop_stored_view(cassie, &view)?;
     }
     cassie
         .midge
-        .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
+        .defer_drop_collection(table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
-    schema_sequence_rename::drop_owned_table_sequences(cassie, &statement.table)?;
+    schema_sequence_rename::drop_owned_table_sequences(cassie, table)?;
     cassie
         .catalog
-        .unregister_collection(&statement.table)
+        .unregister_collection(table)
         .map_err(|error| QueryError::General(error.to_string()))?;
 
-    Ok(output)
+    Ok(())
 }
 
 fn drop_stored_view(cassie: &Cassie, view: &crate::catalog::ViewMeta) -> Result<(), QueryError> {

@@ -239,3 +239,26 @@ The remaining compatibility failures in this group are extension/pgcrypto,
 temporary relations, type conversion, broader object drops, maintenance, and
 privilege behaviors outside this slice. `ALTER COLUMN TYPE USING` remains
 blocked on the persistent rewrite/recovery contract.
+
+## Multi-name relation DROP slice (#839, 2026-10-25)
+
+Jev selected multi-name `DROP TABLE` and `DROP VIEW` (probability 1.0), so the
+parser and AST now preserve target lists and the binder resolves every member
+before planning. The executor applies table and view drops inside the existing
+implicit or explicit transaction boundary. Jev's review raised a 0.45 gap
+estimate and selected probes for later-target `RESTRICT` rollback, shared
+`CASCADE` dependencies, explicit-transaction rollback, mixed `IF EXISTS`
+targets, and quoted schema-qualified names. All pass: failures on a later
+target preserve earlier targets in Simple and extended protocol; `CASCADE`
+removes two tables, their shared view, and incoming foreign keys; explicit
+rollback restores both tables and rows; missing IF EXISTS members are skipped
+for both table and view lists; quoted names with identical local names affect
+only the two named schemas. Jev's final residual gap estimate is 0.27. The 13
+focused atomic-drop tests pass (the unsupported `DROP TYPE` case was skipped in
+that focus). Full workspace validation reports 356 compatibility passed, 217
+failed, and 15 ignored; build, strict Clippy, formatting, and the atomic-drop
+test validator pass. All non-compatibility suites pass: 1,350 unit, 186
+integration, 2 backend CI, 16 bench operations, and 330 catalog security. This
+batch added six passing probes and fixed two existing table/view list failures.
+`DROP TYPE` remains outside this slice because named type lifecycle belongs to
+#827/#828 and is not implemented by the selected Cassie type contract.

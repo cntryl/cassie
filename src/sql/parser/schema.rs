@@ -308,19 +308,24 @@ pub(super) fn parse_drop_table_statement(sql: &str) -> Result<ParsedStatement, S
     } else {
         (false, rest.trim())
     };
-    if table.is_empty() {
+    let names = split_csv(table);
+    if names.is_empty() || names.iter().any(|name| name.trim().is_empty()) {
         return Err(SqlError::new("missing table name in DROP TABLE".into()));
     }
-    if table.split_whitespace().count() != 1 {
-        return Err(SqlError::new(
-            "DROP TABLE supports only a single table name".into(),
-        ));
-    }
+    let names = names
+        .into_iter()
+        .map(|name| {
+            parse_relation_path(name.trim()).map(crate::sql::ast::IdentifierPath::into_string)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut names = names.into_iter();
+    let table = names.next().expect("validated DROP TABLE target list");
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::DropTable(DropTableStatement {
-            table: table.to_string(),
+            table,
+            additional_tables: names.collect(),
             if_exists,
             cascade,
         }),

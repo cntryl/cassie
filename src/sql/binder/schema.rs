@@ -363,29 +363,44 @@ pub(super) fn bind_drop_view(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<DropViewStatement, CassieError> {
-    let name = super::resolve_existing_name(statement.name.trim(), context, |name| {
+    let names = std::iter::once(statement.name)
+        .chain(statement.additional_names)
+        .map(|name| bind_drop_view_name(&name, statement.if_exists, catalog, context))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut names = names.into_iter();
+    statement.name = names
+        .next()
+        .ok_or_else(|| CassieError::Planner("DROP VIEW requires a name".into()))?;
+    statement.additional_names = names.collect();
+    Ok(statement)
+}
+
+fn bind_drop_view_name(
+    raw_name: &str,
+    if_exists: bool,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
+    let name = super::resolve_existing_name(raw_name.trim(), context, |name| {
         catalog.relation_exists(name) || virtual_views::schema(name).is_some()
     })?;
     if name.is_empty() {
         return Err(CassieError::Planner("DROP VIEW requires a name".into()));
     }
-
     if catalog.get_view(&name).is_none() {
         if virtual_views::schema(&name).is_some() || catalog.exists(&name) {
             return Err(CassieError::Planner(format!(
                 "relation '{name}' is not a view"
             )));
         }
-        if !statement.if_exists {
+        if !if_exists {
             return Err(CassieError::CatalogObjectNotFound {
                 kind: CatalogObjectKind::View,
                 name,
             });
         }
     }
-
-    statement.name = name;
-    Ok(statement)
+    Ok(name)
 }
 
 pub(super) fn bind_create_graph(
@@ -696,12 +711,30 @@ pub(super) fn bind_drop_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::DropTableStatement, CassieError> {
-    let table = if statement.if_exists {
-        super::resolve_existing_name(statement.table.trim(), context, |name| {
+    let tables = std::iter::once(statement.table)
+        .chain(statement.additional_tables)
+        .map(|table| bind_drop_table_name(&table, statement.if_exists, catalog, context))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut tables = tables.into_iter();
+    statement.table = tables
+        .next()
+        .ok_or_else(|| CassieError::Planner("DROP TABLE requires a table name".into()))?;
+    statement.additional_tables = tables.collect();
+    Ok(statement)
+}
+
+fn bind_drop_table_name(
+    raw_table: &str,
+    if_exists: bool,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
+    let table = if if_exists {
+        super::resolve_existing_name(raw_table.trim(), context, |name| {
             catalog.relation_exists(name) || virtual_views::schema(name).is_some()
         })?
     } else {
-        resolve_relation_name(statement.table.trim(), catalog, context)?
+        resolve_relation_name(raw_table.trim(), catalog, context)?
     };
     if table.is_empty() {
         return Err(CassieError::Planner(
@@ -713,11 +746,10 @@ pub(super) fn bind_drop_table(
             "relation '{table}' is a view"
         )));
     }
-    if !statement.if_exists && !catalog.exists(&table) {
+    if !if_exists && !catalog.exists(&table) {
         return Err(CassieError::CollectionNotFound(table));
     }
-    statement.table = table;
-    Ok(statement)
+    Ok(table)
 }
 
 pub(super) fn bind_alter_table(

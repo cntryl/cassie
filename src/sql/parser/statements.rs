@@ -281,20 +281,18 @@ pub(super) fn parse_drop_view_statement(sql: &str) -> Result<ParsedStatement, Sq
     let rest = trimmed[10..].trim();
     let (if_exists, rest) = parse_if_exists(rest);
 
-    if rest.is_empty() {
+    let names = split_csv(rest);
+    if names.is_empty() || names.iter().any(|name| name.trim().is_empty()) {
         return Err(SqlError::new("missing view name for DROP VIEW".into()));
     }
-
-    if rest.split_whitespace().count() != 1 {
-        return Err(SqlError::new(
-            "DROP VIEW supports only one view name".into(),
-        ));
-    }
+    let mut names = names.into_iter().map(|name| name.trim().to_owned());
+    let name = names.next().expect("validated DROP VIEW target list");
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::DropView(DropViewStatement {
-            name: rest.to_string(),
+            name,
+            additional_names: names.collect(),
             if_exists,
         }),
     })

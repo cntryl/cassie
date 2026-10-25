@@ -1,5 +1,4 @@
 use super::support_pgwire as wire;
-use super::support_sql as sql;
 
 fn simple_query_frame(query: &str) -> Vec<u8> {
     let mut payload = query.as_bytes().to_vec();
@@ -24,7 +23,6 @@ fn error_field(fields: &[(char, String)], tag: char) -> Option<&str> {
 #[test]
 fn should_report_transaction_semantics_sqlstate_through_pgwire() {
     // Arrange
-    let path = sql::data_dir("pgwire_transaction_semantics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -72,18 +70,20 @@ fn should_report_transaction_semantics_sqlstate_through_pgwire() {
         wire::write_frames(
             &mut writer,
             vec![simple_query_frame(
-                "CREATE TABLE pgwire_transaction_semantics_rejected (value TEXT)",
+                "CREATE TABLE pgwire_transaction_semantics_staged (value TEXT)",
             )],
         )
         .await;
         let ddl_frames = wire::read_frames_until_ready(&mut reader).await;
-        let ddl_error = ddl_frames
-            .iter()
-            .find(|(tag, _)| *tag == b'E')
-            .expect("DDL transaction error");
-        let ddl_fields = wire::parse_error_fields(&ddl_error.1);
-        assert_eq!(error_field(&ddl_fields, 'C'), Some("0A000"));
-        assert_eq!(ddl_frames.last().expect("failed ready").1, vec![b'E']);
+        assert!(ddl_frames.iter().all(|(tag, _)| *tag != b'E'));
+        assert_eq!(ddl_frames.last().expect("active DDL ready").1, vec![b'T']);
+        wire::write_frames(&mut writer, vec![simple_query_frame(
+            "INSERT INTO pgwire_transaction_semantics_staged VALUES ('staged'); SELECT value FROM pgwire_transaction_semantics_staged"
+        )]).await;
+        let staged = wire::read_frames_until_ready(&mut reader).await;
+        assert!(staged.iter().all(|(tag, _)| *tag != b'E'));
+        assert_eq!(wire::data_rows(&staged), vec![vec![Some("staged".to_owned())]]);
+        assert_eq!(staged.last().expect("active staged ready").1, vec![b'T']);
 
         wire::write_frames(&mut writer, vec![simple_query_frame("ROLLBACK")]).await;
         let rollback_frames = wire::read_frames_until_ready(&mut reader).await;
@@ -91,7 +91,17 @@ fn should_report_transaction_semantics_sqlstate_through_pgwire() {
             rollback_frames.last().expect("rollback ready").1,
             vec![b'I']
         );
+        wire::write_frames(&mut writer, vec![simple_query_frame(
+            "SELECT value FROM pgwire_transaction_semantics_staged"
+        )]).await;
+        let absent = wire::read_frames_until_ready(&mut reader).await;
+        let missing = absent.iter().find(|(tag, _)| *tag == b'E').expect("rolled-back table must be absent");
+        assert_eq!(error_field(&wire::parse_error_fields(&missing.1), 'C'), Some("42P01"));
+        assert_eq!(absent.last().expect("idle error ready").1, vec![b'I']);
+        wire::write_frames(&mut writer, vec![simple_query_frame("SELECT 1")]).await;
+        let recovered = wire::read_frames_until_ready(&mut reader).await;
+        assert_eq!(wire::data_rows(&recovered), vec![vec![Some("1".to_owned())]]);
+        assert_eq!(recovered.last().expect("recovered idle ready").1, vec![b'I']);
         server.stop().await;
-        let _ = std::fs::remove_dir_all(path);
     });
 }

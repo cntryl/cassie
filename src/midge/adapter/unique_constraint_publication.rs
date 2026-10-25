@@ -118,7 +118,10 @@ impl Midge {
                     if value.is_null()
                         && !row_schema.fields.iter().any(|field_meta| {
                             field_meta.name == constraint.field
-                                && matches!(field_meta.data_type, crate::types::DataType::Json)
+                                && matches!(
+                                    field_meta.data_type,
+                                    crate::types::DataType::Json | crate::types::DataType::Jsonb
+                                )
                         })
                     {
                         continue;
@@ -167,7 +170,10 @@ impl Midge {
                 if value.is_null()
                     && !row_schema.fields.iter().any(|field_meta| {
                         field_meta.name == constraint.field
-                            && matches!(field_meta.data_type, crate::types::DataType::Json)
+                            && matches!(
+                                field_meta.data_type,
+                                crate::types::DataType::Json | crate::types::DataType::Jsonb
+                            )
                     })
                 {
                     continue;

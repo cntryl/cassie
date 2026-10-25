@@ -106,18 +106,20 @@ impl Analyzer<'_> {
         lookup: &[OutputField],
     ) -> Result<OutputType, CassieError> {
         if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
-            && self.expression(left, lookup)?.data_type == DataType::Json
+            && self.expression(left, lookup)?.data_type.is_json()
         {
-            return Ok(OutputType::fixed(DataType::Json));
+            return self.expression(left, lookup);
         }
-        if *op == BinaryOp::Concat
-            && [
+        if *op == BinaryOp::Concat {
+            if let Some(kind) = [
                 self.expression(left, lookup)?.data_type,
                 self.expression(right, lookup)?.data_type,
             ]
-            .contains(&DataType::Json)
-        {
-            return Ok(OutputType::fixed(DataType::Json));
+            .into_iter()
+            .find(DataType::is_json)
+            {
+                return Ok(OutputType::fixed(kind));
+            }
         }
         if let Some(operator) = op.typed_operator() {
             let left_type = self.expression(left, lookup)?.data_type;
@@ -129,7 +131,8 @@ impl Analyzer<'_> {
             }
         }
         Ok(match op {
-            BinaryOp::And
+            BinaryOp::JsonbCompare { .. }
+            | BinaryOp::And
             | BinaryOp::Or
             | BinaryOp::Eq
             | BinaryOp::NotEq
@@ -145,7 +148,15 @@ impl Analyzer<'_> {
             | BinaryOp::JsonbKeyExists
             | BinaryOp::JsonbKeyExistsAny
             | BinaryOp::JsonbKeyExistsAll => OutputType::fixed(DataType::Boolean),
-            BinaryOp::JsonbDeletePath => OutputType::fixed(DataType::Json),
+            BinaryOp::JsonPathExists | BinaryOp::JsonPathMatch => {
+                OutputType::fixed(DataType::Boolean)
+            }
+            BinaryOp::JsonbDeletePath => self.expression(left, lookup)?,
+            BinaryOp::JsonExtract { as_text, .. } => OutputType::fixed(if *as_text {
+                DataType::Text
+            } else {
+                self.expression(left, lookup)?.data_type
+            }),
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 OutputType::fixed(DataType::Float)
             }
@@ -164,11 +175,7 @@ impl Analyzer<'_> {
             BinaryOp::Bitwise { operation } if operation.is_shift() => {
                 self.expression(left, lookup)?
             }
-            BinaryOp::Integer { operation, width } => OutputType::fixed(if operation.is_shift() {
-                width.data_type()
-            } else {
-                DataType::BigInt
-            }),
+            BinaryOp::Integer { width, .. } => OutputType::fixed(width.data_type()),
             BinaryOp::Add
             | BinaryOp::Sub
             | BinaryOp::Mul
@@ -451,33 +458,16 @@ impl Analyzer<'_> {
 }
 
 fn fixed_function_type(policy: FunctionReturnType) -> Option<DataType> {
-    match policy {
-        FunctionReturnType::Float => Some(DataType::Float),
-        FunctionReturnType::Text => Some(DataType::Text),
-        FunctionReturnType::Bytea => Some(DataType::Bytea),
-        FunctionReturnType::Int => Some(DataType::Int),
-        FunctionReturnType::BigInt => Some(DataType::BigInt),
-        FunctionReturnType::Boolean => Some(DataType::Boolean),
-        FunctionReturnType::Timestamp => Some(DataType::Timestamp),
-        FunctionReturnType::ObjectId(kind) => Some(DataType::ObjectId(kind)),
-        FunctionReturnType::FirstNonNullArgument
-        | FunctionReturnType::FirstComparedArgument
-        | FunctionReturnType::NumericArgument
-        | FunctionReturnType::SumArgument
-        | FunctionReturnType::Math
-        | FunctionReturnType::Unknown => None,
-    }
+    policy.fixed_type()
 }
 
 fn arithmetic(left: &OutputType, right: &OutputType) -> OutputType {
     let mut candidates = Vec::new();
     for left_type in &left.candidates {
         for right_type in &right.candidates {
-            let data_type = if integer(left_type) && integer(right_type) {
-                DataType::BigInt
-            } else {
-                DataType::Float
-            };
+            let data_type = crate::types::IntegerWidth::from_data_type(left_type)
+                .zip(crate::types::IntegerWidth::from_data_type(right_type))
+                .map_or(DataType::Float, |(left, right)| left.max(right).data_type());
             push_distinct(&mut candidates, data_type);
         }
     }
@@ -488,7 +478,11 @@ fn arithmetic(left: &OutputType, right: &OutputType) -> OutputType {
     let data_type = if candidates.contains(&DataType::Float) {
         DataType::Float
     } else {
-        DataType::BigInt
+        candidates
+            .iter()
+            .filter_map(crate::types::IntegerWidth::from_data_type)
+            .max()
+            .map_or(DataType::BigInt, crate::types::IntegerWidth::data_type)
     };
     OutputType {
         data_type,

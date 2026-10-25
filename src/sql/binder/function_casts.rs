@@ -37,7 +37,7 @@ pub(super) fn lower(
         }
         if matches!(
             source,
-            DataType::Array(_) | DataType::Json | DataType::Vector(_)
+            DataType::Array(_) | DataType::Json | DataType::Jsonb | DataType::Vector(_)
         ) {
             return Err(CassieError::Unsupported(
                 "array, JSON and vector type-function conversions remain pending under #807/#809/#793".into(),

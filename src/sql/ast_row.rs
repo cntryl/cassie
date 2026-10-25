@@ -24,6 +24,19 @@ pub struct RowComparison {
 }
 
 impl RowComparisonOp {
+    pub(crate) const fn symbol(self) -> &'static str {
+        match self {
+            Self::Eq => "=",
+            Self::NotEq => "<>",
+            Self::Lt => "<",
+            Self::Lte => "<=",
+            Self::Gt => ">",
+            Self::Gte => ">=",
+            Self::IsDistinctFrom => "IS DISTINCT FROM",
+            Self::IsNotDistinctFrom => "IS NOT DISTINCT FROM",
+        }
+    }
+
     pub(crate) fn from_binary(op: &BinaryOp) -> Option<Self> {
         Some(match op {
             BinaryOp::Eq => Self::Eq,

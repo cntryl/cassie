@@ -1,3 +1,5 @@
+#[path = "jsonpath_table.rs"]
+mod jsonpath_table;
 #[path = "source_options.rs"]
 mod source_options;
 #[path = "source_values.rs"]
@@ -297,9 +299,14 @@ fn execute_table_function_source(
             name,
         );
     }
-    let graph_rows =
-        graph::execute_table_function(env, function, if lateral { outer_row } else { None })?;
-    let (rows, _graph_memory) = graph_rows.into_parts();
+    let (rows, _table_memory) = if function.name.eq_ignore_ascii_case("jsonb_path_query")
+        || function.name.eq_ignore_ascii_case("jsonb_path_query_tz")
+    {
+        jsonpath_table::execute(env, function, if lateral { outer_row } else { None })?
+    } else {
+        graph::execute_table_function(env, function, if lateral { outer_row } else { None })?
+            .into_parts()
+    };
     finalize_source_batches(
         env,
         batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
@@ -784,6 +791,7 @@ fn apply_projection_phase(
         user_functions,
         session,
     )?;
+    batches = projection::expand_json_object_keys(batches, projection, controls)?;
     let _output_memory = output_memory.retain(controls, &mut batches)?;
     ensure_query_memory_budget(controls, &batches)?;
     if plan.distinct {

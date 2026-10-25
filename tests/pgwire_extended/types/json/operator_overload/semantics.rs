@@ -158,7 +158,7 @@ fn should_delete_jsonb_array_elements_by_integer_index() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![114; 4]
+        vec![3802; 4]
     );
     assert_eq!(
         wire::data_rows(frames),
@@ -196,7 +196,7 @@ fn should_remove_multiple_jsonb_object_keys_from_a_text_array() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![114]
+        vec![3802]
     );
     assert_eq!(
         wire::data_rows(frames),
@@ -230,7 +230,7 @@ fn should_remove_matching_jsonb_array_strings_using_text_array_keys() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![114; 2]
+        vec![3802; 2]
     );
     assert_eq!(
         wire::data_rows(frames),
@@ -271,7 +271,7 @@ fn should_delete_nested_jsonb_values_with_the_hash_minus_operator() {
         .iter()
         .find(|(tag, _)| *tag == b'T')
         .expect("path deletion RowDescription");
-    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 114);
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 3802);
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("{\"a\": {\"c\": 2}, \"z\": 3}".to_owned())]]
@@ -674,7 +674,7 @@ fn should_concatenate_jsonb_array_scalar_shapes() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
     assert_eq!(
         wire::data_rows(frames),
         vec![
@@ -710,8 +710,8 @@ fn should_infer_jsonb_concat_parameter_type() {
         .iter()
         .find(|(tag, _)| *tag == b't')
         .expect("JSON parameter ParameterDescription");
-    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [114]);
-    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
+    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [3802]);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("[{\"base\": 1}, 2]".to_owned())]]
@@ -729,7 +729,7 @@ fn should_propagate_sql_null_through_jsonb_concatenation() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
     assert_eq!(wire::data_rows(frames), vec![vec![None]]);
 }
 

@@ -160,6 +160,7 @@ fn format_case(
 
 fn format_binary_operator(operator: &BinaryOp) -> &'static str {
     match operator {
+        BinaryOp::JsonbCompare { comparison } => comparison.symbol(),
         BinaryOp::Eq => "=",
         BinaryOp::IsDistinctFrom => "IS DISTINCT FROM",
         BinaryOp::IsNotDistinctFrom => "IS NOT DISTINCT FROM",
@@ -181,7 +182,29 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
         BinaryOp::JsonbKeyExists => "?",
         BinaryOp::JsonbKeyExistsAny => "?|",
         BinaryOp::JsonbKeyExistsAll => "?&",
+        BinaryOp::JsonPathExists => "@?",
+        BinaryOp::JsonPathMatch => "@@",
         BinaryOp::JsonbDeletePath => "#-",
+        BinaryOp::JsonExtract {
+            path: false,
+            as_text: false,
+            ..
+        } => "->",
+        BinaryOp::JsonExtract {
+            path: false,
+            as_text: true,
+            ..
+        } => "->>",
+        BinaryOp::JsonExtract {
+            path: true,
+            as_text: false,
+            ..
+        } => "#>",
+        BinaryOp::JsonExtract {
+            path: true,
+            as_text: true,
+            ..
+        } => "#>>",
         BinaryOp::Like => "LIKE",
         BinaryOp::PgvectorCosine => "<=>",
         BinaryOp::PgvectorL2 => "<->",

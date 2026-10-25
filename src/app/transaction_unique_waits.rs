@@ -42,6 +42,10 @@ pub(crate) struct TransactionUniqueWaits {
 }
 
 impl TransactionUniqueWaits {
+    pub(crate) fn waiting_count(&self) -> usize {
+        self.state.lock().waits_for.len()
+    }
+
     pub(crate) fn claim_keys(
         &self,
         owner: Uuid,
@@ -182,6 +186,39 @@ pub(crate) fn collect_unique_keys(
                 schema.as_ref(),
                 &changes,
             );
+        }
+    }
+    keys
+}
+
+pub(crate) fn collect_upsert_unique_keys(
+    catalog: &Catalog,
+    midge: &Midge,
+    collection: &str,
+    field: &str,
+    payloads: &[serde_json::Value],
+) -> BTreeSet<UniqueTransactionKey> {
+    let constraints = catalog.get_constraints(collection);
+    let schema = catalog.get_schema(collection);
+    let relation = midge.canonical_collection_name(collection);
+    let mut keys = BTreeSet::new();
+    for constraint in constraints.iter().filter(|constraint| {
+        constraint.field == field
+            && crate::catalog::enforces_single_column_uniqueness(constraint, &constraints)
+    }) {
+        for payload in payloads {
+            let Some(value) = payload.get(field) else {
+                continue;
+            };
+            if crate::app::field_value_is_sql_null(Some(value), schema.as_ref(), field) {
+                continue;
+            }
+            keys.insert(UniqueTransactionKey {
+                relation: relation.clone(),
+                constraint: constraint.unique_constraint_name(collection),
+                field: field.to_owned(),
+                value: value.to_string(),
+            });
         }
     }
     keys

@@ -3,6 +3,93 @@ use super::{
     Value,
 };
 
+fn source_fields(
+    env: &SourceExecutionEnv<'_>,
+    source: &QuerySource,
+    namespace: &std::collections::HashMap<String, Vec<crate::types::FieldSchema>>,
+) -> Result<Vec<crate::types::FieldSchema>, crate::app::CassieError> {
+    let copy;
+    let _memory;
+    let source = if has_local_ctes(source) {
+        let bytes = crate::sql::parse_analysis::source_clone_bytes(source, env.controls)?;
+        _memory = env
+            .controls
+            .reserve_query_memory(crate::executor::retained_memory::mul(bytes, 2)?)?;
+        let mut pruned = source.clone();
+        prune_source(&mut pruned, env.controls)?;
+        copy = pruned;
+        &copy
+    } else {
+        source
+    };
+    crate::sql::binder::source_row_fields(
+        source,
+        namespace,
+        &env.cassie.catalog,
+        env.user_functions,
+    )
+}
+
+fn has_local_ctes(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Subquery { select, .. } => {
+            !select.ctes.is_empty() || has_local_ctes(&select.source)
+        }
+        QuerySource::Aliased { source, .. } => has_local_ctes(source),
+        QuerySource::Join { left, right, .. } => has_local_ctes(left) || has_local_ctes(right),
+        _ => false,
+    }
+}
+
+fn prune_source(
+    source: &mut QuerySource,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), crate::app::CassieError> {
+    controls.check_interruption()?;
+    match source {
+        QuerySource::Subquery { select, .. } => prune_select(select, controls)?,
+        QuerySource::Aliased { source, .. } => prune_source(source, controls)?,
+        QuerySource::Join { left, right, .. } => {
+            prune_source(left, controls)?;
+            prune_source(right, controls)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+fn prune_select(
+    select: &mut crate::sql::ast::SelectStatement,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), crate::app::CassieError> {
+    let live = super::super::cte_reachability::for_select(select, controls)?;
+    let mut index = 0;
+    select.ctes.retain(|_| {
+        let reached = live.contains(index);
+        index += 1;
+        reached
+    });
+    drop(live);
+    for cte in &mut select.ctes {
+        let (first, second) = match &mut cte.query {
+            crate::sql::ast::CteQuery::Simple(statement) => (statement, None),
+            crate::sql::ast::CteQuery::Recursive {
+                base, recursive, ..
+            } => (base, Some(recursive)),
+        };
+        for statement in std::iter::once(first).chain(second) {
+            if let crate::sql::ast::QueryStatement::Select(select) = &mut statement.statement {
+                prune_select(select, controls)?;
+            }
+        }
+    }
+    prune_source(&mut select.source, controls)?;
+    if let Some(set) = &mut select.set {
+        prune_select(&mut set.right, controls)?;
+    }
+    Ok(())
+}
+
 pub(super) fn null_row(
     env: &SourceExecutionEnv<'_>,
     source: &QuerySource,
@@ -40,13 +127,8 @@ pub(super) fn null_row(
     } else {
         None
     };
-    let fields = crate::sql::binder::source_row_fields(
-        source,
-        &namespace,
-        &env.cassie.catalog,
-        env.user_functions,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?;
+    let fields = source_fields(env, source, &namespace)
+        .map_err(|error| QueryError::General(error.to_string()))?;
     if let (QuerySource::Cte(name), Some(memory)) = (unaliased(source), inferred_copy) {
         return aliased_cte_template(env, source, fields, memory, name);
     }
@@ -140,13 +222,8 @@ pub(super) fn attach_types(
     } else {
         None
     };
-    let fields = crate::sql::binder::source_row_fields(
-        source,
-        &namespace,
-        &env.cassie.catalog,
-        env.user_functions,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?;
+    let fields = source_fields(env, source, &namespace)
+        .map_err(|error| QueryError::General(error.to_string()))?;
     if !fields.iter().any(|field| {
         matches!(
             field.data_type,

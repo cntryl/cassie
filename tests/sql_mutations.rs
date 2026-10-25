@@ -1,3 +1,6 @@
+#[path = "sql_mutations/insert/default_cells.rs"]
+mod insert_default_cells;
+
 #[path = "sql_mutations/constraints/unique/reservation_lookup.rs"]
 mod unique_reservation_lookup;
 

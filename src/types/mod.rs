@@ -9,6 +9,7 @@ pub(crate) mod float_text;
 pub(crate) mod integer;
 pub(crate) mod integer_bytea;
 pub(crate) mod json;
+pub(crate) mod jsonb;
 pub mod numeric;
 pub mod object_id;
 pub mod row;

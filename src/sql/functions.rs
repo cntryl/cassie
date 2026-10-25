@@ -1,5 +1,7 @@
 mod constant_folding;
+pub(crate) mod json;
 pub(crate) mod primitive_casts;
+mod return_types;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
 mod datum_size;
@@ -195,6 +197,7 @@ pub enum FunctionId {
     PgSleep,
     PgSleepFor,
     PgSleepUntil,
+    Json(json::JsonFunction),
     Math(MathFunction),
     /// A date/time builtin; its result type depends on its arguments.
     Temporal,
@@ -212,6 +215,8 @@ pub struct ScalarFunction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionReturnType {
+    Json,
+    Jsonb,
     Bytea,
     Float,
     Text,
@@ -289,6 +294,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(object_identity::FUNCTIONS)
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
+        .chain(json::FUNCTIONS)
         .chain(math::FUNCTIONS)
         .chain(temporal::SLEEP_FUNCTIONS)
         .cloned()
@@ -311,6 +317,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(object_identity::FUNCTIONS)
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
+        .chain(json::FUNCTIONS)
         .chain(math::FUNCTIONS)
         .chain(temporal::FUNCTIONS)
         .chain(temporal::SLEEP_FUNCTIONS)
@@ -348,6 +355,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || bytea::FUNCTIONS
                             .iter()
+                            .chain(json::FUNCTIONS)
                             .chain(math::FUNCTIONS)
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || regression::FUNCTIONS
@@ -371,6 +379,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(object_identity::FUNCTIONS)
                         .chain(sequences::FUNCTIONS)
                         .chain(runtime::FUNCTIONS)
+                        .chain(json::FUNCTIONS)
                         .chain(math::FUNCTIONS)
                         .chain(temporal::FUNCTIONS)
                         .chain(temporal::SLEEP_FUNCTIONS)

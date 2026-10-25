@@ -1,4 +1,5 @@
 //! Materialize scalar VALUES before starting the insertion loop.
+use super::cells::InsertValue;
 use super::{
     check_timeout, filter, insert_expr_to_value, Cassie, CassieSession, Expr, FunctionMeta,
     HashMap, QueryError, QueryExecutionControls, Value,
@@ -15,11 +16,17 @@ pub(super) struct ValuesContext<'a> {
 pub(super) fn evaluate(
     rows: &[Vec<Expr>],
     context: &ValuesContext<'_>,
-) -> Result<Vec<Vec<Value>>, QueryError> {
+) -> Result<Vec<Vec<InsertValue>>, QueryError> {
     rows.iter()
         .map(|row| {
             row.iter()
-                .map(|expression| value(expression, context))
+                .map(|expression| {
+                    if expression.is_default_assignment() {
+                        Ok(InsertValue::Default)
+                    } else {
+                        value(expression, context).map(InsertValue::Value)
+                    }
+                })
                 .collect()
         })
         .collect()

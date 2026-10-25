@@ -208,6 +208,36 @@ fn should_compare_jsonpath_datetimes_through_timezone_aware_functions() {
     assert_jsonb_rows(&batches[3], Some("[\"2024-03-10T02:30:00-05:00\"]"));
 }
 
+#[test]
+fn should_return_the_first_jsonpath_item_or_sql_null_when_no_item_matches() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_path_query_first('{\"items\":[4,5]}'::JSONB, '$.items[*]'), jsonb_path_query_first('{\"items\":[4,5]}'::JSONB, '$.missing')",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonpath-query-first", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("JSONB query_first RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![3802, 3802]
+    );
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("4".into()), None]]);
+}
+
 fn assert_boolean_rows(frames: &fixture::Frames, expected: Option<&str>) {
     fixture::assert_success(frames);
     let description = frames

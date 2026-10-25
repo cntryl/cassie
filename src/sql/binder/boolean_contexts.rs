@@ -19,6 +19,7 @@ pub(super) fn validate_boolean_aggregate(
     function: &mut crate::sql::ast::FunctionCall,
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
+    super::json_functions::qualify(function, types)?;
     super::bytea_functions::qualify(function, types)?;
     math_signatures::validate(function, types)?;
     if let Some(metadata) =
@@ -565,6 +566,20 @@ fn resolve_integer_operator(
     right: &mut Expr,
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
+    super::json_comparison::qualify(
+        left,
+        op,
+        right,
+        types.expression_type(left).as_ref(),
+        types.expression_type(right).as_ref(),
+    )?;
+    super::json_extract::qualify(
+        left,
+        op,
+        right,
+        types.expression_type(left).as_ref(),
+        types.expression_type(right).as_ref(),
+    )?;
     super::json_containment::qualify(
         left,
         op,
@@ -714,6 +729,9 @@ fn cast_source_type(
     types: &ResultTypes,
     catalog: &Catalog,
 ) -> Option<DataType> {
+    if target.is_json() {
+        return types.expression_type(expr).filter(DataType::is_json);
+    }
     if matches!(target, DataType::Array(_)) {
         return types
             .expression_type(expr)
@@ -749,7 +767,11 @@ fn cast_source_type(
     types.expression_type(expr).filter(|kind| {
         matches!(
             kind,
-            DataType::Time | DataType::Timestamp | DataType::Char { .. } | DataType::ObjectId(_)
+            DataType::Time
+                | DataType::Timestamp
+                | DataType::Char { .. }
+                | DataType::ObjectId(_)
+                | DataType::Jsonb
         ) || (*kind == DataType::Float && types.proven_float8(expr, catalog))
     })
 }

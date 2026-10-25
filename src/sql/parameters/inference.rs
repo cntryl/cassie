@@ -544,6 +544,36 @@ fn infer_in_list_parameter_type_oids(
     }
 }
 
+fn infer_json_extraction(
+    left: &ast::Expr,
+    right: &ast::Expr,
+    path: bool,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    let selector_type = if path {
+        DataType::Array(Box::new(DataType::Text))
+    } else if matches!(
+        binder::known_expr_type(right, field_types),
+        Some(DataType::Int | DataType::SmallInt | DataType::BigInt)
+    ) {
+        DataType::Int
+    } else {
+        DataType::Text
+    };
+    infer_parameter_type_from_expected_expr(
+        left,
+        &binder::known_expr_type(left, field_types)
+            .filter(DataType::is_json)
+            .unwrap_or(DataType::Jsonb),
+        oids,
+    );
+    infer_parameter_type_from_expected_expr(right, &selector_type, oids);
+    infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+    infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+}
+
 fn infer_binary_parameter_type_oids(
     left: &ast::Expr,
     op: &ast::BinaryOp,
@@ -556,34 +586,33 @@ fn infer_binary_parameter_type_oids(
         return;
     }
     if matches!(op, ast::BinaryOp::Sub)
-        && binder::known_expr_type(left, field_types) == Some(DataType::Json)
+        && binder::known_expr_type(left, field_types).is_some_and(|kind| kind.is_json())
     {
         infer_parameter_type_from_expected_expr(right, &DataType::Text, oids);
         infer_parameter_type_oids_expr(left, field_types, catalog, oids);
         infer_parameter_type_oids_expr(right, field_types, catalog, oids);
         return;
     }
+    if let ast::BinaryOp::JsonExtract { path, .. } = op {
+        infer_json_extraction(left, right, *path, field_types, catalog, oids);
+        return;
+    }
+    if matches!(
+        op,
+        ast::BinaryOp::JsonPathExists | ast::BinaryOp::JsonPathMatch
+    ) {
+        infer_jsonpath_operator(left, right, field_types, catalog, oids);
+        return;
+    }
     if matches!(op, ast::BinaryOp::JsonbDeletePath) {
-        let path_type = DataType::Array(Box::new(DataType::Text));
-        infer_parameter_type_from_expected_expr(left, &DataType::Json, oids);
-        infer_parameter_type_from_expected_expr(right, &path_type, oids);
-        infer_parameter_type_oids_expr(left, field_types, catalog, oids);
-        infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+        infer_json_delete_path(left, right, field_types, catalog, oids);
         return;
     }
     match op {
         ast::BinaryOp::JsonbKeyExists
         | ast::BinaryOp::JsonbKeyExistsAny
         | ast::BinaryOp::JsonbKeyExistsAll => {
-            let right_type = if matches!(op, ast::BinaryOp::JsonbKeyExists) {
-                DataType::Text
-            } else {
-                DataType::Array(Box::new(DataType::Text))
-            };
-            infer_parameter_type_from_expected_expr(left, &DataType::Json, oids);
-            infer_parameter_type_from_expected_expr(right, &right_type, oids);
-            infer_parameter_type_oids_expr(left, field_types, catalog, oids);
-            infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+            infer_json_key_operator(left, op, right, field_types, catalog, oids);
             return;
         }
         _ => {}
@@ -620,6 +649,61 @@ fn infer_binary_parameter_type_oids(
             infer_parameter_type_from_expected_expr(left, data_type, oids);
         }
     });
+    infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+    infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+}
+
+fn infer_jsonpath_operator(
+    left: &ast::Expr,
+    right: &ast::Expr,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    let document_type = binder::known_expr_type(left, field_types)
+        .filter(DataType::is_json)
+        .unwrap_or(DataType::Jsonb);
+    infer_parameter_type_from_expected_expr(left, &document_type, oids);
+    infer_parameter_type_from_expected_expr(right, &DataType::JsonPath, oids);
+    infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+    infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+}
+
+fn infer_json_delete_path(
+    left: &ast::Expr,
+    right: &ast::Expr,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    let document_type = binder::known_expr_type(left, field_types)
+        .filter(DataType::is_json)
+        .unwrap_or(DataType::Jsonb);
+    let path_type = DataType::Array(Box::new(DataType::Text));
+    infer_parameter_type_from_expected_expr(left, &document_type, oids);
+    infer_parameter_type_from_expected_expr(right, &path_type, oids);
+    infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+    infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+}
+
+fn infer_json_key_operator(
+    left: &ast::Expr,
+    op: &ast::BinaryOp,
+    right: &ast::Expr,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    let document_type = binder::known_expr_type(left, field_types)
+        .filter(DataType::is_json)
+        .unwrap_or(DataType::Jsonb);
+    let key_type = if matches!(op, ast::BinaryOp::JsonbKeyExists) {
+        DataType::Text
+    } else {
+        DataType::Array(Box::new(DataType::Text))
+    };
+    infer_parameter_type_from_expected_expr(left, &document_type, oids);
+    infer_parameter_type_from_expected_expr(right, &key_type, oids);
     infer_parameter_type_oids_expr(left, field_types, catalog, oids);
     infer_parameter_type_oids_expr(right, field_types, catalog, oids);
 }

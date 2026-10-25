@@ -390,7 +390,7 @@ fn scalar_index_requires_json_scan(
                 collection,
                 &crate::sql::ColumnIdentifierPath::stored_field_key(field),
             ),
-            Some(DataType::Json | DataType::Array(_))
+            Some(DataType::Json | DataType::Jsonb | DataType::Array(_))
         )
     };
     let uses_json_range_key = shape
@@ -778,6 +778,6 @@ fn scalar_index_order_needs_sql_sort(
             return false;
         }
         matches!(crate::sql::binder::infer_expr_type(&order.expr, &schema, &HashMap::new(), &[]),
-            None | Some(DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json | DataType::Array(_)))
+            None | Some(DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json | DataType::Jsonb | DataType::Array(_)))
     })
 }

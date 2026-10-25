@@ -5,6 +5,9 @@ use super::{
     CassieErrorDescriptor,
 };
 pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
+    if jsonpath_error(message) {
+        return bad_request_descriptor("22039", message.to_owned());
+    }
     if message == "could not determine polymorphic type because input has type unknown" {
         return bad_request_descriptor("42804", message.to_owned());
     }
@@ -52,23 +55,8 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if boolean_argument_error(message) {
         return bad_request_descriptor("42804", message.to_string());
     }
-    if [
-        "DISTINCT specified, but ",
-        "ORDER BY specified, but ",
-        "FILTER specified, but ",
-    ]
-    .iter()
-    .any(|prefix| message.starts_with(prefix))
-        && message.ends_with(" is not an aggregate function")
-    {
-        return bad_request_descriptor("42809", message.to_string());
-    }
-    if message == "aggregate functions are not allowed in VALUES" {
-        return bad_request_descriptor("42803", message.to_string());
-    }
-    if message == "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
-    {
-        return bad_request_descriptor("42P10", message.to_string());
+    if let Some(state) = aggregate_sql_state(message) {
+        return bad_request_descriptor(state, message.to_string());
     }
     if message.eq_ignore_ascii_case("aggregate integer overflow")
         || matches!(
@@ -105,6 +93,31 @@ pub(super) fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return resource_limit_descriptor(message.to_string());
     }
     bad_request_descriptor("22000", message.to_string())
+}
+
+fn jsonpath_error(message: &str) -> bool {
+    message.starts_with("jsonpath ") || message.starts_with("JSON object does not contain key ")
+}
+
+fn aggregate_sql_state(message: &str) -> Option<&'static str> {
+    if [
+        "DISTINCT specified, but ",
+        "ORDER BY specified, but ",
+        "FILTER specified, but ",
+    ]
+    .iter()
+    .any(|prefix| message.starts_with(prefix))
+        && message.ends_with(" is not an aggregate function")
+    {
+        return Some("42809");
+    }
+    match message {
+        "aggregate functions are not allowed in VALUES" => Some("42803"),
+        "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list" => {
+            Some("42P10")
+        }
+        _ => None,
+    }
 }
 
 fn scalar_input_range(message: &str) -> bool {

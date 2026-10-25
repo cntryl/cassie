@@ -50,12 +50,19 @@ pub(super) fn infer_concatenation_type(
             || super::super::validation::expr_contains_parameters(right))
     {
         None
-    } else if operands.contains(&Some(DataType::Json))
-        && operands
-            .iter()
-            .all(|kind| matches!(kind, Some(DataType::Json | DataType::Null) | None))
+    } else if operands.iter().flatten().any(DataType::is_json)
+        && operands.iter().all(|kind| {
+            matches!(
+                kind,
+                Some(DataType::Json | DataType::Jsonb | DataType::Null) | None
+            )
+        })
     {
-        Some(DataType::Json)
+        operands
+            .iter()
+            .flatten()
+            .find(|kind| kind.is_json())
+            .cloned()
     } else if operands.contains(&Some(DataType::Bytea))
         && operands
             .iter()

@@ -104,8 +104,18 @@ fn infer_inputs(
         return Ok(());
     }
     let data_type = match functions::input_signature(metadata.id) {
-        Some(FunctionInputSignature::Positional(oids)) => {
-            infer_positional_inputs(function, metadata.id, oids, field_types, catalog, inference)?;
+        Some(
+            signature @ (FunctionInputSignature::Positional(_)
+            | FunctionInputSignature::VariadicTail { .. }),
+        ) => {
+            infer_positional_inputs(
+                function,
+                metadata.id,
+                signature,
+                field_types,
+                catalog,
+                inference,
+            )?;
             None
         }
         Some(FunctionInputSignature::RegexpReplace) => {
@@ -192,7 +202,7 @@ fn validate_any_element_input(
 fn infer_positional_inputs(
     function: &FunctionCall,
     function_id: functions::FunctionId,
-    oids: &'static [i32],
+    signature: FunctionInputSignature,
     field_types: &FieldTypeMap,
     catalog: &Catalog,
     inference: &mut ParameterInference,
@@ -206,23 +216,27 @@ fn infer_positional_inputs(
             );
         }
     }
-    let oids = if function
+    let signature = if function
         .name
         .rsplit('.')
         .next()
         .is_some_and(|name| name.eq_ignore_ascii_case("substring"))
         && !integer_substring
     {
-        &[25, 25, 25]
+        FunctionInputSignature::Positional(&[25, 25, 25])
     } else {
-        oids
+        signature
     };
-    for (argument, oid) in function.args.iter().zip(oids) {
-        let data_type = match *oid {
-            20 => DataType::BigInt,
-            23 => DataType::Int,
-            701 => DataType::Float,
-            _ => DataType::Text,
+    for (index, argument) in function.args.iter().enumerate() {
+        let Some(oid) = signature.argument_oid(index) else {
+            break;
+        };
+        let Some(data_type) = u32::try_from(oid)
+            .ok()
+            .and_then(crate::types::builtin::parameter_builtin_for_oid)
+            .map(|metadata| metadata.kind.data_type())
+        else {
+            continue;
         };
         infer_parameter_type_from_expected_expr(argument, &data_type, inference);
     }

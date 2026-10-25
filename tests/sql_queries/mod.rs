@@ -10,8 +10,6 @@ mod postgresql18_binary_bytea;
 mod postgresql18_ctes;
 #[path = "aggregates/grouping/math_functions.rs"]
 mod postgresql18_math_functions;
-#[path = "aggregates/money/money.rs"]
-mod postgresql18_money;
 #[path = "expressions/mutations.rs"]
 mod postgresql18_mutations;
 #[path = "types/network/network_types.rs"]

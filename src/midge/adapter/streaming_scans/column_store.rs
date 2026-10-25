@@ -59,7 +59,10 @@ impl MidgeRowCursor {
                 continue;
             };
             check_controls(controls)?;
-            let field_bytes = if matches!(field.data_type, crate::types::DataType::Json) {
+            let field_bytes = if matches!(
+                field.data_type,
+                crate::types::DataType::Json | crate::types::DataType::Jsonb
+            ) {
                 crate::runtime::accounted::json::serialized_decode_bytes(raw.len())?
             } else {
                 raw.len()

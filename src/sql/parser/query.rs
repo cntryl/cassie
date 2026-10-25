@@ -367,7 +367,8 @@ fn parse_window_spec_with_named_windows(
     raw: &str,
     named_windows: &NamedWindows,
 ) -> Result<WindowSpec, SqlError> {
-    let raw = super::lexical::trim_separators(raw);
+    let uncommented = super::lexical::without_comments(raw);
+    let raw = super::lexical::trim_separators(&uncommented);
     if raw.is_empty() {
         return Ok((Vec::new(), Vec::new(), None));
     }
@@ -835,6 +836,9 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
         });
     }
 
+    if let Some(source) = parse_jsonpath_table_function(raw, lateral)? {
+        return Ok(source);
+    }
     if let Some(open) = raw.find('(') {
         if crate::sql::functions::is_catalog_table(raw[..open].trim()) {
             let close = super::lexical::matching_paren(raw, open)
@@ -863,6 +867,8 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
                 | "graph_shortest_path"
                 | "pg_show_all_settings"
                 | "pg_catalog.pg_show_all_settings"
+                | "jsonb_path_query"
+                | "jsonb_path_query_tz"
         ) || crate::sql::functions::is_catalog_table(&lower_name)
         {
             return Ok(QuerySource::TableFunction {
@@ -875,6 +881,32 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
 
     let (path, rest) = parse_relation_path_prefix(raw)?;
     relation_alias::parse(QuerySource::Collection(path), rest)
+}
+
+fn parse_jsonpath_table_function(
+    raw: &str,
+    lateral: bool,
+) -> Result<Option<QuerySource>, SqlError> {
+    let Some(open) = raw.find('(') else {
+        return Ok(None);
+    };
+    let name = raw[..open].trim().to_ascii_lowercase();
+    if !matches!(name.as_str(), "jsonb_path_query" | "jsonb_path_query_tz") {
+        return Ok(None);
+    }
+    let close = super::lexical::matching_paren(raw, open)
+        .ok_or_else(|| SqlError::new("invalid JSONPATH table-function call".into()))?;
+    let function = parse_function(&raw[..=close])?
+        .ok_or_else(|| SqlError::new("invalid JSONPATH table-function call".into()))?;
+    relation_alias::parse(
+        QuerySource::TableFunction {
+            name,
+            function,
+            lateral,
+        },
+        &raw[close + 1..],
+    )
+    .map(Some)
 }
 
 pub(super) fn matching_closing_paren(raw: &str) -> Option<usize> {

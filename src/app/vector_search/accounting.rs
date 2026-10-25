@@ -161,6 +161,8 @@ pub(super) fn type_name_bytes(data_type: &crate::types::DataType) -> Result<usiz
         | DataType::Date
         | DataType::Time
         | DataType::Json
+        | DataType::Jsonb
+        | DataType::JsonPath
         | DataType::Char { length: None } => 4,
         DataType::SmallInt => 8,
         DataType::Int => 3,

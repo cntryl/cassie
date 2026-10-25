@@ -82,6 +82,11 @@ pub(super) fn bind_create_table(
     let mut seen = HashSet::new();
     let mut primary_key_field: Option<String> = None;
     for field in &mut statement.fields {
+        if matches!(field.data_type, DataType::JsonPath) {
+            return Err(CassieError::Unsupported(
+                "JSONPATH is supported for expressions, not table columns".to_string(),
+            ));
+        }
         let field_name = field.name.trim();
         if field_name.is_empty() {
             return Err(CassieError::Planner(

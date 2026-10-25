@@ -177,11 +177,15 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
                 .map(|parsed| parsed.to_string())
                 .map_err(|error| error.to_string())
         }),
-        DataType::Json => Ok(match value {
+        DataType::Json | DataType::Jsonb => Ok(match value {
             Value::String(text) => serde_json::from_str(&text).unwrap_or(Value::String(text)),
             other => other,
         }),
-        DataType::Null | DataType::Bytea | DataType::Vector(_) | DataType::Array(_) => Ok(value),
+        DataType::Null
+        | DataType::Bytea
+        | DataType::JsonPath
+        | DataType::Vector(_)
+        | DataType::Array(_) => Ok(value),
     }
 }
 

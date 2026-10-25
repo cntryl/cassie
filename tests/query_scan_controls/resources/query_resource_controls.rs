@@ -557,7 +557,7 @@ fn should_cancel_unindexed_heap_top_k_at_controlled_scan_boundary() {
 fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    let cassie = configured_cassie(9 * 1_024);
+    let cassie = configured_cassie(10 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(
@@ -578,7 +578,7 @@ fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
     drop(input);
     // A computed order declines the simple-column shortcut. Keep metadata
     // width narrow while two computed keys contain 2 * 64 * 85 TEXT bytes,
-    // exceeding 9 KiB after the complete four-row input fits.
+    // exceeding 10 KiB after the complete four-row input fits.
     let key_arguments = vec!["payload"; 64].join(", ");
     let sql = format!(
         "SELECT payload FROM controlled_heap_top_k_memory ORDER BY concat({key_arguments}) LIMIT 2"

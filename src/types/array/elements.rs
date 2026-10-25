@@ -77,7 +77,12 @@ pub(super) fn normalize_element(
         }
         // These are document/storage families, not the selected scalar-array
         // wire family matrix. Keep their existing element policy.
-        DataType::Json | DataType::Vector(_) | DataType::Array(_) | DataType::Null => Ok(value),
+        DataType::Json
+        | DataType::Jsonb
+        | DataType::JsonPath
+        | DataType::Vector(_)
+        | DataType::Array(_)
+        | DataType::Null => Ok(value),
     }
 }
 

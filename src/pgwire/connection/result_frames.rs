@@ -212,6 +212,40 @@ fn cell_bytes(
     if format == 0 && postgres_array_text {
         return postgres_array_text_bytes(value);
     }
+    if oid == 3802 {
+        let (encoded, scratch) = match value {
+            Value::Json(value) => {
+                let encoded =
+                    crate::types::jsonb::text_len(value).map_err(CassieError::TypeInput)?;
+                (
+                    encoded,
+                    add(
+                        mul(encoded.max(8), 8)?,
+                        crate::runtime::accounted::json::retained_bytes(value)?,
+                    )?,
+                )
+            }
+            Value::String(text) => {
+                let encoded =
+                    crate::types::jsonb::input_text_len(text).map_err(CassieError::TypeInput)?;
+                (
+                    encoded,
+                    add(
+                        mul(encoded.max(8), 8)?,
+                        crate::runtime::accounted::json::serialized_decode_bytes(text.len())?,
+                    )?,
+                )
+            }
+            _ => {
+                let bytes = text_bytes(value)?;
+                (bytes.encoded, bytes.scratch)
+            }
+        };
+        return Ok(CellBytes {
+            encoded: add(encoded, usize::from(format == 1))?,
+            scratch,
+        });
+    }
     if format == 0 || matches!(oid, 25 | 1042 | 1043 | 705) {
         return text_bytes(value);
     }
@@ -340,6 +374,19 @@ fn array_element_bytes(value: &serde_json::Value, oid: i64) -> Result<CellBytes,
         return Ok(CellBytes {
             encoded: 0,
             scratch: 0,
+        });
+    }
+    if oid == 3802 {
+        let encoded = add(
+            crate::types::jsonb::text_len(value).map_err(CassieError::TypeInput)?,
+            1,
+        )?;
+        return Ok(CellBytes {
+            encoded,
+            scratch: add(
+                mul(encoded.max(8), 8)?,
+                crate::runtime::accounted::json::retained_bytes(value)?,
+            )?,
         });
     }
     if oid == 114 || value.is_object() {

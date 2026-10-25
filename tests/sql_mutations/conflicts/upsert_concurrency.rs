@@ -124,26 +124,19 @@ fn should_resolve_transactional_do_nothing_when_competing_commit_wins() {
             .execute_sql(session, "BEGIN", vec![])
             .expect("begin transaction");
     }
-    for (session, value) in [(&first, 1), (&second, 2)] {
-        cassie
-            .execute_sql(
-                session,
-                &format!(
-                    "INSERT INTO transaction_upserts (email, value) VALUES ('same@example.com', {value}) ON CONFLICT (email) DO NOTHING"
-                ),
-                vec![],
-            )
-            .expect("stage upsert");
-    }
+    cassie.execute_sql(&first,
+        "INSERT INTO transaction_upserts (email, value) VALUES ('same@example.com', 1) ON CONFLICT (email) DO NOTHING",
+        vec![]).expect("stage owner upsert");
 
     // Act
+    let changed = finish_waiting_upsert(&cassie, &first, &second,
+        "INSERT INTO transaction_upserts (email, value) VALUES ('same@example.com', 2) ON CONFLICT (email) DO NOTHING");
     cassie
-        .execute_sql(&first, "COMMIT", vec![])
-        .expect("commit winner");
-    let losing_commit = cassie.execute_sql(&second, "COMMIT", vec![]);
+        .execute_sql(&second, "COMMIT", vec![])
+        .expect("commit resolved waiter");
 
     // Assert
-    losing_commit.expect("resolve losing transaction");
+    assert_eq!(changed, "INSERT 0 0");
     let rows = cassie
         .execute_sql(&setup, "SELECT email FROM transaction_upserts", vec![])
         .expect("read winner");
@@ -173,27 +166,19 @@ fn should_resolve_transactional_do_update_against_committed_winner() {
             .execute_sql(session, "BEGIN", vec![])
             .expect("begin transaction");
     }
-    for (session, value) in [(&first, 1), (&second, 2)] {
-        cassie
-            .execute_sql(
-                session,
-                &format!(
-                    "INSERT INTO transaction_update_upserts (email, value) VALUES ('same@example.com', {value}) ON CONFLICT (email) DO UPDATE SET value = excluded.value"
-                ),
-                vec![],
-            )
-            .expect("stage upsert");
-    }
+    cassie.execute_sql(&first,
+        "INSERT INTO transaction_update_upserts (email, value) VALUES ('same@example.com', 1) ON CONFLICT (email) DO UPDATE SET value = excluded.value",
+        vec![]).expect("stage owner upsert");
 
     // Act
-    cassie
-        .execute_sql(&first, "COMMIT", vec![])
-        .expect("commit winner");
+    let changed = finish_waiting_upsert(&cassie, &first, &second,
+        "INSERT INTO transaction_update_upserts (email, value) VALUES ('same@example.com', 2) ON CONFLICT (email) DO UPDATE SET value = excluded.value");
     cassie
         .execute_sql(&second, "COMMIT", vec![])
-        .expect("resolve update transaction");
+        .expect("commit resolved waiter");
 
     // Assert
+    assert_eq!(changed, "INSERT 0 1");
     let rows = cassie
         .execute_sql(
             &setup,
@@ -249,4 +234,44 @@ fn should_restore_transactional_conflict_intent_with_savepoint_rollback() {
     assert_eq!(rows.rows(), [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
     let _ = std::fs::remove_dir_all(path);
+}
+
+fn finish_waiting_upsert(
+    cassie: &cassie::app::Cassie,
+    owner: &cassie::app::CassieSession,
+    waiter: &cassie::app::CassieSession,
+    sql: &str,
+) -> String {
+    std::thread::scope(|scope| {
+        let worker = scope.spawn(|| cassie.execute_sql(waiter, sql, vec![]));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while cassie.metrics()["transactions"]["unique_waiters"]
+            .as_u64()
+            .unwrap_or(0)
+            == 0
+        {
+            assert!(
+                !worker.is_finished(),
+                "upsert must wait for its unresolved owner"
+            );
+            assert!(
+                std::time::Instant::now() < deadline,
+                "upsert did not reach the unique-owner wait boundary"
+            );
+            std::thread::yield_now();
+        }
+        assert!(
+            !worker.is_finished(),
+            "waiter must remain pending before owner commit"
+        );
+        cassie
+            .execute_sql(owner, "COMMIT", vec![])
+            .expect("commit owner");
+        worker
+            .join()
+            .expect("waiting worker")
+            .expect("recheck owner commit")
+            .command()
+            .to_owned()
+    })
 }

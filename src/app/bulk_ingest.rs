@@ -141,16 +141,21 @@ impl Cassie {
         for (row_index, row) in rows.into_iter().enumerate() {
             check_copy_cancellation(cancellation)?;
             if row.len() != columns.len() {
-                return Err(CassieError::Parse(format!(
-                    "COPY row {} has {} columns but target expects {}",
-                    row_index + 1,
-                    row.len(),
-                    columns.len()
-                )));
+                return Err(super::DiagnosticError::new(
+                    "22P04",
+                    format!(
+                        "COPY row {} has {} columns but target expects {}",
+                        row_index + 1,
+                        row.len(),
+                        columns.len()
+                    ),
+                )
+                .into());
             }
 
             let mut row_id = None;
             let mut payload = serde_json::Map::new();
+            let mut explicit_json_nulls = Vec::new();
             for (column, value) in columns.iter().zip(row) {
                 match column {
                     CopyColumn::RowId => {
@@ -163,7 +168,10 @@ impl Cassie {
                         row_id = Some(value);
                     }
                     CopyColumn::Field(field) => {
-                        if value.is_none() && matches!(field.data_type, DataType::Json) {
+                        if value.is_none()
+                            && matches!(field.data_type, DataType::Json | DataType::Jsonb)
+                        {
+                            explicit_json_nulls.push(field.name.as_str());
                             continue;
                         }
                         payload.insert(field.name.clone(), copy_value_to_json(value, field)?);
@@ -180,11 +188,16 @@ impl Cassie {
                 )));
             }
 
+            let payload = self.apply_insert_defaults(
+                &statement.table,
+                serde_json::Value::Object(payload),
+                &explicit_json_nulls,
+            )?;
             let (prepared, constraints) = self.prepare_document_write_deferring_foreign_keys(
                 Some(staging),
                 &statement.table,
-                serde_json::Value::Object(payload),
-                true,
+                payload,
+                false,
                 None,
             )?;
             references.collect(&statement.table, &constraints, &prepared, schema.as_ref())?;
@@ -283,12 +296,12 @@ fn finish_copy_batch(
 }
 
 #[derive(Debug, Clone)]
-enum CopyColumn {
+pub(crate) enum CopyColumn {
     RowId,
     Field(FieldMeta),
 }
 
-fn copy_columns(
+pub(crate) fn copy_columns(
     statement: &CopyStatement,
     fields: &[FieldMeta],
 ) -> Result<Vec<CopyColumn>, CassieError> {
@@ -348,30 +361,27 @@ fn copy_value_to_json(
     };
 
     match &field.data_type {
-        DataType::SmallInt | DataType::Int | DataType::BigInt => value
-            .parse::<i64>()
-            .map(serde_json::Value::from)
-            .map_err(|_| CassieError::Parse(format!("field '{}' expects integer", field.name))),
+        DataType::SmallInt | DataType::Int | DataType::BigInt => {
+            copy_integer_value(&value, &field.data_type)
+        }
         DataType::Float => {
-            let parsed = value
-                .parse::<f64>()
-                .map_err(|_| CassieError::Parse(format!("field '{}' expects float", field.name)))?;
+            let parsed = crate::types::float_input::parse(&value)?;
             serde_json::Number::from_f64(parsed)
                 .map(serde_json::Value::Number)
-                .ok_or_else(|| {
-                    CassieError::Parse(format!("field '{}' expects finite float", field.name))
-                })
+                .ok_or(CassieError::FloatInput(
+                    crate::types::FloatInputError::Range,
+                ))
         }
         DataType::ObjectId(_) => crate::types::object_id::parse_oid_text(&value)
             .map(serde_json::Value::from)
-            .map_err(|error| CassieError::Parse(format!("field '{}': {error}", field.name))),
+            .map_err(CassieError::from),
         DataType::Extended(kind) => kind
             .parse_text(&value)
             .map(|typed| typed.to_json())
-            .map_err(|error| CassieError::Parse(format!("field '{}': {error}", field.name))),
+            .map_err(CassieError::from),
         DataType::Boolean => parse_copy_bool(&value)
             .map(serde_json::Value::Bool)
-            .ok_or_else(|| CassieError::Parse(format!("field '{}' expects boolean", field.name))),
+            .ok_or_else(|| crate::types::BooleanInputError.into()),
         DataType::Array(element_type) => {
             crate::types::array::parse_text_array(&value, element_type).map_err(|error| {
                 let message = format!("field '{}' expects array: {error}", field.name);
@@ -383,10 +393,16 @@ fn copy_value_to_json(
                 }
             })
         }
-        DataType::Json | DataType::Vector(_) => serde_json::from_str(&value).map_err(|error| {
-            CassieError::Parse(format!("field '{}' expects JSON: {error}", field.name))
-        }),
+        DataType::Json | DataType::Jsonb | DataType::Vector(_) => serde_json::from_str(&value)
+            .map_err(|error| {
+                super::DiagnosticError::new(
+                    "22P02",
+                    format!("field '{}' expects JSON: {error}", field.name),
+                )
+                .into()
+            }),
         DataType::Null
+        | DataType::JsonPath
         | DataType::Text
         | DataType::Char { .. }
         | DataType::Varchar { .. }
@@ -398,16 +414,39 @@ fn copy_value_to_json(
     }
 }
 
+fn copy_integer_value(value: &str, data_type: &DataType) -> Result<serde_json::Value, CassieError> {
+    use crate::types::integer::{IntegerInputError, IntegerWidth};
+    let width = IntegerWidth::from_data_type(data_type).expect("integer COPY field");
+    crate::types::integer::parse(value, width)
+        .map(serde_json::Value::from)
+        .map_err(|error| {
+            let (state, message) = match error {
+                IntegerInputError::Syntax => ("22P02", width.syntax_message()),
+                IntegerInputError::Range => ("22003", width.range_message()),
+            };
+            super::DiagnosticError::new(state, message).into()
+        })
+}
+
 fn parse_copy_bool(raw: &str) -> Option<bool> {
     crate::types::boolean::parse_text(raw)
 }
 
-pub(crate) fn parse_copy_csv_payload(
+pub(crate) fn parse_copy_csv_payload_with_force(
     payload: &[u8],
     delimiter: char,
     null_marker: &str,
+    force_null: &[usize],
+    force_not_null: &[usize],
 ) -> Result<Vec<Vec<Option<String>>>, CassieError> {
-    parse_csv_payload_with_null_policy(payload, delimiter, null_marker, null_marker.is_empty())
+    parse_csv_payload_with_null_policy(
+        payload,
+        delimiter,
+        null_marker,
+        null_marker.is_empty(),
+        force_null,
+        force_not_null,
+    )
 }
 
 fn parse_csv_payload_with_null_policy(
@@ -415,6 +454,8 @@ fn parse_csv_payload_with_null_policy(
     delimiter: char,
     null_marker: &str,
     empty_unquoted_is_null: bool,
+    force_null: &[usize],
+    force_not_null: &[usize],
 ) -> Result<Vec<Vec<Option<String>>>, CassieError> {
     let text = std::str::from_utf8(payload)
         .map_err(|_| CassieError::Parse("COPY payload must be UTF-8".to_string()))?;
@@ -436,7 +477,13 @@ fn parse_csv_payload_with_null_policy(
                 field.quoted = true;
             }
             ch if ch == delimiter && !in_quotes => {
-                field.push_into(&mut row, null_marker, empty_unquoted_is_null);
+                field.push_into(
+                    &mut row,
+                    null_marker,
+                    empty_unquoted_is_null,
+                    force_null,
+                    force_not_null,
+                );
             }
             '\n' if !in_quotes => {
                 push_csv_row(
@@ -445,6 +492,8 @@ fn parse_csv_payload_with_null_policy(
                     &mut field,
                     null_marker,
                     empty_unquoted_is_null,
+                    force_null,
+                    force_not_null,
                 );
             }
             '\r' if !in_quotes => {
@@ -457,6 +506,8 @@ fn parse_csv_payload_with_null_policy(
                     &mut field,
                     null_marker,
                     empty_unquoted_is_null,
+                    force_null,
+                    force_not_null,
                 );
             }
             _ => {
@@ -467,9 +518,11 @@ fn parse_csv_payload_with_null_policy(
     }
 
     if in_quotes {
-        return Err(CassieError::Parse(
-            "COPY CSV payload has unterminated quote".into(),
-        ));
+        return Err(super::DiagnosticError::new(
+            "22P04",
+            "COPY CSV payload has unterminated quote",
+        )
+        .into());
     }
     if field.started || !row.is_empty() {
         push_csv_row(
@@ -478,6 +531,8 @@ fn parse_csv_payload_with_null_policy(
             &mut field,
             null_marker,
             empty_unquoted_is_null,
+            force_null,
+            force_not_null,
         );
     }
 
@@ -490,8 +545,16 @@ fn push_csv_row(
     field: &mut CsvField,
     null_marker: &str,
     empty_unquoted_is_null: bool,
+    force_null: &[usize],
+    force_not_null: &[usize],
 ) {
-    field.push_into(row, null_marker, empty_unquoted_is_null);
+    field.push_into(
+        row,
+        null_marker,
+        empty_unquoted_is_null,
+        force_null,
+        force_not_null,
+    );
     rows.push(std::mem::take(row));
 }
 
@@ -509,16 +572,24 @@ impl CsvField {
         row: &mut Vec<Option<String>>,
         null_marker: &str,
         empty_unquoted_is_null: bool,
+        force_null: &[usize],
+        force_not_null: &[usize],
     ) {
         let field = std::mem::take(self);
-        let is_null = !field.quoted
-            && (field.value == null_marker || (empty_unquoted_is_null && field.value.is_empty()));
+        let index = row.len();
+        let marker_match = field.value == null_marker;
+        let empty_match = empty_unquoted_is_null && field.value.is_empty() && !field.quoted;
+        let is_null = if field.quoted {
+            marker_match && force_null.contains(&index)
+        } else {
+            (marker_match || empty_match) && !force_not_null.contains(&index)
+        };
         row.push((!is_null).then_some(field.value));
     }
 }
 
 fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieError> {
-    parse_csv_payload_with_null_policy(payload, ',', COPY_NULL, true)
+    parse_csv_payload_with_null_policy(payload, ',', COPY_NULL, true, &[], &[])
 }
 
 #[cfg(test)]

@@ -59,7 +59,7 @@ fn column_decode_expansion_factor(data_type: &DataType) -> usize {
                 40
             }
         }
-        DataType::Json => json::JSON_DECODE_EXPANSION_FACTOR,
+        DataType::Json | DataType::Jsonb => json::JSON_DECODE_EXPANSION_FACTOR,
         DataType::Vector(_) => 10,
         DataType::Bytea => 3,
         _ => 2,

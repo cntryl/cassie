@@ -597,7 +597,7 @@ fn should_preserve_jsonb_result_type_after_text_key_deletion() {
 
     // Assert
     fixture::assert_success(&batches[0]);
-    fixture::assert_single_column_descriptors(&batches[0], (114, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(&batches[0], (3802, -1, -1), 0, true);
     assert_eq!(
         wire::data_rows(&batches[0]),
         vec![vec![Some("{\"b\": 2}".to_owned())]]

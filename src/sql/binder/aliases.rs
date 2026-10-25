@@ -56,6 +56,7 @@ pub(super) fn columns(
                     "relation alias list has more names than source columns".into(),
                 ));
             }
+            let identity_alias = aliases.is_empty() && binding.has_implicit_identity();
             return Ok(binding
                 .visible
                 .iter()
@@ -63,10 +64,14 @@ pub(super) fn columns(
                 .enumerate()
                 .map(|(index, (name, row))| {
                     (
-                        aliases
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_else(|| ColumnIdentifierPath::stored_field_key(name)),
+                        aliases.get(index).cloned().unwrap_or_else(|| {
+                            let visible = if identity_alias && name == "_id" {
+                                "id"
+                            } else {
+                                name
+                            };
+                            ColumnIdentifierPath::stored_field_key(visible)
+                        }),
                         ColumnIdentifierPath::stored_field_key(&row.name),
                     )
                 })
@@ -149,7 +154,7 @@ fn namespaces(
                 name,
                 qualifier: qualifier(alias),
                 fields: columns(source, column_aliases, catalog, scope)?,
-                reserved_identity: base_identity(source, catalog),
+                reserved_identity: base_identity(source, catalog, scope),
             });
         }
         QuerySource::Join { left, right, .. } => {
@@ -162,7 +167,7 @@ fn namespaces(
             qualifier: name.to_string(),
             hidden: Vec::new(),
             fields: columns(source, &[], catalog, scope)?,
-            reserved_identity: base_identity(source, catalog),
+            reserved_identity: base_identity(source, catalog, scope),
         }),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
             result.push(Namespace {
@@ -171,7 +176,7 @@ fn namespaces(
                 qualifier: name.clone(),
                 hidden: Vec::new(),
                 fields: columns(source, &[], catalog, scope)?,
-                reserved_identity: false,
+                reserved_identity: base_identity(source, catalog, scope),
             });
         }
         QuerySource::Subquery { alias, .. } => result.push(Namespace {
@@ -547,7 +552,12 @@ fn has_alias(source: &QuerySource) -> bool {
     }
 }
 
-fn base_identity(source: &QuerySource, catalog: &Catalog) -> bool {
+fn base_identity(source: &QuerySource, catalog: &Catalog, scope: &CteScope<'_>) -> bool {
+    if let QuerySource::Cte(name) = source {
+        return scope
+            .get(&name.to_ascii_lowercase())
+            .is_some_and(super::CteBinding::has_implicit_identity);
+    }
     let QuerySource::Collection(name) = source else {
         return false;
     };

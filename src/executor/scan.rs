@@ -739,7 +739,9 @@ fn json_to_value(value: &serde_json::Value) -> Value {
 }
 
 pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
-    if matches!(data_type, DataType::Json) && crate::types::json::requires_document_carrier(value) {
+    if *data_type == DataType::Jsonb
+        || (data_type.is_json() && crate::types::json::requires_document_carrier(value))
+    {
         return Value::Json(value.clone());
     }
     if let DataType::Extended(kind) = data_type {

@@ -297,3 +297,25 @@ fn should_preserve_compound_operator_names_given_adjacent_signs_when_scalar_toke
     // Assert
     assert!(parsed.into_iter().all(|result| result.is_err()));
 }
+
+#[test]
+fn should_reject_unselected_money_given_type_positions_when_parsing_read_model_sql() {
+    // Arrange
+    let statements = [
+        "CREATE TABLE money_scope (amount money)",
+        "SELECT '12.34'::money",
+        "SELECT CAST('12.34' AS money)",
+    ];
+    // Act
+    let parsed = statements.map(parse_statement);
+    // Assert
+    for (sql, result) in statements.into_iter().zip(parsed) {
+        assert!(
+            result
+                .expect_err(sql)
+                .to_string()
+                .contains("unsupported data type"),
+            "{sql}"
+        );
+    }
+}

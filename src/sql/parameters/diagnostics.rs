@@ -371,6 +371,7 @@ pub(super) fn type_name(oid: i32) -> TypeName {
         701 => "double precision",
         1700 => "numeric",
         114 => "json",
+        3802 => "jsonb",
         2950 => "uuid",
         17 => "bytea",
         1082 => "date",

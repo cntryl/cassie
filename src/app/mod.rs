@@ -58,7 +58,10 @@ pub(crate) fn field_value_is_sql_null(
         && !schema.is_some_and(|schema| {
             schema.fields.iter().any(|candidate| {
                 candidate.name == field
-                    && matches!(candidate.data_type, crate::types::DataType::Json)
+                    && matches!(
+                        candidate.data_type,
+                        crate::types::DataType::Json | crate::types::DataType::Jsonb
+                    )
             })
         })
 }
@@ -108,7 +111,7 @@ mod auth;
 pub(crate) use auth::AuthenticatedPrincipal;
 mod auth_rate_limit;
 mod bulk_ingest;
-pub(crate) use bulk_ingest::parse_copy_csv_payload;
+pub(crate) use bulk_ingest::{copy_columns, parse_copy_csv_payload_with_force, CopyColumn};
 mod consistency;
 mod database_images;
 mod databases;
@@ -151,8 +154,8 @@ mod statement_mutation;
 mod transaction_error;
 mod transaction_unique_waits;
 pub(crate) use transaction_unique_waits::{
-    collect_unique_keys, validate_unique_key_candidate, TransactionUniqueWaits, UniqueKeyClaim,
-    UniqueTransactionKey,
+    collect_unique_keys, collect_upsert_unique_keys, validate_unique_key_candidate,
+    TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
 };
 mod transaction_semantics;
 pub use transaction_error::TransactionErrorKind;

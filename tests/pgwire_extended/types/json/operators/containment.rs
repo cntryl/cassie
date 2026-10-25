@@ -98,7 +98,10 @@ fn should_infer_jsonb_containment_parameter_type() {
         .iter()
         .find(|(tag, _)| *tag == b't')
         .expect("JSONB containment parameter description");
-    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [114]);
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        [3802]
+    );
     fixture::assert_single_column_descriptors(frames, (16, 1, -1), 0, true);
     assert_eq!(wire::data_rows(frames), vec![vec![Some("t".to_owned())]]);
 }

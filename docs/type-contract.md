@@ -37,9 +37,78 @@ below according to the declared precision.
 | `date` | 1082 | 4 | |
 | `time` | 1083 | 8 | |
 | `timestamp` | 1114 | 8 | Without time zone |
-| `json` | 114 | -1 | `jsonb` is not a distinct supported type |
+| `json` | 114 | -1 | Existing JSON identity |
+| `jsonb` | 3802 | -1 | Distinct JSONB identity selected on 2026-10-24; implementation and qualification are in progress |
+| `jsonpath` | 4072 | -1 | Expression-only identity; JSONPath columns and arrays are not selected |
 | `vector(n)` | `100000 + n` | -1 | Private identity; finite positive dimension |
 | `T[]` | PostgreSQL's registered array OID for supported built-in element types | -1 | Standard identity; unsupported/private element families are excluded from pgwire |
+
+### Selected JSONB contract (2026-10-24)
+
+JSONB is selected as a distinct SQL type rather than a JSON alias. JSON retains
+OID 114; JSONB uses OID 3802 and its registered array identity is OID 3807.
+JSONB text output uses PostgreSQL canonical object-key ordering, last-key
+precedence for duplicate object keys, and exact decimal document numbers.
+Binary JSONB is one version byte (`1`) followed by the UTF-8 JSON document;
+malformed documents and unsupported versions must fail deterministically.
+Extraction preserves the document input type, while text extraction returns
+TEXT. JSONB operators and their inferred parameters retain JSONB identity.
+
+Storage continues to use the existing JSON document row encoding and Midge
+storage layer. New JSONB columns persist their distinct schema type. Existing
+schema entries serialized as `json` remain JSON: the former alias erased the
+original SQL spelling, so it cannot be recovered by an automatic reinterpretation.
+No row-layout migration or additional storage abstraction is selected.
+This contract is authorized; support remains Experimental until its selected
+runtime, wire, restart, NULL and exact-value tests have passed.
+
+The selected inspection increment uses the existing native document identities:
+`json_typeof`/`jsonb_typeof` return TEXT, `json_array_length`/`jsonb_array_length`
+return INT4, and `jsonb_exists_any`/`jsonb_exists_all` accept JSONB plus TEXT[]
+and return BOOLEAN. Each is strict for SQL NULL; document null remains a JSON
+value. This bounded #810 increment depends on the implemented finite #809
+operators and native type identities. JSONPath is a separate selected #809
+increment; stored JSON text preservation, JSON aggregates and broader array
+layouts remain separate pending obligations.
+
+The selected construction increment adds `json_build_object`, `json_build_array`
+and `to_json` with JSON identity, and their JSONB counterparts with native JSONB
+identity. JSON constructor objects retain input key order and duplicate keys;
+JSONB construction applies canonical ordering and last-key precedence. Scalar
+SQL text becomes a JSON string, document inputs remain documents, and exact
+SQL numeric values remain exact. Builders include SQL NULL as document null;
+scalar conversion functions preserve SQL NULL. This increment reuses the
+existing document and row encodings.
+
+The JSON object constructor overloads `json_object(text[])` and
+`json_object(text[], text[])`, plus JSONB counterparts, accept the existing
+one-dimensional TEXT[] carrier. The alternating form requires an even number
+of elements; parallel key/value arrays require equal lengths. SQL NULL keys or
+values are rejected. JSON output preserves constructor order; JSONB canonicalizes
+keys. This does not select general SQL array layouts or multidimensional arrays.
+
+The selected SQL/JSON subset includes `JSON(input WITH/WITHOUT UNIQUE KEYS)`,
+`JSON_ARRAY(SELECT ... ORDER BY ...)`, and `JSON_EXISTS(document, path ... ON
+ERROR)`. JSON input preserves the supplied document text; WITH UNIQUE KEYS
+checks duplicate keys recursively and reports SQLSTATE 22030, while WITHOUT
+UNIQUE KEYS accepts duplicates. The selected JSON_ARRAY query form preserves
+the query's order and uses ABSENT ON NULL behavior. JSON_EXISTS maps structural
+JSONPath errors to FALSE, TRUE, SQL NULL for UNKNOWN, or propagates the error
+for ERROR ON ERROR; omitted policy defaults to ERROR ON ERROR. These finite
+forms do not select general `IS JSON`, `JSON_VALUE`, `JSON_QUERY`, `PASSING`,
+or other JSON constructor clauses. Keep those as pending contract obligations
+until a read-model use case and finite semantics are selected. Likewise,
+`array_to_json`/`row_to_json` remain unselected legacy conversion overloads.
+
+### Selected JSONPath expression identity (2026-10-24)
+
+JSONPath expressions use PostgreSQL OID 4072 and `typlen` -1 for SQL casts,
+parameters, operators and selected functions. This is an expression-only
+identity: JSONPath table columns and JSONPath arrays are not selected, and no
+row-blob or persisted schema representation is introduced. The bounded runtime
+surface is recorded in [Feature Support](feature-support.md) and remains
+Experimental until its selected parser, accessor, predicate, item-method,
+resource and cancellation evidence passes.
 
 The `varchar` identity also accepts `char varying(n)`,
 `national character varying(n)` and `nchar varying(n)`. These spellings retain
@@ -139,3 +208,27 @@ The former #791–#793 full PostgreSQL parity and CRB3 export/recreate/reimport
 program is closed as superseded. Its approval snapshots and staged acceptance
 records are retained as history only; they do not authorize a storage migration
 or expand this type contract.
+
+The finite mutation increment adds `jsonb_set`, `jsonb_set_lax`, and
+`jsonb_insert` with native JSONB results and TEXT[] paths. Missing intermediate
+containers remain unchanged. `json_strip_nulls` and `jsonb_strip_nulls` retain
+their input document identity; `jsonb_pretty` returns TEXT. These operations
+reuse existing document encodings and require admitted decoding and output
+scratch, cancellation checks, and deterministic path/input errors.
+
+### Selected integer result widths (2026-10-24)
+
+Arithmetic, remainder and bitwise expression results preserve their resolved
+INT2/INT4/INT8 identity and binary width. Mixed integer operands use the widest
+operand type, while shifts preserve the left operand type. Overflow is checked
+at the resolved width. The former projected BIGINT widening is retired; no
+column, runtime integer carrier or durable row encoding changes are required.
+
+## Unselected type families
+
+Native MONEY, range/multirange, XML and geometric types remain proposals under
+the [Product Roadmap](product-roadmap.md), outside the active type inventory.
+Their historical PostgreSQL conformance tests do not select runtime support.
+The [2026-10-24 MONEY audit](testing/scope-audit-2026-10-24.md) records removal
+of its 30 unselected parity cases and retention of an explicit unsupported-type
+boundary test. Exact NUMERIC read-model values and their coverage remain active.

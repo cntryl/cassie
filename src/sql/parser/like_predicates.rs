@@ -186,10 +186,19 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     let Some((left, right, operator)) = split_predicate(raw) else {
         return Ok(None);
     };
-    if split_predicate(right).is_some() {
-        return Err(SqlError::syntax(
-            "chained pattern predicates require parentheses".into(),
-        ));
+    if let Some((prefix, _, _)) = split_predicate(right) {
+        let start = super::super::lexical::separator_end(right, prefix.len());
+        let tail = &right[start..];
+        let end = tail
+            .find(|character: char| !character.is_ascii_alphabetic())
+            .unwrap_or(tail.len());
+        let token = &tail[..end];
+        let message = if token.is_empty() {
+            "chained pattern predicates require parentheses".to_owned()
+        } else {
+            format!("syntax error at or near \"{token}\"")
+        };
+        return Err(SqlError::syntax(message));
     }
     let expression = parse_comparison_expression(left)?;
     let predicate = match operator.kind {

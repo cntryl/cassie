@@ -1,3 +1,7 @@
+#[path = "validation_json.rs"]
+mod json_operators;
+use json_operators::{json_delete_key_family, json_delete_path_family, json_key_operator_family};
+
 use super::{
     BinaryOp, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr, FunctionCall,
     HashSet, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
@@ -259,10 +263,19 @@ fn binary_operand_family(
         return json_delete_key_family(right, right_family, field_types);
     }
     match op {
+        BinaryOp::JsonPathExists | BinaryOp::JsonPathMatch => {
+            jsonpath_operand_family(right, left_family, right_family)
+        }
         BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
             json_key_operator_family(left, op, right, (left_family, right_family), field_types)
         }
         BinaryOp::JsonbDeletePath => Ok(Some(OperandFamily::Json)),
+        BinaryOp::JsonExtract { as_text, .. } => Ok(Some(if *as_text {
+            OperandFamily::Text
+        } else {
+            OperandFamily::Json
+        })),
+        BinaryOp::JsonbCompare { .. } => Ok(Some(OperandFamily::Boolean)),
         BinaryOp::ByteaConcat => Ok(Some(OperandFamily::Other)),
         BinaryOp::Concat => concat_operand_family(left, right, left_family, right_family),
         BinaryOp::And | BinaryOp::Or | BinaryOp::Typed { .. } | BinaryOp::Quantified { .. } => {
@@ -325,6 +338,21 @@ fn binary_operand_family(
     }
 }
 
+fn jsonpath_operand_family(
+    right: &Expr,
+    left_family: Option<OperandFamily>,
+    right_family: Option<OperandFamily>,
+) -> Result<Option<OperandFamily>, CassieError> {
+    let right_is_path = matches!(right, Expr::StringLiteral(_) | Expr::Null | Expr::Param(_))
+        || right_family == Some(OperandFamily::Other);
+    if left_family != Some(OperandFamily::Json) || !right_is_path {
+        return Err(CassieError::Execution(
+            "operator does not exist for these JSONPATH operand types".into(),
+        ));
+    }
+    Ok(Some(OperandFamily::Boolean))
+}
+
 fn concat_operand_family(
     left: &Expr,
     right: &Expr,
@@ -377,162 +405,6 @@ fn concat_operand_family(
         ));
     }
     Ok(Some(OperandFamily::Text))
-}
-
-fn json_delete_key_family(
-    right: &Expr,
-    right_family: Option<OperandFamily>,
-    field_types: &crate::sql::FieldTypeMap,
-) -> Result<Option<OperandFamily>, CassieError> {
-    validate_json_delete_key_operand(right, right_family, field_types)?;
-    Ok(Some(OperandFamily::Json))
-}
-
-fn validate_json_delete_key_operand(
-    right: &Expr,
-    right_family: Option<OperandFamily>,
-    field_types: &crate::sql::FieldTypeMap,
-) -> Result<(), CassieError> {
-    if matches!(right, Expr::StringLiteral(_) | Expr::Null | Expr::Param(_))
-        || right_family == Some(OperandFamily::Text)
-    {
-        return Ok(());
-    }
-    let right_type = super::known_expr_type(right, field_types);
-    let is_integer = right_type
-        .as_ref()
-        .is_some_and(|data_type| matches!(data_type, DataType::SmallInt | DataType::Int));
-    let is_text_array = right_type.as_ref().is_some_and(
-        |data_type| matches!(data_type, DataType::Array(element) if **element == DataType::Text),
-    );
-    if is_integer || is_text_array {
-        return Ok(());
-    }
-    let right_type = right_type.map_or_else(
-        || right_family.map_or_else(|| "unknown".to_owned(), |family| family.label().to_owned()),
-        |data_type| data_type.type_name(),
-    );
-    Err(CassieError::Execution(format!(
-        "operator does not exist: json - {right_type}"
-    )))
-}
-
-fn json_delete_path_family(
-    left: &Expr,
-    right: &Expr,
-    left_family: Option<OperandFamily>,
-    right_family: Option<OperandFamily>,
-    field_types: &crate::sql::FieldTypeMap,
-) -> Result<Option<OperandFamily>, CassieError> {
-    if left_family.is_some_and(|family| family != OperandFamily::Json) {
-        return Err(CassieError::Execution(
-            "operator does not exist: non-json #- text[]".into(),
-        ));
-    }
-    let right_type = super::known_expr_type(right, field_types);
-    if matches!(right, Expr::Null | Expr::Param(_))
-        || right_type.as_ref().is_some_and(|data_type| {
-            matches!(data_type, DataType::Array(element) if **element == DataType::Text)
-        })
-    {
-        return Ok(Some(OperandFamily::Json));
-    }
-    let left_type = super::known_expr_type(left, field_types)
-        .map_or_else(|| "unknown".to_owned(), |data_type| data_type.type_name());
-    let right_type = right_type.map_or_else(
-        || right_family.map_or_else(|| "unknown".to_owned(), |family| family.label().to_owned()),
-        |data_type| data_type.type_name(),
-    );
-    Err(CassieError::Execution(format!(
-        "operator does not exist: {left_type} #- {right_type}"
-    )))
-}
-
-fn json_key_operator_family(
-    left: &Expr,
-    op: &BinaryOp,
-    right: &Expr,
-    families: (Option<OperandFamily>, Option<OperandFamily>),
-    field_types: &crate::sql::FieldTypeMap,
-) -> Result<Option<OperandFamily>, CassieError> {
-    validate_json_key_operator_operands(left, op, right, families.0, families.1, field_types)?;
-    Ok(Some(OperandFamily::Boolean))
-}
-
-fn validate_json_key_operator_operands(
-    left: &Expr,
-    op: &BinaryOp,
-    right: &Expr,
-    left_family: Option<OperandFamily>,
-    right_family: Option<OperandFamily>,
-    field_types: &crate::sql::FieldTypeMap,
-) -> Result<(), CassieError> {
-    let operator = match op {
-        BinaryOp::JsonbKeyExists => "?",
-        BinaryOp::JsonbKeyExistsAny => "?|",
-        BinaryOp::JsonbKeyExistsAll => "?&",
-        _ => return Ok(()),
-    };
-    if left_family.is_some_and(|family| family != OperandFamily::Json) {
-        return Err(json_key_operator_error(
-            left,
-            operator,
-            right,
-            left_family,
-            right_family,
-            field_types,
-        ));
-    }
-    if matches!(op, BinaryOp::JsonbKeyExists) {
-        if !matches!(right, Expr::StringLiteral(_) | Expr::Null | Expr::Param(_))
-            && right_family.is_some_and(|family| family != OperandFamily::Text)
-        {
-            return Err(json_key_operator_error(
-                left,
-                operator,
-                right,
-                left_family,
-                right_family,
-                field_types,
-            ));
-        }
-        return Ok(());
-    }
-    let right_type = super::known_expr_type(right, field_types);
-    match (right, right_type) {
-        (Expr::StringLiteral(_) | Expr::Null | Expr::Param(_), _) => Ok(()),
-        (_, Some(DataType::Array(element))) if *element == DataType::Text => Ok(()),
-        (_, Some(DataType::Null) | None) if right_family.is_none() => Ok(()),
-        _ => Err(json_key_operator_error(
-            left,
-            operator,
-            right,
-            left_family,
-            right_family,
-            field_types,
-        )),
-    }
-}
-
-fn json_key_operator_error(
-    left: &Expr,
-    operator: &str,
-    right: &Expr,
-    left_family: Option<OperandFamily>,
-    right_family: Option<OperandFamily>,
-    field_types: &crate::sql::FieldTypeMap,
-) -> CassieError {
-    let type_name = |expr: &Expr, family: Option<OperandFamily>| {
-        super::known_expr_type(expr, field_types).map_or_else(
-            || family.map_or_else(|| "unknown".to_owned(), |family| family.label().to_owned()),
-            |data_type| data_type.type_name(),
-        )
-    };
-    CassieError::Execution(format!(
-        "operator does not exist: {} {operator} {}",
-        type_name(left, left_family),
-        type_name(right, right_family)
-    ))
 }
 
 fn validate_typed_string_comparison(
@@ -687,7 +559,8 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => OperandFamily::Text,
         DataType::Date | DataType::Time | DataType::Timestamp => OperandFamily::Temporal,
         DataType::Vector(_) => OperandFamily::Vector,
-        DataType::Json => OperandFamily::Json,
+        DataType::Json | DataType::Jsonb => OperandFamily::Json,
+        DataType::JsonPath => OperandFamily::Other,
         DataType::Uuid | DataType::Bytea | DataType::Array(_) | DataType::Null => {
             OperandFamily::Other
         }

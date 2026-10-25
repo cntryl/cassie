@@ -1,6 +1,5 @@
 use crate::catalog::CollectionSchema;
 use crate::sql::ast::{BinaryOp, Expr, SelectItem, SelectStatement};
-use crate::types::DataType;
 
 pub(super) fn rewrite_select(select: &mut SelectStatement, fields: &crate::sql::FieldTypeMap) {
     for item in &mut select.projection {
@@ -80,13 +79,12 @@ fn rewritten(expr: &Expr, fields: &crate::sql::FieldTypeMap) -> Expr {
 
 fn cast_column(expr: &mut Expr, fields: &crate::sql::FieldTypeMap) {
     if let Expr::Column(column) = expr {
-        if matches!(
-            crate::sql::field_type_for_column(fields, column),
-            Some(DataType::Json)
-        ) {
+        if let Some(kind) =
+            crate::sql::field_type_for_column(fields, column).filter(|kind| kind.is_json())
+        {
             *expr = Expr::Cast {
                 expr: Box::new(expr.clone()),
-                data_type: DataType::Json,
+                data_type: kind.clone(),
                 source_type: None,
                 identity: crate::sql::ast::CastIdentity::Scalar,
             };

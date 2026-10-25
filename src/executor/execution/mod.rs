@@ -99,6 +99,8 @@ pub(crate) use dml::resolve_transaction_conflict_intents;
 pub(crate) use dml::{delete_is_joined, joined_returning_schema, update_is_joined};
 mod dml_command;
 mod dml_referential_actions;
+#[path = "dml_upsert_wait.rs"]
+mod dml_upsert_wait;
 
 pub(crate) fn delete_document_with_referential_actions(
     cassie: &crate::app::Cassie,

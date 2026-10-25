@@ -114,6 +114,9 @@ fn validate_values(
     )?;
     for row in rows {
         for (index, expression) in row.iter_mut().enumerate() {
+            if expression.is_default_assignment() {
+                continue;
+            }
             boolean_contexts::validate_value(
                 expression,
                 &types,

@@ -258,7 +258,9 @@ pub(super) fn value_heap(
             return add(float_bytes.max(json::retained_bytes(value)?), 1_024);
         }
     }
-    if matches!(data_type, Some(DataType::Json)) && (value.is_null() || value.is_string()) {
+    if data_type == Some(&DataType::Jsonb)
+        || (matches!(data_type, Some(DataType::Json)) && (value.is_null() || value.is_string()))
+    {
         return json::retained_bytes(value);
     }
     match value {

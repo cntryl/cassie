@@ -14,6 +14,20 @@ pub(super) enum CopyWireFormat {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ColumnSelection {
+    None,
+    All,
+    Columns(Vec<String>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ForceQuote {
+    None,
+    All,
+    Columns(Vec<String>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum CopyTarget {
     Table {
         relation: String,
@@ -24,18 +38,14 @@ pub(super) enum CopyTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum ForceQuote {
-    None,
-    All,
-    Columns(Vec<String>),
-}
-
 struct CopyOptions {
     format: CopyWireFormat,
     header: bool,
     delimiter: Option<char>,
     null_marker: Option<String>,
     force_quote: ForceQuote,
+    force_null: ColumnSelection,
+    force_not_null: ColumnSelection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +57,8 @@ pub(super) struct CopyRequest {
     pub(super) delimiter: Option<char>,
     pub(super) null_marker: Option<String>,
     pub(super) force_quote: ForceQuote,
+    pub(super) force_null: ColumnSelection,
+    pub(super) force_not_null: ColumnSelection,
 }
 
 impl CopyRequest {
@@ -92,6 +104,33 @@ impl CopyRequest {
             CopyWireFormat::Csv | CopyWireFormat::Binary => "",
         })
     }
+
+    pub(super) fn force_indices(
+        selection: &ColumnSelection,
+        columns: &[crate::app::CopyColumn],
+    ) -> Vec<usize> {
+        match selection {
+            ColumnSelection::None => Vec::new(),
+            ColumnSelection::All => (0..columns.len()).collect(),
+            ColumnSelection::Columns(names) => columns
+                .iter()
+                .enumerate()
+                .filter_map(|(index, column)| match column {
+                    crate::app::CopyColumn::Field(field)
+                        if names.iter().any(|name| name == &field.name) =>
+                    {
+                        Some(index)
+                    }
+                    crate::app::CopyColumn::RowId
+                        if names.iter().any(|name| name == "_id" || name == "id") =>
+                    {
+                        Some(index)
+                    }
+                    _ => None,
+                })
+                .collect(),
+        }
+    }
 }
 
 pub(super) fn parse_copy_request(sql: &str) -> Result<Option<CopyRequest>, CassieError> {
@@ -126,6 +165,28 @@ pub(super) fn parse_copy_request(sql: &str) -> Result<Option<CopyRequest>, Cassi
             "FORCE_QUOTE is only supported for COPY TO STDOUT".to_string(),
         ));
     }
+    if direction == CopyDirection::ToStdout
+        && (options.force_null != ColumnSelection::None
+            || options.force_not_null != ColumnSelection::None)
+    {
+        return Err(CassieError::Diagnostic(Box::new(
+            crate::app::DiagnosticError::new(
+                "22023",
+                "COPY FORCE_NULL and FORCE_NOT_NULL cannot be used with COPY TO",
+            ),
+        )));
+    }
+    if options.format != CopyWireFormat::Csv
+        && (options.force_null != ColumnSelection::None
+            || options.force_not_null != ColumnSelection::None)
+    {
+        return Err(CassieError::Diagnostic(Box::new(
+            crate::app::DiagnosticError::new(
+                "0A000",
+                "COPY FORCE_NULL and FORCE_NOT_NULL require CSV mode",
+            ),
+        )));
+    }
     if options.format != CopyWireFormat::Csv
         && (options.header || options.force_quote != ForceQuote::None)
     {
@@ -151,6 +212,8 @@ pub(super) fn parse_copy_request(sql: &str) -> Result<Option<CopyRequest>, Cassi
         delimiter: options.delimiter,
         null_marker: options.null_marker,
         force_quote: options.force_quote,
+        force_null: options.force_null,
+        force_not_null: options.force_not_null,
     }))
 }
 
@@ -265,6 +328,8 @@ fn parse_options(raw: &str) -> Result<CopyOptions, CassieError> {
             delimiter: None,
             null_marker: None,
             force_quote: ForceQuote::None,
+            force_null: ColumnSelection::None,
+            force_not_null: ColumnSelection::None,
         });
     }
     let Some(options) = strip_keyword_prefix(raw, "WITH") else {
@@ -288,6 +353,8 @@ fn parse_options(raw: &str) -> Result<CopyOptions, CassieError> {
         delimiter: None,
         null_marker: None,
         force_quote: ForceQuote::None,
+        force_null: ColumnSelection::None,
+        force_not_null: ColumnSelection::None,
     };
     let mut seen = std::collections::HashSet::new();
     for item in items {
@@ -332,6 +399,10 @@ fn parse_option_item(
                 })?)?);
         }
         "FORCE_QUOTE" => options.force_quote = parse_force_quote(value)?,
+        "FORCE_NULL" => options.force_null = parse_column_selection("FORCE_NULL", value)?,
+        "FORCE_NOT_NULL" => {
+            options.force_not_null = parse_column_selection("FORCE_NOT_NULL", value)?;
+        }
         _ => {
             return Err(CassieError::Unsupported(format!(
                 "unsupported COPY option '{item}'"
@@ -382,6 +453,41 @@ fn parse_force_quote(value: Option<&str>) -> Result<ForceQuote, CassieError> {
     Ok(ForceQuote::Columns(columns))
 }
 
+fn parse_column_selection(
+    option: &str,
+    value: Option<&str>,
+) -> Result<ColumnSelection, CassieError> {
+    let value = value.ok_or_else(|| {
+        CassieError::Parse(format!("COPY {option} requires '*' or a column list"))
+    })?;
+    if value == "*" {
+        return Ok(ColumnSelection::All);
+    }
+    let inner = value
+        .strip_prefix('(')
+        .and_then(|value| value.strip_suffix(')'))
+        .ok_or_else(|| CassieError::Parse(format!("COPY {option} is malformed")))?;
+    let columns = split_top_level(inner, ',')
+        .into_iter()
+        .map(|column| normalize_identifier(column.trim()))
+        .collect::<Result<Vec<_>, _>>()?;
+    if columns.is_empty() || columns.iter().any(String::is_empty) {
+        return Err(CassieError::Parse(format!(
+            "COPY {option} column list cannot be empty"
+        )));
+    }
+    let mut unique = std::collections::HashSet::with_capacity(columns.len());
+    if let Some(column) = columns.iter().find(|column| !unique.insert(*column)) {
+        return Err(CassieError::Diagnostic(Box::new(
+            crate::app::DiagnosticError::new(
+                "42701",
+                format!("column \"{column}\" specified more than once"),
+            ),
+        )));
+    }
+    Ok(ColumnSelection::Columns(columns))
+}
+
 fn parse_format(raw: &str) -> Result<CopyWireFormat, CassieError> {
     match raw.trim().trim_matches('"').to_ascii_uppercase().as_str() {
         "TEXT" => Ok(CopyWireFormat::Text),
@@ -394,6 +500,12 @@ fn parse_format(raw: &str) -> Result<CopyWireFormat, CassieError> {
 }
 
 fn split_option(raw: &str) -> (&str, Option<&str>) {
+    if let Some(open) = raw.find('(') {
+        if !raw[..open].contains(|character: char| character.is_whitespace()) && raw.ends_with(')')
+        {
+            return (raw[..open].trim(), Some(raw[open..].trim()));
+        }
+    }
     let bytes = raw.as_bytes();
     let mut quote = None;
     let mut depth = 0_usize;

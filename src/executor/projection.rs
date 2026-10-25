@@ -10,6 +10,9 @@ use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
 use crate::types::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[path = "projection/json_object_keys.rs"]
+mod json_object_keys;
+
 static OWNED_VALUE_MOVES: AtomicU64 = AtomicU64::new(0);
 
 thread_local! {
@@ -259,6 +262,14 @@ pub(crate) fn project_batches(
             )
         })
         .collect()
+}
+
+pub(crate) fn expand_json_object_keys(
+    batches: Vec<Batch>,
+    projection: &[SelectItem],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Vec<Batch>, QueryError> {
+    json_object_keys::expand(batches, projection, controls)
 }
 
 pub(crate) fn project_batches_resolving_exists(

@@ -135,7 +135,21 @@ fn default_values_insert(
 }
 
 pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr>>, SqlError> {
-    parse_values_rows(values_part, parse_expression)
+    parse_values_rows(values_part, parse_insert_cell)
+}
+
+fn parse_insert_cell(raw: &str) -> Result<Expr, SqlError> {
+    let raw = super::lexical::trim_separators(raw);
+    if raw.eq_ignore_ascii_case("default") {
+        return Ok(super::dml_targets::default_marker());
+    }
+    let expression = parse_expression(raw)?;
+    if expression.is_default_assignment() {
+        return Err(SqlError::new(
+            "column defaults require DEFAULT syntax".into(),
+        ));
+    }
+    Ok(expression)
 }
 
 pub(super) fn parse_values_rows(

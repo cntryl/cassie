@@ -890,10 +890,49 @@ pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
             || message.starts_with("FLOAT precision")
         {
             SqlError::invalid_parameter_value(message)
+        } else if message.starts_with("unsupported data type '") && !is_known_unselected_type(raw) {
+            let name = raw.trim();
+            SqlError::undefined_object(format!("type \"{name}\" does not exist"))
         } else {
             SqlError::new(message)
         }
     })
+}
+
+fn is_known_unselected_type(raw: &str) -> bool {
+    let mut type_name = raw.trim();
+    type_name = type_name
+        .strip_prefix("pg_catalog.")
+        .unwrap_or(type_name)
+        .trim_matches('"');
+    if let Some((base, _)) = type_name.split_once('(') {
+        type_name = base.trim();
+    }
+    if let Some(base) = type_name.strip_suffix("[]") {
+        type_name = base.trim();
+    }
+    let type_name = type_name.to_ascii_lowercase();
+    matches!(
+        type_name.as_str(),
+        "name"
+            | "char"
+            | "unknown"
+            | "money"
+            | "xml"
+            | "point"
+            | "line"
+            | "lseg"
+            | "box"
+            | "path"
+            | "polygon"
+            | "circle"
+            | "int4range"
+            | "int8range"
+            | "numrange"
+            | "tsrange"
+            | "tstzrange"
+            | "daterange"
+    )
 }
 
 fn legacy_sql_type_alias(raw: &str) -> Option<&'static str> {

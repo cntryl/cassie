@@ -870,6 +870,8 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Timestamp => "timestamp".to_string(),
         DataType::Vector(dimensions) => format!("vector({dimensions})"),
         DataType::Json => "json".to_string(),
+        DataType::Jsonb => "jsonb".to_string(),
+        DataType::JsonPath => "jsonpath".to_string(),
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
         DataType::ObjectId(kind) => kind.name().to_string(),
         DataType::Extended(kind) => kind.name().to_string(),

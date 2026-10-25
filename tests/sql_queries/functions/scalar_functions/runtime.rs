@@ -730,7 +730,7 @@ fn should_execute_time_bucket_through_pgwire() {
                 _ => None,
             })
             .expect("time_bucket row");
-        assert_eq!(row.get(0), Some("2024-01-01T00:15:00Z"));
+        assert_eq!(row.get(0), Some("2024-01-01 00:15:00"));
 
         drop(client);
         server.shutdown(connection).await;

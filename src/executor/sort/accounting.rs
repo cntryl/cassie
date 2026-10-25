@@ -142,7 +142,7 @@ fn array_bytes(value: &serde_json::Value, element_type: &DataType) -> Result<usi
 }
 
 fn element_bytes(value: &serde_json::Value, data_type: &DataType) -> Result<usize, CassieError> {
-    if matches!(data_type, DataType::Json) && !value.is_null() {
+    if matches!(data_type, DataType::Json | DataType::Jsonb) && !value.is_null() {
         return add(json::retained_bytes(value)?, json_string_bytes(value)?);
     }
     match value {

@@ -79,7 +79,7 @@ pub fn rewrite_expr_for_schema(expr: &mut Expr, schema_has_id: bool) {
 }
 
 pub fn rewrite_reserved_id_references(plan: &mut LogicalPlan, catalog: &Catalog) {
-    if !source_resolves_id_to_identity(&plan.source, &plan.ctes, catalog) {
+    if !source_resolves_id_to_identity(&plan.source, &[plan.ctes.as_slice()], catalog) {
         return;
     }
 
@@ -108,28 +108,46 @@ pub fn rewrite_reserved_id_references(plan: &mut LogicalPlan, catalog: &Catalog)
 /// declares or projects. Only then is rewriting `id` to `_id` correct.
 fn source_resolves_id_to_identity(
     source: &QuerySource,
-    ctes: &[CommonTableExpression],
+    scopes: &[&[CommonTableExpression]],
     catalog: &Catalog,
 ) -> bool {
     match source {
         QuerySource::Aliased { source, .. } => {
-            source_resolves_id_to_identity(source, ctes, catalog)
+            source_resolves_id_to_identity(source, scopes, catalog)
         }
         QuerySource::Collection(collection) => !collection_declares_id(catalog, collection),
         // A join row carries each side's entries, so `id` means the identity
         // only when neither side declares one of its own.
         QuerySource::Join { left, right, .. } => {
-            source_resolves_id_to_identity(left, ctes, catalog)
-                && source_resolves_id_to_identity(right, ctes, catalog)
+            source_resolves_id_to_identity(left, scopes, catalog)
+                && source_resolves_id_to_identity(right, scopes, catalog)
         }
         QuerySource::Subquery { select, .. } => {
-            inner_resolves_id_to_identity(select, ctes, catalog)
+            inner_resolves_id_to_identity(select, scopes, catalog)
         }
-        QuerySource::Cte(name) => ctes
-            .iter()
-            .find(|cte| cte.name.eq_ignore_ascii_case(name))
-            .and_then(cte_body)
-            .is_some_and(|select| inner_resolves_id_to_identity(select, ctes, catalog)),
+        QuerySource::Cte(name) => {
+            for (scope_index, ctes) in scopes.iter().enumerate().rev() {
+                let Some(index) = ctes
+                    .iter()
+                    .rposition(|cte| cte.name.eq_ignore_ascii_case(name))
+                else {
+                    continue;
+                };
+                let cte = &ctes[index];
+                if cte.aliases.iter().any(|alias| is_reserved_id(alias)) {
+                    return false;
+                }
+                let Some(select) = cte_body(cte) else {
+                    return false;
+                };
+                // A definition sees its enclosing scopes and earlier siblings,
+                // not itself, later siblings, or its consumer's inner scope.
+                let mut body_scopes = scopes[..=scope_index].to_vec();
+                body_scopes[scope_index] = &ctes[..index];
+                return inner_resolves_id_to_identity(select, &body_scopes, catalog);
+            }
+            false
+        }
         // A table function's rows and the single synthetic row have no
         // document identity to resolve to, so `id` is left as written.
         QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {
@@ -145,18 +163,18 @@ fn source_resolves_id_to_identity(
 /// question applies one level down.
 fn inner_resolves_id_to_identity(
     select: &SelectStatement,
-    outer_ctes: &[CommonTableExpression],
+    outer_scopes: &[&[CommonTableExpression]],
     catalog: &Catalog,
 ) -> bool {
     if projects_id_output(select) {
         return false;
     }
-    let ctes = if select.ctes.is_empty() {
-        outer_ctes
-    } else {
-        &select.ctes
-    };
-    source_resolves_id_to_identity(&select.source, ctes, catalog)
+    if select.ctes.is_empty() {
+        return source_resolves_id_to_identity(&select.source, outer_scopes, catalog);
+    }
+    let mut scopes = outer_scopes.to_vec();
+    scopes.push(&select.ctes);
+    source_resolves_id_to_identity(&select.source, &scopes, catalog)
 }
 
 fn cte_body(cte: &CommonTableExpression) -> Option<&SelectStatement> {

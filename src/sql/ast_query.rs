@@ -462,8 +462,23 @@ pub enum BinaryOp {
     JsonbKeyExistsAny,
     /// PostgreSQL JSONB all-key text-array existence (`?&`).
     JsonbKeyExistsAll,
+    /// SQL/JSON path existence operator.
+    JsonPathExists,
+    /// SQL/JSON path predicate-match operator.
+    JsonPathMatch,
     /// PostgreSQL JSONB nested-path deletion (`#-`).
     JsonbDeletePath,
+    /// JSON/JSONB field, array-element, or nested-path extraction.
+    JsonExtract {
+        path: bool,
+        as_text: bool,
+        #[serde(default)]
+        jsonb: bool,
+    },
+    /// Native JSONB comparison, distinct from the established JSON carrier.
+    JsonbCompare {
+        comparison: super::RowComparisonOp,
+    },
     /// A selected builtin integer operator, retaining its operand/result domain.
     Integer {
         operation: crate::types::IntegerOperation,

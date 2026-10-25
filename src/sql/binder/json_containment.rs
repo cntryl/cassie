@@ -20,17 +20,17 @@ pub(super) fn qualify(
     if operator_symbol(op).is_none() {
         return;
     }
-    if left_type == Some(&DataType::Json) && matches!(right, Expr::StringLiteral(_)) {
-        cast_json(right);
-    } else if right_type == Some(&DataType::Json) && matches!(left, Expr::StringLiteral(_)) {
-        cast_json(left);
+    if left_type.is_some_and(DataType::is_json) && matches!(right, Expr::StringLiteral(_)) {
+        cast_json(right, left_type.cloned().unwrap_or(DataType::Jsonb));
+    } else if right_type.is_some_and(DataType::is_json) && matches!(left, Expr::StringLiteral(_)) {
+        cast_json(left, right_type.cloned().unwrap_or(DataType::Jsonb));
     }
 }
 
-fn cast_json(expression: &mut Expr) {
+fn cast_json(expression: &mut Expr, data_type: DataType) {
     *expression = Expr::Cast {
         expr: Box::new(std::mem::replace(expression, Expr::Null)),
-        data_type: DataType::Json,
+        data_type,
         source_type: None,
         identity: crate::sql::ast::CastIdentity::Scalar,
     };

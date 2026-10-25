@@ -9,6 +9,9 @@ pub(super) fn binary_scalar(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Result<ScalarValue, QueryError> {
+    if let Some(result) = super::json_path_operator::evaluate(left, op, right) {
+        return result;
+    }
     if let Some(result) = json_operator(left, op, right) {
         return result;
     }
@@ -22,6 +25,7 @@ pub(super) fn binary_scalar(
         BinaryOp::Quantified { comparison, all } => {
             super::quantified_array::evaluate(left, comparison, *all, right)?
         }
+        BinaryOp::JsonbCompare { comparison } => return super::json_order::evaluate(left, *comparison, right),
         BinaryOp::Typed { .. } => {
             return Err(crate::app::CassieError::Execution(
                 "operator does not exist for these operand types".into(),
@@ -31,7 +35,13 @@ pub(super) fn binary_scalar(
         BinaryOp::JsonbKeyExists
         | BinaryOp::JsonbKeyExistsAny
         | BinaryOp::JsonbKeyExistsAll => super::json_key_exists::evaluate(left, op, right)?,
+        BinaryOp::JsonPathExists | BinaryOp::JsonPathMatch => {
+            unreachable!("JSONPATH operators are evaluated before the generic dispatch")
+        }
         BinaryOp::JsonbDeletePath => super::json_delete::delete_path(left, right)?,
+        BinaryOp::JsonExtract { path, as_text, jsonb } => {
+            super::json_extract::evaluate(left, right, *path, *as_text, *jsonb)?
+        }
         BinaryOp::ByteaConcat => super::bytea_casts::concatenate(left, right)?,
         BinaryOp::Concat => match (cast_to_text(left), cast_to_text(right)) {
             (Some(mut left), Some(right)) => {
@@ -75,14 +85,7 @@ pub(super) fn binary_scalar(
         BinaryOp::Add => checked_math_result(left, right, i64::checked_add, |a, b| a + b)?,
         BinaryOp::Sub => checked_math_result(left, right, i64::checked_sub, |a, b| a - b)?,
         BinaryOp::Mul => checked_math_result(left, right, i64::checked_mul, |a, b| a * b)?,
-        BinaryOp::Power => {
-            if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) { ScalarValue::Null }
-            else {
-                let left = left.to_f64().ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
-                let right = right.to_f64().ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
-                ScalarValue::Float(super::functions::math::power(left, right)?)
-            }
-        }
+        BinaryOp::Power => power(left, right)?,
         BinaryOp::Bitwise { .. }
             if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) =>
         {
@@ -107,6 +110,21 @@ pub(super) fn binary_scalar(
         }
     };
     Ok(result)
+}
+
+fn power(left: &ScalarValue, right: &ScalarValue) -> Result<ScalarValue, QueryError> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(ScalarValue::Null);
+    }
+    let left = left
+        .to_f64()
+        .ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
+    let right = right
+        .to_f64()
+        .ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
+    Ok(ScalarValue::Float(super::functions::math::power(
+        left, right,
+    )?))
 }
 
 fn json_operator(

@@ -29,6 +29,14 @@ Table COPY and database images mixed with other Simple Query statements reject
 with `0A000` before execution and without entering copy mode. The generic SQL COPY
 guard does not replace the dedicated wire COPY handler. Preserve its 16 MiB
 buffer limit, ignored Flush/Sync during copy-in, and late-frame recovery.
+COPY scalar input preserves the selected type parser's diagnostics: malformed
+integer, FLOAT8, Boolean, NUMERIC, JSON/JSONB and OID input reports `22P02`,
+and integer/FLOAT8 range errors report `22003`. CSV row-width mismatch and
+unterminated quoting report `22P04`. A failed batch publishes none of its earlier
+rows, emits no successful command tag, and returns to the appropriate ready
+state. Focused probes are in
+[`errors.rs`](../tests/compatibility/lifecycle/copy/from_stdin/errors.rs).
+
 No extended COPY, distributed transactions, new isolation levels, or persistent
 transaction format is introduced.
 
@@ -48,10 +56,25 @@ Savepoint rollback releases keys acquired after that savepoint. Waits honor
 query cancellation and deadlines. Detected wait cycles return `40P01`; the
 victim's previously staged keys remain owned until transaction resolution.
 
+The next bounded increment extends this ownership protocol to explicit
+single-column PRIMARY KEY/UNIQUE `ON CONFLICT (field)` targets with stable
+integer, Boolean, text/varchar, UUID or BYTEA key representations and actions
+that preserve the arbiter field, on tables without vector indexes. Candidate values, identity and defaults are
+prepared once under admitted memory. Waiters release collection gates, honor
+cancellation/deadlines, and recheck current READ COMMITTED data before applying
+DO NOTHING/DO UPDATE and producing the final RETURNING row. Failed statements
+and autocommit completion release their claims; successful explicit writes
+retain ownership until their transaction resolves. This increment is selected
+for projector idempotency on 2026-10-24. Local probes cover owner commit and rollback,
+single evaluation of defaults, cancellation, false action filters, non-arbiter
+uniqueness, preservation of earlier transaction keys, and failed multi-row
+atomicity in [`upsert_concurrency.rs`](../tests/compatibility/lifecycle/mutations/upsert_concurrency.rs).
+This evidence does not qualify the broader transaction contract.
+
 The ownership registry is private and in-memory. This slice does not select
 REPEATABLE READ or SERIALIZABLE, and it does not qualify unique indexes,
 composite or expression constraints, or wait behavior for UPDATE, MERGE, COPY,
-`INSERT ... ON CONFLICT`, or other write paths. Those obligations remain open
+broader `INSERT ... ON CONFLICT` targets, or other write paths. Those obligations remain open
 under #819 and its named downstream owners. Focused executable evidence is in
 [`transaction_errors.rs`](../tests/sql_mutations/transactions/transaction_errors.rs)
 and the completing PR; the implementation does not complete #819.

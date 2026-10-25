@@ -34,6 +34,24 @@ pub(super) fn binding(
     })
 }
 
+/// Validation exposes the existing legacy identity alias until logical rewriting.
+pub(super) fn source_fields(
+    name: &str,
+    binding: &super::super::CteBinding,
+) -> super::HashSet<String> {
+    use crate::types::row_identity::LEGACY_ID_COLUMN;
+    let identity_alias = binding.has_implicit_identity();
+    let mut names = binding.visible.clone();
+    if identity_alias {
+        names.push(LEGACY_ID_COLUMN.to_owned());
+    }
+    let mut fields = super::qualified_fields(name, names);
+    if identity_alias {
+        fields.insert(super::IDENTITY_ALIAS_MARKER.to_owned());
+    }
+    fields
+}
+
 /// Returns a CTE's visible column names and the alias list stored on the
 /// bound CTE. Without a declared list both are the body's output names (`*`
 /// for a wildcard body). A declared list may be shorter than the body's

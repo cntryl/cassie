@@ -74,10 +74,34 @@ impl Cassie {
         collection: &str,
         payload: &serde_json::Value,
     ) -> Result<serde_json::Value, CassieError> {
+        self.apply_insert_defaults(collection, payload.clone(), &[])
+    }
+
+    /// Applies defaults while treating listed JSON fields as explicit SQL NULL.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a sequence default cannot advance.
+    pub(crate) fn apply_insert_defaults(
+        &self,
+        collection: &str,
+        mut payload: serde_json::Value,
+        explicit_json_nulls: &[&str],
+    ) -> Result<serde_json::Value, CassieError> {
+        let object = payload.as_object_mut().ok_or_else(|| {
+            CassieError::InvalidVector("document payload must be a JSON object".to_string())
+        })?;
+        for field in explicit_json_nulls {
+            object.insert((*field).to_string(), serde_json::Value::Null);
+        }
         let constraints = self.catalog.get_constraints(collection);
-        let mut payload = payload.clone();
         if !constraints.is_empty() {
             apply_default_values(self, &mut payload, &constraints)?;
+        }
+        if let Some(object) = payload.as_object_mut() {
+            for field in explicit_json_nulls {
+                object.remove(*field);
+            }
         }
         Ok(payload)
     }

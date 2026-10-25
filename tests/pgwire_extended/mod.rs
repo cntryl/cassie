@@ -18,8 +18,6 @@ mod postgresql18_explain_options;
 mod postgresql18_grammar;
 #[path = "functions/math/math.rs"]
 mod postgresql18_math_compat;
-#[path = "aggregates/money/money.rs"]
-mod postgresql18_money_compat;
 #[path = "types/network/network.rs"]
 mod postgresql18_network_compat;
 #[path = "aggregates/numeric/binary.rs"]
@@ -117,9 +115,6 @@ mod types_json_jsonpath_cancellation;
 
 #[path = "types/json/jsonpath_timezone.rs"]
 mod types_json_jsonpath_timezone;
-
-#[path = "types/money/restart.rs"]
-mod types_money_restart;
 
 #[path = "types/uuid_lsn/restart.rs"]
 mod types_uuid_lsn_restart;

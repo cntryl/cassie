@@ -168,6 +168,9 @@ fn validate(
                     | DataType::Varchar { .. }
                     | DataType::Uuid
                     | DataType::Bytea
+                    | DataType::Json
+                    | DataType::Jsonb
+                    | DataType::JsonPath
                     | DataType::Date
                     | DataType::Time
                     | DataType::Timestamp

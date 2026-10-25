@@ -106,7 +106,7 @@ fn assert_selected_cast_statement_description(frames: &[(u8, Vec<u8>)]) {
         .expect("inferred ParameterDescription");
     assert_eq!(
         wire::parse_parameter_description(&parameters.1),
-        [2950, 114, 1700, 2951]
+        [2950, 3802, 1700, 2951]
     );
 
     let statement_description = frames
@@ -121,7 +121,7 @@ fn assert_selected_cast_statement_description(frames: &[(u8, Vec<u8>)]) {
             .collect::<Vec<_>>(),
         [
             ("uuid_value", 2950, -1),
-            ("document", 114, -1),
+            ("document", 3802, -1),
             ("amount", 1700, 1_179_654),
             ("ids", 2_951, -1),
         ]
@@ -148,13 +148,13 @@ fn assert_selected_cast_bound_values(frames: &[(u8, Vec<u8>)]) {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        [2950, 114, 1700, 2951]
+        [2950, 3802, 1700, 2951]
     );
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![
             Some("550e8400-e29b-41d4-a716-446655440000".to_owned()),
-            Some(r#"{"answer":42}"#.to_owned()),
+            Some(r#"{"answer": 42}"#.to_owned()),
             Some("12.35".to_owned()),
             Some("[\"550e8400-e29b-41d4-a716-446655440001\",null]".to_owned()),
         ]]

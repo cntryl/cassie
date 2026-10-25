@@ -82,6 +82,7 @@ pub(super) const fn primitive_oid(oid: i32) -> bool {
             | 1114
             | 1700
             | 2950
+            | 3802
     )
 }
 

@@ -36,7 +36,8 @@ where
     R: AsyncRead + Unpin,
     W: AsyncWrite + Unpin,
 {
-    let sql = format!("SELECT state, query FROM pg_stat_activity WHERE pid = {target_pid}");
+    let sql =
+        format!("SELECT state, query FROM pg_catalog.pg_stat_activity WHERE pid = {target_pid}");
     wire::write_frames(writer, vec![wire::simple_query_frame(&sql)]).await;
     wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await
 }

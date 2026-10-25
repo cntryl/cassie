@@ -7,6 +7,11 @@ pub(super) fn scalar(
     source: Option<&DataType>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
+    if source == Some(&DataType::Jsonb)
+        && matches!(target, DataType::Text | DataType::Varchar { .. })
+    {
+        return jsonb_text(value);
+    }
     if matches!(target, DataType::Array(_)) && source == Some(target) {
         return Ok(value.clone());
     }
@@ -71,16 +76,8 @@ pub(super) fn scalar(
         }
     }
     if *target == DataType::Float {
-        match value {
-            ScalarValue::Float(value) => return Ok(ScalarValue::Float(*value)),
-            ScalarValue::Str(text) => {
-                return crate::types::float_input::parse(text)
-                    .map(ScalarValue::Float)
-                    .map_err(|error| {
-                        QueryError::Cassie(crate::app::CassieError::FloatInput(error))
-                    })
-            }
-            _ => {}
+        if let Some(value) = float_input(value) {
+            return value;
         }
     }
     if matches!(target, DataType::Text | DataType::Varchar { .. }) {
@@ -109,6 +106,28 @@ pub(super) fn scalar(
         }
     }
     cast_scalar(value, target, controls)
+}
+
+fn float_input(value: &ScalarValue) -> Option<Result<ScalarValue, QueryError>> {
+    match value {
+        ScalarValue::Float(value) => Some(Ok(ScalarValue::Float(*value))),
+        ScalarValue::Str(text) => Some(
+            crate::types::float_input::parse(text)
+                .map(ScalarValue::Float)
+                .map_err(|error| QueryError::Cassie(crate::app::CassieError::FloatInput(error))),
+        ),
+        _ => None,
+    }
+}
+
+fn jsonb_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+    let document = super::json_concat::as_json_document(value)?;
+    let ScalarValue::Json(text) = document else {
+        return Ok(ScalarValue::Null);
+    };
+    crate::types::jsonb::canonical(&text)
+        .map(ScalarValue::Str)
+        .map_err(|error| crate::app::CassieError::TypeInput(error).into())
 }
 
 fn format_array_text(value: &ScalarValue, source: Option<&DataType>) -> Option<ScalarValue> {

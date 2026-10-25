@@ -106,10 +106,7 @@ fn array_constructor(raw: &str) -> Result<Expr, SqlError> {
             })
             .collect::<Result<Vec<_>, _>>()?
             .join(", ");
-        format!(
-            "SELECT _cassie_array_value FROM (VALUES {rows}) \
-             AS _cassie_array_source(_cassie_array_value)"
-        )
+        format!("SELECT column1 FROM (VALUES {rows}) AS _cassie_array_source")
     };
     sublink(SubqueryKind::Array, &query)
 }

@@ -82,6 +82,24 @@ impl Cassie {
         Ok(row_id)
     }
 
+    /// Validate defaulted candidates without consulting uncommitted unique owners.
+    pub(crate) fn prepare_upsert_candidate(
+        &self,
+        collection: &str,
+        mut payload: serde_json::Value,
+    ) -> Result<serde_json::Value, CassieError> {
+        let schema = self
+            .catalog
+            .get_schema(collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        payload_keys::normalize_payload_keys(collection, &schema.fields, &mut payload)?;
+        let constraints = self.catalog.get_constraints(collection);
+        canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
+        Self::validate_payload_schema(collection, &schema, &payload)?;
+        self.validate_row_constraints(collection, &payload, &constraints)?;
+        Ok(payload)
+    }
+
     pub(crate) fn prepare_document_write_for_session(
         &self,
         session: Option<&CassieSession>,
@@ -431,6 +449,12 @@ impl Cassie {
             | crate::types::DataType::Timestamp => {
                 Self::validate_string_only(field, expected, value)
             }
+            crate::types::DataType::Jsonb => crate::types::jsonb::format(value)
+                .map(|_| ())
+                .map_err(CassieError::TypeInput),
+            crate::types::DataType::JsonPath => Err(CassieError::Unsupported(
+                "JSONPATH values cannot be stored in table columns".to_string(),
+            )),
             crate::types::DataType::Json => Self::validate_json(field, value),
             crate::types::DataType::Vector(size) => Self::validate_vector(field, *size, value),
             crate::types::DataType::Array(inner) => Self::validate_array(field, inner, value),
@@ -672,6 +696,19 @@ impl Cassie {
         constraints: &[FieldConstraint],
         exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
+        self.validate_row_constraints(collection, payload, constraints)?;
+        let object = payload.as_object().ok_or_else(|| {
+            CassieError::InvalidVector("document payload must be a JSON object".to_string())
+        })?;
+        self.validate_uniques(session, collection, object, constraints, exclude_id)
+    }
+
+    fn validate_row_constraints(
+        &self,
+        collection: &str,
+        payload: &serde_json::Value,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
@@ -729,7 +766,7 @@ impl Cassie {
             }
         }
 
-        self.validate_uniques(session, collection, object, constraints, exclude_id)
+        Ok(())
     }
 
     pub(super) fn satisfies_check_constraint(

@@ -182,6 +182,7 @@ async fn bind_copy_request(
                         "COPY FROM STDIN did not bind as a table copy".to_string(),
                     ));
                 };
+                validate_force_columns(&cassie, &request, &statement)?;
                 Ok(Some(BoundCopyRequest::From(request, statement)))
             }
             CopyDirection::ToStdout => {
@@ -224,6 +225,51 @@ async fn bind_copy_request(
         }
     })
     .await
+}
+
+fn validate_force_columns(
+    cassie: &Cassie,
+    request: &CopyRequest,
+    statement: &CopyStatement,
+) -> Result<(), CassieError> {
+    let fields = cassie
+        .catalog
+        .get_schema(&statement.table)
+        .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
+    let columns = crate::app::copy_columns(statement, &fields.fields)?;
+    for (option, selection) in [
+        ("FORCE_NULL", &request.force_null),
+        ("FORCE_NOT_NULL", &request.force_not_null),
+    ] {
+        let request::ColumnSelection::Columns(names) = selection else {
+            continue;
+        };
+        for name in names {
+            let copied = columns.iter().any(|column| match column {
+                crate::app::CopyColumn::Field(field) => field.name == *name,
+                crate::app::CopyColumn::RowId => name == "id" || name == "_id",
+            });
+            if copied {
+                continue;
+            }
+            let exists = fields.fields.iter().any(|field| field.name == *name)
+                || crate::types::row_identity::declares_id(
+                    fields.fields.iter().map(|field| field.name.as_str()),
+                ) && (name == "id" || name == "_id");
+            let (code, message) = if exists {
+                (
+                    "42P10",
+                    format!("{option} column \"{name}\" not referenced by COPY"),
+                )
+            } else {
+                ("42703", format!("column \"{name}\" does not exist"))
+            };
+            return Err(CassieError::Diagnostic(Box::new(
+                crate::app::DiagnosticError::new(code, message),
+            )));
+        }
+    }
+    Ok(())
 }
 
 enum BoundCopyRequest {
@@ -718,10 +764,36 @@ fn execute_copy_payload(
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
 ) -> Result<String, CassieError> {
     let mut rows = match request.format {
-        CopyWireFormat::Csv => crate::app::parse_copy_csv_payload(
+        CopyWireFormat::Csv => crate::app::parse_copy_csv_payload_with_force(
             payload,
             request.csv_delimiter(),
             request.null_marker(),
+            &request::CopyRequest::force_indices(
+                &request.force_null,
+                &crate::app::copy_columns(
+                    statement,
+                    &cassie
+                        .catalog
+                        .get_schema(&statement.table)
+                        .ok_or_else(|| {
+                            CassieError::Parse("COPY target schema disappeared".to_string())
+                        })?
+                        .fields,
+                )?,
+            ),
+            &request::CopyRequest::force_indices(
+                &request.force_not_null,
+                &crate::app::copy_columns(
+                    statement,
+                    &cassie
+                        .catalog
+                        .get_schema(&statement.table)
+                        .ok_or_else(|| {
+                            CassieError::Parse("COPY target schema disappeared".to_string())
+                        })?
+                        .fields,
+                )?,
+            ),
         )?,
         CopyWireFormat::Text => {
             input::parse_text_payload(payload, request.text_delimiter(), request.null_marker())?

@@ -695,7 +695,7 @@ pub(super) fn source_fields(
         }
         QuerySource::Cte(name) => scope
             .get(&name.to_ascii_lowercase())
-            .map(|binding| qualified_fields(name, binding.visible.clone()))
+            .map(|binding| cte_columns::source_fields(name, binding))
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
         QuerySource::SingleRow => Ok(HashSet::new()),
         QuerySource::TableFunction { name, .. } => Ok(qualified_fields(

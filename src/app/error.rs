@@ -693,6 +693,9 @@ impl From<crate::sql::SqlError> for CassieError {
             | crate::sql::SqlErrorKind::UndefinedFunction => {
                 CassieError::Execution(value.to_string())
             }
+            crate::sql::SqlErrorKind::UndefinedObject => {
+                CassieError::from(DiagnosticError::new("42704", value.to_string()))
+            }
             crate::sql::SqlErrorKind::Unsupported => CassieError::Unsupported(value.to_string()),
             crate::sql::SqlErrorKind::ResourceLimit => {
                 CassieError::ResourceLimit(value.to_string())

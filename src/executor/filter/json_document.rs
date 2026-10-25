@@ -43,6 +43,38 @@ pub(super) fn parse_object(document: &str) -> Result<RawObject, QueryError> {
     serde_json::from_str::<RawObject>(document).map_err(|error| invalid_document(&error))
 }
 
+pub(super) fn object_field(
+    document: &str,
+    requested: &str,
+) -> Result<Option<Box<RawValue>>, QueryError> {
+    struct FieldVisitor<'a>(&'a str);
+
+    impl<'de> Visitor<'de> for FieldVisitor<'_> {
+        type Value = Option<Box<RawValue>>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("a JSON object")
+        }
+
+        fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+        where
+            M: MapAccess<'de>,
+        {
+            let mut selected = None;
+            while let Some((key, value)) = map.next_entry::<String, Box<RawValue>>()? {
+                if key == self.0 {
+                    selected = Some(value);
+                }
+            }
+            Ok(selected)
+        }
+    }
+
+    serde_json::Deserializer::from_str(document)
+        .deserialize_map(FieldVisitor(requested))
+        .map_err(|error| invalid_document(&error))
+}
+
 pub(super) fn parse_array(document: &str) -> Result<Vec<Box<RawValue>>, QueryError> {
     serde_json::from_str::<Vec<Box<RawValue>>>(document).map_err(|error| invalid_document(&error))
 }

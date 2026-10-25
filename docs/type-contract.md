@@ -47,7 +47,8 @@ below according to the declared precision.
 ### Selected NAME introspection identity
 
 `name` (OID 19, `typlen` 64) is selected for `current_catalog`,
-`current_database()`, and `pg_client_encoding()` results; `name[]` (OID 1003)
+`current_user`, `session_user`, `current_role`, `current_database()`, and
+`pg_client_encoding()` results; `name[]` (OID 1003)
 is selected for `current_schemas(boolean)`. The runtime uses UTF-8 strings and the
 existing JSON array carrier; row persistence reuses the existing string and
 array tags, so no prior row format changes. Text NAME input clips to the

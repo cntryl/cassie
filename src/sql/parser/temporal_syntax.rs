@@ -19,13 +19,16 @@ fn call(name: &str, args: Vec<Expr>) -> Expr {
     }))
 }
 
-const SQL_VALUE_KEYWORDS: [&str; 6] = [
+const SQL_VALUE_KEYWORDS: [&str; 9] = [
     "current_catalog",
     "current_date",
+    "current_role",
     "current_time",
     "current_timestamp",
+    "current_user",
     "localtime",
     "localtimestamp",
+    "session_user",
 ];
 
 /// Parses a temporal expression token; `None` when `raw` is not one.

@@ -252,8 +252,9 @@ with native 42883. No persistent representation changes. This selected
 primitive helper leaves complete session introspection and native OID/RECORD
 types unqualified under the current feature and v1.0 qualification records.
 
-`current_catalog`, `current_database()`, and `pg_client_encoding()` return
-native `name` identity (OID 19). `current_schemas(boolean)` returns native
+`current_catalog`, `current_user`, `session_user`, `current_role`,
+`current_database()`, and `pg_client_encoding()` return native `name` identity
+(OID 19). `current_schemas(boolean)` returns native
 `name[]` identity (OID 1003, element OID 19). `pg_client_encoding()` reports
 the validated UTF8 session setting. NAME values reuse the existing string row
 tag; general `name[]` parameters, constructors, operators, and assignment paths

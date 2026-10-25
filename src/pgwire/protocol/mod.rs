@@ -107,6 +107,25 @@ pub struct PreparedStatement {
 }
 
 #[derive(Debug)]
+pub(crate) struct PreparedResultDescriptor {
+    pub(crate) columns: Vec<crate::executor::ColumnMeta>,
+    pub(crate) catalog_version: std::sync::atomic::AtomicU64,
+    pub(crate) _memory: crate::runtime::QueryMemoryReservation,
+}
+
+impl PreparedResultDescriptor {
+    pub(crate) fn catalog_version(&self) -> u64 {
+        self.catalog_version
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    pub(crate) fn set_catalog_version(&self, version: u64) {
+        self.catalog_version
+            .store(version, std::sync::atomic::Ordering::Release);
+    }
+}
+
+#[derive(Debug)]
 pub struct Portal {
     pub name: String,
     pub statement_name: String,

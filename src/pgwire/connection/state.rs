@@ -77,6 +77,8 @@ pub(super) struct SessionState {
     pub(super) authenticated: bool,
     pub(super) ready: ReadyState,
     pub(super) prepared_statements: HashMap<String, PreparedStatement>,
+    pub(super) prepared_result_descriptors:
+        HashMap<u64, std::sync::Arc<crate::pgwire::protocol::PreparedResultDescriptor>>,
     pub(super) portals: HashMap<String, Portal>,
     pub(super) portal_cursors: HashMap<String, crate::midge::adapter::MidgeRowCursor>,
     pub(super) portal_memory_controls: QueryExecutionControls,
@@ -103,6 +105,7 @@ impl SessionState {
             authenticated: false,
             ready: ReadyState::InTransaction,
             prepared_statements: HashMap::new(),
+            prepared_result_descriptors: HashMap::new(),
             portals: HashMap::new(),
             portal_cursors: HashMap::new(),
             portal_memory_controls,
@@ -156,6 +159,7 @@ impl SessionState {
     pub(super) fn reset_unnamed_query_objects(&mut self, runtime: &RuntimeState) {
         if let Some(statement) = self.prepared_statements.remove("") {
             runtime.record_pgwire_prepared_delta(-1);
+            self.prepared_result_descriptors.remove(&statement.id);
             let removed = self.remove_portals_for_prepared_id(statement.id);
             record_negative_delta(removed, |delta| runtime.record_pgwire_portal_delta(delta));
         }
@@ -187,6 +191,7 @@ impl SessionState {
         for name in removed {
             if let Some(prepared) = self.prepared_statements.remove(&name) {
                 runtime.record_pgwire_prepared_delta(-1);
+                self.prepared_result_descriptors.remove(&prepared.id);
                 let portals = self.remove_portals_for_prepared_id(prepared.id);
                 record_negative_delta(portals, |delta| runtime.record_pgwire_portal_delta(delta));
             }
@@ -210,6 +215,7 @@ impl SessionState {
             runtime.record_pgwire_portal_delta(delta);
         });
         self.prepared_statements.clear();
+        self.prepared_result_descriptors.clear();
         let portal_names = self.portals.keys().cloned().collect::<Vec<_>>();
         for name in portal_names {
             self.remove_portal(&name);

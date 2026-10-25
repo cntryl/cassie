@@ -11,12 +11,20 @@ pub enum Step {
 }
 
 pub fn run_script(label: &str, steps: Vec<Step>) -> Vec<Frames> {
+    let config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+    run_script_with_config(label, steps, config)
+}
+
+pub fn run_script_with_config(
+    label: &str,
+    steps: Vec<Step>,
+    config: cassie::config::CassieRuntimeConfig,
+) -> Vec<Frames> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
-    let batches = runtime.block_on(async {
-        let config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+    let batches = runtime.block_on(async move {
         let cassie = Cassie::new_in_memory_with_config(config)
             .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));
         cassie.startup().expect("startup occurrence fixture");

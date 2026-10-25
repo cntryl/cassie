@@ -83,6 +83,7 @@ use scope::CteScope;
 
 #[path = "binder/case_unify.rs"]
 mod case_unify;
+pub(crate) use case_unify::coerce_parameterized_boolean_case_results;
 #[path = "binder/commands.rs"]
 mod commands;
 #[path = "binder/conditional_bindings.rs"]

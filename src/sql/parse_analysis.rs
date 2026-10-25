@@ -31,6 +31,7 @@ pub(crate) fn validate(
     controls.check_interruption()?;
     let mut analysis = parsed.clone();
     super::binder::values::bind_input_types(&mut analysis, parameter_types)?;
+    super::binder::coerce_parameterized_boolean_case_results(&mut analysis, parameter_types);
     let mut bound =
         super::binder::bind_initial_with_controls(analysis, catalog, context, Some(controls))?;
     super::binder::bind_boolean_parameters(

@@ -64,6 +64,37 @@ fn typed_fixture(label: &str) -> SqlFixture {
 }
 
 #[test]
+fn should_preserve_boolean_type_through_nested_case_results() {
+    // Arrange
+    let fixture = sql_fixture("nested-boolean-case-results", &[]);
+    let cases = [
+        (
+            "SELECT CASE WHEN TRUE THEN CASE WHEN TRUE THEN 'yes' ELSE FALSE END ELSE TRUE END AS flag",
+            true,
+        ),
+        (
+            "SELECT CASE WHEN TRUE THEN CASE WHEN TRUE THEN 'no' ELSE TRUE END ELSE FALSE END AS flag",
+            false,
+        ),
+    ];
+
+    for (sql, expected) in cases {
+        // Act
+        let described = fixture
+            .cassie
+            .describe_sql(sql)
+            .expect("nested Boolean CASE should describe");
+        let result = fixture
+            .execute(sql)
+            .expect("nested Boolean CASE should execute");
+
+        // Assert
+        assert_eq!(described[0].type_oid, 16, "{sql}");
+        assert_eq!(result.rows(), vec![vec![Value::Bool(expected)]], "{sql}");
+    }
+}
+
+#[test]
 fn should_contextualize_join_predicates_before_operand_family_validation() {
     // Arrange
     let fixture = typed_fixture("bool-join-early-context");
@@ -105,6 +136,8 @@ fn should_preserve_typed_boolean_comparison_provenance() {
     let statements = [
         "SELECT n FROM bool_typed WHERE flag = CAST('no' AS TEXT)",
         "SELECT n FROM bool_typed WHERE flag = txt",
+        "SELECT CASE WHEN TRUE THEN txt ELSE TRUE END FROM bool_typed",
+        "SELECT CASE WHEN TRUE THEN CAST('yes' AS TEXT) ELSE TRUE END FROM bool_typed",
         "SELECT n FROM bool_typed WHERE flag = CASE WHEN TRUE THEN 'no' ELSE 'yes' END",
         "SELECT n FROM bool_empty WHERE flag IN (CAST('no' AS TEXT))",
         "SELECT CASE flag WHEN CAST('no' AS TEXT) THEN 1 ELSE 2 END FROM bool_empty",

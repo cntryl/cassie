@@ -146,6 +146,7 @@ pub(crate) fn builtin_array_oid(element_oid: u32) -> Option<u32> {
 pub(crate) fn builtin_array_element_oid(array_oid: u32) -> Option<u32> {
     builtin_identities()
         .type_by_oid(array_oid)
+        .filter(|metadata| metadata.category == 'A')
         .map(|metadata| metadata.element)
         .filter(|oid| *oid != 0)
 }
@@ -260,7 +261,24 @@ fn group_by<T, K: std::hash::Hash + Eq>(
 
 #[cfg(test)]
 mod tests {
-    use super::builtin_identities;
+    use super::{builtin_array_element_oid, builtin_array_oid, builtin_identities};
+
+    #[test]
+    fn should_not_treat_scalar_name_type_element_as_an_array() {
+        // Arrange
+        let name_oid = 19;
+        let name_array_oid = 1_003;
+
+        // Act
+        let scalar_element = builtin_array_element_oid(name_oid);
+        let array_element = builtin_array_element_oid(name_array_oid);
+        let array_oid = builtin_array_oid(name_oid);
+
+        // Assert
+        assert_eq!(scalar_element, None);
+        assert_eq!(array_element, Some(name_oid));
+        assert_eq!(array_oid, Some(name_array_oid));
+    }
 
     #[test]
     fn should_load_postgresql_builtin_identities() {

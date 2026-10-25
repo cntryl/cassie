@@ -144,6 +144,9 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
+    if let Some(result) = evaluate_session_identity_function(name, args, session) {
+        return Some(result);
+    }
     match name {
         "version" | "pg_catalog.version" => Some(require_zero_args(name, args).map(|()| {
             Value::String(format!(
@@ -199,10 +202,6 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
                 )
             }))
         }
-        "current_schemas" | "pg_catalog.current_schemas" => {
-            Some(evaluate_current_schemas(name, args, session))
-        }
-        "current_database" => Some(evaluate_current_database(name, args, session)),
         "current_user" | "session_user" | "current_role" => {
             Some(evaluate_current_user(name, args, session))
         }
@@ -233,6 +232,35 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
             require_arg_count(name, args, 1)
                 .map(|()| Value::Bool(pg_table_is_visible(row, args, session))),
         ),
+        _ => None,
+    }
+}
+
+fn evaluate_session_identity_function(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Option<Result<Value, QueryError>> {
+    match name {
+        "current_schemas" | "pg_catalog.current_schemas" => {
+            Some(evaluate_current_schemas(name, args, session))
+        }
+        "current_catalog" | "current_database" => {
+            Some(evaluate_current_database(name, args, session))
+        }
+        "pg_client_encoding" | "pg_catalog.pg_client_encoding" => {
+            Some(require_zero_args(name, args).and_then(|()| {
+                session.map_or_else(
+                    || Ok(Value::String("UTF8".to_owned())),
+                    |session| {
+                        session
+                            .setting("client_encoding")
+                            .map(Value::String)
+                            .map_err(Into::into)
+                    },
+                )
+            }))
+        }
         _ => None,
     }
 }

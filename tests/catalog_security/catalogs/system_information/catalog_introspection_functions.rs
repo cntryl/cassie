@@ -44,6 +44,12 @@ fn should_report_the_negotiated_client_encoding_over_pgwire() {
             start_pgwire_fixture("issue-817-client-encoding").await;
 
         // Act
+        let database = client
+            .query_one("SELECT current_database()", &[])
+            .await
+            .expect("read the current database name over binary pgwire");
+        assert_eq!(database.columns()[0].type_().oid(), 19);
+        assert_eq!(database.get::<_, String>(0), "postgres");
         let row = client
             .query_one(
                 "SELECT pg_catalog.pg_client_encoding(), \
@@ -68,4 +74,20 @@ fn should_report_the_negotiated_client_encoding_over_pgwire() {
 
         stop_pgwire_fixture(server, client, connection, path).await;
     });
+}
+
+#[test]
+fn should_describe_pg_client_encoding_with_native_name_identity() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-client-encoding-identity", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT pg_catalog.pg_client_encoding()")
+        .expect("read the client encoding name");
+
+    // Assert
+    assert_eq!(selected.columns()[0].type_oid, 19);
+    assert_eq!(selected.rows(), &[vec![Value::String("UTF8".to_owned())]]);
 }

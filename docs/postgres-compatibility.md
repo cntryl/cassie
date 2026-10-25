@@ -31,7 +31,7 @@ Cassie does not currently expose a named database-image capability or a non-admi
 
 ## Session Model
 
-- `current_user`, `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path` reflect session state.
+- `current_user`, `current_catalog`, `current_database()`, `current_schema()`, `pg_client_encoding()`, `SHOW search_path`, and `SET search_path` reflect session state. The selected catalog and client-encoding helpers return PostgreSQL `name` identity (OID 19); `pg_client_encoding()` reads the validated session `client_encoding` value.
 - `current_schema()` resolves `$user`, skips missing schemas, and returns SQL NULL when no search-path schema exists. It follows the same catalog-aware resolution as unqualified names.
 - Session-mutating `set_config` calls execute for every session, including qualified calls and calls through stored views; execution-result caching never substitutes a returned row for the setting change.
 - Startup parameters, `SET`, `SHOW`, `current_setting`, `set_config`, `pg_settings`, and `pg_show_all_settings()` share one validated settings contract.

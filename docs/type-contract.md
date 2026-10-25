@@ -46,8 +46,9 @@ below according to the declared precision.
 
 ### Selected NAME introspection identity
 
-`name` (OID 19, `typlen` 64) and `name[]` (OID 1003) are selected for the
-`current_schemas(boolean)` result. The runtime uses UTF-8 strings and the
+`name` (OID 19, `typlen` 64) is selected for `current_catalog`,
+`current_database()`, and `pg_client_encoding()` results; `name[]` (OID 1003)
+is selected for `current_schemas(boolean)`. The runtime uses UTF-8 strings and the
 existing JSON array carrier; row persistence reuses the existing string and
 array tags, so no prior row format changes. Text NAME input clips to the
 longest UTF-8 prefix of at most 63 bytes, matching PostgreSQL's `namein`;

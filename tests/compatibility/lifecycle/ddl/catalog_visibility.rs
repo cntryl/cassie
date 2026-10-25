@@ -43,7 +43,7 @@ async fn observe_uncommitted_alter(
         let owner_columns: i64 = owner
             .query_one(
                 "SELECT count(*) FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'compat_alter_catalog_visibility'::regclass \
+                 WHERE attrelid = 'compat_alter_catalog_visibility' \
                    AND attname = 'note' AND NOT attisdropped",
                 &[],
             )
@@ -54,7 +54,7 @@ async fn observe_uncommitted_alter(
         let observer_columns: i64 = observer
             .query_one(
                 "SELECT count(*) FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'compat_alter_catalog_visibility'::regclass \
+                 WHERE attrelid = 'compat_alter_catalog_visibility' \
                    AND attname = 'note' AND NOT attisdropped",
                 &[],
             )
@@ -69,7 +69,7 @@ async fn observe_uncommitted_alter(
         let observer_columns_after_rollback: i64 = observer
             .query_one(
                 "SELECT count(*) FROM pg_catalog.pg_attribute \
-                 WHERE attrelid = 'compat_alter_catalog_visibility'::regclass \
+                 WHERE attrelid = 'compat_alter_catalog_visibility' \
                    AND attname = 'note' AND NOT attisdropped",
                 &[],
             )

@@ -161,10 +161,25 @@ removed PostgreSQL behavior:
 
 ## Schema move slice (#839, 2026-10-25)
 
-Jev selected `ALTER TABLE ... SET SCHEMA` as the next unblocked #839 slice
-after #846 was found to depend on open wire qualification #780. The runtime
-uses Midge's existing collection rename and catalog identity metadata; it adds
-no storage representation. Validation covers row preservation and stable
-table/index OIDs across namespaces. The identity test now joins the documented
-logical names in `pg_class.relnamespace` and `pg_index.indrelid/indexrelid`;
-its former OID-to-text comparisons failed before the schema move could run.
+Jev selected `ALTER TABLE ... SET SCHEMA` as an unblocked #839 slice. The
+runtime uses Midge's existing collection rename and catalog identity metadata;
+it adds no storage representation. Validation covers row preservation and
+stable table/index OIDs across namespaces. The identity test joins the
+documented logical names in `pg_class.relnamespace` and
+`pg_index.indrelid/indexrelid`; its former OID-to-text comparisons failed
+before the schema move could run.
+
+## Transactional DDL test-contract corrections (#833, 2026-10-25)
+
+The full compatibility run had two remaining #833-related failures caused by
+test SQL comparing Cassie's documented logical TEXT catalog identity columns
+with OIDs (`pg_attribute.attrelid` against `regclass`, and
+`pg_index.indexrelid` against `pg_class.oid`). The assertions now compare
+logical relation names. Both focused tests pass; no runtime behavior changed.
+
+For the next batch, Jev selected the bounded #846 COPY/rebuild migration-I/O
+slice (probability 0.97, confidence 0.96). The roadmap map explicitly allows
+this local v0.3 slice while #780 remains open; this does not qualify or close
+the broader wire/client dependency. The full compatibility suite currently
+reports 324 passed, 235 failed, and 15 ignored; the failing COPY group has 13
+tests, including options, filtering, malformed rows, and cancellation.

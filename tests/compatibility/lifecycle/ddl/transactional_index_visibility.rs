@@ -166,7 +166,7 @@ fn should_reuse_index_name_after_failed_build_savepoint_rollback() {
                 "SELECT index_entry.indisunique, relation.relkind::TEXT \
                  FROM pg_catalog.pg_index AS index_entry \
                  JOIN pg_catalog.pg_class AS relation \
-                   ON relation.oid = index_entry.indexrelid \
+                   ON relation.relname = index_entry.indexrelid \
                  WHERE relation.relname = 'compat_failed_index_recovery_idx'",
                 &[],
             )

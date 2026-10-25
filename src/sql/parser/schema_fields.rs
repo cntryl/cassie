@@ -362,6 +362,14 @@ fn parse_field_data_type(
     field: &str,
 ) -> Result<(crate::types::DataType, Option<String>), SqlError> {
     match raw.to_ascii_lowercase().as_str() {
+        "smallserial" | "serial2" => {
+            let table =
+                table.ok_or_else(|| SqlError::new("SMALLSERIAL requires a table name".into()))?;
+            Ok((
+                crate::types::DataType::SmallInt,
+                Some(crate::catalog::serial_sequence_name(table, field)),
+            ))
+        }
         "serial" | "serial4" => {
             let table =
                 table.ok_or_else(|| SqlError::new("SERIAL requires a table name".into()))?;

@@ -362,6 +362,15 @@ the scope map; these removals do not imply safe authorization behavior.
 Jev request and response are retained under ignored
 `target/batched-runtime/next-triage/`.
 
+## Small integer serial aliases (#841, 2026-10-25)
+
+Jev selected the `SMALLSERIAL`/`SERIAL2` alias gap (probability 0.95,
+confidence 0.93). The existing parser already lowers `SERIAL`/`SERIAL4` to
+`INT4` with the selected generated-sequence behavior; `SMALLSERIAL`/`SERIAL2`
+now use the same existing sequence path with `INT2`. This adds no persistent
+type representation or public API. Transactional `ALTER SEQUENCE RESTART`
+semantics remain unselected and were not included in this change.
+
 ## Deferred coordination and isolation scope reconciliation (2026-10-25)
 
 Jev reviewed the current lock/isolation failure cluster against #819, #820 and

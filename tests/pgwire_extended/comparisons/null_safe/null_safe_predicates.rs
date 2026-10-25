@@ -77,7 +77,7 @@ fn should_preserve_null_safe_array_boolean_wire_identity() {
 #[test]
 fn should_infer_int4_parameter_type_for_null_safe_comparison_over_pgwire() {
     // Arrange
-    let query = "SELECT $1 IS NOT DISTINCT FROM value AS same\
+    let query = "SELECT $1 IS NOT DISTINCT FROM value AS same \
                  FROM issue_798_null_safe_values WHERE id = 1";
     let batches = run_script(
         "issue-798-int4-null-safe-parameter-inference",

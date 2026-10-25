@@ -101,6 +101,13 @@ impl PgWireError {
                 "Input data is missing padding, is truncated, or is otherwise corrupted.".into(),
             );
         }
+        if matches!(
+            error,
+            CassieError::Execution(message) | CassieError::InvalidQuery(message)
+                if message == "invalid escape string"
+        ) {
+            pg_error.hint = Some("Escape string must be empty or one character.".into());
+        }
         if let CassieError::Diagnostic(diagnostic) = error {
             pg_error.detail.clone_from(&diagnostic.detail);
             pg_error.hint.clone_from(&diagnostic.hint);

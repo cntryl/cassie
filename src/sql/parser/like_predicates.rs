@@ -190,9 +190,7 @@ fn similar_pattern(pattern: &str, escape: Option<&str>) -> Result<String, SqlErr
     let mut escape_chars = escape.chars();
     let escape = escape_chars.next();
     if escape_chars.next().is_some() {
-        return Err(SqlError::syntax(
-            "SIMILAR TO escape must be a single character".into(),
-        ));
+        return Err(SqlError::syntax("invalid escape string".into()));
     }
 
     let mut translated = String::from("^(?:");

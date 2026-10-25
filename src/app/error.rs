@@ -276,6 +276,9 @@ impl CassieError {
             Self::InvalidQuery(message) if message == "invalid Unicode escape in escape string" => {
                 bad_request_descriptor("22025", "invalid Unicode escape".into())
             }
+            Self::InvalidQuery(message) if message == "invalid escape string" => {
+                bad_request_descriptor("22025", message.clone())
+            }
             Self::InvalidQuery(message)
                 if message.starts_with("invalid byte sequence for encoding \"UTF8\":") =>
             {

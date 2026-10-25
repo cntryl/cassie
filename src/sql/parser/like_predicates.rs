@@ -6,6 +6,7 @@ use crate::sql::ast::{AggregateQuantifier, BinaryOp, FunctionCall};
 enum PatternKind {
     Like { case_insensitive: bool },
     Regex { case_insensitive: bool },
+    Similar,
 }
 
 #[derive(Clone, Copy)]
@@ -16,6 +17,8 @@ struct PatternOperator {
 
 fn split_keyword(raw: &str) -> Option<(&str, &str, PatternOperator)> {
     [
+        (" not similar to ", PatternKind::Similar, true),
+        (" similar to ", PatternKind::Similar, false),
         (
             " not ilike ",
             PatternKind::Like {
@@ -182,6 +185,47 @@ fn regex_predicate(expression: Expr, pattern: Expr, case_insensitive: bool) -> E
     function("regexp_like", arguments)
 }
 
+fn similar_pattern(pattern: &str, escape: Option<&str>) -> Result<String, SqlError> {
+    let escape = escape.unwrap_or("\\");
+    let mut escape_chars = escape.chars();
+    let escape = escape_chars.next();
+    if escape_chars.next().is_some() {
+        return Err(SqlError::syntax(
+            "SIMILAR TO escape must be a single character".into(),
+        ));
+    }
+
+    let mut translated = String::from("^(?:");
+    let mut chars = pattern.chars();
+    while let Some(character) = chars.next() {
+        if Some(character) == escape {
+            let escaped = chars.next().ok_or_else(|| {
+                SqlError::syntax("SIMILAR TO pattern must not end with the escape character".into())
+            })?;
+            push_regex_literal(&mut translated, escaped);
+        } else {
+            match character {
+                '%' => translated.push_str("(?s:.*)"),
+                '_' => translated.push_str("(?s:.)"),
+                '.' | '$' | '^' | '?' | '{' | '}' | '[' | ']' | '\\' => {
+                    translated.push('\\');
+                    translated.push(character);
+                }
+                _ => translated.push(character),
+            }
+        }
+    }
+    translated.push_str(")$");
+    Ok(translated)
+}
+
+fn push_regex_literal(target: &mut String, character: char) {
+    if ".^$*+?{}[]\\|()".contains(character) {
+        target.push('\\');
+    }
+    target.push(character);
+}
+
 pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     let Some((left, right, operator)) = split_predicate(raw) else {
         return Ok(None);
@@ -219,6 +263,46 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
             parse_comparison_expression(right)?,
             case_insensitive,
         ),
+        PatternKind::Similar => {
+            let (pattern, escape) =
+                if let Some((pattern, escape)) = split_top_level(right, " escape ") {
+                    (pattern, Some(escape))
+                } else {
+                    (right, None)
+                };
+            let pattern = parse_comparison_expression(pattern)?;
+            if matches!(pattern, Expr::Null) {
+                return Ok(Some(negate(
+                    regex_predicate(expression, Expr::Null, false),
+                    operator.negated,
+                )));
+            }
+            let Expr::StringLiteral(pattern) = pattern else {
+                return Err(SqlError::unsupported(
+                    "SIMILAR TO currently requires a literal pattern".into(),
+                ));
+            };
+            let escape = match escape.map(parse_comparison_expression).transpose()? {
+                Some(Expr::Null) => {
+                    return Ok(Some(negate(
+                        regex_predicate(expression, Expr::Null, false),
+                        operator.negated,
+                    )));
+                }
+                Some(Expr::StringLiteral(value)) => Some(value),
+                Some(_) => {
+                    return Err(SqlError::unsupported(
+                        "SIMILAR TO currently requires a literal escape".into(),
+                    ));
+                }
+                None => None,
+            };
+            regex_predicate(
+                expression,
+                Expr::StringLiteral(similar_pattern(&pattern, escape.as_deref())?),
+                false,
+            )
+        }
     };
     Ok(Some(negate(predicate, operator.negated)))
 }

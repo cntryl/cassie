@@ -338,9 +338,20 @@ fn should_close_all_after_scroll_cursor_navigation() {
         let server = CompatibilityServer::start("scroll_cursor_navigation").await;
         let (client, connection) = server.connect().await;
         client
+            .execute("CREATE TABLE compat_scroll_cursor_rows (n INT)", &[])
+            .await
+            .expect("create scroll cursor input rows");
+        client
+            .execute(
+                "INSERT INTO compat_scroll_cursor_rows VALUES (1), (2), (3)",
+                &[],
+            )
+            .await
+            .expect("insert scroll cursor input rows");
+        client
             .batch_execute(
                 "BEGIN; DECLARE compat_scroll_cursor SCROLL CURSOR FOR \
-                 SELECT n FROM generate_series(1, 3) AS n ORDER BY n",
+                 SELECT n FROM compat_scroll_cursor_rows ORDER BY n",
             )
             .await
             .expect("declare a scrollable cursor over ordered rows");

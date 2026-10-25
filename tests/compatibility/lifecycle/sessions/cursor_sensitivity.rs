@@ -8,10 +8,21 @@ fn should_accept_cursor_sensitivity_options_with_ordered_results() {
         let server = CompatibilityServer::start("cursor_sensitivity_options").await;
         let (client, connection) = server.connect().await;
         client
+            .execute("CREATE TABLE compat_cursor_sensitivity_values (n INT)", &[])
+            .await
+            .expect("create ordered cursor input rows");
+        client
+            .execute(
+                "INSERT INTO compat_cursor_sensitivity_values VALUES (1), (2), (3), (4)",
+                &[],
+            )
+            .await
+            .expect("insert ordered cursor input rows");
+        client
             .batch_execute(
                 "BEGIN; \
                  DECLARE compat_asensitive ASENSITIVE NO SCROLL CURSOR FOR \
-                   SELECT n FROM generate_series(1, 2) AS n ORDER BY n",
+                   SELECT n FROM compat_cursor_sensitivity_values WHERE n <= 2 ORDER BY n",
             )
             .await
             .expect("declare an ASENSITIVE NO SCROLL cursor");
@@ -39,7 +50,7 @@ fn should_accept_cursor_sensitivity_options_with_ordered_results() {
         client
             .batch_execute(
                 "DECLARE compat_insensitive INSENSITIVE SCROLL CURSOR FOR \
-                 SELECT n FROM generate_series(3, 4) AS n ORDER BY n",
+                 SELECT n FROM compat_cursor_sensitivity_values WHERE n >= 3 ORDER BY n",
             )
             .await
             .expect("declare an INSENSITIVE SCROLL cursor");

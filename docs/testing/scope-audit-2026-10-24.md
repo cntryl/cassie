@@ -262,3 +262,18 @@ integration, 2 backend CI, 16 bench operations, and 330 catalog security. This
 batch added six passing probes and fixed two existing table/view list failures.
 `DROP TYPE` remains outside this slice because named type lifecycle belongs to
 #827/#828 and is not implemented by the selected Cassie type contract.
+
+## Scroll cursor fixture isolation (#821, 2026-10-25)
+
+Jev selected the direct scroll-cursor failures from the remaining session
+cluster. Both failed before cursor execution because their fixtures used
+`generate_series`, a v0.4 table-function capability tracked under #808. Replaced
+those generated inputs with small ordinary tables while retaining the cursor
+options, metadata, navigation, and `CLOSE ALL` assertions. The cursor-sensitivity
+and scroll-navigation tests now pass. The separate `WHERE CURRENT OF` test still
+requires row-locking and positioned-mutation behavior; its broader prerequisites
+remain under #820/#823 and were not included in this cursor fixture batch.
+The completed full locked run reports compatibility 358 passed, 215 failed,
+15 ignored; unit 1,350, integration 186, backend CI 2, bench operations 16,
+and catalog security 330 passed. Strict workspace Clippy, formatting and both
+touched-test validators passed.

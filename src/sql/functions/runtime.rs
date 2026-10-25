@@ -74,6 +74,54 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         is_aggregate: false,
         bypass_arity_validation: false,
     },
+    ScalarFunction {
+        id: FunctionId::PgRelationFilenode,
+        name: "pg_relation_filenode",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::Oid),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgRelationFilenode,
+        name: "pg_catalog.pg_relation_filenode",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::Oid),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgRelationFilepath,
+        name: "pg_relation_filepath",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgRelationFilepath,
+        name: "pg_catalog.pg_relation_filepath",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgFilenodeRelation,
+        name: "pg_filenode_relation",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::RegClass),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgFilenodeRelation,
+        name: "pg_catalog.pg_filenode_relation",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::ObjectId(crate::types::ObjectIdKind::RegClass),
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
 ];
 pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
     matches!(
@@ -86,6 +134,9 @@ pub(crate) const fn is_runtime_helper(id: FunctionId) -> bool {
             | FunctionId::PgColumnCompression
             | FunctionId::PgColumnSize
             | FunctionId::PgColumnToastChunkId
+            | FunctionId::PgRelationFilenode
+            | FunctionId::PgRelationFilepath
+            | FunctionId::PgFilenodeRelation
     )
 }
 pub(crate) fn is_loaded_modules(name: &str) -> bool {

@@ -31,6 +31,8 @@ mod math_functions;
 mod math_random;
 #[path = "regex_functions.rs"]
 mod regex_functions;
+#[path = "relation_locations.rs"]
+mod relation_locations;
 #[path = "runtime_information.rs"]
 mod runtime_information;
 #[path = "text_format.rs"]
@@ -102,6 +104,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
             result.map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
         })
         .or_else(|| toast_identity::evaluate(name, args))
+        .or_else(|| relation_locations::evaluate(name, args))
         .or_else(|| runtime_information::evaluate(name, args, session))
         .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
         .or_else(|| super::sequence_functions::evaluate(name, args, session))

@@ -103,6 +103,7 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
         text("typtype"),
         text("typcategory"),
         oid("typelem"),
+        oid("typarray"),
         oid("typbasetype"),
         oid("typrelid"),
     ]
@@ -666,16 +667,34 @@ fn builtin_type_rows(catalog: &Catalog) -> Vec<VirtualRow> {
 }
 
 fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> VirtualRow {
-    let typname = data_type.type_name();
+    let type_oid = data_type.type_oid();
+    let builtin_type = u32::try_from(type_oid)
+        .ok()
+        .and_then(|oid| crate::catalog::builtin_identity::builtin_identities().type_by_oid(oid));
+    let typname =
+        builtin_type.map_or_else(|| data_type.type_name(), |metadata| metadata.name.clone());
     vec![
-        int_value("oid", data_type.type_oid()),
+        int_value("oid", type_oid),
         string("typname", typname),
         int_value("typnamespace", namespace_oid(catalog, namespace)),
         int_value("typlen", i64::from(data_type.typlen())),
         bool_value("typbyval", is_type_passed_by_value(data_type)),
         string("typtype", type_kind(data_type)),
         string("typcategory", type_category(data_type)),
-        int_value("typelem", element_type_oid(data_type)),
+        int_value(
+            "typelem",
+            builtin_type.map_or_else(
+                || element_type_oid(data_type),
+                |metadata| i64::from(metadata.element),
+            ),
+        ),
+        int_value(
+            "typarray",
+            builtin_type.map_or_else(
+                || array_type_oid(data_type),
+                |metadata| i64::from(metadata.array),
+            ),
+        ),
         int_value("typbasetype", 0),
         int_value("typrelid", 0),
     ]
@@ -729,6 +748,17 @@ fn element_type_oid(data_type: &DataType) -> i64 {
         DataType::Array(inner) => inner.type_oid(),
         _ => 0,
     }
+}
+
+fn array_type_oid(data_type: &DataType) -> i64 {
+    if matches!(data_type, DataType::Array(_)) {
+        return 0;
+    }
+
+    u32::try_from(data_type.type_oid())
+        .ok()
+        .and_then(crate::catalog::builtin_identity::builtin_array_oid)
+        .map_or(0, i64::from)
 }
 
 pub(super) fn postgres_role_oid() -> i64 {

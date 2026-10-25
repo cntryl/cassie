@@ -560,7 +560,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
             let selected = cassie
                 .execute_sql(
                     &session,
-                    "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('smallint', 'bigint', 'bytea', 'char', 'varchar', 'int', 'int[]', 'vector(2)', 'text', 'bytea[]') ORDER BY typname",
+                    "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE oid IN (17, 20, 21, 23, 25, 1001, 1007, 1042, 1043) OR typname = 'vector(2)' ORDER BY oid",
                     vec![],
                 )
 
@@ -571,50 +571,50 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
                 selected.rows(),
                 vec![
                     vec![
-                        Value::String("bigint".to_string()),
-                        Value::Int64(DataType::BigInt.type_oid()),
-                        Value::Int64(0),
-                        Value::Int64(11)
-                    ],
-                    vec![
                         Value::String("bytea".to_string()),
                         Value::Int64(DataType::Bytea.type_oid()),
                         Value::Int64(0),
                         Value::Int64(11)
                     ],
                     vec![
-                        Value::String("bytea[]".to_string()),
-                        Value::Int64(DataType::Array(Box::new(DataType::Bytea)).type_oid()),
-                        Value::Int64(DataType::Bytea.type_oid()),
-                        Value::Int64(11)
-                    ],
-                    vec![
-                        Value::String("char".to_string()),
-                        Value::Int64(DataType::Char { length: Some(1) }.type_oid()),
+                        Value::String("int8".to_string()),
+                        Value::Int64(DataType::BigInt.type_oid()),
                         Value::Int64(0),
                         Value::Int64(11)
                     ],
                     vec![
-                        Value::String("int".to_string()),
-                        Value::Int64(DataType::Int.type_oid()),
-                        Value::Int64(0),
-                        Value::Int64(11)
-                    ],
-                    vec![
-                        Value::String("int[]".to_string()),
-                        Value::Int64(DataType::Array(Box::new(DataType::Int)).type_oid()),
-                        Value::Int64(DataType::Int.type_oid()),
-                        Value::Int64(11)
-                    ],
-                    vec![
-                        Value::String("smallint".to_string()),
+                        Value::String("int2".to_string()),
                         Value::Int64(DataType::SmallInt.type_oid()),
+                        Value::Int64(0),
+                        Value::Int64(11)
+                    ],
+                    vec![
+                        Value::String("int4".to_string()),
+                        Value::Int64(DataType::Int.type_oid()),
                         Value::Int64(0),
                         Value::Int64(11)
                     ],
                     vec![
                         Value::String("text".to_string()),
                         Value::Int64(DataType::Text.type_oid()),
+                        Value::Int64(0),
+                        Value::Int64(11)
+                    ],
+                    vec![
+                        Value::String("_bytea".to_string()),
+                        Value::Int64(DataType::Array(Box::new(DataType::Bytea)).type_oid()),
+                        Value::Int64(DataType::Bytea.type_oid()),
+                        Value::Int64(11)
+                    ],
+                    vec![
+                        Value::String("_int4".to_string()),
+                        Value::Int64(DataType::Array(Box::new(DataType::Int)).type_oid()),
+                        Value::Int64(DataType::Int.type_oid()),
+                        Value::Int64(11)
+                    ],
+                    vec![
+                        Value::String("bpchar".to_string()),
+                        Value::Int64(DataType::Char { length: Some(1) }.type_oid()),
                         Value::Int64(0),
                         Value::Int64(11)
                     ],

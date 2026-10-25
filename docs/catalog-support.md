@@ -115,6 +115,11 @@ rows, OID/reg* lifecycle and wider DDL remain unqualified; current issue criteri
 define any active follow-up.
 Native column names and selected values are independent pinned observations;
 logical-carrier descriptors do not establish PostgreSQL descriptor ABI parity.
+The experimental `pg_type.typarray` value links only scalar types whose array
+OIDs are present in Cassie's finite built-in array registry; array types and
+types without a registered built-in array report zero. This supports the
+selected registered-array TypeInfo/COPY path and does not add custom array
+type identities.
 Executed counts and remaining failures are recorded in
 [validation](testing/validation.md).
 

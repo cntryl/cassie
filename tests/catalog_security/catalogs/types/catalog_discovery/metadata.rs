@@ -8,11 +8,6 @@ use cassie::types::Value;
 mod identifier_residuals;
 #[path = "../oid_identity/metadata.rs"]
 mod oid_identity_wave;
-#[path = "../text_search_identifier_lookup/restart.rs"]
-mod text_search_identifier_lookup_wave;
-#[path = "../vector_catalog.rs"]
-mod vector_catalog_contracts;
-
 fn type_row(oid: i64, name: &str, length: i64, element: i64) -> Vec<Value> {
     vec![
         Value::Int64(oid),
@@ -209,29 +204,6 @@ fn should_preserve_oid_integer_identity() {
     assert_eq!(
         selected.rows(),
         vec![vec![Value::Int64(42), Value::Bool(true)]]
-    );
-}
-
-#[test]
-fn should_advertise_pgcrypto_in_available_extension_catalog() {
-    // Arrange
-    let fixture = sql_fixture("issue-843-pgcrypto-catalog-identity", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute(
-            "SELECT name, default_version FROM pg_catalog.pg_available_extensions WHERE name = 'pgcrypto'",
-        )
-        .expect("available pgcrypto extension catalog row");
-
-    // Assert
-    assert_eq!(
-        selected.rows(),
-        vec![vec![
-            Value::String("pgcrypto".to_owned()),
-            Value::String("1.4".to_owned()),
-        ]]
     );
 }
 

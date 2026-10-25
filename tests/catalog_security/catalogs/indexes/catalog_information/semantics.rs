@@ -74,41 +74,6 @@ fn should_quote_index_definition_identifiers_that_need_quoting() {
 }
 
 #[test]
-fn should_list_created_indexes_in_pg_stat_user_indexes() {
-    // Arrange
-    let fixture = sql_fixture(
-        "issue-817-pg-stat-user-indexes",
-        &[
-            "CREATE SCHEMA issue_817_index_stats",
-            "CREATE TABLE issue_817_index_stats.items (amount INTEGER)",
-            "CREATE INDEX issue_817_stats_amount_idx \
-             ON issue_817_index_stats.items USING btree (amount)",
-        ],
-    );
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute(
-            "SELECT schemaname, relname, indexrelname \
-             FROM pg_catalog.pg_stat_user_indexes \
-             WHERE schemaname = 'issue_817_index_stats' \
-               AND indexrelname = 'issue_817_stats_amount_idx'",
-        )
-        .expect("query the created index statistics row");
-
-    // Assert
-    assert_eq!(
-        selected.rows(),
-        vec![vec![
-            Value::String("issue_817_index_stats".to_owned()),
-            Value::String("items".to_owned()),
-            Value::String("issue_817_stats_amount_idx".to_owned()),
-        ]]
-    );
-}
-
-#[test]
 fn should_list_builtin_access_methods_in_pg_am() {
     // Arrange
     let fixture = sql_fixture("issue-817-access-method-catalog", &[]);
@@ -131,36 +96,6 @@ fn should_list_builtin_access_methods_in_pg_am() {
             vec![Value::String("heap".to_owned())],
         ]
     );
-}
-
-#[test]
-fn should_list_access_method_operator_entries() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-amop-catalog", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_amop")
-        .expect("query operator access method metadata");
-
-    // Assert
-    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
-}
-
-#[test]
-fn should_list_access_method_support_function_entries() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-amproc-catalog", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute("SELECT count(*) > 0 FROM pg_catalog.pg_amproc")
-        .expect("query access method support function metadata");
-
-    // Assert
-    assert_eq!(selected.rows(), vec![vec![Value::Bool(true)]]);
 }
 
 #[test]

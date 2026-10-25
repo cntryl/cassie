@@ -29,6 +29,8 @@ mod virtual_views_dependencies;
 mod virtual_views_empty;
 #[path = "virtual_views_pg.rs"]
 mod virtual_views_pg;
+#[path = "virtual_views_procedures.rs"]
+mod virtual_views_procedures;
 #[path = "virtual_views_projections.rs"]
 mod virtual_views_projections;
 #[path = "virtual_views_relations.rs"]
@@ -186,6 +188,7 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("fallback_reason"),
         ]),
         "pg_catalog.pg_type" => Some(virtual_views_pg::type_schema()),
+        "pg_catalog.pg_proc" => Some(virtual_views_procedures::schema()),
         _ => None,
     }
 }
@@ -437,6 +440,7 @@ fn pg_catalog_core_rows(
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog, current_database)),
+        "pg_catalog.pg_proc" => Some(virtual_views_procedures::rows()),
         _ => virtual_views_empty::rows(name)
             .or_else(|| virtual_views_relations::rows(catalog, name, current_database)),
     }

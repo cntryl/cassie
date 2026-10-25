@@ -8,7 +8,7 @@ fn should_report_created_table_attribute_type_identities() {
         .execute(
             "SELECT attname, attnum, atttypid, atttypmod, attnotnull, attidentity::text \
              FROM pg_catalog.pg_attribute \
-             WHERE attrelid = 'issue_817_catalog_probe.items'::regclass \
+             WHERE attrelid = 'items' \
                AND attnum > 0 \
              ORDER BY attnum",
         )

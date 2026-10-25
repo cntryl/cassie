@@ -380,7 +380,14 @@ fn namespace_row(catalog: &Catalog, canonical: &str, name: &str) -> VirtualRow {
 
 fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta>) -> VirtualRow {
     let relation_name = local_name(name);
-    let schema_name = relation_schema_name(name);
+    let schema_name = index.map_or_else(
+        || relation_schema_name(name),
+        |index| relation_schema_name(&index.collection),
+    );
+    let namespace = index.map_or_else(
+        || relation_namespace(name),
+        |index| relation_namespace(&index.collection),
+    );
     vec![
         int_value(
             "oid",
@@ -390,10 +397,7 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
         string("relkind", kind),
         int_value("relam", relation_access_method_oid(kind, index)),
         string("relnamespace", &schema_name),
-        int_value(
-            "relnamespace_oid",
-            namespace_oid(catalog, &relation_namespace(name)),
-        ),
+        int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string(

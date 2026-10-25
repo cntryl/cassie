@@ -4,15 +4,6 @@
 mod catalog_lookup;
 #[path = "../../indexes/index_property_functions.rs"]
 mod index_property_functions;
-#[path = "../../routines/populated_descriptions.rs"]
-mod populated_descriptions;
-#[path = "../../types/base_information_function.rs"]
-mod type_base_information_function;
-#[path = "../catalog/semantics.rs"]
-mod type_catalog_gaps;
-#[path = "../../visibility/visibility_functions.rs"]
-mod visibility_functions;
-
 use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 

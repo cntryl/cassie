@@ -100,7 +100,7 @@ fn assert_named_foreign_key_rows(rows: &NamedForeignKeyRows) {
         rows.pg_constraint,
         vec![
             vec![
-                Value::String("catalog_named_fk_children_id_n".to_string()),
+                Value::String("catalog_named_fk_children_id_not_null".to_string()),
                 Value::String("n".to_string())
             ],
             vec![

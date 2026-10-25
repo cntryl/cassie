@@ -102,8 +102,11 @@ are selected by this batch.
 `pg_tables` and `pg_views` expose native NAME descriptors for their schema and
 object names. Their owner fields remain NULL because relation ownership is not
 stored. `pg_constraint.conenforced` is true for the constraints Cassie stores;
-the rest of its experimental catalog columns retain their current logical
-carriers. Built-in `pg_get_function_arguments`,
+generated primary-key and NOT NULL names follow PostgreSQL's catalog naming
+convention, while explicit names are preserved. The rest of its experimental catalog columns retain their current logical
+carriers. `pg_proc` exposes the pinned built-in routine name, OID, and result
+type rows used by the selected introspection helpers; it does not advertise
+user-defined SQL routine identities. Built-in `pg_get_function_arguments`,
 `pg_get_function_identity_arguments`, and `pg_get_function_result` resolve the
 pinned built-in `pg_proc` identity table; user-defined routine signatures are
 not implied by this helper. `pg_my_temp_schema()` returns OID 0 and

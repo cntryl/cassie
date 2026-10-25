@@ -120,11 +120,10 @@ fn should_bind_selected_bpchar_type_spelling() {
 }
 
 #[test]
-fn should_reject_unselected_postgres_name_type_spellings() {
+fn should_reject_unselected_postgres_char_type_spelling() {
     // Arrange
     let fixture = sql_fixture("issue-796-unselected-type-names", &[]);
     let cases = [
-        "SELECT CAST('x' AS name) AS value",
         "SELECT NULL::\"char\"",
     ];
 

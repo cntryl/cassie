@@ -56,3 +56,19 @@ are retained under ignored `target/batched-runtime/batch-16/`.
 | `tests/sql_queries/aggregates/money/money.rs` | `should_sum_multiple_money_values_exactly_skipping_nulls` | Requires unselected native MONEY contract, #908. |
 | `tests/sql_queries/aggregates/money/money.rs` | `should_keep_empty_input_money_aggregates_null_except_count` | Requires unselected native MONEY contract, #908. |
 | `tests/sql_queries/aggregates/money/money.rs` | `should_keep_all_null_money_aggregates_null` | Requires unselected native MONEY contract, #908. |
+
+## PostgreSQL type-catalog scope reconciliation (2026-10-25)
+
+Jev reviewed the active Type Contract, Product Roadmap, and live issues #905
+and #908. It selected removal of two catalog tests whose expected rows require
+native MONEY, XML, geometric, or range/multirange families. Those families are
+explicitly unselected; no runtime catalog rows or type support were added.
+
+| Original source | Removed case | Scope reason |
+| --- | --- | --- |
+| `tests/catalog_security/catalogs/types/catalog_discovery/metadata.rs` | `should_discover_postgresql_catalog_rows_for_supported_type_families` | Every expected row is an unselected native MONEY, XML, geometric, range, or multirange identity. |
+| `tests/catalog_security/catalogs/types/catalog_information/semantics.rs` | `should_resolve_builtin_range_subtype_in_pg_range` | Requires the unselected range/multirange type family owned by #905. |
+
+Selected array TypeInfo/COPY coverage and other catalog behavior remain in the
+suite. These removals are scope reconciliation; they do not count as passing
+conformance for the removed capabilities.

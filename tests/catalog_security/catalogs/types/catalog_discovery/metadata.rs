@@ -164,44 +164,6 @@ fn should_preserve_quoted_regclass_identity_through_oid_lookup() {
 }
 
 #[test]
-fn should_discover_postgresql_catalog_rows_for_supported_type_families() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-additional-builtin-type-rows", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute(
-            "SELECT oid, typname, typlen FROM pg_catalog.pg_type WHERE typname IN ('xml', 'money', 'point', 'lseg', 'path', 'box', 'polygon', 'line', 'circle', 'int4range', 'int4multirange') ORDER BY oid",
-        )
-        .expect("additional finite PostgreSQL type rows");
-
-    // Assert
-    let expected = [
-        (142, "xml", -1),
-        (600, "point", 16),
-        (601, "lseg", 32),
-        (602, "path", -1),
-        (603, "box", 32),
-        (604, "polygon", -1),
-        (628, "line", 24),
-        (718, "circle", 24),
-        (790, "money", 8),
-        (3_904, "int4range", -1),
-        (4_451, "int4multirange", -1),
-    ]
-    .map(|(oid, name, length)| {
-        vec![
-            Value::Int64(oid),
-            Value::String(name.to_owned()),
-            Value::Int64(length),
-        ]
-    })
-    .to_vec();
-    assert_eq!(selected.rows(), expected);
-}
-
-#[test]
 fn should_match_regnamespace_names_by_oid_identity() {
     // Arrange
     let fixture = sql_fixture("issue-818-regnamespace-lookup", &[]);

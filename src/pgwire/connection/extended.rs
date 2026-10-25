@@ -652,18 +652,35 @@ async fn execute_prepared_portal(
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
     let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
-    let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
-        cassie.execute_parsed_sql_with_cancellation(
-            &execution_session,
-            (parsed, &sql),
-            sql_fingerprint,
-            (params, &parameter_type_oids),
-            ExecutionMode::ExtendedQuery,
-            &cancellation_handle,
-        )
-    })
+    let result = run_pgwire_blocking(
+        Arc::clone(&cassie),
+        "pgwire_extended_query",
+        move |cassie| {
+            cassie.execute_parsed_sql_with_cancellation(
+                &execution_session,
+                (parsed, &sql),
+                sql_fingerprint,
+                (params, &parameter_type_oids),
+                ExecutionMode::ExtendedQuery,
+                &cancellation_handle,
+            )
+        },
+    )
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    if standalone && session.is_implicit_transaction() {
+        let transaction_session = session.clone();
+        if let Err(error) = run_pgwire_blocking(
+            Arc::clone(&cassie),
+            "pgwire_standalone_ddl_commit",
+            move |cassie| cassie.commit_transaction(&transaction_session),
+        )
+        .await
+        {
+            session.rollback_transaction();
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+    }
     transaction_owner.close_completed(state, runtime, session);
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.row_count() {

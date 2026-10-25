@@ -29,6 +29,7 @@ below according to the declared precision.
 | `bigint` | 20 | 8 | Signed 64-bit value |
 | `float`, `float(p)` (25 through 53), `float8`, `double precision` | 701 | 8 | IEEE float8; bare `FLOAT` selects float8 |
 | `boolean` | 16 | 1 | |
+| `name` | 19 | 64 | UTF-8 name identity, limited to 63 bytes; text input truncates on a UTF-8 boundary, binary receive rejects values over 63 bytes |
 | `text` | 25 | -1 | UTF-8 |
 | `char(n)` / `character(n)` / `bpchar(n)` | 1042 | -1 | `atttypmod` is `n + 4`; unbounded `bpchar` has typmod -1; bare `CHAR` is `char(1)` |
 | `varchar(n)` / `character varying(n)` | 1043 | -1 | `atttypmod` is `n + 4` when representable |
@@ -42,6 +43,20 @@ below according to the declared precision.
 | `jsonpath` | 4072 | -1 | Expression-only identity; JSONPath columns and arrays are not selected |
 | `vector(n)` | `100000 + n` | -1 | Private identity; finite positive dimension |
 | `T[]` | PostgreSQL's registered array OID for supported built-in element types | -1 | Standard identity; unsupported/private element families are excluded from pgwire |
+
+### Selected NAME introspection identity
+
+`name` (OID 19, `typlen` 64) and `name[]` (OID 1003) are selected for the
+`current_schemas(boolean)` result. The runtime uses UTF-8 strings and the
+existing JSON array carrier; row persistence reuses the existing string and
+array tags, so no prior row format changes. Text NAME input clips to the
+longest UTF-8 prefix of at most 63 bytes, matching PostgreSQL's `namein`;
+binary NAME input rejects 64-byte values, matching `namerecv`. NAME binary
+output sends the unpadded text bytes, matching `namesend`.
+
+This selection does not add general `name[]` parameter, constructor, operator,
+or assignment qualification. Those remain pending until their own issue tests
+exercise those paths.
 
 ### Selected JSONB contract (2026-10-24)
 

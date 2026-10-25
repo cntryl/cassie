@@ -156,6 +156,7 @@ pub(super) fn type_name_bytes(data_type: &crate::types::DataType) -> Result<usiz
     use crate::types::DataType;
     Ok(match data_type {
         DataType::Null
+        | DataType::Name
         | DataType::Text
         | DataType::Uuid
         | DataType::Date

@@ -213,6 +213,9 @@ pub(crate) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
     {
         let element_oid = i32::try_from(element_oid).ok()?;
         let element_type = scalar_data_type_for_parameter_oid(element_oid)?;
+        if element_type == DataType::Name {
+            return None;
+        }
         return Some(DataType::Array(Box::new(element_type)));
     }
 

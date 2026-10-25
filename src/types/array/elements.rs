@@ -62,7 +62,8 @@ pub(super) fn normalize_element(
             .and_then(serde_json::Number::from_f64)
             .map(JsonValue::Number)
             .ok_or_else(|| "float array element expects a finite f64 number".to_string()),
-        DataType::Text
+        DataType::Name
+        | DataType::Text
         | DataType::Char { .. }
         | DataType::Varchar { .. }
         | DataType::Uuid
@@ -88,6 +89,7 @@ pub(super) fn normalize_element(
 
 fn normalize_string(text: String, data_type: &DataType) -> Result<String, String> {
     match data_type {
+        DataType::Name => Ok(crate::types::name::parse_text(&text)),
         DataType::Char {
             length: Some(length),
         } => {

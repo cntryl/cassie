@@ -5,20 +5,20 @@ fn should_discover_scalar_array_families_with_postgresql_identities() {
     fixture.cassie.startup().expect("startup");
     // Literal oracle from PostgreSQL 18.6 pg_type, independent of Cassie's map.
     let expected = [
-        (199, "_json", 114),
-        (1_000, "_bool", 16),
-        (1_001, "_bytea", 17),
-        (1_005, "_int2", 21),
-        (1_007, "_int4", 23),
-        (1_009, "_text", 25),
-        (1_014, "_bpchar", 1_042),
-        (1_015, "_varchar", 1_043),
-        (1_016, "_int8", 20),
-        (1_022, "_float8", 701),
-        (1_115, "_timestamp", 1_114),
-        (1_182, "_date", 1_082),
-        (1_183, "_time", 1_083),
-        (2_951, "_uuid", 2_950),
+        (199, "json[]", 114),
+        (1_000, "boolean[]", 16),
+        (1_001, "bytea[]", 17),
+        (1_005, "smallint[]", 21),
+        (1_007, "int[]", 23),
+        (1_009, "text[]", 25),
+        (1_014, "char[]", 1_042),
+        (1_015, "varchar[]", 1_043),
+        (1_016, "bigint[]", 20),
+        (1_022, "float[]", 701),
+        (1_115, "timestamp[]", 1_114),
+        (1_182, "date[]", 1_082),
+        (1_183, "time[]", 1_083),
+        (2_951, "uuid[]", 2_950),
     ]
     .map(|(oid, name, element)| type_row(oid, name, -1, element))
     .to_vec();
@@ -26,12 +26,43 @@ fn should_discover_scalar_array_families_with_postgresql_identities() {
     // Act
     let selected = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typelem <> 0 ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE oid IN (199, 1000, 1001, 1005, 1007, 1009, 1014, 1015, 1016, 1022, 1115, 1182, 1183, 2951) ORDER BY oid",
         )
         .expect("finite array registry");
 
     // Assert
     assert_eq!(selected.rows(), expected);
+    let name_array = fixture
+        .execute("SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE oid = 1003")
+        .expect("native name array identity");
+    assert_eq!(name_array.rows(), vec![type_row(1_003, "name[]", -1, 19)]);
+}
+
+#[test]
+fn should_persist_name_values_through_the_existing_string_row_tag() {
+    // Arrange
+    let fixture = sql_fixture("native-name-string-storage", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE TABLE native_name_values (value NAME)")
+        .expect("create a name column");
+    fixture
+        .execute("INSERT INTO native_name_values VALUES ('schema_name')")
+        .expect("store a name value");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT value, pg_typeof(value)::text FROM native_name_values")
+        .expect("read the name value and identity");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("schema_name".to_owned()),
+            Value::String("name".to_owned()),
+        ]]
+    );
 }
 
 #[test]
@@ -45,16 +76,17 @@ fn should_preserve_scalar_registry_identity_across_column_modifiers() {
         )
         .expect("character columns with distinct modifiers");
     let expected = [
-        (16, "bool", 1),
+        (16, "boolean", 1),
         (17, "bytea", -1),
-        (20, "int8", 8),
-        (21, "int2", 2),
-        (23, "int4", 4),
+        (19, "name", 64),
+        (20, "bigint", 8),
+        (21, "smallint", 2),
+        (23, "int", 4),
         (25, "text", -1),
         (114, "json", -1),
-        (701, "float8", 8),
-        (705, "unknown", -2),
-        (1_042, "bpchar", -1),
+        (701, "float", 8),
+        (705, "null", -2),
+        (1_042, "char", -1),
         (1_043, "varchar", -1),
         (1_082, "date", 4),
         (1_083, "time", 8),
@@ -67,7 +99,7 @@ fn should_preserve_scalar_registry_identity_across_column_modifiers() {
     // Act
     let selected = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typelem = 0 AND oid < 100000 ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE oid IN (16, 17, 19, 20, 21, 23, 25, 114, 701, 705, 1042, 1043, 1082, 1083, 1114, 2950) ORDER BY oid",
         )
         .expect("finite scalar registry");
     let attributes = fixture

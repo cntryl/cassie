@@ -401,6 +401,9 @@ fn copy_value_to_json(
                 )
                 .into()
             }),
+        DataType::Name => Ok(serde_json::Value::String(crate::types::name::parse_text(
+            &value,
+        ))),
         DataType::Null
         | DataType::JsonPath
         | DataType::Text

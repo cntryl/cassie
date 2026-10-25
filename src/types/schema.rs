@@ -31,6 +31,7 @@ pub enum DataType {
     BigInt,
     Float,
     Boolean,
+    Name,
     Text,
     Char { length: Option<u32> },
     Varchar { length: Option<u32> },
@@ -69,6 +70,7 @@ impl DataType {
             Self::BigInt => "bigint".to_string(),
             Self::Float => "float".to_string(),
             Self::Boolean => "boolean".to_string(),
+            Self::Name => "name".to_string(),
             Self::Text => "text".to_string(),
             Self::Char { length } => match length {
                 Some(length) => format!("char({length})"),
@@ -300,6 +302,7 @@ fn named_type(lower: &str, raw: &str) -> Result<DataType, String> {
         "bigint" | "int8" => Ok(DataType::BigInt),
         "float" | "float8" | "double" => Ok(DataType::Float),
         "boolean" | "bool" => Ok(DataType::Boolean),
+        "name" => Ok(DataType::Name),
         "text" | "string" => Ok(DataType::Text),
         "bpchar" => Ok(DataType::Char { length: None }),
         "uuid" => Ok(DataType::Uuid),

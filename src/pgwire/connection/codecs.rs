@@ -108,6 +108,10 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
             Value::String(value) => decode_bytea(value),
             _ => invalid_value(codec.name),
         },
+        BinaryCodecKind::Name => match value {
+            Value::String(value) => Ok(value.as_bytes().to_vec()),
+            _ => invalid_value(codec.name),
+        },
         BinaryCodecKind::Int2 => encode_integer(value, codec.name, encode_i16_binary),
         BinaryCodecKind::Int4 => encode_integer(value, codec.name, encode_i32_binary),
         BinaryCodecKind::Int8 => encode_int8(value, codec.name),
@@ -287,6 +291,9 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Float8 => fixed_bytes::<8>(parameter, codec.name)
             .map(f64::from_be_bytes)
             .map(Value::Float64),
+        BinaryCodecKind::Name => crate::types::name::parse_binary(parameter)
+            .map(Value::String)
+            .map_err(|_| invalid_data(codec.name)),
         BinaryCodecKind::Text
         | BinaryCodecKind::Bpchar
         | BinaryCodecKind::Varchar
@@ -541,6 +548,7 @@ fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> 
         BinaryCodecKind::Float8 => {
             parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec())
         }
+        BinaryCodecKind::Name => Ok(crate::types::name::parse_text(value).into_bytes()),
         BinaryCodecKind::Text
         | BinaryCodecKind::Bpchar
         | BinaryCodecKind::Varchar

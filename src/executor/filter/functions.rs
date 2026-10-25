@@ -199,19 +199,12 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
                 )
             }))
         }
-        "current_database" => Some(require_zero_args(name, args).map(|()| {
-            Value::String(
-                session
-                    .and_then(|session| session.database.clone())
-                    .unwrap_or_default(),
-            )
-        })),
+        "current_schemas" | "pg_catalog.current_schemas" => {
+            Some(evaluate_current_schemas(name, args, session))
+        }
+        "current_database" => Some(evaluate_current_database(name, args, session)),
         "current_user" | "session_user" | "current_role" => {
-            Some(require_zero_args(name, args).map(|()| {
-                Value::String(
-                    session.map_or_else(|| "root".to_string(), |session| session.user.clone()),
-                )
-            }))
+            Some(evaluate_current_user(name, args, session))
         }
         "quote_ident" | "pg_catalog.quote_ident" => Some(unary_nullable_text(name, args, |text| {
             Value::String(quote_identifier(text))
@@ -242,6 +235,66 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         ),
         _ => None,
     }
+}
+
+fn evaluate_current_database(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_zero_args(name, args).map(|()| {
+        Value::String(
+            session
+                .and_then(|session| session.database.clone())
+                .unwrap_or_default(),
+        )
+    })
+}
+
+fn evaluate_current_user(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_zero_args(name, args).map(|()| {
+        Value::String(session.map_or_else(|| "root".to_string(), |session| session.user.clone()))
+    })
+}
+
+fn evaluate_current_schemas(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count(name, args, 1)?;
+    let Some(Value::Bool(include_implicit)) = args.first() else {
+        return Ok(Value::Null);
+    };
+    let schemas = session
+        .and_then(CassieSession::object_lookup_context)
+        .map_or_else(
+            || {
+                let mut schemas = vec![DEFAULT_SCHEMA.to_owned()];
+                if *include_implicit {
+                    schemas.insert(0, PG_CATALOG_SCHEMA.to_owned());
+                }
+                schemas
+            },
+            |(_, context)| {
+                if *include_implicit {
+                    context
+                        .relation_search_order()
+                        .into_iter()
+                        .map(str::to_owned)
+                        .collect()
+                } else {
+                    context.search_path
+                }
+            },
+        );
+    Ok(Value::Json(serde_json::Value::Array(
+        schemas.into_iter().map(serde_json::Value::String).collect(),
+    )))
 }
 
 fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError> {

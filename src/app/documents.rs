@@ -436,6 +436,16 @@ impl Cassie {
             }
             crate::types::DataType::Float => Self::validate_float(field, value),
             crate::types::DataType::Boolean => Self::validate_boolean(field, value),
+            crate::types::DataType::Name => {
+                if value
+                    .as_str()
+                    .is_some_and(|text| text.len() <= crate::types::name::MAX_NAME_BYTES)
+                {
+                    Ok(())
+                } else {
+                    Self::invalid_vector(field, "name of at most 63 UTF-8 bytes")
+                }
+            }
             crate::types::DataType::Text | crate::types::DataType::Uuid => {
                 Self::validate_text_or_uuid(field, expected, value)
             }

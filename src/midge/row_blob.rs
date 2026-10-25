@@ -587,9 +587,11 @@ fn expected_type_tag(data_type: &DataType) -> u8 {
         DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::ObjectId(_) => TYPE_I64,
         DataType::Float => TYPE_F64,
         DataType::Boolean => TYPE_BOOL,
-        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::JsonPath => {
-            TYPE_STRING
-        }
+        DataType::Name
+        | DataType::Text
+        | DataType::Char { .. }
+        | DataType::Varchar { .. }
+        | DataType::JsonPath => TYPE_STRING,
         DataType::Uuid => TYPE_UUID,
         DataType::Date => TYPE_DATE,
         DataType::Time => TYPE_TIME,

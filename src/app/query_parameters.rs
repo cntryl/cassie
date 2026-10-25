@@ -91,7 +91,8 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
                 Some(DataType::Float) => ParameterShape::Float64,
                 // A `reg*` parameter is an object name resolved by its cast.
                 Some(
-                    DataType::ObjectId(_)
+                    DataType::Name
+                    | DataType::ObjectId(_)
                     | DataType::Extended(_)
                     | DataType::Text
                     | DataType::Char { .. }

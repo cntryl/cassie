@@ -711,9 +711,11 @@ fn type_category(data_type: &DataType) -> String {
         | DataType::BigInt
         | DataType::Float
         | DataType::ObjectId(_) => "N".to_string(),
-        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json => {
-            "S".to_string()
-        }
+        DataType::Name
+        | DataType::Text
+        | DataType::Char { .. }
+        | DataType::Varchar { .. }
+        | DataType::Json => "S".to_string(),
         DataType::Bytea | DataType::Uuid | DataType::Jsonb | DataType::JsonPath => "U".to_string(),
         DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
         DataType::Vector(_) => "V".to_string(),

@@ -856,6 +856,7 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::BigInt => "bigint".to_string(),
         DataType::Float => "double precision".to_string(),
         DataType::Boolean => "boolean".to_string(),
+        DataType::Name => "name".to_string(),
         DataType::Text => "text".to_string(),
         DataType::Char { length } => match length {
             Some(length) => format!("char({length})"),

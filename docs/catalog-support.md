@@ -248,10 +248,14 @@ callers do not mutate shared session state. Text ownership and evaluator scratch
 use query-memory admission; cancellation/error paths release that ownership.
 Execution-result caching bypasses this helper, including calls through views;
 compiled plans remain reusable and rebuild at epoch 18. Extra arguments reject
-with native 42883. No persistent representation or native type identity changes.
-This selected primitive helper leaves complete session introspection, native
-NAME/OID/RECORD types and full resource qualification unqualified under the
-current feature and v1.0 qualification records.
+with native 42883. No persistent representation changes. This selected
+primitive helper leaves complete session introspection and native OID/RECORD
+types unqualified under the current feature and v1.0 qualification records.
+
+`current_schemas(boolean)` is separately selected for effective search-path
+introspection and returns native `name[]` identity (OID 1003, element OID 19).
+NAME values reuse the existing string row tag; general `name[]` parameters,
+constructors, operators, and assignment paths remain unqualified.
 
 
 Selected `pg_column_size(any)` support returns INT (OID 23). Explicit existing

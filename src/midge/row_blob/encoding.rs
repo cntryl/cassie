@@ -52,6 +52,7 @@ pub(super) fn encode_value(
                 .ok_or_else(|| CassieError::InvalidVector("boolean field expects bool".into()))?;
             Ok((TYPE_BOOL, vec![u8::from(value)]))
         }
+        DataType::Name => encode_string_value(value, "name field expects string"),
         DataType::Text => encode_string_value(value, "text field expects string"),
         DataType::Char { length } => encode_bounded_string(
             value,

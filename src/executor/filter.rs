@@ -558,14 +558,10 @@ fn cast_scalar(
             })
             .ok_or_else(|| QueryError::General("cannot cast value to FLOAT".to_string())),
         DataType::Boolean => cast_boolean_scalar(value),
-        DataType::Text => Ok(ScalarValue::Str(match value {
-            ScalarValue::Bool(value) => value.to_string(),
-            ScalarValue::Int(value) => value.to_string(),
-            ScalarValue::Float(value) => value.to_string(),
-            ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
-            ScalarValue::Typed(value) => value.text(),
-            ScalarValue::Null => String::new(),
-        })),
+        DataType::Name => Ok(ScalarValue::Str(crate::types::name::parse_text(
+            &cast_string_scalar(value),
+        ))),
+        DataType::Text => Ok(ScalarValue::Str(cast_string_scalar(value))),
         DataType::Char { length } => casts::character(value, *length),
         DataType::Varchar { length } => cast_varchar_text(value, *length),
         DataType::Bytea => {
@@ -609,6 +605,17 @@ fn cast_scalar(
         DataType::Vector(_) => Err(QueryError::General(
             "cannot cast scalar value to VECTOR".to_string(),
         )),
+    }
+}
+
+fn cast_string_scalar(value: &ScalarValue) -> String {
+    match value {
+        ScalarValue::Bool(value) => value.to_string(),
+        ScalarValue::Int(value) => value.to_string(),
+        ScalarValue::Float(value) => value.to_string(),
+        ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
+        ScalarValue::Typed(value) => value.text(),
+        ScalarValue::Null => String::new(),
     }
 }
 

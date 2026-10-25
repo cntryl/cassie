@@ -273,3 +273,27 @@ fn should_list_effective_search_path_schemas() {
         ]]
     );
 }
+
+#[test]
+fn should_keep_explicit_pg_catalog_position_in_current_schemas() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-explicit-pg-catalog", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("SET search_path TO public, pg_catalog")
+        .expect("set an explicit pg_catalog position");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT current_schemas(true)::text, current_schemas(false)::text")
+        .expect("read explicit schema order");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("{public,pg_catalog}".to_owned()),
+            Value::String("{public,pg_catalog}".to_owned()),
+        ]]
+    );
+}

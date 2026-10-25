@@ -3,7 +3,7 @@ use super::FunctionReturnType;
 use crate::types::DataType;
 
 impl FunctionReturnType {
-    pub(crate) const fn fixed_type(self) -> Option<DataType> {
+    pub(crate) fn fixed_type(self) -> Option<DataType> {
         Some(match self {
             Self::Json => DataType::Json,
             Self::Jsonb => DataType::Jsonb,
@@ -15,6 +15,7 @@ impl FunctionReturnType {
             Self::Boolean => DataType::Boolean,
             Self::Timestamp => DataType::Timestamp,
             Self::ObjectId(kind) => DataType::ObjectId(kind),
+            Self::NameArray => DataType::Array(Box::new(DataType::Name)),
             Self::FirstNonNullArgument
             | Self::FirstComparedArgument
             | Self::NumericArgument

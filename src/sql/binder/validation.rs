@@ -556,7 +556,9 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
             family => OperandFamily::Typed(family),
         },
         DataType::Boolean => OperandFamily::Boolean,
-        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => OperandFamily::Text,
+        DataType::Name | DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => {
+            OperandFamily::Text
+        }
         DataType::Date | DataType::Time | DataType::Timestamp => OperandFamily::Temporal,
         DataType::Vector(_) => OperandFamily::Vector,
         DataType::Json | DataType::Jsonb => OperandFamily::Json,

@@ -127,6 +127,7 @@ pub enum QueryStatement {
     CreateMaterializedView(CreateMaterializedViewStatement),
     RefreshMaterializedView(RefreshMaterializedViewStatement),
     DropMaterializedView(DropMaterializedViewStatement),
+    RenameMaterializedView(RenameMaterializedViewStatement),
     AlterMaterializedProjection(AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(DropMaterializedProjectionVersionStatement),
     VerifyProjection(VerifyProjectionStatement),
@@ -406,6 +407,13 @@ pub struct RefreshMaterializedViewStatement {
 pub struct DropMaterializedViewStatement {
     pub name: String,
     pub if_exists: bool,
+}
+
+/// Rename one SQL materialized view within its existing schema.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenameMaterializedViewStatement {
+    pub name: String,
+    pub new_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -443,3 +443,16 @@ impl Catalog {
         out
     }
 }
+
+impl Catalog {
+    pub(crate) fn rename_materialized_view_metadata(
+        &self,
+        previous: &str,
+        metadata: ProjectionMeta,
+    ) {
+        let mut projections = self.projections.write();
+        projections.remove(previous);
+        projections.insert(metadata.collection.clone(), metadata);
+        self.bump_version();
+    }
+}

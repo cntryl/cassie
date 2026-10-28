@@ -205,7 +205,7 @@ use materialized_projection::{
 };
 use materialized_view::{
     parse_create_materialized_view_statement, parse_drop_materialized_view_statement,
-    parse_refresh_materialized_view_statement,
+    parse_refresh_materialized_view_statement, parse_rename_materialized_view_statement,
 };
 pub(crate) use preflight::preflight_sql;
 use query::{
@@ -405,6 +405,8 @@ fn parse_view_or_index_statement(
         Ok(Some(parse_drop_materialized_view_statement(trimmed)?))
     } else if starts_statement(lower, "drop view") {
         Ok(Some(parse_drop_view_statement(trimmed)?))
+    } else if lexical::pattern_end(lower, 0, "alter materialized view").is_some() {
+        Ok(Some(parse_rename_materialized_view_statement(trimmed)?))
     } else if starts_statement(lower, "refresh materialized view") {
         Ok(Some(parse_refresh_materialized_view_statement(trimmed)?))
     } else if starts_statement(lower, "refresh materialized projection") {

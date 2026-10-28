@@ -180,3 +180,9 @@ mod type_array_input_copy;
 
 #[path = "sql_mutations/types/numeric/returning.rs"]
 mod types_numeric_returning;
+
+#[path = "sql_mutations/ddl/materialized_view_rename.rs"]
+mod materialized_view_rename;
+
+#[path = "support/catalog_directory.rs"]
+mod support_catalog_directory;

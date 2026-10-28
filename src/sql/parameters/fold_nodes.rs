@@ -294,6 +294,7 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         | QueryStatement::CreateMaterializedView(_)
         | QueryStatement::RefreshMaterializedView(_)
         | QueryStatement::DropMaterializedView(_)
+        | QueryStatement::RenameMaterializedView(_)
         | QueryStatement::AlterMaterializedProjection(_)
         | QueryStatement::DropMaterializedProjectionVersion(_)
         | QueryStatement::VerifyProjection(_)

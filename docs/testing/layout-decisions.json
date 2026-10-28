@@ -4246,6 +4246,10 @@
       "suite": "sql_mutations",
       "category": "ddl"
     },
+    "tests/sql_mutations/ddl/materialized_view_rename.rs": {
+      "suite": "sql_mutations",
+      "category": "ddl"
+    },
     "tests/sql_mutations/ddl/migration_ddl_sequences.rs": {
       "suite": "sql_mutations",
       "category": "ddl"

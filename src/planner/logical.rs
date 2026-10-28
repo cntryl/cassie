@@ -95,6 +95,7 @@ pub enum LogicalCommand {
     CreateMaterializedView(crate::sql::ast::CreateMaterializedViewStatement),
     RefreshMaterializedView(crate::sql::ast::RefreshMaterializedViewStatement),
     DropMaterializedView(crate::sql::ast::DropMaterializedViewStatement),
+    RenameMaterializedView(crate::sql::ast::RenameMaterializedViewStatement),
     AlterMaterializedProjection(crate::sql::ast::AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(crate::sql::ast::DropMaterializedProjectionVersionStatement),
     VerifyProjection(VerifyProjectionStatement),
@@ -392,6 +393,11 @@ fn plan_projection_statement(
             &statement.name,
             "DROP MATERIALIZED VIEW requires a name",
             LogicalCommand::DropMaterializedView(statement.clone()),
+        ),
+        ProjectionStatementRef::RenameMaterializedView(statement) => plan_named_command(
+            &statement.name,
+            "ALTER MATERIALIZED VIEW requires a name",
+            LogicalCommand::RenameMaterializedView(statement.clone()),
         ),
         ProjectionStatementRef::AlterMaterializedProjection(statement) => plan_named_command(
             &statement.name,

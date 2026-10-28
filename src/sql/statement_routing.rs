@@ -16,9 +16,10 @@ use super::{
     DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, ExplainStatement,
     InsertStatement, MergeStatement, PlanRepairProjectionStatement, QueryStatement,
     RefreshMaterializedProjectionStatement, RefreshMaterializedViewStatement,
-    RefreshRollupStatement, ReindexStatement, RepairProjectionStatement, SelectStatement,
-    SessionObjectStatement, SetStatement, ShowStatement, TransactionStatement, TruncateStatement,
-    UpdateStatement, VerifyProjectionStatement,
+    RefreshRollupStatement, ReindexStatement, RenameMaterializedViewStatement,
+    RepairProjectionStatement, SelectStatement, SessionObjectStatement, SetStatement,
+    ShowStatement, TransactionStatement, TruncateStatement, UpdateStatement,
+    VerifyProjectionStatement,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,6 +97,7 @@ pub enum ProjectionStatementRef<'a> {
     CreateMaterializedView(&'a CreateMaterializedViewStatement),
     RefreshMaterializedView(&'a RefreshMaterializedViewStatement),
     DropMaterializedView(&'a DropMaterializedViewStatement),
+    RenameMaterializedView(&'a RenameMaterializedViewStatement),
     AlterMaterializedProjection(&'a AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(&'a DropMaterializedProjectionVersionStatement),
     VerifyProjection(&'a VerifyProjectionStatement),
@@ -176,6 +178,7 @@ pub enum ProjectionStatement {
     CreateMaterializedView(CreateMaterializedViewStatement),
     RefreshMaterializedView(RefreshMaterializedViewStatement),
     DropMaterializedView(DropMaterializedViewStatement),
+    RenameMaterializedView(RenameMaterializedViewStatement),
     AlterMaterializedProjection(AlterMaterializedProjectionStatement),
     DropMaterializedProjectionVersion(DropMaterializedProjectionVersionStatement),
     VerifyProjection(VerifyProjectionStatement),
@@ -245,6 +248,7 @@ impl QueryStatement {
             | Self::CreateMaterializedView(_)
             | Self::RefreshMaterializedView(_)
             | Self::DropMaterializedView(_)
+            | Self::RenameMaterializedView(_)
             | Self::AlterMaterializedProjection(_)
             | Self::DropMaterializedProjectionVersion(_)
             | Self::VerifyProjection(_)
@@ -361,6 +365,9 @@ impl QueryStatement {
             }
             Self::DropMaterializedView(statement) => {
                 ProjectionStatementRef::DropMaterializedView(statement)
+            }
+            Self::RenameMaterializedView(statement) => {
+                ProjectionStatementRef::RenameMaterializedView(statement)
             }
             Self::AlterMaterializedProjection(statement) => {
                 ProjectionStatementRef::AlterMaterializedProjection(statement)
@@ -481,6 +488,9 @@ impl QueryStatement {
             }
             Self::DropMaterializedView(statement) => {
                 ProjectionStatement::DropMaterializedView(statement)
+            }
+            Self::RenameMaterializedView(statement) => {
+                ProjectionStatement::RenameMaterializedView(statement)
             }
             Self::AlterMaterializedProjection(statement) => {
                 ProjectionStatement::AlterMaterializedProjection(statement)

@@ -306,7 +306,18 @@ pub(super) fn resolve_drop_index_name(
             name,
         } => (Some(database), Some(schema), name),
     };
-    let indexes = catalog.all_indexes_snapshot();
+    let indexes = catalog
+        .all_indexes_snapshot()
+        .into_iter()
+        .filter(|index| {
+            catalog
+                .materialized_projection_for_output(&index.collection)
+                .is_none_or(|projection| {
+                    !catalog.is_sql_materialized_view(&projection.collection)
+                        || projection.active_output_collection() == Some(index.collection.as_str())
+                })
+        })
+        .collect::<Vec<_>>();
     let schemas = schema.map_or_else(
         || {
             context

@@ -224,6 +224,9 @@ fn execute_materialized_view_command(
                 controls,
             ),
         )),
+        LogicalCommand::RenameMaterializedView(statement) => Some(CommandExecution::invalidating(
+            super::materialized_view_rename::rename(cassie, statement, controls),
+        )),
         LogicalCommand::DropMaterializedView(statement) => Some(CommandExecution::invalidating(
             super::materialized_projection::drop_materialized_view(cassie, statement, controls),
         )),

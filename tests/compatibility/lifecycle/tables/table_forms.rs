@@ -17,5 +17,7 @@ include!("table_forms/resources.rs");
 
 #[path = "table_forms/like_options.rs"]
 mod like_options;
+#[path = "table_forms/like_primary_key.rs"]
+mod like_primary_key;
 
 include!("table_forms/semantics.rs");

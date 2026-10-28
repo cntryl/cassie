@@ -294,24 +294,28 @@ fn copy_table_like_fields(
         options.defaults.is_included(),
     )?;
 
-    if options.indexes.is_included()
+    let primary_key_name = if options.indexes.is_included()
         && source_constraints
             .iter()
-            .filter(|constraint| constraint.primary_key)
-            .count()
-            > 1
+            .any(|constraint| constraint.primary_key)
     {
-        return Err(CassieError::Unsupported(
-            "CREATE TABLE LIKE INCLUDING INDEXES does not support composite primary keys yet"
-                .to_string(),
-        )
-        .into());
-    }
+        table_like_primary_key_name(cassie, table)
+    } else {
+        String::new()
+    };
 
     Ok(source_schema
         .fields
         .into_iter()
-        .map(|field| copy_table_like_field(table, field, &source_constraints, options))
+        .map(|field| {
+            copy_table_like_field(
+                table,
+                field,
+                &source_constraints,
+                options,
+                &primary_key_name,
+            )
+        })
         .collect())
 }
 
@@ -320,6 +324,7 @@ fn copy_table_like_field(
     field: catalog::FieldMeta,
     source_constraints: &[FieldConstraint],
     options: TableLikeCopyOptions,
+    primary_key_name: &str,
 ) -> crate::sql::ast::FieldDefinition {
     let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
     let matches_field = |constraint: &&FieldConstraint| {
@@ -392,7 +397,12 @@ fn copy_table_like_field(
             field_constraints
                 .filter(|constraint| constraint.primary_key || constraint.unique)
                 .map(|constraint| {
-                    copy_table_like_key_constraint(table, constraint, source_constraints)
+                    copy_table_like_key_constraint(
+                        table,
+                        constraint,
+                        source_constraints,
+                        primary_key_name,
+                    )
                 }),
         );
     }
@@ -420,14 +430,55 @@ fn table_like_copy_options(
     Ok(options)
 }
 
+fn table_like_primary_key_name(cassie: &Cassie, target: &str) -> String {
+    let occupied = cassie
+        .catalog
+        .logical_indexes_snapshot()
+        .iter()
+        .map(|index| {
+            let scoped =
+                table_like_scoped_index_name(&index.collection, &catalog::local_name(&index.name));
+            cassie.midge.canonical_collection_name(&scoped)
+        })
+        .collect::<HashSet<_>>();
+    let base = format!("{}_pkey", catalog::local_name(target));
+    let mut collision = 0_u64;
+    loop {
+        let name = if collision == 0 {
+            base.clone()
+        } else {
+            format!("{base}{collision}")
+        };
+        let scoped = table_like_scoped_index_name(target, &name);
+        if !occupied.contains(&cassie.midge.canonical_collection_name(&scoped))
+            && !cassie.catalog.relation_exists(&scoped)
+        {
+            return name;
+        }
+        collision = collision.saturating_add(1);
+    }
+}
+
+fn table_like_scoped_index_name(owner: &str, local: &str) -> String {
+    let path =
+        crate::sql::ast::IdentifierPath::parse(owner).expect("catalog owner is a valid name");
+    let mut parts = path.values().map(str::to_owned).collect::<Vec<_>>();
+    *parts.last_mut().expect("owner has a local component") = local.to_string();
+    crate::sql::ast::IdentifierPath::from_values(parts).into_string()
+}
+
 fn copy_table_like_key_constraint(
     target: &str,
     source: &FieldConstraint,
     source_constraints: &[FieldConstraint],
+    primary_key_name: &str,
 ) -> FieldConstraint {
     let mut copied = FieldConstraint::new(source.field.clone());
     copied.primary_key = source.primary_key;
     copied.primary_key_ordinal = source.primary_key_ordinal;
+    if source.primary_key {
+        copied.primary_key_name = Some(primary_key_name.to_string());
+    }
     copied.unique = source.unique;
     copied.unique_ordinal = source.unique_ordinal;
     copied.unique_null_policy = source.unique_null_policy;

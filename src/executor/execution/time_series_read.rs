@@ -741,7 +741,7 @@ fn value_text(value: &Value) -> Option<String> {
         Value::Typed(value) => {
             crate::types::extended::temporal_legacy_text(value).or_else(|| Some(value.text()))
         }
-        Value::Json(_) | Value::Vector(_) => None,
+        Value::Json(_) | Value::Vector(_) | Value::Array(_) => None,
     }
 }
 

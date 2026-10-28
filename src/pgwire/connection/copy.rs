@@ -7,6 +7,7 @@ use super::{
     HandshakeError, PgWireError, PgWireSeverity, PgwireReader, MAX_FRONTEND_MESSAGE_BYTES,
 };
 use crate::sql::ast::CopyStatement;
+use std::collections::HashMap;
 
 #[path = "copy/filter.rs"]
 mod filter;
@@ -58,6 +59,7 @@ pub(super) async fn handle_simple_copy_candidate(
         cassie,
         session.clone(),
         sql,
+        &mut state.parameter_statuses,
         handle.as_ref(),
         reader,
         write_half,
@@ -87,6 +89,7 @@ pub(super) async fn try_handle_simple_copy_query(
     cassie: Arc<Cassie>,
     session: CassieSession,
     sql: &str,
+    parameter_statuses: &mut HashMap<String, String>,
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
@@ -148,6 +151,7 @@ pub(super) async fn try_handle_simple_copy_query(
                 session,
                 request,
                 query_sql,
+                parameter_statuses,
                 cancellation.cloned(),
                 write_half,
             )
@@ -286,6 +290,7 @@ async fn handle_simple_copy_to_stdout(
     session: CassieSession,
     request: CopyRequest,
     query_sql: String,
+    parameter_statuses: &mut HashMap<String, String>,
     cancellation: Option<crate::runtime::QueryCancellationHandle>,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
@@ -356,6 +361,13 @@ async fn handle_simple_copy_to_stdout(
     let command = format!("COPY {}", result.row_count());
     if write_copy_done(write_half).await.is_err()
         || write_command_complete(write_half, &command).await.is_err()
+        || super::writers::write_changed_parameter_statuses(
+            write_half,
+            &session,
+            parameter_statuses,
+        )
+        .await
+        .is_err()
         || write_ready_for_query(write_half, &session).await.is_err()
     {
         SimpleCopyOutcome::ConnectionClosed

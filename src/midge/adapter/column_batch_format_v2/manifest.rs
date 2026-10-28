@@ -413,6 +413,15 @@ fn encode_value(out: &mut Vec<u8>, value: &Value) -> Result<(), CassieError> {
             write_u32(out, value.kind().type_oid());
             write_bytes(out, &value.send_binary())?;
         }
+        Value::Array(value) => {
+            out.push(8);
+            let raw = serde_json::to_vec(&value.to_storage_json())
+                .map_err(|_| invalid("failed to encode column-batch SQL array"))?;
+            if raw.len() > MAX_JSON_BYTES {
+                return Err(invalid("column-batch SQL array exceeds limit"));
+            }
+            write_bytes(out, &raw)?;
+        }
     }
     Ok(())
 }
@@ -450,6 +459,14 @@ fn decode_value(reader: &mut Reader<'_>) -> Result<Value, CassieError> {
             kind.receive_binary(raw)
                 .map(Value::Typed)
                 .map_err(|_| invalid("invalid column-batch typed summary"))
+        }
+        8 => {
+            let raw = reader.read_bounded_bytes(MAX_JSON_BYTES)?;
+            let value = serde_json::from_slice(raw)
+                .map_err(|_| invalid("invalid column-batch SQL array"))?;
+            crate::types::SqlArray::from_storage_json(&value)
+                .map(Value::Array)
+                .map_err(|_| invalid("invalid column-batch SQL array shape"))
         }
         _ => Err(invalid("unknown column-batch summary value tag")),
     }

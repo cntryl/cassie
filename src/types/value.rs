@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::types::array_value::SqlArray;
 use crate::types::vector::Vector;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -10,6 +11,7 @@ pub enum Value {
     Float64(f64),
     String(String),
     Vector(Vector),
+    Array(SqlArray),
     Json(serde_json::Value),
     Typed(crate::types::typed::TypedValue),
 }
@@ -52,6 +54,22 @@ impl Value {
     }
 
     #[must_use]
+    pub fn as_array(&self) -> Option<&SqlArray> {
+        match self {
+            Value::Array(array) => Some(array),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub fn as_array_mut(&mut self) -> Option<&mut SqlArray> {
+        match self {
+            Value::Array(array) => Some(array),
+            _ => None,
+        }
+    }
+
+    #[must_use]
     pub fn is_null(&self) -> bool {
         matches!(self, Value::Null)
     }
@@ -78,5 +96,11 @@ impl From<i64> for Value {
 impl From<f64> for Value {
     fn from(v: f64) -> Self {
         Value::Float64(v)
+    }
+}
+
+impl From<SqlArray> for Value {
+    fn from(value: SqlArray) -> Self {
+        Self::Array(value)
     }
 }

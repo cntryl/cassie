@@ -289,5 +289,6 @@ fn scalar_heap_bytes(value: &Value) -> Result<usize, crate::app::CassieError> {
         .max(128)),
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => Ok(0),
         Value::Typed(typed) => Ok(typed.heap_bytes()),
+        Value::Array(_) => crate::executor::retained_memory::value_clone_bytes(value),
     }
 }

@@ -284,7 +284,11 @@ async fn handle_startup(
                 let registration = cassie.runtime.register_pgwire_backend();
                 session.set_backend_pid(registration.process_id());
                 let _ = write_auth_ok(write_half).await;
-                let _ = write_parameter_statuses(write_half, &session).await;
+                state.parameter_statuses =
+                    match write_parameter_statuses(write_half, &session).await {
+                        Ok(statuses) => statuses,
+                        Err(_) => return ConnectionStep::Break,
+                    };
                 let _ = write_backend_key_data(
                     write_half,
                     registration.process_id(),
@@ -361,7 +365,11 @@ async fn handle_password(
                     let registration = cassie.runtime.register_pgwire_backend();
                     session.set_backend_pid(registration.process_id());
                     let _ = write_auth_ok(write_half).await;
-                    let _ = write_parameter_statuses(write_half, &session).await;
+                    state.parameter_statuses =
+                        match write_parameter_statuses(write_half, &session).await {
+                            Ok(statuses) => statuses,
+                            Err(_) => return ConnectionStep::Break,
+                        };
                     let _ = write_backend_key_data(
                         write_half,
                         registration.process_id(),
@@ -607,7 +615,10 @@ async fn write_simple_query_error(
     error: PgWireError,
 ) -> ConnectionStep {
     transactions::fail_query(runtime, state, session);
-    if write_error_response(write_half, &error).await.is_err()
+    if writers::write_changed_parameter_statuses(write_half, session, &mut state.parameter_statuses)
+        .await
+        .is_err()
+        || write_error_response(write_half, &error).await.is_err()
         || write_ready_for_query(write_half, session).await.is_err()
     {
         ConnectionStep::Break
@@ -655,7 +666,16 @@ async fn execute_simple_statement(
                     .map_err(|_| ())?;
             }
             match write_simple_query_result(write_half, result).await {
-                Ok(()) => Ok(true),
+                Ok(()) => {
+                    writers::write_changed_parameter_statuses(
+                        write_half,
+                        session,
+                        &mut state.parameter_statuses,
+                    )
+                    .await
+                    .map_err(|_| ())?;
+                    Ok(true)
+                }
                 Err(error) if writers::query_memory_error(&error).is_some() => {
                     session.mark_transaction_failed();
                     let error = writers::query_memory_error(&error).expect("query memory error");

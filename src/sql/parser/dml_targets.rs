@@ -77,6 +77,7 @@ pub(crate) const DEFAULT_ASSIGNMENT: &str = crate::sql::ast::DEFAULT_ASSIGNMENT_
 #[derive(Debug, Default)]
 pub(super) struct ParsedAssignments {
     pub(super) assignments: Vec<(String, Expr)>,
+    pub(super) array_targets: Vec<crate::sql::ast::UpdateTarget>,
     pub(super) row_subqueries: Vec<RowSubqueryAssignment>,
 }
 
@@ -107,9 +108,26 @@ pub(super) fn parse_set_list(raw: &str) -> Result<ParsedAssignments, SqlError> {
                 "UPDATE SET assignment missing column name".into(),
             ));
         }
-        parsed
-            .assignments
-            .push((normalize_column_identifier(left)?, assignment_value(right)?));
+        let (column, subscripts) = match parse_expression(left)? {
+            Expr::ArraySubscript { array, subscripts } => {
+                let Expr::Column(column) = *array else {
+                    return Err(SqlError::syntax(
+                        "UPDATE array assignment target must be a column".into(),
+                    ));
+                };
+                (normalize_column_identifier(&column)?, Some(subscripts))
+            }
+            Expr::Column(column) => (normalize_column_identifier(&column)?, None),
+            _ => (normalize_column_identifier(left)?, None),
+        };
+        let assignment_index = parsed.assignments.len();
+        parsed.assignments.push((column, assignment_value(right)?));
+        if let Some(subscripts) = subscripts {
+            parsed.array_targets.push(crate::sql::ast::UpdateTarget {
+                assignment_index,
+                subscripts,
+            });
+        }
     }
     Ok(parsed)
 }

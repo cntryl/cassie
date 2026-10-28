@@ -11,6 +11,8 @@ use super::{
     SortDirection, SqlError,
 };
 
+#[path = "array_subscript.rs"]
+mod array_subscript;
 #[path = "expr_case.rs"]
 mod case;
 #[path = "expression_depth.rs"]
@@ -56,7 +58,14 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
 }
 
 pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
-    parse_or_expression(super::lexical::trim_separators(raw))
+    let raw = super::lexical::trim_separators(raw);
+    if let Some((operand, collation)) = split_collation_suffix(raw)? {
+        return Ok(Expr::Collate {
+            expr: Box::new(parse_expression(operand)?),
+            collation,
+        });
+    }
+    parse_or_expression(raw)
 }
 
 pub(super) fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
@@ -195,6 +204,7 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
             return row_predicates::comparison(left, parsed, right);
         }
     }
+    row_predicates::reject_unselected_row_image_operator(raw)?;
     if let Some(predicate) = like_predicates::parse(raw)? {
         return Ok(predicate);
     }
@@ -307,6 +317,14 @@ fn parse_prefix_expression(raw: &str) -> Result<Expr, SqlError> {
     let selected = selected_prefix_operator(raw);
     let operators = qualified_operators::Index::scan(raw)?;
     parse_prefix_expression_selected(raw, &operators, selected)
+}
+
+pub(super) fn is_standalone_qualified_prefix(raw: &str) -> bool {
+    let raw = super::lexical::trim_separators(raw);
+    let Ok(Some((token, _))) = qualified_operators::prefix(raw) else {
+        return false;
+    };
+    super::lexical::trim_separators(&raw[token.len()..]).is_empty()
 }
 
 fn parse_prefix_expression_indexed(
@@ -474,6 +492,103 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
     Ok(expr)
 }
 
+fn split_collation_suffix(raw: &str) -> Result<Option<(&str, String)>, SqlError> {
+    let Some((position, end)) = super::clauses::find_top_level_keyword_span(raw, 0, "collate")
+    else {
+        return Ok(None);
+    };
+    let suffix = super::lexical::trim_separators(&raw[end..]);
+    let suffix_offset = raw[end..].find(suffix).unwrap_or(0);
+    let name = &suffix[..collation_name_length(suffix)];
+    let name_start = end + suffix_offset;
+    let name_end = name_start + name.len();
+    let operand = super::lexical::trim_separators(&raw[..position]);
+    let trailing = super::lexical::trim_separators(&raw[name_end..]);
+    if operand.is_empty() || name.is_empty() {
+        return Err(SqlError::syntax("COLLATE requires a collation name".into()));
+    }
+    if !trailing.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some((operand, selected_collation(name)?)))
+}
+
+pub(super) fn selected_collation(name: &str) -> Result<String, SqlError> {
+    let path = crate::sql::IdentifierPath::parse(name).map_err(SqlError::syntax)?;
+    match path.components() {
+        [collation] => selected_builtin_collation(collation.value(), collation.is_delimited()),
+        [schema, collation] => {
+            let is_pg_catalog = if schema.is_delimited() {
+                schema.value() == "pg_catalog"
+            } else {
+                schema.value().eq_ignore_ascii_case("pg_catalog")
+            };
+            if !is_pg_catalog {
+                return Err(SqlError::unsupported(
+                    "user-defined collations are not selected".into(),
+                ));
+            }
+            selected_builtin_collation(collation.value(), collation.is_delimited())
+        }
+        _ => Err(SqlError::syntax("invalid collation name".into())),
+    }
+}
+
+fn selected_builtin_collation(name: &str, delimited: bool) -> Result<String, SqlError> {
+    let matches = |candidate: &str| {
+        if delimited {
+            name == candidate
+        } else {
+            name.eq_ignore_ascii_case(candidate)
+        }
+    };
+    if matches("C") {
+        Ok("C".to_owned())
+    } else if matches("POSIX") {
+        Ok("POSIX".to_owned())
+    } else {
+        Err(SqlError::unsupported(format!(
+            "collation '{name}' is not selected"
+        )))
+    }
+}
+
+pub(super) fn collation_name_length(suffix: &str) -> usize {
+    let mut index = 0;
+    let mut components = 0;
+    while index < suffix.len() {
+        if suffix.as_bytes()[index] == b'"' {
+            index += 1;
+            while index < suffix.len() {
+                if suffix.as_bytes()[index] == b'"' {
+                    if suffix.as_bytes().get(index + 1) == Some(&b'"') {
+                        index += 2;
+                    } else {
+                        index += 1;
+                        break;
+                    }
+                } else {
+                    index += suffix[index..].chars().next().map_or(0, char::len_utf8);
+                }
+            }
+        } else {
+            while index < suffix.len() {
+                let character = suffix[index..].chars().next().expect("index in suffix");
+                if character == '.' || character.is_whitespace() {
+                    break;
+                }
+                index += character.len_utf8();
+            }
+        }
+        components += 1;
+        if suffix.as_bytes().get(index) != Some(&b'.') || components >= 2 {
+            break;
+        }
+        index += 1;
+    }
+    index
+}
+
 fn split_arithmetic_operator<'a>(
     raw: &'a str,
     operators: &[(&str, BinaryOp)],
@@ -621,6 +736,9 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
     if let Some(inner) = strip_parentheses(raw) {
         return parse_expression(inner);
+    }
+    if let Some(subscript) = array_subscript::parse(raw)? {
+        return Ok(subscript);
     }
     if let Some(subquery) = subquery_syntax::array(raw)? {
         return Ok(subquery);

@@ -1,4 +1,42 @@
 use super::parse_text_array;
+
+#[test]
+fn should_decode_empty_json_array_as_zero_dimensions() {
+    // Arrange
+    let element_type = crate::types::DataType::Varchar { length: None };
+
+    // Act
+    let parsed = super::parse_text_array_with_dimensions("[]", &element_type)
+        .expect("empty JSON array text");
+    let array = parsed.into_sql_array(&element_type);
+
+    // Assert
+    let array = array.expect("empty SQL array");
+    assert_eq!(array.dimensions(), []);
+    assert_eq!(array.elements(), []);
+}
+
+#[test]
+fn should_distinguish_sql_array_dimensions_from_json_text() {
+    // Arrange
+    let valid = "[0:1]={a,b}";
+    let json = r#"["a=b"]"#;
+
+    // Act
+    let parsed = super::parse_sql_text_array(valid, &crate::types::DataType::Text);
+    let rejected = super::parse_sql_text_array(json, &crate::types::DataType::Text);
+    let nested =
+        super::parse_sql_text_array("[1:2][0:1]={{a,b},{c,d}}", &crate::types::DataType::Text);
+
+    // Assert
+    let parsed = parsed.expect("dimensioned PostgreSQL array");
+    assert_eq!(parsed.dimensions[0].lower_bound, 0);
+    assert_eq!(parsed.dimensions[0].length, 2);
+    assert!(rejected.is_err());
+    let nested = nested.expect("multidimensional PostgreSQL array");
+    assert_eq!(nested.dimensions.len(), 2);
+    assert_eq!(nested.dimensions[1].lower_bound, 0);
+}
 use crate::types::DataType;
 
 #[test]
@@ -182,7 +220,6 @@ fn should_preserve_finite_float_array_token_boundaries() {
         ("2.2250738585072014e-308", 0x0010_0000_0000_0000),
         ("5e-324", 1),
         ("-0.0", 0x8000_0000_0000_0000),
-        ("1e-400", 0),
         ("1.7976931348623158e308", 0x7fef_ffff_ffff_ffff),
         ("2.4703282292062328e-324", 1),
     ];
@@ -195,6 +232,8 @@ fn should_preserve_finite_float_array_token_boundaries() {
         "[51.248178375505404,]",
         "[51.248178375505404] trailing",
         "[51.248178375505404,null",
+        "{1e-400,NULL}",
+        "[1e-400,null]",
     ];
 
     // Act

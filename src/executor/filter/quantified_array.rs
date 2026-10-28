@@ -38,6 +38,15 @@ pub(super) fn evaluate(
 fn elements(array: &ScalarValue) -> Result<Option<Vec<ScalarValue>>, QueryError> {
     let json = match array {
         ScalarValue::Null => return Ok(None),
+        ScalarValue::Array(array) => {
+            return Ok(Some(
+                array
+                    .elements()
+                    .iter()
+                    .map(super::scalar_from_value)
+                    .collect(),
+            ))
+        }
         ScalarValue::Json(text) | ScalarValue::Str(text) if text.trim_start().starts_with('[') => {
             serde_json::from_str::<serde_json::Value>(text).map_err(|error| {
                 crate::app::CassieError::ArrayInput(format!("malformed array literal: {error}"))

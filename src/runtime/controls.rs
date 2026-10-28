@@ -16,7 +16,8 @@ impl Default for QueryCancellationHandle {
         Self(
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
-            super::aggregate_test_pause::take_next_query_pause(),
+            super::aggregate_test_pause::take_next_query_pause()
+                .or_else(super::sleep_test_pause::take_next_query_pause),
         )
     }
 }
@@ -192,6 +193,13 @@ impl Drop for QueryMemoryReservation {
 impl QueryExecutionControls {
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
         if let Some(super::QueryTestPause::Aggregate(pause)) = self.cancellation.2.as_deref() {
+            pause.reach()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn sleep_function_entered(&self) -> Result<(), CassieError> {
+        if let Some(super::QueryTestPause::Sleep(pause)) = self.cancellation.2.as_deref() {
             pause.reach()?;
         }
         Ok(())

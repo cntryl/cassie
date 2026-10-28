@@ -30,7 +30,7 @@ fn should_reject_initialized_storage_missing_its_marker_without_changing_any_fam
             .raw_scan_prefix(StorageFamily::Schema, b"")
             .expect("schema entries")
             .into_iter()
-            .find_map(|(key, value)| (value == b"cassie-midge-layout-v3").then_some(key))
+            .find_map(|(key, value)| (value == b"cassie-midge-layout-v4").then_some(key))
             .expect("marker");
         if corrupt_marker {
             cassie
@@ -74,7 +74,7 @@ fn should_reject_initialized_storage_missing_its_marker_without_changing_any_fam
         assert!(!after
             .values()
             .flatten()
-            .any(|(_, value)| value == b"cassie-midge-layout-v3"));
+            .any(|(_, value)| value == b"cassie-midge-layout-v4"));
         std::fs::remove_dir_all(path).expect("cleanup");
     }
 }
@@ -94,7 +94,7 @@ fn should_initialize_a_genuinely_empty_directory_with_the_current_marker() {
             .raw_scan_prefix(StorageFamily::Schema, b"")
             .expect("schema entries")
             .iter()
-            .filter(|(_, value)| value == b"cassie-midge-layout-v3")
+            .filter(|(_, value)| value == b"cassie-midge-layout-v4")
             .count(),
         1
     );
@@ -121,7 +121,7 @@ fn should_complete_empty_unpublished_fixed_family_initialization() {
         .raw_scan_prefix(StorageFamily::Schema, b"")
         .expect("schema entries")
         .iter()
-        .any(|(_, value)| value == b"cassie-midge-layout-v3"));
+        .any(|(_, value)| value == b"cassie-midge-layout-v4"));
     drop(cassie);
     std::fs::remove_dir_all(path).expect("cleanup");
 }

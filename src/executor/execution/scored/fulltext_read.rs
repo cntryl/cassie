@@ -782,7 +782,7 @@ fn value_literal(value: &Value) -> Option<serde_json::Value> {
         Value::String(value) => Some(serde_json::Value::String(value.clone())),
         Value::Json(value) => Some(value.clone()),
         Value::Typed(value) => Some(value.to_json()),
-        Value::Vector(_) => None,
+        Value::Vector(_) | Value::Array(_) => None,
     }
 }
 

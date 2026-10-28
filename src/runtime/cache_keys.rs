@@ -33,6 +33,7 @@ pub enum ParameterShape {
     Float64,
     String,
     Vector(usize),
+    Array,
     Json,
 }
 

@@ -151,7 +151,7 @@ fn infer_inputs(
                     Expr::Cast {
                         data_type: DataType::Array(_),
                         ..
-                    }
+                    } | Expr::Collate { .. }
                 )
             });
             if !array_argument {
@@ -395,6 +395,7 @@ fn argument_type(
         }
         Expr::Null => return Ok(ArgumentType::Unknown),
         Expr::Cast { data_type, .. } => primitive_type(data_type),
+        Expr::Collate { expr, .. } => return argument_type(expr, field_types, catalog, inference),
         Expr::Column(name) => {
             crate::sql::field_type_for_column(field_types, name).and_then(primitive_type)
         }
@@ -484,6 +485,7 @@ fn function_result_type(
         Some(FunctionInputSignature::Positional(_)) => {
             Ok(ArgumentType::Known(match metadata.return_type {
                 FunctionReturnType::Int => DataType::Int,
+                FunctionReturnType::IntArray => DataType::Array(Box::new(DataType::Int)),
                 FunctionReturnType::BigInt => DataType::BigInt,
                 FunctionReturnType::Boolean => DataType::Boolean,
                 FunctionReturnType::Bytea => DataType::Bytea,

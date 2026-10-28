@@ -162,7 +162,13 @@ fn should_roundtrip_supported_sql_values() {
         );
         assert_eq!(
             selected.rows()[0][6],
-            Value::Json(serde_json::json!([1, 2, 3]))
+            Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!([1, 2, 3]),
+                    &DataType::Int,
+                )
+                .unwrap()
+            )
         );
         assert_eq!(
             selected.rows()[0][7],

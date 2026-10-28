@@ -480,7 +480,10 @@ pub(super) fn parse_alter_table_operation(
     if lower.starts_with("alter column") {
         return parse_alter_column_operation(raw["alter column".len()..].trim());
     }
-    if lower.starts_with("add constraint") || starts_with_keyword(raw, "add unique using index") {
+    if lower.starts_with("add constraint")
+        || starts_with_keyword(raw, "add primary key")
+        || starts_with_keyword(raw, "add unique using index")
+    {
         return parse_add_constraint(raw);
     }
     if lower.starts_with("drop constraint") {
@@ -930,6 +933,8 @@ pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
 }
 
 pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
+    let (base_type, is_sql_standard_array) = split_sql_standard_array_suffix(raw)?;
+    let raw = base_type.unwrap_or(raw).trim();
     // SQL requires DOUBLE PRECISION and TEXT; preserve the shared parser's
     // legacy aliases for non-SQL callers, including array element names.
     if let Some(alias) = legacy_sql_type_alias(raw) {
@@ -937,7 +942,7 @@ pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
             "unsupported data type '{alias}'"
         )));
     }
-    DataType::parse_sql(raw).map_err(|message| {
+    let data_type = DataType::parse_sql(raw).map_err(|message| {
         if message.starts_with("NUMERIC precision")
             || message.starts_with("NUMERIC scale")
             || message.starts_with("FLOAT precision")
@@ -949,7 +954,93 @@ pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {
         } else {
             SqlError::new(message)
         }
+    })?;
+    Ok(if is_sql_standard_array {
+        if matches!(data_type, DataType::Array(_) | DataType::JsonPath) {
+            return Err(SqlError::new(if matches!(data_type, DataType::JsonPath) {
+                "JSONPATH arrays are not supported".into()
+            } else {
+                "array-of-array types are not supported".into()
+            }));
+        }
+        DataType::Array(Box::new(data_type))
+    } else {
+        data_type
     })
+}
+
+fn split_sql_standard_array_suffix(raw: &str) -> Result<(Option<&str>, bool), SqlError> {
+    let Some(suffix_start) = sql_standard_array_suffix_start(raw) else {
+        return Ok((None, false));
+    };
+    let base_type = raw[..suffix_start].trim_end();
+    let suffix = raw[suffix_start + " array".len()..].trim();
+    if base_type.is_empty() {
+        return Err(SqlError::new(
+            "array type suffix requires an element type".into(),
+        ));
+    }
+    if suffix.is_empty() {
+        return Ok((Some(base_type), true));
+    }
+    let Some(dimensions) = suffix
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+    else {
+        return Err(SqlError::new(format!(
+            "invalid SQL array type dimensions '{suffix}'"
+        )));
+    };
+    if dimensions.trim().parse::<u32>().is_err() {
+        return Err(SqlError::new(format!(
+            "invalid SQL array type dimensions '{suffix}'"
+        )));
+    }
+    Ok((Some(base_type), true))
+}
+
+fn sql_standard_array_suffix_start(raw: &str) -> Option<usize> {
+    let bytes = raw.as_bytes();
+    let mut in_quoted_identifier = false;
+    let mut depth = 0_usize;
+    let mut suffix_start = None;
+    let mut index = 0;
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => {
+                if in_quoted_identifier && bytes.get(index + 1) == Some(&b'"') {
+                    index += 2;
+                    continue;
+                }
+                in_quoted_identifier = !in_quoted_identifier;
+                index += 1;
+            }
+            b'(' if !in_quoted_identifier => {
+                depth += 1;
+                index += 1;
+            }
+            b')' if !in_quoted_identifier => {
+                depth = depth.saturating_sub(1);
+                index += 1;
+            }
+            _ if !in_quoted_identifier && depth == 0 && index + 5 <= bytes.len() => {
+                let has_keyword_boundary = index > 0
+                    && bytes[index - 1].is_ascii_whitespace()
+                    && bytes[index..index + 5].eq_ignore_ascii_case(b"array")
+                    && bytes
+                        .get(index + 5)
+                        .is_none_or(|byte| byte.is_ascii_whitespace() || *byte == b'[');
+                if has_keyword_boundary {
+                    suffix_start = Some(index - 1);
+                }
+                index += 1;
+            }
+            _ => index += 1,
+        }
+    }
+
+    suffix_start
 }
 
 fn is_known_unselected_type(raw: &str) -> bool {

@@ -114,7 +114,7 @@ pub enum RetentionStatementRef<'a> {
 }
 
 pub enum StatementRoute {
-    Runtime(RuntimeStatement),
+    Runtime(Box<RuntimeStatement>),
     Catalog(CatalogStatement),
     Projection(ProjectionStatement),
     Retention(RetentionStatement),
@@ -274,7 +274,9 @@ impl QueryStatement {
     #[must_use]
     pub fn into_route(self) -> StatementRoute {
         match self.family() {
-            StatementFamily::Runtime => StatementRoute::Runtime(self.into_runtime_route()),
+            StatementFamily::Runtime => {
+                StatementRoute::Runtime(Box::new(self.into_runtime_route()))
+            }
             StatementFamily::Catalog => StatementRoute::Catalog(self.into_catalog_route()),
             StatementFamily::Projection => StatementRoute::Projection(self.into_projection_route()),
             StatementFamily::Retention => StatementRoute::Retention(self.into_retention_route()),

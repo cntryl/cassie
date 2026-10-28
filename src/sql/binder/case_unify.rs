@@ -88,6 +88,18 @@ fn visit_source(source: &mut QuerySource, parameter_type_oids: &[i32]) {
             }
         }
         QuerySource::Aliased { source, .. } => visit_source(source, parameter_type_oids),
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            visit_source(source, parameter_type_oids);
+            visit_expression(rate, parameter_type_oids);
+            if let Some(seed) = repeatable {
+                visit_expression(seed, parameter_type_oids);
+            }
+        }
         QuerySource::Subquery { select, .. } => visit_select(select, parameter_type_oids),
         QuerySource::Join {
             left, right, on, ..

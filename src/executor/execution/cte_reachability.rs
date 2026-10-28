@@ -223,6 +223,18 @@ impl<'a> Walk<'a> {
                 }
             }
             QuerySource::Aliased { source, .. } => self.source(source, depth + 1)?,
+            QuerySource::TableSample {
+                source,
+                rate,
+                repeatable,
+                ..
+            } => {
+                self.source(source, depth + 1)?;
+                self.expr(rate, depth + 1)?;
+                if let Some(seed) = repeatable {
+                    self.expr(seed, depth + 1)?;
+                }
+            }
             QuerySource::Subquery { select, .. } => {
                 self.select(&SelectParts::of(select), depth + 1)?;
             }

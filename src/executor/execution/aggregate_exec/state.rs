@@ -90,6 +90,10 @@ pub(super) enum AggregateAccumulator {
     StringAgg {
         value: Option<String>,
     },
+    Collection {
+        kind: crate::sql::functions::CollectionAggregate,
+        values: Vec<(Value, Option<Value>)>,
+    },
     Sum {
         sum: NumericSum,
         seen: bool,
@@ -109,6 +113,22 @@ pub(super) enum AggregateAccumulator {
     Statistical(StatisticalAccumulator),
 }
 
+pub(super) fn retained_value_bytes(value: &Value) -> usize {
+    value_retained_bytes(value)
+}
+
+pub(super) fn has_bytea_carrier(value: &Value) -> bool {
+    let Value::String(text) = value else {
+        return false;
+    };
+    text.strip_prefix("\\x")
+        .is_some_and(|hex| hex.len() % 2 == 0 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
+}
+
+fn has_bytea_pair(value: &Value, delimiter: Option<&Value>) -> bool {
+    has_bytea_carrier(value) && delimiter.is_some_and(has_bytea_carrier)
+}
+
 impl AggregateAccumulator {
     /// Accounted bytes for this accumulator, including a retained MIN/MAX
     /// value whose size depends on the input (for example long text).
@@ -126,6 +146,15 @@ impl AggregateAccumulator {
                 selected: Some(value),
             } => inline.saturating_add(value_retained_bytes(value)),
             Self::StringAgg { value: Some(value) } => inline.saturating_add(value.len()),
+            Self::Collection { values, .. } => inline.saturating_add(
+                values
+                    .iter()
+                    .map(|(a, b)| {
+                        value_retained_bytes(a)
+                            .saturating_add(b.as_ref().map_or(0, value_retained_bytes))
+                    })
+                    .sum::<usize>(),
+            ),
             Self::Regression(_) => {
                 inline.saturating_add(RegressionAccumulator::retained_heap_bytes())
             }
@@ -151,7 +180,10 @@ impl AggregateAccumulator {
             )
             .into());
         }
-        if is_string_aggregate(function) || function.is_distinct() || !function.order_by.is_empty()
+        if is_string_aggregate(function)
+            || is_collection_aggregate(function)
+            || function.is_distinct()
+            || !function.order_by.is_empty()
         {
             return super::modifiers::evaluate(function, rows, context);
         }
@@ -204,6 +236,20 @@ impl AggregateAccumulator {
         if is_string_aggregate(function) {
             return Self::StringAgg { value: None };
         }
+        if matches!(
+            crate::sql::functions::function(&function.name).map(|m| m.id),
+            Some(crate::sql::functions::FunctionId::CollectionAggregate(_))
+        ) {
+            let Some(crate::sql::functions::FunctionId::CollectionAggregate(kind)) =
+                crate::sql::functions::function(&function.name).map(|m| m.id)
+            else {
+                unreachable!("collection aggregate metadata exists")
+            };
+            return Self::Collection {
+                kind,
+                values: Vec::new(),
+            };
+        }
         match function.name.to_ascii_lowercase().as_str() {
             "count" => Self::Count { count: 0 },
             "sum" => Self::Sum {
@@ -245,7 +291,10 @@ impl AggregateAccumulator {
         let Some(value) = state_input::selected_input(function, row, &value_context)? else {
             return Ok(RetainedChange::default());
         };
-        let second_argument = if matches!(self, Self::StringAgg { .. } | Self::Regression(_)) {
+        let second_argument = if matches!(
+            self,
+            Self::StringAgg { .. } | Self::Regression(_) | Self::Collection { .. }
+        ) {
             Some(state_input::evaluate_argument(
                 function,
                 1,
@@ -260,11 +309,25 @@ impl AggregateAccumulator {
                 .args
                 .first()
                 .map(|expr| crate::executor::array_order::key(row, expr, &value, user_functions))
-                .filter(|key| matches!(key, SemanticValue::Array(_)))
+                .filter(|key| {
+                    matches!(
+                        key,
+                        SemanticValue::Array(_) | SemanticValue::SqlArray { .. }
+                    )
+                })
         } else {
             None
         };
-        self.update_values(function, value, key, second_argument)
+        let bytea = is_string_aggregate(function)
+            && (function.args.first().is_some_and(|argument| {
+                crate::executor::array_order::expression_type(row, argument, user_functions)
+                    == Some(crate::types::DataType::Bytea)
+            }) || has_bytea_pair(&value, second_argument.as_ref()));
+        if bytea {
+            self.update_values_with_bytea(function, value, key, second_argument, true)
+        } else {
+            self.update_values(function, value, key, second_argument)
+        }
     }
 
     pub(super) fn update_values(
@@ -273,6 +336,17 @@ impl AggregateAccumulator {
         value: Value,
         new_key: Option<SemanticValue>,
         second_argument: Option<Value>,
+    ) -> Result<RetainedChange, QueryError> {
+        self.update_values_with_bytea(function, value, new_key, second_argument, false)
+    }
+
+    pub(super) fn update_values_with_bytea(
+        &mut self,
+        function: &FunctionCall,
+        value: Value,
+        new_key: Option<SemanticValue>,
+        second_argument: Option<Value>,
+        bytea: bool,
     ) -> Result<RetainedChange, QueryError> {
         if let Some(change) = super::interval_aggregate::update(self, &value) {
             return change;
@@ -312,7 +386,10 @@ impl AggregateAccumulator {
                 }
             }
             Self::StringAgg { value: output } => {
-                return update_string_aggregate(output, function, value, second_argument);
+                return update_string_aggregate(output, function, value, second_argument, bytea);
+            }
+            Self::Collection { kind, values } => {
+                return update_collection_values(*kind, values, value, second_argument);
             }
             Self::Sum { sum, seen } => update_sum(sum, seen, function, value)?,
             Self::Avg { sum, count } => update_average(sum, count, function, value)?,
@@ -441,6 +518,7 @@ impl AggregateAccumulator {
             }
             Self::Count { count } => Value::Int64(count),
             Self::StringAgg { value } => value.map_or(Value::Null, Value::String),
+            Self::Collection { kind, values } => finish_collection(kind, values)?,
             Self::Sum { sum, seen } => {
                 if seen {
                     sum.finish_value()?
@@ -469,7 +547,7 @@ impl AggregateAccumulator {
             Self::Avg { sum, .. } => sum.requires_row_order(),
             Self::Regression(_) => RegressionAccumulator::requires_row_order(),
             Self::Statistical(state) => state.requires_row_order(),
-            Self::StringAgg { .. } => true,
+            Self::StringAgg { .. } | Self::Collection { .. } => true,
             Self::Boolean(_)
             | Self::Bitwise(_)
             | Self::AnyValue { .. }
@@ -490,6 +568,18 @@ impl AggregateAccumulator {
                 key.as_ref().map_or(0, SemanticValue::estimated_bytes),
             )?,
             Self::StringAgg { value: Some(value) } => value.len(),
+            Self::Collection { values, .. } => values
+                .iter()
+                .map(|(a, b)| {
+                    value_retained_bytes(a)
+                        .saturating_add(b.as_ref().map_or(0, value_retained_bytes))
+                })
+                .sum::<usize>()
+                .saturating_add(
+                    values
+                        .capacity()
+                        .saturating_mul(std::mem::size_of::<(Value, Option<Value>)>()),
+                ),
             Self::AnyValue {
                 selected: Some(value),
             } => crate::executor::retained_memory::value_clone_bytes(value)?,
@@ -498,6 +588,99 @@ impl AggregateAccumulator {
             _ => 0,
         })
     }
+
+    pub(super) fn collection_growth_bytes(&self) -> usize {
+        match self {
+            Self::Collection { values, .. } if values.len() == values.capacity() => values
+                .capacity()
+                .max(2)
+                .saturating_mul(2)
+                .saturating_mul(std::mem::size_of::<(Value, Option<Value>)>()),
+            _ => 0,
+        }
+    }
+}
+
+fn update_collection_values(
+    kind: crate::sql::functions::CollectionAggregate,
+    values: &mut Vec<(Value, Option<Value>)>,
+    value: Value,
+    second_argument: Option<Value>,
+) -> Result<RetainedChange, QueryError> {
+    if matches!(
+        kind,
+        crate::sql::functions::CollectionAggregate::JsonObject { .. }
+    ) && matches!(value, Value::Null)
+    {
+        return Err(
+            crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                "22004",
+                "JSON object aggregate key must not be null",
+            ))
+            .into(),
+        );
+    }
+    let skip_strict_null = match kind {
+        crate::sql::functions::CollectionAggregate::Json { strict, .. } => {
+            strict && matches!(value, Value::Null)
+        }
+        crate::sql::functions::CollectionAggregate::JsonObject { strict, binary, .. } => {
+            strict
+                && second_argument.as_ref().is_some_and(|value| {
+                    matches!(value, Value::Null)
+                        || binary && matches!(value, Value::Json(serde_json::Value::Null))
+                })
+        }
+        crate::sql::functions::CollectionAggregate::Array => false,
+    };
+    if let crate::sql::functions::CollectionAggregate::JsonObject {
+        unique: true,
+        binary,
+        ..
+    } = kind
+    {
+        if values.iter().any(|(key, _)| key == &value) {
+            let message = if binary {
+                "duplicate JSON object key value".to_string()
+            } else {
+                format!(
+                    "duplicate JSON object key value: {}",
+                    serde_json::to_string(&value_to_json(&value)).unwrap_or_else(|_| "null".into())
+                )
+            };
+            return Err(
+                crate::app::CassieError::from(crate::app::DiagnosticError::new("22030", message))
+                    .into(),
+            );
+        }
+    }
+    let before = collection_values_retained_bytes(values);
+    if skip_strict_null {
+        if matches!(
+            kind,
+            crate::sql::functions::CollectionAggregate::JsonObject { unique: true, .. }
+        ) {
+            values.try_reserve(1).map_err(|error| {
+                CassieError::ResourceLimit(format!(
+                    "unable to allocate collection aggregate keys: {error}"
+                ))
+            })?;
+            values.push((value, None));
+            return Ok(RetainedChange {
+                before,
+                after: collection_values_retained_bytes(values),
+            });
+        }
+        return Ok(RetainedChange::default());
+    }
+    values.try_reserve(1).map_err(|error| {
+        CassieError::ResourceLimit(format!(
+            "unable to allocate collection aggregate values: {error}"
+        ))
+    })?;
+    values.push((value, second_argument));
+    let after = collection_values_retained_bytes(values);
+    Ok(RetainedChange { before, after })
 }
 
 fn update_sum(
@@ -527,6 +710,133 @@ fn update_sum(
         value => return Err(non_numeric_input(function, &value)),
     }
     Ok(())
+}
+
+fn value_to_json(value: &Value) -> serde_json::Value {
+    match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Bool(value) => serde_json::Value::Bool(*value),
+        Value::Int64(value) => serde_json::Value::Number((*value).into()),
+        Value::Float64(value) => serde_json::Number::from_f64(*value)
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
+        Value::String(value) => serde_json::Value::String(value.clone()),
+        Value::Json(value) => value.clone(),
+        Value::Array(value) => value.to_nested_json(),
+        Value::Vector(value) => {
+            serde_json::to_value(value.values.clone()).unwrap_or(serde_json::Value::Null)
+        }
+        Value::Typed(value) => serde_json::Value::String(value.text()),
+    }
+}
+
+fn collection_values_retained_bytes(values: &Vec<(Value, Option<Value>)>) -> usize {
+    values
+        .iter()
+        .map(|(key, value)| {
+            value_retained_bytes(key).saturating_add(value.as_ref().map_or(0, value_retained_bytes))
+        })
+        .sum::<usize>()
+        .saturating_add(
+            values
+                .capacity()
+                .saturating_mul(std::mem::size_of::<(Value, Option<Value>)>()),
+        )
+}
+
+fn finish_collection(
+    kind: crate::sql::functions::CollectionAggregate,
+    values: Vec<(Value, Option<Value>)>,
+) -> Result<Value, QueryError> {
+    if values.is_empty() {
+        return Ok(Value::Null);
+    }
+    match kind {
+        crate::sql::functions::CollectionAggregate::Array => {
+            let values = values.into_iter().map(|(value, _)| value).collect();
+            crate::types::array_value::SqlArray::from_nested_values(values)
+                .map(Value::Array)
+                .map_err(|error| QueryError::General(format!("array_agg: {error}")))
+        }
+        crate::sql::functions::CollectionAggregate::Json { .. } => {
+            Ok(Value::Json(serde_json::Value::Array(
+                values
+                    .into_iter()
+                    .map(|(value, _)| value_to_json(&value))
+                    .collect(),
+            )))
+        }
+        crate::sql::functions::CollectionAggregate::JsonObject { binary: false, .. } => {
+            if values.iter().all(|(_, value)| value.is_none()) {
+                return Ok(Value::Null);
+            }
+            let entries = values
+                .into_iter()
+                .filter_map(|(key, value)| value.map(|value| (key, value)))
+                .map(|(key, value)| {
+                    let key = json_object_key_text(&key);
+                    let key = serde_json::to_string(&key).unwrap_or_default();
+                    let value = value_to_json(&value);
+                    let value =
+                        crate::types::jsonb::format(&value).unwrap_or_else(|_| value.to_string());
+                    format!("{key} : {value}")
+                })
+                .collect::<Vec<_>>();
+            Ok(Value::String(format!("{{ {} }}", entries.join(", "))))
+        }
+        crate::sql::functions::CollectionAggregate::JsonObject { binary: true, .. } => {
+            if values.iter().all(|(_, value)| value.is_none()) {
+                return Ok(Value::Null);
+            }
+            let mut object = serde_json::Map::new();
+            for (key, value) in values {
+                let Some(value) = value else {
+                    continue;
+                };
+                let key = json_object_key_text(&key);
+                let value = value_to_json(&value);
+                if object.insert(key, value).is_some()
+                    && matches!(
+                        kind,
+                        crate::sql::functions::CollectionAggregate::JsonObject { unique: true, .. }
+                    )
+                {
+                    return Err(
+                        crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                            "22030",
+                            "duplicate JSON object key value",
+                        ))
+                        .into(),
+                    );
+                }
+            }
+            Ok(Value::Json(serde_json::Value::Object(object)))
+        }
+    }
+}
+
+fn json_object_key_text(value: &Value) -> String {
+    match value {
+        Value::Null => String::new(),
+        Value::Bool(value) => value.to_string(),
+        Value::Int64(value) => value.to_string(),
+        Value::Float64(value) => value.to_string(),
+        Value::String(value) => value.clone(),
+        Value::Typed(value) => value.text(),
+        Value::Array(value) => {
+            crate::types::array_value::format_text(value, &crate::types::DataType::Text)
+                .unwrap_or_else(|| value.to_nested_json().to_string())
+        }
+        Value::Json(value) => value.to_string(),
+        Value::Vector(value) => format!(
+            "[{}]",
+            value
+                .values
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    }
 }
 
 fn update_average(
@@ -563,6 +873,15 @@ fn is_string_aggregate(function: &FunctionCall) -> bool {
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
 }
 
+fn is_collection_aggregate(function: &FunctionCall) -> bool {
+    crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::CollectionAggregate(_)
+        )
+    })
+}
+
 pub(super) fn invalid_string_aggregate_input(function: &FunctionCall) -> QueryError {
     QueryError::General(format!(
         "function {}(text, text) does not exist",
@@ -582,6 +901,7 @@ fn update_string_aggregate(
     function: &FunctionCall,
     value: Value,
     delimiter: Option<Value>,
+    bytea: bool,
 ) -> Result<RetainedChange, QueryError> {
     if matches!(value, Value::Null) {
         return Ok(RetainedChange::default());
@@ -594,6 +914,34 @@ fn update_string_aggregate(
         Some(Value::Null) | None => String::new(),
         Some(_) => return Err(invalid_string_aggregate_input(function)),
     };
+    if bytea {
+        let value_hex = bytea_hex_digits(&value)?;
+        let delimiter_hex = if output.is_some() && !delimiter.is_empty() {
+            bytea_hex_digits(&delimiter)?
+        } else {
+            ""
+        };
+        let had_value = output.is_some();
+        let additional =
+            value_hex
+                .len()
+                .saturating_add(if had_value { delimiter_hex.len() } else { 0 });
+        let before = output.as_ref().map_or(0, String::len);
+        let output = output.get_or_insert_with(|| String::from("\\x"));
+        output.try_reserve(additional).map_err(|error| {
+            CassieError::ResourceLimit(format!(
+                "unable to allocate STRING_AGG bytea result: {error}"
+            ))
+        })?;
+        if had_value {
+            output.push_str(delimiter_hex);
+        }
+        output.push_str(value_hex);
+        return Ok(RetainedChange {
+            before,
+            after: output.len(),
+        });
+    }
     let had_value = output.is_some();
     let separator_bytes = if had_value { delimiter.len() } else { 0 };
     let additional_bytes = separator_bytes
@@ -612,6 +960,18 @@ fn update_string_aggregate(
         before,
         after: output.len(),
     })
+}
+
+fn bytea_hex_digits(value: &str) -> Result<&str, QueryError> {
+    let hex = value
+        .strip_prefix("\\x")
+        .ok_or_else(|| QueryError::General("invalid bytea input to STRING_AGG".into()))?;
+    if hex.len() % 2 != 0 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(QueryError::General(
+            "invalid bytea input to STRING_AGG".into(),
+        ));
+    }
+    Ok(hex)
 }
 
 /// Running SUM state that reproduces the sequential row-order fold.

@@ -434,7 +434,9 @@ pub(crate) fn is_window_value_key(name: &str) -> bool {
 
 fn projection_expr_key(expr: &Expr) -> String {
     match expr {
-        Expr::Case { .. } => serde_json::to_string(expr).unwrap_or_default(),
+        Expr::Case { .. } | Expr::ArraySubscript { .. } => {
+            serde_json::to_string(expr).unwrap_or_default()
+        }
         Expr::Column(name) => name.clone(),
         Expr::Param(index) => format!("${}", index + 1),
         Expr::Null => "null".to_string(),
@@ -484,16 +486,7 @@ fn projection_expr_key(expr: &Expr) -> String {
             expr,
             values,
             negated,
-        } => format!(
-            "{}{} in ({})",
-            projection_expr_key(expr),
-            if *negated { " not" } else { "" },
-            values
-                .iter()
-                .map(projection_expr_key)
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
+        } => projection_in_list_key(expr, values, *negated),
         Expr::Like {
             expr,
             pattern,
@@ -529,8 +522,26 @@ fn projection_expr_key(expr: &Expr) -> String {
             "{}::{data_type:?}[{source_type:?},{identity:?}]",
             projection_expr_key(expr)
         ),
+        Expr::Collate { expr, collation } => collated_projection_expr_key(expr, collation),
         Expr::Exists(_) => "exists".to_string(),
     }
+}
+
+fn projection_in_list_key(expr: &Expr, values: &[Expr], negated: bool) -> String {
+    format!(
+        "{}{} in ({})",
+        projection_expr_key(expr),
+        if negated { " not" } else { "" },
+        values
+            .iter()
+            .map(projection_expr_key)
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn collated_projection_expr_key(expr: &Expr, collation: &str) -> String {
+    format!("{} collate {collation}", projection_expr_key(expr))
 }
 
 impl ProjectionOp {

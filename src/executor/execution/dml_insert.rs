@@ -338,7 +338,8 @@ fn insert_source_rows(
                 source: select.source.clone(),
                 collection: match &select.source {
                     QuerySource::Values { .. } => "values".into(),
-                    QuerySource::Aliased { source, .. } => {
+                    QuerySource::Aliased { source, .. }
+                    | QuerySource::TableSample { source, .. } => {
                         crate::planner::logical::source_name(source)
                     }
                     QuerySource::Collection(name) => name.to_string(),
@@ -751,6 +752,8 @@ fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> 
         | Expr::UnaryNumeric { .. }
         | Expr::IntegerNegate { .. }
         | Expr::Cast { .. }
+        | Expr::Collate { .. }
+        | Expr::ArraySubscript { .. }
         | Expr::Exists(_)
         | Expr::Subquery(_)
         | Expr::Binary {

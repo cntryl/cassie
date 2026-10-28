@@ -60,6 +60,9 @@ fn sleep_until(
     deadline: i64,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<(), QueryError> {
+    if let Some(controls) = controls {
+        controls.sleep_function_entered()?;
+    }
     loop {
         if let Some(controls) = controls {
             controls.check_interruption()?;

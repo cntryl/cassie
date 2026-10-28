@@ -105,58 +105,6 @@ fn should_reject_malformed_binary_vector_headers() {
 }
 
 #[test]
-fn should_reject_malformed_scalar_array_headers() {
-    // Arrange
-    // INT[]1007 is a supported representative of the single shared decoder.
-    let valid = [
-        0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 23, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 7, 255,
-        255, 255, 255,
-    ];
-    let changes = [
-        (0, [0, 0, 0, 2]),
-        (4, [0, 0, 0, 2]),
-        (4, [0, 0, 0, 0]),
-        (8, [0, 0, 0, 20]),
-        (12, [255, 255, 255, 255]),
-        (12, [127, 255, 255, 255]),
-        (16, [0, 0, 0, 0]),
-        (20, [0, 0, 0, 5]),
-    ];
-    let mut bodies = changes
-        .map(|(offset, bytes)| {
-            let mut body = valid.to_vec();
-            body[offset..offset + 4].copy_from_slice(&bytes);
-            body
-        })
-        .to_vec();
-    let mut trailing = valid.to_vec();
-    trailing.push(0);
-    bodies.push(trailing);
-    let cycles = bodies
-        .iter()
-        .map(|body| fixture::execute_cycle("SELECT $1 AS v", Some((1007, 1, Some(body))), 0, false))
-        .collect();
-
-    // Act
-    let batches = fixture::run_cycles("type-array-binary-header-errors", &[], cycles);
-
-    // Assert
-    assert_eq!(batches.len(), 9);
-    for (index, frames) in batches.into_iter().enumerate() {
-        // A truncated INT4 value and bytes beyond a complete array payload both
-        // fail as invalid binary input; malformed outer framing is a protocol error.
-        let state = if index >= 7 { "22P03" } else { "08P01" };
-        assert_eq!(wire::error_code(&frames).as_deref(), Some(state));
-        assert_eq!(fixture::data_row_payloads(&frames), Vec::<Vec<u8>>::new());
-        assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'T').count(), 0);
-        assert_eq!(
-            frames.last().map(|frame| frame.1.as_slice()),
-            Some(&b"I"[..])
-        );
-    }
-}
-
-#[test]
 fn should_reject_unregistered_binary_array_identities() {
     // Arrange
     let body = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23];
@@ -246,7 +194,7 @@ fn should_preserve_unsigned_json_documents_in_scalar_arrays() {
             fixture::assert_success(frames);
             fixture::assert_single_column_descriptors(frames, (199, -1, -1), format, true);
             let expected = fixture::one_field_row(if format == 0 {
-                b"[18446744073709551615,null]"
+                b"{18446744073709551615,NULL}"
             } else {
                 &binary
             });

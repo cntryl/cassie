@@ -32,6 +32,10 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
         ] {
             cassie.execute_sql(&session, sql, vec![]).unwrap();
         }
+        let sql = "SELECT COUNT(*) AS rows, COUNT(amount) AS present, SUM(amount) AS total, AVG(amount) AS average, MIN(amount) AS smallest, MAX(amount) AS largest FROM aggregate_accel_numeric";
+        let row_result = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("row-blob aggregate result");
         cassie
             .execute_sql(
                 &session,
@@ -42,12 +46,8 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
 
         // Act
         let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT COUNT(*) AS rows, COUNT(amount) AS present, SUM(amount) AS total, AVG(amount) AS average, MIN(amount) AS smallest, MAX(amount) AS largest FROM aggregate_accel_numeric",
-                vec![],
-            )
-            .unwrap();
+            .execute_sql(&session, sql, vec![])
+            .expect("column-summary aggregate result");
         let explain = cassie
             .execute_sql(
                 &session,
@@ -58,6 +58,19 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
         let metrics = cassie.metrics();
 
         // Assert
+        assert_eq!(result.rows(), row_result.rows());
+        assert_eq!(
+            result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            row_result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>()
+        );
         assert_eq!(
             result.rows(),
             vec![vec![
@@ -84,6 +97,155 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
     });
 
     let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_preserve_all_null_aggregate_results_in_column_summaries() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE aggregate_accel_all_null (amount INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO aggregate_accel_all_null (amount) VALUES (NULL), (NULL)",
+                vec![],
+            )
+            .expect("insert NULL rows");
+        let sql = "SELECT COUNT(*), COUNT(amount), SUM(amount), AVG(amount), MIN(amount), MAX(amount) FROM aggregate_accel_all_null";
+        let row_result = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("row-blob aggregate result");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX aggregate_accel_all_null_idx ON aggregate_accel_all_null \
+                 USING column (amount) WITH (segment_size = 1)",
+                vec![],
+            )
+            .expect("create column index");
+        let before = cassie.metrics();
+
+        // Act
+        let summary_result = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("column-summary aggregate result");
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(summary_result.rows(), row_result.rows());
+        assert_eq!(
+            summary_result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            row_result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            summary_result.rows(),
+            vec![vec![
+                Value::Int64(2),
+                Value::Int64(0),
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                Value::Null,
+            ]]
+        );
+        assert!(
+            after["aggregate_acceleration"]["scans"].as_u64().unwrap_or_default()
+                > before["aggregate_acceleration"]["scans"].as_u64().unwrap_or_default(),
+            "the all-NULL result should use column summaries"
+        );
+    });
+}
+
+#[test]
+fn should_preserve_aggregate_results_across_column_segment_boundaries() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let outcomes = runtime.block_on(async {
+        let mut outcomes = Vec::new();
+        for segment_size in [1, 2, 3] {
+            let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            cassie.execute_sql(&session, "CREATE TABLE segment_aggregate (amount INT)", vec![])
+                .expect("create table");
+            cassie.execute_sql(&session, "INSERT INTO segment_aggregate VALUES (7), (NULL), (3)", vec![])
+                .expect("insert rows");
+            let sql = "SELECT COUNT(*), COUNT(amount), SUM(amount), AVG(amount), MIN(amount), MAX(amount) FROM segment_aggregate";
+            let rows = cassie.execute_sql(&session, sql, vec![]).expect("row result");
+            cassie.execute_sql(&session, &format!("CREATE INDEX segment_aggregate_idx ON segment_aggregate USING column (amount) WITH (segment_size = {segment_size})"), vec![])
+                .expect("create column index");
+            let before = cassie.metrics()["aggregate_acceleration"]["scans"].as_u64().unwrap_or_default();
+
+            // Act
+            let summary = cassie.execute_sql(&session, sql, vec![]).expect("summary result");
+            let after = cassie.metrics()["aggregate_acceleration"]["scans"].as_u64().unwrap_or_default();
+            outcomes.push((segment_size, rows, summary, before, after));
+        }
+        outcomes
+    });
+
+    // Assert
+    for (segment_size, rows, summary, before, after) in outcomes {
+        assert_eq!(summary.rows(), rows.rows(), "segment size {segment_size}");
+        assert_eq!(
+            summary.rows(),
+            vec![vec![
+                Value::Int64(3),
+                Value::Int64(2),
+                Value::Int64(10),
+                Value::String("5.0000000000000000".to_owned()),
+                Value::Int64(3),
+                Value::Int64(7)
+            ]]
+        );
+        assert_eq!(
+            summary
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            rows.columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            "segment size {segment_size}"
+        );
+        assert_eq!(
+            summary
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            [20, 20, 20, 1700, 23, 23]
+        );
+        assert!(
+            after > before,
+            "summary path was not used for segment size {segment_size}"
+        );
+    }
 }
 
 #[test]

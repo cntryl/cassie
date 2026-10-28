@@ -162,6 +162,18 @@ impl ParameterValidation<'_> {
             }
 
             QuerySource::Aliased { source, .. } => self.source(source, types)?,
+            QuerySource::TableSample {
+                source,
+                rate,
+                repeatable,
+                ..
+            } => {
+                self.source(source, types)?;
+                self.expression(rate, types)?;
+                if let Some(seed) = repeatable {
+                    self.expression(seed, types)?;
+                }
+            }
             QuerySource::Join {
                 left, right, on, ..
             } => {

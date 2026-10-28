@@ -1,6 +1,12 @@
 use super::support_array_order::seed_numeric_arrays;
 use super::support_read_equivalence::{sql, with_fixture};
-use cassie::types::Value;
+use cassie::types::{DataType, SqlArray, Value};
+
+fn typed_array(value: &serde_json::Value, element_type: &DataType) -> Value {
+    Value::Array(
+        SqlArray::from_nested_json_typed(value, element_type).expect("typed array expectation"),
+    )
+}
 
 #[test]
 fn should_order_declared_arrays_elementwise() {
@@ -94,7 +100,7 @@ fn should_keep_array_order_through_relational_execution() {
             ["b", "a"].map(|item| vec![Value::String(item.into())])
         );
         assert_eq!(sql(cassie, session, "SELECT item, ROW_NUMBER() OVER (ORDER BY arr) AS rank FROM array_values ORDER BY arr").rows(), ["c", "d", "a", "b"].into_iter().zip(1..=4).map(|(item, rank)| vec![Value::String(item.into()), Value::Int64(rank)]).collect::<Vec<_>>());
-        assert_eq!(sql(cassie, session, "SELECT item, FIRST_VALUE(arr) OVER (PARTITION BY item ORDER BY item) AS first_arr FROM array_values ORDER BY first_arr LIMIT 1").rows(), vec![vec![Value::String("c".into()), Value::Json(serde_json::json!([]))]]);
+        assert_eq!(sql(cassie, session, "SELECT item, FIRST_VALUE(arr) OVER (PARTITION BY item ORDER BY item) AS first_arr FROM array_values ORDER BY first_arr LIMIT 1").rows(), vec![vec![Value::String("c".into()), Value::Array(SqlArray::empty())]]);
         assert_eq!(sql(cassie, session, "SELECT left_arrays.item FROM (SELECT item, arr FROM array_values) AS left_arrays JOIN (SELECT item, arr FROM array_values) AS right_arrays ON left_arrays.arr > right_arrays.arr WHERE right_arrays.item='a'").rows(), vec![vec![Value::String("b".into())]]);
         let bounded = cassie
             .execute_sql(
@@ -251,7 +257,7 @@ fn should_retain_array_types_through_optimized_execution() {
                 serde_json::json!([2]),
                 serde_json::json!([10])
             ]
-            .map(|array| vec![Value::Json(array)])
+            .map(|array| vec![typed_array(&array, &DataType::Int)])
         );
     });
 }
@@ -259,28 +265,32 @@ fn should_retain_array_types_through_optimized_execution() {
 fn should_order_array_elements_in_their_declared_domains() {
     // Arrange
     with_fixture("typed_array_element_domains", |cassie, session| {
-        for (table, data_type, first, last) in [
+        for (table, data_type, element_type, first, last) in [
             (
                 "boolean_arrays",
                 "BOOLEAN[]",
+                DataType::Boolean,
                 serde_json::json!([false]),
                 serde_json::json!([true]),
             ),
             (
                 "text_arrays",
                 "TEXT[]",
+                DataType::Text,
                 serde_json::json!(["a"]),
                 serde_json::json!(["b"]),
             ),
             (
                 "json_arrays",
                 "JSON[]",
+                DataType::Json,
                 serde_json::json!([10]),
                 serde_json::json!([2]),
             ),
             (
                 "vector_arrays",
                 "VECTOR(2)[]",
+                DataType::Vector(2),
                 serde_json::json!([[-2.0, 0.0]]),
                 serde_json::json!([[-1.0, 0.0]]),
             ),
@@ -318,7 +328,10 @@ fn should_order_array_elements_in_their_declared_domains() {
             );
             assert_eq!(
                 extrema.rows(),
-                vec![vec![Value::Json(first), Value::Json(last)]],
+                vec![vec![
+                    typed_array(&first, &element_type),
+                    typed_array(&last, &element_type),
+                ]],
                 "{data_type}"
             );
         }

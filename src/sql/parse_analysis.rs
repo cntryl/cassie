@@ -184,6 +184,9 @@ impl<'a> Footprint<'a> {
                     bytes = add(bytes, data_type_clone_bytes(source)?)?;
                 }
             }
+            Expr::Collate { collation, .. } => {
+                bytes = add(bytes, collation.len())?;
+            }
             Expr::Case { branches, .. } => {
                 bytes = add(bytes, mul(branches.len(), size_of::<(Expr, Expr)>())?)?;
             }
@@ -238,6 +241,18 @@ impl<'a> Footprint<'a> {
                 bytes = add(bytes, self.source(source, depth + 1)?)?;
                 bytes = add(bytes, alias.len())?;
                 bytes = add(bytes, Self::strings(column_aliases)?)?;
+            }
+            QuerySource::TableSample {
+                source,
+                rate,
+                repeatable,
+                ..
+            } => {
+                bytes = add(bytes, self.source(source, depth + 1)?)?;
+                bytes = add(bytes, self.expression(rate, depth + 1)?)?;
+                if let Some(seed) = repeatable {
+                    bytes = add(bytes, self.expression(seed, depth + 1)?)?;
+                }
             }
             QuerySource::TableFunction { name, function, .. } => {
                 bytes = add(bytes, name.len())?;

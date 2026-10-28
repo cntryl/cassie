@@ -131,6 +131,13 @@ fn should_preserve_empty_filtered_aggregate_semantics() {
                 vec![],
             )
             .expect("insert row");
+        let sql = "SELECT COUNT(*) AS rows, COUNT(amount) AS present, \
+                   SUM(amount) AS total, AVG(amount) AS average, \
+                   MIN(amount) AS smallest, MAX(amount) AS largest \
+                   FROM empty_filtered_aggregate WHERE status = 'missing'";
+        let row_result = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("row-path empty aggregate");
         cassie
             .execute_sql(
                 &session,
@@ -142,17 +149,23 @@ fn should_preserve_empty_filtered_aggregate_semantics() {
 
         // Act
         let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT COUNT(*) AS rows, COUNT(amount) AS present, \
-                 SUM(amount) AS total, AVG(amount) AS average, \
-                 MIN(amount) AS smallest, MAX(amount) AS largest \
-                 FROM empty_filtered_aggregate WHERE status = 'missing'",
-                vec![],
-            )
+            .execute_sql(&session, sql, vec![])
             .expect("execute empty filtered aggregate");
 
         // Assert
+        assert_eq!(result.rows(), row_result.rows());
+        assert_eq!(
+            result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            row_result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>()
+        );
         assert_eq!(
             result.rows(),
             vec![vec![

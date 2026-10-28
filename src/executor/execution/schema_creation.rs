@@ -143,6 +143,10 @@ fn create_table_gated(
         catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences = prepare_table_sequences(cassie, statement, fields)?;
     let mut initial_indexes = primary_key_indexes(table, constraints.as_slice());
+    initial_indexes.extend(catalog::composite_primary_key_indexes(
+        table,
+        constraints.as_slice(),
+    ));
     initial_indexes.extend(catalog::unique_constraint_indexes(
         table,
         constraints.as_slice(),
@@ -481,6 +485,10 @@ fn copy_table_like_indexes(
     let source_constraints = cassie.catalog.get_constraints(&source);
     let mut constraint_index_names = primary_key_indexes(&source, &source_constraints)
         .into_iter()
+        .chain(catalog::composite_primary_key_indexes(
+            &source,
+            &source_constraints,
+        ))
         .chain(catalog::unique_constraint_indexes(
             &source,
             &source_constraints,
@@ -502,6 +510,10 @@ fn copy_table_like_indexes(
     reserved_names.extend(
         primary_key_indexes(target, target_constraints)
             .into_iter()
+            .chain(catalog::composite_primary_key_indexes(
+                target,
+                target_constraints,
+            ))
             .chain(catalog::unique_constraint_indexes(
                 target,
                 target_constraints,

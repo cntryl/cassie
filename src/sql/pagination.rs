@@ -138,6 +138,7 @@ pub(crate) fn has_parameters(expr: &Expr) -> bool {
     match expr {
         Expr::Param(_) => true,
         Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => has_parameters(expr),
         Expr::Binary { left, right, .. } => has_parameters(left) || has_parameters(right),

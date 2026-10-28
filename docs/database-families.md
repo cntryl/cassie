@@ -1,6 +1,6 @@
 # Per-Database Midge Column Families
 
-Cassie's `cassie-midge-layout-v3` baseline uses one physical Midge column family for each logical
+Cassie's `cassie-midge-layout-v4` baseline uses one physical Midge column family for each logical
 database:
 
 | Family | Ownership |
@@ -30,20 +30,21 @@ the catalog record only after the family exists. Empty-only database drops use
 the same journal so startup can finish an interrupted drop or remove an
 orphaned create/restore family. A registry/family mismatch is a startup error.
 This layout has not shipped. No migration utility is required: pre-release
-`cassie-midge-layout-v2` directories must be recreated before using this
+pre-v4 directories must be recreated before using this
 baseline. Startup rejects an older marker without changing the stored data.
 
-## CRB2 array-null compatibility
+## CRB3 array shape encoding
 
-CRB2 array elements encode `NULL` as the null type tag followed by a zero-length
-varint. This differs from a top-level null field, which carries only the type tag.
-The array decoder must consume and validate that zero-length varint before reading
-the next element.
+CRB3 array payloads begin with a dimension count followed by each dimension's
+length and lower bound, then a row-major element count and tagged values. The
+zero-dimensional empty array differs from a SQL NULL field, and a NULL element
+differs from a JSON document whose value is null. The decoder validates
+dimension arithmetic and requires the shape product to equal the element count.
+NULL elements carry a zero-length varint after their null tag.
 
-This encoding remains the compatibility contract for CRB2. Rows written before
-the decoder fix do not require a format transition or rewrite: their bytes already
-follow this contract and become readable once decoded correctly. A nonzero payload
-length after a null array tag is invalid CRB2 and must fail closed as a parse error.
+CRB3 is the current `cassie-midge-layout-v4` array encoding. Existing pre-release
+stores must be recreated; no migration utility or legacy row reader is selected. See the
+[type contract](type-contract.md#selected-postgresql-array-shape-contract-2026-10-26).
 
 ## Logical database images
 
@@ -75,7 +76,7 @@ the dynamic database families together with `cf0` and `cf1`.
 
 ## Admission and logical image consistency
 
-A `cassie-midge-layout-v3` marker is required before initialized storage is admitted.
+A `cassie-midge-layout-v4` marker is required before initialized storage is admitted.
 A missing or incompatible marker rejects startup without repairing the marker,
 creating fixed families or rewriting user rows. A genuinely empty default/fixed
 family inventory can finish unpublished initialization; an unknown or opaque
@@ -89,7 +90,7 @@ upload. Disposable staging is flushed before Midge safe-drop, and abort is
 idempotent after cleanup. See [storage qualification](storage-recovery-qualification.md)
 for finite witnesses and explicit deployment boundaries.
 
-Database images carry the v3 layout marker. Catalog and database-qualified
+Database images carry the v4 layout marker. Catalog and database-qualified
 recovery records are rewritten to the target database; database-local row and
 sidecar keys remain unchanged. Images carrying the earlier pre-release layout
-are rejected and must be recreated from a v3 store.
+are rejected and must be recreated from a v4 store.

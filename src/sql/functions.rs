@@ -4,6 +4,7 @@ pub(crate) mod primitive_casts;
 mod return_types;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
+mod collection_aggregates;
 mod datum_size;
 mod numeric_identity;
 mod object_identity;
@@ -21,7 +22,9 @@ mod runtime;
 pub(crate) use datum_size::{datum_size_kind, is_column_size, DatumSizeKind};
 mod table;
 pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_columns};
-pub(crate) use table::{catalog_table_columns, is_catalog_table, is_options_table};
+pub(crate) use table::{
+    catalog_table_columns, is_catalog_table, is_options_table, is_pg_input_error_info,
+};
 mod any_value;
 mod bitwise;
 mod bytea;
@@ -89,6 +92,7 @@ pub enum FunctionId {
     Min,
     Max,
     StringAgg,
+    CollectionAggregate(CollectionAggregate),
     BoolAnd,
     BoolOr,
     BitAnd,
@@ -124,6 +128,7 @@ pub enum FunctionId {
     PgGetFunctionArguments,
     PgGetFunctionIdentityArguments,
     PgGetFunctionResult,
+    PgInputIsValid,
     PgMyTempSchema,
     PgIsOtherTempSchema,
     HasDatabasePrivilege,
@@ -148,6 +153,25 @@ pub enum FunctionId {
     HasTablePrivilege,
     PgTableIsVisible,
     Length,
+    Cardinality,
+    ArrayLength,
+    ArrayCat,
+    ArrayAppend,
+    ArrayPrepend,
+    ArrayFill,
+    ArrayToString,
+    StringToArray,
+    ArrayDims,
+    ArrayLower,
+    ArrayUpper,
+    ArrayPosition,
+    ArrayPositions,
+    ArrayNdims,
+    ArrayReverse,
+    ArraySort,
+    ArrayShuffle,
+    ArraySample,
+    TrimArray,
     Lower,
     Upper,
     Substring,
@@ -225,6 +249,20 @@ pub enum FunctionId {
     Temporal,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CollectionAggregate {
+    Array,
+    Json {
+        binary: bool,
+        strict: bool,
+    },
+    JsonObject {
+        binary: bool,
+        strict: bool,
+        unique: bool,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub struct ScalarFunction {
     pub id: FunctionId,
@@ -244,6 +282,7 @@ pub enum FunctionReturnType {
     Text,
     Name,
     TextArray,
+    IntArray,
     Int,
     BigInt,
     Boolean,
@@ -312,6 +351,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(ordered_set::FUNCTIONS)
         .chain(statistical::FUNCTIONS)
         .chain(regression::FUNCTIONS)
+        .chain(collection_aggregates::FUNCTIONS)
         .chain(text::FUNCTIONS)
         .chain(pattern_matching::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
@@ -335,6 +375,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(ordered_set::FUNCTIONS)
         .chain(statistical::FUNCTIONS)
         .chain(regression::FUNCTIONS)
+        .chain(collection_aggregates::FUNCTIONS)
         .chain(text::FUNCTIONS)
         .chain(pattern_matching::FUNCTIONS)
         .chain(bytea::FUNCTIONS)
@@ -347,73 +388,260 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(temporal::FUNCTIONS)
         .chain(temporal::SLEEP_FUNCTIONS)
         .find(|metadata| metadata.name.eq_ignore_ascii_case(name))
-        .or_else(|| {
-            name.get(..11)
-                .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
-                .and_then(|_| name.get(11..))
-                .filter(|local| {
-                    [
-                        "pg_show_all_settings",
-                        "substring",
-                        "trim",
-                        "power",
-                        "abs",
-                        "string_agg",
-                        "any_value",
-                    ]
+        .or_else(|| qualified_function(name))
+}
+
+fn qualified_function(name: &str) -> Option<&'static ScalarFunction> {
+    name.get(..11)
+        .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
+        .and_then(|_| name.get(11..))
+        .filter(|local| {
+            [
+                "pg_show_all_settings",
+                "substring",
+                "trim",
+                "power",
+                "abs",
+                "string_agg",
+                "array_agg",
+                "json_agg",
+                "json_agg_strict",
+                "jsonb_agg",
+                "jsonb_agg_strict",
+                "json_object_agg",
+                "json_object_agg_strict",
+                "json_object_agg_unique",
+                "json_object_agg_unique_strict",
+                "jsonb_object_agg",
+                "jsonb_object_agg_strict",
+                "jsonb_object_agg_unique",
+                "jsonb_object_agg_unique_strict",
+                "any_value",
+                "cardinality",
+                "array_length",
+                "array_cat",
+                "array_append",
+                "array_prepend",
+                "array_fill",
+                "array_to_string",
+                "string_to_array",
+                "array_dims",
+                "array_lower",
+                "array_upper",
+                "array_position",
+                "array_positions",
+                "array_ndims",
+                "array_reverse",
+                "array_sort",
+                "array_shuffle",
+                "array_sample",
+                "trim_array",
+            ]
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(local))
+                || runtime::FUNCTIONS
                     .iter()
-                    .any(|candidate| candidate.eq_ignore_ascii_case(local))
-                        || runtime::FUNCTIONS
-                            .iter()
-                            .chain(temporal::FUNCTIONS)
-                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                        || catalog::FUNCTIONS
-                            .iter()
-                            .chain(object_identity::FUNCTIONS)
-                            .chain(sequences::FUNCTIONS)
-                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                        || text::FUNCTIONS
-                            .iter()
-                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                        || pattern_matching::FUNCTIONS
-                            .iter()
-                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                        || bytea::FUNCTIONS
-                            .iter()
-                            .chain(json::FUNCTIONS)
-                            .chain(math::FUNCTIONS)
-                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                        || regression::FUNCTIONS
-                            .iter()
-                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                        || bitwise::FUNCTIONS
-                            .iter()
-                            .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                })
-                .and_then(|local| {
-                    SCALAR_FUNCTIONS
-                        .iter()
-                        .chain(any_value::FUNCTIONS)
-                        .chain(bitwise::FUNCTIONS)
-                        .chain(statistical::FUNCTIONS)
-                        .chain(regression::FUNCTIONS)
-                        .chain(text::FUNCTIONS)
-                        .chain(pattern_matching::FUNCTIONS)
-                        .chain(bytea::FUNCTIONS)
-                        .chain(catalog::FUNCTIONS)
-                        .chain(object_identity::FUNCTIONS)
-                        .chain(sequences::FUNCTIONS)
-                        .chain(runtime::FUNCTIONS)
-                        .chain(json::FUNCTIONS)
-                        .chain(math::FUNCTIONS)
-                        .chain(temporal::FUNCTIONS)
-                        .chain(temporal::SLEEP_FUNCTIONS)
-                        .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
-                })
+                    .chain(temporal::FUNCTIONS)
+                    .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                || catalog::FUNCTIONS
+                    .iter()
+                    .chain(object_identity::FUNCTIONS)
+                    .chain(sequences::FUNCTIONS)
+                    .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                || text::FUNCTIONS
+                    .iter()
+                    .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                || pattern_matching::FUNCTIONS
+                    .iter()
+                    .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                || bytea::FUNCTIONS
+                    .iter()
+                    .chain(json::FUNCTIONS)
+                    .chain(math::FUNCTIONS)
+                    .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                || regression::FUNCTIONS
+                    .iter()
+                    .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+                || bitwise::FUNCTIONS
+                    .iter()
+                    .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
+        })
+        .and_then(|local| {
+            SCALAR_FUNCTIONS
+                .iter()
+                .chain(any_value::FUNCTIONS)
+                .chain(bitwise::FUNCTIONS)
+                .chain(statistical::FUNCTIONS)
+                .chain(regression::FUNCTIONS)
+                .chain(collection_aggregates::FUNCTIONS)
+                .chain(text::FUNCTIONS)
+                .chain(pattern_matching::FUNCTIONS)
+                .chain(bytea::FUNCTIONS)
+                .chain(catalog::FUNCTIONS)
+                .chain(object_identity::FUNCTIONS)
+                .chain(sequences::FUNCTIONS)
+                .chain(runtime::FUNCTIONS)
+                .chain(json::FUNCTIONS)
+                .chain(math::FUNCTIONS)
+                .chain(temporal::FUNCTIONS)
+                .chain(temporal::SLEEP_FUNCTIONS)
+                .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
         })
 }
 
 const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
+    ScalarFunction {
+        id: FunctionId::Cardinality,
+        name: "cardinality",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Int,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayLength,
+        name: "array_length",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Int,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayCat,
+        name: "array_cat",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayAppend,
+        name: "array_append",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayPrepend,
+        name: "array_prepend",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayFill,
+        name: "array_fill",
+        arity: FunctionArity::Range { min: 2, max: 3 },
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayToString,
+        name: "array_to_string",
+        arity: FunctionArity::Range { min: 2, max: 3 },
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::StringToArray,
+        name: "string_to_array",
+        arity: FunctionArity::Range { min: 2, max: 3 },
+        return_type: FunctionReturnType::TextArray,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayDims,
+        name: "array_dims",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayLower,
+        name: "array_lower",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Int,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayUpper,
+        name: "array_upper",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Int,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayPosition,
+        name: "array_position",
+        arity: FunctionArity::Range { min: 2, max: 3 },
+        return_type: FunctionReturnType::Int,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayPositions,
+        name: "array_positions",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::IntArray,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayNdims,
+        name: "array_ndims",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Int,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayReverse,
+        name: "array_reverse",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArraySort,
+        name: "array_sort",
+        arity: FunctionArity::Range { min: 1, max: 3 },
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArrayShuffle,
+        name: "array_shuffle",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ArraySample,
+        name: "array_sample",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::TrimArray,
+        name: "trim_array",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::FirstNonNullArgument,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
     ScalarFunction {
         id: FunctionId::Power,
         name: "power",

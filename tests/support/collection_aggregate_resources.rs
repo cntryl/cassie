@@ -96,17 +96,18 @@ fn seed_fixture(cassie: &Cassie, setup_sql: &[String]) {
     drop(session);
 }
 
-pub fn run_memory_budget_case_with_setup(
+pub fn run_memory_budget_case_with_setup_at_budget(
     _label: &str,
     setup_sql: &[String],
     control_sql: &str,
     wide_control_sql: &str,
     candidate_sql: &str,
+    budget_bytes: usize,
 ) -> ResourceCase {
     let runtime = current_thread_runtime();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_timeout_ms = 0;
-    config.limits.query_memory_budget_bytes = 4_096;
+    config.limits.query_memory_budget_bytes = budget_bytes;
 
     let result = runtime.block_on(async {
         let cassie = configured_instance(config.clone());

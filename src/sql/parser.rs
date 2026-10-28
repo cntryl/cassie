@@ -373,6 +373,16 @@ fn parse_routine_statement(
 }
 
 fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create collation") {
+        return Err(SqlError::unsupported(
+            "CREATE COLLATION is not supported in this version".into(),
+        ));
+    }
+    if starts_statement(lower, "alter collation") {
+        return Err(SqlError::unsupported(
+            "ALTER COLLATION is not supported in this version".into(),
+        ));
+    }
     if let Some(parsed) = parse_view_or_index_statement(trimmed, lower)? {
         return Ok(Some(parsed));
     }

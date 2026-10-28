@@ -48,12 +48,21 @@ pub use ast_dml::{
     MERGE_ACTION_COLUMN,
 };
 pub use ast_query::{
-    AggregateQuantifier, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression, CteCycle,
-    CteMaterialization, CteQuery, CteSearch, CteSearchOrder, Expr, FunctionCall, JoinKind,
-    NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement, SetOperator,
-    SortDirection, UnaryNumericOp, WindowFrame, WindowFrameBound, WindowFrameExclusion,
-    WindowFrameUnit, WindowFunctionCall,
+    AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression,
+    CteCycle, CteMaterialization, CteQuery, CteSearch, CteSearchOrder, Expr, FunctionCall,
+    JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement,
+    SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp, WindowFrame, WindowFrameBound,
+    WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall, ARRAY_CONSTRUCTOR_FUNCTION,
 };
+
+/// Array subscripts attached to one UPDATE assignment target.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateTarget {
+    /// Index in `UpdateStatement::assignments` for the base column assignment.
+    pub assignment_index: usize,
+    /// Array index and slice expressions, in PostgreSQL subscript order.
+    pub subscripts: Vec<ArraySubscript>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedStatement {
@@ -265,6 +274,9 @@ pub enum InsertOverriding {
 pub struct UpdateStatement {
     pub table: IdentifierPath,
     pub assignments: Vec<(String, Expr)>,
+    /// Subscript metadata for assignments such as `items[2] = value`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub array_targets: Vec<UpdateTarget>,
     pub filter: Option<Expr>,
     pub returning: Vec<SelectItem>,
     #[serde(default)]

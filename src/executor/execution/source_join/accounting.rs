@@ -200,6 +200,7 @@ pub(super) fn join_key_bytes(
         Value::Int64(_) if domain == NumericComparisonDomain::Float8 => 64,
         Value::Null | Value::Bool(_) | Value::Int64(_) => 0,
         Value::Typed(typed) => typed.heap_bytes().max(64),
+        Value::Array(_) => crate::executor::retained_memory::value_clone_bytes(value)?,
     };
     add(size_of::<SemanticValue>(), heap)
 }

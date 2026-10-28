@@ -248,8 +248,8 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
             let (pattern, escape) =
                 if let Some((pattern, escape)) = split_top_level(right, " escape ") {
                     (
-                        parse_comparison_expression(pattern)?,
-                        Some(parse_comparison_expression(escape)?),
+                        parse_comparison_expression(pattern.trim())?,
+                        Some(parse_comparison_expression(escape.trim())?),
                     )
                 } else {
                     (parse_comparison_expression(right)?, None)
@@ -264,9 +264,9 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
         PatternKind::Similar => {
             let (pattern, escape) =
                 if let Some((pattern, escape)) = split_top_level(right, " escape ") {
-                    (pattern, Some(escape))
+                    (pattern.trim(), Some(escape.trim()))
                 } else {
-                    (right, None)
+                    (right.trim(), None)
                 };
             let pattern = parse_comparison_expression(pattern)?;
             if matches!(pattern, Expr::Null) {

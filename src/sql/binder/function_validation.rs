@@ -14,6 +14,12 @@ pub(super) fn validate_function_calls(
     );
 
     for function in functions {
+        if function
+            .name
+            .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+        {
+            continue;
+        }
         if crate::sql::functions::is_catalog_table(&function.name) {
             return Err(CassieError::Unsupported(
                 "record-valued table-function projection remains pending under #793/#817; use FROM"

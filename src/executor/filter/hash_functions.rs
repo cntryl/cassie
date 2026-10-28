@@ -2,6 +2,7 @@
 //! `hashtext`, `hashtextextended`, `gen_random_uuid`, `uuidv4`, `uuidv7`
 //! and `uuid_extract_version`/`uuid_extract_timestamp`.
 use super::{QueryError, Value};
+use crate::types::typed::TypedValue;
 use md5::Digest;
 
 /// The argument marker the binder appends to `md5(bytea)`, selecting the
@@ -85,13 +86,19 @@ pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, Query
                 .and_then(|uuid| uuid.get_timestamp())
                 .and_then(|timestamp| {
                     let (seconds, nanos) = timestamp.to_unix();
-                    let micros = i128::from(seconds) * 1_000_000 + i128::from(nanos / 1000);
-                    time::OffsetDateTime::from_unix_timestamp_nanos(micros * 1000).ok()
+                    i64::try_from(seconds)
+                        .ok()
+                        .and_then(|seconds| {
+                            seconds
+                                .checked_sub(
+                                    crate::types::extended::temporal::calendar::UNIX_TO_POSTGRES_SECS,
+                                )?
+                                .checked_mul(1_000_000)
+                        })
+                        .and_then(|micros| micros.checked_add(i64::from(nanos / 1_000)))
                 })
                 .map_or(Value::Null, |instant| {
-                    Value::String(crate::types::temporal::format_timestamp(
-                        time::PrimitiveDateTime::new(instant.date(), instant.time()),
-                    ))
+                    Value::Typed(TypedValue::TimestampTz(instant))
                 })
         }),
         _ => Err(QueryError::General(format!(
@@ -168,7 +175,7 @@ fn word(bytes: &[u8]) -> u32 {
 
 /// PostgreSQL's `hash_bytes_extended` (and `hash_bytes` with a zero seed):
 /// returns the final `(b, c)` words.
-fn hash_bytes(key: &[u8], seed: i64) -> (u32, u32) {
+pub(crate) fn hash_bytes(key: &[u8], seed: i64) -> (u32, u32) {
     let length = u32::try_from(key.len()).unwrap_or(u32::MAX);
     let initial = 0x9e37_79b9_u32.wrapping_add(length).wrapping_add(3_923_095);
     let (mut a, mut b, mut c) = (initial, initial, initial);

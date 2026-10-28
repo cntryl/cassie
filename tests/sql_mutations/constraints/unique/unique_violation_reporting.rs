@@ -102,9 +102,36 @@ fn should_report_declared_primary_key_name() {
 
     // Act
     let duplicate = cassie.execute_sql(&session, "INSERT INTO pk_named (id) VALUES (1)", vec![]);
+    let backing_index = cassie
+        .catalog
+        .get_index("pk_named", "my_pk")
+        .expect("primary-key index uses the declared constraint name");
+    let dropping_backing_index =
+        cassie.execute_sql(&session, "DROP INDEX my_pk ON pk_named", vec![]);
+    let dropping_constraint = cassie.execute_sql(
+        &session,
+        "ALTER TABLE pk_named DROP CONSTRAINT my_pk",
+        vec![],
+    );
+    let duplicate_after_drop =
+        cassie.execute_sql(&session, "INSERT INTO pk_named (id) VALUES (1)", vec![]);
 
     // Assert
     assert_eq!(violated_constraint(duplicate).as_deref(), Some("my_pk"));
+    assert_eq!(backing_index.normalized_fields(), vec!["id"]);
+    assert!(
+        dropping_backing_index.is_err(),
+        "the primary key requires its index"
+    );
+    assert!(
+        dropping_constraint.is_ok(),
+        "the named primary key can be dropped"
+    );
+    assert!(
+        duplicate_after_drop.is_ok(),
+        "dropping the primary key releases uniqueness"
+    );
+    assert!(cassie.catalog.get_index("pk_named", "my_pk").is_none());
     let _ = std::fs::remove_dir_all(path);
 }
 

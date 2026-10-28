@@ -25,7 +25,7 @@ fn should_preserve_conditional_scalar_origin_under_alias_bounds() {
             .execute_sql(&fixture.session, sql, vec![Value::Int64(1)])
     });
     let nonfinite = fixture.cassie.execute_sql(&fixture.session,
-        "WITH first_scope AS (SELECT GREATEST(1e308*10,0) AS value), second_scope AS (SELECT LEAST(c.v,c.v) AS value FROM first_scope c(v)) SELECT NULLIF(r.v,0) FROM second_scope r(v) LIMIT $1", vec![Value::Int64(1)]);
+        "WITH first_scope AS (SELECT GREATEST(CAST('Infinity' AS FLOAT8),0) AS value), second_scope AS (SELECT LEAST(c.v,c.v) AS value FROM first_scope c(v)) SELECT NULLIF(r.v,0) FROM second_scope r(v) LIMIT $1", vec![Value::Int64(1)]);
     let explicit_cast = fixture
         .execute("SELECT COALESCE(CAST(r.n*1e308 AS FLOAT),r.f)-1 FROM records r(key,n,f) LIMIT 1");
 

@@ -143,6 +143,7 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         "pg_catalog.pg_namespace" => Some(virtual_views_pg::namespace_schema()),
         "pg_catalog.pg_class" => Some(virtual_views_pg::class_schema()),
         "pg_catalog.pg_am" => Some(virtual_views_pg::access_method_schema()),
+        "pg_catalog.pg_collation" => Some(virtual_views_pg::collation_schema()),
         "pg_catalog.pg_attribute" => Some(virtual_views_pg::attribute_schema()),
         "pg_catalog.pg_indexes" => Some(virtual_views_pg::indexes_schema()),
         "pg_catalog.pg_index" => Some(virtual_views_pg::index_schema()),
@@ -421,6 +422,7 @@ fn pg_catalog_core_rows(
         }
         "pg_catalog.pg_class" => Some(virtual_views_pg::pg_class(catalog, current_database)),
         "pg_catalog.pg_am" => Some(virtual_views_pg::pg_am()),
+        "pg_catalog.pg_collation" => Some(virtual_views_pg::pg_collation()),
         "pg_catalog.pg_attribute" => {
             Some(virtual_views_pg::pg_attribute(catalog, current_database))
         }
@@ -921,6 +923,7 @@ fn row_sort_key(row: &VirtualRow) -> String {
             Value::Float64(value) => value.to_string(),
             Value::Vector(value) => format!("{:?}", value.values),
             Value::Json(value) => value.to_string(),
+            Value::Array(value) => value.to_storage_json().to_string(),
             Value::Typed(value) => value.text(),
         })
         .collect::<Vec<_>>()

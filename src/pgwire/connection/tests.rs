@@ -130,7 +130,13 @@ fn should_preserve_json_string_documents_in_binary_array_elements() {
 
     // Assert
     assert_eq!(encoded.expect("encode JSON string array element"), expected);
-    assert_eq!(decoded.expect("decode JSON string array element"), value);
+    assert_eq!(
+        decoded.expect("decode JSON string array element"),
+        Value::Array(
+            crate::types::SqlArray::from_elements(vec![Value::Json(serde_json::json!("hi"))])
+                .expect("one-dimensional JSON array")
+        )
+    );
 }
 
 #[test]
@@ -156,7 +162,13 @@ fn should_preserve_nested_json_documents_in_binary_array_elements() {
         encoded.expect("encode nested JSON array document"),
         expected
     );
-    assert_eq!(decoded.expect("decode nested JSON array document"), value);
+    assert_eq!(
+        decoded.expect("decode nested JSON array document"),
+        Value::Array(
+            crate::types::SqlArray::from_elements(vec![Value::Json(serde_json::json!([1, 2]))])
+                .expect("one-dimensional array with nested JSON document")
+        )
+    );
 }
 #[test]
 fn should_encode_declared_vectors_from_json_returning_arrays() {

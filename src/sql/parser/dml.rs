@@ -392,6 +392,7 @@ pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         statement: QueryStatement::Update(crate::sql::ast::UpdateStatement {
             table,
             assignments: parsed.assignments,
+            array_targets: parsed.array_targets,
             filter,
             returning,
             alias,

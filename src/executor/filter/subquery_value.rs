@@ -38,7 +38,7 @@ pub(super) fn value<R: RowAccess + ?Sized>(
                 .cloned()
                 .unwrap_or(Value::Null))
         }
-        SubqueryKind::Array => Ok(array(rows)),
+        SubqueryKind::Array => array(rows),
         SubqueryKind::Row { left, op } => {
             if rows.len() > 1 {
                 return Err(multiple_rows());
@@ -216,36 +216,21 @@ const fn bool_result(value: bool) -> PredicateResult {
     }
 }
 
-/// `ARRAY(SELECT ...)` over the existing JSON array carrier.
-fn array(rows: &[Vec<Value>]) -> Value {
-    Value::Json(serde_json::Value::Array(
-        rows.iter()
-            .map(|fields| fields.first().map_or(serde_json::Value::Null, element_json))
-            .collect(),
-    ))
-}
-
-fn element_json(value: &Value) -> serde_json::Value {
-    match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Typed(value) => value.to_json(),
-        Value::Bool(value) => serde_json::Value::Bool(*value),
-        Value::Int64(value) => serde_json::Value::Number((*value).into()),
-        Value::Float64(value) => serde_json::Number::from_f64(*value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
-        Value::String(value) => serde_json::Value::String(value.clone()),
-        Value::Vector(value) => serde_json::Value::Array(
-            value
-                .values
-                .iter()
-                .map(|value| {
-                    serde_json::Number::from_f64(f64::from(*value))
-                        .map_or(serde_json::Value::Null, serde_json::Value::Number)
-                })
-                .collect(),
-        ),
-        Value::Json(value) => value.clone(),
-    }
+/// `ARRAY(SELECT ...)` retains SQL nulls, typed values, and nested dimensions.
+fn array(rows: &[Vec<Value>]) -> Result<Value, QueryError> {
+    let elements = rows
+        .iter()
+        .map(|fields| fields.first().cloned().unwrap_or(Value::Null))
+        .collect();
+    crate::types::SqlArray::from_nested_values(elements)
+        .map(Value::Array)
+        .map_err(|_| {
+            crate::app::CassieError::ArrayInput(
+                "multidimensional arrays must have array expressions with matching dimensions"
+                    .to_string(),
+            )
+            .into()
+        })
 }
 
 fn multiple_rows() -> QueryError {

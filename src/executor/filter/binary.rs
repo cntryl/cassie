@@ -9,6 +9,9 @@ pub(super) fn binary_scalar(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Result<ScalarValue, QueryError> {
+    if let Some(result) = super::array_operators::evaluate(left, op, right) {
+        return result;
+    }
     if let Some(result) = super::json_path_operator::evaluate(left, op, right) {
         return result;
     }
@@ -59,20 +62,7 @@ pub(super) fn binary_scalar(
             .or(right.predicate_result()?)
             .into_scalar(),
         BinaryOp::Eq => comparison_result(eq_value(left, right)),
-        BinaryOp::IsDistinctFrom | BinaryOp::IsNotDistinctFrom => {
-            let equal = match (left, right) {
-                (ScalarValue::Null, ScalarValue::Null) => true,
-                (ScalarValue::Null, _) | (_, ScalarValue::Null) => false,
-                _ => eq_value(left, right).ok_or_else(|| {
-                    QueryError::General("incompatible null-safe comparison operands".to_string())
-                })?,
-            };
-            ScalarValue::Bool(if matches!(op, BinaryOp::IsNotDistinctFrom) {
-                equal
-            } else {
-                !equal
-            })
-        }
+        BinaryOp::IsDistinctFrom | BinaryOp::IsNotDistinctFrom => null_safe_comparison(left, op, right)?,
         BinaryOp::NotEq => comparison_result(eq_value(left, right).map(|value| !value)),
         BinaryOp::Lt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_lt)),
         BinaryOp::Lte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
@@ -110,6 +100,27 @@ pub(super) fn binary_scalar(
         }
     };
     Ok(result)
+}
+
+fn null_safe_comparison(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+) -> Result<ScalarValue, QueryError> {
+    let equal = match (left, right) {
+        (ScalarValue::Null, ScalarValue::Null) => true,
+        (ScalarValue::Null, _) | (_, ScalarValue::Null) => false,
+        _ => eq_value(left, right).ok_or_else(|| {
+            QueryError::General("incompatible null-safe comparison operands".to_string())
+        })?,
+    };
+    Ok(ScalarValue::Bool(
+        if matches!(op, BinaryOp::IsNotDistinctFrom) {
+            equal
+        } else {
+            !equal
+        },
+    ))
 }
 
 fn power(left: &ScalarValue, right: &ScalarValue) -> Result<ScalarValue, QueryError> {

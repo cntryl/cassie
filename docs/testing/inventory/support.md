@@ -6,8 +6,7 @@ Generated from `inventory.json`. Selected destinations record the reviewed physi
 
 | Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |
 | --- | --- | --- | --- | --- | ---: | --- |
-| `tests::should_report_retrieval_directory_cleanup_failure_on_normal_drop` | [tests/support/retrieval_directory.rs:62](../../../tests/support/retrieval_directory.rs#L62) | `tests/support/retrieval_directory.rs` | registered | no | 1 | recommended |
-| `tests::should_preserve_retrieval_cleanup_unwind_panic` | [tests/support/retrieval_directory.rs:81](../../../tests/support/retrieval_directory.rs#L81) | `tests/support/retrieval_directory.rs` | registered | no | 1 | recommended |
+| `seed_array_tests::should_require_seed_array_shape_with_sql_null_slots` | [tests/support/relational_qualification.rs:205](../../../tests/support/relational_qualification.rs#L205) | `tests/support/relational_qualification.rs` | registered | no | 1 | recommended |
 | `teardown_tests::should_drop_sql_fixture_owners_before_removing_directory` | [tests/support/sql_fixture.rs:158](../../../tests/support/sql_fixture.rs#L158) | `tests/support/sql_fixture.rs` | registered | no | 12 | recommended |
 | `teardown_tests::should_report_directory_cleanup_failure_on_normal_drop` | [tests/support/sql_fixture.rs:201](../../../tests/support/sql_fixture.rs#L201) | `tests/support/sql_fixture.rs` | registered | no | 12 | recommended |
 | `teardown_tests::should_report_cleanup_error_without_replacing_an_existing_panic` | [tests/support/sql_fixture.rs:221](../../../tests/support/sql_fixture.rs#L221) | `tests/support/sql_fixture.rs` | registered | no | 12 | recommended |

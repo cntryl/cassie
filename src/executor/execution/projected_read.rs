@@ -842,12 +842,29 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
         | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => collect_projected_scan_filter_columns(expr, fields),
         Expr::InList { expr, values, .. } => {
             collect_projected_scan_filter_columns(expr, fields)?;
             for value in values {
                 collect_projected_scan_filter_columns(value, fields)?;
+            }
+            Some(())
+        }
+        Expr::ArraySubscript { array, subscripts } => {
+            collect_projected_scan_filter_columns(array, fields)?;
+            for subscript in subscripts {
+                match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        collect_projected_scan_filter_columns(index, fields)?;
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                        for bound in lower.iter().chain(upper.iter()) {
+                            collect_projected_scan_filter_columns(bound, fields)?;
+                        }
+                    }
+                }
             }
             Some(())
         }

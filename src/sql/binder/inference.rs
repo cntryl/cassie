@@ -346,6 +346,15 @@ pub(super) fn infer_source_schema_with_outer(
             preserve_alias_identity(source, catalog, &mut schema);
             qualify_schema(&schema, &super::aliases::qualifier(alias))
         }
+        QuerySource::TableSample { source, .. } => infer_source_schema_with_outer(
+            source,
+            catalog,
+            cte_schemas,
+            user_functions,
+            qualify,
+            parameter_types,
+            outer_fields,
+        )?,
         QuerySource::Collection(name) => relation_output_schema(catalog, name)?,
         QuerySource::Cte(name) => cte_schemas
             .get(&name.to_ascii_lowercase())
@@ -378,34 +387,15 @@ pub(super) fn infer_source_schema_with_outer(
             )?;
             qualify_schema(&inner, alias)
         }
-        QuerySource::Join { left, right, .. } => {
-            let left_schema = infer_source_schema_with_outer(
-                left,
-                catalog,
-                cte_schemas,
-                user_functions,
-                true,
-                parameter_types,
-                outer_fields,
-            )?;
-            let mut lateral_scope = left_schema.clone();
-            append_source_qualifiers(left, catalog, &mut lateral_scope)?;
-            if let Some(outer) = outer_fields {
-                lateral_scope.fields.extend(outer.fields.iter().cloned());
-            }
-            let right_schema = infer_source_schema_with_outer(
-                right,
-                catalog,
-                cte_schemas,
-                user_functions,
-                true,
-                parameter_types,
-                Some(&lateral_scope),
-            )?;
-            let mut fields = left_schema.fields;
-            fields.extend(right_schema.fields);
-            Schema { fields }
-        }
+        QuerySource::Join { left, right, .. } => infer_join_source_schema(
+            left,
+            right,
+            catalog,
+            cte_schemas,
+            user_functions,
+            parameter_types,
+            outer_fields,
+        )?,
     };
 
     if qualify {
@@ -417,12 +407,50 @@ pub(super) fn infer_source_schema_with_outer(
             QuerySource::SingleRow
             | QuerySource::Values { .. }
             | QuerySource::Aliased { .. }
+            | QuerySource::TableSample { .. }
             | QuerySource::Subquery { .. }
             | QuerySource::Join { .. } => schema,
         })
     } else {
         Ok(schema)
     }
+}
+
+fn infer_join_source_schema(
+    left: &QuerySource,
+    right: &QuerySource,
+    catalog: &Catalog,
+    cte_schemas: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+    outer_fields: Option<&Schema>,
+) -> Result<Schema, CassieError> {
+    let left_schema = infer_source_schema_with_outer(
+        left,
+        catalog,
+        cte_schemas,
+        user_functions,
+        true,
+        parameter_types,
+        outer_fields,
+    )?;
+    let mut lateral_scope = left_schema.clone();
+    append_source_qualifiers(left, catalog, &mut lateral_scope)?;
+    if let Some(outer) = outer_fields {
+        lateral_scope.fields.extend(outer.fields.iter().cloned());
+    }
+    let right_schema = infer_source_schema_with_outer(
+        right,
+        catalog,
+        cte_schemas,
+        user_functions,
+        true,
+        parameter_types,
+        Some(&lateral_scope),
+    )?;
+    let mut fields = left_schema.fields;
+    fields.extend(right_schema.fields);
+    Ok(Schema { fields })
 }
 
 pub(super) fn append_source_qualifiers(
@@ -713,6 +741,24 @@ pub(crate) fn infer_function_return_type(
         return Some(metadata.return_type.clone());
     }
     let metadata = crate::sql::functions::function(&name)?;
+    infer_registered_function_return_type(
+        function,
+        &name,
+        metadata,
+        source_schema,
+        user_functions,
+        parameter_types,
+    )
+}
+
+fn infer_registered_function_return_type(
+    function: &FunctionCall,
+    name: &str,
+    metadata: &crate::sql::functions::ScalarFunction,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
     if let Some(data_type) = selected_ordered_set_return_type(
         function,
         metadata.id,
@@ -722,14 +768,56 @@ pub(crate) fn infer_function_return_type(
     ) {
         return Some(data_type);
     }
+    if let crate::sql::functions::FunctionId::CollectionAggregate(
+        crate::sql::functions::CollectionAggregate::Array,
+    ) = metadata.id
+    {
+        let input = function
+            .args
+            .first()
+            .and_then(|argument| {
+                infer_expr_type(argument, source_schema, user_functions, parameter_types)
+            })
+            .unwrap_or(DataType::Text);
+        let element = match input {
+            DataType::Array(element) => *element,
+            value => value,
+        };
+        return Some(DataType::Array(Box::new(element)));
+    }
+    if metadata.id == crate::sql::functions::FunctionId::StringAgg
+        && function.args.first().and_then(|argument| {
+            infer_expr_type(argument, source_schema, user_functions, parameter_types)
+        }) == Some(DataType::Bytea)
+    {
+        return Some(DataType::Bytea);
+    }
     if let Some(data_type) = metadata.return_type.fixed_type() {
         return Some(data_type);
     }
-    match metadata.return_type {
+    infer_function_policy_return_type(
+        function,
+        name,
+        metadata.return_type,
+        source_schema,
+        user_functions,
+        parameter_types,
+    )
+}
+
+fn infer_function_policy_return_type(
+    function: &FunctionCall,
+    name: &str,
+    return_type: crate::sql::functions::FunctionReturnType,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    match return_type {
         crate::sql::functions::FunctionReturnType::FirstComparedArgument => {
             first_compared_argument_return_type(
                 function,
-                &name,
+                name,
                 source_schema,
                 user_functions,
                 parameter_types,

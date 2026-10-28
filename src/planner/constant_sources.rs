@@ -54,12 +54,6 @@ pub(crate) fn inline(
     let Some((cells, alias, names)) = producer(&plan.source, &plan.ctes) else {
         return Ok(None);
     };
-    // Keep an integer operator in its VALUES row-field context. Inlining it
-    // as a SELECT expression would change the reported field type from the
-    // source operator width to the SELECT expression result type.
-    if has_non_shift_integer_operator(cells) {
-        return Ok(None);
-    }
     if cells.iter().any(|cell| {
         cell.any_descendant_or_self(&mut |expr| {
             matches!(
@@ -69,6 +63,7 @@ pub(crate) fn inline(
                     | Expr::Function(_)
                     | Expr::Exists(_)
                     | Expr::Subquery(_)
+                    | Expr::Collate { .. }
                     | Expr::Cast {
                         data_type: DataType::Char { .. },
                         ..
@@ -96,6 +91,13 @@ pub(crate) fn inline(
                 .collect()
         }),
     };
+    // Keep a non-shift integer operator in its VALUES row-field context when
+    // the query reads that field: inlining would change its reported type to
+    // the SELECT expression's type. If no source field is used, the row is
+    // needed only for its presence, so its cells can be pruned safely.
+    if has_non_shift_integer_operator(cells) && plan_reads_values(plan, &input) {
+        return Ok(None);
+    }
     let capacity = plan.projection.iter().try_fold(0_usize, |count, item| {
         add(
             count,
@@ -157,6 +159,32 @@ fn has_non_shift_integer_operator(cells: &[Expr]) -> bool {
             )
         })
     })
+}
+
+fn plan_reads_values(plan: &LogicalPlan, input: &Input<'_>) -> bool {
+    fn expression_reads_values(expr: &Expr, input: &Input<'_>) -> bool {
+        expr.any_descendant_or_self(
+            &mut |node| matches!(node, Expr::Column(name) if input.column(name).is_some()),
+        )
+    }
+    plan.projection.iter().any(|item| match item {
+        SelectItem::Wildcard | SelectItem::WindowFunction { .. } => true,
+        SelectItem::Column { name, .. } => input.column(name).is_some(),
+        SelectItem::Expr { expr, .. } => expression_reads_values(expr, input),
+        SelectItem::Function { function, .. } => function
+            .expressions()
+            .any(|expr| expression_reads_values(expr, input)),
+    }) || plan
+        .filter
+        .iter()
+        .chain(&plan.having)
+        .chain(&plan.group_by)
+        .chain(&plan.distinct_on)
+        .any(|expr| expression_reads_values(expr, input))
+        || plan
+            .order
+            .iter()
+            .any(|order| expression_reads_values(&order.expr, input))
 }
 
 fn rewrite_projection(
@@ -389,6 +417,9 @@ fn clone_bound(
             if let Some(source) = source_type {
                 bytes = add(bytes, mul(data_type_clone_bytes(source)?, 4)?)?;
             }
+        }
+        Expr::Collate { collation, .. } => {
+            bytes = add(bytes, mul(collation.capacity(), 4)?)?;
         }
         Expr::RowCompare(_) => bytes = add(bytes, 4 * size_of::<crate::sql::ast::RowComparison>())?,
         _ => {}

@@ -1,6 +1,8 @@
-use super::{
-    object_in_schema, rewrite_relation_name_for_schema, Cassie, QueryError, RelationRenames,
+use super::schema_namespace_command::{
+    object_in_schema, rewrite_relation_name_for_schema, RelationRenames,
 };
+use crate::app::Cassie;
+use crate::executor::execution::QueryError;
 
 /// Releases sequences owned by a table when that table is dropped.
 pub(super) fn drop_owned_table_sequences(cassie: &Cassie, table: &str) -> Result<(), QueryError> {

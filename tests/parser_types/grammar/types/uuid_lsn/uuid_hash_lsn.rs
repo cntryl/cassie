@@ -108,7 +108,7 @@ fn should_return_uuid_v7_extraction_values() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![23, 25]
+        vec![21, 25]
     );
 }
 

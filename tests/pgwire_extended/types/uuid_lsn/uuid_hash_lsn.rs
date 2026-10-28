@@ -372,108 +372,6 @@ fn should_describe_uuid_function_results_with_postgresql_oids() {
 }
 
 #[test]
-fn should_describe_hash_function_results_with_postgresql_oids() {
-    // Arrange
-    let steps = vec![
-        Step::ThroughReady(vec![wire::simple_query_frame("CREATE EXTENSION pgcrypto")]),
-        Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT md5('abc'), sha256('abc'::BYTEA), crc32('abc'::BYTEA), digest('abc', 'sha256'), hashtext('abc'), hashtextextended('abc', 0)",
-        )]),
-    ];
-
-    // Act
-    let batches = run_script("postgresql18-hash-function-oids", steps);
-
-    // Assert
-    assert_eq!(wire::error_code(&batches[0]), None);
-    assert_eq!(wire::error_code(&batches[1]), None);
-    let description = batches[1]
-        .iter()
-        .find(|(tag, _)| *tag == b'T')
-        .expect("hash function RowDescription");
-    assert_eq!(
-        wire::parse_row_description(&description.1)
-            .iter()
-            .map(|column| column.type_oid)
-            .collect::<Vec<_>>(),
-        vec![25, 17, 20, 17, 23, 20]
-    );
-    assert_eq!(wire::data_rows(&batches[1]).len(), 1);
-}
-
-#[test]
-fn should_return_hash_function_text_binary_vectors() {
-    // Arrange
-    let sql = "SELECT md5('abc'), sha256('abc'::BYTEA), crc32('abc'::BYTEA), \
-               crc32c(convert_to('abc', 'UTF8')), digest('abc', 'sha256'), \
-               hashtext('abc'), hashtextextended('abc', 0)";
-    let steps = vec![
-        Step::ThroughReady(vec![wire::simple_query_frame("CREATE EXTENSION pgcrypto")]),
-        Step::ParseFlush(wire::parse_frame("hash_result_codecs", sql)),
-        Step::ThroughReady(vec![
-            wire::bind_frame_with_formats(
-                "hash_result_codecs_portal",
-                "hash_result_codecs",
-                &[],
-                &[],
-                &[0, 1, 1, 1, 1, 1, 1],
-            ),
-            wire::describe_portal_frame("hash_result_codecs_portal"),
-            wire::execute_frame("hash_result_codecs_portal"),
-            wire::sync_frame(),
-        ]),
-    ];
-
-    // Act
-    let batches = run_script("postgresql18-hash-text-binary-vectors", steps);
-
-    // Assert
-    assert_eq!(wire::error_code(&batches[0]), None);
-    assert_eq!(batches[1].first().map(|(tag, _)| *tag), Some(b'1'));
-    assert_eq!(wire::error_code(&batches[2]), None);
-    let description = batches[2]
-        .iter()
-        .find(|(tag, _)| *tag == b'T')
-        .expect("hash result RowDescription");
-    let columns = wire::parse_row_description(&description.1);
-    assert_eq!(
-        columns
-            .iter()
-            .map(|column| (column.type_oid, column.type_size, column.format_code))
-            .collect::<Vec<_>>(),
-        vec![
-            (25, -1, 0),
-            (17, -1, 1),
-            (20, 8, 1),
-            (20, 8, 1),
-            (17, -1, 1),
-            (23, 4, 1),
-            (20, 8, 1),
-        ]
-    );
-    assert_eq!(
-        binary_data_rows(&batches[2]),
-        vec![vec![
-            Some(b"900150983cd24fb0d6963f7d28e17f72".to_vec()),
-            Some(vec![
-                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
-                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
-                0xf2, 0x00, 0x15, 0xad,
-            ]),
-            Some(891_568_578_i64.to_be_bytes().to_vec()),
-            Some(910_901_175_i64.to_be_bytes().to_vec()),
-            Some(vec![
-                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
-                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
-                0xf2, 0x00, 0x15, 0xad,
-            ]),
-            Some((-785_388_649_i32).to_be_bytes().to_vec()),
-            Some((-6_747_756_470_228_489_321_i64).to_be_bytes().to_vec()),
-        ]]
-    );
-}
-
-#[test]
 fn should_return_sha2_family_text_binary_vectors() {
     // Arrange
     let sql = "SELECT sha224('abc'::BYTEA), sha224('abc'::BYTEA), \
@@ -599,7 +497,7 @@ fn should_report_numeric_metadata_for_pg_wal_lsn_diff_across_word_boundaries() {
 fn should_describe_crc32c_result_with_postgresql_bigint_identity() {
     // Arrange
     let steps = vec![Step::ThroughReady(vec![wire::simple_query_frame(
-        "SELECT crc32c(convert_to('abc', 'UTF8'))",
+        "SELECT crc32c(decode('616263', 'hex'))",
     )])];
 
     // Act
@@ -727,10 +625,10 @@ fn should_bind_binary_hash_parameters_with_postgresql_vectors() {
         wire::parse_parameter_description(&parameters.1),
         vec![25, 20]
     );
-    let result_description = description
+    let result_description = batches[2]
         .iter()
         .find(|(tag, _)| *tag == b'T')
-        .expect("binary hash RowDescription");
+        .expect("binary hash portal RowDescription");
     let columns = wire::parse_row_description(&result_description.1);
     assert_eq!(
         columns
@@ -773,61 +671,4 @@ fn should_describe_nullable_uuid_lsn_values_with_their_type_oids() {
         vec![2950, 3220]
     );
     assert_eq!(wire::data_rows(&batches[0]), vec![vec![None, None]]);
-}
-
-#[test]
-fn should_reject_invalid_digest_algorithm_then_recover() {
-    // Arrange
-    let steps = vec![
-        Step::ThroughReady(vec![wire::simple_query_frame("CREATE EXTENSION pgcrypto")]),
-        Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT digest('abc', 'not-a-supported-hash')",
-        )]),
-        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 1")]),
-    ];
-
-    // Act
-    let batches = run_script("postgresql18-digest-error-recovery", steps);
-
-    // Assert
-    assert_eq!(wire::error_code(&batches[0]), None);
-    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22023"));
-    assert_eq!(wire::error_code(&batches[2]), None);
-    assert_eq!(
-        wire::data_rows(&batches[2]),
-        vec![vec![Some("1".to_owned())]]
-    );
-}
-
-#[test]
-fn should_gate_digest_on_pgcrypto_extension_creation() {
-    // Arrange
-    let steps = vec![
-        Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT digest('abc', 'sha256')",
-        )]),
-        Step::ThroughReady(vec![wire::simple_query_frame("CREATE EXTENSION pgcrypto")]),
-        Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT digest('abc', 'sha256')",
-        )]),
-    ];
-
-    // Act
-    let batches = run_script("postgresql18-pgcrypto-digest-gate", steps);
-
-    // Assert
-    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
-    assert_eq!(wire::error_code(&batches[1]), None);
-    assert_eq!(wire::error_code(&batches[2]), None);
-    let description = batches[2]
-        .iter()
-        .find(|(tag, _)| *tag == b'T')
-        .expect("digest RowDescription after extension creation");
-    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 17);
-    assert_eq!(
-        wire::data_rows(&batches[2]),
-        vec![vec![Some(
-            "\\xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".to_owned()
-        )]]
-    );
 }

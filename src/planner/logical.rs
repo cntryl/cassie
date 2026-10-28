@@ -645,7 +645,9 @@ pub(crate) fn source_name(source: &QuerySource) -> String {
     match source {
         QuerySource::Values { .. } => "values".into(),
 
-        QuerySource::Aliased { source, .. } => source_name(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_name(source)
+        }
         QuerySource::Collection(name) => name.to_string(),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::SingleRow => "single_row".to_string(),

@@ -17,6 +17,8 @@ mod relation_alias;
 
 #[path = "query_cte.rs"]
 mod query_cte;
+#[path = "query_table_sample.rs"]
+mod query_table_sample;
 use query_cte::parse_cte_definitions;
 pub(super) use query_cte::parse_enclosed_parenthesized;
 
@@ -139,6 +141,7 @@ pub(super) fn parse_projection_item_with_named_windows(
         | Expr::UnaryNumeric { .. }
         | Expr::IntegerNegate { .. }
         | Expr::Cast { .. }
+        | Expr::Collate { .. }
         | Expr::Case { .. }
         | Expr::Binary { .. }
         | Expr::BoolLiteral(_)
@@ -154,6 +157,7 @@ pub(super) fn parse_projection_item_with_named_windows(
         | Expr::Between { .. }
         | Expr::Like { .. }
         | Expr::Not { .. }
+        | Expr::ArraySubscript { .. }
         | Expr::Exists(_) => SelectItem::Expr { expr, alias },
         Expr::Subquery(ref subquery) => SelectItem::Expr {
             alias: alias.or_else(|| super::expr::subquery_output_name(subquery)),
@@ -318,7 +322,7 @@ fn lower_window_filter(
             return Err(SqlError::syntax(format!(
                 "{} window aggregate expects one argument",
                 function.name
-            )))
+            )));
         }
     };
     function.args = vec![Expr::Case {
@@ -533,7 +537,7 @@ fn split_window_exclusion(raw: &str) -> Result<(&str, WindowFrameExclusion), Sql
         value => {
             return Err(SqlError::unsupported(format!(
                 "invalid window frame exclusion '{value}'"
-            )))
+            )));
         }
     };
     Ok((raw[..position].trim(), exclusion))
@@ -663,6 +667,10 @@ mod window_aggregate_tests {
     }
 }
 
+#[cfg(test)]
+#[path = "query_source_tests.rs"]
+mod query_source_tests;
+
 #[derive(Clone, Copy)]
 enum SourceJoinKind {
     OuterApply,
@@ -786,58 +794,85 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
     let raw = lateral_end.map_or(raw, |end| super::lexical::trim_separators(&raw[end..]));
 
     if raw.starts_with('(') {
-        let close = matching_closing_paren(raw)
-            .ok_or_else(|| SqlError::new("invalid FROM subquery syntax".into()))?;
-        let subquery_sql = &raw[1..close];
-        let alias_raw = super::lexical::trim_separators(&raw[close + 1..]);
-        let alias = super::lexical::pattern_end(alias_raw, 0, "as").map_or(alias_raw, |end| {
-            super::lexical::trim_separators(&alias_raw[end..])
-        });
-        let parsed = parse_statement(subquery_sql)?;
-        let QueryStatement::Select(select) = parsed.statement else {
-            return Err(SqlError::new(
-                "FROM subquery must be a SELECT statement".into(),
-            ));
-        };
-        if matches!(select.source, QuerySource::Values { .. })
-            && select.ctes.is_empty()
-            && select.order.is_empty()
-            && select.limit.is_none()
-            && select.offset.is_none()
-            && select.set.is_none()
-        {
-            if lateral {
-                return Err(SqlError::unsupported(
-                    "lateral VALUES is not yet supported".into(),
-                ));
-            }
-            return relation_alias::parse(select.source, alias_raw);
-        }
-        if alias.contains('(') || alias.starts_with('"') {
-            return relation_alias::parse(
-                QuerySource::Subquery {
-                    alias: "__derived_query".to_string(),
-                    select,
-                    lateral,
-                },
-                alias_raw,
-            );
-        }
-        if alias.is_empty() || alias.split_whitespace().count() != 1 {
-            return Err(SqlError::new(
-                "FROM subquery requires a deterministic alias".into(),
-            ));
-        }
-
-        return Ok(QuerySource::Subquery {
-            alias: super::identifiers::normalize_identifier(alias)?,
-            select,
-            lateral,
-        });
+        return parse_parenthesized_query_source(raw, lateral);
     }
 
+    parse_non_subquery_source(raw, lateral)
+}
+
+fn parse_parenthesized_query_source(raw: &str, lateral: bool) -> Result<QuerySource, SqlError> {
+    let close = matching_closing_paren(raw)
+        .ok_or_else(|| SqlError::new("invalid FROM subquery syntax".into()))?;
+    let subquery_sql = &raw[1..close];
+    let alias_raw = super::lexical::trim_separators(&raw[close + 1..]);
+    let alias = super::lexical::pattern_end(alias_raw, 0, "as").map_or(alias_raw, |end| {
+        super::lexical::trim_separators(&alias_raw[end..])
+    });
+    let parsed = parse_statement(subquery_sql)?;
+    let QueryStatement::Select(select) = parsed.statement else {
+        return Err(SqlError::new(
+            "FROM subquery must be a SELECT statement".into(),
+        ));
+    };
+    if matches!(select.source, QuerySource::Values { .. })
+        && select.ctes.is_empty()
+        && select.order.is_empty()
+        && select.limit.is_none()
+        && select.offset.is_none()
+        && select.set.is_none()
+    {
+        if lateral {
+            return Err(SqlError::unsupported(
+                "lateral VALUES is not yet supported".into(),
+            ));
+        }
+        return relation_alias::parse(select.source, alias_raw);
+    }
+    if alias.contains('(') || alias.starts_with('"') {
+        return relation_alias::parse(
+            QuerySource::Subquery {
+                alias: "__derived_query".to_string(),
+                select,
+                lateral,
+            },
+            alias_raw,
+        );
+    }
+    if alias.is_empty() || alias.split_whitespace().count() != 1 {
+        return Err(SqlError::new(
+            "FROM subquery requires a deterministic alias".into(),
+        ));
+    }
+
+    Ok(QuerySource::Subquery {
+        alias: super::identifiers::normalize_identifier(alias)?,
+        select,
+        lateral,
+    })
+}
+
+fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, SqlError> {
     if let Some(source) = parse_jsonpath_table_function(raw, lateral)? {
         return Ok(source);
+    }
+    if let Some((sample_position, sample_end)) =
+        super::clauses::find_top_level_keyword_span(raw, 0, "tablesample")
+    {
+        let (path, remainder) = parse_relation_path_prefix(&raw[..sample_position])?;
+        if !remainder.is_empty() {
+            return Err(SqlError::syntax(
+                "TABLESAMPLE must follow a base relation".into(),
+            ));
+        }
+        let (method, rate, repeatable, alias_tail) =
+            query_table_sample::parse_table_sample_clause(&raw[sample_end..])?;
+        let source = QuerySource::TableSample {
+            source: Box::new(QuerySource::Collection(path)),
+            method,
+            rate,
+            repeatable,
+        };
+        return relation_alias::parse(source, alias_tail);
     }
     if let Some(open) = raw.find('(') {
         if crate::sql::functions::is_catalog_table(raw[..open].trim()) {
@@ -867,6 +902,8 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
                 | "graph_shortest_path"
                 | "pg_show_all_settings"
                 | "pg_catalog.pg_show_all_settings"
+                | "pg_input_error_info"
+                | "pg_catalog.pg_input_error_info"
                 | "jsonb_path_query"
                 | "jsonb_path_query_tz"
         ) || crate::sql::functions::is_catalog_table(&lower_name)

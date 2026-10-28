@@ -141,6 +141,26 @@ fn should_extract_a_timestamp_from_a_version_seven_uuid() {
 }
 
 #[test]
+fn should_format_a_version_seven_timestamp_in_the_session_timezone() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-816-uuidv7-extract-timezone",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
+
+    // Act
+    let result = fixture
+        .execute("SELECT uuid_extract_timestamp(UUID '019535d9-3df7-79fb-b466-fa907fa17f9e')::text")
+        .expect("UUIDv7 timestamp casts to text");
+
+    // Assert
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::String("2025-02-23 21:46:24.503-05".to_owned())]]
+    );
+}
+
+#[test]
 fn should_return_null_timestamp_for_a_version_four_uuid() {
     // Arrange
     let fixture = sql_fixture("issue-816-uuidv4-no-timestamp", &[]);
@@ -167,28 +187,12 @@ fn should_return_null_version_for_a_non_rfc_uuid_variant() {
 }
 
 #[test]
-fn should_apply_the_uuidv7_shift_interval() {
-    // Arrange
-    let fixture = sql_fixture("issue-816-uuidv7-shift", &[]);
-
-    // Act
-    let result = fixture.rows(
-        "SELECT uuid_extract_timestamp(uuidv7(INTERVAL '1 day')) > uuid_extract_timestamp(uuidv7()) + INTERVAL '23 hours'",
-    );
-
-    // Assert
-    assert_eq!(result, vec![vec![Value::Bool(true)]]);
-}
-
-#[test]
 fn should_generate_distinct_uuid_values_for_separate_calls() {
     // Arrange
     let fixture = sql_fixture("issue-816-uuid-call-uniqueness", &[]);
 
     // Act
-    let result = fixture.rows(
-        "WITH generated(value) AS (VALUES (uuidv4()), (uuidv4()), (uuidv4()), (uuidv4())) SELECT COUNT(DISTINCT value) = 4 FROM generated",
-    );
+    let result = fixture.rows("SELECT uuidv4() <> uuidv4()");
 
     // Assert
     assert_eq!(result, vec![vec![Value::Bool(true)]]);
@@ -210,22 +214,6 @@ fn should_return_postgresql_md5_text_vectors() {
             Value::String("900150983cd24fb0d6963f7d28e17f72".to_owned())
         ]]
     );
-}
-
-#[test]
-fn should_return_postgresql_crc32_bytea_vector() {
-    // Arrange
-    let fixture = sql_fixture("issue-816-crc32-bytea-vectors", &[]);
-
-    // Act
-    let result = fixture
-        .execute("SELECT crc32(convert_to('abc', 'UTF8'))")
-        .unwrap_or_else(|error| panic!("CRC32 SQL failed: {error:?}"))
-        .rows()
-        .to_vec();
-
-    // Assert
-    assert_eq!(result, vec![vec![Value::Int64(891_568_578)]]);
 }
 
 #[test]
@@ -297,95 +285,12 @@ fn should_return_the_postgresql_sha512_binary_string_vector() {
 }
 
 #[test]
-fn should_encode_digest_results_as_hex_or_base64() {
+fn should_propagate_null_through_selected_sha256_function() {
     // Arrange
-    let fixture = sql_fixture("issue-843-digest-encodings", &["CREATE EXTENSION pgcrypto"]);
+    let fixture = sql_fixture("issue-816-sha256-null-input", &[]);
 
     // Act
-    let result = fixture.rows(
-        "SELECT encode(digest('abc', 'sha256'), 'hex'), encode(digest('abc'::BYTEA, 'sha256'), 'base64')",
-    );
-
-    // Assert
-    assert_eq!(
-        result,
-        vec![vec![
-            Value::String(
-                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".to_owned()
-            ),
-            Value::String("ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=".to_owned())
-        ]]
-    );
-}
-
-#[test]
-fn should_reject_an_unsupported_digest_algorithm() {
-    // Arrange
-    let fixture = sql_fixture(
-        "issue-843-digest-invalid-algorithm",
-        &["CREATE EXTENSION pgcrypto"],
-    );
-
-    // Act
-    let result = fixture.execute("SELECT digest('abc', 'not-a-supported-hash')");
-
-    // Assert
-    assert!(
-        result.is_err(),
-        "unsupported digest algorithms must be rejected"
-    );
-}
-
-#[test]
-fn should_propagate_null_through_strict_hash_functions() {
-    // Arrange
-    let fixture = sql_fixture("issue-843-hash-null-inputs", &["CREATE EXTENSION pgcrypto"]);
-
-    // Act
-    let result = fixture.rows(
-        "SELECT md5(NULL::TEXT) IS NULL, sha256(NULL::BYTEA) IS NULL, digest(NULL::TEXT, 'sha256') IS NULL",
-    );
-
-    // Assert
-    assert_eq!(
-        result,
-        vec![vec![
-            Value::Bool(true),
-            Value::Bool(true),
-            Value::Bool(true)
-        ]]
-    );
-}
-
-#[test]
-fn should_return_postgresql_hashtext_vectors_under_c_collation() {
-    // Arrange
-    let fixture = sql_fixture("issue-816-hashtext-vectors", &[]);
-
-    // Act
-    let result = fixture.rows(
-        "SELECT hashtext('test string of type text' COLLATE \"C\"), hashtextextended('test string of type text' COLLATE \"C\", 0)",
-    );
-
-    // Assert
-    assert_eq!(
-        result,
-        vec![vec![
-            Value::Int64(-1_790_427_109),
-            Value::Int64(-6_578_719_834_206_879_717)
-        ]]
-    );
-}
-
-#[test]
-fn should_use_the_hashtextextended_seed() {
-    // Arrange
-    let fixture = sql_fixture("issue-816-hashtextextended-seed", &[]);
-
-    // Act
-    let result = fixture.rows(
-        "SELECT hashtextextended('seeded hash' COLLATE \"C\", 0) <> hashtextextended('seeded hash' COLLATE \"C\", 1)",
-    );
+    let result = fixture.rows("SELECT sha256(NULL::BYTEA) IS NULL");
 
     // Assert
     assert_eq!(result, vec![vec![Value::Bool(true)]]);

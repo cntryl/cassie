@@ -8,6 +8,7 @@ pub enum Step {
     ParseFlush(Vec<u8>),
     BindFlush(Vec<u8>),
     ThroughReady(Cycle),
+    ThroughReadyWithin(Cycle, std::time::Duration),
 }
 
 pub fn run_script(label: &str, steps: Vec<Step>) -> Vec<Frames> {
@@ -54,6 +55,10 @@ pub fn run_script_with_config(
                         std::time::Duration::from_secs(5),
                     )
                     .await
+                }
+                Step::ThroughReadyWithin(cycle, limit) => {
+                    wire::write_frames(&mut writer, cycle).await;
+                    wire::read_frames_until_ready_within(&mut reader, limit).await
                 }
             };
             batches.push(frames);

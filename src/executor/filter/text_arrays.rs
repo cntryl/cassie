@@ -1,38 +1,38 @@
 //! Selected one-dimensional SQL TEXT[] input over the logical array carrier.
 use super::{QueryError, ScalarValue};
 use crate::app::CassieError;
-use crate::types::array::TextArrayError;
+use crate::types::{array::TextArrayError, DataType};
 
-pub(super) fn cast(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+pub(super) fn cast(
+    value: &ScalarValue,
+    element_type: &DataType,
+) -> Result<ScalarValue, QueryError> {
+    if let ScalarValue::Array(array) = value {
+        if array.is_empty() {
+            return Ok(value.clone());
+        }
+    }
     let ScalarValue::Str(input) = value else {
-        return Err(CassieError::Unsupported(
-            "TEXT[] conversion from this scalar carrier remains pending under #793".into(),
-        )
-        .into());
+        return Err(QueryError::General(
+            "cannot cast scalar value to ARRAY".into(),
+        ));
     };
-    if input
-        .trim_start()
-        .strip_prefix('[')
-        .and_then(|rest| rest.chars().next())
-        .is_some_and(|ch| ch.is_ascii_digit() || ch == '+' || ch == '-' || ch.is_whitespace())
-    {
-        return Err(CassieError::Unsupported(
-            "explicit array bounds remain pending under #793".into(),
-        )
-        .into());
+    let mut element_type = element_type;
+    while let DataType::Array(inner) = element_type {
+        element_type = inner;
     }
-    if !input.trim_start().starts_with('{') {
-        return Err(CassieError::ArrayInput(
-            "malformed array literal: array value must start with '{'".into(),
-        )
-        .into());
-    }
-    crate::types::array::parse_text_array(input, &crate::types::DataType::Text)
-        .map(|value| ScalarValue::Json(value.to_string()))
-        .map_err(|error| match error {
-            TextArrayError::Invalid(message) => CassieError::ArrayInput(message).into(),
-            TextArrayError::UnsupportedJsonDocumentNull => {
-                CassieError::Unsupported(error.to_string()).into()
+    let parsed = crate::types::array::parse_sql_text_array(input, element_type).map_err(
+        |error| -> QueryError {
+            match error {
+                TextArrayError::Invalid(message) => CassieError::ArrayInput(message).into(),
+                TextArrayError::UnsupportedJsonDocumentNull => {
+                    CassieError::Unsupported(error.to_string()).into()
+                }
             }
-        })
+        },
+    )?;
+    parsed
+        .into_sql_array(element_type)
+        .map(ScalarValue::Array)
+        .map_err(|message| CassieError::ArrayInput(message).into())
 }

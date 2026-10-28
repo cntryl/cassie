@@ -380,6 +380,7 @@ fn record_field(value: &Value) -> String {
                 .join(","),
         ),
         Value::Json(value) => composite_field(&value.to_string()),
+        Value::Array(value) => composite_field(&value.to_nested_json().to_string()),
     }
 }
 

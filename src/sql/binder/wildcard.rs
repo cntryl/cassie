@@ -387,14 +387,16 @@ fn source_fields(
             Ok(super::values::schema(rows, user_functions, parameter_types)?.fields)
         }
 
-        QuerySource::Aliased { source, .. } => source_fields(
-            source,
-            scope,
-            catalog,
-            user_functions,
-            parameter_types,
-            outer_fields,
-        ),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_fields(
+                source,
+                scope,
+                catalog,
+                user_functions,
+                parameter_types,
+                outer_fields,
+            )
+        }
         QuerySource::Collection(name) => {
             if let Some(fields) = scope.get(&name.to_ascii_lowercase()) {
                 return Ok(fields.clone());
@@ -462,7 +464,9 @@ fn source_fields(
 
 fn source_consumes_outer_fields(source: &QuerySource) -> bool {
     match source {
-        QuerySource::Aliased { source, .. } => source_consumes_outer_fields(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_consumes_outer_fields(source)
+        }
         QuerySource::Subquery { lateral, .. } => *lateral,
         QuerySource::Join { left, right, .. } => {
             source_consumes_outer_fields(left) || source_consumes_outer_fields(right)

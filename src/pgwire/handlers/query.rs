@@ -57,6 +57,7 @@ fn format_value(value: &Value) -> String {
                 .join(",")
         ),
         Value::Json(v) => v.to_string(),
+        Value::Array(v) => v.to_nested_json().to_string(),
         Value::Typed(v) => v.text(),
     }
 }

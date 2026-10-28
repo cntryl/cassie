@@ -150,6 +150,7 @@ fn resolve<R: RowAccess + ?Sized>(
             }
         }
         Expr::Cast { .. } => cast_constant(expr, row, context),
+        Expr::Collate { expr, .. } => resolve(expr, row, context),
         Expr::UnaryNumeric { expr, op } => resolve(expr, row, context)?
             .map(|value| {
                 super::temporal::negate(&value)
@@ -194,7 +195,7 @@ fn resolve<R: RowAccess + ?Sized>(
             }
             rebuilt(expr, row, context)
         }
-        Expr::InList { .. } => rebuilt(expr, row, context),
+        Expr::InList { .. } | Expr::ArraySubscript { .. } => rebuilt(expr, row, context),
     }
 }
 
@@ -348,6 +349,13 @@ fn literal(value: ScalarValue) -> Expr {
             source_type: None,
             identity: crate::sql::ast::CastIdentity::Scalar,
         },
+        ScalarValue::Array(value) => Expr::Function(Box::new(FunctionCall {
+            name: "_cassie_array_value".to_string(),
+            args: vec![Expr::StringLiteral(value.to_storage_json().to_string())],
+            quantifier: crate::sql::ast::AggregateQuantifier::Default,
+            order_by: Vec::new(),
+            filter: None,
+        })),
     }
 }
 

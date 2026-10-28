@@ -216,6 +216,7 @@ impl<'a> MergeRun<'a> {
                     &row_id,
                     &row,
                     assignments,
+                    &[],
                     row_subqueries,
                 )?
                 else {

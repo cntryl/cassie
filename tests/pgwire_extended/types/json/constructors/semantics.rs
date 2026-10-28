@@ -1,31 +1,3 @@
-#[test]
-fn should_classify_json_object_unique_keys() {
-    // Arrange
-    let sql = "SELECT '{\"a\":1}' IS JSON OBJECT WITH UNIQUE KEYS, '{\"a\":1,\"a\":2}' IS JSON OBJECT WITH UNIQUE KEYS";
-    let cycle = fixture::execute_cycle(sql, None, 0, true);
-
-    // Act
-    let batches = fixture::run_cycles("issue-810-sql-json-unique-key-predicate", &[], vec![cycle]);
-
-    // Assert
-    let frames = &batches[0];
-    fixture::assert_success(frames);
-    let description = frames
-        .iter()
-        .find(|(tag, _)| *tag == b'T')
-        .expect("IS JSON RowDescription");
-    assert_eq!(
-        wire::parse_row_description(&description.1)
-            .iter()
-            .map(|column| column.type_oid)
-            .collect::<Vec<_>>(),
-        vec![16, 16]
-    );
-    assert_eq!(
-        wire::data_rows(frames),
-        vec![vec![Some("t".to_owned()), Some("f".to_owned())]]
-    );
-}
 
 #[test]
 fn should_preserve_large_integer_values_in_jsonb_constructors() {

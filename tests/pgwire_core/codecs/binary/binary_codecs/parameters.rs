@@ -41,7 +41,7 @@ fn should_decode_text_array_parameters() {
             .expect("text array parameter should return a row");
         assert_eq!(
             support::parse_data_row(&row.1),
-            vec![Some("[7,8,9]".into())]
+            vec![Some("{7,8,9}".into())]
         );
         assert!(frames.iter().any(|frame| frame.0 == b'C'));
 

@@ -25,6 +25,7 @@ fn shadows(source: &QuerySource, name: &str) -> bool {
             alias.eq_ignore_ascii_case(name)
         }
         QuerySource::Join { left, right, .. } => shadows(left, name) || shadows(right, name),
+        QuerySource::TableSample { source, .. } => shadows(source, name),
         QuerySource::Values { .. } | QuerySource::SingleRow => false,
     }
 }

@@ -12,6 +12,10 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
     identity: crate::sql::ast::CastIdentity,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    if let Some(value) = collection_aggregate_text_cast(row, expr, data_type, source_type, context)?
+    {
+        return Ok(value);
+    }
     if data_type.is_json() && source_type.is_some_and(DataType::is_json) {
         let document =
             json_concat::as_json_document(&eval_scalar_with_context(row, expr, context)?)?;
@@ -24,26 +28,8 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
         }
         return Ok(document);
     }
-    if matches!(data_type, DataType::Text | DataType::Varchar { .. })
-        && percentile_array_expression(expr)
-    {
-        let value = eval_scalar_with_context(row, expr, context)?;
-        if let ScalarValue::Json(value) = value {
-            if let Ok(array) = serde_json::from_str::<serde_json::Value>(&value) {
-                if let Some(formatted) = crate::types::array::format_json_array_text(&array) {
-                    return casts::scalar(
-                        &ScalarValue::Str(formatted),
-                        data_type,
-                        Some(&DataType::Text),
-                        context.controls.or_else(|| {
-                            context
-                                .session
-                                .and_then(CassieSession::statement_execution_controls)
-                        }),
-                    );
-                }
-            }
-        }
+    if let Some(value) = percentile_array_text_cast(row, expr, data_type, context)? {
+        return Ok(value);
     }
     if let Expr::NumericLiteral(value) = expr {
         return casts::numeric_literal(
@@ -78,6 +64,115 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
             }),
         )
     }
+}
+
+fn collection_aggregate_text_cast<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    data_type: &DataType,
+    source_type: Option<&DataType>,
+    context: EvalContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if !matches!(data_type, DataType::Text | DataType::Varchar { .. })
+        || source_type != Some(&DataType::Json)
+    {
+        return Ok(None);
+    }
+    let Expr::Function(function) = expr else {
+        return Ok(None);
+    };
+    let Some(crate::sql::functions::ScalarFunction {
+        id: crate::sql::functions::FunctionId::CollectionAggregate(kind),
+        ..
+    }) = crate::sql::functions::function(&function.name)
+    else {
+        return Ok(None);
+    };
+    let ScalarValue::Json(text) = eval_scalar_with_context(row, expr, context)? else {
+        return Ok(None);
+    };
+    let document = serde_json::from_str::<serde_json::Value>(&text)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let formatted = collection_aggregate_json_text(*kind, document)?;
+    Ok(Some(ScalarValue::Str(formatted)))
+}
+
+fn collection_aggregate_json_text(
+    kind: crate::sql::functions::CollectionAggregate,
+    document: serde_json::Value,
+) -> Result<String, QueryError> {
+    Ok(match kind {
+        crate::sql::functions::CollectionAggregate::Json { .. } => match document {
+            serde_json::Value::Array(values) => format!(
+                "[{}]",
+                values
+                    .iter()
+                    .map(|value| {
+                        crate::types::jsonb::format(value).unwrap_or_else(|_| value.to_string())
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            value => value.to_string(),
+        },
+        crate::sql::functions::CollectionAggregate::JsonObject { binary: false, .. } => {
+            match document {
+                serde_json::Value::Object(fields) => format!(
+                    "{{ {} }}",
+                    fields
+                        .iter()
+                        .map(|(key, value)| format!(
+                            "{} : {}",
+                            serde_json::to_string(key).unwrap_or_default(),
+                            crate::types::jsonb::format(value)
+                                .unwrap_or_else(|_| value.to_string())
+                        ))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                value => value.to_string(),
+            }
+        }
+        crate::sql::functions::CollectionAggregate::JsonObject { binary: true, .. } => {
+            crate::types::jsonb::format(&document).map_err(crate::app::CassieError::TypeInput)?
+        }
+        crate::sql::functions::CollectionAggregate::Array => {
+            unreachable!("SQL arrays are not JSON aggregates")
+        }
+    })
+}
+
+fn percentile_array_text_cast<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    data_type: &DataType,
+    context: EvalContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if !matches!(data_type, DataType::Text | DataType::Varchar { .. })
+        || !percentile_array_expression(expr)
+    {
+        return Ok(None);
+    }
+    let ScalarValue::Json(value) = eval_scalar_with_context(row, expr, context)? else {
+        return Ok(None);
+    };
+    let Ok(array) = serde_json::from_str::<serde_json::Value>(&value) else {
+        return Ok(None);
+    };
+    let Some(formatted) = crate::types::array::format_json_array_text(&array) else {
+        return Ok(None);
+    };
+    casts::scalar(
+        &ScalarValue::Str(formatted),
+        data_type,
+        Some(&DataType::Text),
+        context.controls.or_else(|| {
+            context
+                .session
+                .and_then(CassieSession::statement_execution_controls)
+        }),
+    )
+    .map(Some)
 }
 
 fn percentile_array_expression(expression: &Expr) -> bool {

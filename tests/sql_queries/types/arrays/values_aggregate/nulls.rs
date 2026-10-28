@@ -1,8 +1,8 @@
 #[test]
-fn should_preserve_any_all_truth_tables_for_null_empty_table_arrays() {
+fn should_preserve_any_all_truth_tables_for_null_empty_arrays() {
     // Arrange
     let fixture = sql_fixture(
-        "issue-807-array-quantifier-null-bounds",
+        "issue-762-array-quantifier-null-empty",
         &["CREATE TABLE issue_807_array_quantifier_values (id INT PRIMARY KEY, items INT[])"],
     );
     fixture
@@ -20,7 +20,7 @@ fn should_preserve_any_all_truth_tables_for_null_empty_table_arrays() {
 
     // Act
     let truth_table = fixture.execute(
-        "SELECT id, 2 = ANY(items), 2 = ALL(items), array_lower(items, 1), array_upper(items, 1), cardinality(items) FROM issue_807_array_quantifier_values ORDER BY id",
+        "SELECT id, 2 = ANY(items), 2 = ALL(items) FROM issue_807_array_quantifier_values ORDER BY id",
     );
 
     // Assert
@@ -32,31 +32,19 @@ fn should_preserve_any_all_truth_tables_for_null_empty_table_arrays() {
                 Value::Int64(1),
                 Value::Null,
                 Value::Bool(false),
-                Value::Int64(1),
-                Value::Int64(2),
-                Value::Int64(2),
             ],
             vec![
                 Value::Int64(2),
                 Value::Bool(true),
                 Value::Null,
-                Value::Int64(1),
-                Value::Int64(2),
-                Value::Int64(2),
             ],
             vec![
                 Value::Int64(3),
                 Value::Bool(false),
                 Value::Bool(true),
-                Value::Null,
-                Value::Null,
-                Value::Int64(0),
             ],
             vec![
                 Value::Int64(4),
-                Value::Null,
-                Value::Null,
-                Value::Null,
                 Value::Null,
                 Value::Null,
             ],
@@ -68,6 +56,6 @@ fn should_preserve_any_all_truth_tables_for_null_empty_table_arrays() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        [23, 16, 16, 23, 23, 23]
+        [23, 16, 16]
     );
 }

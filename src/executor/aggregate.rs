@@ -139,8 +139,9 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
                 vec![ColumnMeta::from_data_type(output_name, &data_type)]
             }
             SelectItem::Function { function, alias } => {
-                let data_type = crate::sql::binder::infer_function_return_type(
-                    function,
+                let expression = Expr::Function(Box::new(function.clone()));
+                let data_type = crate::sql::binder::infer_projection_expr_type(
+                    &expression,
                     &source_schema,
                     &user_functions,
                     parameter_type_oids,
@@ -243,7 +244,9 @@ fn query_source_contains_pg_type(source: &crate::sql::ast::QuerySource) -> bool 
         QuerySource::Collection(name) => {
             name.to_string().eq_ignore_ascii_case("pg_catalog.pg_type")
         }
-        QuerySource::Aliased { source, .. } => query_source_contains_pg_type(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            query_source_contains_pg_type(source)
+        }
         QuerySource::Join { left, right, .. } => {
             query_source_contains_pg_type(left) || query_source_contains_pg_type(right)
         }
@@ -493,7 +496,9 @@ fn collect_cte_sources(source: &QuerySource, names: &mut HashSet<String>) {
         QuerySource::Cte(name) => {
             names.insert(name.to_ascii_lowercase());
         }
-        QuerySource::Aliased { source, .. } => collect_cte_sources(source, names),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            collect_cte_sources(source, names);
+        }
         QuerySource::Join { left, right, .. } => {
             collect_cte_sources(left, names);
             collect_cte_sources(right, names);

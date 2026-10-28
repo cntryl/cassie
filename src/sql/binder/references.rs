@@ -177,12 +177,12 @@ pub(super) fn validate_expression_in_scope(
                 known_fields,
                 projection_aliases,
                 allow_projection_alias,
-            )
+            );
         }
         Expr::Function(function)
             if crate::sql::functions::is_aggregate_function(&function.name) =>
         {
-            return validate_aggregate_function_args(function, known_fields, scope)
+            return validate_aggregate_function_args(function, known_fields, scope);
         }
         Expr::Exists(statement) => {
             return scope.validate_nested(statement, known_fields);

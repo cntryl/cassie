@@ -97,6 +97,21 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
             .iter_mut()
             .chain(&mut comparison.right)
             .for_each(|field| qualify_expression(field, types)),
+        Expr::ArraySubscript { array, subscripts } => {
+            qualify_expression(array, types);
+            for subscript in subscripts {
+                match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        qualify_expression(index, types);
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                        for bound in lower.iter_mut().chain(upper) {
+                            qualify_expression(bound, types);
+                        }
+                    }
+                }
+            }
+        }
         Expr::Binary { left, right, .. } => {
             qualify_expression(left, types);
             qualify_expression(right, types);
@@ -118,6 +133,7 @@ fn qualify_expression(expression: &mut Expr, types: &ResultTypes) {
             }
         }
         Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. }
         | Expr::Not { expr }

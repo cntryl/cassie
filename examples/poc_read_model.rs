@@ -79,6 +79,7 @@ fn render_value(value: &Value) -> String {
         Value::String(value) => value.clone(),
         Value::Vector(value) => format!("{value:?}"),
         Value::Json(value) => value.to_string(),
+        Value::Array(value) => value.to_nested_json().to_string(),
         Value::Typed(value) => value.text(),
     }
 }

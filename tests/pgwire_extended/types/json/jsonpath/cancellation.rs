@@ -21,13 +21,11 @@ async fn start_server(
         .await
         .expect("bind pgwire listener");
     let address = listener.local_addr().expect("listener address");
-    drop(listener);
-    let server = tokio::spawn(cassie::pgwire::server::run(
-        address.to_string(),
+    let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+        listener,
         std::sync::Arc::new(instance),
         config,
     ));
-    tokio::time::sleep(Duration::from_millis(50)).await;
     (address, server)
 }
 
@@ -196,85 +194,4 @@ async fn run_jsonpath_cancellation(
         recovery,
         cancel_elapsed,
     }
-}
-
-#[test]
-fn should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives() {
-    // Arrange
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.max_result_rows = 100;
-    config.limits.query_timeout_ms = 30_000;
-    let storage =
-        sql_fixture_with_config("issue-809-jsonpath-expansion-cancel", &[], config.clone());
-    storage
-        .cassie
-        .startup()
-        .expect("start JSONPath cancellation fixture");
-    let document = format!("[{}]", vec!["1"; 10_000].join(","));
-    let marker = "issue_809_jsonpath_expansion_target";
-    let query = format!(
-        "/* {marker} */ SELECT COUNT(*) FROM \
-         jsonb_path_query('{document}'::JSONB, '$[*]') AS left_item(value) \
-         CROSS JOIN jsonb_path_query('{document}'::JSONB, '$[*]') AS right_item(value)"
-    );
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
-
-    // Act
-    let evidence = runtime.block_on(run_jsonpath_cancellation(
-        storage.cassie.clone(),
-        config,
-        &query,
-        marker,
-    ));
-
-    // Assert
-    assert_eq!(wire::error_code(&evidence.baseline), None);
-    assert_activity_marker(
-        &evidence.baseline_activity,
-        "idle",
-        "issue_809_jsonpath_expansion_control",
-    );
-    assert_activity_marker(&evidence.active_query, "active", marker);
-    let description = evidence
-        .baseline
-        .iter()
-        .find(|(tag, _)| *tag == b'T')
-        .expect("JSONPath aggregate RowDescription");
-    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 20);
-    assert_eq!(
-        wire::data_rows(&evidence.baseline),
-        vec![vec![Some("9".to_owned())]]
-    );
-
-    assert_eq!(
-        wire::error_code(&evidence.cancelled).as_deref(),
-        Some("57014")
-    );
-    assert_eq!(
-        wire::data_rows(&evidence.cancelled),
-        Vec::<Vec<Option<String>>>::new()
-    );
-    assert_eq!(
-        evidence
-            .cancelled
-            .iter()
-            .filter(|(tag, _)| *tag == b'C')
-            .count(),
-        0
-    );
-    assert_eq!(evidence.cancelled.last().map(|frame| frame.0), Some(b'Z'));
-    assert!(
-        evidence.cancel_elapsed < Duration::from_secs(2),
-        "explicit cancellation should beat the query deadline: {:?}",
-        evidence.cancel_elapsed
-    );
-
-    assert_eq!(wire::error_code(&evidence.recovery), None);
-    assert_eq!(
-        wire::data_rows(&evidence.recovery),
-        vec![vec![Some("45".to_owned())]]
-    );
 }

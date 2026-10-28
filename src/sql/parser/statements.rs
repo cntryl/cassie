@@ -78,6 +78,12 @@ pub(super) fn unsupported_privilege_statement(lower: &str) -> Option<&'static st
     if lower == "alter policy" || lower.starts_with("alter policy ") {
         return Some("ROW-LEVEL SECURITY policies are not supported in this version");
     }
+    if lower == "create collation" || lower.starts_with("create collation ") {
+        return Some("CREATE COLLATION is not supported in this version");
+    }
+    if lower == "alter collation" || lower.starts_with("alter collation ") {
+        return Some("ALTER COLLATION is not supported in this version");
+    }
     if lower == "drop policy" || lower.starts_with("drop policy ") {
         return Some("ROW-LEVEL SECURITY policies are not supported in this version");
     }

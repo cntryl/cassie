@@ -64,6 +64,6 @@ fn should_infer_bit_string_oids_for_oid_zero_binary_parameters() {
     );
     assert_eq!(
         data_row_bytes(result),
-        vec![fixed_bits.to_vec(), variable_bits.to_vec()]
+        vec![vec![fixed_bits.to_vec(), variable_bits.to_vec()]]
     );
 }

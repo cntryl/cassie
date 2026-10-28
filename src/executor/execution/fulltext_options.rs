@@ -161,7 +161,9 @@ pub(super) fn fulltext_base_collection<'a>(
 
     match source {
         QuerySource::Collection(name) => Some(name),
-        QuerySource::Aliased { source, .. } => fulltext_base_collection(source, ctes),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            fulltext_base_collection(source, ctes)
+        }
         QuerySource::Subquery { select, .. } if passes_columns_through(select) => {
             let inner_ctes = if select.ctes.is_empty() {
                 ctes

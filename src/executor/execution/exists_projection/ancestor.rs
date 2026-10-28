@@ -20,6 +20,7 @@ fn source_claims(source: &QuerySource, qualifier: &str) -> bool {
         QuerySource::Aliased { alias, .. } => {
             crate::sql::binder::alias_row_qualifier(alias) == qualifier
         }
+        QuerySource::TableSample { source, .. } => source_claims(source, qualifier),
         QuerySource::Subquery { alias, .. } => alias.to_ascii_lowercase() == qualifier,
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
             name.to_ascii_lowercase() == qualifier

@@ -74,6 +74,8 @@ pub(super) struct SessionState {
     pub(super) startup_user: Option<String>,
     pub(super) startup_database: Option<String>,
     pub(super) startup_parameters: HashMap<String, String>,
+    /// `ParameterStatus` values most recently sent to the frontend.
+    pub(super) parameter_statuses: HashMap<String, String>,
     pub(super) authenticated: bool,
     pub(super) ready: ReadyState,
     pub(super) prepared_statements: HashMap<String, PreparedStatement>,
@@ -102,6 +104,7 @@ impl SessionState {
             startup_user: None,
             startup_database: None,
             startup_parameters: HashMap::new(),
+            parameter_statuses: HashMap::new(),
             authenticated: false,
             ready: ReadyState::InTransaction,
             prepared_statements: HashMap::new(),

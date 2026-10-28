@@ -262,7 +262,15 @@ async fn execute_offset_portal_page(
             row_description_sent,
         },
     )
+    .await?;
+    super::super::writers::write_changed_parameter_statuses(
+        write_half,
+        request.session,
+        &mut request.state.parameter_statuses,
+    )
     .await
+    .map_err(|error| ExtendedQueryError::write_failed(&error))?;
+    Ok(())
 }
 
 async fn execute_cursor_portal_page(

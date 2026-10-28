@@ -122,6 +122,7 @@ fn ordinary_bytes(value: &Value) -> Result<usize, CassieError> {
         Value::Json(value) => json_string_bytes(value),
         Value::Float64(_) => Ok(64),
         Value::Typed(typed) => Ok(typed.heap_bytes().max(64)),
+        Value::Array(_) => crate::executor::retained_memory::value_clone_bytes(value),
         Value::Null | Value::Bool(_) | Value::Int64(_) => Ok(0),
     }
 }
@@ -168,6 +169,16 @@ pub(crate) fn semantic_heap(value: &SemanticValue) -> Result<usize, CassieError>
             mul(values.capacity(), size_of::<SemanticValue>())?,
             |bytes, value| add(bytes, semantic_heap(value)?),
         ),
+        SemanticValue::SqlArray {
+            dimensions,
+            elements,
+        } => elements.iter().try_fold(
+            add(
+                mul(dimensions.capacity(), size_of::<(i32, i32)>())?,
+                mul(elements.capacity(), size_of::<SemanticValue>())?,
+            )?,
+            |bytes, value| add(bytes, semantic_heap(value)?),
+        ),
         SemanticValue::Null
         | SemanticValue::Bool(_)
         | SemanticValue::Number(_)
@@ -202,6 +213,10 @@ pub(crate) fn tie_bytes(row: &impl RowAccess) -> Result<usize, CassieError> {
             Value::Typed(typed) => {
                 scratch = scratch.max(1_024);
                 typed.text().len()
+            }
+            Value::Array(array) => {
+                scratch = scratch.max(crate::executor::retained_memory::value_clone_bytes(value)?);
+                crate::executor::retained_memory::serialized_json_bytes(&array.to_nested_json())?
             }
         };
         text_bytes = add(text_bytes, length)?;

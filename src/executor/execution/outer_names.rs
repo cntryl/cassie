@@ -34,6 +34,9 @@ pub(super) fn literal_outer_alias(
         return literal_outer_alias(catalog, left, name, field)
             .or_else(|| literal_outer_alias(catalog, right, name, field));
     }
+    if let QuerySource::TableSample { source, .. } = source {
+        return literal_outer_alias(catalog, source, name, field);
+    }
     if !literal_field(catalog, source, field) {
         return None;
     }
@@ -52,7 +55,9 @@ pub(super) fn literal_outer_alias(
 
 fn literal_field(catalog: &Catalog, source: &QuerySource, name: &str) -> bool {
     match source {
-        QuerySource::Aliased { source, .. } => literal_field(catalog, source, name),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            literal_field(catalog, source, name)
+        }
         QuerySource::Collection(collection) => {
             catalog.contains_declared_stored_field(collection, name)
         }
@@ -78,7 +83,9 @@ fn literal_field(catalog: &Catalog, source: &QuerySource, name: &str) -> bool {
 
 fn declared_field(catalog: &Catalog, source: &QuerySource, name: &str) -> bool {
     match source {
-        QuerySource::Aliased { source, .. } => declared_field(catalog, source, name),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            declared_field(catalog, source, name)
+        }
         QuerySource::Collection(collection) => {
             catalog.contains_declared_stored_field(collection, name)
         }

@@ -99,7 +99,7 @@ fn should_count_set_bits_in_bytea_values() {
     // Assert
     let result = &batches[0];
     assert_eq!(wire::error_code(result), None);
-    assert_eq!(row_description(result)[0].type_oid, 23);
+    assert_eq!(row_description(result)[0].type_oid, 20);
     assert_eq!(wire::data_rows(result), vec![vec![Some("10".to_owned())]]);
 }
 

@@ -37,6 +37,23 @@ impl Analyzer<'_> {
                     OutputType::fixed(data_type.clone())
                 }
             }
+            Expr::Collate { expr, .. } => self.expression(expr, lookup)?,
+            Expr::ArraySubscript { array, subscripts } => {
+                let array_output = self.expression(array, lookup)?;
+                let mut element_type = array_output.data_type.clone();
+                while let DataType::Array(inner) = &element_type {
+                    element_type = (**inner).clone();
+                }
+                if element_type == DataType::Null {
+                    array_output
+                } else if subscripts.iter().any(|subscript| {
+                    matches!(subscript, crate::sql::ast::ArraySubscript::Slice { .. })
+                }) {
+                    OutputType::fixed(DataType::Array(Box::new(element_type)))
+                } else {
+                    OutputType::fixed(element_type)
+                }
+            }
             Expr::Case {
                 branches,
                 else_expr,
@@ -246,6 +263,34 @@ impl Analyzer<'_> {
         if let Some(output) = self.numeric_function(function, metadata.id, lookup)? {
             return Ok(output);
         }
+        if matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::CollectionAggregate(
+                crate::sql::functions::CollectionAggregate::Array
+            )
+        ) {
+            let input = function
+                .args
+                .first()
+                .map(|argument| self.expression(argument, lookup))
+                .transpose()?
+                .map_or(DataType::Text, |output| output.data_type);
+            let element = match input {
+                DataType::Array(element) => *element,
+                value => value,
+            };
+            return Ok(OutputType::fixed(DataType::Array(Box::new(element))));
+        }
+        if metadata.id == crate::sql::functions::FunctionId::StringAgg
+            && function
+                .args
+                .first()
+                .map(|argument| self.expression(argument, lookup))
+                .transpose()?
+                .is_some_and(|output| output.data_type == DataType::Bytea)
+        {
+            return Ok(OutputType::fixed(DataType::Bytea));
+        }
         if let Some(data_type) = fixed_function_type(metadata.return_type) {
             let mut output = OutputType::fixed(data_type);
             if output.data_type == DataType::Float {
@@ -261,6 +306,15 @@ impl Analyzer<'_> {
             }
             return Ok(output);
         }
+        self.unresolved_function_policy(function, metadata, lookup)
+    }
+
+    fn unresolved_function_policy(
+        &self,
+        function: &FunctionCall,
+        metadata: &crate::sql::functions::ScalarFunction,
+        lookup: &[OutputField],
+    ) -> Result<OutputType, CassieError> {
         let arguments = self.function_arguments(function, lookup)?;
         Ok(match metadata.return_type {
             FunctionReturnType::FirstComparedArgument => {

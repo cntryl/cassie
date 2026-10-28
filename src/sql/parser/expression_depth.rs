@@ -100,6 +100,18 @@ fn source(query: &QuerySource, depth: usize) -> Result<(), SqlError> {
         }
 
         QuerySource::Aliased { source: child, .. } => source(child, depth + 1)?,
+        QuerySource::TableSample {
+            source: child,
+            rate,
+            repeatable,
+            ..
+        } => {
+            source(child, depth + 1)?;
+            validate(rate, depth + 1)?;
+            if let Some(seed) = repeatable {
+                validate(seed, depth + 1)?;
+            }
+        }
         QuerySource::TableFunction { function, .. } => {
             for arg in function.expressions() {
                 validate(arg, depth + 1)?;

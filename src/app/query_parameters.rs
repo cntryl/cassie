@@ -56,6 +56,28 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
                 i32::try_from(DataType::Vector(vector.dimension()).type_oid()).unwrap_or(0)
             }
             Value::Json(_) => 114,
+            Value::Array(array) => array
+                .elements()
+                .first()
+                .and_then(|element| {
+                    let element_oid = match element {
+                        Value::Bool(_) => 16,
+                        Value::Int64(_) => 20,
+                        Value::Float64(_) => 701,
+                        Value::String(_) => 25,
+                        Value::Typed(typed) => i32::try_from(typed.kind().type_oid()).ok()?,
+                        Value::Json(_) => 114,
+                        Value::Vector(vector) => {
+                            i32::try_from(DataType::Vector(vector.dimension()).type_oid()).ok()?
+                        }
+                        Value::Array(_) | Value::Null => return None,
+                    };
+                    crate::catalog::builtin_identity::builtin_array_oid(
+                        u32::try_from(element_oid).ok()?,
+                    )
+                    .and_then(|oid| i32::try_from(oid).ok())
+                })
+                .unwrap_or(0),
             Value::Typed(typed) => i32::try_from(typed.kind().type_oid()).unwrap_or(0),
         })
         .collect()
@@ -105,7 +127,8 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
                     | DataType::JsonPath,
                 ) => ParameterShape::String,
                 Some(DataType::Vector(dimensions)) => ParameterShape::Vector(dimensions),
-                Some(DataType::Json | DataType::Jsonb | DataType::Array(_)) => ParameterShape::Json,
+                Some(DataType::Array(_)) => ParameterShape::Array,
+                Some(DataType::Json | DataType::Jsonb) => ParameterShape::Json,
                 Some(DataType::Null) | None => ParameterShape::Null,
             },
         )

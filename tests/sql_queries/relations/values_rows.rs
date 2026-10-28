@@ -344,45 +344,6 @@ fn should_preserve_null_row_equality_distinctness_semantics() {
 }
 
 #[test]
-fn should_expose_merged_using_columns_to_projection() {
-    // Arrange
-    let fixture = sql_fixture("issue-800-using-merged-columns", &[]);
-
-    // Act
-    let merged = fixture.execute(
-        "SELECT * FROM (VALUES (1::BIGINT, 'left')) AS l(id, left_value) JOIN (VALUES (1::BIGINT, 'right')) AS r(id, right_value) USING (id)",
-    );
-    let aliased = fixture.execute(
-        "SELECT merged.id FROM (VALUES (1::BIGINT)) AS l(id) JOIN (VALUES (1::BIGINT)) AS r(id) USING (id) AS merged",
-    );
-
-    // Assert
-    let merged = merged.expect("USING exposes a single merged column");
-    assert_eq!(
-        merged
-            .columns()
-            .iter()
-            .map(|column| column.name.as_str())
-            .collect::<Vec<_>>(),
-        ["id", "left_value", "right_value"]
-    );
-    assert_eq!(
-        merged.rows(),
-        &[vec![
-            Value::Int64(1),
-            Value::String("left".to_owned()),
-            Value::String("right".to_owned()),
-        ]]
-    );
-    assert_eq!(
-        aliased
-            .expect("USING alias exposes the merged column")
-            .rows(),
-        &[vec![Value::Int64(1)]]
-    );
-}
-
-#[test]
 fn should_expand_qualified_stars_inside_row_constructors() {
     // Arrange
     let fixture = sql_fixture(

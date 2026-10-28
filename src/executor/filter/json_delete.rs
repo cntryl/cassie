@@ -16,11 +16,12 @@ pub(super) fn delete_operator(
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
     }
+    reject_multidimensional_array(right)?;
     let document = json_document(left)?;
     match right {
         ScalarValue::Str(key) => delete_text(document, key),
         ScalarValue::Int(index) => delete_integer(document, *index),
-        ScalarValue::Json(_) => delete_text_array(document, right),
+        ScalarValue::Json(_) | ScalarValue::Array(_) => delete_text_array(document, right),
         _ => Err(unsupported_subtraction_operand()),
     }
 }
@@ -32,25 +33,30 @@ pub(super) fn delete_path(
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
     }
+    reject_multidimensional_array(right)?;
     let document = json_document(left)?;
-    let path = text_array(right)?
-        .into_iter()
-        .enumerate()
-        .map(|(index, segment)| {
-            segment.ok_or_else(|| {
-                type_input_error(
-                    "22004",
-                    format!("path element at position {} is null", index + 1),
-                )
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let path = text_array(right)?;
     if !matches!(document.trim_start().as_bytes().first(), Some(b'{' | b'[')) {
         return Err(invalid_parameter("cannot delete path in scalar"));
     }
     let raw = parse_value(document)?;
+    let container = raw.get().trim();
+    let empty = container[1..container.len() - 1].trim().is_empty();
+    if empty {
+        return format_raw_json(&raw).map(ScalarValue::Json);
+    }
     let value = delete_json_path(&raw, &path, 1)?;
     Ok(ScalarValue::Json(value))
+}
+
+fn reject_multidimensional_array(value: &ScalarValue) -> Result<(), QueryError> {
+    if matches!(value, ScalarValue::Array(array) if array.dimensions().len() > 1) {
+        return Err(type_input_error(
+            "2202E",
+            "wrong number of array subscripts".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn json_document(value: &ScalarValue) -> Result<&str, QueryError> {
@@ -106,6 +112,17 @@ fn delete_text_array(document: &str, right: &ScalarValue) -> Result<ScalarValue,
 }
 
 fn text_array(value: &ScalarValue) -> Result<Vec<Option<String>>, QueryError> {
+    if let ScalarValue::Array(array) = value {
+        return array
+            .elements()
+            .iter()
+            .map(|value| match value {
+                crate::types::Value::String(text) => Ok(Some(text.clone())),
+                crate::types::Value::Null => Ok(None),
+                _ => Err(unsupported_subtraction_operand()),
+            })
+            .collect();
+    }
     let (ScalarValue::Json(text) | ScalarValue::Str(text)) = value else {
         return Err(unsupported_subtraction_operand());
     };
@@ -139,12 +156,18 @@ fn normalize_array_index(index: i64, length: usize) -> Option<usize> {
 
 fn delete_json_path(
     value: &RawValue,
-    path: &[String],
+    path: &[Option<String>],
     position: usize,
 ) -> Result<String, QueryError> {
     let Some((head, tail)) = path.split_first() else {
         return format_raw_json(value);
     };
+    let head = head.as_ref().ok_or_else(|| {
+        type_input_error(
+            "22004",
+            format!("path element at position {position} is null"),
+        )
+    })?;
     match value.get().trim_start().as_bytes().first() {
         Some(b'{') => {
             let mut fields = parse_object(value.get())?.0;
@@ -178,12 +201,15 @@ fn parse_path_index(
     length: usize,
     position: usize,
 ) -> Result<Option<usize>, QueryError> {
-    let index = element.trim().parse::<i32>().map_err(|_| {
-        type_input_error(
-            "22P02",
-            format!("path element at position {position} is not an integer: \"{element}\""),
-        )
-    })?;
+    let index = element
+        .trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c'])
+        .parse::<i32>()
+        .map_err(|_| {
+            type_input_error(
+                "22P02",
+                format!("path element at position {position} is not an integer: \"{element}\""),
+            )
+        })?;
     Ok(normalize_array_index(i64::from(index), length))
 }
 

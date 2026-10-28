@@ -10,6 +10,19 @@ pub(crate) fn value_clone_bytes(value: &Value) -> Result<usize, CassieError> {
     match value {
         Value::String(text) => Ok(text.capacity()),
         Value::Vector(vector) => mul(vector.values.capacity(), size_of::<f32>()),
+        Value::Array(array) => {
+            let dimensions = mul(
+                array.dimensions().len(),
+                size_of::<crate::types::ArrayDimension>(),
+            )?;
+            let elements = mul(array.elements().len(), size_of::<Value>())?;
+            array
+                .elements()
+                .iter()
+                .try_fold(add(dimensions, elements)?, |bytes, element| {
+                    add(bytes, value_clone_bytes(element)?)
+                })
+        }
         Value::Json(value) => Ok(json::retained_bytes(value)? - size_of::<serde_json::Value>()),
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => Ok(0),
         Value::Typed(typed) => Ok(typed.heap_bytes()),

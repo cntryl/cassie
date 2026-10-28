@@ -56,6 +56,17 @@ mod vector_distance;
 use vector_distance::vector_distance;
 #[path = "filter/array_identity.rs"]
 mod array_identity;
+#[path = "filter/array_operators.rs"]
+mod array_operators;
+
+pub(crate) fn compare_sql_arrays(
+    left: &crate::types::SqlArray,
+    right: &crate::types::SqlArray,
+) -> Option<std::cmp::Ordering> {
+    array_operators::compare_arrays(left, right)
+}
+#[path = "filter/array_subscript.rs"]
+mod array_subscript;
 #[path = "filter/bytea_casts.rs"]
 mod bytea_casts;
 #[path = "filter/coalesce.rs"]
@@ -122,6 +133,7 @@ pub(crate) enum ScalarValue {
     Str(String),
     Json(String),
     Typed(crate::types::typed::TypedValue),
+    Array(crate::types::SqlArray),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,7 +191,8 @@ impl ScalarValue {
             | ScalarValue::Float(_)
             | ScalarValue::Str(_)
             | ScalarValue::Json(_)
-            | ScalarValue::Typed(_) => Err(QueryError::General(
+            | ScalarValue::Typed(_)
+            | ScalarValue::Array(_) => Err(QueryError::General(
                 "Boolean expression requires BOOLEAN or SQL NULL".to_string(),
             )),
         }
@@ -214,6 +227,7 @@ impl ScalarValue {
             ScalarValue::Float(v) => Value::Float64(*v),
             ScalarValue::Str(v) | ScalarValue::Json(v) => Value::String(v.clone()),
             ScalarValue::Typed(v) => Value::Typed(v.clone()),
+            ScalarValue::Array(v) => Value::Array(v.clone()),
         }
     }
 }
@@ -423,6 +437,9 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             .get(*index)
             .map_or(ScalarValue::Null, scalar_from_value)),
         Expr::Function(function) => evaluate_function_scalar(row, function, context),
+        Expr::ArraySubscript { array, subscripts } => {
+            array_subscript::evaluate(row, array, subscripts, context)
+        }
         Expr::Binary { left, op, right } => eval_binary_expr(row, left, op, right, context),
         Expr::TruthTest {
             expr,
@@ -471,6 +488,7 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             *identity,
             context,
         ),
+        Expr::Collate { expr, .. } => eval_scalar_with_context(row, expr, context),
         Expr::Exists(_) => match context.exists {
             None => Err(QueryError::General(
                 "EXISTS predicate was not resolved before filtering".to_string(),
@@ -598,10 +616,7 @@ fn cast_scalar(
                 .map(ScalarValue::Json)
                 .map_err(|error| crate::app::CassieError::TypeInput(error).into())
         }
-        DataType::Array(element) if **element == DataType::Text => text_arrays::cast(value),
-        DataType::Array(_) => Err(QueryError::General(
-            "cannot cast scalar value to ARRAY".to_string(),
-        )),
+        DataType::Array(element) => text_arrays::cast(value, element),
         DataType::Vector(_) => Err(QueryError::General(
             "cannot cast scalar value to VECTOR".to_string(),
         )),
@@ -614,6 +629,7 @@ fn cast_string_scalar(value: &ScalarValue) -> String {
         ScalarValue::Int(value) => value.to_string(),
         ScalarValue::Float(value) => value.to_string(),
         ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
+        ScalarValue::Array(value) => value.to_nested_json().to_string(),
         ScalarValue::Typed(value) => value.text(),
         ScalarValue::Null => String::new(),
     }
@@ -625,6 +641,7 @@ fn cast_to_text(value: &ScalarValue) -> Option<String> {
         ScalarValue::Int(value) => Some(value.to_string()),
         ScalarValue::Float(value) => Some(value.to_string()),
         ScalarValue::Str(value) | ScalarValue::Json(value) => Some(value.clone()),
+        ScalarValue::Array(value) => Some(value.to_nested_json().to_string()),
         ScalarValue::Typed(value) => Some(value.text()),
         ScalarValue::Null => None,
     }
@@ -640,7 +657,7 @@ fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
                 .map(ScalarValue::Bool)
                 .ok_or_else(|| QueryError::General("cannot cast value to BOOLEAN".to_string()))
         }
-        ScalarValue::Typed(_) => Err(QueryError::General(
+        ScalarValue::Typed(_) | ScalarValue::Array(_) => Err(QueryError::General(
             "cannot cast value to BOOLEAN".to_string(),
         )),
         ScalarValue::Null => Ok(ScalarValue::Null),
@@ -671,6 +688,7 @@ fn cast_json_text(
         ScalarValue::Int(value) => value.to_string(),
         ScalarValue::Float(value) => value.to_string(),
         ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
+        ScalarValue::Array(value) => value.to_nested_json().to_string(),
         ScalarValue::Typed(value) => value.text(),
         ScalarValue::Null => "null".to_string(),
     };
@@ -808,7 +826,7 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
     }
 }
 
-fn scalar_from_value(value: &Value) -> ScalarValue {
+pub(super) fn scalar_from_value(value: &Value) -> ScalarValue {
     match value {
         Value::Bool(v) => ScalarValue::Bool(*v),
         Value::Int64(v) => ScalarValue::Int(*v),
@@ -824,6 +842,7 @@ fn scalar_from_value(value: &Value) -> ScalarValue {
         )),
         Value::Json(v) => ScalarValue::Json(v.to_string()),
         Value::Typed(v) => ScalarValue::Typed(v.clone()),
+        Value::Array(v) => ScalarValue::Array(v.clone()),
         Value::Null => ScalarValue::Null,
     }
 }

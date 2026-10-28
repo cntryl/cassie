@@ -861,7 +861,8 @@ fn parsed_statement_uses_virtual_catalog(statement: &crate::sql::ast::ParsedStat
 
 fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> bool {
     match source {
-        crate::sql::ast::QuerySource::Aliased { source, .. } => {
+        crate::sql::ast::QuerySource::Aliased { source, .. }
+        | crate::sql::ast::QuerySource::TableSample { source, .. } => {
             query_source_uses_virtual_catalog(source)
         }
         crate::sql::ast::QuerySource::Collection(name) => {

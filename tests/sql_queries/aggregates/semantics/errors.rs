@@ -256,3 +256,31 @@ fn should_reject_order_by_column_that_is_not_grouped() {
         );
     }
 }
+
+#[test]
+fn should_reject_having_column_that_is_not_grouped_or_aggregated() {
+    // Arrange
+    let fixture = grouping_fixture("aggregate_having_ungrouped");
+
+    // Act
+    let errors = [
+        "SELECT g, COUNT(*) AS n FROM m GROUP BY g HAVING v > 0",
+        "SELECT COUNT(*) AS n FROM m HAVING v > 0",
+    ]
+    .map(|sql| fixture.error(sql));
+
+    // Assert
+    for error in errors {
+        assert!(
+            matches!(
+                &error,
+                cassie::app::CassieError::Diagnostic(diagnostic)
+                    if diagnostic.sql_state == "42803"
+                        && diagnostic.message.contains(
+                            "must appear in the GROUP BY clause or be used in an aggregate function"
+                        )
+            ),
+            "an ungrouped HAVING column must be rejected"
+        );
+    }
+}

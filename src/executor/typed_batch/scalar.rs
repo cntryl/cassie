@@ -147,6 +147,7 @@ fn parameter_oid(value: &Value) -> i32 {
         Value::String(_) => DataType::Text,
         Value::Vector(value) => DataType::Vector(value.values.len()),
         Value::Json(_) => DataType::Json,
+        Value::Array(_) => return 0,
         Value::Typed(value) => DataType::Extended(value.kind()),
     };
     i32::try_from(data_type.type_oid()).unwrap_or(0)
@@ -188,6 +189,7 @@ fn literal_bytes(expr: &Expr, params: &[Value]) -> Result<usize, crate::app::Cas
             )?;
             add(target, source)
         }
+        Expr::Collate { collation, .. } => Ok(collation.len()),
         Expr::Param(index) => params.get(*index).map_or(Ok(0), value_clone_bytes),
         _ => Ok(0),
     };

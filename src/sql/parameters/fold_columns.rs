@@ -3,6 +3,7 @@
 use super::expressions::oid;
 use super::Fold;
 use crate::sql::{ast, binder, ColumnIdentifierPath};
+use crate::types::DataType;
 
 impl Fold<'_, '_> {
     pub(super) fn column_oid(&self, context: usize, name: &str) -> Option<i32> {
@@ -25,6 +26,9 @@ impl Fold<'_, '_> {
             ast::QuerySource::Collection(name) => crate::catalog::qualifier_variants(name)
                 .iter()
                 .any(|candidate| candidate == qualifier),
+            ast::QuerySource::TableSample { source, .. } => {
+                matches!(source.as_ref(), ast::QuerySource::Collection(name) if crate::catalog::qualifier_variants(name).iter().any(|candidate| candidate == qualifier))
+            }
             ast::QuerySource::Cte(name) | ast::QuerySource::Subquery { alias: name, .. } => {
                 owns_alias(name, namespace)
             }
@@ -61,6 +65,7 @@ impl Fold<'_, '_> {
             ast::Expr::Column(name) => self.column_oid(context, name),
             ast::Expr::IntegerNegate { width, .. } => Some(oid(&width.data_type())),
             ast::Expr::Cast { data_type, .. } => Some(oid(data_type)),
+            ast::Expr::Collate { expr, .. } => self.known_operand_oid(expr, context),
             ast::Expr::StringLiteral(_) => Some(25),
             ast::Expr::NumberLiteral(_) => Some(701),
             ast::Expr::IntegerLiteral(value) => Some(oid(&binder::integer_literal_type(*value))),
@@ -81,6 +86,26 @@ impl Fold<'_, '_> {
             | ast::Expr::Case { .. } => None,
             ast::Expr::Subquery(subquery) => {
                 subquery.result_type().map(|data_type| oid(&data_type))
+            }
+            ast::Expr::ArraySubscript { array, subscripts } => {
+                let base_oid = self.known_operand_oid(array, context)?;
+                let mut data_type = binder::parameter_data_type_for_oid(base_oid)?;
+                for subscript in subscripts {
+                    match subscript {
+                        ast::ArraySubscript::Index(_) => {
+                            let DataType::Array(element) = data_type else {
+                                return None;
+                            };
+                            data_type = *element;
+                        }
+                        ast::ArraySubscript::Slice { .. } => {
+                            if !matches!(&data_type, DataType::Array(_)) {
+                                return None;
+                            }
+                        }
+                    }
+                }
+                Some(oid(&data_type))
             }
         }
     }

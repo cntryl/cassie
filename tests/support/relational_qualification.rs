@@ -77,11 +77,16 @@ pub fn fixture() -> Fixture {
 }
 
 pub fn fixture_with_vectorized_joins(enabled: bool) -> Fixture {
+    fixture_with_join_batch_size(enabled, 1024)
+}
+
+pub fn fixture_with_join_batch_size(enabled: bool, batch_size: usize) -> Fixture {
     let mut config = CassieRuntimeConfig::default();
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 64 * 1024 * 1024;
     config.limits.vectorized_joins_enabled = enabled;
+    config.limits.vectorized_join_batch_size = batch_size;
     let cassie = Arc::new(Cassie::new_in_memory_with_config(config).expect("qualification engine"));
     cassie.startup().expect("startup before seed");
     let session = cassie.create_session("tester", None);
@@ -154,7 +159,9 @@ pub fn assert_seed_carriers(fixture: &Fixture) {
                                     Some(value.as_str())
                                         == cell.value.as_ref().and_then(serde_json::Value::as_str)
                                 }
-                                (Value::Json(value), "array") => Some(value) == cell.value.as_ref(),
+                                (Value::Array(value), "array") => {
+                                    matches_seed_array(value, cell.value.as_ref())
+                                }
                                 _ => false,
                             }
                         })
@@ -166,5 +173,60 @@ pub fn assert_seed_carriers(fixture: &Fixture) {
             matched.into_iter().all(|present| present),
             "unmatched carrier row"
         );
+    }
+}
+
+fn matches_seed_array(
+    array: &cassie::types::SqlArray,
+    expected: Option<&serde_json::Value>,
+) -> bool {
+    let Some(expected) = expected.and_then(serde_json::Value::as_array) else {
+        return false;
+    };
+    let shape_matches = if expected.is_empty() {
+        array.dimensions().is_empty()
+    } else {
+        matches!(array.dimensions(), [dimension] if dimension.lower_bound == 1 && usize::try_from(dimension.length) == Ok(expected.len()))
+    };
+    shape_matches
+        && array.elements().len() == expected.len()
+        && array.elements().iter().zip(expected).all(|(actual, expected)| {
+            matches!((actual, expected), (Value::Null, serde_json::Value::Null))
+                || matches!((actual, expected), (Value::String(actual), serde_json::Value::String(expected)) if actual == expected)
+        })
+}
+
+#[cfg(test)]
+mod seed_array_tests {
+    use super::matches_seed_array;
+    use cassie::types::{ArrayDimension, SqlArray, Value};
+
+    #[test]
+    fn should_require_seed_array_shape_with_sql_null_slots() {
+        // Arrange
+        let expected = serde_json::json!(["x", null]);
+        let elements = vec![Value::String("x".to_owned()), Value::Null];
+        let valid = SqlArray::from_elements(elements.clone()).expect("default array");
+        let wrong_bound = SqlArray::new(
+            vec![ArrayDimension {
+                length: 2,
+                lower_bound: 0,
+            }],
+            elements,
+        )
+        .expect("nondefault array");
+        let wrong_null = SqlArray::from_elements(vec![
+            Value::String("x".to_owned()),
+            Value::Json(serde_json::Value::Null),
+        ])
+        .expect("document null array");
+
+        // Act
+        let results = [valid, wrong_bound, wrong_null]
+            .each_ref()
+            .map(|array| matches_seed_array(array, Some(&expected)));
+
+        // Assert
+        assert_eq!(results, [true, false, false]);
     }
 }

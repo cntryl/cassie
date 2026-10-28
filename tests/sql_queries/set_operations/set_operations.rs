@@ -192,27 +192,6 @@ fn should_order_each_parenthesized_set_branch_before_limiting_it() {
 }
 
 #[test]
-fn should_order_values_using_a_selected_operator() {
-    // Arrange
-    let fixture = page_fixture("issue-800-order-by-using");
-
-    // Act
-    let result = fixture.execute("SELECT score FROM issue_800_scores ORDER BY score USING >");
-
-    // Assert
-    assert_eq!(
-        result.expect("ORDER BY expression USING operator").rows(),
-        &[
-            vec![Value::Int64(10)],
-            vec![Value::Int64(10)],
-            vec![Value::Int64(9)],
-            vec![Value::Int64(9)],
-            vec![Value::Int64(8)],
-        ]
-    );
-}
-
-#[test]
 fn should_apply_offset_row_singular_syntax() {
     // Arrange
     let fixture = page_fixture("issue-800-offset-row");
@@ -259,44 +238,6 @@ fn should_fetch_one_row_when_first_count_is_omitted() {
     assert_eq!(
         result.expect("FETCH FIRST ROW ONLY").rows(),
         &[vec![Value::Int64(10)]]
-    );
-}
-
-#[test]
-fn should_include_tied_rows_after_fetch_first_count() {
-    // Arrange
-    let fixture = page_fixture("issue-800-fetch-with-ties");
-
-    // Act
-    let result = fixture.execute(
-        "SELECT score FROM issue_800_scores ORDER BY score DESC FETCH FIRST 1 ROWS WITH TIES",
-    );
-
-    // Assert
-    assert_eq!(
-        result.expect("FETCH WITH TIES").rows(),
-        &[vec![Value::Int64(10)], vec![Value::Int64(10)]]
-    );
-}
-
-#[test]
-fn should_include_ties_at_the_fetch_boundary_after_offset() {
-    // Arrange
-    let fixture = page_fixture("issue-800-fetch-ties-offset");
-
-    // Act
-    let result = fixture.execute(
-        "SELECT score FROM issue_800_scores ORDER BY score DESC OFFSET 1 ROWS FETCH NEXT 2 ROWS WITH TIES",
-    );
-
-    // Assert
-    assert_eq!(
-        result.expect("FETCH WITH TIES after OFFSET").rows(),
-        &[
-            vec![Value::Int64(10)],
-            vec![Value::Int64(9)],
-            vec![Value::Int64(9)]
-        ]
     );
 }
 

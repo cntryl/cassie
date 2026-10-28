@@ -73,4 +73,20 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         is_aggregate: false,
         bypass_arity_validation: false,
     },
+    ScalarFunction {
+        id: FunctionId::PgInputIsValid,
+        name: "pg_input_is_valid",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgInputIsValid,
+        name: "pg_catalog.pg_input_is_valid",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Boolean,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
 ];

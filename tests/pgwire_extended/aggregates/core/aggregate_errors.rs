@@ -17,6 +17,9 @@ fn should_apply_primary_key_functional_dependency_for_grouped_aggregates() {
     steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
         "SELECT id, region, SUM(amount) FROM issue_804_grouped_without_key GROUP BY id",
     )]));
+    steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT id, COUNT(*) FROM issue_804_grouped_without_key GROUP BY id HAVING region <> ''",
+    )]));
     let batches = run_script(
         "issue-804-primary-key-grouping-functional-dependency",
         steps,
@@ -25,6 +28,7 @@ fn should_apply_primary_key_functional_dependency_for_grouped_aggregates() {
     // Act
     let valid = &batches[4];
     let invalid = &batches[5];
+    let invalid_having = &batches[6];
 
     // Assert
     assert!(
@@ -70,6 +74,12 @@ fn should_apply_primary_key_functional_dependency_for_grouped_aggregates() {
         wire::data_rows(invalid),
         Vec::<Vec<Option<String>>>::new(),
         "the invalid grouped query must not publish partial rows"
+    );
+    assert_eq!(wire::error_code(invalid_having).as_deref(), Some("42803"));
+    assert_eq!(
+        wire::data_rows(invalid_having),
+        Vec::<Vec<Option<String>>>::new(),
+        "invalid HAVING must not publish partial rows"
     );
 }
 

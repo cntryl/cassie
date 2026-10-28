@@ -131,7 +131,13 @@ fn mutate(
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
     let mut document = parse(&args[0])?;
-    let path_text = super::json_functions::json_text(&args[1])?;
+    let path_text = match &args[1] {
+        Value::Array(path) => crate::types::array_value::format_text(path, &DataType::Text)
+            .ok_or_else(|| {
+                CassieError::InvalidParameterValue("JSON path must be a text array".into())
+            })?,
+        value => super::json_functions::json_text(value)?,
+    };
     let path = crate::types::array::parse_text_array(&path_text, &DataType::Text)
         .map_err(|error| CassieError::ArrayInput(error.to_string()))?;
     let path = path.as_array().ok_or_else(|| {

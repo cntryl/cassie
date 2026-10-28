@@ -4,4 +4,4 @@ Generated from `inventory.json`. Selected destinations record the reviewed physi
 
 | Test | Current source | Selected destination | Registration | Ignored | Instances | Placement review |
 | --- | --- | --- | --- | --- | ---: | --- |
-| `should_match_temporal_string_predicates_after_index_creation` | [tests/temporal_predicate_literals/types/temporal/semantics.rs:29](../../../tests/temporal_predicate_literals/types/temporal/semantics.rs#L29) | `tests/temporal_predicate_literals/types/temporal/semantics.rs` | registered | no | 1 | selected |
+| `should_match_temporal_string_predicates_after_index_creation` | [tests/temporal_predicate_literals/types/temporal/semantics.rs:25](../../../tests/temporal_predicate_literals/types/temporal/semantics.rs#L25) | `tests/temporal_predicate_literals/types/temporal/semantics.rs` | registered | no | 1 | selected |

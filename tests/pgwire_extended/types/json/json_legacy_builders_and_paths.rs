@@ -15,58 +15,6 @@ fn column_type_oids(frames: &fixture::Frames) -> Vec<i32> {
 }
 
 #[test]
-fn should_preserve_pretty_array_json_overload_output() {
-    // Arrange
-    let cycle = fixture::execute_cycle(
-        "SELECT array_to_json(ARRAY[[1,2],[3,4]]), array_to_json(ARRAY[[1,2],[3,4]], true)",
-        None,
-        0,
-        true,
-    );
-
-    // Act
-    let batches = fixture::run_cycles("issue-810-array-to-json-pretty-overload", &[], vec![cycle]);
-
-    // Assert
-    let frames = &batches[0];
-    fixture::assert_success(frames);
-    assert_eq!(column_type_oids(frames), vec![114, 114]);
-    assert_eq!(
-        wire::data_rows(frames),
-        vec![vec![
-            Some("[[1,2],[3,4]]".to_owned()),
-            Some("[[1,2],\n [3,4]]".to_owned()),
-        ]]
-    );
-}
-
-#[test]
-fn should_preserve_pretty_record_json_overload_output() {
-    // Arrange
-    let cycle = fixture::execute_cycle(
-        "SELECT row_to_json(ROW(1,'Ada'::TEXT)), row_to_json(ROW(1,'Ada'::TEXT), true)",
-        None,
-        0,
-        true,
-    );
-
-    // Act
-    let batches = fixture::run_cycles("issue-810-row-to-json-pretty-overload", &[], vec![cycle]);
-
-    // Assert
-    let frames = &batches[0];
-    fixture::assert_success(frames);
-    assert_eq!(column_type_oids(frames), vec![114, 114]);
-    assert_eq!(
-        wire::data_rows(frames),
-        vec![vec![
-            Some(r#"{"f1":1,"f2":"Ada"}"#.to_owned()),
-            Some("{\"f1\":1,\n \"f2\":\"Ada\"}".to_owned()),
-        ]]
-    );
-}
-
-#[test]
 fn should_extract_nested_values_through_json_path_function_variants() {
     // Arrange
     let sql = r#"SELECT

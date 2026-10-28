@@ -67,6 +67,12 @@ pub enum QuerySource {
     },
     Collection(IdentifierPath),
     Cte(String),
+    TableSample {
+        source: Box<QuerySource>,
+        method: TableSampleMethod,
+        rate: Expr,
+        repeatable: Option<Expr>,
+    },
     Aliased {
         source: Box<QuerySource>,
         alias: String,
@@ -107,6 +113,29 @@ impl PartialEq for QuerySource {
             (Self::Collection(left), Self::Collection(right)) => left == right,
             (Self::Cte(left), Self::Cte(right)) => left == right,
             (
+                Self::TableSample {
+                    source: left_source,
+                    method: left_method,
+                    rate: left_rate,
+                    repeatable: left_repeatable,
+                },
+                Self::TableSample {
+                    source: right_source,
+                    method: right_method,
+                    rate: right_rate,
+                    repeatable: right_repeatable,
+                },
+            ) => {
+                left_source == right_source
+                    && left_method == right_method
+                    && left_rate.structurally_eq(right_rate)
+                    && match (left_repeatable, right_repeatable) {
+                        (Some(left), Some(right)) => left.structurally_eq(right),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            (
                 Self::Aliased {
                     source: left,
                     alias: left_alias,
@@ -128,6 +157,13 @@ impl PartialEq for QuerySource {
 }
 
 impl Eq for QuerySource {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TableSampleMethod {
+    Bernoulli,
+    System,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JoinKind {
@@ -203,6 +239,18 @@ pub struct FunctionCall {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub order_by: Vec<OrderExpr>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ArraySubscript {
+    Index(Expr),
+    Slice {
+        lower: Option<Expr>,
+        upper: Option<Expr>,
+    },
+}
+
+/// Internal parser/binder marker for SQL `ARRAY[...]` constructors.
+pub const ARRAY_CONSTRUCTOR_FUNCTION: &str = "__cassie_array_constructor";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateQuantifier {
@@ -379,6 +427,15 @@ pub enum Expr {
         source_type: Option<DataType>,
         #[serde(default)]
         identity: CastIdentity,
+    },
+    /// Explicit built-in collation applied to an expression without changing its value carrier.
+    Collate {
+        expr: Box<Expr>,
+        collation: String,
+    },
+    ArraySubscript {
+        array: Box<Expr>,
+        subscripts: Vec<ArraySubscript>,
     },
     /// Numeric prefix operator, resolved against its operand during binding.
     UnaryNumeric {

@@ -193,6 +193,19 @@ impl Folder<'_> {
             }
 
             QuerySource::Aliased { source, .. } => self.check_source(source),
+            QuerySource::TableSample {
+                source,
+                rate,
+                repeatable,
+                ..
+            } => {
+                self.check_source(source)?;
+                self.check(rate)?;
+                if let Some(seed) = repeatable {
+                    self.check(seed)?;
+                }
+                Ok(())
+            }
             QuerySource::TableFunction { function, .. } => self.check_all(function.expressions()),
             QuerySource::Subquery { select, .. } => self.check_statement_select(select),
             QuerySource::Join {
@@ -322,7 +335,9 @@ impl Folder<'_> {
                     .is_some_and(|value| {
                         !matches!(
                             value,
-                            crate::types::Value::Json(_) | crate::types::Value::Vector(_)
+                            crate::types::Value::Json(_)
+                                | crate::types::Value::Vector(_)
+                                | crate::types::Value::Array(_)
                         )
                     })
                 {
@@ -375,6 +390,7 @@ impl Folder<'_> {
                 fold => fold,
             }),
             Expr::Cast { expr, .. }
+            | Expr::Collate { expr, .. }
             | Expr::UnaryNumeric { expr, .. }
             | Expr::IntegerNegate { expr, .. } => self.fold_operands([&**expr], true, false),
             // `x IN (...)` folds as `x = ANY(ARRAY[...])`: every element folds,
@@ -407,8 +423,28 @@ impl Folder<'_> {
                 branches,
                 else_expr,
             } => self.fold_case(operand.as_deref(), branches, else_expr.as_deref()),
+            Expr::ArraySubscript { array, subscripts } => {
+                self.fold_array_subscript(array, subscripts)
+            }
             Expr::Function(function) => self.fold_function(function),
         }
+    }
+
+    fn fold_array_subscript<'e>(
+        &self,
+        array: &'e Expr,
+        subscripts: &'e [crate::sql::ast::ArraySubscript],
+    ) -> Result<Fold, QueryError> {
+        let mut operands = vec![array];
+        for subscript in subscripts {
+            match subscript {
+                crate::sql::ast::ArraySubscript::Index(index) => operands.push(index),
+                crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                    operands.extend(lower.iter().chain(upper.iter()));
+                }
+            }
+        }
+        self.fold_operands(operands, true, false)
     }
 
     fn fold_like(

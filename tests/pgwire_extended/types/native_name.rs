@@ -1,4 +1,4 @@
-//! Native NAME and NAME[] codecs reuse the existing string and JSON-array carriers.
+//! Native NAME and NAME[] codecs preserve their PostgreSQL wire identities.
 
 use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
@@ -90,7 +90,7 @@ fn should_bind_native_name_carriers_in_all_wire_formats() {
         wire::data_rows(&batches[0]),
         vec![vec![
             Some("alpha".to_owned()),
-            Some("[\"alpha\",null]".to_owned())
+            Some("{alpha,NULL}".to_owned())
         ]]
     );
     assert_eq!(
@@ -101,7 +101,7 @@ fn should_bind_native_name_carriers_in_all_wire_formats() {
         wire::data_rows(&batches[2]),
         vec![vec![
             Some("alpha".to_owned()),
-            Some("[\"alpha\",null]".to_owned())
+            Some("{alpha,NULL}".to_owned())
         ]]
     );
     assert_eq!(
@@ -156,7 +156,7 @@ fn should_preserve_native_name_cast_assignment_descriptors() {
         wire::data_rows(&batches[0]),
         vec![vec![
             Some("alpha".to_owned()),
-            Some("[\"alpha\",null]".to_owned())
+            Some("{alpha,NULL}".to_owned())
         ]]
     );
     assert_eq!(

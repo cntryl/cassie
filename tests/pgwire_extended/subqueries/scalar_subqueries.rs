@@ -1,35 +1,35 @@
 //! PostgreSQL Parse, Describe, Bind and Execute behavior for #762 subqueries.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 type PredicateCase = (&'static str, Vec<Vec<Option<&'static str>>>, i32);
 type WireBatch = Vec<(u8, Vec<u8>)>;
 
-struct ScalarSubqueryFixtureDirectory(String);
-
-impl Drop for ScalarSubqueryFixtureDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
+fn setup() -> Vec<Step> {
+    vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE scalar_wire_values (id INT, value INT)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO scalar_wire_values (id, value) VALUES (1, 100), (2, 200)",
+        )]),
+    ]
 }
 
-fn setup() -> Step {
-    Step::ThroughReady(vec![wire::simple_query_frame(
-        "CREATE TABLE scalar_wire_values (id INT, value INT); \
-         INSERT INTO scalar_wire_values (id, value) VALUES (1, 100), (2, 200)",
-    )])
-}
-
-fn predicate_setup() -> Step {
-    Step::ThroughReady(vec![wire::simple_query_frame(
-        "CREATE TABLE subquery_predicate_values (id INT, n INT); \
-         INSERT INTO subquery_predicate_values (id, n) \
-         VALUES (1, 100), (2, 200), (3, NULL)",
-    )])
+fn predicate_setup() -> Vec<Step> {
+    vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "CREATE TABLE subquery_predicate_values (id INT, n INT)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "INSERT INTO subquery_predicate_values (id, n) \
+             VALUES (1, 100), (2, 200), (3, NULL)",
+        )]),
+    ]
 }
 
 fn error_summary(batch: &[(u8, Vec<u8>)]) -> Option<String> {
@@ -44,53 +44,10 @@ fn error_summary(batch: &[(u8, Vec<u8>)]) -> Option<String> {
     )
 }
 
-async fn connect_activity_observer(
-    address: std::net::SocketAddr,
-) -> (
-    tokio::net::tcp::OwnedReadHalf,
-    tokio::net::tcp::OwnedWriteHalf,
-) {
-    let socket = tokio::net::TcpStream::connect(address)
-        .await
-        .expect("activity observer connection");
-    let (mut reader, mut writer) = socket.into_split();
-    wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
-    (reader, writer)
-}
-
-async fn wait_for_active_query(
-    reader: &mut tokio::net::tcp::OwnedReadHalf,
-    writer: &mut tokio::net::tcp::OwnedWriteHalf,
-    target_pid: i32,
-    marker: &str,
-) -> bool {
-    let deadline = Instant::now() + Duration::from_secs(3);
-    let sql =
-        format!("SELECT state, query FROM pg_catalog.pg_stat_activity WHERE pid = {target_pid}");
-    loop {
-        wire::write_frames(writer, vec![wire::simple_query_frame(&sql)]).await;
-        let frames = wire::read_frames_until_ready_within(reader, Duration::from_secs(2)).await;
-        if wire::error_code(&frames).is_none()
-            && wire::data_rows(&frames).iter().any(|row| {
-                row[0].as_deref() == Some("active")
-                    && row[1]
-                        .as_deref()
-                        .is_some_and(|query| query.contains(marker))
-            })
-        {
-            return true;
-        }
-        if Instant::now() >= deadline {
-            return false;
-        }
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
-}
-
 fn assert_predicate_truth_table_results(cases: &[PredicateCase], batches: &[WireBatch]) {
     let mut mismatches = Vec::new();
     for (index, (sql, expected_rows, expected_oid)) in cases.iter().enumerate() {
-        let batch = &batches[index + 1];
+        let batch = &batches[index + 2];
         if let Some(state) = wire::error_code(batch) {
             mismatches.push(format!(
                 "{sql}: unexpected SQLSTATE {state} ({})",
@@ -139,16 +96,13 @@ fn should_execute_scalar_subqueries_in_simple_query_protocol() {
     // Arrange
     let batches = run_script(
         "issue-762-scalar-simple-query",
-        vec![
-            setup(),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT (SELECT 17 AS scalar_value) AS scalar_value",
-            )]),
-        ],
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT (SELECT 17 AS scalar_value) AS scalar_value",
+        )])],
     );
 
     // Act
-    let result = &batches[1];
+    let result = &batches[0];
 
     // Assert
     assert_eq!(wire::error_code(result), None);
@@ -158,18 +112,14 @@ fn should_execute_scalar_subqueries_in_simple_query_protocol() {
 #[test]
 fn should_filter_rows_with_a_scalar_subquery_predicate() {
     // Arrange
-    let batches = run_script(
-        "issue-762-scalar-predicate-wire",
-        vec![
-            setup(),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT id FROM scalar_wire_values WHERE value = (SELECT 100) ORDER BY id",
-            )]),
-        ],
-    );
+    let mut steps = setup();
+    steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT id FROM scalar_wire_values WHERE value = (SELECT 100) ORDER BY id",
+    )]));
+    let batches = run_script("issue-762-scalar-predicate-wire", steps);
 
     // Act
-    let result = &batches[1];
+    let result = &batches[2];
 
     // Assert
     assert_eq!(wire::error_code(result), None);
@@ -179,21 +129,17 @@ fn should_filter_rows_with_a_scalar_subquery_predicate() {
 #[test]
 fn should_return_correlated_scalar_values_for_each_outer_row() {
     // Arrange
-    let batches = run_script(
-        "issue-762-correlated-scalar-projection-wire",
-        vec![
-            setup(),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT outer_row.id, \
-                 (SELECT inner_row.value FROM scalar_wire_values AS inner_row \
-                  WHERE inner_row.id = outer_row.id + 1) AS next_value \
-                 FROM scalar_wire_values AS outer_row ORDER BY outer_row.id",
-            )]),
-        ],
-    );
+    let mut steps = setup();
+    steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT outer_row.id, \
+         (SELECT inner_row.value FROM scalar_wire_values AS inner_row \
+          WHERE inner_row.id = outer_row.id + 1) AS next_value \
+         FROM scalar_wire_values AS outer_row ORDER BY outer_row.id",
+    )]));
+    let batches = run_script("issue-762-correlated-scalar-projection-wire", steps);
 
     // Act
-    let result = &batches[1];
+    let result = &batches[2];
 
     // Assert
     assert_eq!(wire::error_code(result), None);
@@ -309,82 +255,113 @@ fn should_evaluate_an_uncorrelated_volatile_scalar_subquery_once() {
 #[test]
 fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results() {
     // Arrange
-    let path = wire::data_dir("issue-762-scalar-subquery-cancel");
-    let _directory = ScalarSubqueryFixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     // Act
-    let (baseline, cancelled, recovery, active_query_observed) = runtime.block_on(async {
-        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
-        cassie.startup().expect("start scalar cancellation fixture");
-        let server = wire::spawn_server(cassie).await;
-        let (mut observer_reader, mut observer_writer) =
-            connect_activity_observer(server.addr).await;
-        let socket = tokio::net::TcpStream::connect(server.addr)
-            .await
-            .expect("query connection");
-        let (mut reader, mut writer) = socket.into_split();
-        let (process_id, secret_key) =
-            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
-
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame(
-                "SELECT (SELECT 45 WHERE pg_sleep(0) IS NOT NULL)",
-            )],
-        )
-        .await;
-        let baseline =
-            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
-
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame(
-                "SELECT (SELECT 45 WHERE pg_sleep(60) IS NOT NULL) \
-                 /* issue_762_scalar_cancel */",
-            )],
-        )
-        .await;
-        // This proves only that the marked query is active in the backend. The
-        // scalar-subquery prerequisite must still succeed before cancellation
-        // can be counted as subquery-specific evidence.
-        let active_query_observed = wait_for_active_query(
-            &mut observer_reader,
-            &mut observer_writer,
-            process_id,
-            "issue_762_scalar_cancel",
-        )
-        .await;
-        let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
-            .await
-            .expect("cancel connection");
-        cancel_socket
-            .write_all(&wire::cancel_request_frame(process_id, secret_key))
-            .await
-            .expect("write cancel request");
-        cancel_socket
-            .shutdown()
-            .await
-            .expect("close cancel request");
-        let cancelled =
-            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
-
-        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 46")]).await;
-        let recovery =
-            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
-
-        drop(reader);
-        drop(writer);
-        drop(observer_reader);
-        drop(observer_writer);
-        server.stop().await;
-        (baseline, cancelled, recovery, active_query_observed)
-    });
+    let outcome = runtime.block_on(run_sleeping_scalar_cancellation());
 
     // Assert
+    assert_sleep_cancellation_outcome(outcome);
+}
+
+struct SleepCancellationOutcome {
+    baseline: Vec<(u8, Vec<u8>)>,
+    cancelled: Vec<(u8, Vec<u8>)>,
+    recovery: Vec<(u8, Vec<u8>)>,
+    baseline_running_queries: u64,
+    running_queries_before_cancel: u64,
+}
+
+async fn run_sleeping_scalar_cancellation() -> SleepCancellationOutcome {
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
+    cassie.startup().expect("start scalar cancellation fixture");
+    let metrics_observer = cassie.clone();
+    let server = wire::spawn_server(cassie).await;
+    let socket = tokio::net::TcpStream::connect(server.addr)
+        .await
+        .expect("query connection");
+    let (mut reader, mut writer) = socket.into_split();
+    let (process_id, secret_key) =
+        wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+    wire::write_frames(
+        &mut writer,
+        vec![wire::simple_query_frame(
+            "SELECT (SELECT 45 WHERE pg_sleep(0) IS NOT NULL)",
+        )],
+    )
+    .await;
+    let baseline = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+    let baseline_running_queries = metrics_observer.metrics()["running_queries"]
+        .as_u64()
+        .expect("running query metric");
+
+    let (_pause_guard, selected, resume) = ::cassie::runtime::pause_next_query_at_sleep_entry();
+
+    wire::write_frames(
+        &mut writer,
+        vec![wire::simple_query_frame(
+            "SELECT (SELECT pg_sleep(60) IS NULL)",
+        )],
+    )
+    .await;
+    tokio::task::spawn_blocking(move || selected.recv_timeout(Duration::from_secs(5)))
+        .await
+        .expect("sleep-entry observer task")
+        .expect("scalar subquery must enter pg_sleep before cancellation");
+    let running_queries_before_cancel = metrics_observer.metrics()["running_queries"]
+        .as_u64()
+        .expect("running query metric");
+    let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
+        .await
+        .expect("cancel connection");
+    cancel_socket
+        .write_all(&wire::cancel_request_frame(process_id, secret_key))
+        .await
+        .expect("write cancel request");
+    cancel_socket
+        .shutdown()
+        .await
+        .expect("close cancel request");
+    let mut cancel_response = [0; 1];
+    let cancel_response_bytes = cancel_socket
+        .read(&mut cancel_response)
+        .await
+        .expect("wait for cancellation connection to close");
+    assert_eq!(
+        cancel_response_bytes, 0,
+        "CancelRequest has no response body"
+    );
+    resume
+        .send(())
+        .expect("resume sleeping scalar subquery after CancelRequest");
+    let cancelled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+    wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 46")]).await;
+    let recovery = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+    drop(reader);
+    drop(writer);
+    server.stop().await;
+    SleepCancellationOutcome {
+        baseline,
+        cancelled,
+        recovery,
+        baseline_running_queries,
+        running_queries_before_cancel,
+    }
+}
+
+fn assert_sleep_cancellation_outcome(outcome: SleepCancellationOutcome) {
+    let SleepCancellationOutcome {
+        baseline,
+        cancelled,
+        recovery,
+        baseline_running_queries,
+        running_queries_before_cancel,
+    } = outcome;
     assert_eq!(
         wire::error_code(&baseline),
         None,
@@ -392,9 +369,14 @@ fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_re
         error_summary(&baseline)
     );
     assert_eq!(wire::data_rows(&baseline), vec![vec![Some("45".into())]]);
-    assert!(
-        active_query_observed,
-        "the scalar-subquery query marker must be active before cancellation"
+    assert_eq!(
+        baseline_running_queries, 0,
+        "the completed baseline query must release its running-query permit"
+    );
+    assert_eq!(
+        running_queries_before_cancel,
+        baseline_running_queries + 1,
+        "the scalar-subquery query must be running before cancellation"
     );
     assert_eq!(
         wire::error_code(&cancelled).as_deref(),
@@ -421,16 +403,13 @@ fn should_return_a_null_value_from_a_one_row_null_scalar_subquery() {
     // Arrange
     let batches = run_script(
         "issue-762-scalar-null-value-wire",
-        vec![
-            setup(),
-            Step::ThroughReady(vec![wire::simple_query_frame(
-                "SELECT (SELECT NULL::INT4) AS scalar_value",
-            )]),
-        ],
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT (SELECT NULL::INT4) AS scalar_value",
+        )])],
     );
 
     // Act
-    let result = &batches[1];
+    let result = &batches[0];
 
     // Assert
     assert_eq!(wire::error_code(result), None);
@@ -445,25 +424,23 @@ fn should_return_a_null_value_from_a_one_row_null_scalar_subquery() {
 #[test]
 fn should_describe_scalar_subquery_parameter_metadata() {
     // Arrange
-    let batches = run_script(
-        "issue-762-scalar-describe",
-        vec![
-            setup(),
-            Step::ParseFlush(wire::parse_frame_with_types(
-                "scalar_subquery",
-                "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
-                &[0],
-            )),
-            Step::ThroughReady(vec![
-                wire::describe_statement_frame("scalar_subquery"),
-                wire::sync_frame(),
-            ]),
-        ],
-    );
+    let mut steps = setup();
+    steps.extend([
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "scalar_subquery",
+            "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
+            &[0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("scalar_subquery"),
+            wire::sync_frame(),
+        ]),
+    ]);
+    let batches = run_script("issue-762-scalar-describe", steps);
 
     // Act
-    let parsed = &batches[1];
-    let described = &batches[2];
+    let parsed = &batches[2];
+    let described = &batches[3];
 
     // Assert
     assert_eq!(
@@ -489,30 +466,28 @@ fn should_describe_scalar_subquery_parameter_metadata() {
 #[test]
 fn should_bind_text_parameters_to_scalar_subqueries() {
     // Arrange
-    let batches = run_script(
-        "issue-762-scalar-text-bind",
-        vec![
-            setup(),
-            Step::ParseFlush(wire::parse_frame_with_types(
-                "scalar_subquery",
-                "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
-                &[0],
-            )),
-            Step::ThroughReady(vec![
-                wire::describe_statement_frame("scalar_subquery"),
-                wire::sync_frame(),
-            ]),
-            Step::ThroughReady(vec![
-                wire::bind_frame("scalar_text", "scalar_subquery", &["1"]),
-                wire::execute_frame("scalar_text"),
-                wire::sync_frame(),
-            ]),
-        ],
-    );
+    let mut steps = setup();
+    steps.extend([
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "scalar_subquery",
+            "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
+            &[0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("scalar_subquery"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("scalar_text", "scalar_subquery", &["1"]),
+            wire::execute_frame("scalar_text"),
+            wire::sync_frame(),
+        ]),
+    ]);
+    let batches = run_script("issue-762-scalar-text-bind", steps);
 
     // Act
-    let parsed = &batches[1];
-    let result = &batches[3];
+    let parsed = &batches[2];
+    let result = &batches[4];
 
     // Assert
     assert_eq!(
@@ -530,31 +505,29 @@ fn should_bind_text_parameters_to_scalar_subqueries() {
 #[test]
 fn should_preserve_column_metadata_for_empty_scalar_subquery_results() {
     // Arrange
-    let batches = run_script(
-        "issue-762-scalar-empty-result-metadata",
-        vec![
-            setup(),
-            Step::ParseFlush(wire::parse_frame_with_types(
-                "scalar_subquery",
-                "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
-                &[0],
-            )),
-            Step::ThroughReady(vec![
-                wire::describe_statement_frame("scalar_subquery"),
-                wire::sync_frame(),
-            ]),
-            Step::ThroughReady(vec![
-                wire::bind_frame("scalar_empty", "scalar_subquery", &["99"]),
-                wire::describe_portal_frame("scalar_empty"),
-                wire::execute_frame("scalar_empty"),
-                wire::sync_frame(),
-            ]),
-        ],
-    );
+    let mut steps = setup();
+    steps.extend([
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "scalar_subquery",
+            "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
+            &[0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("scalar_subquery"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("scalar_empty", "scalar_subquery", &["99"]),
+            wire::describe_portal_frame("scalar_empty"),
+            wire::execute_frame("scalar_empty"),
+            wire::sync_frame(),
+        ]),
+    ]);
+    let batches = run_script("issue-762-scalar-empty-result-metadata", steps);
 
     // Act
-    let parsed = &batches[1];
-    let result = &batches[3];
+    let parsed = &batches[2];
+    let result = &batches[4];
 
     // Assert
     assert_eq!(
@@ -573,37 +546,35 @@ fn should_preserve_column_metadata_for_empty_scalar_subquery_results() {
 #[test]
 fn should_bind_binary_parameters_to_scalar_subqueries() {
     // Arrange
-    let batches = run_script(
-        "issue-762-scalar-binary-bind",
-        vec![
-            setup(),
-            Step::ParseFlush(wire::parse_frame_with_types(
+    let mut steps = setup();
+    steps.extend([
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "scalar_subquery",
+            "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
+            &[0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("scalar_subquery"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "scalar_binary",
                 "scalar_subquery",
-                "SELECT (SELECT value FROM scalar_wire_values WHERE id = $1) AS scalar_value",
-                &[0],
-            )),
-            Step::ThroughReady(vec![
-                wire::describe_statement_frame("scalar_subquery"),
-                wire::sync_frame(),
-            ]),
-            Step::ThroughReady(vec![
-                wire::bind_frame_with_formats(
-                    "scalar_binary",
-                    "scalar_subquery",
-                    &[1],
-                    &[Some(&1_i32.to_be_bytes())],
-                    &[1],
-                ),
-                wire::describe_portal_frame("scalar_binary"),
-                wire::execute_frame("scalar_binary"),
-                wire::sync_frame(),
-            ]),
-        ],
-    );
+                &[1],
+                &[Some(&1_i32.to_be_bytes())],
+                &[1],
+            ),
+            wire::describe_portal_frame("scalar_binary"),
+            wire::execute_frame("scalar_binary"),
+            wire::sync_frame(),
+        ]),
+    ]);
+    let batches = run_script("issue-762-scalar-binary-bind", steps);
 
     // Act
-    let parsed = &batches[1];
-    let result = &batches[3];
+    let parsed = &batches[2];
+    let result = &batches[4];
 
     // Assert
     assert_eq!(
@@ -730,7 +701,7 @@ fn should_match_subquery_predicate_truth_table() {
             23,
         ),
     ];
-    let mut steps = vec![predicate_setup()];
+    let mut steps = predicate_setup();
     steps.extend(
         cases
             .iter()
@@ -748,44 +719,42 @@ fn should_match_subquery_predicate_truth_table() {
 fn should_bind_subquery_predicate_parameters_across_formats() {
     // Arrange
     let binary_value = 100_i32.to_be_bytes();
-    let batches = run_script(
-        "issue-762-subquery-predicate-parameter-wire",
-        vec![
-            predicate_setup(),
-            Step::ParseFlush(wire::parse_frame_with_types(
+    let mut steps = predicate_setup();
+    steps.extend([
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "predicate",
+            "SELECT $1 IN (SELECT n FROM subquery_predicate_values) AS matched",
+            &[0],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("predicate"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("predicate_text", "predicate", &["100"]),
+            wire::execute_frame("predicate_text"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "predicate_binary",
                 "predicate",
-                "SELECT $1 IN (SELECT n FROM subquery_predicate_values) AS matched",
-                &[0],
-            )),
-            Step::ThroughReady(vec![
-                wire::describe_statement_frame("predicate"),
-                wire::sync_frame(),
-            ]),
-            Step::ThroughReady(vec![
-                wire::bind_frame("predicate_text", "predicate", &["100"]),
-                wire::execute_frame("predicate_text"),
-                wire::sync_frame(),
-            ]),
-            Step::ThroughReady(vec![
-                wire::bind_frame_with_formats(
-                    "predicate_binary",
-                    "predicate",
-                    &[1],
-                    &[Some(&binary_value)],
-                    &[1],
-                ),
-                wire::describe_portal_frame("predicate_binary"),
-                wire::execute_frame("predicate_binary"),
-                wire::sync_frame(),
-            ]),
-        ],
-    );
+                &[1],
+                &[Some(&binary_value)],
+                &[1],
+            ),
+            wire::describe_portal_frame("predicate_binary"),
+            wire::execute_frame("predicate_binary"),
+            wire::sync_frame(),
+        ]),
+    ]);
+    let batches = run_script("issue-762-subquery-predicate-parameter-wire", steps);
 
     // Act
-    let parsed = &batches[1];
-    let described = &batches[2];
-    let text_result = &batches[3];
-    let binary_result = &batches[4];
+    let parsed = &batches[2];
+    let described = &batches[3];
+    let text_result = &batches[4];
+    let binary_result = &batches[5];
 
     // Assert
     assert_eq!(

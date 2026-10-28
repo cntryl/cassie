@@ -1,5 +1,6 @@
 //! Result types of the hashing and UUID builtins evaluated by
 //! `executor::filter::hash_functions`.
+use crate::types::extended::ExtendedType;
 use crate::types::DataType;
 
 const NAMES: &[&str] = &[
@@ -37,7 +38,9 @@ pub(crate) fn return_type(name: &str) -> Option<DataType> {
         "hashtext" => DataType::Int,
         "gen_random_uuid" | "uuidv4" | "uuidv7" => DataType::Uuid,
         "uuid_extract_version" => DataType::SmallInt,
-        "uuid_extract_timestamp" => DataType::Timestamp,
+        "uuid_extract_timestamp" => {
+            DataType::Extended(ExtendedType::TimestampTz { precision: None })
+        }
         _ => return None,
     })
 }

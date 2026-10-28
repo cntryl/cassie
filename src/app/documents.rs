@@ -646,6 +646,21 @@ impl Cassie {
         inner: &crate::types::DataType,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
+        if value
+            .as_object()
+            .is_some_and(|object| object.contains_key("$cassie_array_v1"))
+        {
+            let array = crate::types::SqlArray::from_storage_json(value).map_err(|error| {
+                CassieError::InvalidVector(format!(
+                    "field '{field}' has invalid SQL array: {error}"
+                ))
+            })?;
+            let element_type = Self::array_element_type(inner);
+            for element in array.elements_as_json() {
+                Self::validate_value_against_data_type(field, element_type, &element)?;
+            }
+            return Ok(());
+        }
         let Some(values) = value.as_array() else {
             return Self::invalid_vector(field, "array");
         };
@@ -655,6 +670,13 @@ impl Cassie {
         }
 
         Ok(())
+    }
+
+    fn array_element_type(mut data_type: &crate::types::DataType) -> &crate::types::DataType {
+        while let crate::types::DataType::Array(inner) = data_type {
+            data_type = inner;
+        }
+        data_type
     }
 
     fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {

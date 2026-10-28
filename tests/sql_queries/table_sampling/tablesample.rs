@@ -234,11 +234,8 @@ fn should_reject_negative_table_sample_rates() {
 
     // Assert
     assert!(
-        matches!(
-            result,
-            Err(cassie::app::CassieError::InvalidParameterValue(_))
-        ),
-        "negative sampling rate must be an invalid parameter: {result:?}"
+        matches!(result, Err(cassie::app::CassieError::Diagnostic(ref error)) if error.sql_state == "2202H"),
+        "negative sampling rate must use SQLSTATE 2202H: {result:?}"
     );
 }
 
@@ -252,11 +249,8 @@ fn should_reject_table_sample_rates_above_one_hundred_percent() {
 
     // Assert
     assert!(
-        matches!(
-            result,
-            Err(cassie::app::CassieError::InvalidParameterValue(_))
-        ),
-        "sampling rate above one hundred percent must be an invalid parameter: {result:?}"
+        matches!(result, Err(cassie::app::CassieError::Diagnostic(ref error)) if error.sql_state == "2202H"),
+        "sampling rate above one hundred percent must use SQLSTATE 2202H: {result:?}"
     );
 }
 
@@ -326,7 +320,7 @@ fn should_reject_an_oversized_sample_result_without_retaining_query_memory() {
     // Arrange
     let mut config = CassieRuntimeConfig::default();
     config.limits.max_result_rows = 64;
-    let rows = (1..=128)
+    let rows = (1..=2_048)
         .map(|id| format!("({id})"))
         .collect::<Vec<_>>()
         .join(", ");

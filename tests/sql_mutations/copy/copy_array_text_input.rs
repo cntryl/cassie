@@ -1,5 +1,6 @@
 use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::types::Value;
+use cassie::types::{DataType, SqlArray};
 
 use super::support_sql as support;
 use support::data_dir;
@@ -44,11 +45,20 @@ fn should_copy_postgres_array_text_into_array_columns() {
         vec![
             vec![
                 Value::String("empty".into()),
-                Value::Json(serde_json::json!([]))
+                Value::Array(
+                    SqlArray::from_nested_json_typed(&serde_json::json!([]), &DataType::Text)
+                        .unwrap()
+                )
             ],
             vec![
                 Value::String("items".into()),
-                Value::Json(serde_json::json!(["a", "b"])),
+                Value::Array(
+                    SqlArray::from_nested_json_typed(
+                        &serde_json::json!(["a", "b"]),
+                        &DataType::Text
+                    )
+                    .unwrap()
+                ),
             ],
         ]
     );

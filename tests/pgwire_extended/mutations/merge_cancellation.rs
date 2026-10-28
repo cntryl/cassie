@@ -1,17 +1,9 @@
 //! MERGE cancellation leaves no partial RETURNING rows or target mutations (#823).
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::support_pgwire as wire;
-use tokio::io::AsyncWriteExt;
-
-struct MergeFixtureDirectory(String);
-
-impl Drop for MergeFixtureDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 async fn connect_activity_observer(
     address: std::net::SocketAddr,
@@ -25,46 +17,6 @@ async fn connect_activity_observer(
     let (mut reader, mut writer) = socket.into_split();
     wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
     (reader, writer)
-}
-
-async fn wait_for_mutation_progress(
-    reader: &mut tokio::net::tcp::OwnedReadHalf,
-    writer: &mut tokio::net::tcp::OwnedWriteHalf,
-    target_pid: i32,
-    sequence: &str,
-    expected_value: &str,
-    marker: &str,
-) -> (bool, bool) {
-    let deadline = Instant::now() + Duration::from_secs(3);
-    let sequence_sql = format!("SELECT last_value::text, is_called FROM {sequence}");
-    let activity_sql = format!(
-        "SELECT state, query, wait_event FROM pg_catalog.pg_stat_activity WHERE pid = {target_pid}"
-    );
-    let mut progress_observed = false;
-    loop {
-        wire::write_frames(writer, vec![wire::simple_query_frame(&sequence_sql)]).await;
-        let progress = wire::read_frames_until_ready_within(reader, Duration::from_secs(2)).await;
-        progress_observed |= wire::data_rows(&progress)
-            .iter()
-            .any(|row| row[0].as_deref() == Some(expected_value) && row[1].as_deref() == Some("t"));
-
-        wire::write_frames(writer, vec![wire::simple_query_frame(&activity_sql)]).await;
-        let activity = wire::read_frames_until_ready_within(reader, Duration::from_secs(2)).await;
-        let active_after_progress = wire::data_rows(&activity).iter().any(|row| {
-            row[0].as_deref() == Some("active")
-                && row[2].as_deref() == Some("PgSleep")
-                && row[1]
-                    .as_deref()
-                    .is_some_and(|query| query.contains(marker))
-        });
-        if progress_observed && active_after_progress {
-            return (true, true);
-        }
-        if Instant::now() >= deadline {
-            return (progress_observed, false);
-        }
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
 }
 
 type Frames = Vec<(u8, Vec<u8>)>;
@@ -89,10 +41,9 @@ struct MergeCancellationEvidence {
     cancelled: Frames,
     recovery: Frames,
     progress_observed: bool,
-    active_query_observed: bool,
 }
 
-async fn prepare_merge_session(_path: &str) -> MergeSession {
+async fn prepare_merge_session() -> MergeSession {
     let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("start MERGE cancellation fixture");
     let server = wire::spawn_server(cassie).await;
@@ -171,19 +122,30 @@ async fn cancel_merge_and_read_recovery(session: MergeSession) -> MergeCancellat
         RETURNING target.id, target.value, \
             pg_sleep_for(INTERVAL '60 seconds') IS NOT NULL AS wait_complete \
         /* issue_823_merge_cancel_after_update */";
+    let (_pause_guard, selected, resume) = cassie::runtime::pause_next_query_at_sleep_entry();
     wire::write_frames(&mut writer, vec![wire::simple_query_frame(sleeping_merge)]).await;
-    // The sequence increment is nontransactional and is assigned by the
-    // matched UPDATE before RETURNING evaluates its long sleep. Observe
-    // that progress and the marked query waiting in PgSleep before cancellation.
-    let (progress_observed, active_query_observed) = wait_for_mutation_progress(
-        &mut observer_reader,
+    tokio::task::spawn_blocking(move || selected.recv_timeout(Duration::from_secs(5)))
+        .await
+        .expect("sleep-entry observer task")
+        .expect("MERGE must reach RETURNING sleep after its matched UPDATE");
+
+    // The sleep-entry barrier makes this read deterministic: the matched
+    // UPDATE has evaluated nextval before RETURNING enters the paused sleep.
+    wire::write_frames(
         &mut observer_writer,
-        process_id,
-        "merge_cancel_progress_seq",
-        "2",
-        "issue_823_merge_cancel_after_update",
+        vec![wire::simple_query_frame(
+            "SELECT last_value::text FROM pg_catalog.pg_sequences \
+             WHERE sequencename = 'merge_cancel_progress_seq'",
+        )],
     )
     .await;
+    let progress =
+        wire::read_frames_until_ready_within(&mut observer_reader, Duration::from_secs(5)).await;
+    let progress_observed = wire::error_code(&progress).is_none()
+        && wire::data_rows(&progress)
+            .iter()
+            .any(|row| row[0].as_deref() == Some("2"));
+
     let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
         .await
         .expect("cancel connection");
@@ -195,6 +157,18 @@ async fn cancel_merge_and_read_recovery(session: MergeSession) -> MergeCancellat
         .shutdown()
         .await
         .expect("close MERGE cancellation request");
+    let mut cancel_response = [0; 1];
+    let cancel_response_bytes = cancel_socket
+        .read(&mut cancel_response)
+        .await
+        .expect("wait for cancellation connection to close");
+    assert_eq!(
+        cancel_response_bytes, 0,
+        "CancelRequest has no response body"
+    );
+    resume
+        .send(())
+        .expect("resume paused MERGE after CancelRequest");
     let cancelled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
     wire::write_frames(
@@ -218,7 +192,6 @@ async fn cancel_merge_and_read_recovery(session: MergeSession) -> MergeCancellat
         cancelled,
         recovery,
         progress_observed,
-        active_query_observed,
     }
 }
 
@@ -257,11 +230,7 @@ fn assert_merge_cancellation(evidence: &MergeCancellationEvidence) {
     assert_eq!(wire::error_code(&evidence.source_update), None);
     assert!(
         evidence.progress_observed,
-        "MERGE must evaluate the progress sequence in its matched UPDATE before cancellation"
-    );
-    assert!(
-        evidence.active_query_observed,
-        "the marked MERGE must remain active after its UPDATE progress marker"
+        "MERGE must evaluate its matched UPDATE before RETURNING sleep is entered"
     );
     assert_eq!(
         wire::error_code(&evidence.cancelled).as_deref(),
@@ -303,8 +272,6 @@ fn assert_merge_cancellation(evidence: &MergeCancellationEvidence) {
 fn should_cancel_without_partial_mutations_or_returning_rows_given_a_running_merge_when_cancel_request_arrives(
 ) {
     // Arrange
-    let path = wire::data_dir("merge-cancellation-atomic-returning");
-    let _directory = MergeFixtureDirectory(path.clone());
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -312,7 +279,7 @@ fn should_cancel_without_partial_mutations_or_returning_rows_given_a_running_mer
 
     // Act
     let evidence = runtime.block_on(async {
-        let session = prepare_merge_session(&path).await;
+        let session = prepare_merge_session().await;
         cancel_merge_and_read_recovery(session).await
     });
     drop(runtime);

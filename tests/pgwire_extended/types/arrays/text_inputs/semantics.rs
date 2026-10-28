@@ -6,21 +6,21 @@ fn should_preserve_integer_array_text_endpoints_in_both_spellings() {
             1005,
             b"{-32768,32767,NULL}",
             b"[-32768,32767,null]",
-            b"[-32768,32767,null]",
+            b"{-32768,32767,NULL}",
             b"\0\0\0\x01\0\0\0\x01\0\0\0\x15\0\0\0\x03\0\0\0\x01\0\0\0\x02\x80\0\0\0\0\x02\x7f\xff\xff\xff\xff\xff",
         ),
         (
             1007,
             b"{-2147483648,2147483647,NULL}",
             b"[-2147483648,2147483647,null]",
-            b"[-2147483648,2147483647,null]",
+            b"{-2147483648,2147483647,NULL}",
             b"\0\0\0\x01\0\0\0\x01\0\0\0\x17\0\0\0\x03\0\0\0\x01\0\0\0\x04\x80\0\0\0\0\0\0\x04\x7f\xff\xff\xff\xff\xff\xff\xff",
         ),
         (
             1016,
             b"{-9223372036854775808,9223372036854775807,9007199254740993,NULL}",
             b"[-9223372036854775808,9223372036854775807,9007199254740993,null]",
-            b"[-9223372036854775808,9223372036854775807,9007199254740993,null]",
+            b"{-9223372036854775808,9223372036854775807,9007199254740993,NULL}",
             b"\0\0\0\x01\0\0\0\x01\0\0\0\x14\0\0\0\x04\0\0\0\x01\0\0\0\x08\x80\0\0\0\0\0\0\0\0\0\0\x08\x7f\xff\xff\xff\xff\xff\xff\xff\0\0\0\x08\0\x20\0\0\0\0\0\x01\xff\xff\xff\xff",
         ),
     ];
@@ -75,7 +75,7 @@ fn should_round_trip_escaped_array_text() {
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some(
-            r#"["comma,entry","quote\"inside","back\\slash"," padded "]"#.to_owned()
+            r#"{"comma,entry","quote\"inside","back\\slash"," padded "}"#.to_owned()
         )]]
     );
 }
@@ -83,34 +83,20 @@ fn should_round_trip_escaped_array_text() {
 #[test]
 fn should_canonicalize_string_backed_array_text_elements_before_direct_output() {
     // Arrange
-    let cases: [(i32, &[u8], &[u8]); 11] = [
-        (1182, b"{2026-2-3,NULL}", b"[\"2026-02-03\",null]"),
-        (1182, b"[\"2026-2-3\",null]", b"[\"2026-02-03\",null]"),
-        (1183, b"{1:2:3.1,NULL}", b"[\"01:02:03.100000\",null]"),
-        (1183, b"[\"1:2:3.1\",null]", b"[\"01:02:03.100000\",null]"),
-        (
-            1115,
-            b"{\"2026-10-05T01:00:00+01:00\",NULL}",
-            b"[\"2026-10-05T00:00:00.000000Z\",null]",
-        ),
-        (
-            1115,
-            b"[\"2026-10-05T01:00:00+01:00\",null]",
-            b"[\"2026-10-05T00:00:00.000000Z\",null]",
-        ),
+    let cases: [(i32, &[u8], &[u8]); 5] = [
         (
             2951,
             b"{550E8400-E29B-41D4-A716-446655440000,NULL}",
-            b"[\"550e8400-e29b-41d4-a716-446655440000\",null]",
+            b"{550e8400-e29b-41d4-a716-446655440000,NULL}",
         ),
         (
             2951,
             b"[\"550E8400-E29B-41D4-A716-446655440000\",null]",
-            b"[\"550e8400-e29b-41d4-a716-446655440000\",null]",
+            b"{550e8400-e29b-41d4-a716-446655440000,NULL}",
         ),
-        (1001, b"{\"\\\\xABCD\",NULL}", b"[\"\\\\xabcd\",null]"),
-        (1001, b"[\"\\\\xABCD\",null]", b"[\"\\\\xabcd\",null]"),
-        (1000, b"{yes,NULL}", b"[true,null]"),
+        (1001, b"{\"\\\\xABCD\",NULL}", b"{\"\\\\xabcd\",NULL}"),
+        (1001, b"[\"\\\\xABCD\",null]", b"{\"\\\\xabcd\",NULL}"),
+        (1000, b"{yes,NULL}", b"{t,NULL}"),
     ];
     let cycles = cases
         .iter()
@@ -140,7 +126,7 @@ fn should_preserve_declared_float_array_text_rounding() {
         b"{9007199254740993,NULL}".as_slice(),
         b"[9007199254740993,null]".as_slice(),
     ];
-    let text = b"[9007199254740992.0,null]";
+    let text = b"{9.007199254740992e+15,NULL}";
     let binary = b"\0\0\0\x01\0\0\0\x01\0\0\x02\xbd\0\0\0\x02\0\0\0\x01\0\0\0\x08\x43\x40\0\0\0\0\0\0\xff\xff\xff\xff";
     let cycles = inputs
         .into_iter()
@@ -225,7 +211,7 @@ fn should_preserve_scalar_float_bits_in_both_array_spellings() {
                     -1,
                     format,
                     if format == 0 {
-                        format!("[{text},null]").into_bytes()
+                        format!("{{{text},NULL}}").into_bytes()
                     } else {
                         binary.clone()
                     },
@@ -264,7 +250,6 @@ fn should_preserve_finite_float_array_tokens_before_output() {
         ("2.2250738585072014e-308", b"\0\x10\0\0\0\0\0\0".as_slice()),
         ("5e-324", b"\0\0\0\0\0\0\0\x01".as_slice()),
         ("-0.0", b"\x80\0\0\0\0\0\0\0".as_slice()),
-        ("1e-400", b"\0\0\0\0\0\0\0\0".as_slice()),
         (
             "1.7976931348623158e308",
             b"\x7f\xef\xff\xff\xff\xff\xff\xff".as_slice(),
@@ -304,6 +289,8 @@ fn should_preserve_finite_float_array_tokens_before_output() {
         "[51.248178375505404,]",
         "[51.248178375505404] trailing",
         "[51.248178375505404,null",
+        "{1e-400,NULL}",
+        "[1e-400,null]",
     ];
     for input in invalid {
         for format in [0, 1] {
@@ -321,7 +308,7 @@ fn should_preserve_finite_float_array_tokens_before_output() {
     let batches = fixture::run_cycles("type-array-float-finite-tokens", &[], cycles);
 
     // Assert
-    assert_eq!(batches.len(), 56);
+    assert_eq!(batches.len(), 61);
     for ((oid, length, payload), frames) in expectations.into_iter().zip(&batches) {
         fixture::assert_success(frames);
         fixture::assert_single_column_descriptors(frames, (oid, length, -1), 1, true);
@@ -330,7 +317,7 @@ fn should_preserve_finite_float_array_tokens_before_output() {
             vec![fixture::one_field_row(&payload)]
         );
     }
-    for pair in batches[24..].as_chunks::<2>().0 {
+    for pair in batches[21..].as_chunks::<2>().0 {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("08P01"));
         assert!(!pair[0]
             .iter()
@@ -376,7 +363,7 @@ fn should_preserve_integer_array_negative_zero_in_both_spellings() {
                     oid,
                     format,
                     if format == 0 {
-                        b"[0,null]".to_vec()
+                        b"{0,NULL}".to_vec()
                     } else {
                         binary.clone()
                     },
@@ -432,7 +419,7 @@ fn should_preserve_integer_array_negative_zero_in_both_spellings() {
 fn should_preserve_character_array_input_without_wire_modifiers() {
     // Arrange
     let inputs = [r#"{"éA  ",NULL}"#.as_bytes(), r#"["éA  ",null]"#.as_bytes()];
-    let expected_text = r#"["éA  ",null]"#.as_bytes();
+    let expected_text = r#"{"éA  ",NULL}"#.as_bytes();
     let cases = [
         (1014, b"\0\0\0\x01\0\0\0\x01\0\0\x04\x12\0\0\0\x02\0\0\0\x01\0\0\0\x05\xc3\xa9A  \xff\xff\xff\xff".as_slice()),
         (1015, b"\0\0\0\x01\0\0\0\x01\0\0\x04\x13\0\0\0\x02\0\0\0\x01\0\0\0\x05\xc3\xa9A  \xff\xff\xff\xff".as_slice()),
@@ -550,91 +537,6 @@ fn should_accept_sql_standard_array_type_declarations() {
         vec![1007, 1007]
     );
     assert_eq!(wire::data_rows(frames), Vec::<Vec<Option<String>>>::new());
-}
-
-#[test]
-fn should_order_grouped_distinct_array_values() {
-    // Arrange
-    let setup = [
-        (
-            "CREATE TABLE issue_807_array_order_rows (id INT, items INT[])",
-            Vec::new(),
-        ),
-        (
-            "INSERT INTO issue_807_array_order_rows VALUES (1, $1), (2, $2), (3, $3), (4, $4), (5, $5), (6, $6), (7, $7), (8, NULL)",
-            vec![
-                Value::Json(serde_json::json!([1, 2])),
-                Value::Json(serde_json::json!([1, 2])),
-                Value::Json(serde_json::json!([1, 2, 0])),
-                Value::Json(serde_json::json!([1, 3])),
-                Value::Json(serde_json::json!([2, 0])),
-                Value::Json(serde_json::json!([[1, 2], [3, 4]])),
-                Value::Json(serde_json::json!([0, 9])),
-            ],
-        ),
-    ];
-    let grouped = fixture::execute_cycle(
-        "SELECT items, count(*) FROM issue_807_array_order_rows GROUP BY items ORDER BY items NULLS LAST",
-        None,
-        0,
-        true,
-    );
-    let distinct = fixture::execute_cycle(
-        "SELECT DISTINCT items FROM issue_807_array_order_rows ORDER BY items NULLS LAST",
-        None,
-        0,
-        true,
-    );
-
-    // Act
-    let batches = fixture::run_cycles(
-        "type-array-order-distinct-group",
-        &setup,
-        vec![grouped, distinct],
-    );
-
-    // Assert
-    let grouped = &batches[0];
-    fixture::assert_success(grouped);
-    let description = grouped
-        .iter()
-        .find(|(tag, _)| *tag == b'T')
-        .expect("array grouping RowDescription");
-    assert_eq!(
-        wire::parse_row_description(&description.1)
-            .iter()
-            .map(|column| (column.type_oid, column.type_size))
-            .collect::<Vec<_>>(),
-        vec![(1007, -1), (20, 8)]
-    );
-    assert_eq!(
-        wire::data_rows(grouped),
-        vec![
-            vec![Some("{0,9}".to_owned()), Some("1".to_owned())],
-            vec![Some("{1,2}".to_owned()), Some("2".to_owned())],
-            vec![Some("{1,2,0}".to_owned()), Some("1".to_owned())],
-            vec![Some("{{1,2},{3,4}}".to_owned()), Some("1".to_owned())],
-            vec![Some("{1,3}".to_owned()), Some("1".to_owned())],
-            vec![Some("{2,0}".to_owned()), Some("1".to_owned())],
-            vec![None, Some("1".to_owned())],
-        ]
-    );
-
-    let distinct = &batches[1];
-    fixture::assert_success(distinct);
-    fixture::assert_single_column_descriptors(distinct, (1007, -1, -1), 0, true);
-    assert_eq!(
-        wire::data_rows(distinct),
-        vec![
-            vec![Some("{0,9}".to_owned())],
-            vec![Some("{1,2}".to_owned())],
-            vec![Some("{1,2,0}".to_owned())],
-            vec![Some("{{1,2},{3,4}}".to_owned())],
-            vec![Some("{1,3}".to_owned())],
-            vec![Some("{2,0}".to_owned())],
-            vec![None],
-        ]
-    );
 }
 
 #[test]

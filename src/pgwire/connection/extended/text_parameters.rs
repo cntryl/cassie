@@ -85,21 +85,60 @@ pub(super) fn decode_text_parameter(
         Some(BuiltinKind::Bytea) => crate::types::bytea_input::canonical(text)
             .map(Value::String)
             .map_err(|error| ExtendedQueryError::cassie(&error.into())),
-        _ => match crate::sql::binder::parameter_data_type_for_oid(oid) {
-            Some(DataType::Array(element_type)) => {
-                crate::types::array::parse_text_array(text, &element_type)
-                    .map(Value::Json)
-                    .map_err(|error| match error {
-                        crate::types::array::TextArrayError::Invalid(_) => {
-                            ExtendedQueryError::protocol("invalid text array parameter")
+        _ => decode_array_or_text(text, oid),
+    }
+}
+
+fn decode_array_or_text(text: &str, oid: i32) -> Result<Value, ExtendedQueryError> {
+    match crate::sql::binder::parameter_data_type_for_oid(oid) {
+        Some(DataType::Array(element_type)) => {
+            crate::types::array::parse_text_array_with_dimensions(text, &element_type)
+                .map_err(|error| match error {
+                    crate::types::array::TextArrayError::Invalid(_) => {
+                        ExtendedQueryError::protocol("invalid text array parameter")
+                    }
+                    crate::types::array::TextArrayError::UnsupportedJsonDocumentNull => {
+                        ExtendedQueryError::unsupported(error.to_string())
+                    }
+                })
+                .and_then(|mut parsed| {
+                    let json_elements =
+                        matches!(element_type.as_ref(), DataType::Json | DataType::Jsonb);
+                    // Bracket-form JSON array parameters use JSON null
+                    // slots as SQL NULLs. PostgreSQL brace-form array
+                    // input keeps a quoted JSON document null distinct.
+                    if json_elements && text.trim_start().starts_with('[') {
+                        for element in &mut parsed.flat_elements {
+                            if matches!(
+                                element,
+                                crate::types::array::ParsedTextArrayElement::Value(value)
+                                    if value.is_null()
+                            ) {
+                                *element = crate::types::array::ParsedTextArrayElement::SqlNull;
+                            }
                         }
-                        crate::types::array::TextArrayError::UnsupportedJsonDocumentNull => {
-                            ExtendedQueryError::unsupported(error.to_string())
-                        }
-                    })
-            }
-            _ => Ok(Value::String(text.to_string())),
-        },
+                    }
+                    if json_elements
+                        && parsed.flat_elements.iter().any(|element| {
+                            matches!(
+                                element,
+                                crate::types::array::ParsedTextArrayElement::Value(value)
+                                    if value.is_null()
+                            )
+                        })
+                    {
+                        return Err(ExtendedQueryError::unsupported(
+                            crate::types::array::TextArrayError::UnsupportedJsonDocumentNull
+                                .to_string(),
+                        ));
+                    }
+                    parsed
+                        .into_sql_array(&element_type)
+                        .map(Value::Array)
+                        .map_err(|_| ExtendedQueryError::protocol("invalid text array parameter"))
+                })
+        }
+        _ => Ok(Value::String(text.to_string())),
     }
 }
 

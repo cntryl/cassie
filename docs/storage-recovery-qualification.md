@@ -3,7 +3,7 @@
 This record defines the finite single-node Cassie obligations selected by
 [#771](https://github.com/cntryl/cassie/issues/771), after prerequisite #751.
 The qualification baseline is `3b03dd4db34ac88f533501d0484ecdc3cf223a2e`.
-The current Cassie layout marker is `cassie-midge-layout-v3`; each database's
+The current Cassie layout marker is `cassie-midge-layout-v4`; each database's
 catalog records now share its row family. This unreleased layout does not need
 an in-place migration. Image framing, journals and the direct Midge API remain
 authoritative at their documented boundaries.

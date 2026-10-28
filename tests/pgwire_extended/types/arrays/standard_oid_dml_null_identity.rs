@@ -41,6 +41,39 @@ fn data_row(fields: &[Option<&[u8]>]) -> Vec<u8> {
     row
 }
 
+fn assert_array_descriptions(frames: &fixture::Frames, result_format: i16) {
+    let descriptions = frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'T')
+        .collect::<Vec<_>>();
+    assert_eq!(descriptions.len(), 2, "statement and portal descriptions");
+    assert_eq!(
+        wire::parse_row_description(&descriptions[0].1)
+            .iter()
+            .map(|column| column.format_code)
+            .collect::<Vec<_>>(),
+        vec![0, 0, 0],
+        "Describe Statement reports text format"
+    );
+    let columns = wire::parse_row_description(&descriptions[1].1);
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| (
+                column.type_oid,
+                column.type_size,
+                column.type_mod,
+                column.format_code,
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (1005, -1, -1, result_format),
+            (1007, -1, -1, result_format),
+            (1016, -1, -1, result_format),
+        ]
+    );
+}
+
 #[test]
 fn should_preserve_standard_array_wire_identity_through_binary_dml() {
     // Arrange
@@ -104,27 +137,7 @@ fn should_preserve_standard_array_wire_identity_through_binary_dml() {
     );
     for (result_format, frames) in [0, 1].into_iter().zip(&batches[1..]) {
         fixture::assert_success(frames);
-        let description = frames
-            .iter()
-            .find(|(tag, _)| *tag == b'T')
-            .expect("standard array result RowDescription");
-        let columns = wire::parse_row_description(&description.1);
-        assert_eq!(
-            columns
-                .iter()
-                .map(|column| (
-                    column.type_oid,
-                    column.type_size,
-                    column.type_mod,
-                    column.format_code,
-                ))
-                .collect::<Vec<_>>(),
-            vec![
-                (1005, -1, -1, result_format),
-                (1007, -1, -1, result_format),
-                (1016, -1, -1, result_format),
-            ]
-        );
+        assert_array_descriptions(frames, result_format);
     }
     assert_eq!(
         wire::data_rows(&batches[1]),

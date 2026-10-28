@@ -88,7 +88,9 @@ fn field_type_map<'a>(fields: impl IntoIterator<Item = &'a FieldMeta>) -> FieldT
 fn column_expr_type<'a>(expr: &ast::Expr, field_types: &'a FieldTypeMap) -> Option<&'a DataType> {
     match expr {
         ast::Expr::Column(column) => field_type_for_column(field_types, column),
-        ast::Expr::Cast { expr, .. } => column_expr_type(expr, field_types),
+        ast::Expr::Cast { expr, .. } | ast::Expr::Collate { expr, .. } => {
+            column_expr_type(expr, field_types)
+        }
         _ => None,
     }
 }

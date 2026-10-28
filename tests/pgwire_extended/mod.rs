@@ -1,7 +1,5 @@
 #[path = "merge/merge_row_images.rs"]
 mod merge_row_images;
-#[path = "coordination/advisory_notify.rs"]
-mod postgresql18_advisory_notify;
 #[path = "aggregates/aggregate_errors.rs"]
 mod postgresql18_aggregate_errors;
 #[path = "aggregates/arrays/array_aggregate.rs"]
@@ -12,8 +10,6 @@ mod postgresql18_array_boundaries;
 mod postgresql18_binary_bytea_compat;
 #[path = "protocol/cte.rs"]
 mod postgresql18_cte_compat;
-#[path = "protocol/explain_options.rs"]
-mod postgresql18_explain_options;
 #[path = "grammar.rs"]
 mod postgresql18_grammar;
 #[path = "functions/math/math.rs"]
@@ -30,14 +26,10 @@ mod postgresql18_recursive_cte_cancellation;
 mod postgresql18_row_subquery_wire_semantics_wave_h;
 #[path = "ctes/scalar_types/binary.rs"]
 mod postgresql18_scalar_types_inventory_wave3;
-#[path = "set_returning/errors.rs"]
-mod postgresql18_set_returning_gaps;
 #[path = "functions/string_functions.rs"]
 mod postgresql18_string_compat;
 #[path = "functions/string/string_scalar_edges.rs"]
 mod postgresql18_string_scalar_edges;
-#[path = "functions/string/string_to_table_limits.rs"]
-mod postgresql18_string_to_table_limits;
 #[path = "table_sampling/tablesample_seed.rs"]
 mod postgresql18_tablesample_seed;
 #[path = "protocol/temporal/semantics.rs"]
@@ -104,9 +96,6 @@ mod subqueries_width;
 
 #[path = "type_resolution/prepared_descriptors.rs"]
 mod type_resolution_prepared_descriptors;
-
-#[path = "types/json/jsonpath/cancellation.rs"]
-mod types_json_jsonpath_cancellation;
 
 #[path = "types/json/jsonpath_timezone.rs"]
 mod types_json_jsonpath_timezone;

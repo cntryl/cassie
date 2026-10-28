@@ -1,11 +1,10 @@
 #[test]
-fn should_distinguish_icu_collation_order_from_c_order_over_pgwire() {
+fn should_validate_collation_support_over_pgwire() {
     // Arrange
     let batches = run_script(
-        "issue-796-non-c-collation-order",
+        "issue-796-c-collation-order",
         vec![Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT 'ä' COLLATE \"C\" < 'z' COLLATE \"C\" AS c_order, \
-                'ä' COLLATE \"und-x-icu\" < 'z' COLLATE \"und-x-icu\" AS icu_order",
+            "SELECT 'ä' COLLATE \"C\" < 'z' COLLATE \"C\" AS c_order",
         )])],
     );
 
@@ -23,11 +22,37 @@ fn should_distinguish_icu_collation_order_from_c_order_over_pgwire() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![16, 16]
+        vec![16]
     );
+    assert_eq!(wire::data_rows(result), vec![vec![Some("f".to_owned())]]);
+
+    let unsupported = run_script(
+        "issue-796-icu-collation-out-of-scope",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 'ä' COLLATE \"und-x-icu\" < 'z' COLLATE \"und-x-icu\"",
+        )])],
+    );
+    assert_eq!(wire::error_code(&unsupported[0]).as_deref(), Some("0A000"));
+}
+
+#[test]
+fn should_reject_custom_schema_expression_collation_over_pgwire() {
+    // Arrange
+    let batches = run_script(
+        "issue-796-custom-schema-collation-out-of-scope",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 'x' COLLATE other.\"C\" < 'y' COLLATE other.\"C\"",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(wire::error_code(result).as_deref(), Some("0A000"));
     assert_eq!(
         wire::data_rows(result),
-        vec![vec![Some("f".to_owned()), Some("t".to_owned())]]
+        Vec::<Vec<Option<String>>>::new()
     );
 }
 
@@ -43,13 +68,13 @@ fn should_reject_nested_block_comments_beyond_one_hundred_twenty_eight_levels() 
 
     // Act
     let result = &batches[0];
-
-    // Assert
     let errors = result
         .iter()
         .filter(|frame| frame.0 == b'E')
         .map(|frame| wire::parse_error_fields(&frame.1))
         .collect::<Vec<_>>();
+
+    // Assert
     assert_eq!(wire::error_code(result).as_deref(), Some("54000"));
     assert!(errors.iter().any(|fields| {
         fields.iter().any(|(kind, value)| {

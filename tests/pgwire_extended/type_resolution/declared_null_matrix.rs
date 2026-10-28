@@ -28,6 +28,6 @@ fn should_preserve_declared_scalar_array_nulls_across_wire_formats() {
     let batches = fixture::run_cycles("type-array-bind-null", &matrix::setup_refs(&setup), cycles);
 
     // Assert
-    assert_eq!(batches.len(), 84);
+    assert_eq!(batches.len(), 60);
     null_matrix::assert_batches(&batches, &matrix::ARRAY_CASES);
 }

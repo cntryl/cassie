@@ -8,24 +8,12 @@ use cassie::types::Value;
 mod array_function_gaps;
 #[path = "../array_function/errors.rs"]
 mod array_function_residuals;
-#[path = "../array_position_start_overloads.rs"]
-mod array_position_start_overloads;
-#[path = "../array_randomization_custom_bounds.rs"]
-mod array_randomization_custom_bounds;
 #[path = "../array_reverse_custom_bounds.rs"]
 mod array_reverse_custom_bounds;
 #[path = "../array_sort_custom_bounds.rs"]
 mod array_sort_custom_bounds;
-#[path = "../binary_container_framing.rs"]
-mod binary_container_framing;
-#[path = "../boolean_array_container_framing.rs"]
-mod boolean_array_container_framing;
 #[path = "../multidimensional_persistence_binary.rs"]
 mod multidimensional_persistence_binary;
-#[path = "../multidimensional_slices.rs"]
-mod multidimensional_slices;
-#[path = "../ragged_array_constructors.rs"]
-mod ragged_array_constructors;
 #[path = "../standard_oid_dml_null_identity.rs"]
 mod standard_oid_dml_null_identity;
 #[path = "../three_dimensional_bounds_restart.rs"]

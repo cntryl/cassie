@@ -134,12 +134,12 @@ fn validate(
         Expr::Function(_) => {
             return Err(CassieError::Unsupported(
                 "functions and subqueries in VALUES are not yet supported".into(),
-            ))
+            ));
         }
         Expr::Column(name) => {
             return Err(CassieError::Planner(format!(
                 "unknown column {name:?} in VALUES"
-            )))
+            )));
         }
         Expr::Cast {
             expr,
@@ -152,7 +152,7 @@ fn validate(
         Expr::NumberLiteral(_) if !float_context => {
             return Err(CassieError::Unsupported(
                 "NUMERIC VALUES literals are not yet supported".into(),
-            ))
+            ));
         }
         Expr::Cast { data_type, .. }
             if !matches!(
@@ -205,7 +205,10 @@ pub(super) fn validate_aliases(source: &super::QuerySource) -> Result<(), Cassie
                     let name = crate::sql::ColumnIdentifierPath::parse(alias)
                         .map_err(CassieError::Planner)?
                         .declared_name();
-                    return Err(CassieError::Execution(format!("table \"{name}\" has {available} columns available but {} columns specified", column_aliases.len())));
+                    return Err(CassieError::Execution(format!(
+                        "table \"{name}\" has {available} columns available but {} columns specified",
+                        column_aliases.len()
+                    )));
                 }
             }
             validate_aliases(source)?;

@@ -41,6 +41,4 @@ include!("grammar/operators/binary.rs");
 
 include!("grammar/functions/math/semantics.rs");
 
-include!("grammar/types/arrays/semantics.rs");
-
 include!("grammar/errors.rs");

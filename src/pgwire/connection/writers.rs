@@ -1,11 +1,9 @@
-use super::codecs::{
-    validate_result_formats, value_to_binary, value_to_postgres_array_text, value_to_text,
-};
+use super::codecs::{validate_result_formats, value_to_postgres_array_text, value_to_text};
 use super::errors::PgWireError;
 use super::result_frames::QueryResultFrames;
 use super::{AsyncWrite, AsyncWriteExt, CassieSession};
 use crate::types::Value;
-use std::{convert::TryFrom, io, str};
+use std::{collections::HashMap, convert::TryFrom, io, str};
 
 pub(super) const MAX_BACKEND_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
@@ -34,7 +32,31 @@ pub(super) async fn write_auth_cleartext(
 pub(super) async fn write_parameter_statuses(
     write_half: &mut (impl AsyncWrite + Unpin),
     session: &CassieSession,
+) -> io::Result<HashMap<String, String>> {
+    let statuses = parameter_status_values(session)?;
+    for (key, value) in &statuses {
+        write_parameter_status(write_half, key, value).await?;
+    }
+    Ok(statuses.into_iter().collect())
+}
+
+pub(super) async fn write_changed_parameter_statuses(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    previous: &mut HashMap<String, String>,
 ) -> io::Result<()> {
+    let statuses = parameter_status_values(session)?;
+    for (key, value) in &statuses {
+        if previous.get(key) != Some(value) {
+            write_parameter_status(write_half, key, value).await?;
+        }
+    }
+    *previous = statuses.into_iter().collect();
+    Ok(())
+}
+
+fn parameter_status_values(session: &CassieSession) -> io::Result<Vec<(String, String)>> {
+    let mut statuses = Vec::new();
     for spec in crate::app::all_session_settings() {
         if matches!(
             spec.name,
@@ -62,14 +84,22 @@ pub(super) async fn write_parameter_statuses(
             name => name,
         };
         let value = session.setting(spec.name).map_err(io::Error::other)?;
-        let mut payload = Vec::new();
-        payload.extend_from_slice(key.as_bytes());
-        payload.push(0);
-        payload.extend_from_slice(value.as_bytes());
-        payload.push(0);
-        write_backend_frame(write_half, b'S', &payload).await?;
+        statuses.push((key.to_string(), value));
     }
-    Ok(())
+    Ok(statuses)
+}
+
+async fn write_parameter_status(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    key: &str,
+    value: &str,
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(key.as_bytes());
+    payload.push(0);
+    payload.extend_from_slice(value.as_bytes());
+    payload.push(0);
+    write_backend_frame(write_half, b'S', &payload).await
 }
 
 pub(super) async fn write_backend_key_data(
@@ -275,7 +305,11 @@ pub(super) fn append_data_row_frame(
                         value_to_text(other, columns[index].type_oid).into_bytes()
                     }
                 } else if format_code == 1 {
-                    value_to_binary(other, columns[index].type_oid)?
+                    super::codecs::value_to_binary_with_typmod(
+                        other,
+                        columns[index].type_oid,
+                        columns[index].atttypmod,
+                    )?
                 } else {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,

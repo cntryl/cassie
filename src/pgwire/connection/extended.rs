@@ -105,6 +105,16 @@ pub(super) async fn handle_frontend_message(
             } else {
                 session.mark_transaction_failed();
             }
+            if super::writers::write_changed_parameter_statuses(
+                write_half,
+                session,
+                &mut state.parameter_statuses,
+            )
+            .await
+            .is_err()
+            {
+                return ConnectionStep::Break;
+            }
             let _ = write_error_response(write_half, error.pg_error.as_ref()).await;
             state.invalidate_portals_on_sync |= invalidate_portals_on_error;
             *awaiting_sync = true;
@@ -762,6 +772,13 @@ async fn execute_prepared_portal(
         },
     )
     .await?;
+    super::writers::write_changed_parameter_statuses(
+        write_half,
+        session,
+        &mut state.parameter_statuses,
+    )
+    .await
+    .map_err(|error| ExtendedQueryError::write_failed(&error))?;
     if standalone && state.remove_portal(portal_name).is_some() {
         runtime.record_pgwire_portal_delta(-1);
     }

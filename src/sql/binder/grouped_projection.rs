@@ -35,6 +35,9 @@ pub(super) fn validate(
         };
         reject_ungrouped_column(&expression, group_by)?;
     }
+    if let Some(having) = &select.having {
+        reject_ungrouped_column(having, group_by)?;
+    }
     for order in &select.order {
         let names_output = matches!(&order.expr, Expr::Column(name)
             if names_projection_output(select, projection_aliases, name));
@@ -170,9 +173,13 @@ fn projection_alias(item: &SelectItem) -> Option<&str> {
 
 fn reject_ungrouped_column(expr: &Expr, group_by: &[Expr]) -> Result<(), CassieError> {
     match first_ungrouped_column(expr, group_by) {
-        Some(column) => Err(CassieError::Planner(format!(
-            "column '{column}' must appear in the GROUP BY clause or be used in an aggregate function"
-        ))),
+        Some(column) => Err(crate::app::DiagnosticError::new(
+            "42803",
+            format!(
+                "column '{column}' must appear in the GROUP BY clause or be used in an aggregate function"
+            ),
+        )
+        .into()),
         None => Ok(()),
     }
 }
@@ -453,6 +460,7 @@ fn collect_base_relations<'a>(source: &'a QuerySource, relations: &mut Vec<BaseR
             collect_base_relations(left, relations);
             collect_base_relations(right, relations);
         }
+        QuerySource::TableSample { source, .. } => collect_base_relations(source, relations),
         QuerySource::Values { .. }
         | QuerySource::Cte(_)
         | QuerySource::TableFunction { .. }

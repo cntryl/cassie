@@ -191,8 +191,20 @@ fn should_copy_canonical_boolean_array_elements() {
     assert_eq!(
         fixture.rows("SELECT flags FROM bool_array_inputs ORDER BY id"),
         vec![
-            vec![Value::Json(serde_json::json!([true, false, null, true]))],
-            vec![Value::Json(serde_json::json!([]))],
+            vec![Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!([true, false, null, true]),
+                    &cassie::types::DataType::Boolean
+                )
+                .unwrap()
+            )],
+            vec![Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!([]),
+                    &cassie::types::DataType::Boolean
+                )
+                .unwrap()
+            )],
             vec![Value::Null],
         ]
     );

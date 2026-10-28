@@ -208,7 +208,7 @@ fn should_preserve_boolean_array_wire_identity_after_vector_array_rejection() {
         fixture::assert_success(frames);
         fixture::assert_single_column_descriptors(frames, (1000, -1, -1), format, true);
         let expected = if format == 0 {
-            fixture::one_field_row(b"[false,null,true]")
+            fixture::one_field_row(b"{f,NULL,t}")
         } else {
             fixture::one_field_row(BOOL_ARRAY_BINARY)
         };

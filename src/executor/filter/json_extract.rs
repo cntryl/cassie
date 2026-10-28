@@ -17,6 +17,20 @@ pub(super) fn evaluate(
     let ScalarValue::Json(document) = document else {
         return Err(operator_error());
     };
+    if path {
+        if let ScalarValue::Array(array) = selector {
+            let segments = array
+                .elements()
+                .iter()
+                .map(|value| match value {
+                    crate::types::Value::String(text) => Ok(Some(text.as_str())),
+                    crate::types::Value::Null => Ok(None),
+                    _ => Err(operator_error()),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            return evaluate_path(document, segments, as_text, jsonb, None);
+        }
+    }
     let mut value = json_document::parse_value(document)?;
     if path {
         let (ScalarValue::Str(text) | ScalarValue::Json(text)) = selector else {

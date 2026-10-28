@@ -153,6 +153,25 @@ support does not imply matching array support. ARRAY(VECTOR) remains excluded
 from pgwire. Array parameter binding remains limited to the forms listed in
 [Feature Support](feature-support.md).
 
+### Selected PostgreSQL array shape contract (2026-10-26)
+
+The user selected PostgreSQL array dimensions and lower bounds for #807. Array
+values must retain row-major elements, every dimension length, and each lower
+bound across SQL execution, pgwire codecs, and persisted rows. An empty array
+has zero dimensions; a SQL NULL array, an empty array, and NULL elements remain
+distinct. PostgreSQL's rectangularity and subscript semantics apply. The CRB2
+row encoding had no shape fields; CRB3 stores dimensions, lower bounds, and
+row-major elements under `cassie-midge-layout-v4`. Existing pre-release data
+must be recreated, with no migration utility or legacy row reader. Runtime work follows
+the documented #796 and #762 prerequisites in #807.
+
+PostgreSQL 18.6 text-array probes return `{01:02:03.1,NULL}` for TIME
+and `{"2026-10-05 01:00:00",NULL}` for a TIMESTAMP element supplied
+with `+01:00`. Current array normalization and formatting use the internal
+fixed-width temporal carrier, including offset conversion, so these wire
+values remain an unvalidated #807 obligation. The existing fixture asserts
+the oracle values; do not treat the pending implementation as supported.
+
 ## Native extended identities
 
 The following names, OIDs and lengths are registered by `ExtendedType`. A

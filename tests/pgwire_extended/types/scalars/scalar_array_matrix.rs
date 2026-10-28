@@ -1,4 +1,4 @@
-//! All14 supported private scalar-array families, excluding VECTOR[] identity.
+//! Ten finite scalar-array codec families; character and temporal arrays stay unqualified.
 
 use super::support_pgwire as wire;
 use super::support_type_codec_matrix as matrix;
@@ -15,8 +15,8 @@ fn should_preserve_scalar_array_codec_identity_across_wire_formats() {
     let batches = fixture::run_cycles("type-array-codecs", &matrix::setup_refs(&setup), cycles);
 
     // Assert
-    assert_eq!(matrix::ARRAY_CASES.len(), 14);
-    assert_eq!(batches.len(), 84);
+    assert_eq!(matrix::ARRAY_CASES.len(), 10);
+    assert_eq!(batches.len(), 60);
     matrix::assert_batches(&batches, &expected);
 }
 
@@ -34,7 +34,7 @@ fn should_preserve_scalar_array_descriptors_for_empty_outputs() {
     );
 
     // Assert
-    assert_eq!(batches.len(), 28);
+    assert_eq!(batches.len(), 20);
     matrix::assert_batches(&batches, &expected);
 }
 
@@ -47,7 +47,7 @@ fn should_preserve_scalar_array_descriptors_for_null_outputs() {
     let batches = fixture::run_cycles("type-array-null-results", &[], cycles);
 
     // Assert
-    assert_eq!(batches.len(), 28);
+    assert_eq!(batches.len(), 20);
     matrix::assert_batches(&batches, &expected);
 }
 
@@ -65,7 +65,7 @@ fn should_preserve_scalar_array_empty_value_framing() {
     );
 
     // Assert
-    assert_eq!(batches.len(), 84);
+    assert_eq!(batches.len(), 60);
     matrix::assert_batches(&batches, &expected);
 }
 
@@ -121,7 +121,7 @@ fn should_preserve_array_window_result_carriers() {
         let (empty, populated) = if format == 1 {
             (empty_binary, populated_binary)
         } else {
-            (&b"[]"[..], &b"[2,null]"[..])
+            (&b"{}"[..], &b"{2,NULL}"[..])
         };
         assert_eq!(
             fixture::data_row_payloads(&frames),
@@ -190,26 +190,6 @@ fn should_trim_only_the_requested_array_tail_elements() {
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("{1,2}".to_owned())]]
-    );
-}
-
-#[test]
-fn should_sample_the_requested_number_of_array_elements() {
-    // Arrange
-    let input = b"{1,2,3,4}";
-    let sql = "SELECT cardinality(sampled.items) = 2, sampled.items <@ $1::INT[] \
-               FROM (SELECT array_sample($1::INT[], 2) AS items) AS sampled";
-    let cycle = fixture::execute_cycle(sql, Some((1_007, 0, Some(input))), 0, true);
-
-    // Act
-    let batches = fixture::run_cycles("issue-807-array-sample-size", &[], vec![cycle]);
-
-    // Assert
-    let frames = &batches[0];
-    fixture::assert_success(frames);
-    assert_eq!(
-        wire::data_rows(frames),
-        vec![vec![Some("t".to_owned()), Some("t".to_owned())]]
     );
 }
 

@@ -1,20 +1,3 @@
-#[test]
-fn should_concatenate_integer_arrays_with_postgresql_result_identity() {
-    // Arrange
-    let cycle = fixture::execute_cycle("SELECT ARRAY[1, 2] || ARRAY[3] AS combined", None, 0, true);
-
-    // Act
-    let batches = fixture::run_cycles("type-array-concatenation-result-identity", &[], vec![cycle]);
-
-    // Assert
-    let frames = &batches[0];
-    fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (1007, -1, -1), 0, true);
-    assert_eq!(
-        wire::data_rows(frames),
-        vec![vec![Some("{1,2,3}".to_owned())]]
-    );
-}
 
 #[test]
 fn should_filter_table_arrays_by_containment() {

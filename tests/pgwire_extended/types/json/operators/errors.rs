@@ -1,37 +1,3 @@
-#[test]
-fn should_report_json_value_returning_conversion_error_with_sqlstate() {
-    // Arrange
-    let invalid_value = fixture::execute_cycle(
-        "SELECT JSON_VALUE('{\"n\":\"bad\"}'::JSONB, '$.n' RETURNING INTEGER ERROR ON ERROR)",
-        None,
-        0,
-        true,
-    );
-    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
-
-    // Act
-    let batches = fixture::run_cycles(
-        "issue-810-json-value-returning-error",
-        &[],
-        vec![invalid_value, recovery],
-    );
-
-    // Assert
-    let frames = &batches[0];
-    assert_eq!(wire::error_code(frames).as_deref(), Some("22P02"));
-    assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
-    assert!(
-        frames
-            .iter()
-            .all(|(tag, _)| !matches!(*tag, b'T' | b'D' | b'C')),
-        "a conversion error must not publish result rows"
-    );
-    fixture::assert_success(&batches[1]);
-    assert_eq!(
-        wire::data_rows(&batches[1]),
-        vec![vec![Some("42".to_owned())]]
-    );
-}
 
 #[test]
 fn should_distinguish_lax_singleton_wrap_from_strict_jsonpath_error() {

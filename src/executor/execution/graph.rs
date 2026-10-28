@@ -555,7 +555,7 @@ fn shortest_path_request(
     })
 }
 
-fn evaluate_args(
+pub(super) fn evaluate_args(
     env: &source::SourceExecutionEnv<'_>,
     function: &FunctionCall,
     outer_row: Option<&BatchRow>,

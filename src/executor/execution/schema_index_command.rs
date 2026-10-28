@@ -12,6 +12,9 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
     statement: &AlterIndexStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    if let AlterIndexOperation::Rename { new_name } = &statement.operation {
+        return super::scalar_index_rename::rename(cassie, statement, new_name, controls);
+    }
     let output = empty_command("ALTER INDEX", controls)?;
     if statement.collection.trim().is_empty() {
         if statement.if_exists {
@@ -34,6 +37,9 @@ pub(in crate::executor::execution) fn alter_index_storage_parameters(
                 ));
             }
             match &statement.operation {
+                AlterIndexOperation::Rename { .. } => {
+                    unreachable!("rename is dispatched separately")
+                }
                 AlterIndexOperation::Set(options) => {
                     metadata.options.extend(options.clone());
                 }

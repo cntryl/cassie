@@ -961,3 +961,28 @@ fn validate_index_expression_function(
     }
     Ok(())
 }
+
+pub(super) fn bind_index_rename_target(
+    raw: &str,
+    index: &IndexMeta,
+    catalog: &Catalog,
+) -> Result<String, CassieError> {
+    let ParsedName::Unqualified(local) = parse_name(raw).map_err(CassieError::Planner)? else {
+        return Err(CassieError::Planner(
+            "RENAME TO requires an unqualified new name".into(),
+        ));
+    };
+    let owner = catalog
+        .materialized_projection_for_output(&index.collection)
+        .map_or_else(
+            || index.collection.clone(),
+            |projection| projection.collection,
+        );
+    let mut parts = IdentifierPath::parse(&owner)
+        .map_err(CassieError::Planner)?
+        .values()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    *parts.last_mut().expect("owner has a local component") = local;
+    Ok(IdentifierPath::from_values(parts).into_string())
+}

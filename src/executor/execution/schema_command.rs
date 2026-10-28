@@ -8,6 +8,8 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
+#[path = "scalar_index_rename.rs"]
+mod scalar_index_rename;
 #[path = "schema_constraint_helpers.rs"]
 pub(super) mod schema_constraint_helpers;
 #[path = "schema_foreign_keys.rs"]
@@ -687,7 +689,7 @@ fn alter_table_add_constraint(
                     })?;
                 let adopted_index = cassie
                     .midge
-                    .adopt_unique_index_and_constraints_with_held_collection_gate(
+                    .rename_index_and_constraints_with_held_collection_gate(
                         table,
                         &source_index_name,
                         &constraint_name,

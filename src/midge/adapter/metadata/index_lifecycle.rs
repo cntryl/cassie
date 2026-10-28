@@ -2,13 +2,13 @@ use super::super::index_publication::PendingIndexPublication;
 use super::super::{check_index_publication_failure_point, CassieError, IndexMeta, Midge};
 
 impl Midge {
-    /// Adopts a unique index and persists its constraint metadata in one data transaction.
+    /// Renames an index and persists its constraint metadata in one data transaction.
     /// The caller must hold the collection's canonical write gate.
     ///
     /// # Errors
     ///
     /// Returns an error when the source is missing, the destination exists, or storage fails.
-    pub(crate) fn adopt_unique_index_and_constraints_with_held_collection_gate(
+    pub(crate) fn rename_index_and_constraints_with_held_collection_gate(
         &self,
         collection: &str,
         current_name: &str,

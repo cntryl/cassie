@@ -192,3 +192,6 @@ mod scalar_reindex_repair;
 
 #[path = "support/scalar_index_rebuild.rs"]
 mod support_scalar_index_rebuild;
+
+#[path = "sql_mutations/ddl/scalar_index_rename.rs"]
+mod scalar_index_rename;

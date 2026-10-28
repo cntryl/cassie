@@ -90,6 +90,10 @@ qualification remain open:
 - SQL materialized-view `ALTER ... RENAME TO` uses the same catalog overlay,
   retaining physical output/version identity and rejecting unsupported stored
   dependency rewrites before mutation.
+- Scalar `ALTER INDEX ... RENAME TO` preserves stored identity and renames owning
+  key constraints within the same catalog overlay; savepoint/transaction rollback
+  restores both names. Storage-parameter SET/RESET retains its existing transaction
+  restriction.
 - Supported schema, table, and scalar-index CREATE/ALTER/DROP operations stage
   catalog and row changes within the owning Midge database family.
 - The owning session sees its staged objects and can read or write through them.

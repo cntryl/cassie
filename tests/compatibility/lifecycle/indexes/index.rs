@@ -24,6 +24,8 @@ mod reindex_database_concurrent_ddl;
 mod reindex_options;
 #[path = "storage_maintenance.rs"]
 mod residual_storage_maintenance;
+#[path = "scalar_index_rename.rs"]
+mod scalar_index_rename;
 #[path = "selected_access_methods.rs"]
 mod selected_access_methods;
 #[path = "storage_parameter_options.rs"]

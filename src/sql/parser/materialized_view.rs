@@ -198,7 +198,9 @@ pub(super) fn parse_rename_materialized_view_statement(
     })
 }
 
-fn parse_relation_identifier(raw: &str) -> Result<crate::sql::ast::IdentifierPath, SqlError> {
+pub(super) fn parse_relation_identifier(
+    raw: &str,
+) -> Result<crate::sql::ast::IdentifierPath, SqlError> {
     let raw = super::lexical::trim_separators(raw);
     let mut characters = raw.chars().peekable();
     let mut quoted = false;

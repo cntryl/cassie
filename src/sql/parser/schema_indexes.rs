@@ -199,8 +199,13 @@ pub(in crate::sql::parser) fn parse_alter_index_statement(
     sql: &str,
 ) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    let alteration = trimmed["alter index".len()..].trim();
+    let prefix = super::super::lexical::pattern_end(trimmed, 0, "alter index")
+        .ok_or_else(|| SqlError::syntax("expected ALTER INDEX".into()))?;
+    let alteration = trimmed[prefix..].trim();
     let (if_exists, alteration) = parse_if_exists(alteration);
+    if let Some(rename) = parse_index_rename(trimmed, alteration, if_exists)? {
+        return Ok(rename);
+    }
     let set_position = find_top_level_keyword(alteration, 0, "set");
     let reset_position = find_top_level_keyword(alteration, 0, "reset");
     let (position, action) = match (set_position, reset_position) {
@@ -274,6 +279,39 @@ pub(in crate::sql::parser) fn parse_alter_index_statement(
             operation,
         }),
     })
+}
+
+fn parse_index_rename(
+    trimmed: &str,
+    alteration: &str,
+    if_exists: bool,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    if let Some((position, end)) =
+        super::super::lexical::find_top_level_span(alteration, 0, "rename to")
+    {
+        let name = super::super::materialized_view::parse_relation_identifier(
+            alteration[..position].trim(),
+        )?;
+        let new_name =
+            super::super::materialized_view::parse_relation_identifier(alteration[end..].trim())?;
+        if new_name.components().len() != 1 {
+            return Err(SqlError::syntax(
+                "RENAME TO requires an unqualified new name".into(),
+            ));
+        }
+        return Ok(Some(ParsedStatement {
+            raw_sql: trimmed.to_string(),
+            statement: QueryStatement::AlterIndex(AlterIndexStatement {
+                name: name.into_string(),
+                collection: String::new(),
+                if_exists,
+                operation: AlterIndexOperation::Rename {
+                    new_name: new_name.into_string(),
+                },
+            }),
+        }));
+    }
+    Ok(None)
 }
 
 pub(in crate::sql::parser) fn parse_index_target(

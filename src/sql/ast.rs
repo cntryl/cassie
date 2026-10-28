@@ -624,6 +624,7 @@ pub struct AlterIndexStatement {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AlterIndexOperation {
+    Rename { new_name: String },
     Set(BTreeMap<String, String>),
     Reset(Vec<String>),
 }

@@ -275,6 +275,9 @@ pub(super) fn bind_alter_index(
         ));
     }
     match &mut statement.operation {
+        AlterIndexOperation::Rename { new_name } => {
+            *new_name = schema_indexes::bind_index_rename_target(new_name, &index, catalog)?;
+        }
         AlterIndexOperation::Set(options) => {
             let mut candidate = crate::sql::ast::CreateIndexStatement {
                 name: index.name.clone(),

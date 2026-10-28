@@ -64,9 +64,9 @@ pub(super) fn bind_joined_update(
         .collect::<Vec<_>>();
     bind_assignments(
         &mut statement.assignments,
+        Some(&mut statement.array_targets),
         &mut columns,
-        &schema,
-        &table,
+        (&schema, &table),
         &scope,
         catalog,
         context,

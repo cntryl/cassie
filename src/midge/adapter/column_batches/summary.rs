@@ -149,6 +149,7 @@ fn column_batch_field_summary(
             | Value::String(_)
             | Value::Vector(_)
             | Value::Json(_)
+            | Value::Array(_)
             | Value::Typed(_) => {
                 sum.promote_to_float();
             }

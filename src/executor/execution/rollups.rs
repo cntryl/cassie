@@ -867,6 +867,7 @@ fn value_to_json(value: Value) -> Result<serde_json::Value, QueryError> {
         Value::String(value) => Ok(serde_json::Value::String(value)),
         Value::Vector(value) => Ok(serde_json::json!(value.values)),
         Value::Json(value) => Ok(value),
+        Value::Array(value) => Ok(value.to_storage_json()),
         Value::Typed(value) => Ok(value.to_json()),
     }
 }

@@ -137,6 +137,18 @@ impl Normalizer<'_> {
                 }
             }
             QuerySource::Aliased { source, .. } => self.source(source, depth + 1)?,
+            QuerySource::TableSample {
+                source,
+                rate,
+                repeatable,
+                ..
+            } => {
+                self.source(source, depth + 1)?;
+                self.expression(rate, depth + 1)?;
+                if let Some(seed) = repeatable {
+                    self.expression(seed, depth + 1)?;
+                }
+            }
             QuerySource::Subquery { select, .. } => self.select(select, depth + 1)?,
             QuerySource::Join {
                 left, right, on, ..

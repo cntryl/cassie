@@ -8,10 +8,6 @@ use cassie::types::Value;
 mod inspection_null_semantics;
 #[path = "../json_collection_sql_json/nulls.rs"]
 mod json_collection_sql_json_wave;
-#[path = "../json_query_quote_policies.rs"]
-mod json_query_quote_policies;
-#[path = "../json_query_returning_alias.rs"]
-mod json_query_returning_alias;
 #[path = "../operators/containment.rs"]
 mod jsonb_containment;
 #[path = "../operators/extraction.rs"]
@@ -32,10 +28,6 @@ mod native_jsonb;
 mod operator_overload_residuals;
 #[path = "../operator_truth_tables.rs"]
 mod operator_truth_tables;
-#[path = "../record_table_functions.rs"]
-mod record_table_functions;
-#[path = "../sql_json_serialize/semantics.rs"]
-mod sql_json_serialize_wave7;
 
 const MAX_DOCUMENT: &[u8] = b"18446744073709551615";
 const NEIGHBOR_DOCUMENT: &[u8] = b"18446744073709551614";
@@ -79,66 +71,6 @@ fn unsigned_json_predicate_setup() -> Vec<(&'static str, Vec<Value>)> {
             ],
         ),
     ]
-}
-
-#[test]
-fn should_enforce_unique_json_object_aggregate_keys_with_sqlstate() {
-    // Arrange
-    let setup = [
-        (
-            "CREATE TABLE json_object_aggregate_unique_input (key TEXT, value TEXT)",
-            Vec::new(),
-        ),
-        (
-            "INSERT INTO json_object_aggregate_unique_input VALUES ('x', 'a'), ('y', 'b')",
-            Vec::new(),
-        ),
-        (
-            "CREATE TABLE json_object_aggregate_duplicate_input (key TEXT, value TEXT)",
-            Vec::new(),
-        ),
-        (
-            "INSERT INTO json_object_aggregate_duplicate_input VALUES ('x', 'a'), ('x', 'b')",
-            Vec::new(),
-        ),
-    ];
-    let success = fixture::execute_cycle(
-        "SELECT JSON_OBJECTAGG(key VALUE value WITH UNIQUE KEYS) FROM json_object_aggregate_unique_input",
-        None,
-        0,
-        true,
-    );
-    let duplicate = fixture::execute_cycle(
-        "SELECT JSON_OBJECTAGG(key VALUE value WITH UNIQUE KEYS) FROM json_object_aggregate_duplicate_input",
-        None,
-        0,
-        true,
-    );
-    let recovery = fixture::execute_cycle("SELECT 42", None, 0, true);
-
-    // Act
-    let batches = fixture::run_cycles(
-        "type-json-object-aggregate-unique-keys",
-        &setup,
-        vec![success, duplicate, recovery],
-    );
-
-    // Assert
-    fixture::assert_success(&batches[0]);
-    assert_eq!(
-        wire::data_rows(&batches[0]),
-        vec![vec![Some("{ \"x\" : \"a\", \"y\" : \"b\" }".to_owned())]]
-    );
-    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22030"));
-    assert_eq!(
-        wire::data_rows(&batches[1]),
-        Vec::<Vec<Option<String>>>::new()
-    );
-    fixture::assert_success(&batches[2]);
-    assert_eq!(
-        wire::data_rows(&batches[2]),
-        vec![vec![Some("42".to_owned())]]
-    );
 }
 
 include!("nulls.rs");

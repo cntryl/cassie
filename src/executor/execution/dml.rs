@@ -57,6 +57,7 @@ fn value_to_json(value: &Value) -> Result<serde_json::Value, QueryError> {
             .map(serde_json::Value::Number)
             .ok_or_else(|| QueryError::General(NON_FINITE_WRITE_VALUE_ERROR.to_string()))?,
         Value::String(value) => serde_json::Value::String(value.clone()),
+        Value::Array(value) => value.to_storage_json(),
         Value::Vector(value) => serde_json::Value::Array(
             value
                 .values
@@ -220,6 +221,8 @@ fn inserted_row_to_batch_row(
                 && crate::types::json::requires_document_carrier(value)
             {
                 Value::Json(value.clone())
+            } else if matches!(field.data_type, DataType::Array(_)) {
+                crate::executor::scan::json_to_typed_value(value, &field.data_type)
             } else if let DataType::Extended(kind) = &field.data_type {
                 kind.from_json(value)
                     .map_or_else(|_| json_to_value(value), Value::Typed)

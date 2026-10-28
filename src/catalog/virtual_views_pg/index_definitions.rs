@@ -150,6 +150,37 @@ fn format_index_expression(expression: &crate::sql::ast::Expr) -> Option<String>
             format_index_expression(expr)?,
             data_type.type_name()
         )),
+        Expr::Collate { expr, collation } => Some(format!(
+            "({}) COLLATE {}",
+            format_index_expression(expr)?,
+            crate::catalog::object_identity::quote_identifier(collation)
+        )),
+        Expr::ArraySubscript { array, subscripts } => {
+            use std::fmt::Write as _;
+
+            let mut formatted = format_index_expression(array)?;
+            for subscript in subscripts {
+                match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        formatted.push('[');
+                        formatted.push_str(&format_index_expression(index)?);
+                        formatted.push(']');
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                        let lower = match lower {
+                            Some(expression) => format_index_expression(expression)?,
+                            None => String::new(),
+                        };
+                        let upper = match upper {
+                            Some(expression) => format_index_expression(expression)?,
+                            None => String::new(),
+                        };
+                        write!(formatted, "[{lower}:{upper}]").ok()?;
+                    }
+                }
+            }
+            Some(formatted)
+        }
         Expr::UnaryNumeric { expr, op } => Some(format!(
             "{}({})",
             index_unary_operator(*op),

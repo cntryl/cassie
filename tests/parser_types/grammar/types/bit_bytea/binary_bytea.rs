@@ -1,6 +1,9 @@
 //! PostgreSQL 18 bit-string and binary-string grammar tracked by #816.
 
-use cassie::sql::ast::{Expr, FunctionCall, QueryStatement, SelectItem, SelectStatement};
+use cassie::sql::ast::{
+    CastIdentity, Expr, FunctionCall, QueryStatement, SelectItem, SelectStatement,
+};
+use cassie::types::extended::ExtendedType;
 use cassie::types::{DataType, Value};
 
 use crate::support_sql_fixture::sql_fixture;
@@ -67,23 +70,48 @@ fn should_parse_binary_plus_hex_bit_string_constants() {
     let statement = parsed_select(sql);
 
     // Assert
-    let expected_literals: [(&str, usize); 4] =
-        [("10101", 5), ("001", 3), ("00011111", 8), ("10100000", 8)];
+    let expected_literals = [
+        ("10101".to_owned(), "10101".to_owned(), 5),
+        ("001".to_owned(), "001".to_owned(), 3),
+        ("x1F".to_owned(), "00011111".to_owned(), 8),
+        ("xa0".to_owned(), "10100000".to_owned(), 8),
+    ];
     assert_eq!(statement.projection.len(), expected_literals.len());
     let actual_literals = statement
         .projection
         .iter()
-        .map(|item| match item {
-            SelectItem::Expr {
-                expr: Expr::StringLiteral(bits),
+        .map(|item| {
+            let SelectItem::Expr {
+                expr:
+                    Expr::Cast {
+                        expr,
+                        data_type,
+                        source_type,
+                        identity,
+                    },
                 ..
-            } => Some((bits.clone(), bits.chars().count())),
-            _ => None,
+            } = item
+            else {
+                panic!("bit-string constants should be typed CAST expressions")
+            };
+            assert_eq!(
+                data_type,
+                &DataType::Extended(ExtendedType::Bit { length: None })
+            );
+            assert!(source_type.is_none());
+            assert_eq!(identity, &CastIdentity::Scalar);
+
+            let Expr::StringLiteral(encoded) = expr.as_ref() else {
+                panic!("bit-string cast should preserve its encoded literal")
+            };
+            let decoded = cassie::types::extended::bit_string::parse_text(encoded)
+                .expect("bit-string literal decodes");
+            let bits = decoded
+                .bits()
+                .map(|bit| if bit { '1' } else { '0' })
+                .collect::<String>();
+            (encoded.clone(), bits, decoded.len())
         })
-        .collect::<Vec<_>>();
-    let expected_literals = expected_literals
-        .iter()
-        .map(|(bits, width)| Some(((*bits).to_string(), *width)))
         .collect::<Vec<_>>();
     assert_eq!(actual_literals, expected_literals);
 }
@@ -267,8 +295,8 @@ fn should_preserve_bytea_position_function_operands() {
     let position = projection_function(&statement, 0);
     assert_function_name(position, "position");
     assert_eq!(position.args.len(), 2);
-    assert_bytea_literal(&position.args[0], "\\x02");
-    assert_bytea_literal(&position.args[1], "\\x010203");
+    assert_bytea_literal(&position.args[0], "\\x010203");
+    assert_bytea_literal(&position.args[1], "\\x02");
 }
 
 #[test]
@@ -281,7 +309,7 @@ fn should_preserve_bytea_trim_function_operands() {
 
     // Assert
     let trim = projection_function(&statement, 0);
-    assert_function_name(trim, "trim");
+    assert_function_name(trim, "btrim");
     assert_eq!(trim.args.len(), 2);
     assert_bytea_literal(&trim.args[0], "\\x010201");
     assert_bytea_literal(&trim.args[1], "\\x01");

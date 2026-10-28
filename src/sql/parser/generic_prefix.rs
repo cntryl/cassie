@@ -77,7 +77,10 @@ fn prefix(raw: &str) -> Result<Option<(&str, UnaryNumericOp)>, SqlError> {
 
 pub(super) fn check_tail(tail: &str, op: UnaryNumericOp) -> Result<(), SqlError> {
     let signs = matches!(op, UnaryNumericOp::Plus | UnaryNumericOp::Minus);
-    if tail.starts_with(super::super::operators::operator_character)
+    let separated_by_whitespace = tail.chars().next().is_some_and(char::is_whitespace);
+    let tail = super::super::lexical::trim_separators(tail);
+    if !separated_by_whitespace
+        && tail.starts_with(super::super::operators::operator_character)
         && !(signs && tail.starts_with(['+', '-']))
     {
         return Err(SqlError::syntax(

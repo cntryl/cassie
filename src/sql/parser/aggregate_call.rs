@@ -26,6 +26,11 @@ fn parse_function_with_ordered_set_validation(
     if name.is_empty() {
         return Ok(None);
     }
+    if name.eq_ignore_ascii_case("some") {
+        return Err(SqlError::syntax(format!(
+            "syntax error at or near \"{name}\""
+        )));
+    }
     let close = lexical::matching_paren(raw, open)
         .ok_or_else(|| SqlError::syntax("unterminated function call".into()))?;
     let tail = lexical::trim_separators(&raw[close + 1..]);

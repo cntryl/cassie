@@ -215,33 +215,26 @@ fn should_preserve_scalar_rows_after_rejected_binary_mutations() {
 #[test]
 fn should_classify_nested_scalar_receive_errors_with_standard_array_metadata() {
     // Arrange
-    let mut payloads: Vec<_> = matrix::SCALAR_CASES
+    let payloads: Vec<_> = matrix::SCALAR_CASES
         .iter()
         .filter(|case| case.typlen > 1)
-        .map(|case| {
-            let mut excess = case.input_binary.to_vec();
+        .filter_map(|element| {
+            let array_type = format!("{}[]", element.sql_type);
+            let array = matrix::ARRAY_CASES
+                .iter()
+                .find(|case| case.sql_type == array_type)?;
+            let mut excess = element.input_binary.to_vec();
             excess.push(0);
-            (case.oid, excess, "22P03")
+            Some((
+                array,
+                receive::one_element_array(element.oid, &excess),
+                "22P03",
+            ))
         })
         .collect();
-    for (oid, invalid) in receive::invalid_temporal_cases() {
-        let mut excess = invalid.clone();
-        excess.push(0);
-        payloads.extend([(oid, invalid, "22008"), (oid, excess, "22008")]);
-    }
     let mut cycles = Vec::new();
     let mut expected = Vec::new();
-    for (index, (oid, body, state)) in payloads.into_iter().enumerate() {
-        let element = matrix::SCALAR_CASES
-            .iter()
-            .find(|case| case.oid == oid)
-            .expect("scalar fixture");
-        let array_type = format!("{}[]", element.sql_type);
-        let case = matrix::ARRAY_CASES
-            .iter()
-            .find(|case| case.sql_type == array_type)
-            .expect("standard PostgreSQL array fixture");
-        let input = receive::one_element_array(oid, &body);
+    for (index, (case, input, state)) in payloads.into_iter().enumerate() {
         for format in [0, 1] {
             let statement = format!("nested_{index}_{format}");
             cycles.push(receive::named_cycle(
@@ -273,6 +266,6 @@ fn should_classify_nested_scalar_receive_errors_with_standard_array_metadata() {
     let batches = fixture::run_cycles("scalar-receive-standard-array-errors", &[], cycles);
 
     // Assert
-    assert_eq!(batches.len(), 64);
+    assert_eq!(batches.len(), expected.len());
     receive::assert_batches(&batches, &expected);
 }

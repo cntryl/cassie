@@ -13,6 +13,7 @@ fn should_preserve_unlimited_varchar_values_across_restart() {
     ];
     let scalar_inputs = [Some(&b"unlimited"[..]), Some(&b""[..]), None];
     let array_inputs = [Some(&b"[\"unlimited\"]"[..]), Some(&b"[]"[..]), None];
+    let array_text_outputs = [Some(&b"{unlimited}"[..]), Some(&b"{}"[..]), None];
     let array_nonempty_binary =
         &b"\0\0\0\x01\0\0\0\0\0\0\x04\x13\0\0\0\x01\0\0\0\x01\0\0\0\x09unlimited"[..];
     let array_empty_binary = &b"\0\0\0\0\0\0\0\0\0\0\x04\x13"[..];
@@ -43,7 +44,7 @@ fn should_preserve_unlimited_varchar_values_across_restart() {
                     _ => None,
                 }
             } else {
-                array
+                array_text_outputs[index]
             };
             write_expectations.push((1015, format, expected));
         }
@@ -84,7 +85,7 @@ fn should_preserve_unlimited_varchar_values_across_restart() {
             } else if format == 1 {
                 [Some(array_nonempty_binary), Some(array_empty_binary), None]
             } else {
-                array_inputs
+                array_text_outputs
             };
             let expected = values.map(|value| {
                 value.map_or_else(|| vec![0, 1, 255, 255, 255, 255], fixture::one_field_row)

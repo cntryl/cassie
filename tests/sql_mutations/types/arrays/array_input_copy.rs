@@ -2,6 +2,7 @@ use super::support_sql_fixture::sql_fixture;
 use cassie::app::CassieError;
 use cassie::sql::ast::{CopyFormat, CopyStatement};
 use cassie::types::Value;
+use cassie::types::{DataType, SqlArray};
 
 #[test]
 fn should_reject_copy_scalar_array_input_before_publication() {
@@ -62,9 +63,17 @@ fn should_reject_copy_scalar_array_input_before_publication() {
             matches!(result, Err(CassieError::Parse(_))),
             "{label}: invalid COPY input should be rejected before publication"
         );
+        let element_type = match label {
+            "integer" => DataType::Int,
+            "char" => DataType::Char { length: Some(2) },
+            _ => DataType::Varchar { length: Some(2) },
+        };
         assert_eq!(
             fixture.rows("SELECT id, v FROM array_input_copy ORDER BY id"),
-            vec![vec![Value::Int64(0), Value::Json(expected)]]
+            vec![vec![
+                Value::Int64(0),
+                Value::Array(SqlArray::from_nested_json_typed(&expected, &element_type).unwrap())
+            ]]
         );
     }
 }

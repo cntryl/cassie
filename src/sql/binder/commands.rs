@@ -161,10 +161,7 @@ pub(super) fn bind_update(
     if joined::update_needs_joined_binding(&statement) {
         return joined::bind_joined_update(statement, catalog, context);
     }
-    if let Some(alias) = statement.alias.take() {
-        super::nested_qualifiers::rename_update_alias(&mut statement, &alias);
-        super::own_qualifier::strip_update_qualifiers(&mut statement, &[alias]);
-    }
+    normalize_update_alias(&mut statement);
     let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
@@ -197,7 +194,7 @@ pub(super) fn bind_update(
         context,
     )?;
     let mut seen = HashSet::new();
-    for (field, expression) in &mut statement.assignments {
+    for (assignment_index, (field, expression)) in statement.assignments.iter_mut().enumerate() {
         let normalized_field = field.trim().to_string();
         if normalized_field.is_empty() {
             return Err(CassieError::Planner(
@@ -220,10 +217,26 @@ pub(super) fn bind_update(
             )));
         }
 
+        let array_target = statement
+            .array_targets
+            .iter_mut()
+            .find(|target| target.assignment_index == assignment_index);
+        let expected_type = if let Some(target) = array_target {
+            update_subscript_type(
+                target,
+                &declared.data_type,
+                &normalized_field,
+                &result_types,
+                catalog,
+                context,
+            )?
+        } else {
+            declared.data_type.clone()
+        };
         super::boolean_contexts::validate_value(
             expression,
             &result_types,
-            Some(&declared.data_type),
+            Some(&expected_type),
             catalog,
             context,
         )?;
@@ -241,6 +254,23 @@ pub(super) fn bind_update(
 
     statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     super::own_qualifier::strip_update_own_qualifiers(&mut statement);
+    bind_update_filter(&mut statement, &schema, catalog, context)?;
+    Ok(statement)
+}
+
+fn normalize_update_alias(statement: &mut crate::sql::ast::UpdateStatement) {
+    if let Some(alias) = statement.alias.take() {
+        super::nested_qualifiers::rename_update_alias(statement, &alias);
+        super::own_qualifier::strip_update_qualifiers(statement, &[alias]);
+    }
+}
+
+fn bind_update_filter(
+    statement: &mut crate::sql::ast::UpdateStatement,
+    schema: &CollectionSchema,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
     if let Some(filter) = statement.filter.as_mut() {
         let field_types = crate::sql::source_field_type_map(
             &crate::sql::ast::QuerySource::Collection(statement.table.clone()),
@@ -248,15 +278,14 @@ pub(super) fn bind_update(
         );
         super::select::canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
-    super::json_predicates::rewrite_filter(statement.filter.as_mut(), &schema);
+    super::json_predicates::rewrite_filter(statement.filter.as_mut(), schema);
     bind_boolean_filter(
         statement.filter.as_mut(),
         &statement.table,
         "UPDATE WHERE",
         catalog,
         context,
-    )?;
-    Ok(statement)
+    )
 }
 
 pub(super) fn bind_delete(
@@ -516,6 +545,52 @@ pub(super) fn bind_enforce_retention_policy(
     validate_retention_timestamp(&statement.at)?;
     statement.name = name;
     Ok(statement)
+}
+
+fn update_subscript_type(
+    target: &mut crate::sql::ast::UpdateTarget,
+    data_type: &crate::types::DataType,
+    field: &str,
+    types: &super::coalesce_results::ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<crate::types::DataType, CassieError> {
+    let crate::types::DataType::Array(element_type) = data_type else {
+        return Err(CassieError::Planner(format!(
+            "UPDATE array subscript target '{field}' is not an array"
+        )));
+    };
+    let mut is_slice = false;
+    for subscript in &mut target.subscripts {
+        match subscript {
+            crate::sql::ast::ArraySubscript::Index(index) => {
+                super::boolean_contexts::validate_value(
+                    index,
+                    types,
+                    Some(&crate::types::DataType::Int),
+                    catalog,
+                    context,
+                )?;
+            }
+            crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                is_slice = true;
+                for bound in lower.iter_mut().chain(upper.iter_mut()) {
+                    super::boolean_contexts::validate_value(
+                        bound,
+                        types,
+                        Some(&crate::types::DataType::Int),
+                        catalog,
+                        context,
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(if is_slice {
+        data_type.clone()
+    } else {
+        (**element_type).clone()
+    })
 }
 
 fn validate_retention_target(

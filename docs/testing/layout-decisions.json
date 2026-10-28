@@ -2442,10 +2442,6 @@
       "suite": "pgwire_extended",
       "category": "conflicts"
     },
-    "tests/pgwire_extended/coordination/advisory_notify.rs": {
-      "suite": "pgwire_extended",
-      "category": "coordination"
-    },
     "tests/pgwire_extended/copy/transaction_boundaries/errors.rs": {
       "suite": "pgwire_extended",
       "category": "copy/transaction_boundaries"

@@ -86,6 +86,7 @@ fn key_bound(value: &Value) -> Result<usize, QueryError> {
         )?,
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => 0,
         Value::Typed(typed) => typed.heap_bytes(),
+        Value::Array(_) => add(value_clone_bytes(value)?, 128)?,
     })
 }
 
@@ -105,6 +106,20 @@ struct OrderedInput {
     delimiter: Option<Value>,
     array_key: Option<SemanticValue>,
     keys: Vec<SemanticValue>,
+    bytea: bool,
+}
+
+struct AggregateInput {
+    value: Value,
+    delimiter: Option<Value>,
+    array_key: Option<SemanticValue>,
+    bytea: bool,
+}
+
+struct PreparedInput {
+    aggregate: AggregateInput,
+    input_memory: QueryMemoryReservation,
+    key_memory: QueryMemoryReservation,
 }
 
 struct ModifierAccumulator {
@@ -113,6 +128,69 @@ struct ModifierAccumulator {
     accumulator: AggregateAccumulator,
     memory: QueryMemoryReservation,
     inputs: Vec<OrderedInput>,
+}
+
+fn prepare_input(
+    function: &FunctionCall,
+    row: &BatchRow,
+    context: &AggregateExecutionContext<'_>,
+) -> Result<PreparedInput, QueryError> {
+    let input_memory = context
+        .controls
+        .reserve_query_memory(input_bound(function, row, context)?)?;
+    let value = super::state_input::selected_row_input(function, row, context)?;
+    let delimiter = crate::sql::functions::function(&function.name)
+        .is_some_and(|metadata| {
+            metadata.id == crate::sql::functions::FunctionId::StringAgg
+                || matches!(
+                    metadata.id,
+                    crate::sql::functions::FunctionId::CollectionAggregate(
+                        crate::sql::functions::CollectionAggregate::JsonObject { .. }
+                    )
+                )
+        })
+        .then(|| super::state_input::selected_row_argument(function, 1, row, context))
+        .transpose()?;
+    let bytea = crate::sql::functions::function(&function.name)
+        .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
+        && (function.args.first().is_some_and(|argument| {
+            crate::executor::array_order::expression_type(row, argument, context.user_functions)
+                == Some(crate::types::DataType::Bytea)
+        }) || super::state::has_bytea_carrier(&value)
+            && delimiter
+                .as_ref()
+                .is_some_and(super::state::has_bytea_carrier));
+    let key_memory = context.controls.reserve_query_memory(add(
+        add(
+            key_bound(&value)?,
+            delimiter
+                .as_ref()
+                .map(key_bound)
+                .transpose()?
+                .unwrap_or_default(),
+        )?,
+        64,
+    )?)?;
+    let array_key = function
+        .args
+        .first()
+        .map(|argument| semantic_key(row, argument, &value, context))
+        .filter(|key| {
+            matches!(
+                key,
+                SemanticValue::Array(_) | SemanticValue::SqlArray { .. }
+            )
+        });
+    Ok(PreparedInput {
+        aggregate: AggregateInput {
+            value,
+            delimiter,
+            array_key,
+            bytea,
+        },
+        input_memory,
+        key_memory,
+    })
 }
 
 impl ModifierAccumulator {
@@ -138,35 +216,12 @@ impl ModifierAccumulator {
         if !super::state_input::row_filter_matches(function, row, context)? {
             return Ok(());
         }
-        let input_memory = context
-            .controls
-            .reserve_query_memory(input_bound(function, row, context)?)?;
-        let value = super::state_input::selected_row_input(function, row, context)?;
-        let delimiter = crate::sql::functions::function(&function.name)
-            .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
-            .then(|| super::state_input::selected_row_argument(function, 1, row, context))
-            .transpose()?;
-        let key_memory = context.controls.reserve_query_memory(add(
-            add(
-                key_bound(&value)?,
-                delimiter
-                    .as_ref()
-                    .map(key_bound)
-                    .transpose()?
-                    .unwrap_or_default(),
-            )?,
-            64,
-        )?)?;
-        let array_key = function
-            .args
-            .first()
-            .map(|argument| semantic_key(row, argument, &value, context))
-            .filter(|key| matches!(key, SemanticValue::Array(_)));
+        let prepared = prepare_input(function, row, context)?;
         if function.is_distinct()
             && !self.seen.insert(
-                &value,
-                array_key.as_ref(),
-                delimiter.as_ref(),
+                &prepared.aggregate.value,
+                prepared.aggregate.array_key.as_ref(),
+                prepared.aggregate.delimiter.as_ref(),
                 context.controls,
             )?
         {
@@ -177,9 +232,7 @@ impl ModifierAccumulator {
                 &mut self.accumulator,
                 &mut self.state_memory,
                 function,
-                value,
-                delimiter,
-                array_key,
+                prepared.aggregate,
                 context.controls,
             )?;
             #[cfg(test)]
@@ -188,10 +241,31 @@ impl ModifierAccumulator {
             }
             return Ok(());
         }
+        self.push_ordered_input(function, row, context, prepared)?;
+        #[cfg(test)]
+        if let Some(observer) = context.after_partition_row {
+            observer(self.inputs.len());
+        }
+        Ok(())
+    }
+
+    fn push_ordered_input(
+        &mut self,
+        function: &FunctionCall,
+        row: &BatchRow,
+        context: &AggregateExecutionContext<'_>,
+        prepared: PreparedInput,
+    ) -> Result<(), QueryError> {
+        let PreparedInput {
+            aggregate,
+            input_memory,
+            key_memory,
+        } = prepared;
         self.memory.try_grow(add(
             add(
-                value_clone_bytes(&value)?,
-                delimiter
+                value_clone_bytes(&aggregate.value)?,
+                aggregate
+                    .delimiter
                     .as_ref()
                     .map(value_clone_bytes)
                     .transpose()?
@@ -199,30 +273,27 @@ impl ModifierAccumulator {
             )?,
             mul(function.order_by.len(), size_of::<SemanticValue>())?,
         )?)?;
-        if let Some(key) = &array_key {
+        if let Some(key) = &aggregate.array_key {
             self.memory.try_grow(key.estimated_bytes())?;
         }
         let keys = ordered_keys(
             function,
             row,
-            &value,
-            array_key.as_ref(),
+            &aggregate.value,
+            aggregate.array_key.as_ref(),
             context,
             &mut self.memory,
         )?;
         grow_ordered_inputs(&mut self.inputs, &mut self.memory)?;
         self.inputs.push(OrderedInput {
-            value: Some(value),
-            delimiter,
-            array_key,
+            value: Some(aggregate.value),
+            delimiter: aggregate.delimiter,
+            array_key: aggregate.array_key,
             keys,
+            bytea: aggregate.bytea,
         });
         self.memory.absorb(input_memory);
         self.memory.absorb(key_memory);
-        #[cfg(test)]
-        if let Some(observer) = context.after_partition_row {
-            observer(self.inputs.len());
-        }
         Ok(())
     }
 
@@ -240,12 +311,15 @@ impl ModifierAccumulator {
                     &mut self.accumulator,
                     &mut self.state_memory,
                     function,
-                    input
-                        .value
-                        .take()
-                        .expect("each sorted input is visited once"),
-                    input.delimiter.take(),
-                    input.array_key.take(),
+                    AggregateInput {
+                        value: input
+                            .value
+                            .take()
+                            .expect("each sorted input is visited once"),
+                        delimiter: input.delimiter.take(),
+                        array_key: input.array_key.take(),
+                        bytea: input.bytea,
+                    },
                     context.controls,
                 )?;
             }
@@ -430,20 +504,38 @@ fn transition(
     accumulator: &mut AggregateAccumulator,
     memory: &mut QueryMemoryReservation,
     function: &FunctionCall,
-    value: Value,
-    delimiter: Option<Value>,
-    key: Option<SemanticValue>,
+    input: AggregateInput,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    let mut retained_bytes = value_clone_bytes(&value)?;
+    let AggregateInput {
+        value,
+        delimiter,
+        array_key: key,
+        bytea,
+    } = input;
+    let mut retained_bytes = if matches!(accumulator, AggregateAccumulator::Collection { .. }) {
+        super::state::retained_value_bytes(&value)
+    } else {
+        value_clone_bytes(&value)?
+    };
     if let Some(delimiter) = &delimiter {
-        retained_bytes = add(retained_bytes, value_clone_bytes(delimiter)?)?;
+        retained_bytes = add(
+            retained_bytes,
+            if matches!(accumulator, AggregateAccumulator::Collection { .. }) {
+                super::state::retained_value_bytes(delimiter)
+            } else {
+                value_clone_bytes(delimiter)?
+            },
+        )?;
     }
     let candidate = controls.reserve_query_memory(add(
-        retained_bytes,
-        key.as_ref().map_or(0, SemanticValue::estimated_bytes),
+        add(
+            retained_bytes,
+            key.as_ref().map_or(0, SemanticValue::estimated_bytes),
+        )?,
+        accumulator.collection_growth_bytes(),
     )?)?;
-    accumulator.update_values(function, value, key, delimiter)?;
+    accumulator.update_values_with_bytea(function, value, key, delimiter, bytea)?;
     memory.absorb(candidate);
     memory.shrink_to(accumulator.retained_heap_bytes()?);
     controls.aggregate_input_retained()?;

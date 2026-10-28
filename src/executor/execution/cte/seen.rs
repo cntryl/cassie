@@ -53,6 +53,7 @@ impl SeenRows {
                     Value::Json(value) => mul(serialized_json_bytes(value)?, 2)?.max(128),
                     Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => 0,
                     Value::Typed(typed) => typed.heap_bytes(),
+                    Value::Array(_) => crate::executor::retained_memory::value_clone_bytes(value)?,
                 };
                 add(bytes, heap)
             },

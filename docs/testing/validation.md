@@ -1,5 +1,10 @@
 # Backfill and organization validation
 
+The 2026-10-27 [relational qualification checkpoint](relational-qualification-2026-10-27.md)
+records 22 executed primary witnesses, the local full-run failures, and the
+remaining #761 acceptance and dependency gates. It does not qualify the full
+relational contract or close #761.
+
 > **Historical validation archive.** The runs and issue counts below describe
 > their recorded revisions and dates. They do not report the current main head,
 > current GitHub issue state, or an active full-parity product goal. PostgreSQL
@@ -4392,6 +4397,106 @@ documentation files. No full test suite or GitHub workflow was run.
 
 The full test suite was not run. GitHub Actions remained disabled; no workflow
 was enabled or dispatched.
+
+## 2026-10-26 — Cassie full-suite and selected #777 client readback
+
+Source checkout HEAD: `db028e02b850c05b5294abe28783b2ace799d59e`. The local
+working tree also contains parser/client test corrections, removal of four
+orphan catalog tests excluded by the 2026-10-25 scope audit, and a generated
+test inventory refresh after three test modules were split into focused leaves.
+These local changes are not part of PR #1082's remote head. The parser changes
+correct two stale expectations; the psql probe uses the configured root
+identity and one statement per command. The inventory currently records 8,480
+Rust declarations and 8,608 registered instances, with no unregistered tests,
+unresolved paths, duplicates, unsharded targets, or oversized Rust files.
+
+The ordered local run passed `cargo build --locked --bin cassie`, then a fresh
+`cargo test --locked --no-fail-fast` completed with three failing targets:
+`parser_types` 392 passed / 15 failed, `pgwire_extended` 3,484 passed / 284
+failed, and `sql_queries` 1,706 passed / 92 failed (391 failures total). Other
+targets passed, including library 1,352/0, `catalog_security` 330/0, and
+`compatibility` 368/0 with 12 opt-in cases ignored. The exact full output is
+retained at `target/batched-runtime/final-full-test-20261026.log`. This run is
+not green. The three failures groups include unfinished selected array, JSON,
+aggregate, scalar-subquery and relational behavior, plus stale #796 test
+expectations whose coverage is not currently selected. No failure was skipped
+or weakened to produce this inventory.
+
+The two active #822 advisory-lock wire cases were removed from
+`tests/pgwire_extended/coordination/advisory_notify.rs` because the 2026-10-25
+scope audit already selected their removal; this only completes that source
+reconciliation and does not claim advisory-lock behavior passes. Jev's
+focused classification selected this cleanup (probability 0.60; next option
+array core 0.36); the source-backed scope audit, not Jev, authorized the edit.
+Its request and response are retained under ignored `target/batched-runtime/jev/`.
+
+After removal, the generated inventory records 8,478 Rust declarations and
+8,606 registered instances, with zero unregistered tests, unresolved module
+paths, repeated registrations, duplicate identities, unsharded targets, or
+oversized files. `cntryl-tools validate-docs` currently reports stale links in
+the regenerated `planned-tests.md` and older maps; documentation validation is
+not green. `cargo build` is green; the full locked test gate is red. Strict
+Clippy, formatting and touched-test validation have not yet been rerun against
+this complete working-tree state.
+
+The following selected #777 client probes passed on this working tree:
+
+```text
+CASSIE_RUN_PSQL_COMPAT=1 cargo test --locked --test compatibility compatibility_matrix::should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_SQLX_COMPAT=1 cargo test --locked --test compatibility compatibility_sqlx::should_validate_sqlx_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_DIESEL_COMPAT=1 cargo test --locked --test compatibility compatibility_diesel::should_validate_diesel_read_model_probe_when_enabled -- --ignored --nocapture
+```
+
+Each passed 1/1; logs are retained under `target/batched-runtime/issue-777/`.
+The default compatibility target and the full `catalog_security` target also
+passed in the full run. Prisma and SQLAlchemy probes were not selected for this
+bounded #777 subset and were not run. #777 remains open because its complete
+catalog/session lifecycle and exact-revision acceptance record has not been
+closed out; #780 remains blocked by #777. The live dependency readback for
+#842 showed its #792/#793 prerequisites closed. Its selected scalar-index
+contract focus, `CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target
+cargo test --locked --test compatibility index_contracts:: -- --nocapture`,
+passed 47/47, including index lifecycle, catalog, partial/expression/covering
+forms, selected modifiers and rebuild controls. The complete
+`CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target cargo test --locked
+--test storage_indexes` target passed 190 tests, 0 failed, 1 ignored; it includes
+persisted scalar-index metadata, query equivalence and restart coverage. Logs
+for both runs are retained at `target/batched-runtime/issue-842-index-contracts.log`
+and `target/batched-runtime/issue-842-storage-indexes.log`. These results do
+not close #842's broader acceptance or the full-suite gate. The full suite is
+not green. Strict workspace/all-target/all-feature pedantic Clippy, formatting,
+and the psql touched-test policy validator passed. GitHub Actions remain
+disabled; no workflow was enabled or dispatched.
+
+The first `cntryl-tools validate-docs` after inventory regeneration reduced
+the earlier 696 workspace diagnostics to 111. The remaining findings are stale
+links in feature-support and historical test maps; those are being reconciled
+against current test sources and documented scope. No documentation check pass
+is claimed until the validator returns zero diagnostics.
+
+## 2026-10-26 — #800 TABLESAMPLE implementation follow-up
+
+The 2026-10-26 full-suite baseline recorded 369 failures after the per-engine
+ANN barrier repair. The two #800 TABLESAMPLE percentage failures were stale
+expectations: PostgreSQL reports SQLSTATE 2202H
+(`ERRCODE_INVALID_TABLESAMPLE_ARGUMENT`), while the tests expected the
+generic invalid-parameter variant. The implementation now returns the
+PostgreSQL diagnostic, and those tests assert the native SQLSTATE.
+
+The pgwire cancellation fixture now creates and seeds its table in separate
+simple-query requests. This keeps setup independent from multi-command simple
+query behavior and leaves the cancellation assertion focused on TABLESAMPLE.
+The parser clause was extracted to `query_table_sample.rs` to keep the query
+parser below the repository's source-file size limit. Parameter folding gives
+the sampling percentage FLOAT4 (OID 700) and repeatable seed FLOAT8 (OID 701)
+context, including when the parameter has no supplied OID.
+
+Focused evidence after these changes: the SQL TABLESAMPLE group passed 13/13;
+the selected pgwire TABLESAMPLE tests passed, while the broad `sample` filter
+also selected two unrelated array sampling failures under #807. The parser
+TABLESAMPLE source tests passed 7/7. This follow-up does not complete #800 or
+make the full suite green. Full repository validation is deferred until the
+next coherent implementation batch is ready.
 
 ## 2026-10-21 — #905/#906/#907 active test scope cleanup
 

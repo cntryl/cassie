@@ -114,6 +114,18 @@ fn select(select: &mut SelectStatement, from: &str, to: &str) {
 fn source(source: &mut QuerySource, from: &str, to: &str) {
     match source {
         QuerySource::Aliased { source, .. } => self::source(source, from, to),
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            self::source(source, from, to);
+            expr(rate, from, to);
+            if let Some(seed) = repeatable {
+                expr(seed, from, to);
+            }
+        }
         QuerySource::Subquery { select, .. } => self::select(select, from, to),
         QuerySource::Join {
             left, right, on, ..
@@ -169,6 +181,7 @@ fn shadows(source: &QuerySource, name: &str) -> bool {
             alias.eq_ignore_ascii_case(name)
         }
         QuerySource::Join { left, right, .. } => shadows(left, name) || shadows(right, name),
+        QuerySource::TableSample { source, .. } => shadows(source, name),
         QuerySource::Values { .. } | QuerySource::SingleRow => false,
     }
 }

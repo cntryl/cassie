@@ -91,6 +91,7 @@ impl Fold<'_, '_> {
         Ok(Some(Summary::known(match metadata.return_type {
             functions::FunctionReturnType::Bytea => 17,
             functions::FunctionReturnType::Int => 23,
+            functions::FunctionReturnType::IntArray => 1007,
             functions::FunctionReturnType::BigInt => 20,
             _ => 25,
         })))

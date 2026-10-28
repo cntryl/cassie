@@ -223,7 +223,7 @@ fn query_source_uses_view_function(
             .flatten()
             .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
 
-        QuerySource::Aliased { source, .. } => {
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
             query_source_uses_view_function(source, function_name, catalog, visited_views)
         }
         QuerySource::Collection(name) => {
@@ -358,7 +358,9 @@ fn query_source_needs_user_functions(source: &QuerySource) -> bool {
     match source {
         QuerySource::Values { rows } => rows.iter().flatten().any(expr_needs_user_functions),
 
-        QuerySource::Aliased { source, .. } => query_source_needs_user_functions(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            query_source_needs_user_functions(source)
+        }
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
             function.expressions().any(expr_needs_user_functions)
@@ -541,6 +543,7 @@ fn expr_uses_vector_operator(expr: &crate::sql::ast::Expr) -> bool {
         crate::sql::ast::Expr::IsNull { expr, .. }
         | crate::sql::ast::Expr::TruthTest { expr, .. }
         | crate::sql::ast::Expr::Cast { expr, .. }
+        | crate::sql::ast::Expr::Collate { expr, .. }
         | crate::sql::ast::Expr::UnaryNumeric { expr, .. }
         | crate::sql::ast::Expr::IntegerNegate { expr, .. } => expr_uses_vector_operator(expr),
         crate::sql::ast::Expr::InList { expr, values, .. } => {
@@ -637,7 +640,9 @@ fn query_source_uses_function(source: &QuerySource, function_name: &str) -> bool
             .flatten()
             .any(|expr| expr_uses_function(expr, function_name)),
 
-        QuerySource::Aliased { source, .. } => query_source_uses_function(source, function_name),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            query_source_uses_function(source, function_name)
+        }
         QuerySource::TableFunction { function, .. } => {
             function_uses_function(function, function_name)
         }
@@ -729,6 +734,7 @@ fn collect_fulltext_fields_from_expr(expr: &crate::sql::ast::Expr, fields: &mut 
         crate::sql::ast::Expr::IsNull { expr, .. }
         | crate::sql::ast::Expr::TruthTest { expr, .. }
         | crate::sql::ast::Expr::Cast { expr, .. }
+        | crate::sql::ast::Expr::Collate { expr, .. }
         | crate::sql::ast::Expr::UnaryNumeric { expr, .. }
         | crate::sql::ast::Expr::IntegerNegate { expr, .. } => {
             collect_fulltext_fields_from_expr(expr, fields);
@@ -795,7 +801,9 @@ fn execution_source_name(source: &QuerySource) -> String {
     match source {
         QuerySource::Values { .. } => "values".into(),
 
-        QuerySource::Aliased { source, .. } => execution_source_name(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            execution_source_name(source)
+        }
         QuerySource::Collection(name) => name.to_string(),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),

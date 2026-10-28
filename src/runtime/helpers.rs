@@ -37,6 +37,17 @@ pub fn hash_params(params: &[Value]) -> u64 {
                     value.to_bits().hash(hasher);
                 }
             }
+            Value::Array(array) => {
+                8u8.hash(hasher);
+                array.dimensions().len().hash(hasher);
+                for dimension in array.dimensions() {
+                    dimension.length.hash(hasher);
+                    dimension.lower_bound.hash(hasher);
+                }
+                for value in array.elements() {
+                    hash_value(hasher, value);
+                }
+            }
             Value::Json(v) => {
                 6u8.hash(hasher);
                 serde_json::to_writer(JsonHashWriter(hasher), v)
@@ -145,6 +156,7 @@ pub(super) fn parameter_shape_for_value(value: &Value) -> ParameterShape {
         Value::String(_) | Value::Typed(_) => ParameterShape::String,
         Value::Vector(vector) => ParameterShape::Vector(vector.values.len()),
         Value::Json(_) => ParameterShape::Json,
+        Value::Array(_) => ParameterShape::Array,
     }
 }
 

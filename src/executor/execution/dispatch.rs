@@ -283,7 +283,9 @@ pub(super) fn source_has_cte_boundary(source: &crate::sql::ast::QuerySource) -> 
     use crate::sql::ast::QuerySource;
     match source {
         QuerySource::Cte(_) => true,
-        QuerySource::Aliased { source, .. } => source_has_cte_boundary(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_has_cte_boundary(source)
+        }
         QuerySource::Join { left, right, .. } => {
             source_has_cte_boundary(left) || source_has_cte_boundary(right)
         }
@@ -484,7 +486,9 @@ fn select_item_is_aggregate(item: &SelectItem) -> bool {
 
 fn source_reads_materialized_projection(cassie: &Cassie, source: &QuerySource) -> bool {
     match source {
-        QuerySource::Aliased { source, .. } => source_reads_materialized_projection(cassie, source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_reads_materialized_projection(cassie, source)
+        }
         QuerySource::Collection(name) => cassie.catalog.is_materialized_projection(name),
         QuerySource::Subquery { select, .. } => {
             source_reads_materialized_projection(cassie, &select.source)
@@ -646,6 +650,13 @@ pub(super) fn resolve_exists_expr<'a>(
             source_type,
             identity,
         } => resolve_cast_exists_expr(context, expr, data_type, source_type.as_ref(), *identity),
+        Expr::Collate { expr, collation } => Ok(Expr::Collate {
+            expr: Box::new(resolve_exists_expr(context, expr)?),
+            collation: collation.clone(),
+        }),
+        Expr::ArraySubscript { array, subscripts } => {
+            resolve_subscript_exists_expr(context, array, subscripts)
+        }
         Expr::Exists(statement) => exists_predicate::execute(context, statement),
         Expr::Subquery(subquery) => super::subquery_eval::resolve(context, subquery),
         Expr::Column(_)
@@ -664,6 +675,42 @@ pub(super) fn resolve_exists_expr<'a>(
             Ok(Expr::Function(function))
         }
     }
+}
+
+fn resolve_subscript_exists_expr<'a>(
+    context: &'a ExistsResolutionContext<'a>,
+    array: &'a Expr,
+    subscripts: &'a [crate::sql::ast::ArraySubscript],
+) -> ExprResolution<'a> {
+    Ok(Expr::ArraySubscript {
+        array: Box::new(resolve_exists_expr(context, array)?),
+        subscripts: subscripts
+            .iter()
+            .map(
+                |subscript| -> Result<crate::sql::ast::ArraySubscript, QueryError> {
+                    match subscript {
+                        crate::sql::ast::ArraySubscript::Index(index) => {
+                            Ok(crate::sql::ast::ArraySubscript::Index(resolve_exists_expr(
+                                context, index,
+                            )?))
+                        }
+                        crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                            Ok(crate::sql::ast::ArraySubscript::Slice {
+                                lower: lower
+                                    .as_ref()
+                                    .map(|bound| resolve_exists_expr(context, bound))
+                                    .transpose()?,
+                                upper: upper
+                                    .as_ref()
+                                    .map(|bound| resolve_exists_expr(context, bound))
+                                    .transpose()?,
+                            })
+                        }
+                    }
+                },
+            )
+            .collect::<Result<_, _>>()?,
+    })
 }
 
 fn resolve_row_exists_expr<'a>(
@@ -927,6 +974,23 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
             .map(expression_expansion_weight)
             .sum::<usize>()
             .max(1),
+        Expr::ArraySubscript { array, subscripts } => {
+            subscripts
+                .iter()
+                .fold(expression_expansion_weight(array), |weight, subscript| {
+                    let bounds = match subscript {
+                        crate::sql::ast::ArraySubscript::Index(index) => {
+                            expression_expansion_weight(index)
+                        }
+                        crate::sql::ast::ArraySubscript::Slice { lower, upper } => lower
+                            .iter()
+                            .chain(upper.iter())
+                            .map(expression_expansion_weight)
+                            .sum(),
+                    };
+                    weight.saturating_add(bounds)
+                })
+        }
         Expr::Binary { left, right, .. } => {
             expression_expansion_weight(left).saturating_add(expression_expansion_weight(right))
         }
@@ -943,6 +1007,7 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => expression_expansion_weight(expr),
         Expr::InList { expr, values, .. } => values

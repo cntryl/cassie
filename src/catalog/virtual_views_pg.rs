@@ -34,6 +34,29 @@ pub(super) fn access_method_schema() -> Vec<(String, DataType)> {
     vec![oid("oid"), text("amname")]
 }
 
+pub(super) fn collation_schema() -> Vec<(String, DataType)> {
+    vec![
+        oid("oid"),
+        text("collname"),
+        text("collprovider"),
+        bool("collisdeterministic"),
+    ]
+}
+
+pub(super) fn pg_collation() -> Vec<VirtualRow> {
+    [("C", 950), ("POSIX", 951)]
+        .into_iter()
+        .map(|(name, oid)| {
+            vec![
+                int_value("oid", oid),
+                string("collname", name),
+                string("collprovider", "c"),
+                bool_value("collisdeterministic", true),
+            ]
+        })
+        .collect()
+}
+
 pub(super) fn pg_am() -> Vec<VirtualRow> {
     vec![
         vec![int_value("oid", 2), string("amname", "heap")],
@@ -861,6 +884,7 @@ fn row_sort_key(row: &VirtualRow) -> String {
             Value::Float64(value) => value.to_string(),
             Value::Vector(value) => format!("{:?}", value.values),
             Value::Json(value) => value.to_string(),
+            Value::Array(value) => value.to_storage_json().to_string(),
             Value::Typed(value) => value.text(),
         })
         .collect::<Vec<_>>()

@@ -69,6 +69,6 @@ fn should_describe_chained_qualified_array_cast_expression() {
     );
     assert_eq!(
         wire::data_rows(executed),
-        vec![vec![Some("42".to_owned()), Some("[1,2]".to_owned())]]
+        vec![vec![Some("42".to_owned()), Some("{1,2}".to_owned())]]
     );
 }

@@ -535,6 +535,12 @@ fn evaluate_aggregate(
         || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
             crate::sql::functions::statistical::is_statistical_function(metadata.id)
         })
+        || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+            matches!(
+                metadata.id,
+                crate::sql::functions::FunctionId::CollectionAggregate(_)
+            )
+        })
     {
         AggregateAccumulator::evaluate(function, rows, context)
     } else {

@@ -25,7 +25,7 @@ pub(super) fn execute(
         None,
         env.session,
     )?;
-    let super::filter::ScalarValue::Json(encoded) = value else {
+    let super::filter::ScalarValue::Array(array) = value else {
         return if matches!(value, super::filter::ScalarValue::Null) {
             Ok(Vec::new())
         } else {
@@ -35,23 +35,22 @@ pub(super) fn execute(
             .into())
         };
     };
-    let serde_json::Value::Array(values) = serde_json::from_str::<serde_json::Value>(&encoded)
-        .map_err(|error| QueryError::General(format!("invalid logical option array: {error}")))?
-    else {
-        return Err(crate::app::CassieError::Execution(
-            "function pg_options_to_table(...) does not exist".into(),
+    if array.dimensions().len() > 1 {
+        return Err(crate::app::CassieError::Unsupported(
+            "higher-dimensional option arrays remain pending under #793".into(),
         )
         .into());
-    };
+    }
+    let values = array.elements();
     let mut bytes = mul(
         values.len(),
         size_of::<BatchRow>() + 2 * size_of::<(String, Value)>() + 23 + lookup_bytes(2, 23)?,
     )?;
-    for value in &values {
+    for value in values {
         env.controls.check_interruption()?;
         match value {
-            serde_json::Value::Null => return Err(crate::app::CassieError::NullArrayElement.into()),
-            serde_json::Value::String(text) => bytes = add(bytes, text.len())?,
+            Value::Null => return Err(crate::app::CassieError::NullArrayElement.into()),
+            Value::String(text) => bytes = add(bytes, text.len())?,
             _ => {
                 return Err(crate::app::CassieError::Unsupported(
                     "higher-dimensional option arrays remain pending under #793".into(),
@@ -62,12 +61,14 @@ pub(super) fn execute(
     }
     let memory = Arc::new(env.controls.reserve_query_memory(bytes)?);
     let mut output = Vec::with_capacity(values.len());
-    for value in &values {
+    for value in values {
         env.controls.check_interruption()?;
-        let text = value.as_str().expect("validated text array");
+        let Value::String(text) = value else {
+            unreachable!("option array values were validated before output allocation")
+        };
         let (name, value) = text
             .split_once('=')
-            .map_or((text, Value::Null), |(name, value)| {
+            .map_or((text.as_str(), Value::Null), |(name, value)| {
                 (name, Value::String(value.to_owned()))
             });
         output.push(
@@ -90,7 +91,9 @@ fn scratch_bytes(expression: &Expr, params: &[Value], row: &BatchRow) -> Result<
             )?,
             1024,
         )?),
-        Expr::Cast { expr, .. } => Ok(add(1024, scratch_bytes(expr, params, row)?)?),
+        Expr::Cast { expr, .. } | Expr::Collate { expr, .. } => {
+            Ok(add(1024, scratch_bytes(expr, params, row)?)?)
+        }
         _ => super::source_values::scratch_bytes(expression, params),
     }
 }

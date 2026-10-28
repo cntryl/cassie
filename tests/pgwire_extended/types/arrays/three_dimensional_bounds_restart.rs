@@ -104,7 +104,6 @@ fn assert_three_dimensional_array_values(frames: &fixture::Frames) {
             (23, 4, -1),
             (23, 4, -1),
             (23, 4, -1),
-            (23, 4, -1),
             (1007, -1, -1),
         ]
     );

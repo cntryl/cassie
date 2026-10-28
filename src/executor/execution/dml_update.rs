@@ -176,6 +176,7 @@ fn prepare_update_row(
             table: &context.statement.table,
             schema: context.schema,
             subqueries: Some(context.subqueries),
+            array_targets: &context.statement.array_targets,
         },
         row,
         &context.statement.assignments,
@@ -217,6 +218,7 @@ pub(super) struct AssignmentTarget<'a> {
     pub(super) table: &'a str,
     pub(super) schema: &'a CollectionSchema,
     pub(super) subqueries: Option<&'a super::dml_subqueries::RowSubqueries<'a>>,
+    pub(super) array_targets: &'a [crate::sql::ast::UpdateTarget],
 }
 
 pub(super) fn updated_payload_from_row(
@@ -234,7 +236,7 @@ pub(super) fn updated_payload_from_row(
         .cloned()
         .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
     let schema_has_id = schema.declares_id();
-    for (field, expr) in assignments {
+    for (assignment_index, (field, expr)) in assignments.iter().enumerate() {
         if expr.is_default_assignment() {
             match target
                 .cassie
@@ -260,9 +262,312 @@ pub(super) fn updated_payload_from_row(
                 None,
             )?,
         };
-        apply_update_value(&mut payload, field, &value, schema)?;
+        if let Some(array_target) = target
+            .array_targets
+            .iter()
+            .find(|target| target.assignment_index == assignment_index)
+        {
+            apply_array_update_value(
+                &mut payload,
+                field,
+                &array_target.subscripts,
+                &value,
+                (row, params, user_functions, session),
+                schema,
+            )?;
+        } else {
+            apply_update_value(&mut payload, field, &value, schema)?;
+        }
     }
     Ok(serde_json::Value::Object(payload))
+}
+
+fn apply_array_update_value(
+    payload: &mut serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    subscripts: &[crate::sql::ast::ArraySubscript],
+    assigned: &Value,
+    evaluation: (
+        &BatchRow,
+        &[Value],
+        &HashMap<String, FunctionMeta>,
+        Option<&CassieSession>,
+    ),
+    schema: &CollectionSchema,
+) -> Result<(), QueryError> {
+    let (row, params, user_functions, session) = evaluation;
+    let field_schema = schema
+        .fields
+        .iter()
+        .find(|candidate| candidate.name == field)
+        .ok_or_else(|| QueryError::General(format!("array UPDATE column '{field}' is missing")))?;
+    let crate::types::DataType::Array(element_type) = &field_schema.data_type else {
+        return Err(QueryError::General(format!(
+            "array UPDATE target '{field}' is not an array"
+        )));
+    };
+    if subscripts.len() != 1 {
+        return Err(QueryError::General(
+            "array UPDATE element and slice assignment currently requires one dimension".into(),
+        ));
+    }
+    let mut array = match payload.get(field) {
+        Some(value) if value.is_null() => crate::types::SqlArray::empty(),
+        Some(value)
+            if value
+                .as_object()
+                .is_some_and(|object| object.contains_key("$cassie_array_v1")) =>
+        {
+            crate::types::SqlArray::from_storage_json(value).map_err(QueryError::General)?
+        }
+        Some(value) => crate::types::SqlArray::from_nested_json(
+            value,
+            matches!(
+                element_type.as_ref(),
+                crate::types::DataType::Json | crate::types::DataType::Jsonb
+            ),
+        )
+        .map_err(QueryError::General)?,
+        None => crate::types::SqlArray::empty(),
+    };
+    match &subscripts[0] {
+        crate::sql::ast::ArraySubscript::Index(expression) => {
+            let index = evaluate_array_bound(expression, row, params, user_functions, session)?;
+            set_array_element(&mut array, index, assigned.clone())?;
+        }
+        crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+            let default_lower = array
+                .dimensions()
+                .first()
+                .map_or(1, |dimension| dimension.lower_bound);
+            let default_upper = array
+                .dimensions()
+                .first()
+                .map_or(0, |dimension| dimension.lower_bound + dimension.length - 1);
+            let lower = lower
+                .as_ref()
+                .map(|expression| {
+                    evaluate_array_bound(expression, row, params, user_functions, session)
+                })
+                .transpose()?
+                .unwrap_or(default_lower);
+            let upper = upper
+                .as_ref()
+                .map(|expression| {
+                    evaluate_array_bound(expression, row, params, user_functions, session)
+                })
+                .transpose()?
+                .unwrap_or(default_upper);
+            let replacement = match assigned {
+                Value::Array(array) => array.clone(),
+                Value::Json(value) if value.is_array() => crate::types::SqlArray::from_nested_json(
+                    value,
+                    matches!(
+                        element_type.as_ref(),
+                        crate::types::DataType::Json | crate::types::DataType::Jsonb
+                    ),
+                )
+                .map_err(QueryError::General)?,
+                _ => {
+                    return Err(QueryError::General(
+                        "array slice assignment requires an array value".into(),
+                    ));
+                }
+            };
+            set_array_slice(&mut array, lower, upper, &replacement)?;
+        }
+    }
+    payload.insert(field.to_string(), array.to_storage_json());
+    Ok(())
+}
+
+fn evaluate_array_bound(
+    expression: &Expr,
+    row: &BatchRow,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<i32, QueryError> {
+    let value =
+        filter::evaluate_expr_value(row, expression, params, None, user_functions, session, None)?;
+    let index = value
+        .as_i64()
+        .and_then(|index| i32::try_from(index).ok())
+        .ok_or_else(|| QueryError::General("array subscript must be an INT4 value".into()))?;
+    Ok(index)
+}
+
+fn set_array_element(
+    array: &mut crate::types::SqlArray,
+    index: i32,
+    value: Value,
+) -> Result<(), QueryError> {
+    if array.dimensions().is_empty() {
+        *array = crate::types::SqlArray::new(
+            vec![crate::types::ArrayDimension {
+                length: 1,
+                lower_bound: index,
+            }],
+            vec![value],
+        )
+        .map_err(QueryError::General)?;
+        return Ok(());
+    }
+    if array.dimensions().len() != 1 {
+        return Err(QueryError::General(
+            "array element assignment requires a one-dimensional array".into(),
+        ));
+    }
+    let dimension = array.dimensions()[0];
+    let upper_bound = dimension
+        .lower_bound
+        .checked_add(dimension.length - 1)
+        .ok_or_else(|| QueryError::General("array upper bound exceeds INT4".into()))?;
+    let mut elements = array.elements().to_vec();
+    let mut lower_bound = dimension.lower_bound;
+    if index < lower_bound {
+        let prefix = usize::try_from(
+            lower_bound
+                .checked_sub(index)
+                .ok_or_else(|| QueryError::General("array subscript is out of range".into()))?,
+        )
+        .map_err(|_| QueryError::General("array dimension exceeds INT4".into()))?;
+        let mut expanded = Vec::new();
+        expanded
+            .try_reserve(prefix.saturating_add(elements.len()))
+            .map_err(|error| QueryError::General(format!("cannot expand array: {error}")))?;
+        expanded.resize(prefix, Value::Null);
+        expanded.append(&mut elements);
+        elements = expanded;
+        lower_bound = index;
+    }
+    let relative_index = index
+        .checked_sub(lower_bound)
+        .ok_or_else(|| QueryError::General("array subscript is out of range".into()))?;
+    let position = usize::try_from(relative_index)
+        .map_err(|_| QueryError::General("array subscript is out of range".into()))?;
+    if index > upper_bound {
+        let new_length = usize::try_from(
+            index
+                .checked_sub(lower_bound)
+                .and_then(|relative| relative.checked_add(1))
+                .ok_or_else(|| QueryError::General("array dimension exceeds INT4".into()))?,
+        )
+        .map_err(|_| QueryError::General("array dimension exceeds INT4".into()))?;
+        elements
+            .try_reserve(new_length.saturating_sub(elements.len()))
+            .map_err(|error| QueryError::General(format!("cannot expand array: {error}")))?;
+        elements.resize(new_length, Value::Null);
+    }
+    elements[position] = value;
+    *array = crate::types::SqlArray::new(
+        vec![crate::types::ArrayDimension {
+            length: i32::try_from(elements.len())
+                .map_err(|_| QueryError::General("array dimension exceeds INT4".into()))?,
+            lower_bound,
+        }],
+        elements,
+    )
+    .map_err(QueryError::General)?;
+    Ok(())
+}
+
+fn set_array_slice(
+    array: &mut crate::types::SqlArray,
+    lower: i32,
+    upper: i32,
+    replacement: &crate::types::SqlArray,
+) -> Result<(), QueryError> {
+    if replacement.dimensions().len() > 1 {
+        return Err(QueryError::General(
+            "array slice replacement must be one-dimensional".into(),
+        ));
+    }
+    if upper < lower {
+        return Ok(());
+    }
+    let (mut old_lower, mut old_length, mut elements) = if array.is_empty() {
+        (1, 0_usize, Vec::new())
+    } else {
+        if array.dimensions().len() != 1 {
+            return Err(QueryError::General(
+                "array slice assignment requires a one-dimensional array".into(),
+            ));
+        }
+        (
+            array.dimensions()[0].lower_bound,
+            usize::try_from(array.dimensions()[0].length)
+                .map_err(|_| QueryError::General("array dimension out of range".into()))?,
+            array.elements().to_vec(),
+        )
+    };
+    if lower < old_lower {
+        let prefix =
+            usize::try_from(old_lower.checked_sub(lower).ok_or_else(|| {
+                QueryError::General("array slice lower bound out of range".into())
+            })?)
+            .map_err(|_| QueryError::General("array slice lower bound out of range".into()))?;
+        let mut expanded = Vec::new();
+        expanded
+            .try_reserve(prefix.saturating_add(elements.len()))
+            .map_err(|error| QueryError::General(format!("cannot expand array slice: {error}")))?;
+        expanded.resize(prefix, Value::Null);
+        expanded.append(&mut elements);
+        elements = expanded;
+        old_length = old_length
+            .checked_add(prefix)
+            .ok_or_else(|| QueryError::General("array dimension exceeds INT4".into()))?;
+        old_lower = lower;
+    }
+    let old_upper = old_lower
+        .checked_add(
+            i32::try_from(old_length)
+                .map_err(|_| QueryError::General("array dimension exceeds INT4".into()))?,
+        )
+        .and_then(|exclusive| exclusive.checked_sub(1))
+        .ok_or_else(|| QueryError::General("array upper bound exceeds INT4".into()))?;
+    if upper > old_upper {
+        let extra =
+            usize::try_from(upper.checked_sub(old_upper).ok_or_else(|| {
+                QueryError::General("array slice upper bound out of range".into())
+            })?)
+            .map_err(|_| QueryError::General("array slice upper bound out of range".into()))?;
+        elements
+            .try_reserve(extra)
+            .map_err(|error| QueryError::General(format!("cannot expand array slice: {error}")))?;
+        let new_length = elements
+            .len()
+            .checked_add(extra)
+            .ok_or_else(|| QueryError::General("array dimension exceeds INT4".into()))?;
+        elements.resize(new_length, Value::Null);
+    }
+    let start = usize::try_from(
+        lower
+            .checked_sub(old_lower)
+            .ok_or_else(|| QueryError::General("array slice lower bound out of range".into()))?,
+    )
+    .map_err(|_| QueryError::General("array slice lower bound out of range".into()))?;
+    let end = usize::try_from(
+        upper
+            .checked_sub(old_lower)
+            .and_then(|relative| relative.checked_add(1))
+            .ok_or_else(|| QueryError::General("array slice upper bound out of range".into()))?,
+    )
+    .map_err(|_| QueryError::General("array slice upper bound out of range".into()))?;
+    elements
+        .try_reserve(replacement.len())
+        .map_err(|error| QueryError::General(format!("cannot assign array slice: {error}")))?;
+    elements.splice(start..end, replacement.elements().iter().cloned());
+    *array = crate::types::SqlArray::new(
+        vec![crate::types::ArrayDimension {
+            length: i32::try_from(elements.len())
+                .map_err(|_| QueryError::General("array dimension exceeds INT4".into()))?,
+            lower_bound: old_lower,
+        }],
+        elements,
+    )
+    .map_err(QueryError::General)?;
+    Ok(())
 }
 
 fn apply_update_row(

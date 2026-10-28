@@ -294,7 +294,7 @@ fn should_parse_deterministically_across_invocations() {
 }
 
 #[test]
-fn should_reject_unknown_clause_in_query() {
+fn should_parse_named_window_clause_in_query() {
     // Arrange
     let sql = "SELECT * FROM docs WINDOW ranked AS (PARTITION BY title)";
 
@@ -302,7 +302,7 @@ fn should_reject_unknown_clause_in_query() {
     let parsed = parse_statement(sql);
 
     // Assert
-    assert!(parsed.is_err());
+    assert!(parsed.is_ok());
 }
 
 #[test]

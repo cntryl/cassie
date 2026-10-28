@@ -122,7 +122,9 @@ pub(super) fn source_row_budget(plan: &LogicalPlan, max_result_rows: usize) -> O
 
 pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySource) -> bool {
     match source {
-        QuerySource::Aliased { source, .. } => source_contains_lateral(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_contains_lateral(source)
+        }
         QuerySource::Join { left, right, .. } => {
             source_contains_lateral(left) || source_contains_lateral(right)
         }
@@ -668,9 +670,31 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
             "{}::{data_type:?}[{source_type:?},{identity:?}]",
             expr_key(expr)
         ),
+        Expr::Collate { expr, collation } => format!("{} collate {collation}", expr_key(expr)),
+        Expr::ArraySubscript { array, subscripts } => array_subscript_key(array, subscripts),
         Expr::Exists(_) => "exists".to_string(),
         Expr::Subquery(subquery) => subquery_key(subquery),
     }
+}
+
+fn array_subscript_key(array: &Expr, subscripts: &[crate::sql::ast::ArraySubscript]) -> String {
+    let mut key = expr_key(array);
+    for subscript in subscripts {
+        match subscript {
+            crate::sql::ast::ArraySubscript::Index(index) => {
+                let _ = write!(key, "[{}]", expr_key(index));
+            }
+            crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                let _ = write!(
+                    key,
+                    "[{}:{}]",
+                    lower.as_ref().map_or(String::new(), expr_key),
+                    upper.as_ref().map_or(String::new(), expr_key)
+                );
+            }
+        }
+    }
+    key
 }
 
 fn case_key(operand: Option<&Expr>, branches: &[(Expr, Expr)], else_expr: Option<&Expr>) -> String {

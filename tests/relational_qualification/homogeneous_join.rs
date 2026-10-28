@@ -1,6 +1,7 @@
 //! Literal homogeneous join parity with actual supported direct-kernel counters.
 use crate::support_relational_qualification::{
-    cycle, fixture_with_vectorized_joins, matches_row, run_wire, Fixture, Parameter,
+    cycle, fixture_with_join_batch_size, fixture_with_vectorized_joins, matches_row, run_wire,
+    Fixture, Parameter,
 };
 use serde::Deserialize;
 #[derive(Deserialize)]
@@ -143,6 +144,82 @@ fn should_match_homogeneous_join_literals_with_selected_kernel_counters() {
                 u64::try_from(case.expected_rows.len()).expect("finite row count")
             );
         }
+    }
+}
+
+#[test]
+fn should_preserve_homogeneous_join_results_across_batch_sizes() {
+    // Arrange
+    let records = records();
+    let mut outcomes = Vec::new();
+    for batch_size in [1, 2, 3, 5] {
+        let fixture = fixture_with_join_batch_size(true, batch_size);
+        seed(&fixture, &records);
+        for case in &records.cases {
+            let before = counters(&fixture);
+
+            // Act
+            let result = fixture
+                .cassie
+                .execute_sql(&fixture.session, &case.unaliased_sql, vec![])
+                .expect("vectorized join");
+            let after = counters(&fixture);
+            outcomes.push((batch_size, case, result, before, after));
+        }
+    }
+
+    // Assert
+    for (batch_size, case, result, before, after) in outcomes {
+        assert_eq!(
+            result.rows().len(),
+            case.expected_rows.len(),
+            "batch {batch_size}"
+        );
+        assert!(
+            result
+                .rows()
+                .iter()
+                .zip(&case.expected_rows)
+                .all(|(actual, expected)| matches_row(actual, expected)),
+            "{} batch {batch_size}",
+            case.invariant
+        );
+        assert_eq!(result.columns().len(), 2, "batch {batch_size}");
+        assert_eq!(
+            result
+                .columns()
+                .iter()
+                .map(|column| column.name.as_str())
+                .collect::<Vec<_>>(),
+            ["id", "id"],
+            "batch {batch_size}"
+        );
+        assert!(
+            result.columns().iter().all(|column| column.type_oid == 20
+                && column.typlen == 8
+                && column.atttypmod == -1
+                && column.format_code == 0),
+            "batch {batch_size}"
+        );
+        assert_eq!(
+            after.last_strategy, case.enabled_strategy,
+            "batch {batch_size}"
+        );
+        assert_eq!(
+            after.vectorized_build_rows_total - before.vectorized_build_rows_total,
+            4,
+            "batch {batch_size}"
+        );
+        assert_eq!(
+            after.vectorized_probe_rows_total - before.vectorized_probe_rows_total,
+            5,
+            "batch {batch_size}"
+        );
+        assert_eq!(
+            after.output_rows_total - before.output_rows_total,
+            u64::try_from(case.expected_rows.len()).expect("finite rows"),
+            "batch {batch_size}"
+        );
     }
 }
 

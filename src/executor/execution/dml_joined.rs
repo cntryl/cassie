@@ -116,7 +116,9 @@ pub(super) fn select_plan(select: &SelectStatement) -> LogicalPlan {
         source: select.source.clone(),
         collection: match &select.source {
             QuerySource::Values { .. } => "values".into(),
-            QuerySource::Aliased { source, .. } => crate::planner::logical::source_name(source),
+            QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+                crate::planner::logical::source_name(source)
+            }
             QuerySource::Collection(name) => name.to_string(),
             QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
             QuerySource::Subquery { alias, .. } => alias.clone(),

@@ -41,7 +41,8 @@ fn should_preserve_owned_statement_routes_for_every_family() {
     // Assert
     assert!(matches!(
         routes[0],
-        StatementRoute::Runtime(RuntimeStatement::Select(_))
+        StatementRoute::Runtime(ref statement)
+            if matches!(statement.as_ref(), RuntimeStatement::Select(_))
     ));
     assert!(matches!(
         routes[1],

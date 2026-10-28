@@ -160,29 +160,16 @@ fn expression_operand_family(
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(data_type_family(data_type)))
         }
+        Expr::Collate { expr, .. } => collated_operand_family(expr, field_types),
+        Expr::ArraySubscript { array, subscripts } => {
+            array_subscript_family(array, subscripts, field_types)
+        }
         Expr::IsNull { expr, .. } | Expr::TruthTest { expr, .. } | Expr::Not { expr } => {
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(OperandFamily::Boolean))
         }
         Expr::Binary { left, op, right } => binary_operand_family(left, op, right, field_types),
-        Expr::InList { expr, values, .. } => {
-            let expression_family = expression_operand_family(expr, field_types)?;
-            for value in values {
-                let value_family = expression_operand_family(value, field_types)?;
-                if validate_typed_string_comparison(expr, value, field_types)? {
-                    continue;
-                }
-                let (expression_family, value_family) = contextual_string_literal_families(
-                    expr,
-                    value,
-                    expression_family,
-                    value_family,
-                    true,
-                )?;
-                require_compatible_families(expression_family, value_family, "IN")?;
-            }
-            Ok(Some(OperandFamily::Boolean))
-        }
+        Expr::InList { expr, values, .. } => validate_in_list_family(expr, values, field_types),
         Expr::Like {
             expr,
             pattern,
@@ -209,6 +196,76 @@ fn expression_operand_family(
             Ok(Some(OperandFamily::Boolean))
         }
     }
+}
+
+fn array_subscript_family(
+    array: &Expr,
+    subscripts: &[crate::sql::ast::ArraySubscript],
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<OperandFamily>, CassieError> {
+    validate_expression_operand_families(array, field_types)?;
+    let mut data_type = crate::sql::binder::known_expr_type(array, field_types);
+    let mut contains_slice = false;
+    for subscript in subscripts {
+        match subscript {
+            crate::sql::ast::ArraySubscript::Index(index) => {
+                validate_expression_operand_families(index, field_types)?;
+                if let Some(DataType::Array(element)) = &data_type {
+                    data_type = Some((**element).clone());
+                }
+            }
+            crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                contains_slice = true;
+                for bound in lower.iter().chain(upper) {
+                    validate_expression_operand_families(bound, field_types)?;
+                }
+            }
+        }
+    }
+    if contains_slice {
+        data_type = data_type.map(|data_type| {
+            let mut element_type = data_type;
+            while let DataType::Array(inner) = &element_type {
+                element_type = (**inner).clone();
+            }
+            DataType::Array(Box::new(element_type))
+        });
+    }
+    Ok(data_type
+        .filter(|data_type| !matches!(data_type, DataType::Null))
+        .map(|data_type| data_type_family(&data_type)))
+}
+
+fn validate_in_list_family(
+    expr: &Expr,
+    values: &[Expr],
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<OperandFamily>, CassieError> {
+    let expression_family = expression_operand_family(expr, field_types)?;
+    for value in values {
+        let value_family = expression_operand_family(value, field_types)?;
+        if validate_typed_string_comparison(expr, value, field_types)? {
+            continue;
+        }
+        let (expression_family, value_family) =
+            contextual_string_literal_families(expr, value, expression_family, value_family, true)?;
+        require_compatible_families(expression_family, value_family, "IN")?;
+    }
+    Ok(Some(OperandFamily::Boolean))
+}
+
+fn collated_operand_family(
+    expr: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<OperandFamily>, CassieError> {
+    validate_expression_operand_families(expr, field_types)?;
+    let family = expression_operand_family(expr, field_types)?;
+    if family.is_some_and(|family| family != OperandFamily::Text) {
+        return Err(CassieError::Unsupported(
+            "COLLATE can only be applied to text expressions".into(),
+        ));
+    }
+    Ok(family.or(Some(OperandFamily::Text)))
 }
 
 /// The family of a date/time builtin's result, when its type is known.
@@ -241,20 +298,8 @@ fn binary_operand_family(
     if matches!(op, BinaryOp::JsonbDeletePath) {
         return json_delete_path_family(left, right, left_family, right_family, field_types);
     }
-    if let Some(symbol) = super::json_containment::operator_symbol(op) {
-        if left_family == Some(OperandFamily::Json) || right_family == Some(OperandFamily::Json) {
-            let json_or_unknown = |expression: &Expr, family: Option<OperandFamily>| {
-                family == Some(OperandFamily::Json)
-                    || family.is_none()
-                    || matches!(expression, Expr::Null | Expr::StringLiteral(_))
-            };
-            if json_or_unknown(left, left_family) && json_or_unknown(right, right_family) {
-                return Ok(Some(OperandFamily::Boolean));
-            }
-            return Err(CassieError::Execution(format!(
-                "operator does not exist: jsonb {symbol} incompatible operands"
-            )));
-        }
+    if let Some(result) = json_containment_family(left, op, right, left_family, right_family) {
+        return result;
     }
     if selects_typed_operator(op, left_family, right_family) {
         return Ok(None);
@@ -277,7 +322,14 @@ fn binary_operand_family(
         })),
         BinaryOp::JsonbCompare { .. } => Ok(Some(OperandFamily::Boolean)),
         BinaryOp::ByteaConcat => Ok(Some(OperandFamily::Other)),
-        BinaryOp::Concat => concat_operand_family(left, right, left_family, right_family),
+        BinaryOp::Concat => concat_operand_family(
+            left,
+            right,
+            left_family,
+            right_family,
+            super::known_expr_type(left, field_types).as_ref(),
+            super::known_expr_type(right, field_types).as_ref(),
+        ),
         BinaryOp::And | BinaryOp::Or | BinaryOp::Typed { .. } | BinaryOp::Quantified { .. } => {
             Ok(Some(OperandFamily::Boolean))
         }
@@ -338,6 +390,33 @@ fn binary_operand_family(
     }
 }
 
+fn json_containment_family(
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    left_family: Option<OperandFamily>,
+    right_family: Option<OperandFamily>,
+) -> Option<Result<Option<OperandFamily>, CassieError>> {
+    let symbol = super::json_containment::operator_symbol(op)?;
+    if left_family != Some(OperandFamily::Json) && right_family != Some(OperandFamily::Json) {
+        return None;
+    }
+    let json_or_unknown = |expression: &Expr, family: Option<OperandFamily>| {
+        family == Some(OperandFamily::Json)
+            || family.is_none()
+            || matches!(expression, Expr::Null | Expr::StringLiteral(_))
+    };
+    Some(
+        if json_or_unknown(left, left_family) && json_or_unknown(right, right_family) {
+            Ok(Some(OperandFamily::Boolean))
+        } else {
+            Err(CassieError::Execution(format!(
+                "operator does not exist: jsonb {symbol} incompatible operands"
+            )))
+        },
+    )
+}
+
 fn jsonpath_operand_family(
     right: &Expr,
     left_family: Option<OperandFamily>,
@@ -358,6 +437,8 @@ fn concat_operand_family(
     right: &Expr,
     left_family: Option<OperandFamily>,
     right_family: Option<OperandFamily>,
+    left_type: Option<&DataType>,
+    right_type: Option<&DataType>,
 ) -> Result<Option<OperandFamily>, CassieError> {
     // Parameter OIDs choose the text or BYTEA overload in the typed pass.
     if expr_contains_parameters(left) || expr_contains_parameters(right) {
@@ -377,6 +458,41 @@ fn concat_operand_family(
         return Err(CassieError::Execution(
             "operator does not exist: jsonb || incompatible operands".into(),
         ));
+    }
+    let left_element = match left_type {
+        Some(DataType::Array(element)) => Some(element.as_ref()),
+        _ => None,
+    };
+    let right_element = match right_type {
+        Some(DataType::Array(element)) => Some(element.as_ref()),
+        _ => None,
+    };
+    if left_element.is_some() || right_element.is_some() {
+        let scalar_compatible =
+            |array_element: &DataType, scalar: Option<&DataType>, expression: &Expr| {
+                matches!(expression, Expr::StringLiteral(_) | Expr::Null)
+                    || scalar.is_some_and(|scalar| {
+                        scalar == array_element
+                            || crate::types::extended::numeric_types::common(scalar, array_element)
+                                .is_some()
+                    })
+            };
+        let compatible = match (left_element, right_element) {
+            (Some(left), Some(right)) => {
+                left == right
+                    || crate::types::extended::numeric_types::common(left, right).is_some()
+            }
+            (Some(element), None) => scalar_compatible(element, right_type, right),
+            (None, Some(element)) => scalar_compatible(element, left_type, left),
+            (None, None) => false,
+        };
+        return if compatible {
+            Ok(Some(OperandFamily::Other))
+        } else {
+            Err(CassieError::Execution(
+                "operator does not exist for these array concatenation types".into(),
+            ))
+        };
     }
     let family = |expr: &Expr, inferred| {
         if matches!(expr, Expr::StringLiteral(_)) {
@@ -694,6 +810,16 @@ pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
         QuerySource::Values { rows } => rows.iter().flatten().any(expr_contains_parameters),
 
         QuerySource::Aliased { source, .. } => source_contains_parameters(source),
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            source_contains_parameters(source)
+                || expr_contains_parameters(rate)
+                || repeatable.as_ref().is_some_and(expr_contains_parameters)
+        }
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
             function.expressions().any(expr_contains_parameters)
@@ -858,6 +984,18 @@ fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
         }
 
         QuerySource::Aliased { source, .. } => collect_source_functions(source, out),
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            collect_source_functions(source, out);
+            collect_expr(rate, out);
+            if let Some(seed) = repeatable {
+                collect_expr(seed, out);
+            }
+        }
         QuerySource::TableFunction { function, .. } => {
             if !crate::sql::functions::is_catalog_table(&function.name) {
                 out.push(function.clone());
@@ -944,6 +1082,7 @@ pub(super) fn collect_expr(expr: &Expr, out: &mut Vec<FunctionCall>) {
         collect_expr(high, out);
     }
     if let Expr::Cast { expr, .. }
+    | Expr::Collate { expr, .. }
     | Expr::UnaryNumeric { expr, .. }
     | Expr::IntegerNegate { expr, .. } = expr
     {
@@ -967,7 +1106,9 @@ pub(super) fn recursive_cte_reference_count(statement: &ParsedStatement, cte_nam
 
 fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
     match source {
-        QuerySource::Aliased { source, .. } => source_cte_reference_count(source, cte_name),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_cte_reference_count(source, cte_name)
+        }
         QuerySource::Cte(name) => usize::from(name.eq_ignore_ascii_case(cte_name)),
         QuerySource::Collection(name) => usize::from(name.as_str().eq_ignore_ascii_case(cte_name)),
         QuerySource::TableFunction { .. } | QuerySource::Values { .. } | QuerySource::SingleRow => {

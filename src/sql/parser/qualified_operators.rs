@@ -12,16 +12,25 @@ pub(super) struct Span<'a> {
 }
 
 #[derive(Clone, Copy)]
-struct SignificantRun {
-    start: usize,
-    end: usize,
+struct BinaryCandidate {
+    span_index: usize,
+    left_significant: usize,
+}
+
+struct ScanState<'a> {
+    spans: Vec<Span<'a>>,
+    binary_candidates: Vec<BinaryCandidate>,
+    last_significant: Option<char>,
+    last_significant_position: Option<usize>,
+    last_was_qualified_operator: bool,
+    cursor: usize,
 }
 
 /// Qualified operator spans collected once for an expression and reused by its recursive slices.
 pub(super) struct Index<'a> {
     source: &'a str,
     spans: Vec<Span<'a>>,
-    significant: Vec<SignificantRun>,
+    binary_candidates: Vec<BinaryCandidate>,
 }
 
 fn token(raw: &str, start: usize, keyword_end: usize) -> Result<Option<Span<'_>>, SqlError> {
@@ -70,93 +79,15 @@ impl<'a> Index<'a> {
             return Ok(Self {
                 source,
                 spans: Vec::new(),
-                significant: Vec::new(),
+                binary_candidates: Vec::new(),
             });
         }
-
-        let mut spans = Vec::new();
-        let mut significant = None;
-        let mut last_significant = None;
-        let mut cursor = 0;
-        let mut depth = 0usize;
-        let mut brackets = 0usize;
-        let mut cases = 0usize;
-
-        while cursor < source.len() {
-            if let Some(end) = super::super::lexical::quoted_end(source, cursor) {
-                if let Some(runs) = &mut significant {
-                    push_significant(runs, cursor, end);
-                }
-                last_significant = source[cursor..end].chars().next_back();
-                cursor = end;
-                continue;
-            }
-
-            if cases == 0 && depth == 0 && brackets == 0 {
-                if let Some(keyword_end) =
-                    super::super::lexical::pattern_end(source, cursor, "operator")
-                {
-                    // A member named operator is an identifier, as in public.operator(2).
-                    let member = last_significant == Some('.');
-                    if !member {
-                        if let Some(span) = token(source, cursor, keyword_end)? {
-                            if spans.len() == depth::MAX_POSTFIX_DEPTH {
-                                return Err(depth::limit_error());
-                            }
-                            let runs = significant
-                                .get_or_insert_with(|| scan_significant_runs(&source[..cursor]));
-                            push_significant(runs, cursor, span.end);
-                            spans.push(span);
-                            last_significant = Some(')');
-                            cursor = span.end;
-                            continue;
-                        }
-                    }
-                    if let Some(runs) = &mut significant {
-                        push_significant(runs, cursor, keyword_end);
-                    }
-                    last_significant = source[..keyword_end].chars().next_back();
-                    cursor = keyword_end;
-                    continue;
-                }
-            }
-
-            let separator_end = super::super::lexical::separator_end(source, cursor);
-            if separator_end > cursor {
-                cursor = separator_end;
-                continue;
-            }
-            if super::super::lexical::pattern_end(source, cursor, "case").is_some() {
-                cases += 1;
-            } else if super::super::lexical::pattern_end(source, cursor, "end").is_some() {
-                cases = cases.saturating_sub(1);
-            }
-
-            let character = source[cursor..]
-                .chars()
-                .next()
-                .expect("cursor is before the expression end");
-            let end = cursor + character.len_utf8();
-            match character {
-                '(' => depth += 1,
-                ')' => depth = depth.saturating_sub(1),
-                '[' => brackets += 1,
-                ']' => brackets = brackets.saturating_sub(1),
-                _ => {}
-            }
-            if !character.is_whitespace() {
-                if let Some(runs) = &mut significant {
-                    push_significant(runs, cursor, end);
-                }
-                last_significant = Some(character);
-            }
-            cursor = end;
-        }
+        let (spans, binary_candidates) = collect_spans(source)?;
 
         Ok(Self {
             source,
             spans,
-            significant: significant.unwrap_or_default(),
+            binary_candidates,
         })
     }
 
@@ -167,34 +98,22 @@ impl<'a> Index<'a> {
         let (range_start, range_end) = self
             .range(raw)
             .expect("qualified operator index is queried with a slice of its source");
-        let first = self.spans.partition_point(|span| span.start < range_start);
-        let after = self.spans.partition_point(|span| span.start < range_end);
-
-        for span_index in (first..after).rev() {
-            let span = self.spans[span_index];
-            if span.end > range_end {
-                continue;
-            }
-            let Some(left_end) =
-                last_significant_char(self.source, &self.significant, range_start, span.start)
-            else {
-                continue;
-            };
-            let adjacent = span_index > first
-                && !has_significant_between(
-                    &self.significant,
-                    self.spans[span_index - 1].end,
-                    span.start,
-                );
-            if !super::super::operators::operator_character(left_end) && !adjacent {
-                return Some(Span {
-                    start: span.start - range_start,
-                    end: span.end - range_start,
-                    symbol: span.symbol,
-                });
-            }
+        // Candidate spans are ordered and disjoint, so one end-offset lookup finds the last
+        // candidate wholly inside the recursive slice. Its recorded left operand then determines
+        // whether it is binary in that slice.
+        let after = self
+            .binary_candidates
+            .partition_point(|candidate| self.spans[candidate.span_index].end <= range_end);
+        let candidate = self.binary_candidates.get(after.checked_sub(1)?)?;
+        if candidate.left_significant < range_start {
+            return None;
         }
-        None
+        let span = self.spans[candidate.span_index];
+        Some(Span {
+            start: span.start - range_start,
+            end: span.end - range_start,
+            symbol: span.symbol,
+        })
     }
 
     fn range(&self, raw: &str) -> Option<(usize, usize)> {
@@ -206,64 +125,119 @@ impl<'a> Index<'a> {
     }
 }
 
-fn push_significant(runs: &mut Vec<SignificantRun>, start: usize, end: usize) {
-    if let Some(previous) = runs.last_mut() {
-        if previous.end == start {
-            previous.end = end;
-            return;
-        }
-    }
-    runs.push(SignificantRun { start, end });
-}
+fn collect_spans(source: &str) -> Result<(Vec<Span<'_>>, Vec<BinaryCandidate>), SqlError> {
+    let mut state = ScanState {
+        spans: Vec::new(),
+        binary_candidates: Vec::new(),
+        last_significant: None,
+        last_significant_position: None,
+        last_was_qualified_operator: false,
+        cursor: 0,
+    };
+    let mut depth = 0usize;
+    let mut brackets = 0usize;
+    let mut cases = 0usize;
 
-fn scan_significant_runs(source: &str) -> Vec<SignificantRun> {
-    let mut runs = Vec::new();
-    let mut cursor = 0;
-    while cursor < source.len() {
-        if let Some(end) = super::super::lexical::quoted_end(source, cursor) {
-            push_significant(&mut runs, cursor, end);
-            cursor = end;
+    while state.cursor < source.len() {
+        if let Some(end) = super::super::lexical::quoted_end(source, state.cursor) {
+            let character = source[state.cursor..end]
+                .chars()
+                .next_back()
+                .expect("quoted SQL token has at least one character");
+            state.last_significant = Some(character);
+            state.last_significant_position = Some(end - character.len_utf8());
+            state.last_was_qualified_operator = false;
+            state.cursor = end;
             continue;
         }
-        let end = super::super::lexical::separator_end(source, cursor);
-        if end > cursor {
-            cursor = end;
+
+        if cases == 0 && depth == 0 && brackets == 0 {
+            if let Some(keyword_end) =
+                super::super::lexical::pattern_end(source, state.cursor, "operator")
+            {
+                if scan_operator_keyword(source, keyword_end, &mut state)? {
+                    continue;
+                }
+            }
+        }
+
+        let separator_end = super::super::lexical::separator_end(source, state.cursor);
+        if separator_end > state.cursor {
+            state.cursor = separator_end;
             continue;
         }
-        let character = source[cursor..]
+        if super::super::lexical::pattern_end(source, state.cursor, "case").is_some() {
+            cases += 1;
+        } else if super::super::lexical::pattern_end(source, state.cursor, "end").is_some() {
+            cases = cases.saturating_sub(1);
+        }
+
+        let character = source[state.cursor..]
             .chars()
             .next()
             .expect("cursor is before the expression end");
-        let end = cursor + character.len_utf8();
-        push_significant(&mut runs, cursor, end);
-        cursor = end;
+        let end = state.cursor + character.len_utf8();
+        match character {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            '[' => brackets += 1,
+            ']' => brackets = brackets.saturating_sub(1),
+            _ => {}
+        }
+        if !character.is_whitespace() {
+            state.last_significant = Some(character);
+            state.last_significant_position = Some(state.cursor);
+            state.last_was_qualified_operator = false;
+        }
+        state.cursor = end;
     }
-    runs
+
+    Ok((state.spans, state.binary_candidates))
 }
 
-fn last_significant_char(
-    source: &str,
-    runs: &[SignificantRun],
-    range_start: usize,
-    position: usize,
-) -> Option<char> {
-    let index = runs
-        .partition_point(|run| run.start < position)
-        .checked_sub(1)?;
-    let run = runs[index];
-    let start = run.start.max(range_start);
-    let end = run.end.min(position);
-    (start < end)
-        .then(|| source.get(start..end)?.chars().next_back())
-        .flatten()
-}
-
-fn has_significant_between(runs: &[SignificantRun], start: usize, end: usize) -> bool {
-    if start >= end {
-        return false;
+fn scan_operator_keyword<'a>(
+    source: &'a str,
+    keyword_end: usize,
+    state: &mut ScanState<'a>,
+) -> Result<bool, SqlError> {
+    // A member named operator is an identifier, as in public.operator(2).
+    if state.last_significant != Some('.') {
+        if let Some(span) = token(source, state.cursor, keyword_end)? {
+            if state.spans.len() == depth::MAX_POSTFIX_DEPTH {
+                return Err(depth::limit_error());
+            }
+            let binary_left = match (state.last_significant, state.last_significant_position) {
+                (Some(left), Some(position))
+                    if !state.last_was_qualified_operator
+                        && !super::super::operators::operator_character(left) =>
+                {
+                    Some(position)
+                }
+                _ => None,
+            };
+            if let Some(left_significant) = binary_left {
+                state.binary_candidates.push(BinaryCandidate {
+                    span_index: state.spans.len(),
+                    left_significant,
+                });
+            }
+            state.spans.push(span);
+            state.last_significant = Some(')');
+            state.last_significant_position = Some(span.end - 1);
+            state.last_was_qualified_operator = true;
+            state.cursor = span.end;
+            return Ok(true);
+        }
     }
-    let index = runs.partition_point(|run| run.start < end);
-    index > 0 && runs[index - 1].end > start
+    let character = source[state.cursor..keyword_end]
+        .chars()
+        .next_back()
+        .expect("operator keyword has at least one character");
+    state.last_significant = Some(character);
+    state.last_significant_position = Some(keyword_end - character.len_utf8());
+    state.last_was_qualified_operator = false;
+    state.cursor = keyword_end;
+    Ok(true)
 }
 
 pub(super) fn prefix(raw: &str) -> Result<Option<(&str, UnaryNumericOp)>, SqlError> {

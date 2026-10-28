@@ -80,14 +80,14 @@ include!("resources.rs");
 include!("errors.rs");
 
 /// Runs `sql` over `values` (one row per value, stored in scan order) with
-/// the given aggregation worker limit and returns the rows or the error text.
+/// the given aggregation worker limit and returns rows, output OIDs, or error text.
 fn aggregate_with_workers(
     label: &str,
     workers: usize,
     data_type: DataType,
     values: &[serde_json::Value],
     sql: &str,
-) -> Result<Vec<Vec<Value>>, String> {
+) -> Result<(Vec<Vec<Value>>, Vec<i64>), String> {
     let path = data_dir(label);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = workers;
@@ -104,7 +104,14 @@ fn aggregate_with_workers(
     );
     let result = cassie
         .execute_sql(&session, sql, vec![])
-        .map(|result| result.rows().to_vec())
+        .map(|result| {
+            let type_oids = result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect();
+            (result.rows().to_vec(), type_oids)
+        })
         .map_err(|error| error.to_string());
     drop(cassie);
     let _ = std::fs::remove_dir_all(path);

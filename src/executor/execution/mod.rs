@@ -28,10 +28,16 @@ fn primary_key_indexes(
 ) -> Vec<catalog::IndexMeta> {
     constraints
         .iter()
-        .filter(|constraint| constraint.primary_key)
+        .filter(|constraint| {
+            constraint.primary_key
+                && !catalog::is_composite_primary_key_member(constraint, constraints)
+        })
         .map(|constraint| catalog::IndexMeta {
             collection: table.to_string(),
-            name: format!("{table}_pkey"),
+            name: constraint
+                .primary_key_name
+                .clone()
+                .unwrap_or_else(|| format!("{table}_pkey")),
             field: constraint.field.clone(),
             fields: vec![constraint.field.clone()],
             expressions: Vec::new(),
@@ -134,7 +140,7 @@ pub(crate) use projection_repair::repair_projection_column_definitions;
 mod retention;
 mod role_command;
 mod rollups;
-mod schema_command;
+pub(super) mod schema_command;
 mod schema_creation;
 mod sequence_command;
 mod session_command;

@@ -255,7 +255,7 @@ fn should_decode_binary_vector_array_parameters() {
         let row = frames.iter().find(|frame| frame.0 == b'D').expect("data row");
         assert_eq!(
             support::parse_data_row(&row.1),
-            vec![Some("[1.5,-2.0]".to_string()), Some("[7,8,9]".to_string())]
+            vec![Some("[1.5,-2.0]".to_string()), Some("{7,8,9}".to_string())]
         );
 
         server.stop().await;
@@ -307,7 +307,7 @@ fn should_store_empty_array_given_zero_dimension_binary_parameter() {
             .expect("select stored array");
         assert_eq!(
             stored.rows(),
-            vec![vec![Value::Json(serde_json::json!([]))]]
+            vec![vec![Value::Array(cassie::types::SqlArray::empty())]]
         );
 
         server.stop().await;

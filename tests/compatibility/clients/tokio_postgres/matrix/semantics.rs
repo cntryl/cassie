@@ -15,7 +15,7 @@ fn should_validate_psql_read_model_probe_when_enabled() {
     runtime.block_on(async {
         let server = CompatibilityServer::start("psql_probe").await;
         let connection = format!(
-            "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+            "postgresql://root:postgres@127.0.0.1:{}/postgres",
             server.addr.port()
         );
 
@@ -31,7 +31,11 @@ fn should_validate_psql_read_model_probe_when_enabled() {
                 "-d",
                 &connection,
                 "-c",
-                "CREATE TABLE compat_psql_probe (title TEXT); INSERT INTO compat_psql_probe (title) VALUES ('alpha'); SELECT title FROM compat_psql_probe ORDER BY title;",
+                "CREATE TABLE compat_psql_probe (title TEXT)",
+                "-c",
+                "INSERT INTO compat_psql_probe (title) VALUES ('alpha')",
+                "-c",
+                "SELECT title FROM compat_psql_probe ORDER BY title",
             ]);
             run_external_probe(command, Duration::from_secs(20))
         })

@@ -132,6 +132,7 @@ fn source_qualifiers(source: &QuerySource, out: &mut HashSet<String>) {
         QuerySource::Aliased { alias, .. } | QuerySource::Subquery { alias, .. } => {
             out.insert(alias.to_ascii_lowercase());
         }
+        QuerySource::TableSample { source, .. } => source_qualifiers(source, out),
         QuerySource::Join { left, right, .. } => {
             source_qualifiers(left, out);
             source_qualifiers(right, out);
@@ -154,6 +155,18 @@ fn substitute_source(
             substitute_source(right, context, params);
         }
         QuerySource::Aliased { source, .. } => substitute_source(source, context, params),
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            substitute_source(source, context, params);
+            *rate = context.substitute(rate, params);
+            if let Some(seed) = repeatable {
+                *seed = context.substitute(seed, params);
+            }
+        }
         QuerySource::Values { rows } => {
             for value in rows.iter_mut().flatten() {
                 *value = context.substitute(value, params);

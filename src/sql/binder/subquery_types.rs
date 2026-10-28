@@ -219,6 +219,20 @@ impl Scope<'_> {
     ) -> Result<(), CassieError> {
         match source {
             QuerySource::Aliased { source, .. } => self.source(source, ctes, outer),
+            QuerySource::TableSample {
+                source,
+                rate,
+                repeatable,
+                ..
+            } => {
+                self.source(source, ctes, outer)?;
+                let scope = outer.cloned().unwrap_or(Schema { fields: Vec::new() });
+                self.expr(rate, ctes, &scope)?;
+                if let Some(seed) = repeatable {
+                    self.expr(seed, ctes, &scope)?;
+                }
+                Ok(())
+            }
             QuerySource::Subquery {
                 select, lateral, ..
             } => self.select(select, ctes, if *lateral { outer } else { None }),
@@ -305,12 +319,14 @@ impl Scope<'_> {
             return Ok(());
         };
         self.select(select, ctes, Some(scope))?;
-        // An uncorrelated body is typed alone; only a correlated one needs
-        // the enclosing fields to resolve.
+        // Prefer the available outer scope: a correlated projection may look
+        // valid without it but then fall back to TEXT during schema inference.
+        // Inner fields remain first in the lookup, so this also preserves
+        // uncorrelated name resolution when an outer scope is present.
         let inferred = |outer| {
             infer_select_schema_with_outer(select, self.catalog, ctes, &self.functions, &[], outer)
         };
-        let Ok(schema) = inferred(None).or_else(|_| inferred(Some(scope))) else {
+        let Ok(schema) = inferred(Some(scope)).or_else(|_| inferred(None)) else {
             return Ok(());
         };
         // A wildcard's width is checked against the executed rows instead.

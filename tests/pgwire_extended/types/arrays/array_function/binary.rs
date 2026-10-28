@@ -51,6 +51,4 @@ include!("../../../set_returning/array_function/resources.rs");
 
 include!("../../../set_returning/array_function/semantics.rs");
 
-include!("nulls.rs");
-
 include!("semantics.rs");

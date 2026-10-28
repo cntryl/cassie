@@ -598,6 +598,7 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
         | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => filter_binds_non_finite_param(Some(expr), params),
         Expr::InList { expr, values, .. } => {
@@ -639,6 +640,18 @@ fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> boo
             .args
             .iter()
             .any(|arg| filter_binds_non_finite_param(Some(arg), params)),
+        Expr::ArraySubscript { array, subscripts } => {
+            filter_binds_non_finite_param(Some(array), params)
+                || subscripts.iter().any(|subscript| match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        filter_binds_non_finite_param(Some(index), params)
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => lower
+                        .iter()
+                        .chain(upper.iter())
+                        .any(|bound| filter_binds_non_finite_param(Some(bound), params)),
+                })
+        }
         Expr::Column(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)

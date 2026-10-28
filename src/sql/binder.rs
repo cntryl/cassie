@@ -154,9 +154,7 @@ pub(crate) use inference::common_case_type;
 pub(crate) use inference::cte_collection_schema_with_functions;
 pub(crate) use inference::infer_projection_expr_type;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
-pub(crate) use inference::{
-    infer_expr_type, infer_function_return_type, integer_literal_type, known_expr_type,
-};
+pub(crate) use inference::{infer_expr_type, integer_literal_type, known_expr_type};
 use projections::{
     bind_alter_materialized_projection_statement, bind_compare_projection_statement,
     bind_create_materialized_projection_statement, bind_create_materialized_view_statement,
@@ -266,7 +264,9 @@ fn bound_statement_collection(statement: &ParsedStatement) -> Option<String> {
 
 fn source_collection(source: &QuerySource) -> Option<String> {
     match source {
-        QuerySource::Aliased { source, .. } => source_collection(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_collection(source)
+        }
         QuerySource::Collection(collection) => Some(collection.to_string()),
         QuerySource::Subquery { select, .. } => source_collection(&select.source),
         QuerySource::Join { left, .. } => source_collection(left),
@@ -346,7 +346,7 @@ fn bind_statement(
     let raw_sql = statement.raw_sql.clone();
     match statement.statement.into_route() {
         StatementRoute::Runtime(statement) => {
-            bind_runtime_route(statement, catalog, outer_scope, &raw_sql, context)
+            bind_runtime_route(*statement, catalog, outer_scope, &raw_sql, context)
         }
         StatementRoute::Catalog(statement) => {
             bind_catalog_route(statement, catalog, &raw_sql, context)

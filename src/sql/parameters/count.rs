@@ -130,6 +130,14 @@ fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
             .unwrap_or(0),
 
         ast::QuerySource::Aliased { source, .. } => parameter_count_query_source(source),
+        ast::QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => parameter_count_query_source(source)
+            .max(parameter_count_expr(rate))
+            .max(repeatable.as_ref().map_or(0, parameter_count_expr)),
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)
         | ast::QuerySource::SingleRow => 0,
@@ -254,6 +262,20 @@ fn parameter_count_merge(statement: &ast::MergeStatement) -> usize {
 fn parameter_count_update(statement: &ast::UpdateStatement) -> usize {
     let mut count = parameter_count_assignments(&statement.assignments, &statement.row_subqueries)
         .max(parameter_count_mutation_source(statement.from.as_ref()));
+    for target in &statement.array_targets {
+        for subscript in &target.subscripts {
+            let subscript_count = match subscript {
+                ast::ArraySubscript::Index(index) => parameter_count_expr(index),
+                ast::ArraySubscript::Slice { lower, upper } => lower
+                    .iter()
+                    .chain(upper.iter())
+                    .map(parameter_count_expr)
+                    .max()
+                    .unwrap_or(0),
+            };
+            count = count.max(subscript_count);
+        }
+    }
     if let Some(filter) = &statement.filter {
         count = count.max(parameter_count_expr(filter));
     }
@@ -319,6 +341,16 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
             .map(parameter_count_expr)
             .max()
             .unwrap_or(0),
+        ast::Expr::ArraySubscript { array, subscripts } => subscripts.iter().fold(
+            parameter_count_expr(array),
+            |count, subscript| match subscript {
+                ast::ArraySubscript::Index(index) => count.max(parameter_count_expr(index)),
+                ast::ArraySubscript::Slice { lower, upper } => lower
+                    .iter()
+                    .chain(upper)
+                    .fold(count, |count, bound| count.max(parameter_count_expr(bound))),
+            },
+        ),
         ast::Expr::Binary { left, right, .. } => {
             parameter_count_expr(left).max(parameter_count_expr(right))
         }
@@ -326,6 +358,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         | ast::Expr::TruthTest { expr, .. }
         | ast::Expr::Not { expr }
         | ast::Expr::Cast { expr, .. }
+        | ast::Expr::Collate { expr, .. }
         | ast::Expr::UnaryNumeric { expr, .. }
         | ast::Expr::IntegerNegate { expr, .. } => parameter_count_expr(expr),
         ast::Expr::InList { expr, values, .. } => values

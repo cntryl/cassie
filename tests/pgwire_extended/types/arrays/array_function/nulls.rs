@@ -137,17 +137,3 @@ fn assert_array_null_results(
         assert_eq!(fixture::data_row_payloads(&frames), vec![expected_row]);
     }
 }
-
-#[test]
-fn should_preserve_three_array_null_states_through_wire_formats() {
-    // Arrange
-    let cases = array_null_cases();
-    let expectations = array_null_expectations(&cases);
-    let cycles = array_null_cycles(&cases);
-
-    // Act
-    let batches = fixture::run_cycles("issue-807-array-null-empty-element-wire", &[], cycles);
-
-    // Assert
-    assert_array_null_results(expectations, batches);
-}

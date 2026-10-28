@@ -18,6 +18,69 @@ pub struct CompositeUnique {
     pub fields: Vec<String>,
 }
 
+/// Returns the composite PRIMARY KEY constraints declared across `constraints`.
+#[must_use]
+pub fn composite_primary_key_constraints(constraints: &[FieldConstraint]) -> Vec<CompositeUnique> {
+    let mut groups = BTreeMap::<String, (String, Vec<(u32, String)>)>::new();
+    for constraint in constraints
+        .iter()
+        .filter(|constraint| constraint.primary_key)
+    {
+        let Some(name) = constraint.primary_key_name.as_ref() else {
+            continue;
+        };
+        let fields = &mut groups
+            .entry(name.to_ascii_lowercase())
+            .or_insert_with(|| (name.clone(), Vec::new()))
+            .1;
+        let field_key = crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field);
+        if fields.iter().any(|(_, field)| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(field) == field_key
+        }) {
+            continue;
+        }
+        fields.push((
+            constraint.primary_key_ordinal.unwrap_or(u32::MAX),
+            constraint.field.clone(),
+        ));
+    }
+    groups
+        .into_values()
+        .filter(|(_, fields)| fields.len() > 1)
+        .map(|(name, mut fields)| {
+            fields.sort_by_key(|(ordinal, _)| *ordinal);
+            CompositeUnique {
+                name,
+                fields: fields.into_iter().map(|(_, field)| field).collect(),
+            }
+        })
+        .collect()
+}
+
+/// Whether a PRIMARY KEY member is enforced as part of a composite key.
+#[must_use]
+pub fn is_composite_primary_key_member(
+    constraint: &FieldConstraint,
+    constraints: &[FieldConstraint],
+) -> bool {
+    constraint.primary_key
+        && constraint.primary_key_name.as_ref().is_some_and(|name| {
+            constraints
+                .iter()
+                .filter(|other| {
+                    other.primary_key
+                        && other
+                            .primary_key_name
+                            .as_ref()
+                            .is_some_and(|other_name| other_name.eq_ignore_ascii_case(name))
+                })
+                .map(|other| crate::sql::ColumnIdentifierPath::stored_field_key(&other.field))
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                > 1
+        })
+}
+
 /// Returns the composite UNIQUE constraints declared across `constraints`:
 /// every `unique_name` that two or more UNIQUE columns share.
 #[must_use]
@@ -40,7 +103,7 @@ pub fn composite_unique_constraints(constraints: &[FieldConstraint]) -> Vec<Comp
         .into_values()
         .filter(|(_, fields)| fields.len() > 1)
         .map(|(name, mut fields)| {
-            fields.sort();
+            fields.sort_by_key(|(ordinal, _)| *ordinal);
             CompositeUnique {
                 name,
                 fields: fields.into_iter().map(|(_, field)| field).collect(),
@@ -80,8 +143,31 @@ pub fn enforces_single_column_uniqueness(
     constraint: &FieldConstraint,
     constraints: &[FieldConstraint],
 ) -> bool {
-    constraint.primary_key
+    (constraint.primary_key && !is_composite_primary_key_member(constraint, constraints))
         || (constraint.unique && !is_composite_unique_member(constraint, constraints))
+}
+
+/// Unique scalar indexes backing composite PRIMARY KEY constraints.
+#[must_use]
+pub fn composite_primary_key_indexes(
+    collection: &str,
+    constraints: &[FieldConstraint],
+) -> Vec<IndexMeta> {
+    composite_primary_key_constraints(constraints)
+        .into_iter()
+        .map(|composite| IndexMeta {
+            collection: collection.to_string(),
+            name: composite.name,
+            field: composite.fields[0].clone(),
+            fields: composite.fields,
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: true,
+            options: BTreeMap::new(),
+        })
+        .collect()
 }
 
 /// The unique scalar indexes that enforce the composite UNIQUE constraints in

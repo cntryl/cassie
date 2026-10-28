@@ -35,6 +35,10 @@ pub(super) fn bound(
             5,
         ),
         Value::Typed(value) => add(mul(value.heap_bytes(), 8)?, 128),
+        Value::Array(_) => add(
+            crate::executor::retained_memory::value_clone_bytes(value)?,
+            128,
+        ),
         Value::Vector(value) => add(mul(value.values.len(), 64)?, 2),
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => Ok(64),
     }
@@ -60,6 +64,7 @@ pub(super) fn encode(
         }
         Value::String(text) => quote(text),
         Value::Json(value) => Ok(value.to_string()),
+        Value::Array(value) => Ok(value.to_nested_json().to_string()),
         Value::Null => Ok("null".into()),
         Value::Bool(value) => Ok(value.to_string()),
         Value::Int64(value) => Ok(value.to_string()),

@@ -205,6 +205,42 @@ fn should_apply_expression_collation_to_comparisons() {
 }
 
 #[test]
+fn should_ignore_collation_keywords_inside_expression_comments() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-collation-keyword-comment", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT 'A' /* COLLATE \"en-US-x-icu\" */ COLLATE \"C\" = 'A' COLLATE /* comment */ \"C\"",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("commented collation keyword is ignored").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_preserve_parameter_type_through_expression_collation() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-expression-collation-parameter", &[]);
+
+    // Act
+    let result = fixture.cassie.execute_sql(
+        &fixture.session,
+        "SELECT $1 COLLATE \"C\"",
+        vec![Value::String("hello".into())],
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("collated parameter expression").rows(),
+        &[vec![Value::String("hello".into())]]
+    );
+}
+
+#[test]
 fn should_apply_expression_collation_to_ordering() {
     // Arrange
     let fixture = sql_fixture(
@@ -230,7 +266,67 @@ fn should_apply_expression_collation_to_ordering() {
 }
 
 #[test]
-fn should_order_text_with_a_non_c_postgres_collation() {
+fn should_compare_text_under_the_posix_collation() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-finite-built-in-collations", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT 'A' COLLATE POSIX = 'A' COLLATE pg_catalog.\"POSIX\"");
+
+    // Assert
+    assert_eq!(
+        result.expect("selected POSIX collation form").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_accept_schema_qualified_builtin_collation_form() {
+    // Arrange
+    let fixture = sql_fixture("issue-796-schema-qualified-builtin-collation", &[]);
+
+    // Act
+    let results = [
+        fixture.execute("SELECT 'ä' COLLATE POSIX < 'z' COLLATE pg_catalog.\"POSIX\""),
+        fixture.execute("SELECT 'ä' COLLATE POSIX < 'z' COLLATE \"pg_catalog\".\"POSIX\""),
+    ];
+
+    // Assert
+    for result in results {
+        assert_eq!(
+            result.expect("schema-qualified POSIX collation").rows(),
+            &[vec![Value::Bool(false)]]
+        );
+    }
+}
+
+#[test]
+fn should_preserve_quoted_schema_case_when_resolving_collations() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-796-quoted-collation-schema-case",
+        &["CREATE TABLE collated_values (value TEXT)"],
+    );
+
+    // Act
+    let errors = [
+        "SELECT 'A' COLLATE \"PG_CATALOG\".\"C\" = 'a'",
+        "SELECT value FROM collated_values ORDER BY value COLLATE \"PG_CATALOG\".\"C\"",
+    ]
+    .map(|sql| fixture.error(sql));
+
+    // Assert
+    for error in errors {
+        assert!(matches!(
+            &error,
+            cassie::app::CassieError::Unsupported(message)
+                if message.contains("user-defined collations are not selected")
+        ));
+    }
+}
+
+#[test]
+fn should_reject_an_unselected_non_c_collation() {
     // Arrange
     let fixture = sql_fixture(
         "issue-796-non-c-collation-ordering",
@@ -245,40 +341,31 @@ fn should_order_text_with_a_non_c_postgres_collation() {
         fixture.execute("SELECT word FROM collation_words ORDER BY word COLLATE \"en-US-x-icu\"");
 
     // Assert
-    assert_eq!(
-        result.expect("ICU English collation ordering").rows(),
-        &[
-            vec![Value::String("a".to_owned())],
-            vec![Value::String("ä".to_owned())],
-            vec![Value::String("z".to_owned())],
-        ]
-    );
+    assert!(result
+        .expect_err("ICU collation is outside the finite built-in scope")
+        .to_string()
+        .contains("not selected"));
 }
 
 #[test]
-fn should_create_a_nondeterministic_postgres_icu_collation() {
+fn should_reject_user_defined_nondeterministic_collation_creation() {
     // Arrange
     let fixture = sql_fixture("issue-796-nondeterministic-icu-collation", &[]);
 
     // Act
-    fixture
-        .execute(
-            "CREATE COLLATION issue_796_ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)",
-        )
-        .expect("create a nondeterministic ICU collation");
-    let result = fixture.execute("SELECT 'A' = 'a' COLLATE issue_796_ci");
+    let result = fixture.execute(
+        "CREATE COLLATION issue_796_ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)",
+    );
 
     // Assert
-    assert_eq!(
-        result
-            .expect("case-insensitive collation comparison")
-            .rows(),
-        &[vec![Value::Bool(true)]]
-    );
+    assert!(result
+        .expect_err("user-defined collations are outside scope")
+        .to_string()
+        .contains("CREATE COLLATION is not supported"));
 }
 
 #[test]
-fn should_refresh_a_postgres_collation_version() {
+fn should_reject_collation_version_refresh() {
     // Arrange
     let fixture = sql_fixture("issue-796-alter-collation-refresh", &[]);
 
@@ -286,49 +373,25 @@ fn should_refresh_a_postgres_collation_version() {
     let result = fixture.execute("ALTER COLLATION \"C\" REFRESH VERSION");
 
     // Assert
-    result.expect("refresh the recorded version of a PostgreSQL collation");
+    assert!(result
+        .expect_err("collation version refresh is outside scope")
+        .to_string()
+        .contains("ALTER COLLATION is not supported"));
 }
 
 #[test]
-fn should_apply_column_collation_to_distinct_values() {
+fn should_reject_column_collation_declarations() {
     // Arrange
-    let fixture = sql_fixture(
-        "issue-796-column-collation-distinct",
-        &[
-            "CREATE TABLE collated_values (value TEXT COLLATE \"C\")",
-            "INSERT INTO collated_values (value) VALUES ('A'), ('a'), ('A')",
-        ],
-    );
+    let fixture = sql_fixture("issue-796-column-collation", &[]);
 
     // Act
-    let result = fixture.execute("SELECT DISTINCT value FROM collated_values ORDER BY value");
+    let result = fixture.execute("CREATE TABLE collated_values (value TEXT COLLATE \"C\")");
 
     // Assert
-    assert_eq!(
-        result.expect("collation-aware DISTINCT").rows(),
-        &[
-            vec![Value::String("A".to_owned())],
-            vec![Value::String("a".to_owned())],
-        ]
-    );
-}
-
-#[test]
-fn should_apply_column_collation_to_group_keys() {
-    // Arrange
-    let fixture = sql_fixture(
-        "issue-796-column-collation-grouping",
-        &[
-            "CREATE TABLE collated_values (value TEXT COLLATE \"C\")",
-            "INSERT INTO collated_values (value) VALUES ('A'), ('a'), ('A')",
-        ],
-    );
-
-    // Act
-    let result = fixture.execute("SELECT value, COUNT(*) FROM collated_values GROUP BY value");
-
-    // Assert
-    assert_eq!(result.expect("collation-aware GROUP BY").rows().len(), 2);
+    assert!(result
+        .expect_err("column collation metadata is not selected")
+        .to_string()
+        .contains("column collation metadata is not supported"));
 }
 
 #[test]

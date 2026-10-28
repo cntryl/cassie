@@ -1,5 +1,6 @@
-use super::{CassieError, Catalog, CollectionSchema, DataType, DistanceMetric, Expr};
+use super::{CassieError, Catalog, CollectionSchema, DistanceMetric, Expr};
 use crate::sql::ast::CreateIndexStatement;
+use crate::types::DataType;
 use crate::vector::index_options::normalize_vector_index_options;
 
 pub(super) fn bind_vector_index_options(

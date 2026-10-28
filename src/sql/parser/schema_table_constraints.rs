@@ -31,7 +31,34 @@ pub(super) fn parse_table_constraint(
     }
 
     let constraints = parse_table_constraint_body(clause, constraint_name.as_deref())?;
-    Ok(Some(name_unnamed_composite_unique(constraints, table)))
+    Ok(Some(name_unnamed_composite_primary_key(
+        name_unnamed_composite_unique(constraints, table),
+        table,
+    )))
+}
+
+fn name_unnamed_composite_primary_key(
+    mut constraints: Vec<FieldConstraint>,
+    table: &str,
+) -> Vec<FieldConstraint> {
+    let primary_key_members = constraints
+        .iter()
+        .filter(|constraint| constraint.primary_key)
+        .count();
+    if primary_key_members > 1
+        && constraints
+            .iter()
+            .filter(|constraint| constraint.primary_key)
+            .all(|constraint| constraint.primary_key_name.is_none())
+    {
+        let name = format!("{}_pkey", crate::catalog::local_name(table));
+        for constraint in &mut constraints {
+            if constraint.primary_key {
+                constraint.primary_key_name = Some(name.clone());
+            }
+        }
+    }
+    constraints
 }
 
 /// Names an unnamed multi-column `UNIQUE (a, b)` as PostgreSQL does,
@@ -123,6 +150,11 @@ pub(super) fn parse_add_constraint(raw: &str) -> Result<AlterTableOperation, Sql
         .filter(|prefix| prefix.eq_ignore_ascii_case("add"))
         .map(|_| raw[3..].trim_start())
         .unwrap_or_default();
+    if starts_with_keyword(body, "primary key") {
+        return Ok(AlterTableOperation::AddConstraint {
+            constraints: parse_table_constraint_body(body, None)?,
+        });
+    }
     if starts_with_keyword(body, "unique using index") {
         return parse_unique_using_index(body, None);
     }

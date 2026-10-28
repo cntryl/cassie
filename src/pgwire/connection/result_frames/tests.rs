@@ -76,7 +76,7 @@ fn should_bound_supported_cell_encodings_before_allocation() {
         .iter()
         .flat_map(|(oid, value)| {
             [0, 1].map(|format| {
-                let bound = cell_bytes(value, *oid, format, false).expect("admission bound");
+                let bound = cell_bytes(value, *oid, -1, format, false).expect("admission bound");
                 let length = if matches!(value, Value::Null) {
                     0
                 } else if format == 0 {
@@ -150,7 +150,7 @@ fn should_admit_expanded_jsonb_encoder_buffers_given_short_exponents_when_encodi
     // Arrange
     let value = Value::String("{\"n\":1e1000}".to_owned());
     // Act
-    let bound = cell_bytes(&value, 3802, 1, false).expect("JSONB admission");
+    let bound = cell_bytes(&value, 3802, -1, 1, false).expect("JSONB admission");
     let encoded = value_to_binary(&value, 3802).expect("JSONB encoding");
     // Assert
     assert!(encoded.len() <= bound.encoded);

@@ -15,6 +15,8 @@ use super::{
 use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
 
+#[path = "array_functions.rs"]
+mod array_functions;
 #[path = "bytea_functions.rs"]
 mod bytea_functions;
 #[path = "catalog_introspection.rs"]
@@ -74,7 +76,22 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
+        return crate::types::SqlArray::from_nested_values(args)
+            .map(Value::Array)
+            .map_err(|_| {
+                crate::app::CassieError::ArrayInput(
+                    "multidimensional arrays must have array expressions with matching dimensions"
+                        .to_string(),
+                )
+                .into()
+            });
+    }
+
     if let Some(result) = json_builders::evaluate(function, row, &args, context) {
+        return result;
+    }
+    if let Some(result) = array_functions::evaluate(&name, &args) {
         return result;
     }
 
@@ -103,51 +120,81 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     session: Option<&CassieSession>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Option<Result<Value, QueryError>> {
-    crate::types::extended::operations::function(name, args)
-        .map(|result| {
-            result.map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
-        })
-        .or_else(|| toast_identity::evaluate(name, args))
-        .or_else(|| catalog_introspection::evaluate(name, args))
-        .or_else(|| relation_locations::evaluate(name, args))
-        .or_else(|| session_setting_flags::evaluate(name, args))
-        .or_else(|| runtime_information::evaluate(name, args, session))
-        .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
-        .or_else(|| super::sequence_functions::evaluate(name, args, session))
-        .or_else(|| evaluate_system_function(name, row, args, session))
-        .or_else(|| super::conditional::evaluate(name, args))
-        .or_else(|| {
-            let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
-            super::temporal_functions::evaluate(local, args, controls)
-                .or_else(|| super::hash_functions::evaluate(local, args))
-                .or_else(|| json_functions::evaluate(local, args, controls))
-                .or_else(|| json_mutations::evaluate(local, args, controls))
-                .or_else(|| json_path_functions::evaluate(local, args, controls))
-                .or_else(|| bytea_functions::evaluate(local, args, controls))
-                .or_else(|| math_random::evaluate(local, args, session))
-                .or_else(|| math_functions::evaluate(local, args))
-                .or_else(|| math::evaluate(local, args))
-                .or_else(|| catalog_sizes::evaluate(local, args))
-                .or_else(|| text_selection::evaluate(local, args))
-                .or_else(|| {
-                    crate::sql::functions::function(name)
-                        .and_then(|metadata| regex_functions::evaluate(metadata.id, args, controls))
-                })
-                .or_else(|| text_transform::evaluate(local, args, controls))
-                .or_else(|| text_scalar::evaluate(local, args))
-                .or_else(|| text_format::evaluate(local, args, controls))
-                .or_else(|| evaluate_text_function(local, args))
-        })
-        .or_else(|| evaluate_search_function(name, function, args, search_context))
-        .or_else(|| evaluate_vector_function(name, function, args))
-        .or_else(|| {
-            evaluate_cast_function(
-                name,
-                args,
-                controls.or_else(|| session.and_then(CassieSession::statement_execution_controls)),
+    evaluate_pg_input_is_valid(name, args, controls).or_else(|| {
+        crate::types::extended::operations::function(name, args)
+            .map(|result| {
+                result
+                    .map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
+            })
+            .or_else(|| toast_identity::evaluate(name, args))
+            .or_else(|| catalog_introspection::evaluate(name, args))
+            .or_else(|| relation_locations::evaluate(name, args))
+            .or_else(|| session_setting_flags::evaluate(name, args))
+            .or_else(|| runtime_information::evaluate(name, args, session))
+            .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
+            .or_else(|| super::sequence_functions::evaluate(name, args, session))
+            .or_else(|| evaluate_system_function(name, row, args, session))
+            .or_else(|| super::conditional::evaluate(name, args))
+            .or_else(|| {
+                let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
+                super::temporal_functions::evaluate(local, args, controls)
+                    .or_else(|| super::hash_functions::evaluate(local, args))
+                    .or_else(|| json_functions::evaluate(local, args, controls))
+                    .or_else(|| json_mutations::evaluate(local, args, controls))
+                    .or_else(|| json_path_functions::evaluate(local, args, controls))
+                    .or_else(|| bytea_functions::evaluate(local, args, controls))
+                    .or_else(|| math_random::evaluate(local, args, session))
+                    .or_else(|| math_functions::evaluate(local, args))
+                    .or_else(|| math::evaluate(local, args))
+                    .or_else(|| catalog_sizes::evaluate(local, args))
+                    .or_else(|| text_selection::evaluate(local, args))
+                    .or_else(|| {
+                        crate::sql::functions::function(name).and_then(|metadata| {
+                            regex_functions::evaluate(metadata.id, args, controls)
+                        })
+                    })
+                    .or_else(|| text_transform::evaluate(local, args, controls))
+                    .or_else(|| text_scalar::evaluate(local, args))
+                    .or_else(|| text_format::evaluate(local, args, controls))
+                    .or_else(|| evaluate_text_function(local, args))
+            })
+            .or_else(|| evaluate_search_function(name, function, args, search_context))
+            .or_else(|| evaluate_vector_function(name, function, args))
+            .or_else(|| {
+                evaluate_cast_function(
+                    name,
+                    args,
+                    controls
+                        .or_else(|| session.and_then(CassieSession::statement_execution_controls)),
+                )
+            })
+            .or_else(|| (name == "time_bucket").then(|| evaluate_time_bucket(args)))
+    })
+}
+
+fn evaluate_pg_input_is_valid(
+    name: &str,
+    args: &[Value],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Option<Result<Value, QueryError>> {
+    if !matches!(name, "pg_input_is_valid" | "pg_catalog.pg_input_is_valid") {
+        return None;
+    }
+    Some((|| {
+        require_arg_count(name, args, 2)?;
+        let (Value::String(input), Value::String(type_name)) = (&args[0], &args[1]) else {
+            return Ok(Value::Null);
+        };
+        let data_type = DataType::parse_sql(type_name).map_err(QueryError::General)?;
+        Ok(Value::Bool(
+            cast_scalar(
+                &scalar_from_value(&Value::String(input.clone())),
+                &data_type,
+                controls,
             )
-        })
-        .or_else(|| (name == "time_bucket").then(|| evaluate_time_bucket(args)))
+            .is_ok(),
+        ))
+    })())
 }
 
 fn evaluate_system_function<R: RowAccess + ?Sized>(
@@ -855,8 +902,30 @@ pub(super) fn to_text(value: &Value) -> String {
             .collect::<Vec<_>>()
             .join(","),
         Value::Typed(value) => value.text(),
+        Value::Array(array) => {
+            let element_type = array
+                .elements()
+                .iter()
+                .find_map(array_element_type)
+                .unwrap_or(crate::types::DataType::Text);
+            crate::types::array_value::format_text(array, &element_type)
+                .unwrap_or_else(|| array.to_nested_json().to_string())
+        }
         Value::Null => String::new(),
     }
+}
+
+fn array_element_type(value: &Value) -> Option<crate::types::DataType> {
+    Some(match value {
+        Value::Null | Value::Array(_) => return None,
+        Value::Bool(_) => crate::types::DataType::Boolean,
+        Value::Int64(_) => crate::types::DataType::BigInt,
+        Value::Float64(_) => crate::types::DataType::Float,
+        Value::String(_) => crate::types::DataType::Text,
+        Value::Vector(vector) => crate::types::DataType::Vector(vector.dimension()),
+        Value::Json(_) => crate::types::DataType::Json,
+        Value::Typed(value) => crate::types::DataType::Extended(value.kind()),
+    })
 }
 
 pub(super) fn to_vector(value: &Value) -> Option<Vec<f32>> {

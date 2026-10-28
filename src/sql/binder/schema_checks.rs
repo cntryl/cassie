@@ -1,8 +1,9 @@
 //! Canonical Boolean literals in the existing simple comparison CHECK shape.
 
-use super::{AlterTableOperation, CassieError, CollectionSchema, DataType};
+use super::{AlterTableOperation, CassieError, CollectionSchema};
 use crate::catalog::FieldConstraint;
 use crate::sql::ast::FieldDefinition;
+use crate::types::DataType;
 use std::collections::HashSet;
 
 /// Binds simple CHECK literals before returning the existing own-constraint
@@ -100,9 +101,9 @@ fn bind_checks(
                 })?,
             other => {
                 return Err(CassieError::Planner(format!(
-                "CHECK comparison for Boolean column '{}' requires a Boolean literal, got {other}",
-                check.field,
-            )))
+                    "CHECK comparison for Boolean column '{}' requires a Boolean literal, got {other}",
+                    check.field,
+                )));
             }
         };
         check.value = value;

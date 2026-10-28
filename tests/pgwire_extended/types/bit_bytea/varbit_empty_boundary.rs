@@ -60,6 +60,6 @@ fn should_round_trip_zero_length_varbit_binary_framing() {
     );
     assert_eq!(
         data_row_bytes(result),
-        vec![vec![b'0'], empty_varbit_binary.to_vec()]
+        vec![vec![vec![b'0'], empty_varbit_binary.to_vec()]]
     );
 }

@@ -15,7 +15,7 @@ pub(super) fn as_json_document(value: &ScalarValue) -> Result<ScalarValue, Query
         ScalarValue::Str(value) => serde_json::to_string(value)
             .map(ScalarValue::Json)
             .map_err(|error| QueryError::General(error.to_string())),
-        ScalarValue::Typed(_) => Err(CassieError::Execution(
+        ScalarValue::Typed(_) | ScalarValue::Array(_) => Err(CassieError::Execution(
             "operator does not exist: jsonb || incompatible operands".into(),
         )
         .into()),

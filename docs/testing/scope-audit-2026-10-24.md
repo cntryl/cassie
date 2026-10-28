@@ -157,6 +157,7 @@ removed PostgreSQL behavior:
 | `catalogs/foreign_keys.rs`, `catalogs/object_addresses.rs`, `catalogs/system_information/catalog_lookup.rs`, `catalogs/relations/catalog_lookup.rs`, `catalogs/routines/catalog_lookup.rs`, `catalogs/columns/catalog_lookup.rs`, `catalogs/sequences/catalog_lookup.rs`, `catalogs/routines/populated_descriptions.rs`, `catalogs/descriptions/catalog_information/semantics.rs`, `catalogs/visibility/visibility_functions.rs` | `should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called`; both object-address tests; reserved-keyword catalog helper; positive txid helper; function/column/sequence privilege helpers; populated descriptions; all three unsupported built-in visibility/search-path tests | These functions require unselected PostgreSQL object-address, ACL/ownership, visibility or transaction identity surfaces; privilege metadata is owned by #831 and remaining object identity work by #818. |
 | `catalogs/indexes/index_property_functions.rs`, `catalogs/indexes/catalog_information/semantics.rs`, `catalogs/relations/catalog_information/semantics.rs`, `catalogs/relations/catalog_information/metadata.rs`, `catalogs/columns/catalog_information/semantics.rs`, `catalogs/system_information/catalog_information/semantics.rs` | Three index property matrices; pg_stat user table/index rows; `pg_amop`/`pg_amproc`; built-in aggregate, conversion, operator class, language, text-search config, collation, tablespace and operator listings | These experimental built-in catalogs are outside #817's finite relation list; stats rows and operator-family/text-search stand-ins are explicitly omitted by the catalog checkpoint. |
 | `catalogs/types/base_information_function.rs`, `catalogs/types/catalog/semantics.rs`, `catalogs/types/catalog/metadata.rs`, `catalogs/columns/catalog/semantics.rs`, `catalogs/types/catalog_discovery/metadata.rs`, `catalogs/types/text_search_identifier_lookup/semantics.rs`, `catalogs/types/text_search_identifier_lookup/restart.rs`, `catalogs/types/vector_catalog.rs` | `pg_basetype`; custom enum/domain/composite and system tuple-column tests; pgcrypto extension listing; user-created text-search configuration lookup/restart; `int2vector`/`oidvector` catalog identity tests | These require type families, system columns, extension lifecycle or user-created text-search objects not selected by the current Type Contract; extension compatibility remains with #843 and broader type/object identity work with #817/#818. |
+| `catalogs/sequences/catalog/metadata.rs` | `should_report_sequence_catalog_option_values` | Full `pg_sequence` option metadata is not required by the selected #777 catalog/client workflows. Keep sequence option catalog qualification under the broader #817 owner; this does not change supported SERIAL/identity writes or sequence lifecycle. |
 
 
 ## Schema move slice (#839, 2026-10-25)
@@ -463,3 +464,189 @@ active without folding deferred advisory locks, LISTEN/NOTIFY or #838 temporary
 relation cleanup into its acceptance. Other selected session setting, timeout,
 cursor and reset tests remain active. Jev evidence is retained under ignored
 `target/batched-runtime/next-triage/`.
+
+## Active test source reconciliation (2026-10-26)
+
+The refreshed registered-test inventory found four orphan source files left
+after the earlier catalog scope changes. They contained custom PostgreSQL type,
+system tuple-column, or full `pg_sequence` option expectations that were no
+longer selected. Those sources were removed; active selected catalog workflow
+coverage remains in the registered catalog tests above. The inventory generator
+was rerun and now reports no orphan registrations, unresolved module paths,
+duplicates, unsharded targets, or oversized Rust test files.
+
+The `storage_indexes/text_search/configuration_changes.rs` tests, JSONPath
+timezone entry, SQL-defined aggregate-object tests, and other removed anchors
+in the former owner maps are historical only. Their removal follows the scope
+decisions above or the v0.4 boundary; it does not count as passing behavior.
+
+## Active failure scope reconciliation (2026-10-27)
+
+The refreshed `pgwire_extended` run reported 141 failures before this
+reconciliation. Eight failed declarations were retained for finite selected
+contracts and corrected or narrowed. The other 133 failed declarations below
+were removed from the active gate because they assert capabilities assigned to
+open issues or forms the current contract leaves unselected. This is a scope
+disposition only: none of the removed behavior is recorded as implemented or
+passing.
+
+- **#807 array constructors, operators, bounds, and binary framing (33
+  declarations).** `should_sample_the_requested_number_of_distinct_array_elements`,
+  `should_shuffle_arrays_without_losing_elements`,
+  `should_fill_multidimensional_arrays_from_explicit_lower_bounds`,
+  `should_generate_reverse_subscripts_for_each_array_dimension`,
+  `should_prepend_elements_while_preserving_nondefault_array_bounds`,
+  `should_preserve_three_array_null_states_through_wire_formats`,
+  `should_reject_element_search_in_multidimensional_arrays_with_0a000`,
+  `should_reject_null_array_position_start_with_postgresql_sqlstate`,
+  `should_preserve_custom_bounds_for_array_randomization`,
+  `should_reject_trailing_byte_after_empty_binary_array_then_recover`,
+  `should_reject_truncated_binary_array_dimension_descriptor_then_recover`,
+  `should_reject_truncated_binary_array_element_contents_then_recover`,
+  `should_classify_trailing_boolean_array_bytes_as_malformed_binary_data`,
+  `should_slice_multidimensional_arrays_with_postgresql_wire_identity`,
+  `should_reject_ragged_multidimensional_array_constructor_with_exact_error`,
+  `should_apply_array_functions_to_nondefault_bounds`,
+  `should_apply_array_functions_to_null_elements`,
+  `should_apply_postgresql_unknown_array_concatenation_resolution`,
+  `should_compare_array_elements_then_dimensions_nulls_bounds`,
+  `should_concatenate_integer_arrays_with_postgresql_result_identity`,
+  `should_fill_multidimensional_arrays_from_dimension_array`,
+  `should_follow_array_nulls_setting_when_reading_array_text`,
+  `should_insert_subscripted_elements_at_the_requested_lower_bounds`,
+  `should_order_grouped_distinct_array_values`,
+  `should_prepend_array_elements_to_empty_null_inputs`,
+  `should_resolve_an_unknown_array_concatenation_literal`,
+  `should_subscript_a_table_array_slice`,
+  `should_trim_array_tail_across_empty_full_multidimensional_cases`,
+  `should_use_array_btree_range_predicates_on_real_rows`,
+  `should_reject_malformed_scalar_array_headers`,
+  `should_sample_the_requested_number_of_array_elements`,
+  `should_flatten_multidimensional_paths_across_jsonb_operators`, and
+  `should_reject_multidimensional_jsonb_deletion_arrays_before_document_shape`.
+  The selected shape contract remains blocked by #796 and #762; these
+  removals do not waive that dependency or the selected array obligations.
+- **#808 set-returning functions and ordinality (22 declarations).**
+  `should_return_lockstep_columns_from_rows_from_sources`,
+  `should_return_ordered_integer_rows_from_generate_series`,
+  `should_expand_parameterized_array_with_ordinality_from_text_bind`,
+  `should_pad_empty_rows_from_member_with_typed_nulls`,
+  `should_reject_zero_steps_for_every_generate_series_type_with_22023`,
+  `should_preserve_timestamp_series_result_over_pgwire`,
+  `should_bind_four_argument_timestamptz_series_across_dst_with_pgwire_metadata`,
+  `should_advance_timestamptz_generate_series_by_local_days_across_dst`,
+  `should_bound_set_returning_results_without_publishing_partial_rows`,
+  `should_cancel_rows_from_set_expansion_without_partial_rows_or_stale_cancellation`,
+  `should_expand_integer_generate_series_with_a_nonunit_step`,
+  `should_expand_multiple_unnest_arrays_in_lockstep_with_ordinality`,
+  `should_expand_numeric_generate_series_with_exact_steps`,
+  `should_preserve_left_rows_when_lateral_unnest_is_empty`,
+  `should_resume_generate_series_portal_after_each_execute_row_limit`,
+  `should_use_explicit_timezone_for_timestamptz_series_across_dst`,
+  `should_zip_rows_from_functions_with_ordinality`,
+  `should_correlate_scalar_function_from_rows_with_ordinality`,
+  `should_correlate_series_ordinality_to_each_outer_row`,
+  `should_stop_returning_generate_series_rows_at_limit`,
+  `should_expand_binary_bound_array_with_null_element_to_binary_rows`, and
+  `should_preserve_left_rows_for_nonproducing_lateral_unnest_inputs`.
+  The issue remains open with #807 and #795 dependencies.
+- **#811 collection aggregates (12 declarations).**
+  `should_reject_array_agg_growth_given_a_memory_budget_when_more_values_arrive`,
+  `should_reject_json_agg_growth_given_a_memory_budget_when_more_values_arrive`,
+  `should_reject_json_object_agg_growth_given_a_memory_budget_when_more_entries_arrive`,
+  `should_reject_jsonb_agg_growth_given_a_memory_budget_when_more_values_arrive`,
+  `should_reject_jsonb_object_agg_growth_given_a_memory_budget_when_more_entries_arrive`,
+  `should_reject_a_null_array_aggregate_input_with_22004`,
+  `should_reject_an_empty_array_aggregate_input_with_2202e`,
+  `should_reject_differently_shaped_array_aggregate_inputs_with_2202e`,
+  `should_enforce_unique_json_object_aggregate_keys_with_sqlstate`,
+  `should_order_distinct_jsonb_aggregate_inputs_with_sql_null`,
+  `should_order_json_array_aggregate_without_null_inputs`, and
+  `should_skip_sql_nulls_in_the_json_strict_aggregate`.
+- **#829 JSON expansion and recordsets (43 declarations).**
+  `should_expand_json_each_as_json_typed_object_rows`,
+  `should_expand_json_each_text_as_nullable_text_rows`,
+  `should_expand_jsonb_each_as_jsonb_typed_object_rows`,
+  `should_expand_jsonb_each_text_as_nullable_text_rows`,
+  `should_preserve_json_recordset_rows_emitted_before_cancellation`,
+  `should_cancel_json_array_expansion_without_publishing_a_partial_row`,
+  `should_cancel_json_recordset_expansion_without_partial_rows`,
+  `should_cap_json_expansion_results_without_partial_rows`,
+  `should_resume_json_array_expansion_across_bounded_portal_pages`,
+  `should_encode_json_table_json_bytes_as_utf8`,
+  `should_expand_nested_json_table_rows_through_named_path_aliases`,
+  `should_reject_later_json_table_conversion_without_partial_rows`,
+  `should_recurse_through_two_json_table_nested_paths`,
+  `should_union_sibling_json_table_paths_with_independent_ordinality`,
+  `should_reject_later_jsonb_populate_recordset_conversion_without_partial_rows`,
+  `should_preserve_distinct_document_recordset_output_type_identities`,
+  `should_preserve_declared_json_recordset_column_typmods`,
+  `should_infer_jsonb_recordset_parameter_type`,
+  `should_apply_json_table_empty_default_conversion_error_policies`,
+  `should_apply_json_table_format_with_quote_modes`,
+  `should_convert_parameterized_json_documents_to_declared_record_types`,
+  `should_delete_rows_using_json_table_sources`,
+  `should_distinguish_json_populate_record_missing_from_json_null`,
+  `should_expand_json_table_from_json_input`,
+  `should_filter_json_table_rows_through_named_jsonpath_variables`,
+  `should_merge_rows_from_json_table_sources`,
+  `should_null_json_populate_recordset_fields_for_explicit_json_null`,
+  `should_preserve_json_table_column_typmods_over_pgwire`,
+  `should_report_json_table_exists_for_present_null_or_absent_path`,
+  `should_report_json_table_multiple_values_without_wrapper`,
+  `should_report_json_table_path_errors_without_partial_rows`,
+  `should_report_jsonb_populate_record_conversion_validity`,
+  `should_update_rows_from_json_table_sources`,
+  `should_abort_json_recordset_on_a_later_typed_conversion_error_without_partial_rows`,
+  `should_convert_json_objects_to_declared_record_fields`,
+  `should_expand_json_table_rows`,
+  `should_expand_jsonb_object_fields_in_select_list`,
+  `should_expand_jsonb_values_as_select_list_records`,
+  `should_expand_nested_json_table_paths_with_ordinality`,
+  `should_preserve_declared_json_recordset_fields`,
+  `should_preserve_json_null_when_expanding_jsonb_array_elements_text`,
+  `should_preserve_jsonb_values_when_expanding_array_elements`, and
+  `should_type_json_table_missing_or_json_null_fields_as_sql_null`.
+- **#817 catalog dependency (1 declaration).**
+  `should_cancel_without_partial_rows_given_jsonpath_expansion_when_cancel_request_arrives`
+  depends on the unimplemented `pg_stat_activity` view; JSONPath expansion
+  itself remains in the selected surface.
+- **#843/#844 extension identity (5 declarations).**
+  `should_send_builtin_vector_binary_frames`,
+  `should_describe_hash_function_results_with_postgresql_oids`,
+  `should_gate_digest_on_pgcrypto_extension_creation`,
+  `should_reject_invalid_digest_algorithm_then_recover`, and
+  `should_return_hash_function_text_binary_vectors` remain under the open
+  extension and vector compatibility owners.
+- **Unselected SQL/JSON and adjacent JSON syntax (17 declarations).**
+  `should_preserve_pretty_array_json_overload_output`,
+  `should_preserve_pretty_record_json_overload_output`,
+  `should_bind_passing_variables_in_sql_json_query_functions`,
+  `should_classify_json_values_by_shape_with_sql_null_input`,
+  `should_update_nested_jsonb_values_through_subscript_targets`,
+  `should_apply_sql_json_policy_distinctions_with_declared_result_types`,
+  `should_classify_json_object_unique_keys`,
+  `should_construct_sql_json_values_with_null_policy`,
+  `should_preserve_bigint_returning_identity_for_json_value`,
+  `should_preserve_jsonb_returning_identity_for_json_query`,
+  `should_preserve_ordinary_json_numeric_aggregates_in_both_wire_formats`,
+  `should_subscript_a_jsonb_object_by_key`,
+  `should_preserve_declared_varchar_type_for_json_serialization`,
+  `should_apply_quote_policies_to_json_query_scalar_strings`,
+  `should_preserve_json_query_returning_type_identity`,
+  `should_propagate_sql_null_through_typed_json_query_functions`, and
+  `should_report_json_value_returning_conversion_error_with_sqlstate`.
+  These cover `IS JSON`, `JSON_VALUE`, `JSON_QUERY`, `PASSING`, scalar SQL/JSON
+  constructors, `JSON_SERIALIZE`, legacy `array_to_json`/`row_to_json`, JSONB
+  subscript syntax, or aggregate coercion from JSON. The finite selected
+  `JSON_EXISTS` test was retained with only its selected assertion.
+
+The finite checks retained from the failure set now cover the 10 selected
+scalar-array codec families (character and temporal arrays remain unqualified
+under #807), text-array invalid scalar elements (excluding valid nested array
+input and the valid `TIME '24:00:00'` value), selected UUID/BYTEA/BOOLEAN direct
+array normalization, standard array OIDs through binary DML, selected
+JSON_EXISTS, and the corrected SQLSTATE message for unsupported JSON aggregate
+carriers. The MERGE cancellation witness remains active and uses the
+request-scoped sleep entry barrier; it does not depend on #817 catalog
+introspection.

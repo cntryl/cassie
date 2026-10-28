@@ -112,6 +112,23 @@ pub(super) fn strip_update_qualifiers(statement: &mut UpdateStatement, qualifier
     for (_, value) in &mut statement.assignments {
         *value = strip_expr(value, qualifiers);
     }
+    for target in &mut statement.array_targets {
+        for subscript in &mut target.subscripts {
+            match subscript {
+                crate::sql::ast::ArraySubscript::Index(index) => {
+                    *index = strip_expr(index, qualifiers);
+                }
+                crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                    if let Some(lower) = lower {
+                        *lower = strip_expr(lower, qualifiers);
+                    }
+                    if let Some(upper) = upper {
+                        *upper = strip_expr(upper, qualifiers);
+                    }
+                }
+            }
+        }
+    }
     strip_optional(&mut statement.filter, qualifiers);
     for item in &mut statement.returning {
         strip_select_item(item, qualifiers);

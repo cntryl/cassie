@@ -157,6 +157,7 @@ impl Walk<'_> {
                 }
                 true
             }
+            QuerySource::TableSample { source, .. } => self.child().source_names(source, names)?,
             QuerySource::Join { left, right, .. } => {
                 let left = self.child().source_names(left, names)?;
                 self.child().source_names(right, names)? || left

@@ -221,6 +221,9 @@ fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
                     ParameterAdmissionError::Memory("VALUES expression count overflow".into())
                 })?,
             ast::QuerySource::Join { .. } => 3,
+            ast::QuerySource::TableSample { repeatable, .. } => {
+                2 + usize::from(repeatable.is_some())
+            }
             ast::QuerySource::Aliased { .. } | ast::QuerySource::Subquery { .. } => 1,
             ast::QuerySource::Collection(_)
             | ast::QuerySource::Cte(_)
@@ -336,6 +339,16 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
         }
 
         ast::QuerySource::Aliased { source, .. } => Some(Node::Source(source)),
+        ast::QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => Some(match index {
+            0 => Node::Source(source),
+            1 => Node::Expr(rate),
+            _ => Node::Expr(repeatable.as_ref()?),
+        }),
         ast::QuerySource::Subquery { select, .. } => Some(Node::Select(select)),
         ast::QuerySource::Join {
             left, right, on, ..
@@ -387,6 +400,17 @@ fn expression_children(expr: &ast::Expr) -> usize {
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
         ast::Expr::RowCompare(comparison) => comparison.left.len() + comparison.right.len(),
+        ast::Expr::ArraySubscript { subscripts, .. } => {
+            1 + subscripts
+                .iter()
+                .map(|subscript| match subscript {
+                    ast::ArraySubscript::Index(_) => 1,
+                    ast::ArraySubscript::Slice { lower, upper } => {
+                        usize::from(lower.is_some()) + usize::from(upper.is_some())
+                    }
+                })
+                .sum::<usize>()
+        }
         ast::Expr::Binary { .. } => 2,
         ast::Expr::Between { .. } | ast::Expr::Like { .. } => 3,
         ast::Expr::Case { branches, .. } => 2 + branches.len() * 2,
@@ -397,6 +421,7 @@ fn expression_children(expr: &ast::Expr) -> usize {
         | ast::Expr::UnaryNumeric { .. }
         | ast::Expr::IntegerNegate { .. }
         | ast::Expr::Cast { .. }
+        | ast::Expr::Collate { .. }
         | ast::Expr::Exists(_)
         | ast::Expr::Function(_) => 1,
         ast::Expr::Subquery(subquery) => subquery.operands().len() + 1,
@@ -405,6 +430,13 @@ fn expression_children(expr: &ast::Expr) -> usize {
 
 fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
     match expr {
+        ast::Expr::ArraySubscript { array, subscripts } => {
+            if index == 0 {
+                Some(Node::Expr(array))
+            } else {
+                subscript_operand(subscripts, index - 1).map(Node::Expr)
+            }
+        }
         ast::Expr::RowCompare(comparison) => comparison
             .left
             .get(index)
@@ -421,6 +453,7 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
         | ast::Expr::TruthTest { expr, .. }
         | ast::Expr::Not { expr }
         | ast::Expr::Cast { expr, .. }
+        | ast::Expr::Collate { expr, .. }
         | ast::Expr::UnaryNumeric { expr, .. }
         | ast::Expr::IntegerNegate { expr, .. } => Some(Node::Expr(expr)),
         ast::Expr::Exists(statement) => Some(Node::Query(&statement.statement)),
@@ -475,6 +508,28 @@ fn expression_child(expr: &ast::Expr, index: usize) -> Option<Node<'_>> {
     }
 }
 
+fn subscript_operand(subscripts: &[ast::ArraySubscript], mut index: usize) -> Option<&ast::Expr> {
+    for subscript in subscripts {
+        match subscript {
+            ast::ArraySubscript::Index(expression) => {
+                if index == 0 {
+                    return Some(expression);
+                }
+                index -= 1;
+            }
+            ast::ArraySubscript::Slice { lower, upper } => {
+                for bound in lower.iter().chain(upper) {
+                    if index == 0 {
+                        return Some(bound);
+                    }
+                    index -= 1;
+                }
+            }
+        }
+    }
+    None
+}
+
 fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
     match parent {
         Node::Items(_) => child.target = true,
@@ -492,10 +547,20 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
         Node::Source(ast::QuerySource::Join { .. }) if index == 2 => {
             child.expected = Expected::Boolean(BooleanConstruct::Join);
         }
+        Node::Source(ast::QuerySource::TableSample { repeatable, .. }) => {
+            child.expected = match index {
+                1 => Expected::Type(700, true),
+                2 if repeatable.is_some() => Expected::Type(701, true),
+                _ => Expected::None,
+            };
+        }
         Node::Expr(ast::Expr::Binary {
             op: ast::BinaryOp::Integer { operation, .. },
             ..
         }) if operation.is_shift() && index == 1 => {
+            child.expected = Expected::Type(23, true);
+        }
+        Node::Expr(ast::Expr::ArraySubscript { .. }) if index > 0 => {
             child.expected = Expected::Type(23, true);
         }
         Node::Expr(

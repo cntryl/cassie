@@ -1,6 +1,8 @@
-use super::{rewrite_relation_name_from_map, Cassie, QueryError, RelationRenames};
+use super::schema_namespace_command::{rewrite_relation_name_from_map, RelationRenames};
+use crate::app::Cassie;
+use crate::executor::execution::QueryError;
 
-pub(super) fn rename_schema_graphs(
+pub(crate) fn rename_schema_graphs(
     cassie: &Cassie,
     current_schema: &str,
     next_schema: &str,

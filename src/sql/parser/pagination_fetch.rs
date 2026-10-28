@@ -28,11 +28,20 @@ pub(in crate::sql::parser) fn parse_fetch(sql: &str) -> Result<Option<Expr>, Sql
 pub(in crate::sql::parser) fn parse_offset(sql: &str) -> Result<Option<Expr>, SqlError> {
     let sql = lexical::trim_separators(sql);
     if let Some((start, end)) = row_marker(sql) {
+        if start > 0 && contains_top_level_arithmetic(&sql[..start]) {
+            return Err(SqlError::syntax("syntax error at or near \"ROWS\"".into()));
+        }
         if start > 0 && lexical::trim_separators(&sql[end..]).is_empty() {
             return standard_count(lexical::trim_separators(&sql[..start]), true);
         }
     }
     parse_bound(sql, true)
+}
+
+fn contains_top_level_arithmetic(sql: &str) -> bool {
+    [" + ", " - ", " * ", " / ", " % ", " ^ "]
+        .into_iter()
+        .any(|operator| clauses::split_top_level(sql, operator).is_some())
 }
 
 fn standard_count(sql: &str, offset: bool) -> Result<Option<Expr>, SqlError> {

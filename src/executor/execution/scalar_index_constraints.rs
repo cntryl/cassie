@@ -589,5 +589,6 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
             .map(serde_json::Value::Array)?,
         Value::Json(value) => value.clone(),
         Value::Typed(value) => value.to_json(),
+        Value::Array(_) => return None,
     })
 }

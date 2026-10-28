@@ -45,19 +45,7 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             expr,
             values,
             negated,
-        } => {
-            let values = values
-                .iter()
-                .map(format_expression)
-                .collect::<Result<Vec<_>, _>>()?
-                .join(", ");
-            Ok(format!(
-                "({}{} IN ({}))",
-                format_expression(expr)?,
-                if *negated { " NOT" } else { "" },
-                values
-            ))
-        }
+        } => format_in_list(expr, values, *negated),
         Expr::Like {
             expr,
             pattern,
@@ -100,11 +88,63 @@ fn format_expression(expression: &Expr) -> Result<String, String> {
             format_expression(expr)?,
             data_type.type_name()
         )),
+        Expr::Collate { expr, collation } => format_collated(expr, collation),
+        Expr::ArraySubscript { array, subscripts } => format_array_subscript(array, subscripts),
         Expr::Exists(_) | Expr::Subquery(_) => {
             Err("subquery expressions cannot be stored in rollup aggregates".into())
         }
         Expr::Function(function) => format_function(function),
     }
+}
+
+fn format_in_list(expr: &Expr, values: &[Expr], negated: bool) -> Result<String, String> {
+    let values = values
+        .iter()
+        .map(format_expression)
+        .collect::<Result<Vec<_>, _>>()?
+        .join(", ");
+    Ok(format!(
+        "({}{} IN ({}))",
+        format_expression(expr)?,
+        if negated { " NOT" } else { "" },
+        values
+    ))
+}
+
+fn format_array_subscript(
+    array: &Expr,
+    subscripts: &[crate::sql::ast::ArraySubscript],
+) -> Result<String, String> {
+    let mut output = format_expression(array)?;
+    for subscript in subscripts {
+        match subscript {
+            crate::sql::ast::ArraySubscript::Index(index) => {
+                output.push('[');
+                output.push_str(&format_expression(index)?);
+                output.push(']');
+            }
+            crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                output.push('[');
+                if let Some(lower) = lower {
+                    output.push_str(&format_expression(lower)?);
+                }
+                output.push(':');
+                if let Some(upper) = upper {
+                    output.push_str(&format_expression(upper)?);
+                }
+                output.push(']');
+            }
+        }
+    }
+    Ok(output)
+}
+
+fn format_collated(expr: &Expr, collation: &str) -> Result<String, String> {
+    Ok(format!(
+        "({}) COLLATE {}",
+        format_expression(expr)?,
+        quote_identifier(collation)
+    ))
 }
 
 fn format_function(function: &FunctionCall) -> Result<String, String> {

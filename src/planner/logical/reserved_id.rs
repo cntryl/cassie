@@ -112,7 +112,7 @@ fn source_resolves_id_to_identity(
     catalog: &Catalog,
 ) -> bool {
     match source {
-        QuerySource::Aliased { source, .. } => {
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
             source_resolves_id_to_identity(source, scopes, catalog)
         }
         QuerySource::Collection(collection) => !collection_declares_id(catalog, collection),
@@ -262,10 +262,27 @@ fn rewrite_expr(expr: &mut Expr) {
             rewrite_expr(left);
             rewrite_expr(right);
         }
+        Expr::ArraySubscript { array, subscripts } => {
+            rewrite_expr(array);
+            for subscript in subscripts {
+                match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => rewrite_expr(index),
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                        if let Some(lower) = lower {
+                            rewrite_expr(lower);
+                        }
+                        if let Some(upper) = upper {
+                            rewrite_expr(upper);
+                        }
+                    }
+                }
+            }
+        }
         Expr::IsNull { expr, .. }
         | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => {
             rewrite_expr(expr);

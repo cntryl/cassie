@@ -65,7 +65,11 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
         }
         FunctionId::StringAgg => matches!(
             data_type,
-            DataType::Null | DataType::Text | DataType::Char { .. } | DataType::Varchar { .. }
+            DataType::Null
+                | DataType::Text
+                | DataType::Char { .. }
+                | DataType::Varchar { .. }
+                | DataType::Bytea
         ),
         _ => true,
     }
@@ -133,6 +137,7 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSleepFor => Some(FunctionInputSignature::Positional(&[1186])),
         FunctionId::PgSleepUntil => Some(FunctionInputSignature::Positional(&[1184])),
         FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
+        FunctionId::PgInputIsValid => Some(FunctionInputSignature::Positional(&[25, 25])),
         FunctionId::PgCharToEncoding
         | FunctionId::PgSizeBytes
         | FunctionId::Reverse
@@ -170,8 +175,7 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::CumeDist => Some(FunctionInputSignature::HypotheticalSetArguments),
         FunctionId::Coalesce => Some(FunctionInputSignature::CommonArguments),
         FunctionId::Substring => Some(FunctionInputSignature::Positional(&[25, 23, 23])),
-        FunctionId::StringAgg
-        | FunctionId::Decode
+        FunctionId::Decode
         | FunctionId::StartsWith
         | FunctionId::Trim
         | FunctionId::Ltrim

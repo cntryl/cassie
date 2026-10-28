@@ -146,6 +146,7 @@ fn scope_names(
                 aliases.push((path.declared_name(), alias.clone()));
             }
         }
+        QuerySource::TableSample { source, .. } => scope_names(source, aliases, visible),
         QuerySource::Join { left, right, .. } => {
             scope_names(left, aliases, visible);
             scope_names(right, aliases, visible);
@@ -162,6 +163,7 @@ fn scope_names(
 
 fn rename_source(source: &mut QuerySource, allocated: &HashMap<String, String>) {
     match source {
+        QuerySource::TableSample { source, .. } => rename_source(source, allocated),
         QuerySource::Aliased { alias, .. } => {
             if let Ok(path) = ColumnIdentifierPath::parse(alias) {
                 if let Some(carrier) = allocated.get(&path.declared_name()) {
@@ -237,6 +239,18 @@ fn source_names(source: &QuerySource, names: &mut HashSet<String>) {
             }
             names.insert(qualifier(alias));
             source_names(source, names);
+        }
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            source_names(source, names);
+            expression_names(rate, names);
+            if let Some(seed) = repeatable {
+                expression_names(seed, names);
+            }
         }
         QuerySource::Join {
             left, right, on, ..

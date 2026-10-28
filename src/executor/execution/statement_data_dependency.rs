@@ -55,6 +55,12 @@ fn source(query: &QuerySource) -> bool {
 
         QuerySource::SingleRow => false,
         QuerySource::Aliased { source: query, .. } => source(query),
+        QuerySource::TableSample {
+            source: query,
+            rate,
+            repeatable,
+            ..
+        } => source(query) || expression(rate) || repeatable.as_ref().is_some_and(expression),
         QuerySource::Subquery { select: query, .. } => select(query),
         QuerySource::Join {
             left, right, on, ..

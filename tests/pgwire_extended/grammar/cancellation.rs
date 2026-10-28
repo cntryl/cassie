@@ -9,7 +9,7 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
         .expect("runtime");
 
     // Act
-    let (setup, baseline, cancelled, recovery) = runtime.block_on(async {
+    let (setup, inserted, baseline, cancelled, recovery) = runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie
             .startup()
@@ -25,12 +25,21 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
         wire::write_frames(
             &mut writer,
             vec![wire::simple_query_frame(
-                "CREATE TABLE issue_800_sample_cancel_rows (id INT); \
-                 INSERT INTO issue_800_sample_cancel_rows VALUES (1), (2), (3)",
+                "CREATE TABLE issue_800_sample_cancel_rows (id INT)",
             )],
         )
         .await;
         let setup = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+
+        wire::write_frames(
+            &mut writer,
+            vec![wire::simple_query_frame(
+                "INSERT INTO issue_800_sample_cancel_rows VALUES (1), (2), (3)",
+            )],
+        )
+        .await;
+        let inserted =
+            wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
         wire::write_frames(
             &mut writer,
@@ -75,11 +84,12 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
         drop(reader);
         drop(writer);
         server.stop().await;
-        (setup, baseline, cancelled, recovery)
+        (setup, inserted, baseline, cancelled, recovery)
     });
 
     // Assert
     assert_eq!(wire::error_code(&setup), None);
+    assert_eq!(wire::error_code(&inserted), None);
     assert_eq!(wire::error_code(&baseline), None);
     assert_eq!(
         wire::data_rows(&baseline),

@@ -502,6 +502,7 @@ impl Fold<'_, '_> {
         Ok(Summary::known(match metadata.return_type {
             functions::FunctionReturnType::Float => 701,
             functions::FunctionReturnType::Int => 23,
+            functions::FunctionReturnType::IntArray => 1007,
             functions::FunctionReturnType::BigInt => 20,
             functions::FunctionReturnType::Boolean => 16,
             functions::FunctionReturnType::Json => 114,

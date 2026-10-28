@@ -196,6 +196,7 @@ fn source_leaves(
             push_leaf(out, alias, columns);
             Ok(())
         }
+        QuerySource::TableSample { source, .. } => source_leaves(source, ctes, catalog, out),
         QuerySource::Values { .. } => Err(CassieError::Parse(
             "VALUES in FROM must have an alias".to_string(),
         )),
@@ -335,13 +336,14 @@ fn replace_merge_action(expr: &Expr) -> Expr {
 /// Validates `SET` targets and values against the target and joined scope.
 pub(super) fn bind_assignments(
     assignments: &mut [(String, Expr)],
+    mut array_targets: Option<&mut [crate::sql::ast::UpdateTarget]>,
     row_subquery_columns: &mut [Vec<String>],
-    schema: &CollectionSchema,
-    table: &str,
+    target: (&CollectionSchema, &str),
     scope: &JoinedScope,
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
+    let (schema, table) = target;
     let mut seen = HashSet::new();
     let mut resolve = |column: &mut String| -> Result<DataType, CassieError> {
         let requested = column.trim().to_string();
@@ -366,15 +368,58 @@ pub(super) fn bind_assignments(
         column.clone_from(&declared.name);
         Ok(declared.data_type.clone())
     };
-    for (column, expression) in assignments {
+    for (assignment_index, (column, expression)) in assignments.iter_mut().enumerate() {
         let data_type = resolve(column)?;
         if expression.is_default_assignment() {
             continue;
         }
+        let mut expected_type = data_type.clone();
+        if let Some(array_target) = array_targets.as_deref_mut().and_then(|targets| {
+            targets
+                .iter_mut()
+                .find(|target| target.assignment_index == assignment_index)
+        }) {
+            let DataType::Array(element_type) = &data_type else {
+                return Err(CassieError::Parse(format!(
+                    "UPDATE subscript target '{column}' is not an array"
+                )));
+            };
+            let mut is_slice = false;
+            for subscript in &mut array_target.subscripts {
+                match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        super::super::boolean_contexts::validate_value(
+                            index,
+                            &scope.types,
+                            Some(&DataType::Int),
+                            catalog,
+                            context,
+                        )?;
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                        is_slice = true;
+                        for bound in lower.iter_mut().chain(upper.iter_mut()) {
+                            super::super::boolean_contexts::validate_value(
+                                bound,
+                                &scope.types,
+                                Some(&DataType::Int),
+                                catalog,
+                                context,
+                            )?;
+                        }
+                    }
+                }
+            }
+            expected_type = if is_slice {
+                data_type.clone()
+            } else {
+                element_type.as_ref().clone()
+            };
+        }
         super::super::boolean_contexts::validate_value(
             expression,
             &scope.types,
-            Some(&data_type),
+            Some(&expected_type),
             catalog,
             context,
         )?;
@@ -509,9 +554,9 @@ pub(in crate::sql::binder) fn bind_merge(
                     .collect::<Vec<_>>();
                 bind_assignments(
                     assignments,
+                    None,
                     &mut columns,
-                    &schema,
-                    &table,
+                    (&schema, &table),
                     &scope,
                     catalog,
                     context,

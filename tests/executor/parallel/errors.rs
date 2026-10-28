@@ -60,8 +60,10 @@ fn should_sum_bigint_prefixes_beyond_int64_exactly_at_every_worker_count() {
 
     // Assert
     for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+        let (rows, type_oids) = outcome.expect("an int8 prefix beyond i64 stays exact in numeric");
+        assert_eq!(type_oids, vec![1700], "workers={workers}");
         assert_eq!(
-            outcome.expect("an int8 prefix beyond i64 stays exact in numeric"),
+            rows,
             vec![vec![Value::Int64(1_000_000_000_000_000_000)]],
             "workers={workers}"
         );
@@ -89,8 +91,10 @@ fn should_keep_integer_sum_when_only_a_partition_local_prefix_overflows() {
 
     // Assert
     for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+        let (rows, type_oids) = outcome.expect("row-order prefix stays within i64");
+        assert_eq!(type_oids, vec![1700], "workers={workers}");
         assert_eq!(
-            outcome.expect("row-order prefix stays within i64"),
+            rows,
             vec![vec![Value::Int64(9_000_000_000_000_000_000)]],
             "workers={workers}"
         );
@@ -118,8 +122,10 @@ fn should_keep_float_sum_when_only_a_partition_local_fold_overflows() {
 
     // Assert
     for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+        let (rows, type_oids) = outcome.expect("row-order float fold stays finite");
+        assert_eq!(type_oids, vec![701], "workers={workers}");
         assert_eq!(
-            outcome.expect("row-order float fold stays finite"),
+            rows,
             vec![vec![Value::Float64(1.0e308)]],
             "workers={workers}"
         );

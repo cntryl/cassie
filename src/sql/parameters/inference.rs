@@ -210,6 +210,24 @@ fn infer_source_parameter_type_oids(
         ast::QuerySource::Aliased { source, .. } => {
             infer_source_parameter_type_oids(source, field_types, catalog, oids);
         }
+        ast::QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            infer_source_parameter_type_oids(source, field_types, catalog, oids);
+            infer_parameter_type_from_expected_expr(
+                rate,
+                &DataType::Extended(crate::types::extended::ExtendedType::Real),
+                oids,
+            );
+            infer_parameter_type_oids_expr(rate, field_types, catalog, oids);
+            if let Some(seed) = repeatable {
+                infer_parameter_type_from_expected_expr(seed, &DataType::Float, oids);
+                infer_parameter_type_oids_expr(seed, field_types, catalog, oids);
+            }
+        }
         ast::QuerySource::Join {
             left, right, on, ..
         } => {
@@ -240,7 +258,52 @@ fn infer_update_parameter_type_oids(
         return;
     };
     let field_types = field_type_map(schema.fields.iter());
-    infer_assignment_parameter_type_oids(&statement.assignments, &field_types, catalog, oids);
+    for (index, (field, expression)) in statement.assignments.iter().enumerate() {
+        let expected = field_type_for_column(&field_types, field).and_then(|field_type| {
+            statement
+                .array_targets
+                .iter()
+                .find(|target| target.assignment_index == index)
+                .map_or(Some(field_type), |target| {
+                    let DataType::Array(element_type) = field_type else {
+                        return None;
+                    };
+                    if target
+                        .subscripts
+                        .iter()
+                        .any(|subscript| matches!(subscript, ast::ArraySubscript::Slice { .. }))
+                    {
+                        Some(field_type)
+                    } else {
+                        Some(element_type.as_ref())
+                    }
+                })
+        });
+        if let Some(expected) = expected {
+            infer_parameter_type_from_expected_expr(expression, expected, oids);
+        }
+        infer_parameter_type_oids_expr(expression, &field_types, catalog, oids);
+        if let Some(target) = statement
+            .array_targets
+            .iter()
+            .find(|target| target.assignment_index == index)
+        {
+            for subscript in &target.subscripts {
+                match subscript {
+                    ast::ArraySubscript::Index(index) => {
+                        infer_parameter_type_from_expected_expr(index, &DataType::Int, oids);
+                        infer_parameter_type_oids_expr(index, &field_types, catalog, oids);
+                    }
+                    ast::ArraySubscript::Slice { lower, upper } => {
+                        for bound in lower.iter().chain(upper) {
+                            infer_parameter_type_from_expected_expr(bound, &DataType::Int, oids);
+                            infer_parameter_type_oids_expr(bound, &field_types, catalog, oids);
+                        }
+                    }
+                }
+            }
+        }
+    }
     if let Some(filter) = &statement.filter {
         infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, oids);
         infer_parameter_type_oids_expr(filter, &field_types, catalog, oids);
@@ -404,33 +467,14 @@ pub(super) fn infer_parameter_type_oids_expr(
             operand,
             branches,
             else_expr,
-        } => {
-            if let Some(operand) = operand {
-                infer_parameter_type_oids_expr(operand, field_types, catalog, oids);
-            }
-            for (when, then) in branches {
-                if operand.is_none() {
-                    infer_parameter_type_from_expected_expr(when, &DataType::Boolean, oids);
-                }
-                if let Some(data_type) = operand
-                    .as_ref()
-                    .and_then(|operand| column_expr_type(operand, field_types))
-                {
-                    oids.without_context_demands(|oids| {
-                        infer_parameter_type_from_expected_expr(when, data_type, oids);
-                    });
-                }
-                if let Some(operand) = operand {
-                    record_operand_parameter_demand(when, operand, field_types, oids);
-                }
-                infer_parameter_type_oids_expr(when, field_types, catalog, oids);
-                infer_parameter_type_oids_expr(then, field_types, catalog, oids);
-            }
-            if let Some(else_expr) = else_expr {
-                infer_parameter_type_oids_expr(else_expr, field_types, catalog, oids);
-            }
-            infer_case_result_parameter_types(branches, else_expr.as_deref(), field_types, oids);
-        }
+        } => infer_case_expression_parameter_types(
+            operand.as_deref(),
+            branches,
+            else_expr.as_deref(),
+            field_types,
+            catalog,
+            oids,
+        ),
         ast::Expr::RowCompare(comparison) => {
             for (left, right) in comparison.left.iter().zip(&comparison.right) {
                 infer_binary_parameter_type_oids(
@@ -442,6 +486,23 @@ pub(super) fn infer_parameter_type_oids_expr(
                     oids,
                 );
             }
+        }
+        ast::Expr::ArraySubscript { array, subscripts } => {
+            for subscript in subscripts {
+                match subscript {
+                    ast::ArraySubscript::Index(index) => {
+                        infer_parameter_type_from_expected_expr(index, &DataType::Int, oids);
+                        infer_parameter_type_oids_expr(index, field_types, catalog, oids);
+                    }
+                    ast::ArraySubscript::Slice { lower, upper } => {
+                        for bound in lower.iter().chain(upper) {
+                            infer_parameter_type_from_expected_expr(bound, &DataType::Int, oids);
+                            infer_parameter_type_oids_expr(bound, field_types, catalog, oids);
+                        }
+                    }
+                }
+            }
+            infer_parameter_type_oids_expr(array, field_types, catalog, oids);
         }
         ast::Expr::Binary { left, op, right } => {
             infer_binary_parameter_type_oids(left, op, right, field_types, catalog, oids);
@@ -470,7 +531,8 @@ pub(super) fn infer_parameter_type_oids_expr(
         }
         ast::Expr::IsNull { expr, .. }
         | ast::Expr::UnaryNumeric { expr, .. }
-        | ast::Expr::IntegerNegate { expr, .. } => {
+        | ast::Expr::IntegerNegate { expr, .. }
+        | ast::Expr::Collate { expr, .. } => {
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::Expr::Cast {
@@ -496,6 +558,39 @@ pub(super) fn infer_parameter_type_oids_expr(
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => {}
     }
+}
+
+fn infer_case_expression_parameter_types(
+    operand: Option<&ast::Expr>,
+    branches: &[(ast::Expr, ast::Expr)],
+    else_expr: Option<&ast::Expr>,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    if let Some(operand) = operand {
+        infer_parameter_type_oids_expr(operand, field_types, catalog, oids);
+    }
+    for (when, then) in branches {
+        if operand.is_none() {
+            infer_parameter_type_from_expected_expr(when, &DataType::Boolean, oids);
+        }
+        if let Some(data_type) = operand.and_then(|operand| column_expr_type(operand, field_types))
+        {
+            oids.without_context_demands(|oids| {
+                infer_parameter_type_from_expected_expr(when, data_type, oids);
+            });
+        }
+        if let Some(operand) = operand {
+            record_operand_parameter_demand(when, operand, field_types, oids);
+        }
+        infer_parameter_type_oids_expr(when, field_types, catalog, oids);
+        infer_parameter_type_oids_expr(then, field_types, catalog, oids);
+    }
+    if let Some(else_expr) = else_expr {
+        infer_parameter_type_oids_expr(else_expr, field_types, catalog, oids);
+    }
+    infer_case_result_parameter_types(branches, else_expr, field_types, oids);
 }
 
 fn infer_between_parameter_type_oids(
@@ -755,12 +850,34 @@ pub(super) fn infer_parameter_type_from_expected_expr(
     }
     match expr {
         ast::Expr::Param(index) => set_parameter_type_oid(oids, *index, data_type),
+        ast::Expr::ArraySubscript { array, subscripts } => {
+            let array_type = match data_type {
+                DataType::Array(_) => data_type.clone(),
+                data_type => DataType::Array(Box::new(data_type.clone())),
+            };
+            infer_parameter_type_from_expected_expr(array, &array_type, oids);
+            for subscript in subscripts {
+                match subscript {
+                    ast::ArraySubscript::Index(index) => {
+                        infer_parameter_type_from_expected_expr(index, &DataType::Int, oids);
+                    }
+                    ast::ArraySubscript::Slice { lower, upper } => {
+                        for bound in lower.iter().chain(upper) {
+                            infer_parameter_type_from_expected_expr(bound, &DataType::Int, oids);
+                        }
+                    }
+                }
+            }
+        }
         ast::Expr::Cast {
             expr, data_type, ..
         } => {
             oids.without_context_demands(|oids| {
                 infer_parameter_type_from_expected_expr(expr, data_type, oids);
             });
+        }
+        ast::Expr::Collate { expr, .. } => {
+            infer_parameter_type_from_expected_expr(expr, data_type, oids);
         }
         _ => {}
     }
@@ -784,6 +901,7 @@ fn infer_bound_parameter_types(expr: &Expr, oids: &mut ParameterInference) {
             infer_parameter_type_from_expected_expr(expr, data_type, oids);
             infer_cast_parameters(expr, oids);
         }
+        Expr::Collate { expr, .. } => infer_bound_parameter_types(expr, oids),
         _ => infer_cast_parameters(expr, oids),
     }
 }
@@ -799,6 +917,7 @@ fn infer_cast_parameters(expr: &Expr, oids: &mut ParameterInference) {
         Expr::UnaryNumeric { expr, .. } | Expr::IntegerNegate { expr, .. } => {
             infer_cast_parameters(expr, oids);
         }
+        Expr::Collate { expr, .. } => infer_cast_parameters(expr, oids),
         Expr::Binary { left, right, .. } => {
             infer_cast_parameters(left, oids);
             infer_cast_parameters(right, oids);

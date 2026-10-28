@@ -30,7 +30,7 @@ fn main() {
             || fixture.parse(),
         );
     }
-    for operator_count in [8, 32, 64] {
+    for operator_count in [8, 16, 32, 64, 128] {
         let fixture_scale = format!("{operator_count}-operators");
         let qualified_case =
             stress::StressCase::new("sql_parser_qualified_operators", fixture_scale)
@@ -47,10 +47,12 @@ fn main() {
             let setup_started = std::time::Instant::now();
             let fixture = workloads::QualifiedOperatorParserFixture::new(operator_count);
             runner.measure_counted_batch(
-                qualified_case.metadata(
-                    "setup_time_ns",
-                    setup_started.elapsed().as_nanos().to_string(),
-                ),
+                qualified_case
+                    .parameter("statement_bytes", fixture.statement_bytes().to_string())
+                    .metadata(
+                        "setup_time_ns",
+                        setup_started.elapsed().as_nanos().to_string(),
+                    ),
                 workloads::PARSER_INVOCATIONS_PER_SAMPLE,
                 || fixture.parse(),
             );

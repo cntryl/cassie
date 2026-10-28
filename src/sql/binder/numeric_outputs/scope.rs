@@ -132,6 +132,7 @@ impl Analyzer<'_> {
                 result.lookup = exported_scope(lookup, &[qualifier]).lookup;
                 Ok(result)
             }
+            QuerySource::TableSample { source, .. } => self.source(source, ctes, outer_fields),
             QuerySource::SingleRow => Ok(SourceScope {
                 output: Vec::new(),
                 lookup: Vec::new(),

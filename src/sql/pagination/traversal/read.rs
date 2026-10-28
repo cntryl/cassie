@@ -87,6 +87,7 @@ impl Reader<'_> {
         }
         match expr {
             Expr::Cast { expr, .. }
+            | Expr::Collate { expr, .. }
             | Expr::UnaryNumeric { expr, .. }
             | Expr::IntegerNegate { expr, .. } => {
                 self.bound_depth(expr, depth + 1)?;
@@ -220,6 +221,7 @@ impl Reader<'_> {
                 self.expr(right, depth + 1)?;
             }
             Expr::Cast { expr, .. }
+            | Expr::Collate { expr, .. }
             | Expr::UnaryNumeric { expr, .. }
             | Expr::IntegerNegate { expr, .. }
             | Expr::IsNull { expr, .. }

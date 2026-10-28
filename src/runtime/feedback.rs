@@ -311,7 +311,9 @@ fn collect_relation_names(source: &QuerySource, relations: &mut BTreeSet<String>
             relations.insert("__values__".into());
         }
 
-        QuerySource::Aliased { source, .. } => collect_relation_names(source, relations),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            collect_relation_names(source, relations);
+        }
         QuerySource::Collection(name) => {
             relations.insert(name.to_ascii_lowercase());
         }
@@ -399,7 +401,7 @@ impl From<&LogicalPlan> for NormalizedPredicateShape {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct NormalizedOrderShape {
     expr: NormalizedExprShape,
     direction: &'static str,
@@ -419,7 +421,7 @@ impl From<&OrderExpr> for NormalizedOrderShape {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 struct NormalizedFunctionModifiers {
     distinct: bool,
     filter: Option<Box<NormalizedExprShape>>,
@@ -457,7 +459,7 @@ struct NormalizedIndexShape {
     predicate_hash: Option<u64>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 enum NormalizedExprShape {
     Column(String),
     Value,
@@ -523,6 +525,14 @@ enum NormalizedExprShape {
         source_type: Option<String>,
         identity: crate::sql::ast::CastIdentity,
     },
+    Collate {
+        expr: Box<NormalizedExprShape>,
+        collation: String,
+    },
+    ArraySubscript {
+        array: Box<NormalizedExprShape>,
+        subscripts: Vec<String>,
+    },
     Case {
         operand: Option<Box<NormalizedExprShape>>,
         branches: Vec<(NormalizedExprShape, NormalizedExprShape)>,
@@ -537,18 +547,7 @@ impl From<&Expr> for NormalizedExprShape {
                 operand,
                 branches,
                 else_expr,
-            } => Self::Case {
-                operand: operand
-                    .as_ref()
-                    .map(|expr| Box::new(Self::from(expr.as_ref()))),
-                branches: branches
-                    .iter()
-                    .map(|(when, then)| (Self::from(when), Self::from(then)))
-                    .collect(),
-                else_expr: else_expr
-                    .as_ref()
-                    .map(|expr| Box::new(Self::from(expr.as_ref()))),
-            },
+            } => normalized_case_shape(operand.as_deref(), branches, else_expr.as_deref()),
             Expr::Column(name) => {
                 Self::Column(crate::sql::ColumnIdentifierPath::reference_field_key(name))
             }
@@ -618,8 +617,52 @@ impl From<&Expr> for NormalizedExprShape {
                 source_type: source_type.as_ref().map(|kind| format!("{kind:?}")),
                 identity: *identity,
             },
+            Expr::Collate { expr, collation } => Self::Collate {
+                expr: Box::new(Self::from(expr.as_ref())),
+                collation: collation.clone(),
+            },
+            Expr::ArraySubscript { array, subscripts } => Self::ArraySubscript {
+                array: Box::new(Self::from(array.as_ref())),
+                subscripts: normalized_array_subscripts(subscripts),
+            },
         }
     }
+}
+
+fn normalized_case_shape(
+    operand: Option<&Expr>,
+    branches: &[(Expr, Expr)],
+    else_expr: Option<&Expr>,
+) -> NormalizedExprShape {
+    NormalizedExprShape::Case {
+        operand: operand.map(|expr| Box::new(NormalizedExprShape::from(expr))),
+        branches: branches
+            .iter()
+            .map(|(when, then)| {
+                (
+                    NormalizedExprShape::from(when),
+                    NormalizedExprShape::from(then),
+                )
+            })
+            .collect(),
+        else_expr: else_expr.map(|expr| Box::new(NormalizedExprShape::from(expr))),
+    }
+}
+
+fn normalized_array_subscripts(subscripts: &[crate::sql::ast::ArraySubscript]) -> Vec<String> {
+    subscripts
+        .iter()
+        .map(|subscript| match subscript {
+            crate::sql::ast::ArraySubscript::Index(index) => {
+                format!("index:{:?}", NormalizedExprShape::from(index))
+            }
+            crate::sql::ast::ArraySubscript::Slice { lower, upper } => format!(
+                "slice:{:?}:{:?}",
+                lower.as_ref().map(NormalizedExprShape::from),
+                upper.as_ref().map(NormalizedExprShape::from)
+            ),
+        })
+        .collect()
 }
 
 #[derive(Serialize)]

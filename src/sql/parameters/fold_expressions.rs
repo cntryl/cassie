@@ -4,6 +4,31 @@ use super::check_controls;
 use super::{Fold, Frame, ParameterAdmissionError, Summary};
 use crate::sql::{ast, binder};
 
+fn array_subscript_summary(first: Summary, subscripts: &[ast::ArraySubscript]) -> Summary {
+    let Some(mut data_type) = binder::parameter_data_type_for_oid(first.oid) else {
+        return first;
+    };
+    let mut element_type = data_type.clone();
+    while let crate::types::DataType::Array(inner) = &element_type {
+        element_type = (**inner).clone();
+    }
+    let mut contains_slice = false;
+    for subscript in subscripts {
+        match subscript {
+            ast::ArraySubscript::Index(_) => {
+                if let crate::types::DataType::Array(inner) = &data_type {
+                    data_type = (**inner).clone();
+                }
+            }
+            ast::ArraySubscript::Slice { .. } => contains_slice = true,
+        }
+    }
+    if contains_slice {
+        data_type = crate::types::DataType::Array(Box::new(element_type));
+    }
+    Summary::known(i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX))
+}
+
 impl Fold<'_, '_> {
     pub(super) fn expression(
         &mut self,
@@ -47,6 +72,10 @@ impl Fold<'_, '_> {
             ),
             ast::Expr::IntegerNegate { width, .. } => Ok(Summary::known(oid(&width.data_type()))),
             ast::Expr::Cast { data_type, .. } => Ok(Summary::known(oid(data_type))),
+            ast::Expr::Collate { expr, .. } => self.expression(expr, frame),
+            ast::Expr::ArraySubscript { subscripts, .. } => {
+                Ok(array_subscript_summary(first(), subscripts))
+            }
             ast::Expr::BoolLiteral(_)
             | ast::Expr::IsNull { .. }
             | ast::Expr::TruthTest { .. }

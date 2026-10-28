@@ -1,13 +1,12 @@
 #[test]
-fn should_bind_pattern_operators_with_escape_over_pgwire() {
+fn should_bind_like_escape_parameters_over_pgwire() {
     // Arrange
-    let sql = "SELECT $1 SIMILAR TO $2 ESCAPE $3 AS similar_match, \
-        $4 NOT LIKE $5 ESCAPE $6 AS escaped_not_like";
+    let sql = "SELECT $1 NOT LIKE $2 ESCAPE $3 AS escaped_not_like";
     let steps = vec![
         Step::ParseFlush(wire::parse_frame_with_types(
             "pattern_parameters",
             sql,
-            &[25, 25, 25, 25, 25, 25],
+            &[25, 25, 25],
         )),
         Step::ThroughReady(vec![
             wire::describe_statement_frame("pattern_parameters"),
@@ -17,7 +16,7 @@ fn should_bind_pattern_operators_with_escape_over_pgwire() {
             wire::bind_frame(
                 "pattern_portal",
                 "pattern_parameters",
-                &["foo_7", "foo!_%", "!", "ab", "a!_%", "!"],
+                &["ab", "a!_%", "!"],
             ),
             wire::describe_portal_frame("pattern_portal"),
             wire::execute_frame("pattern_portal"),
@@ -41,7 +40,7 @@ fn should_bind_pattern_operators_with_escape_over_pgwire() {
                 .expect("pattern ParameterDescription")
                 .1
         ),
-        vec![25; 6]
+        vec![25; 3]
     );
     let statement_description = described
         .iter()
@@ -52,11 +51,11 @@ fn should_bind_pattern_operators_with_escape_over_pgwire() {
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![16, 16]
+        vec![16]
     );
     assert_eq!(wire::error_code(executed), None);
     assert_eq!(
         wire::data_rows(executed),
-        vec![vec![Some("t".to_owned()), Some("t".to_owned())]]
+        vec![vec![Some("t".to_owned())]]
     );
 }

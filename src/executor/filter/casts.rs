@@ -7,34 +7,86 @@ pub(super) fn scalar(
     source: Option<&DataType>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
-    if source == Some(&DataType::Jsonb)
-        && matches!(target, DataType::Text | DataType::Varchar { .. })
-    {
-        return jsonb_text(value);
+    if let Some(value) = text_cast(value, target, source)? {
+        return Ok(value);
     }
     if matches!(target, DataType::Array(_)) && source == Some(target) {
         return Ok(value.clone());
     }
+    if let Some(value) = bytea_integer_cast(value, target, source)? {
+        return Ok(value);
+    }
+    if let Some(value) = integer_text_cast(value, target, controls) {
+        return value;
+    }
+    if let Some(value) = special_scalar_cast(value, target, source, controls)? {
+        return Ok(value);
+    }
+    if let Some(value) = formatted_text_cast(value, target, source, controls)? {
+        return Ok(value);
+    }
+    cast_scalar(value, target, controls)
+}
+
+fn text_cast(
+    value: &ScalarValue,
+    target: &DataType,
+    source: Option<&DataType>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if source == Some(&DataType::Jsonb)
+        && matches!(target, DataType::Text | DataType::Varchar { .. })
+    {
+        return jsonb_text(value).map(Some);
+    }
+    if matches!(target, DataType::Text | DataType::Varchar { .. }) {
+        if let Some(formatted) = format_array_text(value, source) {
+            return Ok(Some(formatted));
+        }
+        if matches!(value, ScalarValue::Json(_)) || source == Some(&DataType::Json) {
+            return json_text(value).map(Some);
+        }
+    }
+    Ok(None)
+}
+
+fn bytea_integer_cast(
+    value: &ScalarValue,
+    target: &DataType,
+    source: Option<&DataType>,
+) -> Result<Option<ScalarValue>, QueryError> {
     if *target == DataType::Bytea {
         if let Some(width) = source.and_then(crate::types::IntegerWidth::from_data_type) {
-            return super::bytea_casts::encode(value, width);
+            return super::bytea_casts::encode(value, width).map(Some);
         }
     }
     if source == Some(&DataType::Bytea) {
         if let Some(width) = crate::types::IntegerWidth::from_data_type(target) {
-            return super::bytea_casts::decode(value, width);
+            return super::bytea_casts::decode(value, width).map(Some);
         }
     }
+    Ok(None)
+}
+
+fn integer_text_cast(
+    value: &ScalarValue,
+    target: &DataType,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Option<Result<ScalarValue, QueryError>> {
     if let (ScalarValue::Str(input), Some(width)) =
         (value, crate::types::IntegerWidth::from_data_type(target))
     {
-        return super::integers::controlled_input(input, width, controls);
+        Some(super::integers::controlled_input(input, width, controls))
+    } else {
+        None
     }
-    if matches!(target, DataType::Text | DataType::Varchar { .. }) {
-        if let Some(formatted) = format_array_text(value, source) {
-            return Ok(formatted);
-        }
-    }
+}
+
+fn special_scalar_cast(
+    value: &ScalarValue,
+    target: &DataType,
+    source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Option<ScalarValue>, QueryError> {
     // Explicit typmod casts truncate; assignment and function coercion still
     // use cast_scalar's bounded validation. Format the source before applying
     // the width so CHAR blanks and temporal spellings keep their SQL identity.
@@ -42,7 +94,7 @@ pub(super) fn scalar(
         length: Some(width),
     } = target
     {
-        return varchar(value, *width, source, controls);
+        return varchar(value, *width, source, controls).map(Some);
     }
     if *target == DataType::Date && source == Some(&DataType::Timestamp) {
         if let ScalarValue::Str(text) = value {
@@ -50,7 +102,8 @@ pub(super) fn scalar(
                 .map(|timestamp| {
                     ScalarValue::Str(crate::types::temporal::format_date(timestamp.date()))
                 })
-                .map_err(QueryError::General);
+                .map_err(QueryError::General)
+                .map(Some);
         }
     }
     if matches!(target, DataType::Text | DataType::Varchar { .. })
@@ -61,7 +114,8 @@ pub(super) fn scalar(
                 &ScalarValue::Str(crate::types::char_text::canonical_char_text(text).to_owned()),
                 target,
                 controls,
-            );
+            )
+            .map(Some);
         }
     }
     if *target == DataType::Boolean {
@@ -72,14 +126,24 @@ pub(super) fn scalar(
                     QueryError::Cassie(crate::app::CassieError::from(
                         crate::types::BooleanInputError,
                     ))
-                });
+                })
+                .map(Some);
         }
     }
     if *target == DataType::Float {
         if let Some(value) = float_input(value) {
-            return value;
+            return value.map(Some);
         }
     }
+    Ok(None)
+}
+
+fn formatted_text_cast(
+    value: &ScalarValue,
+    target: &DataType,
+    source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Option<ScalarValue>, QueryError> {
     if matches!(target, DataType::Text | DataType::Varchar { .. }) {
         if source == Some(&DataType::Float) {
             if let ScalarValue::Float(value) = value {
@@ -87,7 +151,8 @@ pub(super) fn scalar(
                     &ScalarValue::Str(crate::types::float_text::format(*value)),
                     target,
                     controls,
-                );
+                )
+                .map(Some);
             }
         }
         if let ScalarValue::Str(text) = value {
@@ -101,11 +166,12 @@ pub(super) fn scalar(
                     &ScalarValue::Str(formatted.map_err(QueryError::General)?),
                     target,
                     controls,
-                );
+                )
+                .map(Some);
             }
         }
     }
-    cast_scalar(value, target, controls)
+    Ok(None)
 }
 
 fn float_input(value: &ScalarValue) -> Option<Result<ScalarValue, QueryError>> {
@@ -130,12 +196,33 @@ fn jsonb_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         .map_err(|error| crate::app::CassieError::TypeInput(error).into())
 }
 
+fn json_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+    let text = match value {
+        ScalarValue::Json(text) | ScalarValue::Str(text) => text,
+        ScalarValue::Null => return Ok(ScalarValue::Null),
+        _ => return Err(QueryError::General("cannot cast value to JSON text".into())),
+    };
+    let document = serde_json::from_str::<serde_json::Value>(text)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::types::jsonb::format(&document)
+        .map(ScalarValue::Str)
+        .map_err(|error| crate::app::CassieError::TypeInput(error).into())
+}
+
 fn format_array_text(value: &ScalarValue, source: Option<&DataType>) -> Option<ScalarValue> {
-    let (Some(DataType::Array(element_type)), ScalarValue::Json(input)) = (source, value) else {
+    let Some(DataType::Array(element_type)) = source else {
         return None;
     };
-    let array = serde_json::from_str::<serde_json::Value>(input).ok()?;
-    crate::types::array::format_text_array(&array, element_type).map(ScalarValue::Str)
+    match value {
+        ScalarValue::Json(input) => {
+            let array = serde_json::from_str::<serde_json::Value>(input).ok()?;
+            crate::types::array::format_text_array(&array, element_type).map(ScalarValue::Str)
+        }
+        ScalarValue::Array(array) => {
+            crate::types::array_value::format_text(array, element_type).map(ScalarValue::Str)
+        }
+        _ => None,
+    }
 }
 
 fn varchar(

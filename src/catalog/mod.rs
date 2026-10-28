@@ -42,8 +42,9 @@ pub use column_defaults::{
     volatile_default_accepts,
 };
 pub use composite_unique::{
-    composite_unique_constraints, composite_unique_indexes, conflicting_unique_membership,
-    enforces_single_column_uniqueness, is_composite_unique_member, unique_constraint_indexes,
+    composite_primary_key_constraints, composite_primary_key_indexes, composite_unique_constraints,
+    composite_unique_indexes, conflicting_unique_membership, enforces_single_column_uniqueness,
+    is_composite_primary_key_member, is_composite_unique_member, unique_constraint_indexes,
     CompositeUnique,
 };
 pub use consistency::{

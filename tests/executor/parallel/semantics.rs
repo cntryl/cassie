@@ -200,6 +200,14 @@ fn should_execute_grouped_aggregates_with_parallel_workers() {
 
         // Assert
         assert_eq!(
+            result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![25, 20, 20]
+        );
+        assert_eq!(
             result.rows(),
             vec![
                 vec![
@@ -278,6 +286,14 @@ fn should_preserve_row_order_for_parallel_aggregate_queries_with_average() {
         let metrics = cassie.metrics();
 
         // Assert
+        assert_eq!(
+            result
+                .columns()
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![20, 20, 20, 1700, 23, 23]
+        );
         assert_eq!(
             result.rows(),
             vec![vec![
@@ -447,8 +463,10 @@ fn should_fold_float_aggregates_in_row_order_at_every_worker_count() {
 
     // Assert
     for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+        let (rows, type_oids) = outcome.expect("float aggregate should execute");
+        assert_eq!(type_oids, vec![701, 701], "workers={workers}");
         assert_eq!(
-            outcome.expect("float aggregate should execute"),
+            rows,
             vec![vec![
                 Value::Float64(1.0e16),
                 Value::Float64(1.0e16 / 1025.0)
@@ -478,8 +496,10 @@ fn should_average_bigint_exactly_beyond_the_float_range_at_every_worker_count() 
     // Assert
     // avg(bigint) is an exact numeric quotient in PostgreSQL 18.6.
     for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+        let (rows, type_oids) = outcome.expect("integer average should execute");
+        assert_eq!(type_oids, vec![1700, 1700], "workers={workers}");
         assert_eq!(
-            outcome.expect("integer average should execute"),
+            rows,
             vec![vec![
                 Value::String("1124801467909120.0000".to_owned()),
                 Value::Int64((1_i64 << 60) + 1024)

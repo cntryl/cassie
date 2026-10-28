@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 
 use crate::app::CassieError;
-use crate::types::{DataType, FieldSchema, Schema};
+use crate::types::{ArrayDimension, DataType, FieldSchema, Schema, SqlArray, Value};
 use uuid::Uuid;
 
 mod encoding;
 
 use self::encoding::encode_value;
 
-const MAGIC: &[u8; 4] = b"CRB2";
-const FORMAT_VERSION: u8 = 2;
+const MAGIC: &[u8; 4] = b"CRB3";
+const FORMAT_VERSION: u8 = 3;
 const TYPE_NULL: u8 = 0x00;
 const TYPE_BOOL: u8 = 0x01;
 const TYPE_I64: u8 = 0x02;
@@ -768,6 +768,27 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
 }
 
 fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieError> {
+    let dimension_count = usize::try_from(cursor.read_varint()?).map_err(|_| {
+        CassieError::Parse("array dimension count out of range in row blob".to_string())
+    })?;
+    if dimension_count > cursor.remaining().len() / 8 {
+        return Err(CassieError::Parse(
+            "array dimension count exceeds remaining payload in row blob".to_string(),
+        ));
+    }
+    let mut dimensions = Vec::with_capacity(dimension_count);
+    for _ in 0..dimension_count {
+        let length = i32::from_be_bytes(cursor.read_exact(4)?.try_into().map_err(|_| {
+            CassieError::Parse("invalid array dimension length in row blob".to_string())
+        })?);
+        let lower_bound = i32::from_be_bytes(cursor.read_exact(4)?.try_into().map_err(|_| {
+            CassieError::Parse("invalid array lower bound in row blob".to_string())
+        })?);
+        dimensions.push(ArrayDimension {
+            length,
+            lower_bound,
+        });
+    }
     let count = usize::try_from(cursor.read_varint()?)
         .map_err(|_| CassieError::Parse("array length out of range in row blob".to_string()))?;
     // Even null, boolean and empty variable-width elements require two bytes.
@@ -779,7 +800,7 @@ fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieErro
     let mut values = Vec::with_capacity(count);
     for _ in 0..count {
         let value_type = cursor.read_u8()?;
-        match value_type {
+        let value = match value_type {
             TYPE_NULL => {
                 let payload_len = cursor.read_varint()?;
                 if payload_len != 0 {
@@ -787,23 +808,60 @@ fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieErro
                         "null array element carries a nonzero payload length".to_string(),
                     ));
                 }
-                values.push(serde_json::Value::Null);
+                Value::Null
             }
             TYPE_ARRAY => {
-                let payload = cursor.read_len_prefixed()?;
-                let mut nested = Cursor::new(&payload);
-                let value = decode_array(&mut nested)?;
-                if !nested.remaining().is_empty() {
-                    return Err(CassieError::Parse(
-                        "nested array element carries trailing bytes".to_string(),
-                    ));
-                }
-                values.push(value);
+                return Err(CassieError::Parse(
+                    "nested array element is invalid in CRB3 row blob".to_string(),
+                ))
             }
-            _ => values.push(decode_value(value_type, cursor)?),
-        }
+            TYPE_EXTENDED => decode_array_extended(cursor)?,
+            _ => value_from_decoded_tag(value_type, decode_value(value_type, cursor)?)?,
+        };
+        values.push(value);
     }
-    Ok(serde_json::Value::Array(values))
+    let array = SqlArray::new(dimensions, values).map_err(CassieError::Parse)?;
+    Ok(array.to_storage_json())
+}
+
+fn decode_array_extended(cursor: &mut Cursor<'_>) -> Result<Value, CassieError> {
+    let bytes = cursor.read_len_prefixed()?;
+    let (oid, payload) = bytes
+        .split_first_chunk::<4>()
+        .ok_or_else(|| CassieError::Parse("truncated typed array value in row blob".into()))?;
+    let kind = crate::types::extended::ExtendedType::for_oid(u32::from_be_bytes(*oid))
+        .ok_or_else(|| CassieError::Parse("unknown typed array value in row blob".into()))?;
+    kind.receive_binary(payload)
+        .map(Value::Typed)
+        .map_err(CassieError::Parse)
+}
+
+fn value_from_decoded_tag(type_tag: u8, value: serde_json::Value) -> Result<Value, CassieError> {
+    match type_tag {
+        TYPE_BOOL => value.as_bool().map(Value::Bool),
+        TYPE_I64 => value.as_i64().map(Value::Int64),
+        TYPE_F64 => value.as_f64().map(Value::Float64),
+        TYPE_STRING | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP | TYPE_BYTEA | TYPE_UUID => {
+            value.as_str().map(|text| Value::String(text.to_string()))
+        }
+        TYPE_VECTOR_F32 => value
+            .as_array()
+            .and_then(|elements| {
+                elements
+                    .iter()
+                    .map(|element| {
+                        element
+                            .as_f64()
+                            .and_then(|number| number.to_string().parse::<f32>().ok())
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .map(crate::types::Vector::new)
+            .map(Value::Vector),
+        TYPE_JSON => Some(Value::Json(value)),
+        _ => None,
+    }
+    .ok_or_else(|| CassieError::Parse(format!("invalid array element for type tag {type_tag}")))
 }
 
 fn write_varint(mut value: u64, out: &mut Vec<u8>) {

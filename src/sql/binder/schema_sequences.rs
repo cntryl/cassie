@@ -63,7 +63,7 @@ pub(super) fn bind_alter_sequence(
             return Err(CassieError::CatalogObjectNotFound {
                 kind: CatalogObjectKind::Sequence,
                 name: statement.name,
-            })
+            });
         }
     }
     if let Some(crate::sql::ast::SequenceOwnedBy::Column { table, .. }) = &mut statement.owned_by {

@@ -70,6 +70,18 @@ fn lower_type_of(function: &FunctionCall, types: &ResultTypes) -> Option<Expr> {
     let argument = &function.args[0];
     let oid = if primitive_casts::unknown_literal(argument) || matches!(argument, Expr::Null) {
         705
+    } else if let Expr::Param(index) = argument {
+        let Some(oid) = types.parameter_types().get(*index).copied() else {
+            // The first binding pass has no Parse OIDs yet. Keep pg_typeof($n)
+            // intact so the OID-aware pass can distinguish a declared type
+            // from an unknown parameter instead of freezing it as UNKNOWN.
+            return None;
+        };
+        if matches!(oid, 0 | 705) {
+            705
+        } else {
+            i64::from(oid)
+        }
     } else {
         let data_type = types.expression_type(argument)?;
         let percentile_id = match argument {

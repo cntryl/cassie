@@ -199,19 +199,49 @@ fn encode_array_value(
     inner: &DataType,
     value: &serde_json::Value,
 ) -> Result<(u8, Vec<u8>), CassieError> {
-    let values = value
-        .as_array()
-        .ok_or_else(|| CassieError::InvalidVector("array field expects array".into()))?;
+    use crate::types::SqlArray;
+
+    let mut element_type = inner;
+    while let DataType::Array(nested) = element_type {
+        element_type = nested;
+    }
+
+    let array = if value
+        .as_object()
+        .and_then(|object| object.get("$cassie_array_v1"))
+        .is_some()
+    {
+        SqlArray::from_storage_json(value).map_err(CassieError::InvalidVector)?
+    } else {
+        SqlArray::from_nested_json_typed(value, element_type).map_err(CassieError::InvalidVector)?
+    };
 
     let mut out = Vec::new();
-    write_varint(u64::try_from(values.len()).unwrap_or(u64::MAX), &mut out);
-    for value in values {
-        let (value_type, value_data) = encode_value(inner, value)?;
+    write_varint(
+        u64::try_from(array.dimensions().len()).unwrap_or(u64::MAX),
+        &mut out,
+    );
+    for dimension in array.dimensions() {
+        out.extend_from_slice(&dimension.length.to_be_bytes());
+        out.extend_from_slice(&dimension.lower_bound.to_be_bytes());
+    }
+    write_varint(u64::try_from(array.len()).unwrap_or(u64::MAX), &mut out);
+    for (json_value, value) in array.elements_as_json().iter().zip(array.elements()) {
+        let encoded_value = match value {
+            crate::types::Value::Null => serde_json::Value::Null,
+            crate::types::Value::Json(document) => document.clone(),
+            _ => json_value.clone(),
+        };
+        let (value_type, value_data) = if matches!(value, crate::types::Value::Null) {
+            (TYPE_NULL, Vec::new())
+        } else {
+            encode_value(element_type, &encoded_value)?
+        };
         out.push(value_type);
         match value_type {
             TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID => out.extend_from_slice(&value_data),
             TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME
-            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA => {
+            | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA | TYPE_EXTENDED => {
                 write_varint(
                     u64::try_from(value_data.len()).unwrap_or(u64::MAX),
                     &mut out,

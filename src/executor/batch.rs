@@ -7,6 +7,7 @@ pub(crate) use operator_memory::OperatorMemory;
 mod operator_memory_tests;
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
@@ -546,6 +547,17 @@ fn push_value_key(out: &mut String, value: &Value) {
             }
         }
         Value::Json(v) => out.push_str(&v.to_string()),
+        Value::Array(v) => {
+            for dimension in v.dimensions() {
+                let _ = write!(
+                    out,
+                    "[{}:{}]",
+                    dimension.lower_bound,
+                    dimension.lower_bound + dimension.length - 1
+                );
+            }
+            out.push_str(&v.to_nested_json().to_string());
+        }
         Value::Typed(v) => out.push_str(&v.text()),
     }
 }

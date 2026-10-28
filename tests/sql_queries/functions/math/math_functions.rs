@@ -318,6 +318,32 @@ fn should_assign_width_bucket_from_sorted_array_thresholds() {
 }
 
 #[test]
+fn should_preserve_width_bucket_array_boundaries_for_exact_values() {
+    // Arrange
+    let sql = "SELECT WIDTH_BUCKET(9007199254740993::BIGINT, ARRAY[9007199254740992::BIGINT, 9007199254740993::BIGINT]), WIDTH_BUCKET(1, ARRAY[]::INT[]), WIDTH_BUCKET(NULL, ARRAY[1]), WIDTH_BUCKET(1.5::NUMERIC, ARRAY[1.5::NUMERIC, 2.5::NUMERIC]), CARDINALITY((ARRAY[]::TEXT[])::INT[])";
+
+    // Act
+    let values = scalar_values("issue-813-width-bucket-boundaries", sql);
+
+    // Assert
+    assert_eq!(values, vec![Value::Int64(2), Value::Int64(0), Value::Null, Value::Int64(1), Value::Int64(0)]);
+}
+
+#[test]
+fn should_reject_invalid_width_bucket_threshold_arrays() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-invalid", &[]);
+
+    // Act
+    let multidimensional = fixture.execute("SELECT WIDTH_BUCKET(1, '{{1,2},{3,4}}'::INT[])");
+    let null_element = fixture.execute("SELECT WIDTH_BUCKET(1, ARRAY[1,NULL])");
+
+    // Assert
+    assert!(matches!(&multidimensional, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2202E"), "{multidimensional:?}");
+    assert!(matches!(&null_element, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22004"), "{null_element:?}");
+}
+
+#[test]
 fn should_report_numeric_scale_metrics() {
     // Arrange
     let sql = "SELECT SCALE(CAST(8.4100 AS NUMERIC)) = 4 AND MIN_SCALE(CAST(8.4100 AS NUMERIC)) = 2 AND TRIM_SCALE(CAST(8.4100 AS NUMERIC)) = CAST(8.41 AS NUMERIC)";

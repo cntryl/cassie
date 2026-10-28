@@ -32,11 +32,11 @@ fn should_reject_non_numeric_aggregate_carriers_with_exact_wire_errors() {
         ),
         (
             "SUM(CAST(doc AS JSON))",
-            "function sum(text) does not exist",
+            "function sum(json) does not exist",
         ),
         (
             "AVG(CAST(doc AS JSON))",
-            "function avg(text) does not exist",
+            "function avg(json) does not exist",
         ),
     ];
     let mut cycles = Vec::new();

@@ -156,7 +156,7 @@ fn assert_selected_cast_bound_values(frames: &[(u8, Vec<u8>)]) {
             Some("550e8400-e29b-41d4-a716-446655440000".to_owned()),
             Some(r#"{"answer": 42}"#.to_owned()),
             Some("12.35".to_owned()),
-            Some("[\"550e8400-e29b-41d4-a716-446655440001\",null]".to_owned()),
+            Some("{550e8400-e29b-41d4-a716-446655440001,NULL}".to_owned()),
         ]]
     );
 }

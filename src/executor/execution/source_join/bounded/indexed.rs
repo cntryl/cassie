@@ -268,6 +268,6 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
         }
         Value::String(value) => Some(serde_json::Value::String(value.clone())),
         Value::Typed(value) => Some(value.to_json()),
-        Value::Vector(_) | Value::Json(_) => None,
+        Value::Vector(_) | Value::Json(_) | Value::Array(_) => None,
     }
 }

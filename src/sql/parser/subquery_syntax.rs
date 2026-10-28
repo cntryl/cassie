@@ -91,10 +91,10 @@ fn array_constructor(raw: &str) -> Result<Expr, SqlError> {
         ));
     }
     let body = lexical::trim_separators(&raw[1..close]);
-    let query = if body.is_empty() {
-        "SELECT NULL AS _cassie_array_value WHERE FALSE".to_owned()
+    let args = if body.is_empty() {
+        Vec::new()
     } else {
-        let rows = super::split_csv(body)
+        super::split_csv(body)
             .into_iter()
             .map(|value| {
                 if lexical::trim_separators(value).is_empty() {
@@ -102,13 +102,15 @@ fn array_constructor(raw: &str) -> Result<Expr, SqlError> {
                         "ARRAY constructor contains a missing element".into(),
                     ));
                 }
-                Ok(format!("({})", lexical::trim_separators(value)))
+                super::parse_expression(lexical::trim_separators(value))
             })
             .collect::<Result<Vec<_>, _>>()?
-            .join(", ");
-        format!("SELECT column1 FROM (VALUES {rows}) AS _cassie_array_source")
     };
-    sublink(SubqueryKind::Array, &query)
+    Ok(Expr::Function(Box::new(crate::sql::ast::FunctionCall {
+        name: crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION.into(),
+        args,
+        ..crate::sql::ast::FunctionCall::default()
+    })))
 }
 
 /// The outer operands of a sublink predicate: a row constructor's fields, or

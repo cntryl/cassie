@@ -18,6 +18,29 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
     {
         return Ok(());
     }
+    if function.name.eq_ignore_ascii_case("string_agg") && function.args.len() == 2 {
+        let left = types.expression_type(&function.args[0]);
+        let right = types.expression_type(&function.args[1]);
+        if left == Some(DataType::Bytea)
+            && right
+                .as_ref()
+                .is_some_and(|kind| kind != &DataType::Bytea && kind != &DataType::Null)
+        {
+            return Err(CassieError::Execution(
+                "function string_agg(bytea, text) does not exist".into(),
+            ));
+        }
+        if left
+            .as_ref()
+            .is_some_and(|kind| kind != &DataType::Bytea && kind != &DataType::Null)
+            && right == Some(DataType::Bytea)
+        {
+            return Err(CassieError::Execution(
+                "function string_agg(text, bytea) does not exist".into(),
+            ));
+        }
+        return Ok(());
+    }
     if function.name.eq_ignore_ascii_case("md5")
         && function.args.len() == 1
         && types.expression_type(&function.args[0]) == Some(DataType::Bytea)
@@ -40,6 +63,14 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
     }) else {
         return Ok(());
     };
+    qualify_bytea_overload(function, types, metadata)
+}
+
+fn qualify_bytea_overload(
+    function: &mut FunctionCall,
+    types: &ResultTypes,
+    metadata: &functions::ScalarFunction,
+) -> Result<(), CassieError> {
     let oids = match functions::input_signature(metadata.id) {
         Some(FunctionInputSignature::Positional(oids)) => oids,
         Some(FunctionInputSignature::Text) => &[25],

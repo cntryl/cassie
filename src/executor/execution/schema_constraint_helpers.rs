@@ -1,6 +1,68 @@
 use super::{Cassie, QueryError};
 use crate::catalog::FieldConstraint;
 
+pub(super) fn name_composite_primary_key(table: &str, additions: &mut [FieldConstraint]) {
+    let primary_key_members = additions
+        .iter()
+        .filter(|constraint| constraint.primary_key)
+        .count();
+    if primary_key_members > 1
+        && additions
+            .iter()
+            .filter(|constraint| constraint.primary_key)
+            .all(|constraint| constraint.primary_key_name.is_none())
+    {
+        let name = format!("{}_pkey", crate::catalog::local_name(table));
+        for constraint in additions {
+            if constraint.primary_key {
+                constraint.primary_key_name = Some(name.clone());
+            }
+        }
+    }
+}
+
+pub(super) fn validate_constraint_index_attachment(
+    cassie: &Cassie,
+    table: &str,
+    existing: &[FieldConstraint],
+    additions: &mut [FieldConstraint],
+) -> Result<Option<String>, QueryError> {
+    let attached_index_name = additions
+        .iter()
+        .find_map(|constraint| constraint.constraint_index_name.clone());
+    let Some(index_name) = attached_index_name.as_ref() else {
+        return Ok(attached_index_name);
+    };
+    let attached_index = cassie.catalog.get_index(table, index_name).ok_or_else(|| {
+        QueryError::General(format!(
+            "index '{index_name}' disappeared before constraint attachment"
+        ))
+    })?;
+    if existing.iter().any(|constraint| {
+        (constraint.unique || constraint.primary_key)
+            && constraint
+                .unique_constraint_name(table)
+                .eq_ignore_ascii_case(&attached_index.name)
+    }) {
+        return Err(QueryError::General(format!(
+            "index '{}' already backs a table constraint",
+            attached_index.name
+        )));
+    }
+    if !attached_index.can_back_unique_constraint() {
+        return Err(QueryError::General(format!(
+            "index '{}' cannot back a UNIQUE constraint",
+            attached_index.name
+        )));
+    }
+    for constraint in additions {
+        if constraint.unique {
+            constraint.constraint_index_name = Some(index_name.clone());
+        }
+    }
+    Ok(attached_index_name)
+}
+
 pub(super) fn alter_table_drop_constraint(
     cassie: &Cassie,
     table: &str,
@@ -109,26 +171,46 @@ fn constraint_index_to_drop(
     constraints: &[FieldConstraint],
     name: &str,
 ) -> Option<String> {
-    let composite = crate::catalog::composite_unique_constraints(constraints)
+    let composite_primary_key = crate::catalog::composite_primary_key_constraints(constraints)
         .into_iter()
         .find(|constraint| constraint.name.eq_ignore_ascii_case(name))
         .map(|constraint| constraint.name);
-    composite.or_else(|| {
-        constraints
-            .iter()
-            .find(|constraint| {
-                constraint.unique
-                    && !constraint.primary_key
-                    && constraint_name_matches(
-                        table,
-                        &constraint.field,
-                        "UNIQUE",
-                        constraint.unique_name.as_ref(),
-                        name,
-                    )
-            })
-            .map(|constraint| constraint.unique_constraint_name(table))
-    })
+    let primary_key = constraints
+        .iter()
+        .find(|constraint| {
+            constraint.primary_key
+                && constraint_name_matches(
+                    table,
+                    &constraint.field,
+                    "PRIMARY KEY",
+                    constraint.primary_key_name.as_ref(),
+                    name,
+                )
+        })
+        .map(|constraint| primary_key_index_name(table, constraint));
+    let composite_unique = crate::catalog::composite_unique_constraints(constraints)
+        .into_iter()
+        .find(|constraint| constraint.name.eq_ignore_ascii_case(name))
+        .map(|constraint| constraint.name);
+    composite_primary_key
+        .or(primary_key)
+        .or(composite_unique)
+        .or_else(|| {
+            constraints
+                .iter()
+                .find(|constraint| {
+                    constraint.unique
+                        && !constraint.primary_key
+                        && constraint_name_matches(
+                            table,
+                            &constraint.field,
+                            "UNIQUE",
+                            constraint.unique_name.as_ref(),
+                            name,
+                        )
+                })
+                .map(|constraint| constraint.unique_constraint_name(table))
+        })
 }
 
 /// Drops the index that backed a dropped PRIMARY KEY or UNIQUE constraint, when it exists.
@@ -144,16 +226,26 @@ fn drop_constraint_index(cassie: &Cassie, table: &str, index: &str) -> Result<()
     Ok(())
 }
 
+fn primary_key_index_name(table: &str, constraint: &FieldConstraint) -> String {
+    constraint
+        .primary_key_name
+        .clone()
+        .unwrap_or_else(|| format!("{table}_pkey"))
+}
+
 /// Drops every multi-column UNIQUE constraint that includes `field`, as
 /// PostgreSQL drops such a constraint with the column instead of leaving it
 /// on the remaining columns.
-pub(super) fn drop_composite_unique_constraints_on_column(
+pub(super) fn drop_composite_constraints_on_column(
     cassie: &Cassie,
     table: &str,
     field: &str,
 ) -> Result<(), QueryError> {
     let constraints = cassie.catalog.get_constraints(table);
-    for composite in crate::catalog::composite_unique_constraints(&constraints) {
+    let composites = crate::catalog::composite_primary_key_constraints(&constraints)
+        .into_iter()
+        .chain(crate::catalog::composite_unique_constraints(&constraints));
+    for composite in composites {
         if composite.fields.iter().any(|member| {
             crate::sql::ColumnIdentifierPath::stored_field_key(member)
                 == crate::sql::ColumnIdentifierPath::stored_field_key(field)
@@ -172,13 +264,18 @@ pub(super) fn reject_constraint_index_drop(
     index: &str,
 ) -> Result<(), QueryError> {
     let constraints = cassie.catalog.get_constraints(table);
-    if constraints.iter().any(|constraint| {
+    let required_by_primary_key = constraints.iter().any(|constraint| {
+        constraint.primary_key
+            && primary_key_index_name(table, constraint).eq_ignore_ascii_case(index)
+    });
+    let required_by_unique_constraint = constraints.iter().any(|constraint| {
         constraint.unique
             && !constraint.primary_key
             && constraint
                 .unique_constraint_name(table)
                 .eq_ignore_ascii_case(index)
-    }) {
+    });
+    if required_by_primary_key || required_by_unique_constraint {
         return Err(QueryError::Cassie(
             crate::app::DiagnosticError::new(
                 "2BP01",

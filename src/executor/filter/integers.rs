@@ -16,6 +16,7 @@ pub(super) fn cast(
             .parse::<i64>()
             .map_err(|_| range(width))?,
         ScalarValue::Str(text) => return controlled_input(text, width, controls),
+        ScalarValue::Array(_) => return Err(QueryError::General(width.syntax_message().into())),
         ScalarValue::Typed(
             crate::types::typed::TypedValue::Bit(bits)
             | crate::types::typed::TypedValue::VarBit(bits),

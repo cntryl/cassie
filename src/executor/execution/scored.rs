@@ -911,6 +911,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
         | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => vector_prefilter_supported(expr, schema),
         Expr::InList { expr, values, .. } => {
@@ -931,6 +932,18 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
             vector_prefilter_supported(expr, schema)
                 && vector_prefilter_supported(low, schema)
                 && vector_prefilter_supported(high, schema)
+        }
+        Expr::ArraySubscript { array, subscripts } => {
+            vector_prefilter_supported(array, schema)
+                && subscripts.iter().all(|subscript| match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        vector_prefilter_supported(index, schema)
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => lower
+                        .iter()
+                        .chain(upper.iter())
+                        .all(|bound| vector_prefilter_supported(bound, schema)),
+                })
         }
         Expr::RowCompare(_)
         | Expr::Case { .. }

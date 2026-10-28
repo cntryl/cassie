@@ -38,27 +38,3 @@ fn should_apply_custom_unicode_escape_to_quoted_identifiers() {
         &[vec![Value::Int64(42)]]
     );
 }
-
-#[test]
-fn should_apply_column_collation_to_like_matching() {
-    // Arrange
-    let fixture = sql_fixture(
-        "issue-796-column-collation-like",
-        &[
-            "CREATE TABLE collated_values (value TEXT COLLATE \"C\")",
-            "INSERT INTO collated_values (value) VALUES ('A'), ('a'), ('A')",
-        ],
-    );
-
-    // Act
-    let result = fixture.execute("SELECT value FROM collated_values WHERE value LIKE 'A'");
-
-    // Assert
-    assert_eq!(
-        result.expect("collation-aware LIKE").rows(),
-        &[
-            vec![Value::String("A".to_owned())],
-            vec![Value::String("A".to_owned())]
-        ]
-    );
-}

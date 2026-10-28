@@ -11,6 +11,7 @@ pub(crate) fn is_immutable_scalar(id: FunctionId) -> bool {
                 | FunctionId::PgGetFunctionArguments
                 | FunctionId::PgGetFunctionIdentityArguments
                 | FunctionId::PgGetFunctionResult
+                | FunctionId::PgInputIsValid
                 | FunctionId::Coalesce
                 | FunctionId::Length
                 | FunctionId::Lower

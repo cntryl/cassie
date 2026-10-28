@@ -33,7 +33,7 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
             if function.name.eq_ignore_ascii_case("json_array")
                 && matches!(function.args.as_slice(), [crate::sql::ast::Expr::Subquery(subquery)] if matches!(subquery.kind, crate::sql::ast::SubqueryKind::Array))
             {
-                Some(build_array_query(args, context))
+                Some(build_array_query(function, row, args, context))
             } else {
                 Some(build(function, row, args, context, binary, false))
             }
@@ -43,29 +43,46 @@ pub(super) fn evaluate<R: RowAccess + ?Sized>(
     }
 }
 
-fn build_array_query(args: &[Value], context: EvalContext<'_>) -> Result<Value, QueryError> {
-    let [Value::Json(serde_json::Value::Array(values))] = args else {
+fn build_array_query<R: RowAccess + ?Sized>(
+    function: &FunctionCall,
+    row: &R,
+    args: &[Value],
+    context: EvalContext<'_>,
+) -> Result<Value, QueryError> {
+    let [Value::Array(array)] = args else {
         return Err(QueryError::General(
             "invalid JSON_ARRAY query result".into(),
         ));
     };
     let controls = super::super::temporal::context_controls(context);
-    let count = values.iter().filter(|value| !value.is_null()).count();
-    let bytes = values.iter().try_fold(2, |bytes, value| {
-        if value.is_null() {
-            Ok(bytes)
-        } else {
-            add(
-                bytes,
-                crate::executor::retained_memory::serialized_json_bytes(value)?,
-            )
-        }
-    })?;
+    let element_type = argument_types(function, row, context)
+        .into_iter()
+        .next()
+        .flatten()
+        .and_then(|kind| match kind {
+            DataType::Array(element) => Some(*element),
+            _ => None,
+        });
+    let count = array
+        .elements()
+        .iter()
+        .filter(|value| !value.is_null())
+        .count();
+    let bytes = array.elements().iter().try_fold(
+        add(mul(array.elements().len(), 8)?, 2)?,
+        |bytes, value| {
+            if value.is_null() {
+                Ok(bytes)
+            } else {
+                add(bytes, values::bound(value, element_type.as_ref(), false)?)
+            }
+        },
+    )?;
     let _memory = reserve(controls, bytes)?;
     let mut elements = Vec::with_capacity(count);
-    for value in values.iter().filter(|value| !value.is_null()) {
+    for value in array.elements().iter().filter(|value| !value.is_null()) {
         check(controls)?;
-        elements.push(value.to_string());
+        elements.push(values::encode(value, element_type.as_ref(), controls)?);
     }
     finish(format!("[{}]", elements.join(", ")), false, controls)
 }
@@ -142,7 +159,7 @@ fn build_standard_object(
 }
 
 fn text_array(value: &Value, kind: Option<&DataType>) -> Result<Vec<Option<String>>, QueryError> {
-    let (Some(DataType::Array(element)), Value::String(input)) = (kind, value) else {
+    let Some(DataType::Array(element)) = kind else {
         return Err(CassieError::InvalidParameterValue(
             "JSON object requires one alternating or two parallel text arrays".into(),
         )
@@ -154,6 +171,32 @@ fn text_array(value: &Value, kind: Option<&DataType>) -> Result<Vec<Option<Strin
         )
         .into());
     }
+    if let Value::Array(array) = value {
+        if array.dimensions().len() > 1 {
+            return Err(CassieError::InvalidParameterValue(
+                "JSON object requires one-dimensional arrays".into(),
+            )
+            .into());
+        }
+        return array
+            .elements()
+            .iter()
+            .map(|value| match value {
+                Value::String(value) => Ok(Some(value.clone())),
+                Value::Null => Ok(None),
+                _ => Err(CassieError::InvalidParameterValue(
+                    "JSON object arrays must have TEXT elements".into(),
+                )
+                .into()),
+            })
+            .collect();
+    }
+    let Value::String(input) = value else {
+        return Err(CassieError::InvalidParameterValue(
+            "JSON object requires one alternating or two parallel text arrays".into(),
+        )
+        .into());
+    };
     let parsed = crate::types::array::parse_text_array(input, element)
         .map_err(|error| CassieError::ArrayInput(error.to_string()))?;
     let serde_json::Value::Array(values) = parsed else {

@@ -58,7 +58,13 @@ fn should_reject_copy_json_document_null_elements_atomically() {
         fixture.rows("SELECT id, docs FROM json_array_copy ORDER BY id"),
         vec![vec![
             Value::Int64(0),
-            Value::Json(serde_json::json!([{"seed": true}]))
+            Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!([{"seed": true}]),
+                    &cassie::types::DataType::Json,
+                )
+                .unwrap()
+            )
         ]]
     );
 }
@@ -108,10 +114,34 @@ fn should_preserve_copy_json_array_null_slot_origin() {
     assert_eq!(
         fixture.rows("SELECT docs FROM json_array_copy ORDER BY id"),
         vec![
-            vec![Value::Json(serde_json::json!([null]))],
-            vec![Value::Json(serde_json::json!([[null]]))],
-            vec![Value::Json(serde_json::json!(["null"]))],
-            vec![Value::Json(serde_json::json!([null]))],
+            vec![Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!([null]),
+                    &cassie::types::DataType::Json
+                )
+                .unwrap()
+            )],
+            vec![Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!([[null]]),
+                    &cassie::types::DataType::Json
+                )
+                .unwrap()
+            )],
+            vec![Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!(["null"]),
+                    &cassie::types::DataType::Json
+                )
+                .unwrap()
+            )],
+            vec![Value::Array(
+                cassie::types::SqlArray::from_nested_json_typed(
+                    &serde_json::json!([null]),
+                    &cassie::types::DataType::Json
+                )
+                .unwrap()
+            )],
         ]
     );
 }

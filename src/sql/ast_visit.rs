@@ -41,10 +41,27 @@ impl Expr {
                 visit(left)?;
                 visit(right)?;
             }
+            Self::ArraySubscript { array, subscripts } => {
+                visit(array)?;
+                for subscript in subscripts {
+                    match subscript {
+                        super::ast_query::ArraySubscript::Index(index) => visit(index)?,
+                        super::ast_query::ArraySubscript::Slice { lower, upper } => {
+                            if let Some(lower) = lower {
+                                visit(lower)?;
+                            }
+                            if let Some(upper) = upper {
+                                visit(upper)?;
+                            }
+                        }
+                    }
+                }
+            }
             Self::IsNull { expr, .. }
             | Self::TruthTest { expr, .. }
             | Self::Not { expr }
             | Self::Cast { expr, .. }
+            | Self::Collate { expr, .. }
             | Self::UnaryNumeric { expr, .. }
             | Self::IntegerNegate { expr, .. } => {
                 visit(expr)?;
@@ -111,6 +128,13 @@ impl Expr {
                 op: op.clone(),
                 right: Box::new(map(right)),
             },
+            Self::ArraySubscript { array, subscripts } => Self::ArraySubscript {
+                array: Box::new(map(array)),
+                subscripts: subscripts
+                    .iter()
+                    .map(|subscript| map_subscript(subscript, &mut map))
+                    .collect(),
+            },
             Self::TruthTest {
                 expr,
                 truth,
@@ -155,6 +179,10 @@ impl Expr {
                 data_type: data_type.clone(),
                 source_type: source_type.clone(),
                 identity: *identity,
+            },
+            Self::Collate { expr, collation } => Self::Collate {
+                expr: Box::new(map(expr)),
+                collation: collation.clone(),
             },
             Self::Function(function) => Self::Function(Box::new(super::ast_query::FunctionCall {
                 name: function.name.clone(),
@@ -229,7 +257,24 @@ impl Expr {
                 visit(left)?;
                 visit(right)?;
             }
+            Self::ArraySubscript { array, subscripts } => {
+                visit(array)?;
+                for subscript in subscripts {
+                    match subscript {
+                        super::ast_query::ArraySubscript::Index(index) => visit(index)?,
+                        super::ast_query::ArraySubscript::Slice { lower, upper } => {
+                            if let Some(lower) = lower {
+                                visit(lower)?;
+                            }
+                            if let Some(upper) = upper {
+                                visit(upper)?;
+                            }
+                        }
+                    }
+                }
+            }
             Self::Cast { expr, .. }
+            | Self::Collate { expr, .. }
             | Self::UnaryNumeric { expr, .. }
             | Self::IntegerNegate { expr, .. }
             | Self::Not { expr }
@@ -332,6 +377,16 @@ impl Expr {
                 left.to_bits() == right.to_bits()
             }
             (Self::IntegerLiteral(left), Self::IntegerLiteral(right)) => left == right,
+            (
+                Self::Collate {
+                    expr: left_expr,
+                    collation: left_collation,
+                },
+                Self::Collate {
+                    expr: right_expr,
+                    collation: right_collation,
+                },
+            ) => left_collation == right_collation && left_expr.structurally_eq(right_expr),
             (Self::BoolLiteral(left), Self::BoolLiteral(right)) => left == right,
             (Self::Null, Self::Null) => true,
             (Self::RowCompare(left), Self::RowCompare(right)) => {
@@ -415,10 +470,22 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 op: right_op,
                 right: right_right,
             },
+        ) => binary_structurally_eq(
+            (left_left, left_op, left_right),
+            (right_left, right_op, right_right),
+        ),
+        (
+            Expr::ArraySubscript {
+                array: left,
+                subscripts: left_subscripts,
+            },
+            Expr::ArraySubscript {
+                array: right,
+                subscripts: right_subscripts,
+            },
         ) => {
-            left_op == right_op
-                && left_left.structurally_eq(right_left)
-                && left_right.structurally_eq(right_right)
+            left.structurally_eq(right)
+                && subscripts_structurally_eq(left_subscripts, right_subscripts)
         }
         (
             Expr::IsNull {
@@ -446,6 +513,13 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 && left.structurally_eq(right)
                 && all_structurally_eq(left_values, right_values)
         }
+        (Expr::Between { .. }, Expr::Between { .. }) => between_structurally_eq(left, right),
+        _ => unary_structurally_eq(left, right),
+    }
+}
+
+fn between_structurally_eq(left: &Expr, right: &Expr) -> bool {
+    match (left, right) {
         (
             Expr::Between {
                 expr: left,
@@ -468,8 +542,62 @@ fn composite_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 && left_low.structurally_eq(right_low)
                 && left_high.structurally_eq(right_high)
         }
-        _ => unary_structurally_eq(left, right),
+        _ => false,
     }
+}
+
+fn binary_structurally_eq(
+    left: (&Expr, &super::BinaryOp, &Expr),
+    right: (&Expr, &super::BinaryOp, &Expr),
+) -> bool {
+    left.1 == right.1 && left.0.structurally_eq(right.0) && left.2.structurally_eq(right.2)
+}
+
+fn map_subscript(
+    subscript: &super::ast_query::ArraySubscript,
+    map: &mut impl FnMut(&Expr) -> Expr,
+) -> super::ast_query::ArraySubscript {
+    match subscript {
+        super::ast_query::ArraySubscript::Index(index) => {
+            super::ast_query::ArraySubscript::Index(map(index))
+        }
+        super::ast_query::ArraySubscript::Slice { lower, upper } => {
+            super::ast_query::ArraySubscript::Slice {
+                lower: lower.as_ref().map(&mut *map),
+                upper: upper.as_ref().map(map),
+            }
+        }
+    }
+}
+
+fn subscripts_structurally_eq(
+    left: &[super::ast_query::ArraySubscript],
+    right: &[super::ast_query::ArraySubscript],
+) -> bool {
+    left.len() == right.len()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| match (left, right) {
+                (
+                    super::ast_query::ArraySubscript::Index(left),
+                    super::ast_query::ArraySubscript::Index(right),
+                ) => left.structurally_eq(right),
+                (
+                    super::ast_query::ArraySubscript::Slice {
+                        lower: left_lower,
+                        upper: left_upper,
+                    },
+                    super::ast_query::ArraySubscript::Slice {
+                        lower: right_lower,
+                        upper: right_upper,
+                    },
+                ) => {
+                    optional_structurally_eq(left_lower.as_ref(), right_lower.as_ref())
+                        && optional_structurally_eq(left_upper.as_ref(), right_upper.as_ref())
+                }
+                _ => false,
+            })
 }
 
 fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
@@ -494,6 +622,16 @@ fn unary_structurally_eq(left: &Expr, right: &Expr) -> bool {
                 && left_identity == right_identity
                 && left.structurally_eq(right)
         }
+        (
+            Expr::Collate {
+                expr: left,
+                collation: left_collation,
+            },
+            Expr::Collate {
+                expr: right,
+                collation: right_collation,
+            },
+        ) => left_collation == right_collation && left.structurally_eq(right),
         (
             Expr::UnaryNumeric {
                 expr: left,

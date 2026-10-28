@@ -42,7 +42,7 @@ fn should_preserve_null_safe_array_boolean_wire_identity() {
     // Act
     let results = fixture::run_cycles("null-safe-array-wire", &[], cycles);
     // Assert
-    assert_eq!(results.len(), 280);
+    assert_eq!(results.len(), ARRAY_CASES.len() * 20);
     for (frames, (name, oid, format, value, label)) in results.iter().zip(expected) {
         fixture::assert_success(frames);
         fixture::assert_single_column_descriptors(frames, (16, 1, -1), format, true);

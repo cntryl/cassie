@@ -162,13 +162,7 @@ pub(super) fn null_row(
             .collect(),
     )
     .with_optional_data_types(data_types);
-    let qualifier = match source {
-        QuerySource::Aliased { alias, .. } => Some(crate::sql::binder::alias_row_qualifier(alias)),
-        QuerySource::Collection(name) => Some(name.to_string()),
-        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => Some(name.clone()),
-        QuerySource::Subquery { alias, .. } => Some(alias.clone()),
-        QuerySource::Values { .. } | QuerySource::SingleRow | QuerySource::Join { .. } => None,
-    };
+    let qualifier = source_qualifier(source);
     Ok(match qualifier {
         Some(qualifier) => qualify_row(row, &qualifier),
         None => row,
@@ -181,6 +175,9 @@ pub(super) fn attach_types(
     context: &CteContext,
     batches: &mut [super::Batch],
 ) -> Result<(), QueryError> {
+    if let QuerySource::TableSample { source, .. } = source {
+        return attach_types(env, source, context, batches);
+    }
     match source {
         QuerySource::Collection(name)
             if env.cassie.catalog.get_schema(name).is_some()
@@ -276,6 +273,17 @@ pub(super) fn attach_types(
         row.set_data_types(types.clone());
     }
     Ok(())
+}
+
+fn source_qualifier(source: &QuerySource) -> Option<String> {
+    match source {
+        QuerySource::Aliased { alias, .. } => Some(crate::sql::binder::alias_row_qualifier(alias)),
+        QuerySource::TableSample { source, .. } => source_qualifier(source),
+        QuerySource::Collection(name) => Some(name.to_string()),
+        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => Some(name.clone()),
+        QuerySource::Subquery { alias, .. } => Some(alias.clone()),
+        QuerySource::Values { .. } | QuerySource::SingleRow | QuerySource::Join { .. } => None,
+    }
 }
 
 #[path = "source_template.rs"]

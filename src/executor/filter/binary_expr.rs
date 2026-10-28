@@ -24,6 +24,16 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
+    if *op == BinaryOp::Concat {
+        if let Some(result) = super::array_operators::concatenate_operand(
+            &left_value,
+            &right_value,
+            null_type(left),
+            null_type(right),
+        ) {
+            return result;
+        }
+    }
     if let BinaryOp::JsonExtract {
         path,
         as_text,
@@ -87,9 +97,32 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {
         return result;
     }
+    if let Some(result) = array_comparison(row, left, right, op, &left_value, &right_value, context)
+    {
+        return Ok(result);
+    }
+    binary_scalar(&left_value, op, &right_value)
+}
+
+fn array_comparison<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    right: &Expr,
+    op: &BinaryOp,
+    left_value: &ScalarValue,
+    right_value: &ScalarValue,
+    context: EvalContext<'_>,
+) -> Option<ScalarValue> {
     if matches!(
         op,
-        BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte
+        BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
     ) {
         if let Some(ordering) = super::super::array_order::compare(
             row,
@@ -98,15 +131,33 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
             context.user_functions,
             context.local_args,
         ) {
-            return Ok(ScalarValue::Bool(match op {
+            return Some(ScalarValue::Bool(match op {
+                BinaryOp::Eq | BinaryOp::IsNotDistinctFrom => ordering.is_eq(),
+                BinaryOp::NotEq | BinaryOp::IsDistinctFrom => ordering.is_ne(),
                 BinaryOp::Lt => ordering.is_lt(),
                 BinaryOp::Lte => !ordering.is_gt(),
                 BinaryOp::Gt => ordering.is_gt(),
-                _ => !ordering.is_lt(),
+                BinaryOp::Gte => !ordering.is_lt(),
+                _ => unreachable!("only comparison operators reach this branch"),
             }));
         }
     }
-    binary_scalar(&left_value, op, &right_value)
+    None
+}
+
+fn null_type(expr: &Expr) -> (bool, bool) {
+    match expr {
+        Expr::Cast {
+            expr, data_type, ..
+        } if matches!(expr.as_ref(), Expr::Null) => {
+            if matches!(data_type, crate::types::DataType::Array(_)) {
+                (true, false)
+            } else {
+                (false, true)
+            }
+        }
+        _ => (false, false),
+    }
 }
 
 fn is_json_typed_input<R: RowAccess + ?Sized>(

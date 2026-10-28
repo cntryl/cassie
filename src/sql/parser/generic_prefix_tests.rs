@@ -15,7 +15,7 @@ fn should_bound_prefix_depth_given_excessive_chain_when_expression_is_parsed() {
     // Arrange
     let sql = format!(
         "SELECT {}1",
-        "|/ ".repeat(super::depth::MAX_POSTFIX_DEPTH + 1)
+        "OPERATOR(pg_catalog.~) ".repeat(super::depth::MAX_POSTFIX_DEPTH + 1)
     );
     // Act
     let error = parse_statement(&sql).expect_err("prefix chain exceeds admitted depth");

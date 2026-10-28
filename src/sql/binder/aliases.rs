@@ -78,7 +78,9 @@ pub(super) fn columns(
                 })
                 .collect());
         }
-        QuerySource::Aliased { source, .. } => return columns(source, aliases, catalog, scope),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            return columns(source, aliases, catalog, scope);
+        }
         QuerySource::Subquery { select, .. } => (subquery_names(select, catalog, scope)?, false),
         QuerySource::TableFunction { name, .. } => (
             super::select::table_function_columns(name)
@@ -91,7 +93,7 @@ pub(super) fn columns(
         QuerySource::Join { .. } => {
             return Err(CassieError::Planner(
                 "ordinary aliases require a collection or CTE".into(),
-            ))
+            ));
         }
     };
     if aliases.len() > names.len() {
@@ -162,6 +164,7 @@ fn namespaces(
             namespaces(left, catalog, scope, result)?;
             namespaces(right, catalog, scope, result)?;
         }
+        QuerySource::TableSample { source, .. } => namespaces(source, catalog, scope, result)?,
         QuerySource::Collection(name) => result.push(Namespace {
             qualifier_only: false,
             name: name.to_string(),

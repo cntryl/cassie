@@ -30,7 +30,7 @@ impl Cassie {
             let primary_index = constraint
                 .primary_key
                 .then(|| {
-                    let name = format!("{}_pkey", crate::catalog::local_name(collection));
+                    let generated_name = format!("{}_pkey", crate::catalog::local_name(collection));
                     self.catalog
                         .list_indexes(collection)
                         .into_iter()
@@ -41,7 +41,11 @@ impl Cassie {
                                 && index.normalized_expressions().is_empty()
                                 && index.normalized_fields().as_slice()
                                     == std::slice::from_ref(&constraint.field)
-                                && crate::catalog::local_name(&index.name) == name
+                                && if let Some(name) = constraint.primary_key_name.as_deref() {
+                                    index.name == name
+                                } else {
+                                    crate::catalog::local_name(&index.name) == generated_name
+                                }
                         })
                 })
                 .flatten();

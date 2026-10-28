@@ -3,6 +3,34 @@ use super::super::{BinaryOp, Expr};
 use crate::types::{IntegerOperation, IntegerWidth};
 
 #[test]
+fn should_preserve_array_subscript_child_order_during_mapping() {
+    // Arrange
+    let original = Expr::ArraySubscript {
+        array: Box::new(Expr::Param(0)),
+        subscripts: vec![
+            super::super::ArraySubscript::Index(Expr::Param(1)),
+            super::super::ArraySubscript::Slice {
+                lower: Some(Expr::Param(2)),
+                upper: Some(Expr::Param(3)),
+            },
+        ],
+    };
+    let mut visited = Vec::new();
+
+    // Act
+    let mapped = original.map_children(|child| {
+        if let Expr::Param(index) = child {
+            visited.push(*index);
+        }
+        child.clone()
+    });
+
+    // Assert
+    assert_eq!(visited, [0, 1, 2, 3]);
+    assert!(original.structurally_eq(&mapped));
+}
+
+#[test]
 fn should_distinguish_resolved_operator_signatures_given_equal_operands_when_expression_identity_is_compared(
 ) {
     // Arrange

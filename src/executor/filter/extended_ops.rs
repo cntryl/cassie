@@ -114,6 +114,7 @@ fn type_label(value: &ScalarValue) -> String {
         ScalarValue::Float(_) => "double precision".to_string(),
         ScalarValue::Bool(_) => "boolean".to_string(),
         ScalarValue::Str(_) | ScalarValue::Json(_) => "text".to_string(),
+        ScalarValue::Array(_) => "array".to_string(),
         ScalarValue::Null => "unknown".to_string(),
     }
 }

@@ -45,6 +45,17 @@ pub(super) fn evaluate(
 }
 
 fn text_array(value: &ScalarValue, op: &BinaryOp) -> Result<Vec<JsonValue>, QueryError> {
+    if let ScalarValue::Array(array) = value {
+        return array
+            .elements()
+            .iter()
+            .map(|value| match value {
+                crate::types::Value::String(text) => Ok(JsonValue::String(text.clone())),
+                crate::types::Value::Null => Ok(JsonValue::Null),
+                _ => Err(operator_input_error(op)),
+            })
+            .collect();
+    }
     let (ScalarValue::Json(text) | ScalarValue::Str(text)) = value else {
         return Err(operator_input_error(op));
     };

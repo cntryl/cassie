@@ -1,9 +1,10 @@
 use super::{
     bm25, normalize_relation_name, resolve_relation_path, schema_index_options, BindingContext,
-    CassieError, Catalog, CollectionSchema, DataType, Expr, HashSet,
+    CassieError, Catalog, CollectionSchema, Expr, HashSet,
 };
 use crate::catalog::{derive_scoped_name, local_name, parse_name, IndexMeta, ParsedName};
 use crate::sql::ast::{CreateIndexStatement, IdentifierPath};
+use crate::types::DataType;
 
 const MAX_GENERATED_INDEX_IDENTIFIER_BYTES: usize = 63;
 
@@ -430,15 +431,15 @@ pub(super) fn validate_index_expression(
         Expr::Param(_) => {
             return Err(CassieError::Planner(
                 "index expressions cannot reference query parameters".into(),
-            ))
+            ));
         }
         Expr::Exists(_) | Expr::Subquery(_) => {
             return Err(CassieError::Planner(
                 "index expressions cannot contain subqueries".into(),
-            ))
+            ));
         }
         Expr::Function(function) => {
-            return validate_index_expression_function(function, known_fields)
+            return validate_index_expression_function(function, known_fields);
         }
         _ => {}
     }

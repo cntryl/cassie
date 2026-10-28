@@ -27,6 +27,9 @@ mod source_collection;
 #[path = "source_shape.rs"]
 mod source_shape;
 
+#[path = "source_table_sample.rs"]
+mod source_table_sample;
+
 #[path = "source_exists_projection.rs"]
 mod exists_projection_phase;
 
@@ -76,6 +79,20 @@ pub(super) fn execute_query_source(
             Ok((batches, text_fields))
         }
         QuerySource::Collection(name) => execute_collection_source(env, name, qualify, row_budget),
+        QuerySource::TableSample {
+            source,
+            method,
+            rate,
+            repeatable,
+        } => source_table_sample::execute(
+            env,
+            source,
+            *method,
+            rate,
+            repeatable.as_ref(),
+            cte_context,
+            qualify,
+        ),
         QuerySource::SingleRow => execute_single_row_source(env),
         QuerySource::TableFunction {
             name,
@@ -231,6 +248,15 @@ fn execute_table_function_source(
         // Native plugin loading is absent from the current Cassie profile.
         return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
     }
+    if crate::sql::functions::is_pg_input_error_info(&function.name) {
+        return execute_pg_input_error_info(
+            env,
+            name,
+            function,
+            if lateral { outer_row } else { None },
+            qualify,
+        );
+    }
     if matches!(
         function.name.to_ascii_lowercase().as_str(),
         "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"
@@ -306,6 +332,55 @@ fn execute_table_function_source(
     } else {
         graph::execute_table_function(env, function, if lateral { outer_row } else { None })?
             .into_parts()
+    };
+    finalize_source_batches(
+        env,
+        batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
+        Vec::new(),
+        qualify,
+        name,
+    )
+}
+
+fn execute_pg_input_error_info(
+    env: &SourceExecutionEnv<'_>,
+    name: &str,
+    function: &crate::sql::ast::FunctionCall,
+    outer_row: Option<&BatchRow>,
+    qualify: bool,
+) -> SourceExecution {
+    let args = graph::evaluate_args(env, function, outer_row)?;
+    let input = args
+        .first()
+        .ok_or_else(|| QueryError::General("pg_input_error_info requires 2 arguments".into()))?;
+    let type_name = args
+        .get(1)
+        .ok_or_else(|| QueryError::General("pg_input_error_info requires 2 arguments".into()))?;
+    let (Value::String(input), Value::String(type_name)) = (input, type_name) else {
+        return Err(QueryError::General(
+            "pg_input_error_info arguments must be text".into(),
+        ));
+    };
+    let data_type = crate::types::DataType::parse_sql(type_name).map_err(QueryError::General)?;
+    let result = filter::cast_value(&Value::String(input.clone()), &data_type);
+    let rows = match result {
+        Ok(_) => vec![BatchRow::new(vec![
+            ("message".into(), Value::Null),
+            ("detail".into(), Value::Null),
+            ("hint".into(), Value::Null),
+            ("sql_error_code".into(), Value::Null),
+        ])],
+        Err(error) => {
+            let message = error.to_string();
+            let cassie_error = crate::app::CassieError::from(error);
+            let code = cassie_error.descriptor().sql_state;
+            vec![BatchRow::new(vec![
+                ("message".into(), Value::String(message)),
+                ("detail".into(), Value::Null),
+                ("hint".into(), Value::Null),
+                ("sql_error_code".into(), Value::String(code.to_owned())),
+            ])]
+        }
     };
     finalize_source_batches(
         env,

@@ -37,6 +37,20 @@ pub(crate) fn infer_expr_type(
             })
         }
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        Expr::Collate { expr, .. } => {
+            infer_expr_type(expr, source_schema, user_functions, parameter_types)
+        }
+        Expr::ArraySubscript { array, subscripts } => Some(array_subscript_result_type(
+            infer_expr_type(array, source_schema, user_functions, parameter_types)?,
+            subscripts,
+        )),
+        Expr::Function(function)
+            if function
+                .name
+                .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION) =>
+        {
+            infer_array_constructor_type(function, source_schema, user_functions, parameter_types)
+        }
         Expr::Function(function) => {
             infer_function_return_type(function, source_schema, user_functions, parameter_types)
         }
@@ -75,6 +89,24 @@ pub(crate) fn infer_expr_type(
             parameter_types,
         ),
     }
+}
+
+fn infer_array_constructor_type(
+    function: &crate::sql::ast::FunctionCall,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
+    let mut element_type = DataType::Null;
+    for argument in &function.args {
+        let argument_type =
+            infer_expr_type(argument, source_schema, user_functions, parameter_types)?;
+        element_type = common_case_type(element_type, argument_type)?;
+    }
+    if element_type == DataType::Null {
+        element_type = DataType::Text;
+    }
+    Some(DataType::Array(Box::new(element_type)))
 }
 
 fn infer_binary_type(
@@ -196,6 +228,29 @@ pub(crate) fn known_expr_type(
     match expr {
         Expr::Column(name) => crate::sql::field_type_for_column(field_types, name).cloned(),
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        Expr::Collate { expr, .. } => known_expr_type(expr, field_types),
+        Expr::ArraySubscript { array, subscripts } => Some(array_subscript_result_type(
+            known_expr_type(array, field_types)?,
+            subscripts,
+        )),
+        Expr::Function(function)
+            if function
+                .name
+                .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION) =>
+        {
+            let mut element_type = DataType::Null;
+            for argument in &function.args {
+                element_type =
+                    common_case_type(element_type, known_expr_type(argument, field_types)?)?;
+            }
+            Some(DataType::Array(Box::new(
+                if element_type == DataType::Null {
+                    DataType::Text
+                } else {
+                    element_type
+                },
+            )))
+        }
         Expr::Subquery(subquery) => subquery.result_type(),
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
@@ -207,6 +262,32 @@ pub(crate) fn known_expr_type(
         Expr::RowCompare(_) | Expr::BoolLiteral(_) => Some(DataType::Boolean),
         Expr::Null => Some(DataType::Null),
         _ => None,
+    }
+}
+
+fn array_subscript_result_type(
+    mut result: DataType,
+    subscripts: &[crate::sql::ast::ArraySubscript],
+) -> DataType {
+    let mut element_type = result.clone();
+    while let DataType::Array(inner) = &element_type {
+        element_type = (**inner).clone();
+    }
+    let mut contains_slice = false;
+    for subscript in subscripts {
+        match subscript {
+            crate::sql::ast::ArraySubscript::Index(_) => {
+                if let DataType::Array(inner) = &result {
+                    result = (**inner).clone();
+                }
+            }
+            crate::sql::ast::ArraySubscript::Slice { .. } => contains_slice = true,
+        }
+    }
+    if contains_slice {
+        DataType::Array(Box::new(element_type))
+    } else {
+        result
     }
 }
 

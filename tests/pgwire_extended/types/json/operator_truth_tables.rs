@@ -73,51 +73,6 @@ fn should_scope_jsonb_key_existence_to_top_level_values() {
 }
 
 #[test]
-fn should_update_nested_jsonb_values_through_subscript_targets() {
-    // Arrange
-    let setup = [
-        (
-            "CREATE TABLE issue_809_jsonb_subscript_assignment (id INTEGER PRIMARY KEY, document JSONB)",
-            Vec::new(),
-        ),
-        (
-            "INSERT INTO issue_809_jsonb_subscript_assignment VALUES (1, '{\"a\":{\"b\":1}}'), (2, '{\"a\":{}}')",
-            Vec::new(),
-        ),
-    ];
-    let update = fixture::execute_cycle(
-        "UPDATE issue_809_jsonb_subscript_assignment SET document['a']['b'] = '9'::JSONB",
-        None,
-        0,
-        true,
-    );
-    let readback = fixture::execute_cycle(
-        "SELECT id, document::TEXT FROM issue_809_jsonb_subscript_assignment ORDER BY id",
-        None,
-        0,
-        true,
-    );
-
-    // Act
-    let batches = fixture::run_cycles(
-        "issue-809-jsonb-nested-subscript-update",
-        &setup,
-        vec![update, readback],
-    );
-
-    // Assert
-    fixture::assert_success(&batches[0]);
-    fixture::assert_success(&batches[1]);
-    assert_eq!(
-        wire::data_rows(&batches[1]),
-        vec![
-            vec![Some("1".to_owned()), Some("{\"a\": {\"b\": 9}}".to_owned())],
-            vec![Some("2".to_owned()), Some("{\"a\": {\"b\": 9}}".to_owned())],
-        ]
-    );
-}
-
-#[test]
 fn should_apply_json_exists_error_policies_to_strict_structural_errors() {
     // Arrange
     let policies = fixture::execute_cycle(

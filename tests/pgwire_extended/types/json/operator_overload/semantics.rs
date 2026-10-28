@@ -1,22 +1,16 @@
 #[test]
 fn should_extract_json_documents_through_arrow_path_overloads() {
     // Arrange
-    let setup = [
-        (
-            "CREATE TABLE issue_809_json_operator_values (document JSON)",
-            Vec::new(),
-        ),
-        (
-            "INSERT INTO issue_809_json_operator_values VALUES ('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}')",
-            Vec::new(),
-        ),
-    ];
+    let setup = [];
     let cycle = fixture::execute_cycle(
-        "SELECT document -> 'nested', document ->> 'nested', \
-         document #> '{nested,x}', document #>> '{nested,x}', \
-         document -> 'items' -> 1, document -> 'items' ->> -1, \
-         document #> '{items,1}', document #>> '{items,-1}' \
-         FROM issue_809_json_operator_values",
+        "SELECT CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) -> 'nested', \
+         CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) ->> 'nested', \
+         CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) #> '{nested,x}', \
+         CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) #>> '{nested,x}', \
+         CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) -> 'items' -> 1, \
+         CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) -> 'items' ->> -1, \
+         CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) #> '{items,1}', \
+         CAST('{\"nested\":{\"x\":7,\"label\":\"Ada\"},\"items\":[4,5]}' AS JSON) #>> '{items,-1}'",
         None,
         0,
         true,
@@ -271,7 +265,10 @@ fn should_delete_nested_jsonb_values_with_the_hash_minus_operator() {
         .iter()
         .find(|(tag, _)| *tag == b'T')
         .expect("path deletion RowDescription");
-    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 3802);
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        3802
+    );
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("{\"a\": {\"c\": 2}, \"z\": 3}".to_owned())]]
@@ -335,7 +332,11 @@ fn should_delete_a_jsonb_value_at_a_negative_array_path_index() {
     );
 
     // Act
-    let batches = fixture::run_cycles("issue-809-jsonb-delete-path-negative-index", &[], vec![cycle]);
+    let batches = fixture::run_cycles(
+        "issue-809-jsonb-delete-path-negative-index",
+        &[],
+        vec![cycle],
+    );
 
     // Assert
     fixture::assert_success(&batches[0]);
@@ -356,7 +357,11 @@ fn should_leave_jsonb_unchanged_for_a_valid_out_of_bounds_path_index() {
     );
 
     // Act
-    let batches = fixture::run_cycles("issue-809-jsonb-delete-path-out-of-bounds", &[], vec![cycle]);
+    let batches = fixture::run_cycles(
+        "issue-809-jsonb-delete-path-out-of-bounds",
+        &[],
+        vec![cycle],
+    );
 
     // Assert
     fixture::assert_success(&batches[0]);
@@ -450,11 +455,7 @@ fn should_infer_text_array_for_a_jsonb_path_deletion_parameter() {
     );
 
     // Act
-    let batches = fixture::run_cycles(
-        "issue-809-jsonb-delete-path-parameter",
-        &setup,
-        vec![cycle],
-    );
+    let batches = fixture::run_cycles("issue-809-jsonb-delete-path-parameter", &setup, vec![cycle]);
 
     // Assert
     let frames = &batches[0];
@@ -463,7 +464,10 @@ fn should_infer_text_array_for_a_jsonb_path_deletion_parameter() {
         .iter()
         .find(|(tag, _)| *tag == b't')
         .expect("path parameter description");
-    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [1009]);
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        [1009]
+    );
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("{\"a\": {\"c\": 2}, \"z\": 3}".to_owned())]]
@@ -541,14 +545,20 @@ fn should_parse_integer_syntax_for_jsonb_array_path_indices() {
     // Arrange
     let cycle = fixture::execute_cycle(
         "SELECT ('[0,1,2]'::JSONB #- ARRAY['+1'])::TEXT, \
-         ('[0,1,2]'::JSONB #- ARRAY[' 1 '])::TEXT",
+         ('[0,1,2]'::JSONB #- ARRAY[' 1'])::TEXT",
         None,
         0,
         true,
     );
 
+    let trailing_space =
+        fixture::execute_cycle("SELECT '[0,1,2]'::JSONB #- ARRAY['1 ']", None, 0, true);
     // Act
-    let batches = fixture::run_cycles("issue-809-jsonb-delete-path-index-syntax", &[], vec![cycle]);
+    let batches = fixture::run_cycles(
+        "issue-809-jsonb-delete-path-index-syntax",
+        &[],
+        vec![cycle, trailing_space],
+    );
 
     // Assert
     fixture::assert_success(&batches[0]);
@@ -556,17 +566,13 @@ fn should_parse_integer_syntax_for_jsonb_array_path_indices() {
         wire::data_rows(&batches[0]),
         vec![vec![Some("[0, 2]".to_owned()), Some("[0, 2]".to_owned())]]
     );
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("22P02"));
 }
 
 #[test]
 fn should_reject_jsonb_path_deletion_from_scalar_documents() {
     // Arrange
-    let cycle = fixture::execute_cycle(
-        "SELECT '42'::JSONB #- ARRAY['value']",
-        None,
-        0,
-        true,
-    );
+    let cycle = fixture::execute_cycle("SELECT '42'::JSONB #- ARRAY['value']", None, 0, true);
 
     // Act
     let batches = fixture::run_cycles("issue-809-jsonb-delete-path-scalar", &[], vec![cycle]);
@@ -590,6 +596,88 @@ fn should_reject_null_elements_in_jsonb_deletion_paths() {
 
     // Assert
     assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22004"));
+}
+
+#[test]
+fn should_leave_jsonb_unchanged_when_missing_path_precedes_null_element() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT '{\"a\":1}'::JSONB #- ARRAY['missing',NULL], \
+         '[1]'::JSONB #- ARRAY['5',NULL], \
+         '{\"a\":1}'::JSONB #- ARRAY['a','bad',NULL]",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-missing-before-null", &[], vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("{\"a\": 1}".to_owned()),
+            Some("[1]".to_owned()),
+            Some("{\"a\": 1}".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_leave_empty_jsonb_containers_unchanged_given_null_path_element() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT '{}'::JSONB #- ARRAY[NULL]::TEXT[], '[]'::JSONB #- ARRAY[NULL]::TEXT[]",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-empty-null-path", &[], vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("{}".to_owned()), Some("[]".to_owned())]]
+    );
+}
+
+#[test]
+fn should_apply_multidimensional_jsonb_paths_given_text_array_literals() {
+    // Arrange
+    let cycles = vec![
+        fixture::execute_cycle(
+            "SELECT '{\"a\":{\"b\":1}}'::JSONB #> '{{a,b}}'::TEXT[], '{\"a\":1}'::JSONB ?| '{{a,b}}'::TEXT[], '{\"a\":1}'::JSONB ?& '{{NULL,a}}'::TEXT[]",
+            None, 0, true,
+        ),
+        fixture::execute_cycle("SELECT '{}'::JSONB #- '{{a,b}}'::TEXT[]", None, 0, true),
+        fixture::execute_cycle("SELECT '1'::JSONB - '{{a,b}}'::TEXT[]", None, 0, true),
+    ];
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-literal-dimensions", &[], cycles);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("1".to_owned()),
+            Some("t".to_owned()),
+            Some("t".to_owned())
+        ]]
+    );
+    for frames in &batches[1..] {
+        assert_eq!(wire::error_code(frames).as_deref(), Some("2202E"));
+        assert_eq!(
+            wire::data_rows(frames),
+            [] as [std::vec::Vec<std::option::Option<std::string::String>>; 0]
+        );
+    }
 }
 
 #[test]
@@ -710,7 +798,10 @@ fn should_infer_jsonb_concat_parameter_type() {
         .iter()
         .find(|(tag, _)| *tag == b't')
         .expect("JSON parameter ParameterDescription");
-    assert_eq!(wire::parse_parameter_description(&parameter_types.1), [3802]);
+    assert_eq!(
+        wire::parse_parameter_description(&parameter_types.1),
+        [3802]
+    );
     fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
     assert_eq!(
         wire::data_rows(frames),

@@ -41,6 +41,7 @@ pub(super) fn update_target_row(
     row_id: &str,
     row: &BatchRow,
     assignments: &[(String, Expr)],
+    array_targets: &[crate::sql::ast::UpdateTarget],
     row_subqueries: &[RowSubqueryAssignment],
 ) -> Result<Option<UpdatedRow>, QueryError> {
     check_timeout(scope.controls)?;
@@ -57,6 +58,7 @@ pub(super) fn update_target_row(
             table: target.table,
             schema: target.schema,
             subqueries: None,
+            array_targets,
         },
         row,
         assignments,
@@ -196,6 +198,7 @@ pub(super) fn execute_joined_update(
             &row_id,
             &row,
             &statement.assignments,
+            &statement.array_targets,
             &statement.row_subqueries,
         )?
         else {

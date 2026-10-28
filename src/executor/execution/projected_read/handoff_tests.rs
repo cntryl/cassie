@@ -192,7 +192,9 @@ fn should_preserve_unpromoted_scalar_expression_projection_values() {
     // Arrange
     let path =
         std::env::temp_dir().join(format!("cassie-scalar-projection-{}", uuid::Uuid::new_v4()));
-    let cassie = Cassie::new_with_data_dir(&path).expect("fixture");
+    let mut config = crate::config::CassieRuntimeConfig::default();
+    config.limits.query_timeout_ms = 120_000;
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("fixture");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

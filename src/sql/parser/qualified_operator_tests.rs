@@ -71,6 +71,24 @@ fn should_return_expression_relative_offsets_when_index_is_queried_on_recursive_
 }
 
 #[test]
+fn should_skip_operator_crossing_slice_end_given_recursive_range_lookup() {
+    // Arrange
+    let source = "1 OPERATOR(pg_catalog.+) 2 OPERATOR(pg_catalog.*) 3";
+    let index = super::Index::scan(source).unwrap();
+    let second_operator_start = source.find("OPERATOR(pg_catalog.*)").unwrap();
+    let partial_end = second_operator_start + "OPERATOR".len();
+    let prefix = &source[..partial_end];
+
+    // Act
+    let span = index
+        .last_binary(prefix)
+        .expect("the first complete operator fits in the slice");
+
+    // Assert
+    assert_eq!(&prefix[span.start..span.end], "OPERATOR(pg_catalog.+)");
+}
+
+#[test]
 fn should_reclassify_operator_adjacency_given_recursive_slice() {
     // Arrange
     let source = "1 OPERATOR(pg_catalog.+)OPERATOR(pg_catalog.-) 2";
@@ -88,6 +106,92 @@ fn should_reclassify_operator_adjacency_given_recursive_slice() {
 }
 
 #[test]
+fn should_select_prior_binary_when_slice_ends_after_adjacent_qualified_operator() {
+    // Arrange
+    let source = "1 OPERATOR(pg_catalog.+)OPERATOR(pg_catalog.-) 2 OPERATOR(pg_catalog.*) 3";
+    let index = super::Index::scan(source).unwrap();
+
+    // Act
+    let outer = index.last_binary(source).expect("outer multiplication");
+    let left = &source[..outer.start];
+    let inner = index
+        .last_binary(left)
+        .expect("addition remains binary before the adjacent prefix");
+
+    // Assert
+    assert_eq!(&source[outer.start..outer.end], "OPERATOR(pg_catalog.*)");
+    assert_eq!(&left[inner.start..inner.end], "OPERATOR(pg_catalog.+)");
+}
+
+#[test]
+fn should_keep_binary_eligibility_when_comments_separate_qualified_operators() {
+    // Arrange
+    let sources = [
+        "1 OPERATOR(pg_catalog.+) 2 /* comment */ OPERATOR(pg_catalog.*) 3",
+        "1 OPERATOR(pg_catalog.+) 2 -- comment\n OPERATOR(pg_catalog.*) 3",
+    ];
+
+    // Act
+    let spans = sources.map(|source| {
+        let index = super::Index::scan(source).unwrap();
+        index
+            .last_binary(source)
+            .expect("the second qualified operator is binary")
+    });
+
+    // Assert
+    for (source, span) in sources.iter().zip(spans) {
+        assert_eq!(&source[span.start..span.end], "OPERATOR(pg_catalog.*)");
+    }
+}
+
+#[test]
+fn should_ignore_nested_case_operators_when_indexing_outer_expression() {
+    // Arrange
+    let source = "CASE WHEN 1 OPERATOR(pg_catalog.+) 2 = 3 \
+                  THEN 4 OPERATOR(pg_catalog.*) 5 \
+                  ELSE 6 END OPERATOR(pg_catalog.+) 7";
+    let index = super::Index::scan(source).unwrap();
+
+    // Act
+    let span = index
+        .last_binary(source)
+        .expect("outer qualified operator remains visible");
+
+    // Assert
+    assert_eq!(&source[span.start..span.end], "OPERATOR(pg_catalog.+)");
+    assert_eq!(source[..span.start].matches("OPERATOR(").count(), 2);
+}
+
+#[test]
+fn should_keep_byte_offsets_for_multibyte_left_operands() {
+    // Arrange
+    let source = "café OPERATOR(pg_catalog.+) 2";
+    let index = super::Index::scan(source).unwrap();
+
+    // Act
+    let span = index
+        .last_binary(source)
+        .expect("the qualified operator follows a multibyte identifier");
+
+    // Assert
+    assert_eq!(&source[..span.start], "café ");
+    assert_eq!(&source[span.start..span.end], "OPERATOR(pg_catalog.+)");
+}
+
+#[test]
+fn should_parse_adjacent_qualified_and_unqualified_prefix_operators() {
+    // Arrange
+    let sql = "OPERATOR(pg_catalog.~)~1";
+
+    // Act
+    let parsed = crate::sql::parser::parse_expression(sql);
+
+    // Assert
+    assert!(parsed.is_ok(), "qualified prefix chain: {parsed:?}");
+}
+
+#[test]
 fn should_rebase_offsets_at_each_recursive_left_slice() {
     // Arrange
     let source = "OPERATOR(pg_catalog.-) 1 OPERATOR(pg_catalog.+) 2 OPERATOR(pg_catalog.*) 3";
@@ -101,6 +205,9 @@ fn should_rebase_offsets_at_each_recursive_left_slice() {
     let inner_span = index
         .last_binary(inner)
         .expect("nested slice binary operator");
+    let prefix_expression_end = source.find(") 1").unwrap() + ") 1".len();
+    let prefix_expression = &source[..prefix_expression_end];
+    let prefix_binary = index.last_binary(prefix_expression);
     // Assert
     assert_eq!(&source[outer.start..outer.end], "OPERATOR(pg_catalog.*)");
     assert_eq!(&left[middle.start..middle.end], "OPERATOR(pg_catalog.+)");
@@ -109,4 +216,5 @@ fn should_rebase_offsets_at_each_recursive_left_slice() {
         "OPERATOR(pg_catalog.+)"
     );
     assert_eq!(inner_span.start, inner.find("OPERATOR").unwrap());
+    assert!(prefix_binary.is_none(), "the qualified minus is a prefix");
 }

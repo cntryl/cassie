@@ -1,7 +1,7 @@
 #[test]
 fn should_reject_scalar_array_text_elements_outside_the_declared_domain() {
     // Arrange
-    let cases: [(i32, &[u8]); 26] = [
+    let cases: [(i32, &[u8]); 23] = [
         (1005, b"{32768}"),
         (1005, b"[32768]"),
         (1007, b"{-2147483649}"),
@@ -21,13 +21,10 @@ fn should_reject_scalar_array_text_elements_outside_the_declared_domain() {
         (1001, b"[\"\\\\xABC\"]"),
         (1182, b"{2026-02-30}"),
         (1182, b"[\"2026-02-30\"]"),
-        (1183, b"{24:00:00}"),
-        (1183, b"[\"24:00:00\"]"),
         (1115, b"{not-a-timestamp}"),
         (1115, b"[\"not-a-timestamp\"]"),
         (1014, b"[true]"),
         (1015, b"[{}]"),
-        (1007, b"[[1]]"),
     ];
     let mut cycles = Vec::new();
     for (oid, payload) in cases {
@@ -48,8 +45,13 @@ fn should_reject_scalar_array_text_elements_outside_the_declared_domain() {
     let batches = fixture::run_cycles("type-array-text-declared-domain", &[], cycles);
 
     // Assert
-    for pair in batches.as_chunks::<2>().0 {
-        assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("08P01"));
+    for (pair_index, pair) in batches.as_chunks::<2>().0.iter().enumerate() {
+        let (oid, payload) = cases[pair_index / 2];
+        assert_eq!(
+            wire::error_code(&pair[0]).as_deref(),
+            Some("08P01"),
+            "OID {oid}, payload {payload:?}"
+        );
         assert_eq!(
             pair[0]
                 .iter()

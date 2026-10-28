@@ -91,6 +91,10 @@ pub(crate) enum SemanticValue {
     Vector(Vec<u32>),
     Json(String),
     Array(Vec<Self>),
+    SqlArray {
+        dimensions: Vec<(i32, i32)>,
+        elements: Vec<Self>,
+    },
     Typed(crate::types::typed::TypedKey),
 }
 
@@ -115,6 +119,14 @@ impl SemanticValue {
             Value::Json(value) => {
                 Self::Json(serde_json::to_string(value).unwrap_or_else(|_| String::from("null")))
             }
+            Value::Array(value) => Self::SqlArray {
+                dimensions: value
+                    .dimensions()
+                    .iter()
+                    .map(|dimension| (dimension.length, dimension.lower_bound))
+                    .collect(),
+                elements: value.elements().iter().map(Self::from_value).collect(),
+            },
             // A `real` keys as the equal double, so real/integer/float
             // joins and set operations compare by value.
             Value::Typed(crate::types::typed::TypedValue::Real(value)) => {
@@ -146,6 +158,16 @@ impl SemanticValue {
                 values.len().saturating_mul(std::mem::size_of::<Self>()),
                 |bytes, value| bytes.saturating_add(value.estimated_bytes()),
             ),
+            Self::SqlArray {
+                dimensions,
+                elements,
+            } => dimensions
+                .len()
+                .saturating_mul(std::mem::size_of::<(i32, i32)>())
+                .saturating_add(elements.iter().fold(
+                    elements.len().saturating_mul(std::mem::size_of::<Self>()),
+                    |bytes, value| bytes.saturating_add(value.estimated_bytes()),
+                )),
             Self::Null | Self::Bool(_) | Self::Number(_) | Self::Typed(_) => 0,
         }
     }
@@ -158,7 +180,7 @@ impl SemanticValue {
             Self::String(_) => 3,
             Self::Vector(_) => 4,
             Self::Json(_) => 5,
-            Self::Array(_) => 6,
+            Self::Array(_) | Self::SqlArray { .. } => 6,
             Self::Typed(_) => 7,
         }
     }
@@ -196,6 +218,23 @@ impl Ord for SemanticValue {
                     }
                 })
             }
+            (
+                Self::SqlArray {
+                    dimensions: left_dimensions,
+                    elements: left_elements,
+                },
+                Self::SqlArray {
+                    dimensions: right_dimensions,
+                    elements: right_elements,
+                },
+            ) => compare_sql_arrays(
+                left_dimensions,
+                left_elements,
+                right_dimensions,
+                right_elements,
+            ),
+            (Self::Array(_), Self::SqlArray { .. }) => Ordering::Less,
+            (Self::SqlArray { .. }, Self::Array(_)) => Ordering::Greater,
             _ => self.rank().cmp(&other.rank()),
         }
     }
@@ -215,6 +254,37 @@ pub(crate) fn compare_array_parts<T>(
     left.len().cmp(&right.len())
 }
 
+fn compare_sql_arrays(
+    left_dimensions: &[(i32, i32)],
+    left_elements: &[SemanticValue],
+    right_dimensions: &[(i32, i32)],
+    right_elements: &[SemanticValue],
+) -> Ordering {
+    let elements = compare_array_parts(left_elements, right_elements, |left, right| {
+        match (left.is_null(), right.is_null()) {
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            _ => left.cmp(right),
+        }
+    });
+    if elements != Ordering::Equal {
+        return elements;
+    }
+    let ranks = left_dimensions.len().cmp(&right_dimensions.len());
+    if ranks != Ordering::Equal {
+        return ranks;
+    }
+    let lengths = compare_array_parts(left_dimensions, right_dimensions, |left, right| {
+        left.0.cmp(&right.0)
+    });
+    if lengths != Ordering::Equal {
+        return lengths;
+    }
+    compare_array_parts(left_dimensions, right_dimensions, |left, right| {
+        left.1.cmp(&right.1)
+    })
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct SemanticKey(Vec<SemanticValue>);
 
@@ -228,6 +298,14 @@ impl SemanticKey {
                 SemanticValue::Array(values) => {
                     values.capacity() * std::mem::size_of::<SemanticValue>()
                         + values.iter().map(heap).sum::<usize>()
+                }
+                SemanticValue::SqlArray {
+                    dimensions,
+                    elements,
+                } => {
+                    dimensions.capacity() * std::mem::size_of::<(i32, i32)>()
+                        + elements.capacity() * std::mem::size_of::<SemanticValue>()
+                        + elements.iter().map(heap).sum::<usize>()
                 }
                 SemanticValue::Null
                 | SemanticValue::Bool(_)

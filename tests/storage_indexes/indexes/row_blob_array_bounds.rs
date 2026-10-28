@@ -28,7 +28,7 @@ fn should_decode_minimum_width_array_elements_without_rejecting_valid_counts() {
             (
                 "nested",
                 DataType::Array(Box::new(DataType::Int)),
-                serde_json::json!([[], [], []]),
+                serde_json::json!([[1, 2], [3, 4], [5, 6]]),
             ),
         ];
         for (collection, element_type, values) in cases {
@@ -59,7 +59,12 @@ fn should_decode_minimum_width_array_elements_without_rejecting_valid_counts() {
                 .expect("stored row");
 
             // Assert
-            assert_eq!(stored.payload, payload);
+            assert_eq!(
+                cassie::types::SqlArray::from_storage_json(&stored.payload["items"])
+                    .expect("decode stored array shape")
+                    .to_nested_json(),
+                payload["items"],
+            );
         }
     });
     let _ = std::fs::remove_dir_all(path);
@@ -102,9 +107,9 @@ fn should_reject_impossible_stored_array_count_before_allocating() {
             .raw_scan_prefix(StorageFamily::Data, b"")
             .expect("read raw rows")
             .into_iter()
-            .find(|(_, value)| value.starts_with(b"CRB2"))
+            .find(|(_, value)| value.starts_with(b"CRB3"))
             .expect("row blob");
-        assert_eq!(&blob[..4], b"CRB2");
+        assert_eq!(&blob[..4], b"CRB3");
         // One field: 23 header/bitmap bytes, 13 directory bytes, then payload.
         let payload_offset = 36;
         blob.truncate(payload_offset);

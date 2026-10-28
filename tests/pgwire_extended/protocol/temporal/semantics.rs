@@ -68,6 +68,131 @@ fn should_accept_postgresql_datestyle_session_modes() {
     }
 }
 
+#[test]
+fn should_send_datestyle_status_before_batched_simple_query_rows() {
+    // Arrange
+    let batches = run_script(
+        "datestyle-status-before-batched-rows",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET DateStyle = 'SQL, DMY'; SELECT CURRENT_DATE AS value",
+        )])],
+    );
+
+    // Act
+    let batch = batches.first().expect("batched simple query response");
+
+    // Assert
+    assert_eq!(wire::error_code(batch), None);
+    assert_datestyle_status_before_rows(batch, 0);
+}
+
+#[test]
+fn should_send_datestyle_status_after_rows_from_a_view_query() {
+    // Arrange
+    let batches = run_script(
+        "datestyle-status-after-view-rows",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SET DateStyle = 'ISO, MDY'",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE VIEW datestyle_status_view AS SELECT set_config('datestyle', 'SQL, DMY', false) AS changed",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT changed, CURRENT_DATE AS value FROM datestyle_status_view",
+            )]),
+        ],
+    );
+
+    // Act
+    let batch = batches.get(2).expect("view query response");
+
+    // Assert
+    assert_eq!(wire::error_code(batch), None);
+    assert_datestyle_status_after_rows(batch, 1);
+}
+
+#[test]
+fn should_send_datestyle_status_after_rows_from_an_extended_query() {
+    // Arrange
+    let batches = run_script(
+        "datestyle-status-after-extended-rows",
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SET DateStyle = 'ISO, MDY'",
+            )]),
+            Step::ThroughReady(vec![
+                wire::parse_frame(
+                    "datestyle_status_statement",
+                    "SELECT set_config('datestyle', 'SQL, DMY', false) AS changed, CURRENT_DATE AS value",
+                ),
+                wire::bind_frame("datestyle_status_portal", "datestyle_status_statement", &[]),
+                wire::execute_frame("datestyle_status_portal"),
+                wire::sync_frame(),
+            ]),
+        ],
+    );
+
+    // Act
+    let batch = batches.get(1).expect("extended query response");
+
+    // Assert
+    assert_eq!(wire::error_code(batch), None);
+    assert_datestyle_status_after_rows(batch, 1);
+}
+
+fn assert_datestyle_status_before_rows(batch: &[(u8, Vec<u8>)], date_index: usize) {
+    let status_index = datestyle_status_index(batch);
+    let row_index = data_row_index(batch);
+    assert!(
+        status_index < row_index,
+        "SET status must precede rows from the following statement in the same query"
+    );
+    let row = wire::parse_data_row(&batch[row_index].1);
+    let date = row.get(date_index).and_then(Option::as_deref).unwrap_or("");
+    assert!(date.contains('/'), "expected SQL, DMY text date: {row:?}");
+}
+
+fn assert_datestyle_status_after_rows(batch: &[(u8, Vec<u8>)], date_index: usize) {
+    let status_index = datestyle_status_index(batch);
+    let row_index = data_row_index(batch);
+    assert!(
+        row_index < status_index,
+        "a query's setting change must follow rows encoded under the statement-start style"
+    );
+    let row = wire::parse_data_row(&batch[row_index].1);
+    let date = row.get(date_index).and_then(Option::as_deref).unwrap_or("");
+    assert!(date.contains('-'), "expected ISO text date: {row:?}");
+}
+
+fn datestyle_status_index(batch: &[(u8, Vec<u8>)]) -> usize {
+    batch
+        .iter()
+        .position(|(tag, payload)| {
+            *tag == b'S' && parameter_status(payload) == ("DateStyle", "SQL, DMY")
+        })
+        .expect("DateStyle ParameterStatus update")
+}
+
+fn data_row_index(batch: &[(u8, Vec<u8>)]) -> usize {
+    batch
+        .iter()
+        .position(|(tag, _)| *tag == b'D')
+        .expect("DataRow")
+}
+
+fn parameter_status(payload: &[u8]) -> (&str, &str) {
+    let separator = payload
+        .iter()
+        .position(|byte| *byte == 0)
+        .expect("ParameterStatus key terminator");
+    let value = &payload[separator + 1..payload.len().saturating_sub(1)];
+    (
+        std::str::from_utf8(&payload[..separator]).expect("ParameterStatus key"),
+        std::str::from_utf8(value).expect("ParameterStatus value"),
+    )
+}
+
 include!("../../types/temporal/binary.rs");
 
 include!("../../types/temporal/errors.rs");

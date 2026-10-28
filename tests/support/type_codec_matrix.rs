@@ -147,7 +147,7 @@ pub fn empty_array_cycles(prefix: &str) -> (Vec<wire_fixture::Cycle>, Vec<Expect
                     case,
                     format,
                     has_row: true,
-                    field: Some(if format == 0 { b"[]" } else { empty_binary }),
+                    field: Some(if format == 0 { b"{}" } else { empty_binary }),
                 });
                 key += 1;
             }
@@ -159,7 +159,7 @@ pub fn empty_array_cycles(prefix: &str) -> (Vec<wire_fixture::Cycle>, Vec<Expect
                 case,
                 format,
                 has_row: true,
-                field: Some(if format == 0 { b"[]" } else { empty_binary }),
+                field: Some(if format == 0 { b"{}" } else { empty_binary }),
             });
         }
     }

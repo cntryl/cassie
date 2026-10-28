@@ -721,7 +721,9 @@ use crate::types::row_identity::is_row_identity_column as is_row_id_column;
 
 fn source_contains_join(source: &QuerySource) -> bool {
     match source {
-        QuerySource::Aliased { source, .. } => source_contains_join(source),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_contains_join(source)
+        }
         QuerySource::Join { .. } => true,
         QuerySource::Subquery { select, .. } => source_contains_join(&select.source),
         QuerySource::Collection(_)

@@ -113,8 +113,12 @@ fn encode_binary_row(columns: &[ColumnMeta], row: &[Value]) -> Result<Vec<u8>, C
             bytes.extend_from_slice(&(-1_i32).to_be_bytes());
             continue;
         }
-        let encoded = super::super::codecs::value_to_binary(value, column.type_oid)
-            .map_err(|error| CassieError::Unsupported(error.to_string()))?;
+        let encoded = super::super::codecs::value_to_binary_with_typmod(
+            value,
+            column.type_oid,
+            column.atttypmod,
+        )
+        .map_err(|error| CassieError::Unsupported(error.to_string()))?;
         let length = i32::try_from(encoded.len())
             .map_err(|_| CassieError::ResourceLimit("COPY field exceeds int32".into()))?;
         bytes.extend_from_slice(&length.to_be_bytes());

@@ -526,6 +526,7 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
         Value::String(value) => Some(serde_json::Value::String(value.clone())),
         Value::Typed(value) => Some(value.to_json()),
         Value::Vector(_) | Value::Json(_) => None,
+        Value::Array(value) => Some(value.to_storage_json()),
     }
 }
 
@@ -742,6 +743,17 @@ fn json_to_value(value: &serde_json::Value) -> Value {
 }
 
 pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
+    if let DataType::Array(element_type) = data_type {
+        if value
+            .as_object()
+            .is_some_and(|object| object.contains_key("$cassie_array_v1"))
+        {
+            return crate::types::SqlArray::from_storage_json(value)
+                .map_or(Value::Null, Value::Array);
+        }
+        return crate::types::SqlArray::from_nested_json_typed(value, element_type)
+            .map_or(Value::Null, Value::Array);
+    }
     if *data_type == DataType::Jsonb
         || (data_type.is_json() && crate::types::json::requires_document_carrier(value))
     {

@@ -98,6 +98,7 @@ impl Midge {
             "cassie-test",
             "startup",
         )
+        .lease_ttl(std::time::Duration::from_secs(300))
         .build()
         .map_err(CassieError::from)?;
         let write_policy = if strict {

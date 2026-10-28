@@ -131,7 +131,7 @@ fn should_preserve_sql_null_elements_in_json_arrays() {
             fixture::assert_success(frames);
             fixture::assert_single_column_descriptors(frames, (199, -1, -1), format, true);
             let expected = if format == 0 {
-                fixture::one_field_row(b"[null]")
+                fixture::one_field_row(b"{NULL}")
             } else {
                 fixture::one_field_row(SQL_NULL_ARRAY)
             };
@@ -144,8 +144,8 @@ fn should_preserve_sql_null_elements_in_json_arrays() {
 fn should_preserve_nonnull_json_array_documents_containing_null() {
     // Arrange
     let cases = [
-        (NESTED_NULL_DOCUMENT_ARRAY, &b"[[null]]"[..]),
-        (STRING_NULL_DOCUMENT_ARRAY, &br#"["null"]"#[..]),
+        (NESTED_NULL_DOCUMENT_ARRAY, &b"{[null]}"[..]),
+        (STRING_NULL_DOCUMENT_ARRAY, &br#"{"\"null\""}"#[..]),
     ];
     let cycles = cases
         .into_iter()
@@ -276,7 +276,11 @@ fn should_preserve_json_array_text_null_slot_origin() {
             assert_eq!(
                 fixture::data_row_payloads(frames),
                 vec![fixture::one_field_row(if format == 0 {
-                    text
+                    match text {
+                        b"[null]" => &b"{NULL}"[..],
+                        b"[[null]]" => &b"{[null]}"[..],
+                        _ => &br#"{"\"null\""}"#[..],
+                    }
                 } else {
                     binary
                 })]

@@ -17,13 +17,12 @@ pub(super) fn parse_json_numeric_array(
                 return Ok(JsonValue::Null);
             }
             let value = match data_type {
-                DataType::Float => token
-                    .get()
-                    .parse::<f64>()
-                    .ok()
-                    .and_then(serde_json::Number::from_f64)
-                    .map(JsonValue::Number)
-                    .ok_or_else(|| "float array element expects a finite f64 number".to_string())?,
+                DataType::Float => serde_json::Number::from_f64(
+                    crate::types::float_input::parse(token.get())
+                        .map_err(|error| error.to_string())?,
+                )
+                .map(JsonValue::Number)
+                .ok_or_else(|| "float array element expects a finite f64 number".to_string())?,
                 DataType::SmallInt | DataType::Int | DataType::BigInt => token
                     .get()
                     .parse::<i64>()

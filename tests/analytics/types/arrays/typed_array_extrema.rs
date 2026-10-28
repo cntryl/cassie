@@ -34,8 +34,11 @@ fn should_select_elementwise_extrema_for_declared_arrays() {
         assert_eq!(
             arrays.rows(),
             vec![vec![
-                Value::Json(serde_json::json!([])),
-                Value::Json(serde_json::json!([10]))
+                Value::Array(cassie::types::SqlArray::empty()),
+                Value::Array(
+                    cassie::types::SqlArray::from_elements(vec![Value::Int64(10)])
+                        .expect("one-dimensional array")
+                )
             ]]
         );
     });
@@ -45,7 +48,10 @@ fn should_merge_partial_array_extrema_without_losing_element_order() {
     // Arrange
     super::support_read_equivalence::with_fixture_config(
         "typed_array_partial_extrema",
-        |config| config.limits.parallel_aggregation_workers = 4,
+        |config| {
+            config.limits.parallel_aggregation_workers = 4;
+            config.limits.query_memory_budget_bytes = 16 * 1024 * 1024;
+        },
         |cassie, session| {
             sql(
                 cassie,
@@ -80,8 +86,14 @@ fn should_merge_partial_array_extrema_without_losing_element_order() {
             assert_eq!(
                 result.rows(),
                 vec![vec![
-                    Value::Json(serde_json::json!([2])),
-                    Value::Json(serde_json::json!([10]))
+                    Value::Array(
+                        cassie::types::SqlArray::from_elements(vec![Value::Int64(2)])
+                            .expect("one-dimensional array")
+                    ),
+                    Value::Array(
+                        cassie::types::SqlArray::from_elements(vec![Value::Int64(10)])
+                            .expect("one-dimensional array")
+                    )
                 ]]
             );
             assert!(

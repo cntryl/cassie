@@ -74,6 +74,9 @@ pub(crate) fn source_field_type_map_with_parameters(
             .get_schema(collection)
             .map(|schema| field_type_map(schema.fields.iter()))
             .unwrap_or_default(),
+        ast::QuerySource::TableSample { source, .. } => {
+            source_field_type_map_with_parameters(source, ctes, catalog, parameter_types)
+        }
         ast::QuerySource::Join { left, right, .. } => {
             let mut fields =
                 source_field_type_map_with_parameters(left, ctes, catalog, parameter_types);

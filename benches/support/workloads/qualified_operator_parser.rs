@@ -18,6 +18,11 @@ impl QualifiedOperatorParserFixture {
     }
 
     #[must_use]
+    pub fn statement_bytes(&self) -> usize {
+        self.statement.len()
+    }
+
+    #[must_use]
     pub fn parse(&self) -> u64 {
         let parsed = cassie::sql::parse_statement(&self.statement)
             .expect("qualified-operator benchmark SQL should parse");

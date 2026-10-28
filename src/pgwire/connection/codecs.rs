@@ -27,6 +27,9 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
     if type_oid == 3802 {
         return jsonb::text(value);
     }
+    if let Some(array_text) = value_to_postgres_array_text(value, type_oid) {
+        return array_text;
+    }
     match value {
         Value::Null => "NULL".to_string(),
         // boolout emits a single `t`/`f`; a JSON column keeps JSON's spelling.
@@ -57,11 +60,19 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
                 .join(",")
         ),
         Value::Json(v) => v.to_string(),
+        Value::Array(v) => v.to_nested_json().to_string(),
         Value::Typed(v) => v.text(),
     }
 }
 
 pub(super) fn value_to_postgres_array_text(value: &Value, type_oid: i64) -> Option<String> {
+    if let Value::Array(array) = value {
+        let element_oid = u32::try_from(builtin_array_element_oid(type_oid)?).ok()?;
+        let element_type = crate::types::builtin::builtin_for_oid(element_oid)?
+            .kind
+            .data_type();
+        return crate::types::array_value::format_text(array, &element_type);
+    }
     let Value::Json(array) = value else {
         return None;
     };
@@ -73,20 +84,16 @@ pub(super) fn value_to_postgres_array_text(value: &Value, type_oid: i64) -> Opti
 }
 
 pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
-    if type_oid == 4073 {
-        return Err(unsupported_codec(type_oid));
-    }
-    if type_oid == POSTGRES_INTERNAL_CHAR_OID {
-        return match value {
-            Value::String(value) if value.len() == 1 => Ok(value.as_bytes().to_vec()),
-            _ => invalid_value("char"),
-        };
-    }
-    if type_oid == 2278 {
-        return match value {
-            Value::String(value) if value.is_empty() => Ok(Vec::new()),
-            _ => Err(invalid_data("void")),
-        };
+    value_to_binary_with_typmod(value, type_oid, -1)
+}
+
+pub(super) fn value_to_binary_with_typmod(
+    value: &Value,
+    type_oid: i64,
+    atttypmod: i32,
+) -> io::Result<Vec<u8>> {
+    if let Some(encoded) = encode_special_binary_type(value, type_oid, atttypmod) {
+        return encoded;
     }
     if vector_dimensions_for_oid(type_oid).is_some() {
         return encode_vector(value, type_oid);
@@ -172,6 +179,51 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
             )
         }
     }
+}
+
+fn encode_special_binary_type(
+    value: &Value,
+    type_oid: i64,
+    atttypmod: i32,
+) -> Option<io::Result<Vec<u8>>> {
+    if type_oid == 4073 {
+        return Some(Err(unsupported_codec(type_oid)));
+    }
+    if type_oid == 1042 && atttypmod >= 4 {
+        return Some(encode_bpchar_with_typmod(value, atttypmod));
+    }
+    if type_oid == POSTGRES_INTERNAL_CHAR_OID {
+        return Some(match value {
+            Value::String(value) if value.len() == 1 => Ok(value.as_bytes().to_vec()),
+            _ => invalid_value("char"),
+        });
+    }
+    if type_oid == 2278 {
+        return Some(match value {
+            Value::String(value) if value.is_empty() => Ok(Vec::new()),
+            _ => Err(invalid_data("void")),
+        });
+    }
+    None
+}
+
+fn encode_bpchar_with_typmod(value: &Value, atttypmod: i32) -> io::Result<Vec<u8>> {
+    let Value::String(text) = value else {
+        return invalid_value("bpchar");
+    };
+    let width = usize::try_from(atttypmod - 4).map_err(|_| invalid_data("bpchar typmod"))?;
+    let missing = width.saturating_sub(text.chars().count());
+    let capacity = text
+        .len()
+        .checked_add(missing)
+        .ok_or_else(|| invalid_data("bpchar length"))?;
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(capacity)
+        .map_err(|_| io::Error::other("bpchar output allocation failed"))?;
+    bytes.extend_from_slice(text.as_bytes());
+    bytes.resize(capacity, b' ');
+    Ok(bytes)
 }
 
 fn builtin_array_element_oid(array_oid: i64) -> Option<i64> {
@@ -376,6 +428,50 @@ fn decode_native(
 }
 
 fn encode_array(value: &Value, type_oid: i64, element_oid: i64) -> io::Result<Vec<u8>> {
+    if let Value::Array(array) = value {
+        let codec = binary_codec_for_oid(element_oid)?;
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(
+            &i32::try_from(array.dimensions().len())
+                .map_err(|_| unsupported_codec(type_oid))?
+                .to_be_bytes(),
+        );
+        let has_null = array.elements().iter().any(Value::is_null);
+        encoded.extend_from_slice(&i32::from(has_null).to_be_bytes());
+        encoded.extend_from_slice(
+            &i32::try_from(element_oid)
+                .map_err(|_| unsupported_codec(type_oid))?
+                .to_be_bytes(),
+        );
+        for dimension in array.dimensions() {
+            encoded.extend_from_slice(&dimension.length.to_be_bytes());
+            encoded.extend_from_slice(&dimension.lower_bound.to_be_bytes());
+        }
+        for value in array.elements() {
+            if value.is_null() {
+                encoded.extend_from_slice(&(-1_i32).to_be_bytes());
+                continue;
+            }
+            let element = match value {
+                Value::Json(json)
+                    if matches!(codec.kind, BinaryCodecKind::Json | BinaryCodecKind::Jsonb) =>
+                {
+                    value_to_binary(value, element_oid)?
+                }
+                Value::String(text) if matches!(codec.kind, BinaryCodecKind::Extended(_)) => {
+                    encode_array_string(text, codec)?
+                }
+                _ => value_to_binary(value, element_oid)?,
+            };
+            encoded.extend_from_slice(
+                &i32::try_from(element.len())
+                    .map_err(|_| invalid_data("array"))?
+                    .to_be_bytes(),
+            );
+            encoded.extend_from_slice(&element);
+        }
+        return Ok(encoded);
+    }
     let Value::Json(serde_json::Value::Array(values)) = value else {
         return invalid_value("array");
     };
@@ -422,7 +518,7 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
     let dimensions = read_i32(parameter, &mut cursor, "array")?;
     let has_null = read_i32(parameter, &mut cursor, "array")?;
     let element_oid = i64::from(read_i32(parameter, &mut cursor, "array")?);
-    if !matches!(dimensions, 0 | 1)
+    if !(0..=6).contains(&dimensions)
         || !matches!(has_null, 0 | 1)
         || element_oid != expected_element_oid
     {
@@ -434,27 +530,37 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
         if has_null != 0 || cursor != parameter.len() {
             return Err(invalid_data("array"));
         }
-        return Ok(Value::Json(serde_json::Value::Array(Vec::new())));
+        return Ok(Value::Array(crate::types::SqlArray::empty()));
     }
-    let length = usize::try_from(read_i32(parameter, &mut cursor, "array")?)
-        .map_err(|_| invalid_data("array"))?;
-    if read_i32(parameter, &mut cursor, "array")? != 1 {
-        return Err(invalid_data("array"));
+    let mut shape =
+        Vec::with_capacity(usize::try_from(dimensions).map_err(|_| invalid_data("array"))?);
+    let mut element_count = 1_usize;
+    for _ in 0..dimensions {
+        let length = read_i32(parameter, &mut cursor, "array")?;
+        let lower_bound = read_i32(parameter, &mut cursor, "array")?;
+        let length_usize = usize::try_from(length).map_err(|_| invalid_data("array"))?;
+        element_count = element_count
+            .checked_mul(length_usize)
+            .ok_or_else(|| invalid_data("array"))?;
+        shape.push(crate::types::ArrayDimension {
+            length,
+            lower_bound,
+        });
     }
-    let minimum_payload_bytes = length
+    let minimum_payload_bytes = element_count
         .checked_mul(std::mem::size_of::<i32>())
         .ok_or_else(|| invalid_data("array"))?;
     if parameter.len().saturating_sub(cursor) < minimum_payload_bytes {
         return Err(invalid_data("array"));
     }
-    let mut values = Vec::with_capacity(length);
+    let mut values = Vec::with_capacity(element_count);
     let mut sql_null_frame = false;
-    let mut document_null = false;
-    for _ in 0..length {
+    let mut document_null_element = false;
+    for _ in 0..element_count {
         let element_length = read_i32(parameter, &mut cursor, "array")?;
         if element_length == -1 {
             sql_null_frame = true;
-            values.push(serde_json::Value::Null);
+            values.push(Value::Null);
             continue;
         }
         let element_length = usize::try_from(element_length).map_err(|_| invalid_data("array"))?;
@@ -466,24 +572,19 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
             .ok_or_else(|| invalid_data("array"))?;
         cursor = end;
         let value = binary_to_value(bytes, element_oid)?;
-        if matches!(element_oid, 114 | 3802)
-            && matches!(value, Value::Json(serde_json::Value::Null))
-        {
-            document_null = true;
-            continue;
+        if matches!(value, Value::Json(ref document) if document.is_null()) {
+            document_null_element = true;
         }
-        values.push(value_to_json(value));
+        values.push(value);
     }
     if cursor != parameter.len() || (has_null == 0 && sql_null_frame) {
         return Err(invalid_data("array"));
     }
-    if document_null {
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            crate::types::array::TextArrayError::UnsupportedJsonDocumentNull.to_string(),
-        ));
+    if document_null_element {
+        return Err(unsupported_codec(OID_ARRAY_BASE + element_oid));
     }
-    Ok(Value::Json(serde_json::Value::Array(values)))
+    let array = crate::types::SqlArray::new(shape, values).map_err(|_| invalid_data("array"))?;
+    Ok(Value::Array(array))
 }
 
 fn read_i32(parameter: &[u8], cursor: &mut usize, type_name: &str) -> io::Result<i32> {
@@ -565,25 +666,6 @@ fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> 
         BinaryCodecKind::Json | BinaryCodecKind::Jsonb => {
             unreachable!("JSON array elements preserve their JSON carrier")
         }
-    }
-}
-
-fn value_to_json(value: Value) -> serde_json::Value {
-    match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(value) => serde_json::Value::Bool(value),
-        Value::Int64(value) => serde_json::Value::from(value),
-        Value::Float64(value) => serde_json::Value::from(value),
-        Value::String(value) => serde_json::Value::String(value),
-        Value::Json(value) => value,
-        Value::Typed(value) => value.to_json(),
-        Value::Vector(vector) => serde_json::Value::Array(
-            vector
-                .values
-                .into_iter()
-                .map(serde_json::Value::from)
-                .collect(),
-        ),
     }
 }
 

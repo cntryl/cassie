@@ -57,7 +57,7 @@ pub(super) fn reject_referenced_table_drop(cassie: &Cassie, table: &str) -> Resu
 }
 
 /// Removes FOREIGN KEY constraints that depend on a table dropped with CASCADE.
-pub(super) fn drop_referencing_foreign_keys_on_table(
+pub(crate) fn drop_referencing_foreign_keys_on_table(
     cassie: &Cassie,
     table: &str,
 ) -> Result<(), QueryError> {

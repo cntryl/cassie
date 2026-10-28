@@ -225,10 +225,27 @@ pub(super) fn canonicalize_typed_predicate_literals(
             canonicalize_typed_predicate_literals(low, field_types)?;
             canonicalize_typed_predicate_literals(high, field_types)
         }
+        Expr::ArraySubscript { array, subscripts } => {
+            canonicalize_typed_predicate_literals(array, field_types)?;
+            for subscript in subscripts {
+                match subscript {
+                    crate::sql::ast::ArraySubscript::Index(index) => {
+                        canonicalize_typed_predicate_literals(index, field_types)?;
+                    }
+                    crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                        for bound in lower.iter_mut().chain(upper) {
+                            canonicalize_typed_predicate_literals(bound, field_types)?;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
         Expr::IsNull { expr, .. }
         | Expr::TruthTest { expr, .. }
         | Expr::Not { expr }
         | Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. } => {
             canonicalize_typed_predicate_literals(expr, field_types)
@@ -549,6 +566,26 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 column_aliases,
             })
         }
+        QuerySource::TableSample {
+            source,
+            method,
+            rate,
+            repeatable,
+        } => {
+            let source = bind_query_source_with_lateral_fields(
+                *source,
+                catalog,
+                scope,
+                lateral_fields,
+                context,
+            )?;
+            Ok(QuerySource::TableSample {
+                source: Box::new(source),
+                method,
+                rate,
+                repeatable,
+            })
+        }
         QuerySource::Collection(name) => bind_collection_source(&name, catalog, scope, context),
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
         QuerySource::SingleRow => Ok(QuerySource::SingleRow),
@@ -577,41 +614,50 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 lateral,
             })
         }
-        QuerySource::Join {
-            left,
-            right,
-            kind,
-            on,
-        } => {
-            let left = bind_query_source_with_lateral_fields(
-                *left,
-                catalog,
-                scope,
-                lateral_fields,
-                context,
-            )?;
-            let mut right_lateral_fields = lateral_fields.clone();
-            right_lateral_fields.extend(source_fields(catalog, &left, scope)?);
-            let mut right = *right;
-            super::aliases::lower_lateral(&left, &mut right, catalog, scope)?;
-            let right = bind_query_source_with_lateral_fields(
-                right,
-                catalog,
-                scope,
-                &right_lateral_fields,
-                context,
-            )?;
-            let mut joined = QuerySource::Join {
-                left: Box::new(left),
-                right: Box::new(right),
-                kind,
-                on: on.clone(),
-            };
-            super::aliases::lower_join_on(&mut joined, catalog, scope)?;
-            validate_join_source(&mut joined, catalog, scope, context)?;
-            Ok(joined)
+        join @ QuerySource::Join { .. } => {
+            bind_join_source_with_lateral_fields(join, catalog, scope, lateral_fields, context)
         }
     }
+}
+
+fn bind_join_source_with_lateral_fields(
+    source: QuerySource,
+    catalog: &Catalog,
+    scope: &CteScope<'_>,
+    lateral_fields: &HashSet<String>,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    let QuerySource::Join {
+        left,
+        right,
+        kind,
+        on,
+    } = source
+    else {
+        unreachable!("join source helper receives only joins")
+    };
+    let left =
+        bind_query_source_with_lateral_fields(*left, catalog, scope, lateral_fields, context)?;
+    let mut right_lateral_fields = lateral_fields.clone();
+    right_lateral_fields.extend(source_fields(catalog, &left, scope)?);
+    let mut right = *right;
+    super::aliases::lower_lateral(&left, &mut right, catalog, scope)?;
+    let right = bind_query_source_with_lateral_fields(
+        right,
+        catalog,
+        scope,
+        &right_lateral_fields,
+        context,
+    )?;
+    let mut joined = QuerySource::Join {
+        left: Box::new(left),
+        right: Box::new(right),
+        kind,
+        on,
+    };
+    super::aliases::lower_join_on(&mut joined, catalog, scope)?;
+    validate_join_source(&mut joined, catalog, scope, context)?;
+    Ok(joined)
 }
 
 fn validate_join_source(
@@ -666,6 +712,7 @@ pub(super) fn source_fields(
             }
             Ok(fields)
         }
+        QuerySource::TableSample { source, .. } => source_fields(catalog, source, scope),
         QuerySource::Collection(name) => {
             if let Some(fields) = virtual_views::schema(name) {
                 Ok(qualified_fields(

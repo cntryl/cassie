@@ -8,7 +8,7 @@ fn should_preserve_any_value_result_oids_for_explicit_types_given_simple_query()
         (
             "SELECT any_value(ARRAY['a','b']::TEXT[])",
             1009,
-            Some(r#"["a","b"]"#),
+            Some("{a,b}"),
         ),
     ];
     let batches = run_script(
@@ -195,6 +195,6 @@ fn should_preserve_typed_any_value_parameter_identity() {
     assert_eq!(wire::error_code(array_executed), None);
     assert_eq!(
         wire::data_rows(array_executed),
-        vec![vec![Some("[1,2]".to_owned())]]
+        vec![vec![Some("{1,2}".to_owned())]]
     );
 }

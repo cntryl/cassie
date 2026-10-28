@@ -272,6 +272,18 @@ fn validate_source_predicates(
         QuerySource::Aliased { source, .. } => {
             validate_source_predicates(source, types, catalog, context)?;
         }
+        QuerySource::TableSample {
+            source,
+            rate,
+            repeatable,
+            ..
+        } => {
+            validate_expression(rate, types, catalog, context)?;
+            if let Some(seed) = repeatable {
+                validate_expression(seed, types, catalog, context)?;
+            }
+            validate_source_predicates(source, types, catalog, context)?;
+        }
         QuerySource::Join {
             left, right, on, ..
         } => {
@@ -391,6 +403,7 @@ fn validate_expression(
                     | BinaryOp::Gt
                     | BinaryOp::Gte
             ) {
+                validate_collation_pair(left, right)?;
                 canonicalize_boolean_pair(left, right, types)?;
                 decimal_literals::narrow_pair(left, right, types);
                 coerce_numeric_pair(left, right, types, catalog);
@@ -412,6 +425,10 @@ fn validate_expression(
             validate_case(operand, branches, else_expr, types, catalog, context)?;
         }
         expression @ Expr::Cast { .. } => validate_cast(expression, types, catalog, context)?,
+        Expr::Collate { expr, .. } => validate_expression(expr, types, catalog, context)?,
+        Expr::ArraySubscript { array, subscripts } => {
+            validate_subscripts(array, subscripts, types, catalog, context)?;
+        }
         Expr::TruthTest {
             expr,
             truth,
@@ -424,12 +441,7 @@ fn validate_expression(
             validate_expression(expr, types, catalog, context)?;
         }
         Expr::InList { expr, values, .. } => {
-            validate_expression(expr, types, catalog, context)?;
-            for value in values {
-                canonicalize_boolean_pair(expr, value, types)?;
-                decimal_literals::narrow_pair(expr, value, types);
-                validate_expression(value, types, catalog, context)?;
-            }
+            validate_in_list(expr, values, types, catalog, context)?;
         }
         expression @ Expr::Like { .. } => {
             validate_like_expression(expression, types, catalog, context)?;
@@ -456,6 +468,64 @@ fn validate_expression(
         | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
+    }
+    Ok(())
+}
+
+fn validate_in_list(
+    expr: &mut Expr,
+    values: &mut [Expr],
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    validate_expression(expr, types, catalog, context)?;
+    for value in values {
+        canonicalize_boolean_pair(expr, value, types)?;
+        decimal_literals::narrow_pair(expr, value, types);
+        validate_expression(value, types, catalog, context)?;
+    }
+    Ok(())
+}
+
+fn validate_subscripts(
+    array: &mut Expr,
+    subscripts: &mut [crate::sql::ast::ArraySubscript],
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    validate_expression(array, types, catalog, context)?;
+    for subscript in subscripts {
+        match subscript {
+            crate::sql::ast::ArraySubscript::Index(index) => {
+                validate_value(index, types, Some(&DataType::Int), catalog, context)?;
+            }
+            crate::sql::ast::ArraySubscript::Slice { lower, upper } => {
+                for bound in lower.iter_mut().chain(upper) {
+                    validate_value(bound, types, Some(&DataType::Int), catalog, context)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_collation_pair(left: &Expr, right: &Expr) -> Result<(), CassieError> {
+    fn explicit_collation(expression: &Expr) -> Option<&str> {
+        match expression {
+            Expr::Collate { collation, .. } => Some(collation.as_str()),
+            _ => None,
+        }
+    }
+    if let (Some(left), Some(right)) = (explicit_collation(left), explicit_collation(right)) {
+        if left != right {
+            return Err(crate::app::DiagnosticError::new(
+                "42P21",
+                format!("collation mismatch between explicit collations {left:?} and {right:?}"),
+            )
+            .into());
+        }
     }
     Ok(())
 }
@@ -901,7 +971,7 @@ fn resolve_nested_source(
     context: &BindingContext,
 ) -> Result<(), CassieError> {
     match source {
-        QuerySource::Aliased { source, .. } => {
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
             resolve_nested_source(source, names, catalog, context)?;
         }
         QuerySource::Collection(name) => {

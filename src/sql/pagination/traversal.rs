@@ -212,6 +212,7 @@ fn visit_expr(
             visit_expr(right, visitor, controls)?;
         }
         Expr::Cast { expr, .. }
+        | Expr::Collate { expr, .. }
         | Expr::UnaryNumeric { expr, .. }
         | Expr::IntegerNegate { expr, .. }
         | Expr::IsNull { expr, .. }

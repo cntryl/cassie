@@ -1,4 +1,5 @@
 pub(crate) mod array;
+pub mod array_value;
 pub(crate) mod boolean;
 pub(crate) mod builtin;
 pub(crate) mod bytea_input;
@@ -24,6 +25,7 @@ pub(crate) mod uuid_text;
 pub mod value;
 pub mod vector;
 
+pub use array_value::{ArrayDimension, SqlArray};
 pub use boolean::BooleanInputError;
 pub use bytea_input::ByteaInputError;
 pub use float_input::FloatInputError;

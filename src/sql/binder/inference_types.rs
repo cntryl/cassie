@@ -43,6 +43,16 @@ pub(super) fn infer_concatenation_type(
         infer_expr_type(left, source_schema, user_functions, parameter_types),
         infer_expr_type(right, source_schema, user_functions, parameter_types),
     ];
+    if matches!(right, Expr::StringLiteral(_)) {
+        if let Some(Some(DataType::Array(element))) = operands.first() {
+            return Some(DataType::Array(element.clone()));
+        }
+    }
+    if matches!(left, Expr::StringLiteral(_)) {
+        if let Some(Some(DataType::Array(element))) = operands.get(1) {
+            return Some(DataType::Array(element.clone()));
+        }
+    }
     if operands
         .iter()
         .all(|kind| matches!(kind, Some(DataType::Null) | None))
@@ -50,6 +60,17 @@ pub(super) fn infer_concatenation_type(
             || super::super::validation::expr_contains_parameters(right))
     {
         None
+    } else if let [Some(DataType::Array(left_element)), Some(DataType::Array(right_element))] =
+        &operands
+    {
+        common_case_type((**left_element).clone(), (**right_element).clone())
+            .map(|element| DataType::Array(Box::new(element)))
+    } else if let [Some(DataType::Array(element)), Some(scalar)] = &operands {
+        common_case_type((**element).clone(), scalar.clone())
+            .map(|element| DataType::Array(Box::new(element)))
+    } else if let [Some(scalar), Some(DataType::Array(element))] = &operands {
+        common_case_type(scalar.clone(), (**element).clone())
+            .map(|element| DataType::Array(Box::new(element)))
     } else if operands.iter().flatten().any(DataType::is_json)
         && operands.iter().all(|kind| {
             matches!(

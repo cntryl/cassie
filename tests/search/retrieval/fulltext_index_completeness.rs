@@ -152,7 +152,7 @@ fn should_fallback_before_top_k_publishes_a_dangling_candidate() {
         .raw_scan_prefix(StorageFamily::Data, b"")
         .expect("data records")
         .into_iter()
-        .find(|(_, value)| value.starts_with(b"CRB2"))
+        .find(|(_, value)| value.starts_with(b"CRB3"))
         .map(|(key, _)| key)
         .expect("source row");
     delete_data_key(&cassie, source_key);

@@ -77,13 +77,13 @@ fn should_preserve_integer_bytea_casts_in_binary_result_format() {
     );
     assert_eq!(
         data_row_bytes(result),
-        vec![
+        vec![vec![
             vec![0x80, 0x00],
             vec![0x7f, 0xff, 0xff, 0xff],
             vec![0x80, 0, 0, 0, 0, 0, 0, 0],
             vec![0x80, 0x00],
             vec![0x7f, 0xff, 0xff, 0xff],
             vec![0x80, 0, 0, 0, 0, 0, 0, 0],
-        ]
+        ]]
     );
 }

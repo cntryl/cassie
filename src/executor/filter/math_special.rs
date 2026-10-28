@@ -242,6 +242,24 @@ pub(super) fn width_bucket_array(operand: &Value, thresholds: &Value) -> Result<
     if matches!(operand, Value::Null) || matches!(thresholds, Value::Null) {
         return Ok(Value::Null);
     }
+    if let Value::Array(array) = thresholds {
+        if array.dimensions().len() > 1 {
+            return Err(error("2202E", "thresholds must be one-dimensional array"));
+        }
+        if array
+            .elements()
+            .iter()
+            .any(|value| matches!(value, Value::Null))
+        {
+            return Err(error("22004", "thresholds array must not contain NULLs"));
+        }
+        let position = array.elements().partition_point(|bound| {
+            crate::types::semantic::compare_values(bound, operand) != std::cmp::Ordering::Greater
+        });
+        return Ok(Value::Int64(
+            i64::try_from(position).map_err(|_| out_of_range())?,
+        ));
+    }
     let operand = to_f64(operand)?;
     let bounds = match thresholds {
         Value::Json(serde_json::Value::Array(items)) => items

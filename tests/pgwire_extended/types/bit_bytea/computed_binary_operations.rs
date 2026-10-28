@@ -48,7 +48,7 @@ fn should_encode_computed_bit_string_operations_in_binary_results() {
     );
     assert_eq!(
         data_row_bytes(result),
-        vec![
+        vec![vec![
             vec![0, 0, 0, 5, 0b0010_1000],
             vec![0, 0, 0, 5, 0b1011_1000],
             vec![0, 0, 0, 5, 0b1001_0000],
@@ -56,6 +56,6 @@ fn should_encode_computed_bit_string_operations_in_binary_results() {
             vec![0, 0, 0, 3, 0b0100_0000],
             vec![0, 0, 0, 1],
             vec![0, 0, 0, 0, 0, 0, 0, 4],
-        ]
+        ]]
     );
 }

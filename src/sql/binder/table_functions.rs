@@ -38,6 +38,7 @@ fn validate_graph_table_function(
         1
     } else {
         match function.name.to_ascii_lowercase().as_str() {
+            "pg_input_error_info" | "pg_catalog.pg_input_error_info" => 2,
             "pg_show_all_settings" | "pg_catalog.pg_show_all_settings" => 0,
             "graph_neighbors" => 6,
             "graph_expand" => 7,
@@ -45,7 +46,7 @@ fn validate_graph_table_function(
             other => {
                 return Err(CassieError::Planner(format!(
                     "unsupported table function '{other}'"
-                )))
+                )));
             }
         }
     };

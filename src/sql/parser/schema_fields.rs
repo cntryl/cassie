@@ -14,6 +14,11 @@ pub(super) fn parse_field_definition_for_table(
     raw: &str,
     table: Option<&str>,
 ) -> Result<FieldDefinition, SqlError> {
+    if super::super::clauses::find_top_level_keyword_span(raw, 0, "collate").is_some() {
+        return Err(SqlError::unsupported(
+            "column collation metadata is not supported in this version".into(),
+        ));
+    }
     let mut parts = tokenize_schema_field(raw).into_iter().peekable();
     let name = parse_field_name(&mut parts)?;
     let type_token = parse_field_type_token(&mut parts, &name)?;
@@ -156,12 +161,41 @@ fn parse_field_type_token(
             type_token = format!("{type_token} {zone_modifier} {time} {zone}");
         }
     }
+    if parts
+        .peek()
+        .is_some_and(|next| is_sql_standard_array_suffix_token(next))
+    {
+        let suffix = parts
+            .next()
+            .ok_or_else(|| SqlError::new("missing SQL array type suffix".into()))?;
+        let is_array_keyword = suffix.eq_ignore_ascii_case("array");
+        type_token = format!("{type_token} {suffix}");
+        if is_array_keyword
+            && parts
+                .peek()
+                .is_some_and(|next| next.trim_start().starts_with('['))
+        {
+            let dimensions = parts
+                .next()
+                .ok_or_else(|| SqlError::new("missing SQL array dimensions".into()))?;
+            type_token.push_str(&dimensions);
+        }
+    }
     if type_token.is_empty() {
         return Err(SqlError::new(format!(
             "missing data type for column '{name}'"
         )));
     }
     Ok(type_token)
+}
+
+fn is_sql_standard_array_suffix_token(token: &str) -> bool {
+    let token = token.trim();
+    token.eq_ignore_ascii_case("array")
+        || token
+            .get(..5)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("array"))
+            && token[5..].trim_start().starts_with('[')
 }
 
 fn is_varying_type_token(token: &str) -> bool {
@@ -393,6 +427,68 @@ fn parse_field_data_type(
 #[cfg(test)]
 mod tests {
     use super::parse_field_type_token;
+
+    #[test]
+    fn should_parse_sql_standard_array_type_suffixes_without_declared_bounds() {
+        // Arrange
+        let declarations = [
+            "value INTEGER ARRAY[4]",
+            "value INTEGER ARRAY",
+            "value INTEGER ARRAY [4]",
+            "value VARCHAR(12) ARRAY[4]",
+            "value pg_catalog.int4 ARRAY[4]",
+        ];
+        let expected = [
+            crate::types::DataType::Array(Box::new(crate::types::DataType::Int)),
+            crate::types::DataType::Array(Box::new(crate::types::DataType::Int)),
+            crate::types::DataType::Array(Box::new(crate::types::DataType::Int)),
+            crate::types::DataType::Array(Box::new(crate::types::DataType::Varchar {
+                length: Some(12),
+            })),
+            crate::types::DataType::Array(Box::new(crate::types::DataType::Int)),
+        ];
+
+        // Act
+        let parsed = declarations.map(|declaration| {
+            super::parse_field_definition(declaration)
+                .expect("parse SQL-standard array declaration")
+                .data_type
+        });
+
+        // Assert
+        for (data_type, expected) in parsed.into_iter().zip(expected) {
+            assert_eq!(data_type, expected);
+        }
+        assert!(super::parse_data_type("INTEGER ARRAY[not-a-number]").is_err());
+        assert!(super::parse_data_type("INTEGER ARRAY[4] trailing").is_err());
+        assert!(super::parse_data_type("INTEGER[] ARRAY[4]").is_err());
+        assert!(super::parse_data_type("JSONPATH ARRAY[4]").is_err());
+        let quoted_type = super::parse_data_type("\"custom array\"")
+            .expect_err("quoted type name is not an array suffix");
+        assert!(!quoted_type
+            .to_string()
+            .contains("SQL array type dimensions"));
+        let unicode_type =
+            super::parse_data_type("\"café array\"").expect_err("unknown quoted Unicode type name");
+        assert!(!unicode_type
+            .to_string()
+            .contains("SQL array type dimensions"));
+        let escaped_quoted_type = super::parse_data_type("\"custom\"\" array\"")
+            .expect_err("unknown quoted type name with an escaped quote");
+        assert!(!escaped_quoted_type
+            .to_string()
+            .contains("SQL array type dimensions"));
+        for not_a_suffix in [
+            "INTEGERARRAY[4]",
+            "INTEGER ARRAY[4] ARRAY[5]",
+            "VARCHAR(12 ARRAY[4])",
+            "\"custom array\" ARRAY[4]",
+        ] {
+            let error = super::parse_data_type(not_a_suffix)
+                .expect_err("only one final top-level ARRAY suffix is supported");
+            assert!(!error.to_string().contains("SQL array type dimensions"));
+        }
+    }
 
     #[test]
     fn should_join_varying_only_at_the_type_name_boundary() {

@@ -106,7 +106,12 @@ fn should_enforce_numeric_digit_limits_given_dead_integer_conversions_when_state
     });
     let steps = cases
         .iter()
-        .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+        .map(|sql| {
+            Step::ThroughReadyWithin(
+                vec![wire::simple_query_frame(sql)],
+                std::time::Duration::from_secs(15),
+            )
+        })
         .collect();
     // Act
     let batches = run_script("exact-integer-native-digit-limit", steps);

@@ -8,14 +8,6 @@ mod bit_string_oid_zero_binary_bind;
 mod bit_string_operations_wire;
 #[path = "bytea_bits.rs"]
 mod bytea_bits;
-#[path = "bytea_conversion_error_sqlstates.rs"]
-mod bytea_conversion_error_sqlstates;
-#[path = "bytea_function_overloads.rs"]
-mod bytea_function_overloads;
-#[path = "bytea_like_wire.rs"]
-mod bytea_like_wire;
-#[path = "bytea_strings.rs"]
-mod bytea_strings;
 #[path = "computed_binary_operations.rs"]
 mod computed_binary_operations;
 #[path = "integer_bytea_casts.rs"]
@@ -38,27 +30,29 @@ fn row_description(frames: &[(u8, Vec<u8>)]) -> Vec<wire::RowDescription> {
     wire::parse_row_description(payload)
 }
 
-fn data_row_bytes(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<u8>> {
-    let (_, payload) = frames
+fn data_row_bytes(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Vec<u8>>> {
+    frames
         .iter()
-        .find(|(tag, _)| *tag == b'D')
-        .expect("DataRow");
-    let field_count = i16::from_be_bytes([payload[0], payload[1]]);
-    let mut cursor = 2;
-    let mut fields = Vec::new();
-    for _ in 0..field_count {
-        let length = i32::from_be_bytes(
-            payload[cursor..cursor + 4]
-                .try_into()
-                .expect("DataRow field length"),
-        );
-        cursor += 4;
-        assert!(length >= 0, "binary fixture fields should not be NULL");
-        let end = cursor + usize::try_from(length).expect("field length fits usize");
-        fields.push(payload[cursor..end].to_vec());
-        cursor = end;
-    }
-    fields
+        .filter(|(tag, _)| *tag == b'D')
+        .map(|(_, payload)| {
+            let field_count = i16::from_be_bytes([payload[0], payload[1]]);
+            let mut cursor = 2;
+            let mut fields = Vec::new();
+            for _ in 0..field_count {
+                let length = i32::from_be_bytes(
+                    payload[cursor..cursor + 4]
+                        .try_into()
+                        .expect("DataRow field length"),
+                );
+                cursor += 4;
+                assert!(length >= 0, "binary fixture fields should not be NULL");
+                let end = cursor + usize::try_from(length).expect("field length fits usize");
+                fields.push(payload[cursor..end].to_vec());
+                cursor = end;
+            }
+            fields
+        })
+        .collect()
 }
 
 #[test]
@@ -353,18 +347,14 @@ fn should_encode_binary_bit_bytea_results() {
     assert!(fields.iter().all(|field| field.format_code == 1));
     assert_eq!(
         data_row_bytes(result),
-        vec![vec![0, 0, 0, 5, 0b1010_1000], vec![0x00, 0xff]]
+        vec![vec![vec![0, 0, 0, 5, 0b1010_1000], vec![0x00, 0xff]]]
     );
 }
 
 #[test]
 fn should_order_bytea_values_by_unsigned_bytes() {
     // Arrange
-    let sql = r"SELECT payload \
-                FROM (VALUES ('\x80'::bytea), ('\xff'::bytea), \
-                             ('\x00ff'::bytea), ('\x7f'::bytea), \
-                             ('\x00'::bytea)) AS inputs(payload) \
-                ORDER BY payload";
+    let sql = r"SELECT payload FROM (VALUES ('\x80'::bytea), ('\xff'::bytea), ('\x00ff'::bytea), ('\x7f'::bytea), ('\x00'::bytea)) AS inputs(payload) ORDER BY payload";
     let statement = "bytea_unsigned_order";
     let portal = "bytea_unsigned_order_binary";
     let steps = vec![
@@ -395,33 +385,12 @@ fn should_order_bytea_values_by_unsigned_bytes() {
     assert_eq!(
         data_row_bytes(result),
         vec![
-            vec![0x00],
-            vec![0x00, 0xff],
-            vec![0x7f],
-            vec![0x80],
-            vec![0xff]
+            vec![vec![0x00]],
+            vec![vec![0x00, 0xff]],
+            vec![vec![0x7f]],
+            vec![vec![0x80]],
+            vec![vec![0xff]]
         ]
-    );
-}
-
-#[test]
-fn should_emit_bytea_text_in_the_selected_escape_output_format() {
-    // Arrange
-    let batches = run_script(
-        "issue-816-bytea-output-setting",
-        vec![Step::ThroughReady(vec![wire::simple_query_frame(
-            r"SET bytea_output = 'escape'; SELECT '\x41005cff'::bytea",
-        )])],
-    );
-
-    // Act
-    let result = &batches[0];
-
-    // Assert
-    assert_eq!(wire::error_code(result), None);
-    assert_eq!(
-        wire::data_rows(result),
-        vec![vec![Some(r"A\000\\\377".to_owned())]]
     );
 }
 

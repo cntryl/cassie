@@ -5,8 +5,9 @@
 //! a value the column can hold. A default the column could never accept is
 //! rejected here, before any metadata is written.
 
-use super::{AlterTableOperation, CassieError, CollectionSchema, DataType};
+use super::{AlterTableOperation, CassieError, CollectionSchema};
 use crate::catalog::FieldConstraint;
+use crate::types::DataType;
 
 pub(super) fn bind_constraint_defaults(
     field: &str,

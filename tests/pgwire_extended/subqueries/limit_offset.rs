@@ -10,8 +10,10 @@ fn should_apply_scalar_subquery_to_limit_expression() {
         "issue-762-limit-subquery",
         vec![
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "CREATE TABLE issue_762_limit_values (id INT4 PRIMARY KEY); \
-                 INSERT INTO issue_762_limit_values VALUES (1), (2), (3), (4)",
+                "CREATE TABLE issue_762_limit_values (id INT4 PRIMARY KEY)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "INSERT INTO issue_762_limit_values VALUES (1), (2), (3), (4)",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
                 "SELECT id FROM issue_762_limit_values ORDER BY id \
@@ -22,10 +24,12 @@ fn should_apply_scalar_subquery_to_limit_expression() {
 
     // Act
     let setup = &batches[0];
-    let result = &batches[1];
+    let insert = &batches[1];
+    let result = &batches[2];
 
     // Assert
     assert_eq!(wire::error_code(setup), None);
+    assert_eq!(wire::error_code(insert), None);
     assert_eq!(wire::error_code(result), None);
     let description = result
         .iter()
@@ -51,8 +55,10 @@ fn should_apply_scalar_subquery_to_offset_expression() {
         "issue-762-offset-subquery",
         vec![
             Step::ThroughReady(vec![wire::simple_query_frame(
-                "CREATE TABLE issue_762_offset_values (id INT4 PRIMARY KEY); \
-                 INSERT INTO issue_762_offset_values VALUES (1), (2), (3), (4)",
+                "CREATE TABLE issue_762_offset_values (id INT4 PRIMARY KEY)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "INSERT INTO issue_762_offset_values VALUES (1), (2), (3), (4)",
             )]),
             Step::ThroughReady(vec![wire::simple_query_frame(
                 "SELECT id FROM issue_762_offset_values ORDER BY id \
@@ -63,10 +69,12 @@ fn should_apply_scalar_subquery_to_offset_expression() {
 
     // Act
     let setup = &batches[0];
-    let result = &batches[1];
+    let insert = &batches[1];
+    let result = &batches[2];
 
     // Assert
     assert_eq!(wire::error_code(setup), None);
+    assert_eq!(wire::error_code(insert), None);
     assert_eq!(wire::error_code(result), None);
     let description = result
         .iter()

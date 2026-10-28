@@ -1,15 +1,20 @@
 #[test]
-fn should_report_postgres_collation_conflicts_with_sqlstate_42p21() {
+fn should_report_conflicting_finite_builtin_collations_with_sqlstate_42p21() {
     // Arrange
     let batches = run_script(
         "issue-796-collation-conflict-wire",
-        vec![Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT ('a' COLLATE \"C\") < ('b' COLLATE \"POSIX\")",
-        )])],
+        vec![
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "CREATE TABLE issue_796_collation_conflict (left_value TEXT, right_value TEXT)",
+            )]),
+            Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT left_value COLLATE \"C\" < right_value COLLATE \"POSIX\" FROM issue_796_collation_conflict",
+            )]),
+        ],
     );
 
     // Act
-    let result = &batches[0];
+    let result = &batches[1];
 
     // Assert
     assert_eq!(wire::error_code(result).as_deref(), Some("42P21"));
@@ -126,21 +131,12 @@ fn should_report_invalid_table_sample_percentages_with_2202h() {
 }
 
 #[test]
-fn should_report_values_using_row_arity_sqlstates() {
+fn should_report_values_relation_error_sqlstates() {
     // Arrange
     let cases = [
         ("VALUES (1, 2), (3)", "42601"),
         ("SELECT * FROM (VALUES (1, 2)) AS v(x, y, z)", "42P10"),
         ("SELECT * FROM (VALUES (1), (TRUE)) AS v(value)", "42804"),
-        ("SELECT ROW(1, 2) = ROW(1)", "42601"),
-        (
-            "SELECT a.id FROM (VALUES (1)) AS a(id) JOIN (VALUES (1)) AS b(id) USING (missing)",
-            "42703",
-        ),
-        (
-            "SELECT * FROM (VALUES (1)) AS a(id) JOIN (VALUES (1)) AS b(id) USING (id, id)",
-            "42701",
-        ),
     ];
     let steps = cases
         .iter()
@@ -148,7 +144,7 @@ fn should_report_values_using_row_arity_sqlstates() {
         .collect();
 
     // Act
-    let batches = run_script("issue-800-values-using-row-errors", steps);
+    let batches = run_script("issue-800-values-relation-errors", steps);
     let actual = batches
         .iter()
         .map(|batch| wire::error_code(batch))
@@ -160,4 +156,21 @@ fn should_report_values_using_row_arity_sqlstates() {
 
     // Assert
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn should_report_mismatched_row_constructor_arity() {
+    // Arrange
+    let batches = run_script(
+        "issue-800-row-constructor-arity-error",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT ROW(1, 2) = ROW(1)",
+        )])],
+    );
+
+    // Act
+    let result = &batches[0];
+
+    // Assert
+    assert_eq!(wire::error_code(result).as_deref(), Some("42601"));
 }

@@ -199,12 +199,26 @@ fn evaluate_fractions(
     if matches!(fraction, Value::Null) {
         return Ok(None);
     }
-    let is_array = matches!(&fraction, Value::Json(serde_json::Value::Array(_)));
+    let is_array = matches!(
+        &fraction,
+        Value::Json(serde_json::Value::Array(_)) | Value::Array(_)
+    );
     let numeric_text_array = fraction_array_has_numeric_element_type(function);
     let fractions = match fraction {
         Value::Json(serde_json::Value::Array(fractions)) => fractions
             .iter()
             .map(|value| parse_array_fraction(value, numeric_text_array))
+            .collect::<Result<Vec<_>, _>>()?,
+        Value::Array(fractions) => fractions
+            .elements()
+            .iter()
+            .map(|value| {
+                if value.is_null() {
+                    Ok(None)
+                } else {
+                    parse_fraction(value).map(Some)
+                }
+            })
             .collect::<Result<Vec<_>, _>>()?,
         scalar => vec![Some(parse_fraction(&scalar)?)],
     };
@@ -478,6 +492,7 @@ fn to_json(value: Value) -> serde_json::Value {
         ),
         Value::Json(value) => value,
         Value::Typed(value) => value.to_json(),
+        Value::Array(value) => value.to_nested_json(),
     }
 }
 

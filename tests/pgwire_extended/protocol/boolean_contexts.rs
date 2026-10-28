@@ -8,17 +8,16 @@ type WireFrame = (u8, Vec<u8>);
 #[test]
 fn should_decode_canonical_boolean_elements_in_declared_text_array_bind() {
     // Arrange
-    // Preserve Cassie's current synthetic ARRAY OID and JSON text output.
-    // PostgreSQL ARRAY OID/output parity belongs to the separate #752 profile.
+    // Use the selected PostgreSQL ARRAY identity and text output contract.
     let oid = i32::try_from(DataType::Array(Box::new(DataType::Boolean)).type_oid())
         .expect("current declared ARRAY OID");
     let cases = [
         (
             "SELECT $1 AS flags",
             "{tr,of,NULL,\"  Ye  \"}",
-            Some("[true,false,null,true]"),
+            Some("{t,f,NULL,t}"),
         ),
-        ("SELECT $1 AS flags", "{}", Some("[]")),
+        ("SELECT $1 AS flags", "{}", Some("{}")),
         ("SELECT $1 AS flags LIMIT 0", "{tr,of,NULL}", None),
     ];
     let cycles = cases

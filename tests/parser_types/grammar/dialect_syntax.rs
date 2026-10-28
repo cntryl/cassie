@@ -231,18 +231,27 @@ fn should_preserve_combining_mark_identifier_operator_boundaries() {
 }
 
 #[test]
-fn should_preserve_rejection_of_excluded_operator_families() {
+fn should_parse_user_defined_operator_tokens_before_operator_resolution() {
     // Arrange
     let expressions = [
-        "n->'x'", "n~'x'", "n@>2", "n?=2", "n~+2", "n|+2", "n#>2", "n<=>2",
+        ("n->'x'", true),
+        ("n~'x'", true),
+        ("n@>2", true),
+        ("n?=2", false),
+        ("n~+2", true),
+        ("n|+2", false),
+        ("n#>2", true),
+        ("n<=>2", false),
     ];
 
     // Act
-    let parsed =
-        expressions.map(|expression| parse_statement(&format!("SELECT {expression} FROM records")));
+    let parsed = expressions
+        .map(|(expression, _)| parse_statement(&format!("SELECT {expression} FROM records")));
 
     // Assert
-    assert!(parsed.into_iter().all(|result| result.is_err()));
+    for ((expression, expected), result) in expressions.into_iter().zip(parsed) {
+        assert_eq!(result.is_ok(), expected, "{expression}");
+    }
 }
 
 #[test]

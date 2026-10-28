@@ -25,8 +25,8 @@ include!("ordered_set/aggregate_semantic_edges.rs");
 
 include!("bit_bytea/aggregate_semantic_edges.rs");
 
+include!("windows/aggregate_semantic_edges.rs");
+
 include!("arrays/aggregate_semantic_edges.rs");
 
 include!("json/aggregate_semantic_edges.rs");
-
-include!("windows/aggregate_semantic_edges.rs");

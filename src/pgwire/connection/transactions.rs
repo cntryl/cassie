@@ -50,6 +50,12 @@ pub(super) async fn finish_query(
         }
     }
     clear_idle_portals(runtime, state, session);
+    super::writers::write_changed_parameter_statuses(
+        write_half,
+        session,
+        &mut state.parameter_statuses,
+    )
+    .await?;
     super::write_ready_for_query(write_half, session).await
 }
 

@@ -1,5 +1,4 @@
 //! Declared ARRAY ordering without changing JSON values or storage encoding.
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::ControlFlow;
@@ -9,7 +8,7 @@ use crate::sql::ast::{CteSearchOrder, Expr};
 use crate::types::{DataType, Schema, Value};
 
 use super::batch::RowAccess;
-use super::semantic::{compare_array_parts, SemanticValue};
+use super::semantic::SemanticValue;
 
 const CTE_LINEAGE_COLUMN_PREFIX: &str = "\0cassie_cte_lineage:";
 
@@ -145,6 +144,31 @@ fn typed_key(value: &Value, data_type: Option<&DataType>) -> SemanticValue {
         return SemanticValue::from_value(value);
     };
     match value {
+        Value::Array(array) if matches!(element_type.as_ref(), DataType::Vector(_)) => {
+            SemanticValue::SqlArray {
+                dimensions: array
+                    .dimensions()
+                    .iter()
+                    .map(|dimension| (dimension.length, dimension.lower_bound))
+                    .collect(),
+                elements: array
+                    .elements()
+                    .iter()
+                    .map(|element| match element {
+                        Value::Vector(vector) => SemanticValue::Array(
+                            vector
+                                .values
+                                .iter()
+                                .map(|value| {
+                                    SemanticValue::from_value(&Value::Float64(f64::from(*value)))
+                                })
+                                .collect(),
+                        ),
+                        value => SemanticValue::from_value(value),
+                    })
+                    .collect(),
+            }
+        }
         Value::Json(json) => {
             array_key(json, element_type).unwrap_or_else(|| SemanticValue::from_value(value))
         }
@@ -278,50 +302,28 @@ pub(super) fn compare<R: RowAccess + ?Sized>(
     else {
         return None;
     };
-    let left = array_value(left.1)?;
-    let right = array_value(right.1)?;
-    Some(compare_arrays(
-        left.as_array()?,
-        &left_type,
-        right.as_array()?,
-        &right_type,
-    ))
+    let left = array_value(left.1, &left_type)?;
+    let right = array_value(right.1, &right_type)?;
+    crate::executor::filter::compare_sql_arrays(&left, &right)
 }
 
-fn array_value(value: &Value) -> Option<Cow<'_, serde_json::Value>> {
+fn array_value(value: &Value, element_type: &DataType) -> Option<crate::types::SqlArray> {
     match value {
-        Value::Json(value) => Some(Cow::Borrowed(value)),
-        Value::String(text) => serde_json::from_str(text).ok().map(Cow::Owned),
+        Value::Array(array) => Some(array.clone()),
+        Value::Json(value) => {
+            crate::types::SqlArray::from_nested_json_typed(value, element_type).ok()
+        }
+        Value::String(text) => serde_json::from_str(text)
+            .ok()
+            .and_then(|value| {
+                crate::types::SqlArray::from_nested_json_typed(&value, element_type).ok()
+            })
+            .or_else(|| {
+                let value = crate::types::array::parse_text_array(text, element_type).ok()?;
+                crate::types::SqlArray::from_nested_json_typed(&value, element_type).ok()
+            }),
         _ => None,
     }
-}
-
-// Predicates compare borrowed elements rather than retaining a key for every
-// element. Sort and aggregate keys use the same element and prefix semantics.
-fn compare_arrays(
-    left: &[serde_json::Value],
-    left_type: &DataType,
-    right: &[serde_json::Value],
-    right_type: &DataType,
-) -> Ordering {
-    compare_array_parts(left, right, |left, right| {
-        match (left.is_null(), right.is_null()) {
-            (true, false) => Ordering::Greater,
-            (false, true) => Ordering::Less,
-            (true, true) => Ordering::Equal,
-            (false, false) => {
-                if matches!(
-                    (left_type, right_type),
-                    (DataType::Vector(_), DataType::Vector(_))
-                ) {
-                    if let (Some(left), Some(right)) = (left.as_array(), right.as_array()) {
-                        return compare_arrays(left, &DataType::Float, right, &DataType::Float);
-                    }
-                }
-                element_key(left, left_type).cmp(&element_key(right, right_type))
-            }
-        }
-    })
 }
 
 fn parameter_context(expr: &Expr) -> bool {

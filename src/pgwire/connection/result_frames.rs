@@ -169,13 +169,17 @@ fn scratch_bytes(
                 .columns()
                 .get(index)
                 .map_or(25, |column| column.type_oid);
+            let atttypmod = result
+                .columns()
+                .get(index)
+                .map_or(-1, |column| column.atttypmod);
             let format = match formats.len() {
                 0 => 0,
                 1 => formats[0],
                 _ => formats.get(index).copied().unwrap_or(0),
             };
             let postgres_array_text = postgres_array_text_columns.binary_search(&index).is_ok();
-            let cell = cell_bytes(value, oid, format, postgres_array_text)?;
+            let cell = cell_bytes(value, oid, atttypmod, format, postgres_array_text)?;
             payload = add(payload, cell.encoded)?;
             cell_scratch = cell_scratch.max(cell.scratch);
         }
@@ -200,6 +204,7 @@ struct CellBytes {
 fn cell_bytes(
     value: &Value,
     oid: i64,
+    atttypmod: i32,
     format: i16,
     postgres_array_text: bool,
 ) -> Result<CellBytes, CassieError> {
@@ -209,42 +214,14 @@ fn cell_bytes(
             scratch: 0,
         });
     }
-    if format == 0 && postgres_array_text {
+    if format == 0 && (postgres_array_text || array_element_oid(oid).is_some()) {
         return postgres_array_text_bytes(value);
     }
+    if format == 1 && oid == 1042 && atttypmod >= 4 {
+        return bpchar_cell_bytes(value, atttypmod);
+    }
     if oid == 3802 {
-        let (encoded, scratch) = match value {
-            Value::Json(value) => {
-                let encoded =
-                    crate::types::jsonb::text_len(value).map_err(CassieError::TypeInput)?;
-                (
-                    encoded,
-                    add(
-                        mul(encoded.max(8), 8)?,
-                        crate::runtime::accounted::json::retained_bytes(value)?,
-                    )?,
-                )
-            }
-            Value::String(text) => {
-                let encoded =
-                    crate::types::jsonb::input_text_len(text).map_err(CassieError::TypeInput)?;
-                (
-                    encoded,
-                    add(
-                        mul(encoded.max(8), 8)?,
-                        crate::runtime::accounted::json::serialized_decode_bytes(text.len())?,
-                    )?,
-                )
-            }
-            _ => {
-                let bytes = text_bytes(value)?;
-                (bytes.encoded, bytes.scratch)
-            }
-        };
-        return Ok(CellBytes {
-            encoded: add(encoded, usize::from(format == 1))?,
-            scratch,
-        });
+        return jsonb_cell_bytes(value, format);
     }
     if format == 0 || matches!(oid, 25 | 1042 | 1043 | 705) {
         return text_bytes(value);
@@ -256,20 +233,8 @@ fn cell_bytes(
             scratch: encoded,
         });
     }
-    if let (Some(element_oid), Value::Json(serde_json::Value::Array(values))) =
-        (array_element_oid(oid), value)
-    {
-        let mut encoded = if values.is_empty() { 12 } else { 20 };
-        let mut element_scratch = 0;
-        for value in values {
-            let cell = array_element_bytes(value, element_oid)?;
-            encoded = add(encoded, add(4, cell.encoded)?)?;
-            element_scratch = element_scratch.max(cell.scratch);
-        }
-        return Ok(CellBytes {
-            encoded,
-            scratch: add(mul(encoded.max(8), 3)?, element_scratch)?,
-        });
+    if let Some(bytes) = array_cell_bytes(value, oid)? {
+        return Ok(bytes);
     }
     if oid == 114 {
         return match value {
@@ -296,6 +261,83 @@ fn cell_bytes(
         _ => encoded,
     };
     Ok(CellBytes { encoded, scratch })
+}
+
+fn bpchar_cell_bytes(value: &Value, atttypmod: i32) -> Result<CellBytes, CassieError> {
+    let Value::String(text) = value else {
+        return text_bytes(value);
+    };
+    let width = usize::try_from(atttypmod - 4).map_err(|_| {
+        CassieError::ResourceLimit("bpchar typmod exceeds the supported range".into())
+    })?;
+    let padding = width.saturating_sub(text.chars().count());
+    let encoded = add(text.len(), padding)?;
+    Ok(CellBytes {
+        encoded,
+        scratch: add(encoded, mul(text.len().max(8), 3)?)?,
+    })
+}
+
+fn jsonb_cell_bytes(value: &Value, format: i16) -> Result<CellBytes, CassieError> {
+    let (encoded, scratch) = match value {
+        Value::Json(value) => {
+            let encoded = crate::types::jsonb::text_len(value).map_err(CassieError::TypeInput)?;
+            (
+                encoded,
+                add(
+                    mul(encoded.max(8), 8)?,
+                    crate::runtime::accounted::json::retained_bytes(value)?,
+                )?,
+            )
+        }
+        Value::String(text) => {
+            let encoded =
+                crate::types::jsonb::input_text_len(text).map_err(CassieError::TypeInput)?;
+            (
+                encoded,
+                add(
+                    mul(encoded.max(8), 8)?,
+                    crate::runtime::accounted::json::serialized_decode_bytes(text.len())?,
+                )?,
+            )
+        }
+        _ => {
+            let bytes = text_bytes(value)?;
+            (bytes.encoded, bytes.scratch)
+        }
+    };
+    Ok(CellBytes {
+        encoded: add(encoded, usize::from(format == 1))?,
+        scratch,
+    })
+}
+
+fn array_cell_bytes(value: &Value, oid: i64) -> Result<Option<CellBytes>, CassieError> {
+    let Some(element_oid) = array_element_oid(oid) else {
+        return Ok(None);
+    };
+    let owned;
+    let (values, dimension_count) = match value {
+        Value::Json(serde_json::Value::Array(values)) => {
+            (values.as_slice(), usize::from(!values.is_empty()))
+        }
+        Value::Array(array) => {
+            owned = array.elements_as_json();
+            (owned.as_slice(), array.dimensions().len())
+        }
+        _ => return Ok(None),
+    };
+    let mut encoded = add(12, mul(dimension_count, 8)?)?;
+    let mut element_scratch = 0;
+    for value in values {
+        let cell = array_element_bytes(value, element_oid)?;
+        encoded = add(encoded, add(4, cell.encoded)?)?;
+        element_scratch = element_scratch.max(cell.scratch);
+    }
+    Ok(Some(CellBytes {
+        encoded,
+        scratch: add(mul(encoded.max(8), 3)?, element_scratch)?,
+    }))
 }
 
 fn array_element_oid(array_oid: i64) -> Option<i64> {
@@ -337,6 +379,10 @@ fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
             )?;
             return Ok(CellBytes { encoded, scratch });
         }
+        Value::Array(array) => {
+            let json = array.to_nested_json();
+            return json_bytes(&json);
+        }
     };
     Ok(CellBytes {
         encoded,
@@ -345,11 +391,13 @@ fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
 }
 
 fn postgres_array_text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
-    let Value::Json(array) = value else {
-        return text_bytes(value);
+    let array = match value {
+        Value::Json(array) => array.clone(),
+        Value::Array(array) => array.to_nested_json(),
+        _ => return text_bytes(value),
     };
     let element_count = array.as_array().map_or(0, Vec::len);
-    let json_bytes = serialized_json_bytes(array)?;
+    let json_bytes = serialized_json_bytes(&array)?;
     // Array quoting can expand each element; also admit the temporary String
     // directory used while joining PostgreSQL's text representation.
     let encoded = add(add(mul(json_bytes, 4)?, mul(element_count, 2)?)?, 2)?;
@@ -393,14 +441,14 @@ fn array_element_bytes(value: &serde_json::Value, oid: i64) -> Result<CellBytes,
         return json_bytes(value);
     }
     match value {
-        serde_json::Value::Bool(value) => cell_bytes(&Value::Bool(*value), oid, 1, false),
+        serde_json::Value::Bool(value) => cell_bytes(&Value::Bool(*value), oid, -1, 1, false),
         serde_json::Value::Number(value) => {
             let value = value
                 .as_i64()
                 .map(Value::Int64)
                 .or_else(|| value.as_f64().map(Value::Float64))
                 .unwrap_or(Value::Null);
-            cell_bytes(&value, oid, 1, false)
+            cell_bytes(&value, oid, -1, 1, false)
         }
         serde_json::Value::String(text) => {
             let encoded = if matches!(oid, 25 | 1042 | 1043 | 705) {

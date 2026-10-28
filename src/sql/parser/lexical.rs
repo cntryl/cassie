@@ -94,7 +94,7 @@ pub(super) fn quoted_end(input: &str, start: usize) -> Option<usize> {
     dollar_quoted_end(input, start)
 }
 
-fn comment_end(input: &str, start: usize) -> Option<usize> {
+pub(super) fn comment_end(input: &str, start: usize) -> Option<usize> {
     let bytes = input.as_bytes();
     if bytes.get(start..start + 2) == Some(b"--") {
         return Some(

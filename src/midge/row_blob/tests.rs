@@ -109,14 +109,78 @@ fn should_roundtrip_binary_temporal_uuid_array_fields() {
             "created_on": "2026-06-18",
             "created_at": "2026-06-18T12:34:56.000000Z",
             "updated_at": "12:34:56",
-            "ints": [1, 2, 3],
+            "ints": SqlArray::from_nested_json_typed(
+                &serde_json::json!([1, 2, 3]),
+                &DataType::Int,
+            )
+                .unwrap()
+                .to_storage_json(),
         })
     );
-    assert_eq!(&encoded[0..4], b"CRB2");
+    assert_eq!(&encoded[0..4], b"CRB3");
 }
 
 #[test]
-fn should_roundtrip_crb2_text_arrays_with_nulls_in_every_position() {
+fn should_persist_array_bounds_shape_and_distinct_null_values() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "matrix".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Int)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "documents".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Jsonb)),
+                nullable: true,
+            },
+        ],
+    });
+    let matrix = SqlArray::new(
+        vec![
+            ArrayDimension {
+                length: 2,
+                lower_bound: -1,
+            },
+            ArrayDimension {
+                length: 2,
+                lower_bound: 4,
+            },
+        ],
+        vec![
+            Value::Int64(1),
+            Value::Null,
+            Value::Int64(3),
+            Value::Int64(4),
+        ],
+    )
+    .unwrap();
+    let documents =
+        SqlArray::from_elements(vec![Value::Null, Value::Json(serde_json::Value::Null)]).unwrap();
+    let payload = serde_json::json!({
+        "matrix": matrix.to_storage_json(),
+        "documents": documents.to_storage_json(),
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+    let restored_matrix = SqlArray::from_storage_json(&decoded["matrix"]).unwrap();
+    let restored_documents = SqlArray::from_storage_json(&decoded["documents"]).unwrap();
+
+    // Assert
+    assert_eq!(restored_matrix, matrix);
+    assert_eq!(restored_matrix.dimensions()[0].lower_bound, -1);
+    assert_eq!(restored_matrix.dimensions()[1].lower_bound, 4);
+    assert_eq!(
+        restored_documents.elements(),
+        &[Value::Null, Value::Json(serde_json::Value::Null)]
+    );
+}
+
+#[test]
+fn should_roundtrip_crb3_text_arrays_with_nulls_in_every_position() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
         fields: vec![
@@ -154,11 +218,18 @@ fn should_roundtrip_crb2_text_arrays_with_nulls_in_every_position() {
     let decoded = decode_row(&schema, &encoded).unwrap();
 
     // Assert
-    assert_eq!(decoded, payload);
+    for name in ["first", "middle", "last", "consecutive"] {
+        assert_eq!(
+            SqlArray::from_storage_json(&decoded[name])
+                .unwrap()
+                .to_nested_json(),
+            payload[name]
+        );
+    }
 }
 
 #[test]
-fn should_roundtrip_crb2_fixed_width_arrays_with_null_elements() {
+fn should_roundtrip_crb3_fixed_width_arrays_with_null_elements() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
         fields: vec![
@@ -184,21 +255,28 @@ fn should_roundtrip_crb2_fixed_width_arrays_with_null_elements() {
     let decoded = decode_row(&schema, &encoded).unwrap();
 
     // Assert
-    assert_eq!(decoded, payload);
+    for name in ["ints", "bools"] {
+        assert_eq!(
+            SqlArray::from_storage_json(&decoded[name])
+                .unwrap()
+                .to_nested_json(),
+            payload[name]
+        );
+    }
 }
 
 #[test]
-fn should_roundtrip_crb2_nested_arrays_with_null_elements() {
+fn should_roundtrip_crb3_multidimensional_arrays_with_null_elements() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
         fields: vec![FieldSchema {
             name: "nested".to_string(),
-            data_type: DataType::Array(Box::new(DataType::Array(Box::new(DataType::Text)))),
+            data_type: DataType::Array(Box::new(DataType::Text)),
             nullable: true,
         }],
     });
     let payload = serde_json::json!({
-        "nested": [["alpha", null, "bravo"], null, [null, "charlie"]],
+        "nested": [["alpha", null], ["bravo", "charlie"]],
     });
 
     // Act
@@ -206,11 +284,16 @@ fn should_roundtrip_crb2_nested_arrays_with_null_elements() {
     let decoded = decode_row(&schema, &encoded).unwrap();
 
     // Assert
-    assert_eq!(decoded, payload);
+    assert_eq!(
+        SqlArray::from_storage_json(&decoded["nested"])
+            .unwrap()
+            .to_nested_json(),
+        payload["nested"]
+    );
 }
 
 #[test]
-fn should_reject_crb2_array_null_with_nonzero_payload_length() {
+fn should_reject_crb3_array_null_with_nonzero_payload_length() {
     // Arrange
     let encoded_array = [2, TYPE_NULL, 1, 0xff, TYPE_STRING, 1, b'a'];
     let mut cursor = Cursor::new(&encoded_array);
@@ -531,7 +614,18 @@ fn should_preserve_unlimited_varchar_storage() {
     let decoded = decode_row(&schema, &encoded).expect("unlimited VARCHAR read");
 
     // Assert
-    assert_eq!(decoded, payload);
+    assert_eq!(
+        decoded,
+        serde_json::json!({
+            "scalar": "long μ string",
+            "array": SqlArray::from_nested_json_typed(
+                &serde_json::json!(["long μ string", null, "é"]),
+                &DataType::Varchar { length: None },
+            )
+            .unwrap()
+            .to_storage_json(),
+        })
+    );
 }
 
 #[test]

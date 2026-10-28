@@ -268,6 +268,16 @@ pub(super) fn decode_unicode_identifiers(input: &str) -> Result<Cow<'_, str>, su
 
 pub(super) fn pattern_end(input: &str, start: usize, pattern: &str) -> Option<usize> {
     let bytes = input.as_bytes();
+    // A non-separator ASCII prefix must match before any keyword can match.
+    // Unicode and leading-separator patterns retain the complete matcher.
+    if let Some((expected, actual)) = pattern.as_bytes().first().zip(bytes.get(start)) {
+        if expected.is_ascii()
+            && !char::from(*expected).is_whitespace()
+            && !expected.eq_ignore_ascii_case(actual)
+        {
+            return None;
+        }
+    }
     let trimmed = pattern.trim();
     let mut index = start;
     if pattern.starts_with(char::is_whitespace) {
@@ -403,4 +413,35 @@ pub(super) fn strip_keyword_suffix<'a>(input: &'a str, keyword: &str) -> Option<
         cursor = end;
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pattern_end;
+
+    #[test]
+    fn should_match_keyword_patterns_across_sql_separators() {
+        // Arrange
+        let cases = [
+            ("FROM/*sep*/TABLE", 0, "from table", Some(16)),
+            ("/*c*/FROM", 0, " from", Some(9)),
+            ("\u{b}FROM", 0, "\u{b}from", Some(5)),
+            ("\u{b}FROM", 0, "\u{a0}from", Some(5)),
+            ("\u{a0}FROM", 0, "\u{a0}from", Some(6)),
+            ("é FROM", 3, "from", Some(7)),
+            ("éFROM", 2, "from", None),
+            ("9FROM", 1, "from", None),
+            ("FROM9", 0, "from", None),
+            ("FROMÜ", 0, "from", None),
+            ("Ü", 0, "from", None),
+            ("FrOm", 0, "from", Some(4)),
+            ("DROP", 0, "from", None),
+            ("::", 0, "::", Some(2)),
+            ("", 0, "", Some(0)),
+        ];
+        // Act
+        let observed = cases.map(|(input, start, pattern, _)| pattern_end(input, start, pattern));
+        // Assert
+        assert_eq!(observed, cases.map(|(_, _, _, expected)| expected));
+    }
 }

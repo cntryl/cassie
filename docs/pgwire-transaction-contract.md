@@ -87,6 +87,9 @@ gate selects the following database-scoped transactional DDL extension under
 is implemented in the current PR; the broader issue acceptance and protocol
 qualification remain open:
 
+- SQL materialized-view `ALTER ... RENAME TO` uses the same catalog overlay,
+  retaining physical output/version identity and rejecting unsupported stored
+  dependency rewrites before mutation.
 - Supported schema, table, and scalar-index CREATE/ALTER/DROP operations stage
   catalog and row changes within the owning Midge database family.
 - The owning session sees its staged objects and can read or write through them.

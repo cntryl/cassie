@@ -179,3 +179,41 @@ impl Midge {
         Ok(())
     }
 }
+
+impl Midge {
+    /// Rekeys one SQL materialized-view definition in the owning database family.
+    pub(crate) fn rename_sql_materialized_view_metadata(
+        &self,
+        previous: &str,
+        metadata: &ProjectionMeta,
+    ) -> Result<(), CassieError> {
+        let previous = self.canonical_collection_name(previous);
+        let mut metadata = metadata.clone();
+        metadata.collection = self.canonical_collection_name(&metadata.collection);
+        let mut tx = self.begin_data_rw_tx_for(&previous)?;
+        if tx
+            .get(&Self::projection_key(&previous))
+            .map_err(CassieError::from)?
+            .is_none()
+        {
+            return Err(CassieError::CollectionNotFound(previous));
+        }
+        if tx
+            .get(&Self::projection_key(&metadata.collection))
+            .map_err(CassieError::from)?
+            .is_some()
+        {
+            return Err(crate::app::DiagnosticError::new(
+                "42P07",
+                "materialized-view destination already exists",
+            )
+            .into());
+        }
+        tx.delete(Self::projection_key(&previous))
+            .map_err(CassieError::from)?;
+        Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
+        check_projection_metadata_persistence_failure_point()?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+}

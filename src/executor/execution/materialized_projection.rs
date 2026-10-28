@@ -874,7 +874,11 @@ fn projection_binding_context(
         {
             path.push(crate::catalog::DEFAULT_SCHEMA.to_string());
         }
-        return crate::sql::binder::BindingContext::scoped(relation.database, path);
+        return if cassie.database_catalog_enforced() {
+            crate::sql::binder::BindingContext::scoped(relation.database, path)
+        } else {
+            crate::sql::binder::BindingContext::unscoped(relation.database, path)
+        };
     }
 
     if cassie.database_catalog_enforced() {

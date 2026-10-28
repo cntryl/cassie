@@ -63,9 +63,9 @@ use crate::sql::ast::{
     CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
     DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
     DropIndexStatement, DropProcedureStatement, DropSchemaStatement, DropSequenceStatement,
-    DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr, ParsedStatement,
-    ProjectionStatement, QuerySource, QueryStatement, ReindexStatement, ReindexTarget,
-    RuntimeStatement, SelectItem, SelectSet, SelectStatement, StatementRoute,
+    DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr, ParsedStatement, QuerySource,
+    QueryStatement, ReindexStatement, ReindexTarget, RuntimeStatement, SelectItem, SelectSet,
+    SelectStatement, StatementRoute,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -155,15 +155,7 @@ pub(crate) use inference::cte_collection_schema_with_functions;
 pub(crate) use inference::infer_projection_expr_type;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
 pub(crate) use inference::{infer_expr_type, integer_literal_type, known_expr_type};
-use projections::{
-    bind_alter_materialized_projection_statement, bind_compare_projection_statement,
-    bind_create_materialized_projection_statement, bind_create_materialized_view_statement,
-    bind_diff_projection_statement, bind_drop_materialized_projection_statement,
-    bind_drop_materialized_projection_version_statement, bind_drop_materialized_view_statement,
-    bind_plan_repair_projection_statement, bind_refresh_materialized_projection_statement,
-    bind_refresh_materialized_view_statement, bind_repair_projection_statement,
-    bind_verify_projection_statement,
-};
+use projections::bind_projection_route;
 use recursive::bind_recursive_cte_query;
 use routines::{
     bind_call_procedure, bind_create_function, bind_create_procedure, bind_drop_function,
@@ -676,68 +668,6 @@ impl From<DropIndexStatement> for CatalogRoutineOrIndexStatement {
 impl From<crate::sql::ast::AlterIndexStatement> for CatalogRoutineOrIndexStatement {
     fn from(statement: crate::sql::ast::AlterIndexStatement) -> Self {
         Self::AlterIndex(statement)
-    }
-}
-
-fn bind_projection_route(
-    statement: ProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    match statement {
-        ProjectionStatement::CreateRollup(statement) => bind_catalog_statement(
-            raw_sql,
-            bind_create_rollup(statement, catalog, context),
-            QueryStatement::CreateRollup,
-        ),
-        ProjectionStatement::RefreshRollup(statement) => {
-            bind_refresh_rollup_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::DropRollup(statement) => {
-            bind_drop_rollup_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::CreateMaterializedProjection(statement) => {
-            bind_create_materialized_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::RefreshMaterializedProjection(statement) => {
-            bind_refresh_materialized_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::DropMaterializedProjection(statement) => {
-            bind_drop_materialized_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::CreateMaterializedView(statement) => {
-            bind_create_materialized_view_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::RefreshMaterializedView(statement) => {
-            bind_refresh_materialized_view_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::DropMaterializedView(statement) => {
-            bind_drop_materialized_view_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::AlterMaterializedProjection(statement) => {
-            bind_alter_materialized_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::DropMaterializedProjectionVersion(statement) => {
-            bind_drop_materialized_projection_version_statement(
-                statement, catalog, raw_sql, context,
-            )
-        }
-        ProjectionStatement::VerifyProjection(statement) => {
-            bind_verify_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::DiffProjection(statement) => {
-            bind_diff_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::CompareProjection(statement) => {
-            bind_compare_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::PlanRepairProjection(statement) => {
-            bind_plan_repair_projection_statement(statement, catalog, raw_sql, context)
-        }
-        ProjectionStatement::RepairProjection(statement) => {
-            bind_repair_projection_statement(statement, catalog, raw_sql, context)
-        }
     }
 }
 

@@ -285,18 +285,37 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Projection lifecycle | Materialized projection create, refresh, checkpointed replay, version build, verification, activation, rollback by reactivation, repair, and drop on one local instance, as defined in [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). Interrupted or failed builds never become query-visible; stale or unproven projections fall back to authoritative source rows. Column-store table mode, remote replay coordination, and automatic activation are outside this surface. | Stable |
 | Verification and repair | Hashes, manifests, local repair planning and audit for materialized projections; see [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). No general (non-projection) index verification or repair exists. | Experimental |
 
+### Materialized-view rename
+
+`ALTER MATERIALIZED VIEW name RENAME TO new_local_name` renames a SQL
+materialized view within its existing schema. The current output, population
+state, version references and scalar indexes remain intact; `pg_matviews` and
+`pg_indexes` expose the new name, and refresh continues to use the same output.
+The operation participates in the selected same-family READ COMMITTED catalog
+transaction, including private visibility, commit, rollback and savepoints;
+committed names survive local restart. Quoted relation names are accepted by
+rename, refresh and drop. Missing relations return `42P01`, wrong object kinds
+`42809`, and destination collisions `42P07`.
+
+Stored views, materialized definitions and routine bodies are rebound without
+the old relation before mutation. A dependent or unresolvable stored definition,
+or retained projection repair/comparison reports, rejects the rename with
+`2BP01`; automatic dependent-definition rewriting is outside this slice.
+No physical output is renamed and no storage format is changed. Evidence:
+[embedded lifecycle, failure and restart cases](../tests/sql_mutations/ddl/materialized_view_rename.rs)
+and the enabled `should_track_materialized_view_rename_in_pg_matviews`
+[pgwire witness](../tests/compatibility/lifecycle/tables/table_forms/semantics.rs).
+Broader ALTER/rename/DROP behavior remains under [#839](https://github.com/cntryl/cassie/issues/839).
+
 ### Pending materialized-view compatibility behavior
 
 The following positive scenarios remain pending; the rejection checks above do
 not qualify them as supported:
 
-The original positive assertions remain in their owner test modules as
+The remaining positive assertions stay in their owner test modules as
 explicit `#[ignore]` cases. They are pending, not passed, and do not
 count as current support evidence.
 
-- Under [#839](https://github.com/cntryl/cassie/issues/839), rename
-  `compat_mv_rename` to `compat_mv_renamed`, keep its output readable, and
-  report the new name in `pg_matviews`.
 - Under [#826](https://github.com/cntryl/cassie/issues/826), qualify
   `CREATE MATERIALIZED VIEW ... USING heap` and
   `ALTER MATERIALIZED VIEW ... SET ACCESS METHOD heap` only after the storage

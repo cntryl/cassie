@@ -1,7 +1,11 @@
-use super::{normalize_new_relation_name, parsed_statement, resolve_existing_name, BindingContext};
+use super::{
+    bind_catalog_statement, bind_create_rollup, bind_drop_rollup_statement,
+    bind_refresh_rollup_statement, normalize_new_relation_name, parsed_statement,
+    resolve_existing_name, BindingContext,
+};
 use crate::app::{CassieError, CatalogObjectKind};
 use crate::catalog::Catalog;
-use crate::sql::ast::{ParsedStatement, QueryStatement};
+use crate::sql::ast::{ParsedStatement, ProjectionStatement, QueryStatement};
 
 pub(super) fn bind_create_materialized_projection_statement(
     mut statement: crate::sql::ast::CreateMaterializedProjectionStatement,
@@ -307,4 +311,133 @@ fn ensure_projection_target_exists(
         kind: CatalogObjectKind::Relation,
         name: name.to_string(),
     })
+}
+
+pub(super) fn bind_rename_materialized_view_statement(
+    mut statement: crate::sql::ast::RenameMaterializedViewStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    statement.name = resolve_existing_name(&statement.name, context, |name| {
+        catalog.relation_exists(name) || catalog.is_materialized_projection(name)
+    })?;
+    if !is_sql_materialized_view(catalog, &statement.name) {
+        if catalog.relation_exists(&statement.name)
+            || catalog.is_materialized_projection(&statement.name)
+        {
+            return Err(crate::app::DiagnosticError::new(
+                "42809",
+                format!("'{}' is not a materialized view", statement.name),
+            )
+            .into());
+        }
+        return Err(CassieError::CollectionNotFound(statement.name));
+    }
+    statement.name = catalog
+        .get_materialized_projection(&statement.name)
+        .ok_or_else(|| CassieError::CollectionNotFound(statement.name.clone()))?
+        .collection;
+    let crate::catalog::ParsedName::Unqualified(name) =
+        crate::catalog::parse_name(&statement.new_name).map_err(CassieError::Planner)?
+    else {
+        return Err(CassieError::Planner(
+            "RENAME TO requires an unqualified name".into(),
+        ));
+    };
+    statement.new_name = match crate::catalog::parse_name(&statement.name)
+        .map_err(CassieError::Planner)?
+    {
+        crate::catalog::ParsedName::DatabaseQualified {
+            database, schema, ..
+        } => crate::catalog::canonical_relation_name(&database, &schema, &name),
+        crate::catalog::ParsedName::SchemaQualified { schema, .. } => normalize_new_relation_name(
+            &crate::catalog::canonical_schema_name(&schema, &name),
+            context,
+            catalog,
+        )?,
+        crate::catalog::ParsedName::Unqualified(_) => {
+            normalize_new_relation_name(&statement.new_name, context, catalog)?
+        }
+    };
+    if catalog.relation_exists(&statement.new_name)
+        || catalog
+            .get_projection_metadata(&statement.new_name)
+            .is_some()
+    {
+        return Err(crate::app::DiagnosticError::new(
+            "42P07",
+            format!("relation '{}' already exists", statement.new_name),
+        )
+        .into());
+    }
+    Ok(parsed_statement(
+        raw_sql,
+        QueryStatement::RenameMaterializedView(statement),
+    ))
+}
+
+pub(super) fn bind_projection_route(
+    statement: ProjectionStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    match statement {
+        ProjectionStatement::CreateRollup(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_create_rollup(statement, catalog, context),
+            QueryStatement::CreateRollup,
+        ),
+        ProjectionStatement::RefreshRollup(statement) => {
+            bind_refresh_rollup_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::DropRollup(statement) => {
+            bind_drop_rollup_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::CreateMaterializedProjection(statement) => {
+            bind_create_materialized_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::RefreshMaterializedProjection(statement) => {
+            bind_refresh_materialized_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::DropMaterializedProjection(statement) => {
+            bind_drop_materialized_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::CreateMaterializedView(statement) => {
+            bind_create_materialized_view_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::RefreshMaterializedView(statement) => {
+            bind_refresh_materialized_view_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::DropMaterializedView(statement) => {
+            bind_drop_materialized_view_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::RenameMaterializedView(statement) => {
+            bind_rename_materialized_view_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::AlterMaterializedProjection(statement) => {
+            bind_alter_materialized_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::DropMaterializedProjectionVersion(statement) => {
+            bind_drop_materialized_projection_version_statement(
+                statement, catalog, raw_sql, context,
+            )
+        }
+        ProjectionStatement::VerifyProjection(statement) => {
+            bind_verify_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::DiffProjection(statement) => {
+            bind_diff_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::CompareProjection(statement) => {
+            bind_compare_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::PlanRepairProjection(statement) => {
+            bind_plan_repair_projection_statement(statement, catalog, raw_sql, context)
+        }
+        ProjectionStatement::RepairProjection(statement) => {
+            bind_repair_projection_statement(statement, catalog, raw_sql, context)
+        }
+    }
 }

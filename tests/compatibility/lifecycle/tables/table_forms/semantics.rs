@@ -311,7 +311,7 @@ fn should_preserve_existing_materialized_view_when_created_if_not_exists() {
     });
 }
 #[test]
-fn should_reject_materialized_view_rename_until_lifecycle_support_is_implemented() {
+fn should_preserve_materialized_view_names_when_rename_target_exists() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -320,13 +320,14 @@ fn should_reject_materialized_view_rename_until_lifecycle_support_is_implemented
         client
             .batch_execute("CREATE MATERIALIZED VIEW compat_mv_rename AS SELECT 1 AS view_id")
             .await
-            .expect("create materialized view before testing rename rejection");
+            .expect("create materialized view before testing rename collision");
+        client.batch_execute("CREATE TABLE compat_mv_renamed (id INT)").await.expect("occupy destination relation name");
 
         // Act
         let result = client
             .batch_execute("ALTER MATERIALIZED VIEW compat_mv_rename RENAME TO compat_mv_renamed")
             .await;
-        let error = result.expect_err("materialized-view rename remains pending under #839");
+        let error = result.expect_err("materialized-view rename must reject a destination collision");
         let catalog = client
             .query_one(
                 "SELECT count(*) FILTER (WHERE matviewname = 'compat_mv_rename'), \
@@ -338,7 +339,7 @@ fn should_reject_materialized_view_rename_until_lifecycle_support_is_implemented
             .expect("inspect names after the rejected rename");
 
         // Assert
-        assert_eq!(db_error(&error).code().code(), "0A000");
+        assert_eq!(db_error(&error).code().code(), "42P07");
         assert_eq!(catalog.get::<_, i64>(0), 1);
         assert_eq!(catalog.get::<_, i64>(1), 0);
 
@@ -759,7 +760,6 @@ fn should_skip_existing_relation_for_create_table_as_if_not_exists() {
 }
 
 #[test]
-#[ignore = "Pending #839 materialized-view rename acceptance; #833 remains a prerequisite"]
 fn should_track_materialized_view_rename_in_pg_matviews() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -788,8 +788,11 @@ fn should_track_materialized_view_rename_in_pg_matviews() {
             .await
             .expect("inspect renamed materialized-view catalog row");
 
+        let readable = client.query_one("SELECT view_id FROM compat_mv_renamed", &[]).await.expect("renamed output stays readable");
+
         // Assert
         assert_eq!(catalog.get::<_, String>(0), "compat_mv_renamed");
+        assert_eq!(readable.get::<_, i32>(0), 1);
         assert!(catalog.get::<_, bool>(1));
 
         drop(client);

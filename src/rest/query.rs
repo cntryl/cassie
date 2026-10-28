@@ -531,6 +531,7 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CreateMaterializedView(_) => "CREATE MATERIALIZED VIEW",
         QueryStatement::RefreshMaterializedView(_) => "REFRESH MATERIALIZED VIEW",
         QueryStatement::DropMaterializedView(_) => "DROP MATERIALIZED VIEW",
+        QueryStatement::RenameMaterializedView(_) => "ALTER MATERIALIZED VIEW",
         QueryStatement::AlterMaterializedProjection(_) => "ALTER MATERIALIZED PROJECTION",
         QueryStatement::DropMaterializedProjectionVersion(_) => {
             "DROP MATERIALIZED PROJECTION VERSION"

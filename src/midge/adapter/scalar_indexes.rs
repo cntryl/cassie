@@ -108,6 +108,7 @@ impl Midge {
         &self,
         collection: &str,
     ) -> Result<(), CassieError> {
+        let collection = self.canonical_collection_name(collection);
         for index in self.list_indexes()?.into_iter().filter(|index| {
             index.collection == collection && Self::scalar_index_supports_storage(index)
         }) {

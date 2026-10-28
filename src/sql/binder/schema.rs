@@ -337,7 +337,7 @@ pub(super) fn bind_reindex(
                     "REINDEX TABLE requires a table name".to_string(),
                 ));
             }
-            if !catalog.exists(&table) {
+            if !catalog.exists(&table) && !catalog.is_sql_materialized_view(&table) {
                 return Err(CassieError::CollectionNotFound(table));
             }
             if catalog

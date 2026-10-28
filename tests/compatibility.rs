@@ -36,3 +36,6 @@ mod compatibility;
 
 #[path = "support/unique_conflict.rs"]
 mod support_unique_conflict;
+
+#[path = "support/scalar_index_rebuild.rs"]
+mod support_scalar_index_rebuild;

@@ -1,12 +1,19 @@
+#[path = "insert_wait_inputs.rs"]
+mod wait_inputs;
 use super::dml_returning;
 use super::{
-    build_dml_result, check_timeout, dml_referential_actions, execute_plan, filter,
-    inserted_row_to_batch_row, integral_json_number, json_to_value, update_assignment_to_json,
+    apply_update_value, build_dml_result, check_timeout, dml_referential_actions, execute_plan,
+    filter, inserted_row_to_batch_row, integral_json_number, json_to_value,
     value_to_json_for_field, BatchRow, Cassie, CassieSession, CollectionSchema, CteContext,
     DataType, DmlResultContext, Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan,
     QueryError, QueryExecutionControls, QueryResult, QuerySource, Value,
 };
+pub(in crate::executor::execution) use wait_inputs::{
+    execute_prepared_insert, prepare_waiting_insert, WaitingInsert,
+};
 
+#[path = "insert_cells.rs"]
+mod cells;
 #[path = "dml_insert_conflict.rs"]
 mod conflict;
 #[path = "dml_insert_conflict_update.rs"]
@@ -45,6 +52,48 @@ pub(in crate::executor::execution) fn execute_insert(
         statement_read_controls,
     )?;
 
+    let payloads = source_rows
+        .into_iter()
+        .map(|row| cells::payload(cassie, &statement.table, &target_fields, &row));
+    execute_insert_payloads(
+        cassie,
+        session,
+        statement,
+        params,
+        user_functions,
+        controls,
+        InsertPayloads {
+            schema,
+            has_exists_returning,
+            returning_read_controls,
+            payloads,
+        },
+    )
+}
+
+struct InsertPayloads<I> {
+    schema: CollectionSchema,
+    has_exists_returning: bool,
+    returning_read_controls: Option<QueryExecutionControls>,
+    payloads: I,
+}
+
+fn execute_insert_payloads(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::InsertStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+    inputs: InsertPayloads<impl Iterator<Item = Result<serde_json::Value, QueryError>>>,
+) -> Result<QueryResult, QueryError> {
+    let InsertPayloads {
+        schema,
+        has_exists_returning,
+        returning_read_controls,
+        payloads,
+    } = inputs;
+    let statement_read_controls = returning_read_controls.as_ref().unwrap_or(controls);
     let mut affected_count = 0usize;
     let mut returning_rows = Vec::new();
     let conflict_images = std::cell::RefCell::new(HashMap::new());
@@ -56,6 +105,7 @@ pub(in crate::executor::execution) fn execute_insert(
         user_functions,
         schema: &schema,
         controls,
+        apply_defaults: false,
         conflict_images: statement
             .returning_aliases
             .is_some()
@@ -82,14 +132,9 @@ pub(in crate::executor::execution) fn execute_insert(
         .map(|_| crate::runtime::accounted::AccountedVec::try_new(controls))
         .transpose()?;
     let mut affected_row_ids = std::collections::HashSet::new();
-    for source_row in source_rows {
+    for payload in payloads {
         check_timeout(controls)?;
-        let Some(row_id) = execute_insert_source_row(
-            &insert_context,
-            &target_fields,
-            &source_row,
-            &affected_row_ids,
-        )?
+        let Some(row_id) = execute_insert_payload(&insert_context, payload?, &affected_row_ids)?
         else {
             continue;
         };
@@ -153,7 +198,7 @@ fn prepare_insert_source_rows(
     user_functions: &HashMap<String, FunctionMeta>,
     schema: &CollectionSchema,
     controls: &QueryExecutionControls,
-) -> Result<(Vec<FieldMeta>, Vec<Vec<Value>>), QueryError> {
+) -> Result<(Vec<FieldMeta>, Vec<Vec<cells::InsertValue>>), QueryError> {
     let source_rows =
         insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
     let source_width = source_rows
@@ -161,7 +206,13 @@ fn prepare_insert_source_rows(
         .map_or_else(|| insert_source_width(statement, schema), Vec::len);
     let target_fields = insert_target_fields(statement, schema, source_width)?;
     validate_insert_source_rows(&source_rows, target_fields.len())?;
-    super::identity_insert::apply_identity_policy(cassie, statement, target_fields, source_rows)
+    super::identity_insert::apply_identity_policy(
+        cassie,
+        statement,
+        target_fields,
+        source_rows,
+        |cell| matches!(cell, cells::InsertValue::Default),
+    )
 }
 
 fn attach_insert_returning_aliases(
@@ -227,8 +278,13 @@ pub(super) fn insert_evaluated_row(
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
     let target_fields = insert_target_fields(statement, &schema, row.len())?;
-    let (target_fields, rows) =
-        super::identity_insert::apply_identity_policy(cassie, statement, target_fields, vec![row])?;
+    let (target_fields, rows) = super::identity_insert::apply_identity_policy(
+        cassie,
+        statement,
+        target_fields,
+        vec![row],
+        |_| false,
+    )?;
     let context = InsertExecutionContext {
         cassie,
         session,
@@ -237,6 +293,7 @@ pub(super) fn insert_evaluated_row(
         user_functions,
         schema: &schema,
         controls,
+        apply_defaults: true,
         conflict_images: None,
     };
     let row = rows.into_iter().next().unwrap_or_default();
@@ -256,7 +313,7 @@ fn insert_source_rows(
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
-) -> Result<Vec<Vec<Value>>, QueryError> {
+) -> Result<Vec<Vec<cells::InsertValue>>, QueryError> {
     match &statement.source {
         InsertSource::Values(rows) => scalar_values::evaluate(
             rows,
@@ -325,7 +382,7 @@ fn insert_source_rows(
                     let _operator_parent = row.operator_memory();
                     row.into_entries()
                         .into_iter()
-                        .map(|(_, value)| value)
+                        .map(|(_, value)| cells::InsertValue::Value(value))
                         .collect()
                 })
                 .collect())
@@ -358,7 +415,9 @@ fn payload_from_insert_row(
 ) -> Result<serde_json::Map<String, serde_json::Value>, QueryError> {
     let mut payload = serde_json::Map::with_capacity(target_fields.len());
     for (field, value) in target_fields.iter().zip(source_row.iter()) {
-        if matches!(field.data_type, DataType::Json) && matches!(value, Value::Null) {
+        if matches!(field.data_type, DataType::Json | DataType::Jsonb)
+            && matches!(value, Value::Null)
+        {
             continue;
         }
         payload.insert(
@@ -370,7 +429,7 @@ fn payload_from_insert_row(
 }
 
 fn validate_insert_source_rows(
-    source_rows: &[Vec<Value>],
+    source_rows: &[Vec<cells::InsertValue>],
     target_field_count: usize,
 ) -> Result<(), QueryError> {
     for row in source_rows {
@@ -393,6 +452,7 @@ struct InsertExecutionContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     schema: &'a CollectionSchema,
     controls: &'a QueryExecutionControls,
+    apply_defaults: bool,
     /// Prior payloads of rows a conflict update changed, for `RETURNING OLD`.
     conflict_images: Option<&'a std::cell::RefCell<HashMap<String, serde_json::Value>>>,
 }
@@ -404,6 +464,14 @@ fn execute_insert_source_row(
     affected_row_ids: &std::collections::HashSet<String>,
 ) -> Result<Option<String>, QueryError> {
     let payload = serde_json::Value::Object(payload_from_insert_row(target_fields, source_row)?);
+    execute_insert_payload(context, payload, affected_row_ids)
+}
+
+fn execute_insert_payload(
+    context: &InsertExecutionContext<'_>,
+    payload: serde_json::Value,
+    affected_row_ids: &std::collections::HashSet<String>,
+) -> Result<Option<String>, QueryError> {
     let maybe_conflict_id = find_insert_conflict_row_id(
         context.cassie,
         context.session,
@@ -437,7 +505,7 @@ fn execute_insert_source_row(
             &context.statement.table,
             None,
             payload.clone(),
-            true,
+            context.apply_defaults,
             None,
         ) {
             Ok(row_id) => {
@@ -492,6 +560,7 @@ pub(crate) fn resolve_transaction_conflict_intents(
             user_functions: &intent.user_functions,
             schema: &intent.schema,
             controls,
+            apply_defaults: false,
             conflict_images: None,
         };
         let Some(conflict_id) = find_insert_conflict_row_id(

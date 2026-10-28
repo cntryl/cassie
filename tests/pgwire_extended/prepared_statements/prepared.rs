@@ -277,6 +277,16 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
         seed_score_collection(&cassie, "extended_query_parse_once");
         let (addr, server) = spawn_pgwire_server(&cassie).await;
         let (mut reader, mut write_half) = connect_authenticated_pgwire(addr).await;
+        let metrics_before = cassie.metrics();
+        let parse_count_before = metrics_before["runtime"]["sql_parse_total"]
+            .as_u64()
+            .expect("parse count should be available");
+        let plan_cache_misses_before = metrics_before["plan_cache"]["misses"]
+            .as_u64()
+            .expect("plan cache miss count should be available");
+        let plan_cache_hits_before = metrics_before["plan_cache"]["hits"]
+            .as_u64()
+            .expect("plan cache hit count should be available");
 
         // Act
         execute_reused_statement(
@@ -293,9 +303,20 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
         let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(metrics["runtime"]["sql_parse_total"].as_u64(), Some(1));
-        assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(1));
-        assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(1));
+        assert_eq!(
+            metrics["runtime"]["sql_parse_total"].as_u64(),
+            Some(parse_count_before + 1),
+            "the one frontend Parse should add exactly one SQL parse"
+        );
+        assert_eq!(
+            metrics["plan_cache"]["misses"].as_u64(),
+            Some(plan_cache_misses_before + 1)
+        );
+        assert_eq!(
+            metrics["plan_cache"]["hits"].as_u64(),
+            Some(plan_cache_hits_before + 3),
+            "the second Bind and both Executes should reuse the cached plan"
+        );
 
         drop(write_half);
         shutdown_pgwire_server(server).await;

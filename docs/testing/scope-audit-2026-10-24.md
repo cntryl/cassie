@@ -1,0 +1,465 @@
+# Test scope reconciliation: native MONEY
+
+The [Product Roadmap](../product-roadmap.md) selects a read-model database, not
+PostgreSQL server parity. It explicitly requires removal of out-of-scope tests
+rather than implementing their features or marking them ignored. Native MONEY
+is not selected by the [Type Contract](../type-contract.md). Live
+[#908](https://github.com/cntryl/cassie/issues/908), read on 2026-10-24, states
+that this family lacks a selected wire/durable contract and is outside active
+release milestones. Exact NUMERIC remains selected for decimal read-model data.
+
+The user delegated decisions to Jev and reaffirmed Cassie's product goals.
+Jev reviewed each dedicated case against the current roadmap, type contract
+and live issue and selected removal for all 30 cases. Source inspection confirms
+that every case requires native MONEY values or OID 790 before it can prove
+its expectation. Even malformed-input and AVG-error cases presuppose the absent
+type, rather than testing rejection of an unselected family. No selected
+NUMERIC, transaction, pgwire recovery or supported-type test is removed.
+
+These are scope removals, not runtime fixes or passing conformance cells.
+#908 stays open and unimplemented. Native MONEY remains unsupported. Historical
+sources remain recoverable from base commit `3ec018b60f6861cd4877edd0d8446a727a7a39b8`.
+Local source hashes, original bodies, Jev request/response and decision evidence
+are retained under ignored `target/batched-runtime/batch-16/`.
+
+## Removed cases
+
+| Original source | Case | Scope reason |
+| --- | --- | --- |
+| `tests/pgwire_extended/types/numeric/money/semantics.rs` | `should_preserve_money_numeric_operator_types` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money_integer_division_rounding.rs` | `should_round_money_integer_division_at_signed_half_cent` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_return_c_locale_money_text_over_postgresql_wire` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_describe_typed_money_parameter_result` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_reformat_prepared_money_after_monetary_locale_change` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_report_money_overflow_with_numeric_value_out_of_range_sqlstate` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_round_money_casts_at_signed_half_cent_boundaries` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_check_money_signed_int64_lower_boundary` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_send_money_values_in_postgresql_binary_format` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_decode_binary_money_parameters_before_numeric_cast` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_decode_text_money_parameters_before_numeric_cast` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_report_malformed_money_text_with_invalid_text_representation_sqlstate` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_format_non_c_money_from_locale_specific_input` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_describe_money_mixed_arithmetic_with_postgresql_result_oids` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_report_money_addition_overflow_sqlstate` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_report_money_division_by_zero_sqlstate` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_recover_after_money_arithmetic_errors` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_send_negative_money_in_signed_postgresql_binary_format` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/money.rs` | `should_decode_negative_binary_money_parameters_as_negative_c_locale_text` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/semantics.rs` | `should_format_money_after_setting_c_monetary_locale` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/semantics.rs` | `should_report_money_average_as_undefined_function` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/types/money/restart.rs` | `should_preserve_money_binary_identity_given_inserted_and_updated_rows_when_storage_restarts` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/aggregates/money/money.rs` | `should_preserve_money_type_oids_through_sum` | Requires unselected native MONEY contract, #908. |
+| `tests/pgwire_extended/aggregates/money/errors.rs` | `should_report_money_sum_overflow_with_numeric_value_out_of_range_sqlstate` | Requires unselected native MONEY contract, #908. |
+| `tests/sql_queries/types/money/money.rs` | `should_preserve_money_arithmetic_precision` | Requires unselected native MONEY contract, #908. |
+| `tests/sql_queries/types/money/money.rs` | `should_parse_money_text_compare_values_propagate_nulls` | Requires unselected native MONEY contract, #908. |
+| `tests/sql_queries/types/money/money.rs` | `should_keep_money_text_values_across_restart` | Requires unselected native MONEY contract, #908. |
+| `tests/sql_queries/aggregates/money/money.rs` | `should_sum_multiple_money_values_exactly_skipping_nulls` | Requires unselected native MONEY contract, #908. |
+| `tests/sql_queries/aggregates/money/money.rs` | `should_keep_empty_input_money_aggregates_null_except_count` | Requires unselected native MONEY contract, #908. |
+| `tests/sql_queries/aggregates/money/money.rs` | `should_keep_all_null_money_aggregates_null` | Requires unselected native MONEY contract, #908. |
+
+## PostgreSQL type-catalog scope reconciliation (2026-10-25)
+
+Jev reviewed the active Type Contract, Product Roadmap, and live issues #905
+and #908. It selected removal of two catalog tests whose expected rows require
+native MONEY, XML, geometric, or range/multirange families. Those families are
+explicitly unselected; no runtime catalog rows or type support were added.
+
+| Original source | Removed case | Scope reason |
+| --- | --- | --- |
+| `tests/catalog_security/catalogs/types/catalog_discovery/metadata.rs` | `should_discover_postgresql_catalog_rows_for_supported_type_families` | Every expected row is an unselected native MONEY, XML, geometric, range, or multirange identity. |
+| `tests/catalog_security/catalogs/types/catalog_information/semantics.rs` | `should_resolve_builtin_range_subtype_in_pg_range` | Requires the unselected range/multirange type family owned by #905. |
+
+Selected array TypeInfo/COPY coverage and other catalog behavior remain in the
+suite. These removals are scope reconciliation; they do not count as passing
+conformance for the removed capabilities.
+
+## Vector catalog count assertion (2026-10-25)
+
+Jev reviewed the failure in `should_deduplicate_supported_schema_vector_identities`.
+Its exact count of 32 covered the entire `pg_type` registry even though the
+test owns vector-dimension deduplication; the runtime correctly exposes 86
+existing scalar and array identities from the finite built-in registry. The
+stale count assertion was removed. The test still requires the exact three
+schema-referenced vector identities, checks all OIDs are unique, and protects
+the PostgreSQL BOOLEAN[] identity from replacement by an excluded
+ARRAY(VECTOR) identity. The #843/#844 v0.4 owners remain open.
+
+## PostgreSQL catalog contract reconciliation (2026-10-25)
+
+Jev reviewed the 95-failure inventory against the v0.3 roadmap, #817 and the
+selected catalog read-model checkpoint in `docs/catalog-support.md`. It chose
+to preserve the supported native NAME descriptor path and park expectations
+that require persistent relation ownership, native information-schema domain
+OIDs/codecs, PostgreSQL physical relation storage, full session/lock catalogs,
+pretty-printed constraint definitions, or empty stand-ins for system catalog
+families that Cassie does not implement. Those tests were removed from the
+active green suite rather than turning absent facts into fabricated rows.
+
+The following cases remain pending under the listed contract owners; their
+removal is scope reconciliation, not a passing result for the PostgreSQL
+capability:
+
+| Original source | Removed cases | Scope reason |
+| --- | --- | --- |
+| `tests/catalog_security/catalogs/columns/catalog_relation_shapes.rs` | `should_describe_pg_opfamily_columns`, `should_describe_pg_rewrite_columns`, `should_describe_pg_statistic_columns`, `should_describe_pg_text_search_dictionary_columns`, `should_describe_pg_text_search_parser_columns`, `should_describe_pg_text_search_template_columns` | Current checkpoint omits these relation shapes until Cassie has real semantic rows. #817 remains open. |
+| `tests/catalog_security/catalogs/constraints/information_schema.rs` | `should_render_created_check_constraint_definition` | PostgreSQL pretty-printed constraint definitions remain unqualified under #817. |
+| `tests/catalog_security/catalogs/identity_privileges/information_schema.rs` | `should_report_owner_privileges_in_information_schema_role_table_grants`, `should_report_owner_privileges_in_information_schema_table_privileges` | Relation owners and object privilege ACLs are not stored; ownership/privilege implementation remains under #831. |
+| `tests/catalog_security/catalogs/types/information_schema.rs`, `tests/catalog_security/catalogs/routines/information_schema.rs`, `tests/catalog_security/catalogs/triggers/information_schema.rs` | `should_report_array_element_metadata_in_information_schema`, `should_report_builtin_parameter_metadata_in_information_schema`, `should_describe_trigger_metadata_without_trigger_objects` | These expectations require native information-schema domain identities/codecs or unsupported trigger metadata; those identities and trigger capability are not selected. See #817 and #837. |
+| `tests/catalog_security/catalogs/relations/size_information.rs` | `should_keep_created_catalog_rows_visible_without_schema_usage` | Requires REVOKE/ACL behavior not yet implemented under #831. |
+| `tests/catalog_security/catalogs/sizes/size_information.rs`, `tests/catalog_security/catalogs/sequences/size_information.rs` | `should_report_relation_fork_sizes_for_a_created_table`, `should_resolve_relation_size_names_through_search_path`, `should_report_relation_size_components`, `should_report_toast_table_sizes`, `should_resolve_database_size_overloads`, `should_report_sizes_for_a_sequence_relation` | Cassie does not expose PostgreSQL physical relation/database fork sizes or TOAST storage. These do not measure Midge storage. |
+| `tests/catalog_security/catalogs/relations/system_session.rs`, `tests/catalog_security/catalogs/system_information/system_session.rs` | `should_observe_the_current_relation_lock_in_pg_locks`, `should_observe_the_current_backend_in_pg_stat_activity` | Complete PostgreSQL lock and backend activity catalogs remain unqualified; `LOCK TABLE` and server lock-manager semantics are not selected. |
+| `tests/catalog_security/catalogs/routines/object_identity_functions.rs` | `should_identify_builtin_routine_with_catalog_qualified_signature` | Requires PostgreSQL `regprocedure`/OID object-identity lifecycle, which remains unqualified under #817. |
+
+The size-format tests were narrowed to the already selected `pg_size_pretty(bigint)`
+contract. The numeric overload remains unsupported as recorded in
+`docs/catalog-support.md`; its test now covers selected BIGINT and NULL input.
+The `pg_tables`/`pg_views` row tests continue to cover actual object discovery,
+native NAME descriptors, index flags and stored view text while asserting NULL
+for unrecorded owners. `should_report_positive_size_for_the_active_database` was
+also removed from `tests/catalog_security/catalogs/sizes/catalog_lookup.rs`;
+`pg_database_size` is a PostgreSQL physical-storage helper and Cassie does not
+claim Midge size as that value.
+
+Jev reviewed the additive `FunctionId` entries needed to register the selected
+built-in signature and no-temporary-schema helpers. It recommended proceeding
+(0.98 probability, confidence 0.97): the SQL behavior is explicitly requested
+by the current #817 tests, the Rust surface is pre-1.0 and not documented as a
+stable compatibility contract, and the change adds no persistent representation.
+
+## Core catalog metadata and experimental test reconciliation (2026-10-25)
+
+After commit `f0dc5481`, the full suite had 64 failures. Jev selected the finite
+#817 core catalog slice (probability 1.0): real current-object
+`pg_class`/`pg_namespace`/`pg_attribute`/`pg_constraint` identities and pinned
+built-in `pg_proc` rows. It rejected prioritizing #818 object identity, #831
+ownership, or broad server/system catalog parity. The three current-object
+tests now compare the documented logical text carriers (`relnamespace`,
+`conrelid`, `attrelid`) to text names rather than comparing them with OID
+values. A separate finite `pg_proc` relation exposes only the pinned built-in
+name, OID and result-type fields used by #817; it does not invent user-routine
+metadata.
+
+Jev reviewed the conflict where the new #817 catalog test expected PostgreSQL
+generated NOT NULL names (`*_not_null`) and two already-passing workflow tests
+expected Cassie's earlier `*_n` spelling. It chose PostgreSQL catalog names
+(probability 0.63, confidence 0.45). The runtime now keeps the native spelling
+in `pg_constraint`; the pgAdmin and foreign-key workflow expectations were
+updated, while non-catalog constraint helpers retain their existing names.
+
+The following failing tests were removed from the active suite because their
+capability is outside the selected v0.3 catalog contract or has an open
+prerequisite. This records a scope disposition, not passing evidence for the
+removed PostgreSQL behavior:
+
+| Source | Removed tests | Disposition |
+| --- | --- | --- |
+| `catalogs/backend_statistics.rs`, `catalogs/blocking.rs`, `catalogs/commit_control.rs`, `catalogs/multixact.rs`, `catalogs/snapshots.rs`, `catalogs/statistics_restore.rs`, `catalogs/transactions.rs` | `should_scope_backend_statistics_given_multiple_sessions_when_io_and_wal_are_queried`; `should_cancel_the_target_query_given_an_authorized_session_when_pg_cancel_backend_is_called`; `should_terminate_the_target_session_given_an_authorized_session_when_pg_terminate_backend_is_called`; `should_report_lock_blockers_given_a_waiting_session_when_pg_blocking_pids_is_called`; `should_report_snapshot_blockers_given_a_deferrable_snapshot_waiter_when_safe_snapshot_blockers_are_queried`; both `should_follow_*_policy_*` commit/control tests; `should_report_multixact_members_given_shared_row_locks_when_members_are_queried`; all three snapshot/txid tests; all four statistics restore/clear tests; `should_report_transaction_status_given_assigned_transaction_ids_when_transaction_outcomes_are_queried` | Full PostgreSQL backend/lock manager, MVCC snapshot, commit timestamp, multixact and planner-statistics state is not part of the single-node read-model contract. |
+| `catalogs/foreign_keys.rs`, `catalogs/object_addresses.rs`, `catalogs/system_information/catalog_lookup.rs`, `catalogs/relations/catalog_lookup.rs`, `catalogs/routines/catalog_lookup.rs`, `catalogs/columns/catalog_lookup.rs`, `catalogs/sequences/catalog_lookup.rs`, `catalogs/routines/populated_descriptions.rs`, `catalogs/descriptions/catalog_information/semantics.rs`, `catalogs/visibility/visibility_functions.rs` | `should_report_catalog_foreign_keys_given_builtin_catalogs_when_pg_get_catalog_foreign_keys_is_called`; both object-address tests; reserved-keyword catalog helper; positive txid helper; function/column/sequence privilege helpers; populated descriptions; all three unsupported built-in visibility/search-path tests | These functions require unselected PostgreSQL object-address, ACL/ownership, visibility or transaction identity surfaces; privilege metadata is owned by #831 and remaining object identity work by #818. |
+| `catalogs/indexes/index_property_functions.rs`, `catalogs/indexes/catalog_information/semantics.rs`, `catalogs/relations/catalog_information/semantics.rs`, `catalogs/relations/catalog_information/metadata.rs`, `catalogs/columns/catalog_information/semantics.rs`, `catalogs/system_information/catalog_information/semantics.rs` | Three index property matrices; pg_stat user table/index rows; `pg_amop`/`pg_amproc`; built-in aggregate, conversion, operator class, language, text-search config, collation, tablespace and operator listings | These experimental built-in catalogs are outside #817's finite relation list; stats rows and operator-family/text-search stand-ins are explicitly omitted by the catalog checkpoint. |
+| `catalogs/types/base_information_function.rs`, `catalogs/types/catalog/semantics.rs`, `catalogs/types/catalog/metadata.rs`, `catalogs/columns/catalog/semantics.rs`, `catalogs/types/catalog_discovery/metadata.rs`, `catalogs/types/text_search_identifier_lookup/semantics.rs`, `catalogs/types/text_search_identifier_lookup/restart.rs`, `catalogs/types/vector_catalog.rs` | `pg_basetype`; custom enum/domain/composite and system tuple-column tests; pgcrypto extension listing; user-created text-search configuration lookup/restart; `int2vector`/`oidvector` catalog identity tests | These require type families, system columns, extension lifecycle or user-created text-search objects not selected by the current Type Contract; extension compatibility remains with #843 and broader type/object identity work with #817/#818. |
+
+
+## Schema move slice (#839, 2026-10-25)
+
+Jev selected `ALTER TABLE ... SET SCHEMA` as an unblocked #839 slice. The
+runtime uses Midge's existing collection rename and catalog identity metadata;
+it adds no storage representation. Validation covers row preservation and
+stable table/index OIDs across namespaces. The identity test joins the
+documented logical names in `pg_class.relnamespace` and
+`pg_index.indrelid/indexrelid`; its former OID-to-text comparisons failed
+before the schema move could run.
+
+## Transactional DDL test-contract corrections (#833, 2026-10-25)
+
+The full compatibility run had two remaining #833-related failures caused by
+test SQL comparing Cassie's documented logical TEXT catalog identity columns
+with OIDs (`pg_attribute.attrelid` against `regclass`, and
+`pg_index.indexrelid` against `pg_class.oid`). The assertions now compare
+logical relation names. Both focused tests pass; no runtime behavior changed.
+
+Jev selected the bounded #846 COPY/rebuild migration-I/O slice (probability
+0.97, confidence 0.96). The roadmap map explicitly allows this local v0.3
+slice while #780 remains open; this does not qualify or close the broader
+wire/client dependency. The batch adds CSV header matching, custom quote and
+escape parsing, default markers, LATIN1 decoding, ignored conversion errors
+with atomic rejection limits, WHERE filtering, legacy delimiters, cancellation
+response, and verbose skipped-row notices. The 47-test COPY group passes.
+
+Jev's focused review selected a possible notice-contract gap (probability 0.73,
+confidence 0.69). Source inspection and the focused test showed that
+`write_notice_response` already emitted PostgreSQL's tag-plus-C-string field
+encoding; the COPY test helper incorrectly split the message tag from its
+value. Jev reviewed the corrected evidence and selected the test-helper-only
+fix with probability 1.0. The helper now uses `support_pgwire::parse_error_fields`,
+and the focused verbose-notice test passes. No runtime wire change was needed.
+
+The full compatibility baseline before this batch was 324 passed, 235 failed,
+and 15 ignored. The completed full workspace run now reports 337 passed, 222
+failed, and 15 ignored in compatibility; no COPY failures remain. Other workspace
+suites passed: 1,350 unit, 186 integration, 2 backend CI, 16 bench operations,
+and 330 catalog security tests. Strict workspace clippy, formatting, build, and
+COPY test validation passed. Jev selected the bounded #839 DROP lifecycle batch
+next (probability 0.70, confidence 0.65); the request and response are retained
+under ignored `target/batched-runtime/jev-next-after-copy-*`.
+
+## DROP lifecycle and implicit DDL slice (#839, 2026-10-25)
+
+The #839 batch adds token-bounded dependent-view discovery and CASCADE/RESTRICT
+forms for schema, table, and column drops; `ALTER TABLE IF EXISTS`; multiple
+ALTER actions; and atomic execution for supported catalog DDL inside implicit
+Query/Sync boundaries. Regression coverage includes cross-schema foreign-key
+cleanup and rollback after a later multi-action constraint failure through
+extended protocol, Simple Query, and an explicit savepoint. It also carries an
+evolving declared-column set across ordered ALTER actions. A later unique
+constraint can target a newly added or renamed column, and a failed constraint
+validation rolls back a defaulted column through both protocols. CTE-backed
+view dependencies are detected: RESTRICT returns `2BP01` and CASCADE removes
+the dependent view.
+
+Jev's initial review assigned a 0.63 probability to a material gap. A focused
+`should_drop_an_index_without_an_on_clause` probe reproduced a Midge value
+assertion when recreating an index after implicit DROP INDEX. Jev's decision
+slightly favored excluding DROP INDEX from implicit wrapping (0.50 vs. 0.47
+for changing staged storage semantics); the standalone path now remains intact
+while explicit transactional DROP INDEX remains supported. Jev next selected
+the dependent multi-action ALTER probe, which failed red because the binder
+validated against the original schema; sequential field-state binding fixed
+it. Jev also selected rollback of a defaulted new column when a later UNIQUE
+constraint fails, and add/rename/constraint ordering. Both pass with expected
+rollback and uniqueness behavior. A final CTE dependency probe confirmed the
+existing scanner walks CTE query bodies. Jev's final residual gap probability
+was 0.24.
+
+The focused `ddl_extensions` group reports 151 passed, 40 failed, and 6
+ignored. The complete workspace run reports 348 compatibility passed, 219
+failed, and 15 ignored; the full tests, build, strict Clippy, formatting, and
+all five touched-test validators completed. Unit (1,350), integration (186),
+backend CI (2), bench operations (16), and catalog security (330) suites pass.
+The remaining compatibility failures in this group are extension/pgcrypto,
+temporary relations, type conversion, broader object drops, maintenance, and
+privilege behaviors outside this slice. `ALTER COLUMN TYPE USING` remains
+blocked on the persistent rewrite/recovery contract.
+
+## Multi-name relation DROP slice (#839, 2026-10-25)
+
+Jev selected multi-name `DROP TABLE` and `DROP VIEW` (probability 1.0), so the
+parser and AST now preserve target lists and the binder resolves every member
+before planning. The executor applies table and view drops inside the existing
+implicit or explicit transaction boundary. Jev's review raised a 0.45 gap
+estimate and selected probes for later-target `RESTRICT` rollback, shared
+`CASCADE` dependencies, explicit-transaction rollback, mixed `IF EXISTS`
+targets, and quoted schema-qualified names. All pass: failures on a later
+target preserve earlier targets in Simple and extended protocol; `CASCADE`
+removes two tables, their shared view, and incoming foreign keys; explicit
+rollback restores both tables and rows; missing IF EXISTS members are skipped
+for both table and view lists; quoted names with identical local names affect
+only the two named schemas. Jev's final residual gap estimate is 0.27. The 13
+focused atomic-drop tests pass (the unsupported `DROP TYPE` case was skipped in
+that focus). Full workspace validation reports 356 compatibility passed, 217
+failed, and 15 ignored; build, strict Clippy, formatting, and the atomic-drop
+test validator pass. All non-compatibility suites pass: 1,350 unit, 186
+integration, 2 backend CI, 16 bench operations, and 330 catalog security. This
+batch added six passing probes and fixed two existing table/view list failures.
+`DROP TYPE` remains outside this slice because named type lifecycle belongs to
+#827/#828 and is not implemented by the selected Cassie type contract.
+
+## Scroll cursor fixture isolation (#821, 2026-10-25)
+
+Jev selected the direct scroll-cursor failures from the remaining session
+cluster. Both failed before cursor execution because their fixtures used
+`generate_series`, a v0.4 table-function capability tracked under #808. Replaced
+those generated inputs with small ordinary tables while retaining the cursor
+options, metadata, navigation, and `CLOSE ALL` assertions. The cursor-sensitivity
+and scroll-navigation tests now pass. The separate `WHERE CURRENT OF` test still
+requires row-locking and positioned-mutation behavior; its broader prerequisites
+remain under #820/#823 and were not included in this cursor fixture batch.
+The completed full locked run reports compatibility 358 passed, 215 failed,
+15 ignored; unit 1,350, integration 186, backend CI 2, bench operations 16,
+and catalog security 330 passed. Strict workspace Clippy, formatting and both
+touched-test validators passed.
+
+## #839 savepoint and restart fixture scope (#839, 2026-10-25)
+
+Jev selected the savepoint-identity and rename/restart failures after both were
+shown to stop at `ALTER COLUMN TYPE`, which requires the still-unselected
+persistent row-rewrite/recovery contract. Replaced that fixture operation with
+the already supported `ALTER COLUMN SET DEFAULT`, keeping the savepoint rollback,
+relation/index identity, rename, restart, column metadata and row assertions.
+The catalog assertions now join on Cassie's numeric `attrelid_oid` and
+`relnamespace_oid` columns instead of comparing their text display companions to
+numeric OIDs. Both focused lifecycle cases pass. The explicit `USING` conversion
+cases remain pending under the persistent rewrite contract.
+
+The completed build and full locked run report 360 compatibility passed, 213
+failed and 15 ignored; unit 1,350, analytics 186, backend CI 2, bench operations
+16, and catalog security 330 passed before Cargo stopped at the failing
+compatibility target. The storage-index target separately passed 190 with one
+ignored. Strict workspace Clippy, formatting and both touched-test validators
+passed.
+
+## #842 maintenance and inference fixture isolation (#842, 2026-10-25)
+
+Jev selected the scalar-index maintenance and partial-inference failures as one
+#842 batch. The maintenance test used unsupported `CREATE INDEX CONCURRENTLY`;
+it now creates the same ordered index normally and retains its `REINDEX INDEX`,
+catalog visibility, drop and indexed-result assertions. The partial/full
+inference test used DROP and same-name recreation to reset between cases, which
+failed on the second CREATE TABLE with a Midge value-assertion conflict. The
+index-inference assertions do not cover relation recreation, so the cases now
+use separate relation names and retain all six partial/full inference outcomes.
+Both focused tests pass. The exposed same-name recreation failure was promoted
+to a dedicated #839 regression. It reproduced after DROP TABLE returned while
+the old collection schema was still present. The pgwire handler already retried
+deferred cleanup after its running-query guard drained, but that retry occurred
+inside the blocking worker. `run_pgwire_blocking` now retries cleanup after that
+worker returns, preserving the schema-epoch gate. The regression recreates the
+table and partial unique index, inserts into the new relation, and verifies the
+old row is gone. Jev selected completing pending cleanup (0.82); its focused
+review favored keeping the post-worker retry (0.61) over moving cleanup entirely
+to that boundary (0.37). The focused test passes.
+
+The completed locked build passes. The full locked run reports 364 compatibility
+passed, 210 failed and 15 ignored; unit 1,350, analytics 186, backend CI 2,
+bench operations 16, and catalog security 330 passed before Cargo stopped at
+the compatibility target. Strict workspace Clippy, formatting, and the
+recreation test validator pass. The remaining compatibility failures continue
+as the next triage queue; this batch does not claim a green full suite.
+
+## Extension and maintenance scope reconciliation (2026-10-25)
+
+Jev reviewed the currently failing extension and maintenance cases against the
+Product Roadmap and scope map. It selected removal (probability 1.0) for the
+v0.4 positive pgcrypto and pgvector behavior, unsupported `ANALYZE`, and
+extension comments outside the selected #845 schema/table/column subset. The
+active target retains the passing negative pgcrypto installation boundary;
+positive pgcrypto dependency tests previously marked ignored were removed
+instead of remaining as skipped cases.
+
+| Source | Removed cases | Scope reason |
+| --- | --- | --- |
+| `tests/compatibility/extensions/pgvector/` | `should_report_vector_catalog_identity_given_the_pinned_extension_when_catalogs_are_queried`, `should_preserve_vector_values_given_binary_parameters_when_binary_results_are_requested`, `should_preserve_vector_values_given_text_parameters_when_the_statement_executes`, `should_match_exact_search_results_given_the_declared_ann_fixture_when_ann_search_executes`, `should_order_negative_inner_products_given_known_vectors_when_the_metric_operator_is_used`, `should_describe_vector_type_given_a_bare_vector_cast_when_dimension_is_inferred` | Vector extension, type, wire and retrieval compatibility belongs to v0.4 owners #843/#844. |
+| `tests/compatibility/lifecycle/extensions/` | pgcrypto installation, update, digest, catalog, schema relocation, cascade and dependency cases; `should_preserve_extension_dependencies_until_cascade_drop`; `should_track_index_dependency_on_extension`; `should_track_materialized_view_dependency_on_extension` | Bounded extension compatibility is v0.4 under #843. The selected v0.3 rejection check remains active as `should_reject_pgcrypto_installation_until_extension_compatibility_is_implemented`. |
+| `tests/compatibility/lifecycle/ddl/maintenance_statistics_refresh.rs` | `should_refresh_pg_class_row_estimate_after_analyze` | `ANALYZE` and PostgreSQL statistics maintenance remain unsupported under #842. |
+| `tests/compatibility/lifecycle/comments/comment_catalog_coverage.rs` | `should_roundtrip_extension_comments_through_extension_metadata` | Extension comments are outside the selected #845 schema/table/column lifecycle subset. |
+
+These removals narrow only the active v0.3 target. They do not establish
+extension compatibility or ANALYZE support and do not count as passing
+conformance for the removed capabilities. Jev request and response are retained
+under ignored `target/batched-runtime/next-triage/`.
+
+## Security semantics scope reconciliation (2026-10-25)
+
+The live #831 rescope comment selects compatibility-level acceptance for role,
+grant/revoke and ownership syntax, and explicitly excludes row-level security
+and full privilege enforcement because that could imply a security guarantee
+Cassie does not provide. Jev reviewed the failing RLS, policy, privilege
+enforcement, membership-option, role-state and default-privilege cases and
+selected removal of those security-semantic expectations (probability 0.97,
+confidence 0.96). No test that only checks a selected DDL token's acceptance is
+removed by this disposition. The unresolved privilege contract remains open in
+the scope map; these removals do not imply safe authorization behavior.
+
+Jev request and response are retained under ignored
+`target/batched-runtime/next-triage/`.
+
+## Catalog annotation and routine scope reconciliation (#818, #830, #845, 2026-10-25)
+
+Jev reviewed the remaining catalog-identity and routine failures against the
+live issue dispositions. The broad `regclass` catalog/search-path lifecycle
+case was removed under v0.4 #818; it is not the narrow identifier conversion
+needed by a selected v0.3 sequence workflow. The failed signature-qualified
+routine alteration and built-in variadic/schema-qualified invocation tests
+were removed under closed, not-planned #830 and v0.4 array owner #807. Existing
+narrow scalar UDF and procedure/CALL behavior remains registered.
+
+For #845, the v0.3 target retains schema, table and column comment roundtrip,
+clear, ownership, transaction and restart cases. Tests for comments on indexes,
+constraints, domains and other types, policies, sequences, roles, databases,
+views and materialized views were removed from the active target; those forms
+are outside the selected migration/admin workflow. The retained column comment
+case needs a durable metadata representation because `FieldSchema` has no
+comment field. No representation change is made in this batch pending the
+product decision required by `AGENTS.md`. Jev classified the #839 `USING`
+conversion/multi-action tests as requiring contract clarification before
+implementation; those two explicit failures remain active pending that
+decision. Jev request and response are retained under ignored
+`target/batched-runtime/next-triage/`.
+
+## Small integer serial aliases (#841, 2026-10-25)
+
+Jev selected the `SMALLSERIAL`/`SERIAL2` alias gap (probability 0.95,
+confidence 0.93). The existing parser already lowers `SERIAL`/`SERIAL4` to
+`INT4` with the selected generated-sequence behavior; `SMALLSERIAL`/`SERIAL2`
+now use the same existing sequence path with `INT2`. This adds no persistent
+type representation or public API. Transactional `ALTER SEQUENCE RESTART`
+semantics remain unselected and were not included in this change.
+
+## Closed constraint and later table-form scope reconciliation (2026-10-25)
+
+Jev reviewed the failing cases against closed #824 and the current #826, #839,
+and #831 boundaries. It selected removal of the named out-of-scope cases
+(probability 0.97, confidence 0.96). The #824 owner explicitly closed its
+broader constraint extension as not planned and directed removal of ahead-of-
+feature tests. The selected unique-constraint/index and check-rejection tests
+remain registered; only failed MATCH FULL, NOT VALID/validation, named NOT
+NULL, column-list referential action, temporal metadata, and MATCH PARTIAL
+extensions were removed.
+
+Other removals are limited to table persistence/generated-column/SELECT INTO
+forms left open under #826, successful `ALTER COLUMN TYPE USING` before the
+row-rewrite/recovery contract (#839), composite-type DROP coverage (#828),
+and #831 owner/sequence privilege semantics beyond compatibility-level DDL.
+Temporary object cases under #838 remain untouched pending their storage
+boundary decision. Transactional sequence restart was left out because the
+selected v0.3 sequence contract does not name it; basic serial aliases and
+server-restart sequence state tests remain active.
+
+Jev evidence is retained under ignored
+`target/batched-runtime/next-triage/`.
+
+## Later custom type and cast scope reconciliation (2026-10-25)
+
+Jev selected removal of the failing composite/record/domain, user-defined cast,
+custom `regtype`, and custom-type-comment cases under #828/#796/#818/#845,
+while preserving enum cases for the separate #827 scope decision. The active
+enum tests remain unchanged pending that product decision because #827's live
+milestone and the scope map conflict, and enum durable identity requires an
+explicit representation/migration contract. Basic built-in types and the
+selected relation `regclass` lifecycle test remain active.
+
+Jev request and response are retained under ignored
+`target/batched-runtime/next-triage/`.
+
+## Deferred coordination and isolation scope reconciliation (2026-10-25)
+
+Jev reviewed the current lock/isolation failure cluster against #819, #820 and
+#822 and selected removal of the deferred cases (probability 1.0). The active
+suite no longer asserts advisory locks or LISTEN/NOTIFY without a named client
+workflow, row/table locks or `SKIP LOCKED` without a selected projector claim
+workflow, or repeatable-read/serializable profiles beyond the v0.3
+READ-COMMITTED contract. This removes the dedicated advisory and row/table lock
+fixtures, broad isolation command fixture, and the three corresponding cases
+from shared transaction fixtures, including the root `NOWAIT` and
+`SKIP LOCKED` claim probes.
+
+Selected session settings, timeout, cursor and temporary-object cases remain
+registered. In particular, this scope decision does not resolve the separately
+pending #838 temporary storage boundary. Tests removed here remain owned by
+#819/#820/#822 and are not considered passing behavior. Jev evidence is retained
+under ignored `target/batched-runtime/next-triage/`.
+
+## Session workflow scope reconciliation (#821, 2026-10-25)
+
+Jev reviewed the remaining session failures against the explicit #821 setting,
+cursor and reset scope and the #819/#820/#822 boundaries. It selected removal
+of `START TRANSACTION ... SERIALIZABLE` (READ COMMITTED remains authoritative),
+row-lock timeout recovery and positioned cursor mutation (both require deferred
+row-lock behavior), LATIN1 `SET NAMES` (non-UTF8 client encoding is not selected),
+and persistent per-role GUC defaults (not selected by #821/#831).
+
+The mixed `DISCARD ALL` test was narrowed to application_name, SQL PREPARE and a
+holdable cursor over a persistent relation. This keeps the selected reset path
+active without folding deferred advisory locks, LISTEN/NOTIFY or #838 temporary
+relation cleanup into its acceptance. Other selected session setting, timeout,
+cursor and reset tests remain active. Jev evidence is retained under ignored
+`target/batched-runtime/next-triage/`.

@@ -184,16 +184,16 @@ fn should_keep_integer_column_arithmetic_exact_when_combined_with_a_bare_literal
 
     // Assert
     assert_eq!(column_plus_literal.rows(), vec![vec![Value::Int64(2)]]);
-    assert_eq!(column_plus_literal.columns()[0].type_oid, 20);
+    assert_eq!(column_plus_literal.columns()[0].type_oid, 23);
     assert_eq!(literal_plus_column.rows(), vec![vec![Value::Int64(2)]]);
-    assert_eq!(literal_plus_column.columns()[0].type_oid, 20);
+    assert_eq!(literal_plus_column.columns()[0].type_oid, 23);
     assert_eq!(column_plus_column.rows(), vec![vec![Value::Int64(2)]]);
-    assert_eq!(column_plus_column.columns()[0].type_oid, 20);
+    assert_eq!(column_plus_column.columns()[0].type_oid, 23);
     // Integer literals are integers in PostgreSQL, so literal-only
     // arithmetic stays exact (see
     // should_execute_table_free_literal_alias_cast_projection).
     assert_eq!(pure_literal.rows(), vec![vec![Value::Int64(3)]]);
-    assert_eq!(pure_literal.columns()[0].type_oid, 20);
+    assert_eq!(pure_literal.columns()[0].type_oid, 23);
 
     let _ = std::fs::remove_dir_all(path);
 }

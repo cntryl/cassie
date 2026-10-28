@@ -628,7 +628,7 @@ impl Midge {
         let is_json_field = |name: &str| {
             schema.fields.iter().any(|field| {
                 crate::sql::ColumnIdentifierPath::matches_stored_field(name, &field.name)
-                    && matches!(field.data_type, DataType::Json)
+                    && matches!(field.data_type, DataType::Json | DataType::Jsonb)
             })
         };
         Ok(fields.iter().any(|field| is_json_field(field))

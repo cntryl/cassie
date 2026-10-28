@@ -713,8 +713,12 @@ fn set_child_reference_values(
             .as_ref()
             .and_then(|schema| schema.fields.iter().find(|field| field.name == child_field));
         if set_sql_null
-            && json_field
-                .is_some_and(|field| matches!(field.data_type, crate::types::DataType::Json))
+            && json_field.is_some_and(|field| {
+                matches!(
+                    field.data_type,
+                    crate::types::DataType::Json | crate::types::DataType::Jsonb
+                )
+            })
         {
             if let Some(field_name) = json_field.map(|field| field.name.as_str()) {
                 payload.remove(field_name);

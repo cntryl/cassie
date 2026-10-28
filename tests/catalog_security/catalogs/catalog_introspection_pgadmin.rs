@@ -175,10 +175,10 @@ fn assert_pgadmin_constraints(rows: &PgAdminCatalogRows, table_oid: i64) {
     assert_eq!(
         rows.constraints,
         vec![
-            pgadmin_constraint_row("catalog_pgadmin_docs_id_n", "n", "1", table_oid),
+            pgadmin_constraint_row("catalog_pgadmin_docs_id_not_null", "n", "1", table_oid),
             pgadmin_constraint_row("catalog_pgadmin_docs_pkey", "p", "1", table_oid),
             pgadmin_constraint_row("catalog_pgadmin_docs_score_check", "c", "3", table_oid),
-            pgadmin_constraint_row("catalog_pgadmin_docs_title_n", "n", "2", table_oid),
+            pgadmin_constraint_row("catalog_pgadmin_docs_title_not_null", "n", "2", table_oid),
         ]
     );
 }

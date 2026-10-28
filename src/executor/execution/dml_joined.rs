@@ -201,8 +201,10 @@ pub(super) fn row_image_entries(
 }
 
 fn stored_value(field: &FieldMeta, value: &serde_json::Value) -> Value {
-    if matches!(field.data_type, crate::types::DataType::Json)
-        && crate::types::json::requires_document_carrier(value)
+    if matches!(
+        field.data_type,
+        crate::types::DataType::Json | crate::types::DataType::Jsonb
+    ) && crate::types::json::requires_document_carrier(value)
     {
         Value::Json(value.clone())
     } else {

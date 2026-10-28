@@ -23,7 +23,7 @@ pub(crate) fn ensure_supported_transaction_semantics(
     }
 
     if statement.family() != StatementFamily::Runtime
-        && (session.is_implicit_transaction() || !transactional_ddl_supported(catalog, statement))
+        && !transactional_ddl_supported(catalog, statement)
     {
         return reject_active_transaction_statement(
             session,
@@ -34,7 +34,7 @@ pub(crate) fn ensure_supported_transaction_semantics(
     Ok(())
 }
 
-fn transactional_ddl_supported(catalog: &Catalog, statement: &QueryStatement) -> bool {
+pub(crate) fn transactional_ddl_supported(catalog: &Catalog, statement: &QueryStatement) -> bool {
     match statement {
         QueryStatement::CreateTable(_)
         | QueryStatement::DropTable(_)
@@ -57,6 +57,11 @@ fn transactional_ddl_supported(catalog: &Catalog, statement: &QueryStatement) ->
             .is_none_or(|stored| stored.kind == crate::catalog::IndexKind::Scalar),
         _ => false,
     }
+}
+
+pub(crate) fn implicit_ddl_supported(catalog: &Catalog, statement: &QueryStatement) -> bool {
+    !matches!(statement, QueryStatement::DropIndex(_))
+        && transactional_ddl_supported(catalog, statement)
 }
 
 fn reject_active_transaction_statement(

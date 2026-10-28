@@ -73,9 +73,11 @@ fn owned_heap_bytes(
                 )
             },
         ),
-        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
-            Ok(0)
+        serde_json::Value::Number(value) => {
+            // Exact Number text owns parser/clone backing, unlike primitive scalars.
+            checked_add(checked_mul(value.as_str().len(), 2)?, 64)
         }
+        serde_json::Value::Null | serde_json::Value::Bool(_) => Ok(0),
     }
 }
 
@@ -96,6 +98,17 @@ mod tests {
     use super::{
         retained_bytes, retained_decoded_bytes, serialized_decode_bytes, JSON_MAP_ENTRY_BYTES,
     };
+
+    #[test]
+    fn should_admit_exact_number_backing_given_wide_json_numbers_when_values_are_retained() {
+        // Arrange
+        let input = "12345678901234567890123456789012345678901234567890";
+        let value = serde_json::from_str(input).expect("wide exact number");
+        // Act
+        let retained = retained_bytes(&value).expect("owned JSON accounting");
+        // Assert
+        assert!(retained >= input.len() + std::mem::size_of::<serde_json::Value>());
+    }
 
     #[test]
     fn should_keep_freshly_decoded_empty_object_accounting_at_its_inline_size() {

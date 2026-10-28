@@ -1,3 +1,6 @@
+#[path = "codecs/jsonb.rs"]
+mod jsonb;
+
 use crate::executor::ColumnMeta;
 use crate::types::builtin::{
     builtin_for_oid, BuiltinKind as BinaryCodecKind, BuiltinType as BinaryCodec,
@@ -21,6 +24,9 @@ const MICROSECONDS_PER_DAY: i64 = 86_400_000_000;
 /// Renders `value` with PostgreSQL's text output function for the column's
 /// declared `type_oid`.
 pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
+    if type_oid == 3802 {
+        return jsonb::text(value);
+    }
     match value {
         Value::Null => "NULL".to_string(),
         // boolout emits a single `t`/`f`; a JSON column keeps JSON's spelling.
@@ -67,6 +73,9 @@ pub(super) fn value_to_postgres_array_text(value: &Value, type_oid: i64) -> Opti
 }
 
 pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
+    if type_oid == 4073 {
+        return Err(unsupported_codec(type_oid));
+    }
     if type_oid == POSTGRES_INTERNAL_CHAR_OID {
         return match value {
             Value::String(value) if value.len() == 1 => Ok(value.as_bytes().to_vec()),
@@ -99,6 +108,10 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
             Value::String(value) => decode_bytea(value),
             _ => invalid_value(codec.name),
         },
+        BinaryCodecKind::Name => match value {
+            Value::String(value) => Ok(value.as_bytes().to_vec()),
+            _ => invalid_value(codec.name),
+        },
         BinaryCodecKind::Int2 => encode_integer(value, codec.name, encode_i16_binary),
         BinaryCodecKind::Int4 => encode_integer(value, codec.name, encode_i32_binary),
         BinaryCodecKind::Int8 => encode_int8(value, codec.name),
@@ -117,6 +130,7 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
         | BinaryCodecKind::Unknown => Ok(value_to_text(value, type_oid).into_bytes()),
         // Binary json is the document's text. Reads unwrap JSON scalars to
         // plain values, so a number or boolean is written in JSON spelling.
+        BinaryCodecKind::Jsonb => jsonb::encode(value),
         BinaryCodecKind::Json => match value {
             Value::Json(value) => Ok(value.to_string().into_bytes()),
             Value::String(value) => Ok(value.as_bytes().to_vec()),
@@ -125,6 +139,18 @@ pub(super) fn value_to_binary(value: &Value, type_oid: i64) -> io::Result<Vec<u8
             Value::Float64(value) => serde_json::Number::from_f64(*value)
                 .map(|number| number.to_string().into_bytes())
                 .ok_or_else(|| invalid_data(codec.name)),
+            _ => invalid_value(codec.name),
+        },
+        BinaryCodecKind::JsonPath => match value {
+            Value::String(value) => {
+                let path = sql_json_path::JsonPath::new(value)
+                    .map_err(|_| invalid_data(codec.name))?
+                    .to_string();
+                let mut bytes = Vec::with_capacity(path.len().saturating_add(1));
+                bytes.push(1);
+                bytes.extend_from_slice(path.as_bytes());
+                Ok(bytes)
+            }
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Uuid => match value {
@@ -207,6 +233,9 @@ pub(super) fn validate_result_formats(
 }
 
 pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
+    if type_oid == 4073 {
+        return Err(unsupported_codec(type_oid));
+    }
     if vector_dimensions_for_oid(type_oid).is_some() {
         return decode_vector(parameter, type_oid);
     }
@@ -262,16 +291,32 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Float8 => fixed_bytes::<8>(parameter, codec.name)
             .map(f64::from_be_bytes)
             .map(Value::Float64),
+        BinaryCodecKind::Name => crate::types::name::parse_binary(parameter)
+            .map(Value::String)
+            .map_err(|_| invalid_data(codec.name)),
         BinaryCodecKind::Text
         | BinaryCodecKind::Bpchar
         | BinaryCodecKind::Varchar
         | BinaryCodecKind::Unknown => std::str::from_utf8(parameter)
             .map(|value| Value::String(value.to_string()))
             .map_err(|_| invalid_data(codec.name)),
+        BinaryCodecKind::Jsonb => jsonb::decode(parameter),
         BinaryCodecKind::Json => {
             let value = std::str::from_utf8(parameter).map_err(|_| invalid_data(codec.name))?;
             serde_json::from_str(value)
                 .map(Value::Json)
+                .map_err(|_| invalid_data(codec.name))
+        }
+        BinaryCodecKind::JsonPath => {
+            let Some((&version, path)) = parameter.split_first() else {
+                return Err(invalid_data(codec.name));
+            };
+            if version != 1 {
+                return Err(invalid_data(codec.name));
+            }
+            let path = std::str::from_utf8(path).map_err(|_| invalid_data(codec.name))?;
+            sql_json_path::JsonPath::new(path)
+                .map(|path| Value::String(path.to_string()))
                 .map_err(|_| invalid_data(codec.name))
         }
         BinaryCodecKind::Uuid => uuid::Uuid::from_slice(parameter)
@@ -421,7 +466,9 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
             .ok_or_else(|| invalid_data("array"))?;
         cursor = end;
         let value = binary_to_value(bytes, element_oid)?;
-        if element_oid == 114 && matches!(value, Value::Json(serde_json::Value::Null)) {
+        if matches!(element_oid, 114 | 3802)
+            && matches!(value, Value::Json(serde_json::Value::Null))
+        {
             document_null = true;
             continue;
         }
@@ -457,8 +504,8 @@ fn encode_array_element(
     element_oid: i64,
     codec: &BinaryCodec,
 ) -> io::Result<Vec<u8>> {
-    if codec.kind == BinaryCodecKind::Json {
-        return Ok(value.to_string().into_bytes());
+    if matches!(codec.kind, BinaryCodecKind::Json | BinaryCodecKind::Jsonb) {
+        return value_to_binary(&Value::Json(value.clone()), element_oid);
     }
     match value {
         serde_json::Value::Bool(value) => value_to_binary(&Value::Bool(*value), element_oid),
@@ -501,10 +548,12 @@ fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> 
         BinaryCodecKind::Float8 => {
             parse_f64_binary(value).map(|value| value.to_be_bytes().to_vec())
         }
+        BinaryCodecKind::Name => Ok(crate::types::name::parse_text(value).into_bytes()),
         BinaryCodecKind::Text
         | BinaryCodecKind::Bpchar
         | BinaryCodecKind::Varchar
-        | BinaryCodecKind::Unknown => Ok(value.as_bytes().to_vec()),
+        | BinaryCodecKind::Unknown
+        | BinaryCodecKind::JsonPath => Ok(value.as_bytes().to_vec()),
         BinaryCodecKind::Uuid => uuid::Uuid::parse_str(value)
             .map(|value| value.into_bytes().to_vec())
             .map_err(|_| invalid_data(codec.name)),
@@ -513,7 +562,9 @@ fn encode_array_string(value: &str, codec: &BinaryCodec) -> io::Result<Vec<u8>> 
         BinaryCodecKind::Timestamp => {
             encode_timestamp(value).map(|value| value.to_be_bytes().to_vec())
         }
-        BinaryCodecKind::Json => unreachable!("JSON array elements preserve their JSON carrier"),
+        BinaryCodecKind::Json | BinaryCodecKind::Jsonb => {
+            unreachable!("JSON array elements preserve their JSON carrier")
+        }
     }
 }
 
@@ -808,7 +859,9 @@ fn temporal_out_of_range(type_name: &'static str) -> io::Error {
 
 pub(super) fn binary_error_sqlstate(error: &io::Error) -> Option<&'static str> {
     let error = error.get_ref()?;
-    if error.is::<ExcessBinaryData>() {
+    if let Some(error) = error.downcast_ref::<crate::types::extended::TypeInputError>() {
+        Some(error.sqlstate)
+    } else if error.is::<ExcessBinaryData>() {
         Some("22P03")
     } else if error.is::<DateTimeOutOfRange>() {
         Some("22008")

@@ -1,4 +1,5 @@
-//! SQL-standard date/time syntax: `CURRENT_DATE`-style keywords, `EXTRACT`,
+//! SQL-standard value keywords and date/time syntax: `CURRENT_CATALOG`,
+//! `CURRENT_DATE`-style keywords, `EXTRACT`,
 //! interval field qualifiers, `AT TIME ZONE`/`AT LOCAL`, `OVERLAPS` and
 //! `make_interval` named arguments, each lowered to a function call.
 use super::super::clauses::{split_top_level, strip_parentheses};
@@ -18,18 +19,22 @@ fn call(name: &str, args: Vec<Expr>) -> Expr {
     }))
 }
 
-const CLOCK_KEYWORDS: [&str; 5] = [
+const SQL_VALUE_KEYWORDS: [&str; 9] = [
+    "current_catalog",
     "current_date",
+    "current_role",
     "current_time",
     "current_timestamp",
+    "current_user",
     "localtime",
     "localtimestamp",
+    "session_user",
 ];
 
 /// Parses a temporal expression token; `None` when `raw` is not one.
 pub(super) fn token(raw: &str) -> Result<Option<Expr>, SqlError> {
     let lower = raw.to_ascii_lowercase();
-    if CLOCK_KEYWORDS.contains(&lower.as_str()) {
+    if SQL_VALUE_KEYWORDS.contains(&lower.as_str()) {
         return Ok(Some(call(&lower, Vec::new())));
     }
     if let Some(expr) = extract(raw, &lower)? {

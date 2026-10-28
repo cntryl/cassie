@@ -124,6 +124,60 @@ fn should_match_similar_to_patterns_over_the_entire_string() {
 }
 
 #[test]
+fn should_match_newlines_with_similar_to_wildcards() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-similar-to-newlines", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT 'a\nb' SIMILAR TO 'a%b', 'a\nb' SIMILAR TO 'a_b'");
+
+    // Assert
+    assert_eq!(
+        result.expect("SIMILAR TO wildcards include newline characters").rows(),
+        &[vec![Value::Bool(true), Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_preserve_similar_escape_metacharacter_semantics() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-similar-to-pattern-metacharacters", &[]);
+
+    // Act
+    let result = fixture.execute(
+        r"SELECT 'a%b' SIMILAR TO 'a\%b', 'aaa' SIMILAR TO 'a+', 'a.b' SIMILAR TO 'a.b', 'a%b' SIMILAR TO 'a!%b' ESCAPE ''",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("SIMILAR TO escape and metacharacter semantics").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+        ]]
+    );
+}
+
+#[test]
+fn should_propagate_nulls_for_similar_inputs() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-similar-to-null-pattern", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT NULL SIMILAR TO 'x', 'x' SIMILAR TO NULL, 'x' SIMILAR TO 'x' ESCAPE NULL",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("SIMILAR TO NULL pattern and escape").rows(),
+        &[vec![Value::Null, Value::Null, Value::Null]]
+    );
+}
+
+#[test]
 fn should_apply_escape_characters_to_similar_to_metacharacters() {
     // Arrange
     let fixture = sql_fixture("issue-799-similar-to-escape", &[]);

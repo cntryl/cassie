@@ -397,6 +397,18 @@ fn numeric_set_types(left: &mut [OutputField], right: &[OutputField]) {
 
 fn join_fields(left: &mut [OutputField], right: &[OutputField]) {
     for (left, right) in left.iter_mut().zip(right) {
+        match (&left.value.data_type, &right.value.data_type) {
+            (DataType::Null, DataType::Null) => {
+                left.value = super::OutputType::fixed(DataType::Text);
+                continue;
+            }
+            (DataType::Null, _) => {
+                left.value = right.value.clone();
+                continue;
+            }
+            (_, DataType::Null) => continue,
+            _ => {}
+        }
         left.value.join(&right.value);
     }
 }

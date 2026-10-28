@@ -46,13 +46,18 @@ pub(super) fn bind_on_conflict(
             ));
         }
 
-        if !on_conflict.target_fields.is_empty()
+        if on_conflict.constraint.is_none()
+            && !on_conflict.target_fields.is_empty()
             && !conflict_target_supported(catalog, table, &on_conflict.target_fields)
         {
-            return Err(CassieError::Planner(format!(
-                "ON CONFLICT target {:?} does not match a unique or primary key on '{table}'",
-                on_conflict.target_fields
-            )));
+            return Err(crate::app::DiagnosticError::new(
+                "42P10",
+                format!(
+                    "ON CONFLICT target {:?} does not match a unique or primary key on '{table}'",
+                    on_conflict.target_fields
+                ),
+            )
+            .into());
         }
 
         if let crate::sql::ast::InsertConflictAction::DoUpdate {
@@ -215,7 +220,12 @@ fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[St
     catalog
         .list_indexes(table)
         .into_iter()
-        .filter(|index| index.unique && index.kind == crate::catalog::IndexKind::Scalar)
+        .filter(|index| {
+            index.unique
+                && index.kind == crate::catalog::IndexKind::Scalar
+                && index.predicate.is_none()
+                && index.expressions.is_empty()
+        })
         .any(|index| column_set(&mut index.normalized_fields().iter()) == normalized_target)
 }
 

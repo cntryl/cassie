@@ -449,6 +449,76 @@ fn should_encode_catalog_bool_columns_as_declared_binary_bool() {
     assert_ne!(rows, [] as [std::vec::Vec<i32>; 0]);
     assert!(rows.iter().flatten().all(|length| *length == 1));
 }
+
+#[test]
+fn should_encode_current_schemas_with_native_name_array_identity() {
+    // Arrange
+    let (cassie, path) = configured_cassie("binary-current-schemas-name-array", &[]);
+
+    // Act
+    let frames = binary_round_trip(cassie, path, "SELECT current_schemas(false)");
+
+    // Assert
+    let description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("RowDescription");
+    assert_eq!(description[0].type_oid, 1_003);
+    assert_eq!(description[0].format_code, 1);
+    let row = frames
+        .iter()
+        .find(|frame| frame.0 == b'D')
+        .expect("one current_schemas row");
+    let value = data_row_field(&row.1, 0);
+    assert_eq!(
+        i32::from_be_bytes(value[0..4].try_into().expect("array dimensions")),
+        1
+    );
+    assert_eq!(
+        i32::from_be_bytes(value[4..8].try_into().expect("array null flag")),
+        0
+    );
+    assert_eq!(
+        i32::from_be_bytes(value[8..12].try_into().expect("element OID")),
+        19
+    );
+    assert_eq!(
+        i32::from_be_bytes(value[12..16].try_into().expect("array length")),
+        1
+    );
+    assert_eq!(
+        i32::from_be_bytes(value[16..20].try_into().expect("array lower bound")),
+        1
+    );
+    assert_eq!(
+        i32::from_be_bytes(value[20..24].try_into().expect("name length")),
+        6
+    );
+    assert_eq!(&value[24..], b"public");
+}
+
+fn data_row_field(payload: &[u8], field_index: usize) -> &[u8] {
+    let count = usize::try_from(i16::from_be_bytes([payload[0], payload[1]]))
+        .expect("non-negative field count");
+    assert!(field_index < count);
+    let mut cursor = 2;
+    for index in 0..count {
+        let length = i32::from_be_bytes(
+            payload[cursor..cursor + 4]
+                .try_into()
+                .expect("field length"),
+        );
+        cursor += 4;
+        let end = cursor + usize::try_from(length).expect("non-negative field length");
+        if index == field_index {
+            return &payload[cursor..end];
+        }
+        cursor = end;
+    }
+    unreachable!("field index was checked against the count");
+}
+
 #[test]
 fn should_keep_json_string_quotes_given_json_column_read() {
     // Arrange

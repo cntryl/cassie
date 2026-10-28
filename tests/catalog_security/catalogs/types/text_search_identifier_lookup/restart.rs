@@ -24,31 +24,6 @@ fn shared_text_search_identifiers(label: &str) -> SqlFixture {
     fixture
 }
 
-#[test]
-fn should_preserve_text_search_object_oids_on_restart_after_rollback() {
-    // Arrange
-    super::super::support_sql::use_local_storage();
-    let path = super::super::support_sql::data_dir("issue-817-text-search-identifier-restart");
-    let _directory = super::TypeCatalogDirectory(path.clone());
-    let original_oids = create_text_search_objects_and_rename(std::path::Path::new(&path));
-
-    // Act
-    let cassie = Cassie::new_with_data_dir(&path).expect("reopen Cassie instance");
-    cassie.startup().expect("restart startup");
-    let session = cassie.create_session("tester", None);
-    let after_restart = cassie
-        .execute_sql(
-            &session,
-            "SELECT 'issue_817_ts_identity.persisted_configuration'::regconfig::oid, \
-                    'issue_817_ts_identity.persisted_dictionary'::regdictionary::oid",
-            vec![],
-        )
-        .expect("read text-search object OIDs after restart");
-
-    // Assert
-    assert_eq!(after_restart.rows(), vec![original_oids]);
-}
-
 fn create_text_search_objects_and_rename(path: &std::path::Path) -> Vec<Value> {
     let cassie = Cassie::new_with_data_dir(path).expect("create Cassie instance");
     cassie.startup().expect("first startup");

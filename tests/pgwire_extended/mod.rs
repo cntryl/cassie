@@ -18,8 +18,6 @@ mod postgresql18_explain_options;
 mod postgresql18_grammar;
 #[path = "functions/math/math.rs"]
 mod postgresql18_math_compat;
-#[path = "aggregates/money/money.rs"]
-mod postgresql18_money_compat;
 #[path = "types/network/network.rs"]
 mod postgresql18_network_compat;
 #[path = "aggregates/numeric/binary.rs"]
@@ -52,8 +50,6 @@ mod postgresql18_text_compat;
 mod postgresql18_uuid_hash_lsn_compat;
 #[path = "aggregates/windows/window_function_wire.rs"]
 mod postgresql18_window_function_wire;
-#[path = "routines/record_functions.rs"]
-mod record_functions;
 #[path = "subqueries/scalar_subqueries.rs"]
 mod scalar_subqueries;
 
@@ -106,9 +102,6 @@ mod subqueries_resource_limits;
 #[path = "subqueries/width.rs"]
 mod subqueries_width;
 
-#[path = "type_resolution/polymorphic.rs"]
-mod type_resolution_polymorphic;
-
 #[path = "type_resolution/prepared_descriptors.rs"]
 mod type_resolution_prepared_descriptors;
 
@@ -117,9 +110,6 @@ mod types_json_jsonpath_cancellation;
 
 #[path = "types/json/jsonpath_timezone.rs"]
 mod types_json_jsonpath_timezone;
-
-#[path = "types/money/restart.rs"]
-mod types_money_restart;
 
 #[path = "types/uuid_lsn/restart.rs"]
 mod types_uuid_lsn_restart;

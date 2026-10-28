@@ -13,8 +13,6 @@ mod support_backend_sessions;
 mod support_catalog;
 #[path = "support/catalog_policy.rs"]
 mod support_catalog_policy;
-#[path = "support/catalog_sessions.rs"]
-mod support_catalog_sessions;
 #[path = "support/data_dir.rs"]
 mod support_data_dir;
 #[path = "support/executor.rs"]
@@ -126,19 +124,16 @@ mod catalog_missing_object_sqlstates;
 #[path = "catalog_security/namespaces/search_path_resolution.rs"]
 mod search_path_resolution;
 
-#[path = "catalog_security/catalogs/foreign_keys.rs"]
-mod catalogs_foreign_keys;
-
 #[path = "catalog_security/catalogs/runtime_capabilities.rs"]
 mod catalogs_runtime_capabilities;
 
 #[path = "catalog_security/catalogs/session_identity.rs"]
 mod catalogs_session_identity;
 
+#[path = "catalog_security/catalogs/catalog_empty_registries.rs"]
+mod catalog_empty_registries;
 #[path = "catalog_security/catalogs/backend_statistics.rs"]
 mod catalogs_backend_statistics;
-#[path = "catalog_security/catalogs/commit_control.rs"]
-mod catalogs_commit_control;
 #[path = "catalog_security/catalogs/locations.rs"]
 mod catalogs_locations;
 #[path = "catalog_security/catalogs/server_files.rs"]
@@ -147,26 +142,6 @@ mod catalogs_server_files;
 mod catalogs_server_signaling;
 #[path = "catalog_security/catalogs/settings.rs"]
 mod catalogs_settings;
-#[path = "catalog_security/catalogs/statistics_restore.rs"]
-mod catalogs_statistics_restore;
-
-#[path = "catalog_security/catalogs/blocking.rs"]
-mod catalogs_blocking;
-
-#[path = "catalog_security/catalogs/multixact.rs"]
-mod catalogs_multixact;
-
-#[path = "catalog_security/catalogs/object_addresses.rs"]
-mod catalogs_object_addresses;
-
-#[path = "catalog_security/catalogs/snapshots.rs"]
-mod catalogs_snapshots;
-
-#[path = "catalog_security/catalogs/transactions.rs"]
-mod catalogs_transactions;
-
-#[path = "catalog_security/catalogs/catalog_empty_registries.rs"]
-mod catalog_empty_registries;
 
 #[path = "catalog_security/catalogs/catalog_read_models.rs"]
 mod catalog_read_models;

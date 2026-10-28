@@ -12,6 +12,9 @@ mod transaction_boundary;
 #[cfg(test)]
 #[path = "extended/parameter_admission_tests.rs"]
 mod parameter_admission_tests;
+#[cfg(test)]
+#[path = "extended/prepared_descriptor_tests.rs"]
+mod prepared_descriptor_tests;
 
 use std::io;
 use std::str;
@@ -387,6 +390,7 @@ fn store_prepared_statement(
         .map(|statement| statement.id);
     if let Some(prepared_id) = replaced_prepared {
         remove_portals_for_prepared_id(state, runtime, prepared_id);
+        state.prepared_result_descriptors.remove(&prepared_id);
     }
     if let Some(session) = state.session.as_ref() {
         session.register_wire_prepared(&prepared.name, prepared.id, &prepared.query);
@@ -429,10 +433,27 @@ async fn handle_bind(
         .get(&statement)
         .cloned()
         .ok_or_else(|| missing_statement_error(&statement))?;
+    let previous_descriptor = state.prepared_result_descriptors.get(&prepared.id).cloned();
+    let catalog_version = current_catalog_version(&cassie, session);
+    let descriptor_is_stale = previous_descriptor
+        .as_ref()
+        .is_some_and(|descriptor| descriptor.catalog_version() != catalog_version);
+    let columns = if !result_formats.is_empty() || descriptor_is_stale {
+        Some(describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?)
+    } else {
+        None
+    };
+    if let Some(columns) = columns.as_deref() {
+        validate_prepared_result_types(previous_descriptor.as_deref(), columns)?;
+        if let Some(descriptor) = previous_descriptor.as_ref() {
+            descriptor.set_catalog_version(catalog_version);
+        }
+    }
     if !result_formats.is_empty() {
-        let columns =
-            describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
-        validate_result_formats(&columns, &result_formats)
+        let columns = columns
+            .as_deref()
+            .expect("nonempty result formats describe the prepared statement");
+        validate_result_formats(columns, &result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     }
     if parameters.len() != prepared.parameter_count {
@@ -503,8 +524,18 @@ async fn handle_describe(
                 .get(&name)
                 .cloned()
                 .ok_or_else(|| missing_statement_error(&name))?;
+            let catalog_version = current_catalog_version(&cassie, session);
             let columns = describe_prepared(cassie, session.clone(), prepared.clone()).await?;
-            let row_frame = row_description_or_no_data_frame(&columns, &[])?;
+            let previous_descriptor = state.prepared_result_descriptors.get(&prepared.id).cloned();
+            validate_prepared_result_types(previous_descriptor.as_deref(), &columns)?;
+            let descriptor = match previous_descriptor {
+                Some(descriptor) => {
+                    descriptor.set_catalog_version(catalog_version);
+                    descriptor
+                }
+                None => retain_prepared_result_descriptor(state, columns, catalog_version)?,
+            };
+            let row_frame = row_description_or_no_data_frame(&descriptor.columns, &[])?;
             write_parameter_description(write_half, &prepared.parameter_types)
                 .await
                 .map_err(|error| ExtendedQueryError::write_failed(&error))?;
@@ -512,6 +543,9 @@ async fn handle_describe(
             if let Some(statement) = state.prepared_statements.get_mut(&name) {
                 statement.described = true;
             }
+            state
+                .prepared_result_descriptors
+                .insert(prepared.id, descriptor);
         }
         DescribeTarget::Portal => {
             let portal = state
@@ -520,12 +554,27 @@ async fn handle_describe(
                 .map(PortalExecution::from)
                 .ok_or_else(|| missing_portal_error(&name))?;
             let prepared = prepared_for_portal(state, &portal)?;
+            let prepared_id = prepared.id;
+            let catalog_version = current_catalog_version(&cassie, session);
             let columns = describe_prepared(cassie, session.clone(), prepared).await?;
-            let row_frame = row_description_or_no_data_frame(&columns, &portal.result_formats)?;
+            let previous_descriptor = state.prepared_result_descriptors.get(&prepared_id).cloned();
+            validate_prepared_result_types(previous_descriptor.as_deref(), &columns)?;
+            let descriptor = match previous_descriptor {
+                Some(descriptor) => {
+                    descriptor.set_catalog_version(catalog_version);
+                    descriptor
+                }
+                None => retain_prepared_result_descriptor(state, columns, catalog_version)?,
+            };
+            let row_frame =
+                row_description_or_no_data_frame(&descriptor.columns, &portal.result_formats)?;
             write_frame(write_half, &row_frame).await?;
             if let Some(portal) = state.portals.get_mut(&name) {
                 portal.described = true;
             }
+            state
+                .prepared_result_descriptors
+                .insert(prepared_id, descriptor);
         }
     }
 
@@ -567,12 +616,27 @@ async fn handle_execute(
     }
 
     let prepared = prepared_for_portal(state, &portal)?;
+    if let Some(descriptor) = state.prepared_result_descriptors.get(&prepared.id).cloned() {
+        let catalog_version = current_catalog_version(&cassie, session);
+        if descriptor.catalog_version() != catalog_version {
+            let columns =
+                describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
+            validate_prepared_result_types(Some(&descriptor), &columns)?;
+            descriptor.set_catalog_version(catalog_version);
+        }
+    }
     let Some(parsed) = prepared.parsed.clone() else {
         return write_empty_query_response(write_half)
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error));
     };
-    let standalone = transaction_boundary::admit_statement(state, session, &parsed, first_execute)?;
+    let standalone = transaction_boundary::admit_statement(
+        state,
+        session,
+        &parsed,
+        &cassie.catalog,
+        first_execute,
+    )?;
     if streamable_portal_query(&prepared, max_rows) {
         return execute_streaming_portal_page(
             cassie,
@@ -590,6 +654,49 @@ async fn handle_execute(
         )
         .await;
     }
+    execute_prepared_portal(
+        cassie,
+        runtime,
+        write_half,
+        state,
+        session,
+        PreparedPortalRequest {
+            portal_name: &portal_name,
+            portal: &portal,
+            prepared: &prepared,
+            parsed,
+            max_rows,
+            standalone,
+        },
+    )
+    .await
+}
+
+struct PreparedPortalRequest<'a> {
+    portal_name: &'a str,
+    portal: &'a PortalExecution,
+    prepared: &'a PreparedStatement,
+    parsed: crate::sql::ast::ParsedStatement,
+    max_rows: usize,
+    standalone: bool,
+}
+
+async fn execute_prepared_portal(
+    cassie: Arc<Cassie>,
+    runtime: &RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
+    session: &CassieSession,
+    request: PreparedPortalRequest<'_>,
+) -> Result<(), ExtendedQueryError> {
+    let PreparedPortalRequest {
+        portal_name,
+        portal,
+        prepared,
+        parsed,
+        max_rows,
+        standalone,
+    } = request;
     let execution_session = session.clone();
     let sql = prepared.query.clone();
     let params = portal.params.clone();
@@ -603,18 +710,35 @@ async fn handle_execute(
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
     let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
-    let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
-        cassie.execute_parsed_sql_with_cancellation(
-            &execution_session,
-            (parsed, &sql),
-            sql_fingerprint,
-            (params, &parameter_type_oids),
-            ExecutionMode::ExtendedQuery,
-            &cancellation_handle,
-        )
-    })
+    let result = run_pgwire_blocking(
+        Arc::clone(&cassie),
+        "pgwire_extended_query",
+        move |cassie| {
+            cassie.execute_parsed_sql_with_cancellation(
+                &execution_session,
+                (parsed, &sql),
+                sql_fingerprint,
+                (params, &parameter_type_oids),
+                ExecutionMode::ExtendedQuery,
+                &cancellation_handle,
+            )
+        },
+    )
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    if standalone && session.is_implicit_transaction() {
+        let transaction_session = session.clone();
+        if let Err(error) = run_pgwire_blocking(
+            Arc::clone(&cassie),
+            "pgwire_standalone_ddl_commit",
+            move |cassie| cassie.commit_transaction(&transaction_session),
+        )
+        .await
+        {
+            session.rollback_transaction();
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+    }
     transaction_owner.close_completed(state, runtime, session);
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.row_count() {
@@ -628,9 +752,9 @@ async fn handle_execute(
         write_half,
         FreshPortalWriteRequest {
             state,
-            portal_name: &portal_name,
-            portal: &portal,
-            prepared: &prepared,
+            portal_name,
+            portal,
+            prepared,
             result,
             cancellation: suspended_cancellation,
             max_rows,
@@ -638,7 +762,7 @@ async fn handle_execute(
         },
     )
     .await?;
-    if standalone && state.remove_portal(&portal_name).is_some() {
+    if standalone && state.remove_portal(portal_name).is_some() {
         runtime.record_pgwire_portal_delta(-1);
     }
     Ok(())
@@ -659,6 +783,7 @@ async fn handle_close(
             if let Some(prepared) = state.prepared_statements.remove(&name) {
                 runtime.record_pgwire_prepared_delta(-1);
                 session.forget_wire_prepared(&name, prepared.id);
+                state.prepared_result_descriptors.remove(&prepared.id);
                 remove_portals_for_prepared_id(state, runtime, prepared.id);
             }
         }
@@ -690,6 +815,88 @@ async fn describe_prepared(
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))
+}
+
+fn validate_prepared_result_types(
+    previous: Option<&crate::pgwire::protocol::PreparedResultDescriptor>,
+    columns: &[ColumnMeta],
+) -> Result<(), ExtendedQueryError> {
+    let Some(previous) = previous else {
+        return Ok(());
+    };
+    let unchanged = previous.columns.len() == columns.len()
+        && previous
+            .columns
+            .iter()
+            .zip(columns)
+            .all(|(previous, current)| {
+                previous.name == current.name
+                    && previous.type_oid == current.type_oid
+                    && previous.typlen == current.typlen
+                    && previous.atttypmod == current.atttypmod
+            });
+    if unchanged {
+        return Ok(());
+    }
+    Err(ExtendedQueryError {
+        pg_error: Box::new(PgWireError::new(
+            PgWireSeverity::Error,
+            "0A000",
+            "cached plan must not change result type",
+        )),
+        record_protocol_error: false,
+    })
+}
+
+fn retain_prepared_result_descriptor(
+    state: &SessionState,
+    columns: Vec<ColumnMeta>,
+    catalog_version: u64,
+) -> Result<std::sync::Arc<crate::pgwire::protocol::PreparedResultDescriptor>, ExtendedQueryError> {
+    let retained_bytes = columns
+        .capacity()
+        .checked_mul(std::mem::size_of::<ColumnMeta>())
+        .and_then(|bytes| {
+            columns.iter().try_fold(bytes, |total, column| {
+                total
+                    .checked_add(column.name.capacity())
+                    .and_then(|total| total.checked_add(column.data_type.capacity()))
+            })
+        })
+        .and_then(|bytes| {
+            bytes.checked_add(std::mem::size_of::<
+                crate::pgwire::protocol::PreparedResultDescriptor,
+            >())
+        })
+        .and_then(|bytes| {
+            bytes.checked_add(std::mem::size_of::<(
+                u64,
+                std::sync::Arc<crate::pgwire::protocol::PreparedResultDescriptor>,
+            )>())
+        })
+        .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<usize>()))
+        .ok_or_else(|| {
+            ExtendedQueryError::cassie(&CassieError::ResourceLimit(
+                "prepared result descriptor memory estimate overflowed".to_owned(),
+            ))
+        })?;
+    let memory = state
+        .portal_memory_controls
+        .reserve_query_memory(retained_bytes)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    Ok(std::sync::Arc::new(
+        crate::pgwire::protocol::PreparedResultDescriptor {
+            columns,
+            catalog_version: std::sync::atomic::AtomicU64::new(catalog_version),
+            _memory: memory,
+        },
+    ))
+}
+
+fn current_catalog_version(cassie: &Cassie, session: &CassieSession) -> u64 {
+    session
+        .transaction_catalog_version()
+        .unwrap_or_else(|| cassie.catalog.version())
 }
 
 fn prepared_for_portal(

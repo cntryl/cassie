@@ -529,6 +529,11 @@ fn plan_create_table(statement: &CreateTableStatement) -> Result<LogicalPlan, Ca
 fn plan_alter_table(statement: &AlterTableStatement) -> Result<LogicalPlan, CassieError> {
     require_name(&statement.table, "ALTER TABLE requires a table name")?;
     validate_alter_command(statement)?;
+    if statement.if_exists {
+        return Ok(single_row_command_plan(LogicalCommand::AlterTable(
+            statement.clone(),
+        )));
+    }
     plan_table_command(
         &statement.table,
         "ALTER TABLE requires a table name",
@@ -656,6 +661,20 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
         ));
     }
     match &statement.operation {
+        AlterTableOperation::Multiple { operations } => {
+            if operations.is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE requires at least one action".into(),
+                ));
+            }
+            for operation in operations {
+                validate_alter_command(&AlterTableStatement {
+                    table: statement.table.clone(),
+                    if_exists: statement.if_exists,
+                    operation: operation.clone(),
+                })?;
+            }
+        }
         AlterTableOperation::AddColumn { field, .. } => {
             if field.trim().is_empty() {
                 return Err(CassieError::Planner(
@@ -663,39 +682,12 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
-        AlterTableOperation::AddConstraint { constraints } => {
-            if constraints.is_empty()
-                || constraints
-                    .iter()
-                    .any(|constraint| constraint.field.trim().is_empty())
-            {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE ADD CONSTRAINT requires a field".into(),
-                ));
-            }
+        AlterTableOperation::AddConstraint { .. }
+        | AlterTableOperation::AddUniqueConstraintUsingIndex { .. }
+        | AlterTableOperation::DropConstraint { .. } => {
+            validate_alter_constraint_command(&statement.operation)?;
         }
-        AlterTableOperation::AddUniqueConstraintUsingIndex {
-            constraint_name,
-            index_name,
-        } => {
-            if constraint_name
-                .as_ref()
-                .is_some_and(|name| name.trim().is_empty())
-                || index_name.trim().is_empty()
-            {
-                return Err(CassieError::Planner(
-                    "UNIQUE USING INDEX requires a valid index name".into(),
-                ));
-            }
-        }
-        AlterTableOperation::DropConstraint { name, .. } => {
-            if name.trim().is_empty() {
-                return Err(CassieError::Planner(
-                    "ALTER TABLE DROP CONSTRAINT requires a constraint name".into(),
-                ));
-            }
-        }
-        AlterTableOperation::DropColumn { field } => {
+        AlterTableOperation::DropColumn { field, .. } => {
             if field.trim().is_empty() {
                 return Err(CassieError::Planner(
                     "ALTER TABLE DROP COLUMN requires a field".into(),
@@ -730,6 +722,9 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
+        AlterTableOperation::SetSchema { schema } => {
+            validate_alter_set_schema(schema)?;
+        }
         AlterTableOperation::SetAccessMethod { access_method } => {
             if access_method != "heap" {
                 return Err(CassieError::Unsupported(format!(
@@ -741,13 +736,54 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
         | AlterTableOperation::AlterColumnDropDefault { field }
         | AlterTableOperation::AlterColumnSetNotNull { field }
         | AlterTableOperation::AlterColumnDropNotNull { field }
-        | AlterTableOperation::AlterColumnIdentity { field, .. } => {
+        | AlterTableOperation::AlterColumnIdentity { field, .. }
+        | AlterTableOperation::AlterColumnType { field, .. } => {
             if field.trim().is_empty() {
                 return Err(CassieError::Planner(
                     "ALTER TABLE ALTER COLUMN requires a field".into(),
                 ));
             }
         }
+    }
+    Ok(())
+}
+
+fn validate_alter_constraint_command(operation: &AlterTableOperation) -> Result<(), CassieError> {
+    match operation {
+        AlterTableOperation::AddConstraint { constraints }
+            if constraints.is_empty()
+                || constraints
+                    .iter()
+                    .any(|constraint| constraint.field.trim().is_empty()) =>
+        {
+            Err(CassieError::Planner(
+                "ALTER TABLE ADD CONSTRAINT requires a field".into(),
+            ))
+        }
+        AlterTableOperation::AddUniqueConstraintUsingIndex {
+            constraint_name,
+            index_name,
+        } if constraint_name
+            .as_ref()
+            .is_some_and(|name| name.trim().is_empty())
+            || index_name.trim().is_empty() =>
+        {
+            Err(CassieError::Planner(
+                "UNIQUE USING INDEX requires a valid index name".into(),
+            ))
+        }
+        AlterTableOperation::DropConstraint { name, .. } if name.trim().is_empty() => Err(
+            CassieError::Planner("ALTER TABLE DROP CONSTRAINT requires a constraint name".into()),
+        ),
+        _ => Ok(()),
+    }
+}
+
+fn validate_alter_set_schema(schema: &str) -> Result<(), CassieError> {
+    if schema.trim().is_empty() {
+        return Err(CassieError::Planner(
+            "ALTER TABLE SET SCHEMA requires a schema name".into(),
+        ));
     }
     Ok(())
 }

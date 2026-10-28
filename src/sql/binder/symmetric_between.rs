@@ -10,7 +10,7 @@ pub(super) fn validate(
         && operands.into_iter().any(|operand| {
             matches!(
                 types.expression_type(operand),
-                Some(DataType::Array(_) | DataType::Json | DataType::Vector(_))
+                Some(DataType::Array(_) | DataType::Json | DataType::Jsonb | DataType::Vector(_))
             )
         })
     {

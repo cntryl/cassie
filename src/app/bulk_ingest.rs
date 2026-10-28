@@ -10,6 +10,37 @@ use crate::types::DataType;
 
 const COPY_NULL: &str = "\\N";
 
+#[derive(Clone, Copy)]
+pub(crate) struct CopyCsvOptions<'a> {
+    pub(crate) delimiter: char,
+    pub(crate) quote: char,
+    pub(crate) escape: char,
+    pub(crate) null_marker: &'a str,
+    pub(crate) force_null: &'a [usize],
+    pub(crate) force_not_null: &'a [usize],
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct CopyIngestOptions<'a> {
+    pub(crate) default_marker: Option<&'a str>,
+    pub(crate) on_error_ignore: bool,
+    pub(crate) reject_limit: Option<usize>,
+}
+
+#[derive(Debug)]
+pub(crate) struct CopySkippedRow {
+    pub(crate) line: usize,
+    pub(crate) column: String,
+    pub(crate) value: String,
+    error: CassieError,
+}
+
+#[derive(Debug)]
+pub(crate) struct CopyIngestResult {
+    pub(crate) count: usize,
+    pub(crate) skipped: Vec<CopySkippedRow>,
+}
+
 impl Cassie {
     /// # Errors
     ///
@@ -60,18 +91,30 @@ impl Cassie {
         if statement.header && !rows.is_empty() {
             rows.remove(0);
         }
-        self.copy_from_rows_inner(session, statement, rows, cancellation)
+        self.copy_from_rows_inner(
+            session,
+            statement,
+            rows,
+            cancellation,
+            CopyIngestOptions {
+                default_marker: None,
+                on_error_ignore: false,
+                reject_limit: None,
+            },
+        )
+        .map(|result| result.count)
     }
 
-    pub(crate) fn ingest_copy_rows(
+    pub(crate) fn ingest_copy_rows_with_default_marker(
         &self,
         session: &CassieSession,
         statement: &CopyStatement,
         rows: Vec<Vec<Option<String>>>,
         cancellation: Option<&QueryCancellationHandle>,
-    ) -> Result<usize, CassieError> {
+        options: CopyIngestOptions<'_>,
+    ) -> Result<CopyIngestResult, CassieError> {
         let transactional = session.is_transaction_active();
-        let result = self.copy_from_rows_inner(session, statement, rows, cancellation);
+        let result = self.copy_from_rows_inner(session, statement, rows, cancellation, options);
         if result.is_err() && transactional {
             session.mark_transaction_failed();
         }
@@ -84,7 +127,8 @@ impl Cassie {
         statement: &CopyStatement,
         rows: Vec<Vec<Option<String>>>,
         cancellation: Option<&QueryCancellationHandle>,
-    ) -> Result<usize, CassieError> {
+        options: CopyIngestOptions<'_>,
+    ) -> Result<CopyIngestResult, CassieError> {
         check_copy_cancellation(cancellation)?;
         let database = session.current_database().unwrap_or(&self.default_database);
         let context =
@@ -109,15 +153,29 @@ impl Cassie {
         let columns = copy_columns(&statement, schema.fields.as_slice())?;
 
         let collections = self.referential_write_collections(&statement.table);
-        let (affected, stats) = self.midge.with_collection_write_gates(&collections, || {
-            self.stage_and_apply_copy_rows(session, &statement, &columns, rows, cancellation)
-        })?;
+        let (affected, stats, skipped) =
+            self.midge.with_collection_write_gates(&collections, || {
+                self.stage_and_apply_copy_rows(
+                    session,
+                    &statement,
+                    &columns,
+                    rows,
+                    cancellation,
+                    options,
+                )
+            })?;
         let Some(stats) = stats else {
-            return Ok(affected);
+            return Ok(CopyIngestResult {
+                count: affected,
+                skipped,
+            });
         };
         finish_copy_batch(self, &statement, &stats)?;
         self.runtime.set_data_epoch(self.midge.data_epoch()?);
-        Ok(affected)
+        Ok(CopyIngestResult {
+            count: affected,
+            skipped,
+        })
     }
 
     /// Prepares, validates and applies COPY rows while the caller holds the
@@ -129,7 +187,15 @@ impl Cassie {
         columns: &[CopyColumn],
         rows: Vec<Vec<Option<String>>>,
         cancellation: Option<&QueryCancellationHandle>,
-    ) -> Result<(usize, Option<crate::runtime::ProjectionWriteStats>), CassieError> {
+        options: CopyIngestOptions<'_>,
+    ) -> Result<
+        (
+            usize,
+            Option<crate::runtime::ProjectionWriteStats>,
+            Vec<CopySkippedRow>,
+        ),
+        CassieError,
+    > {
         let transactional = session.is_transaction_active();
         let batch = session.fork_statement_batch()?;
         let staging = batch.session();
@@ -137,41 +203,26 @@ impl Cassie {
         let schema = self.catalog.get_schema(&statement.table);
         let mut seen_ids = BTreeSet::new();
         let mut affected = 0usize;
+        let mut skipped_rows = 0usize;
+        let mut skipped = Vec::new();
 
         for (row_index, row) in rows.into_iter().enumerate() {
             check_copy_cancellation(cancellation)?;
-            if row.len() != columns.len() {
-                return Err(CassieError::Parse(format!(
-                    "COPY row {} has {} columns but target expects {}",
-                    row_index + 1,
-                    row.len(),
-                    columns.len()
-                )));
-            }
-
-            let mut row_id = None;
-            let mut payload = serde_json::Map::new();
-            for (column, value) in columns.iter().zip(row) {
-                match column {
-                    CopyColumn::RowId => {
-                        let Some(value) = value else {
-                            return Err(CassieError::Parse(format!(
-                                "COPY row {} has NULL row id",
-                                row_index + 1
-                            )));
-                        };
-                        row_id = Some(value);
+            let input = match convert_copy_row(columns, row, row_index + 1, options)? {
+                CopyRowOutcome::Accepted(input) => input,
+                CopyRowOutcome::Skipped(rejected) => {
+                    skipped_rows = skipped_rows.saturating_add(1);
+                    if options
+                        .reject_limit
+                        .is_some_and(|limit| skipped_rows > limit)
+                    {
+                        return Err(rejected.error);
                     }
-                    CopyColumn::Field(field) => {
-                        if value.is_none() && matches!(field.data_type, DataType::Json) {
-                            continue;
-                        }
-                        payload.insert(field.name.clone(), copy_value_to_json(value, field)?);
-                    }
+                    skipped.push(rejected);
+                    continue;
                 }
-            }
-
-            let row_id = row_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+            };
+            let row_id = input.row_id.unwrap_or_else(|| Uuid::new_v4().to_string());
             if !seen_ids.insert(row_id.clone()) {
                 return Err(CassieError::Parse(format!(
                     "COPY row {} duplicates row id '{}'",
@@ -180,11 +231,16 @@ impl Cassie {
                 )));
             }
 
+            let payload = self.apply_insert_defaults(
+                &statement.table,
+                serde_json::Value::Object(input.payload),
+                &input.explicit_json_nulls,
+            )?;
             let (prepared, constraints) = self.prepare_document_write_deferring_foreign_keys(
                 Some(staging),
                 &statement.table,
-                serde_json::Value::Object(payload),
-                true,
+                payload,
+                false,
                 None,
             )?;
             references.collect(&statement.table, &constraints, &prepared, schema.as_ref())?;
@@ -198,7 +254,7 @@ impl Cassie {
         if transactional {
             check_copy_cancellation(cancellation)?;
             session.publish_statement_batch(&batch)?;
-            return Ok((affected, None));
+            return Ok((affected, None, skipped));
         }
 
         // Autocommit COPY has no COMMIT, so run its parent-side check here: an
@@ -209,7 +265,7 @@ impl Cassie {
             .remove(&statement.table)
             .unwrap_or_default();
         if writes.is_empty() {
-            return Ok((0, None));
+            return Ok((0, None, skipped));
         }
 
         let operations = copy_write_operations(writes)?;
@@ -220,8 +276,87 @@ impl Cassie {
             operations,
             &options,
         )?;
-        Ok((affected, Some(report.stats)))
+        Ok((affected, Some(report.stats), skipped))
     }
+}
+
+struct CopyInputRow<'a> {
+    row_id: Option<String>,
+    payload: serde_json::Map<String, serde_json::Value>,
+    explicit_json_nulls: Vec<&'a str>,
+}
+
+enum CopyRowOutcome<'a> {
+    Accepted(CopyInputRow<'a>),
+    Skipped(CopySkippedRow),
+}
+
+fn convert_copy_row<'a>(
+    columns: &'a [CopyColumn],
+    row: Vec<Option<String>>,
+    line: usize,
+    options: CopyIngestOptions<'_>,
+) -> Result<CopyRowOutcome<'a>, CassieError> {
+    if row.len() != columns.len() {
+        return Err(super::DiagnosticError::new(
+            "22P04",
+            format!(
+                "COPY row {line} has {} columns but target expects {}",
+                row.len(),
+                columns.len()
+            ),
+        )
+        .into());
+    }
+
+    let mut row_id = None;
+    let mut payload = serde_json::Map::new();
+    let mut explicit_json_nulls = Vec::new();
+    for (column, value) in columns.iter().zip(row) {
+        match column {
+            CopyColumn::RowId => {
+                row_id = Some(value.ok_or_else(|| {
+                    CassieError::Parse(format!("COPY row {line} has NULL row id"))
+                })?);
+            }
+            CopyColumn::Field(field) => {
+                if options
+                    .default_marker
+                    .is_some_and(|marker| value.as_deref() == Some(marker))
+                {
+                    continue;
+                }
+                if value.is_none() && matches!(field.data_type, DataType::Json | DataType::Jsonb) {
+                    explicit_json_nulls.push(field.name.as_str());
+                    continue;
+                }
+                let source_value = value.clone();
+                match copy_value_to_json(value, field) {
+                    Ok(value) => {
+                        payload.insert(field.name.clone(), value);
+                    }
+                    Err(error) if options.on_error_ignore && is_copy_input_error(&error) => {
+                        return Ok(CopyRowOutcome::Skipped(CopySkippedRow {
+                            line,
+                            column: field.name.clone(),
+                            value: source_value.unwrap_or_default(),
+                            error,
+                        }));
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+    }
+    Ok(CopyRowOutcome::Accepted(CopyInputRow {
+        row_id,
+        payload,
+        explicit_json_nulls,
+    }))
+}
+
+fn is_copy_input_error(error: &CassieError) -> bool {
+    error.descriptor().sql_state.starts_with("22")
 }
 
 fn check_copy_cancellation(
@@ -283,12 +418,12 @@ fn finish_copy_batch(
 }
 
 #[derive(Debug, Clone)]
-enum CopyColumn {
+pub(crate) enum CopyColumn {
     RowId,
     Field(FieldMeta),
 }
 
-fn copy_columns(
+pub(crate) fn copy_columns(
     statement: &CopyStatement,
     fields: &[FieldMeta],
 ) -> Result<Vec<CopyColumn>, CassieError> {
@@ -348,30 +483,27 @@ fn copy_value_to_json(
     };
 
     match &field.data_type {
-        DataType::SmallInt | DataType::Int | DataType::BigInt => value
-            .parse::<i64>()
-            .map(serde_json::Value::from)
-            .map_err(|_| CassieError::Parse(format!("field '{}' expects integer", field.name))),
+        DataType::SmallInt | DataType::Int | DataType::BigInt => {
+            copy_integer_value(&value, &field.data_type)
+        }
         DataType::Float => {
-            let parsed = value
-                .parse::<f64>()
-                .map_err(|_| CassieError::Parse(format!("field '{}' expects float", field.name)))?;
+            let parsed = crate::types::float_input::parse(&value)?;
             serde_json::Number::from_f64(parsed)
                 .map(serde_json::Value::Number)
-                .ok_or_else(|| {
-                    CassieError::Parse(format!("field '{}' expects finite float", field.name))
-                })
+                .ok_or(CassieError::FloatInput(
+                    crate::types::FloatInputError::Range,
+                ))
         }
         DataType::ObjectId(_) => crate::types::object_id::parse_oid_text(&value)
             .map(serde_json::Value::from)
-            .map_err(|error| CassieError::Parse(format!("field '{}': {error}", field.name))),
+            .map_err(CassieError::from),
         DataType::Extended(kind) => kind
             .parse_text(&value)
             .map(|typed| typed.to_json())
-            .map_err(|error| CassieError::Parse(format!("field '{}': {error}", field.name))),
+            .map_err(CassieError::from),
         DataType::Boolean => parse_copy_bool(&value)
             .map(serde_json::Value::Bool)
-            .ok_or_else(|| CassieError::Parse(format!("field '{}' expects boolean", field.name))),
+            .ok_or_else(|| crate::types::BooleanInputError.into()),
         DataType::Array(element_type) => {
             crate::types::array::parse_text_array(&value, element_type).map_err(|error| {
                 let message = format!("field '{}' expects array: {error}", field.name);
@@ -383,10 +515,19 @@ fn copy_value_to_json(
                 }
             })
         }
-        DataType::Json | DataType::Vector(_) => serde_json::from_str(&value).map_err(|error| {
-            CassieError::Parse(format!("field '{}' expects JSON: {error}", field.name))
-        }),
+        DataType::Json | DataType::Jsonb | DataType::Vector(_) => serde_json::from_str(&value)
+            .map_err(|error| {
+                super::DiagnosticError::new(
+                    "22P02",
+                    format!("field '{}' expects JSON: {error}", field.name),
+                )
+                .into()
+            }),
+        DataType::Name => Ok(serde_json::Value::String(crate::types::name::parse_text(
+            &value,
+        ))),
         DataType::Null
+        | DataType::JsonPath
         | DataType::Text
         | DataType::Char { .. }
         | DataType::Varchar { .. }
@@ -398,22 +539,34 @@ fn copy_value_to_json(
     }
 }
 
+fn copy_integer_value(value: &str, data_type: &DataType) -> Result<serde_json::Value, CassieError> {
+    use crate::types::integer::{IntegerInputError, IntegerWidth};
+    let width = IntegerWidth::from_data_type(data_type).expect("integer COPY field");
+    crate::types::integer::parse(value, width)
+        .map(serde_json::Value::from)
+        .map_err(|error| {
+            let (state, message) = match error {
+                IntegerInputError::Syntax => ("22P02", width.syntax_message()),
+                IntegerInputError::Range => ("22003", width.range_message()),
+            };
+            super::DiagnosticError::new(state, message).into()
+        })
+}
+
 fn parse_copy_bool(raw: &str) -> Option<bool> {
     crate::types::boolean::parse_text(raw)
 }
 
-pub(crate) fn parse_copy_csv_payload(
+pub(crate) fn parse_copy_csv_payload_with_force(
     payload: &[u8],
-    delimiter: char,
-    null_marker: &str,
+    options: CopyCsvOptions<'_>,
 ) -> Result<Vec<Vec<Option<String>>>, CassieError> {
-    parse_csv_payload_with_null_policy(payload, delimiter, null_marker, null_marker.is_empty())
+    parse_csv_payload_with_null_policy(payload, options, options.null_marker.is_empty())
 }
 
 fn parse_csv_payload_with_null_policy(
     payload: &[u8],
-    delimiter: char,
-    null_marker: &str,
+    options: CopyCsvOptions<'_>,
     empty_unquoted_is_null: bool,
 ) -> Result<Vec<Vec<Option<String>>>, CassieError> {
     let text = std::str::from_utf8(payload)
@@ -426,25 +579,33 @@ fn parse_csv_payload_with_null_policy(
 
     while let Some(ch) = chars.next() {
         match ch {
-            '"' if in_quotes && chars.peek() == Some(&'"') => {
-                field.value.push('"');
+            ch if in_quotes && ch == options.escape && chars.peek() == Some(&options.quote) => {
+                field.value.push(options.quote);
                 chars.next();
             }
-            '"' => {
+            ch if ch == options.quote => {
                 in_quotes = !in_quotes;
                 field.started = true;
                 field.quoted = true;
             }
-            ch if ch == delimiter && !in_quotes => {
-                field.push_into(&mut row, null_marker, empty_unquoted_is_null);
+            ch if ch == options.delimiter && !in_quotes => {
+                field.push_into(
+                    &mut row,
+                    options.null_marker,
+                    empty_unquoted_is_null,
+                    options.force_null,
+                    options.force_not_null,
+                );
             }
             '\n' if !in_quotes => {
                 push_csv_row(
                     &mut rows,
                     &mut row,
                     &mut field,
-                    null_marker,
+                    options.null_marker,
                     empty_unquoted_is_null,
+                    options.force_null,
+                    options.force_not_null,
                 );
             }
             '\r' if !in_quotes => {
@@ -455,8 +616,10 @@ fn parse_csv_payload_with_null_policy(
                     &mut rows,
                     &mut row,
                     &mut field,
-                    null_marker,
+                    options.null_marker,
                     empty_unquoted_is_null,
+                    options.force_null,
+                    options.force_not_null,
                 );
             }
             _ => {
@@ -467,17 +630,21 @@ fn parse_csv_payload_with_null_policy(
     }
 
     if in_quotes {
-        return Err(CassieError::Parse(
-            "COPY CSV payload has unterminated quote".into(),
-        ));
+        return Err(super::DiagnosticError::new(
+            "22P04",
+            "COPY CSV payload has unterminated quote",
+        )
+        .into());
     }
     if field.started || !row.is_empty() {
         push_csv_row(
             &mut rows,
             &mut row,
             &mut field,
-            null_marker,
+            options.null_marker,
             empty_unquoted_is_null,
+            options.force_null,
+            options.force_not_null,
         );
     }
 
@@ -490,8 +657,16 @@ fn push_csv_row(
     field: &mut CsvField,
     null_marker: &str,
     empty_unquoted_is_null: bool,
+    force_null: &[usize],
+    force_not_null: &[usize],
 ) {
-    field.push_into(row, null_marker, empty_unquoted_is_null);
+    field.push_into(
+        row,
+        null_marker,
+        empty_unquoted_is_null,
+        force_null,
+        force_not_null,
+    );
     rows.push(std::mem::take(row));
 }
 
@@ -509,16 +684,35 @@ impl CsvField {
         row: &mut Vec<Option<String>>,
         null_marker: &str,
         empty_unquoted_is_null: bool,
+        force_null: &[usize],
+        force_not_null: &[usize],
     ) {
         let field = std::mem::take(self);
-        let is_null = !field.quoted
-            && (field.value == null_marker || (empty_unquoted_is_null && field.value.is_empty()));
+        let index = row.len();
+        let marker_match = field.value == null_marker;
+        let empty_match = empty_unquoted_is_null && field.value.is_empty() && !field.quoted;
+        let is_null = if field.quoted {
+            marker_match && force_null.contains(&index)
+        } else {
+            (marker_match || empty_match) && !force_not_null.contains(&index)
+        };
         row.push((!is_null).then_some(field.value));
     }
 }
 
 fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieError> {
-    parse_csv_payload_with_null_policy(payload, ',', COPY_NULL, true)
+    parse_csv_payload_with_null_policy(
+        payload,
+        CopyCsvOptions {
+            delimiter: ',',
+            quote: '"',
+            escape: '"',
+            null_marker: COPY_NULL,
+            force_null: &[],
+            force_not_null: &[],
+        },
+        true,
+    )
 }
 
 #[cfg(test)]
@@ -556,7 +750,7 @@ mod tests {
     }
 
     #[test]
-    fn should_preserve_copy_null_values_given_configured_null_markers() {
+    fn should_treat_quoted_copy_null_marker_as_literal() {
         // Arrange
         let payload = b"row-1,\\N,\"\\N\"\n";
 
@@ -564,7 +758,10 @@ mod tests {
         let rows = parse_csv_payload(payload).expect("null markers");
 
         // Assert
-        assert_eq!(rows[0], vec![Some("row-1".to_string()), None, None]);
+        assert_eq!(
+            rows[0],
+            vec![Some("row-1".to_string()), None, Some("\\N".to_string())]
+        );
     }
 
     #[test]

@@ -529,7 +529,10 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
     }
 }
 
-fn document_to_row(document: &DocumentRef, schema: Option<&CollectionSchema>) -> BatchRow {
+pub(crate) fn document_to_row(
+    document: &DocumentRef,
+    schema: Option<&CollectionSchema>,
+) -> BatchRow {
     let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
     let mut row = Vec::new();
     push_row_identity(&mut row, &document.id);
@@ -739,7 +742,9 @@ fn json_to_value(value: &serde_json::Value) -> Value {
 }
 
 pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
-    if matches!(data_type, DataType::Json) && crate::types::json::requires_document_carrier(value) {
+    if *data_type == DataType::Jsonb
+        || (data_type.is_json() && crate::types::json::requires_document_carrier(value))
+    {
         return Value::Json(value.clone());
     }
     if let DataType::Extended(kind) = data_type {

@@ -4,6 +4,17 @@ use crate::runtime::QueryExecutionControls;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
+impl CteBinding {
+    pub(super) fn has_implicit_identity(&self) -> bool {
+        use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
+        !self.visible.iter().any(|name| is_legacy_id_column(name))
+            && self
+                .row_fields
+                .iter()
+                .any(|field| is_row_identity_column(&field.name))
+    }
+}
+
 #[derive(Clone, Default)]
 pub(super) struct CteScope<'a> {
     bindings: HashMap<String, CteBinding>,

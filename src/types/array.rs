@@ -57,7 +57,7 @@ pub(crate) fn parse_text_array(
             ArrayElement::Null => JsonValue::Null,
             ArrayElement::Value(value) => {
                 let parsed = parse_element(value, element_type).map_err(TextArrayError::Invalid)?;
-                if matches!(element_type, DataType::Json) && parsed.is_null() {
+                if matches!(element_type, DataType::Json | DataType::Jsonb) && parsed.is_null() {
                     document_null = true;
                     continue;
                 }
@@ -131,9 +131,10 @@ fn format_element(value: &JsonValue, element_type: &DataType) -> Option<String> 
         (JsonValue::Number(value), _) => value.to_string(),
         (JsonValue::Bool(value), DataType::Boolean) => if *value { "t" } else { "f" }.to_owned(),
         (JsonValue::Bool(value), _) => value.to_string(),
-        (JsonValue::Array(_) | JsonValue::Object(_), DataType::Json | DataType::Vector(_)) => {
-            value.to_string()
-        }
+        (
+            JsonValue::Array(_) | JsonValue::Object(_),
+            DataType::Json | DataType::Jsonb | DataType::Vector(_),
+        ) => value.to_string(),
         (JsonValue::Array(_) | JsonValue::Object(_), _) => return None,
         (JsonValue::Null, _) => "NULL".to_owned(),
     })
@@ -312,10 +313,12 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
         DataType::Boolean => crate::types::boolean::parse_text(&value)
             .map(JsonValue::Bool)
             .ok_or_else(|| format!("invalid boolean array element '{value}'")),
-        DataType::Json | DataType::Vector(_) => serde_json::from_str(&value)
+        DataType::Json | DataType::Jsonb | DataType::Vector(_) => serde_json::from_str(&value)
             .map_err(|error| format!("invalid JSON array element: {error}")),
         DataType::Array(_) => Err("array-of-array types are not supported".to_string()),
+        DataType::JsonPath => Err("JSONPATH arrays are not supported".to_string()),
         DataType::Null
+        | DataType::Name
         | DataType::Text
         | DataType::Char { .. }
         | DataType::Varchar { .. }

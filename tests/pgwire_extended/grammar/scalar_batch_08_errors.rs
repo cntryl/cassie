@@ -235,3 +235,30 @@ fn should_reject_like_chain_4_given_unparenthesized_predicates_when_parsing() {
     // Assert
     assert_errors(&batches, "42601", "syntax error at or near \"LIKE\"");
 }
+
+#[test]
+fn should_preserve_offending_keyword_spelling_given_comments_when_like_chains_are_rejected() {
+    // Arrange
+    let cases = [
+        ("SELECT 'x' LIKE 'x'/*boundary*/LiKe 't'", "LiKe"),
+        ("SELECT 'x' LIKE 'x'/*boundary*/nOt/**/LiKe 't'", "nOt"),
+    ];
+    // Act
+    let observations = cases.map(|(sql, token)| {
+        let cycles = [0, 1]
+            .map(|format| fixture::execute_cycle(sql, None, format, true))
+            .to_vec();
+        (
+            token,
+            fixture::run_cycles("like-chain-keyword-spelling", &[], cycles),
+        )
+    });
+    // Assert
+    for (token, batches) in observations {
+        assert_errors(
+            &batches,
+            "42601",
+            &format!("syntax error at or near \"{token}\""),
+        );
+    }
+}

@@ -63,20 +63,22 @@ The issue-relevant first-batch clusters are explicit and reproducible:
   `DDL and catalog operations are not supported inside an active transaction`.
   They belong to the selected #833 contract. Broader catalog MVCC and
   repeatable-read requirements remain outside this local gate.
-- Schema evolution: the baseline
-  `should_add_column_if_not_exists_without_replacing_existing_default` failure
-  is fixed in the current scoped #839 increment. Focused green coverage includes
-  name-only no-op behavior, literal-default backfill for historical and staged
-  rows, pre-commit extended-protocol reads, rollback/commit, restart replay,
-  partial-batch recovery, and legacy journal decoding. This does not close #839.
-  Remaining gaps include `should_drop_schema_dependents_with_cascade` rejecting
-  `CASCADE`, `should_move_table_between_schemas_without_changing_its_rows`
-  reaching an unsupported ALTER operation, and the selected `ALTER COLUMN TYPE
-  USING` plus multi-action support needed by
-  `should_persist_renamed_alter_relation_after_restart`. The ordinary
-  serial-sequence table-rename case now passes through local restart and
-  same-name table recreation; canonical catalog registration and sequence
-  ownership are retained.
+- Schema evolution: the selected #839 increments now pass
+  `should_add_column_if_not_exists_without_replacing_existing_default`,
+  `should_drop_schema_dependents_with_cascade`,
+  `should_move_table_between_schemas_without_changing_its_rows`, and
+  `should_persist_renamed_alter_relation_after_restart`. Focused green coverage
+  includes name-only no-op behavior, literal-default backfill for historical
+  and staged rows, pre-commit extended-protocol reads, rollback/commit, restart
+  replay, partial-batch recovery, legacy journal decoding, and the selected
+  `ALTER COLUMN TYPE ... USING` conversion with a sibling column addition.
+  The conversion reports NUMERIC OID 1700 and typmod 1,310,724; division by zero
+  returns 22012 without publishing sibling DDL, and a conversion that violates
+  a unique constraint returns 23505 without changing the original rows/schema.
+  This does not close #839; broader relation and object lifecycle acceptance
+  remains with its owner. The ordinary serial-sequence table-rename case also
+  passes through local restart and same-name table recreation; canonical
+  catalog registration and sequence ownership are retained.
 - Index lifecycle: `compatibility::lifecycle::ddl_extensions::should_drop_an_index_without_an_on_clause`
   and `...::index_contracts::drop_index_if_exists_scope::should_not_resolve_missing_schema_qualified_index_in_another_schema`
   failed because the parser required `ON`. This defect is addressed by the

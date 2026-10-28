@@ -12,7 +12,7 @@ pub(super) fn encode_value(
     data_type: &DataType,
     value: &serde_json::Value,
 ) -> Result<(u8, Vec<u8>), CassieError> {
-    if value.is_null() && !matches!(data_type, DataType::Json) {
+    if value.is_null() && !matches!(data_type, DataType::Json | DataType::Jsonb) {
         return Ok((TYPE_NULL, Vec::new()));
     }
 
@@ -52,6 +52,7 @@ pub(super) fn encode_value(
                 .ok_or_else(|| CassieError::InvalidVector("boolean field expects bool".into()))?;
             Ok((TYPE_BOOL, vec![u8::from(value)]))
         }
+        DataType::Name => encode_string_value(value, "name field expects string"),
         DataType::Text => encode_string_value(value, "text field expects string"),
         DataType::Char { length } => encode_bounded_string(
             value,
@@ -102,12 +103,15 @@ pub(super) fn encode_value(
             Ok((TYPE_BYTEA, decode_bytea(value)?))
         }
         DataType::Array(inner) => encode_array_value(inner, value),
-        DataType::Json => {
+        DataType::Json | DataType::Jsonb => {
             let encoded = serde_json::to_vec(value)
                 .map_err(|error| CassieError::Parse(format!("invalid json field: {error}")))?;
             Ok((TYPE_JSON, encoded))
         }
         DataType::Vector(dimensions) => encode_vector_value(*dimensions, value),
+        DataType::JsonPath => Err(CassieError::Unsupported(
+            "JSONPATH values are expression-only and cannot be persisted".to_string(),
+        )),
     }
 }
 

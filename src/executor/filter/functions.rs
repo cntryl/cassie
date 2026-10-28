@@ -1,3 +1,12 @@
+#[path = "json_mutations.rs"]
+mod json_mutations;
+#[path = "time_bucket.rs"]
+mod time_bucket;
+use time_bucket::evaluate_time_bucket;
+#[path = "json_builders.rs"]
+mod json_builders;
+#[path = "json_functions.rs"]
+mod json_functions;
 use super::search::{simple_search_score, SearchContext};
 use super::{
     cast_scalar, eval_scalar, scalar_from_value, AnalyzerConfig, CassieSession, DataType,
@@ -5,11 +14,11 @@ use super::{
 };
 use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
-use time::format_description::well_known::Rfc3339;
-use time::{OffsetDateTime, UtcOffset};
 
 #[path = "bytea_functions.rs"]
 mod bytea_functions;
+#[path = "catalog_introspection.rs"]
+mod catalog_introspection;
 #[path = "catalog_sizes.rs"]
 mod catalog_sizes;
 #[path = "datum_size.rs"]
@@ -24,8 +33,12 @@ mod math_functions;
 mod math_random;
 #[path = "regex_functions.rs"]
 mod regex_functions;
+#[path = "relation_locations.rs"]
+mod relation_locations;
 #[path = "runtime_information.rs"]
 mod runtime_information;
+#[path = "session_setting_flags.rs"]
+mod session_setting_flags;
 #[path = "text_format.rs"]
 mod text_format;
 #[path = "text_scalar.rs"]
@@ -34,6 +47,8 @@ mod text_scalar;
 mod text_selection;
 #[path = "text_transform.rs"]
 mod text_transform;
+#[path = "toast_identity.rs"]
+mod toast_identity;
 
 pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -58,6 +73,10 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
                 .unwrap_or_else(|| super::evaluate_expr_value_with_context(row, arg, context))
         })
         .collect::<Result<Vec<_>, _>>()?;
+
+    if let Some(result) = json_builders::evaluate(function, row, &args, context) {
+        return result;
+    }
 
     evaluate_builtin_function(
         &name,
@@ -88,6 +107,10 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
         .map(|result| {
             result.map_err(|error| QueryError::Cassie(crate::app::CassieError::TypeInput(error)))
         })
+        .or_else(|| toast_identity::evaluate(name, args))
+        .or_else(|| catalog_introspection::evaluate(name, args))
+        .or_else(|| relation_locations::evaluate(name, args))
+        .or_else(|| session_setting_flags::evaluate(name, args))
         .or_else(|| runtime_information::evaluate(name, args, session))
         .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
         .or_else(|| super::sequence_functions::evaluate(name, args, session))
@@ -97,6 +120,9 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
             let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
             super::temporal_functions::evaluate(local, args, controls)
                 .or_else(|| super::hash_functions::evaluate(local, args))
+                .or_else(|| json_functions::evaluate(local, args, controls))
+                .or_else(|| json_mutations::evaluate(local, args, controls))
+                .or_else(|| json_path_functions::evaluate(local, args, controls))
                 .or_else(|| bytea_functions::evaluate(local, args, controls))
                 .or_else(|| math_random::evaluate(local, args, session))
                 .or_else(|| math_functions::evaluate(local, args))
@@ -130,6 +156,9 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
+    if let Some(result) = evaluate_session_identity_function(name, args, session) {
+        return Some(result);
+    }
     match name {
         "version" | "pg_catalog.version" => Some(require_zero_args(name, args).map(|()| {
             Value::String(format!(
@@ -185,19 +214,8 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
                 )
             }))
         }
-        "current_database" => Some(require_zero_args(name, args).map(|()| {
-            Value::String(
-                session
-                    .and_then(|session| session.database.clone())
-                    .unwrap_or_default(),
-            )
-        })),
         "current_user" | "session_user" | "current_role" => {
-            Some(require_zero_args(name, args).map(|()| {
-                Value::String(
-                    session.map_or_else(|| "root".to_string(), |session| session.user.clone()),
-                )
-            }))
+            Some(evaluate_current_user(name, args, session))
         }
         "quote_ident" | "pg_catalog.quote_ident" => Some(unary_nullable_text(name, args, |text| {
             Value::String(quote_identifier(text))
@@ -206,6 +224,9 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "pg_get_expr" | "pg_catalog.pg_get_expr" => Some(evaluate_pg_get_expr(name, args)),
         "pg_get_indexdef" | "pg_catalog.pg_get_indexdef" => {
             Some(evaluate_pg_get_indexdef(name, args, session))
+        }
+        "pg_get_viewdef" | "pg_catalog.pg_get_viewdef" => {
+            Some(evaluate_pg_get_viewdef(name, args, session))
         }
         "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
             Some(require_arg_count(name, args, 1).map(|()| Value::String("root".to_string())))
@@ -225,6 +246,95 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         ),
         _ => None,
     }
+}
+
+fn evaluate_session_identity_function(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Option<Result<Value, QueryError>> {
+    match name {
+        "current_schemas" | "pg_catalog.current_schemas" => {
+            Some(evaluate_current_schemas(name, args, session))
+        }
+        "current_catalog" | "current_database" => {
+            Some(evaluate_current_database(name, args, session))
+        }
+        "pg_client_encoding" | "pg_catalog.pg_client_encoding" => {
+            Some(require_zero_args(name, args).and_then(|()| {
+                session.map_or_else(
+                    || Ok(Value::String("UTF8".to_owned())),
+                    |session| {
+                        session
+                            .setting("client_encoding")
+                            .map(Value::String)
+                            .map_err(Into::into)
+                    },
+                )
+            }))
+        }
+        _ => None,
+    }
+}
+
+fn evaluate_current_database(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_zero_args(name, args).map(|()| {
+        Value::String(
+            session
+                .and_then(|session| session.database.clone())
+                .unwrap_or_default(),
+        )
+    })
+}
+
+fn evaluate_current_user(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_zero_args(name, args).map(|()| {
+        Value::String(session.map_or_else(|| "root".to_string(), |session| session.user.clone()))
+    })
+}
+
+fn evaluate_current_schemas(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count(name, args, 1)?;
+    let Some(Value::Bool(include_implicit)) = args.first() else {
+        return Ok(Value::Null);
+    };
+    let schemas = session
+        .and_then(CassieSession::object_lookup_context)
+        .map_or_else(
+            || {
+                let mut schemas = vec![DEFAULT_SCHEMA.to_owned()];
+                if *include_implicit {
+                    schemas.insert(0, PG_CATALOG_SCHEMA.to_owned());
+                }
+                schemas
+            },
+            |(_, context)| {
+                if *include_implicit {
+                    context
+                        .relation_search_order()
+                        .into_iter()
+                        .map(str::to_owned)
+                        .collect()
+                } else {
+                    context.search_path
+                }
+            },
+        );
+    Ok(Value::Json(serde_json::Value::Array(
+        schemas.into_iter().map(serde_json::Value::String).collect(),
+    )))
 }
 
 fn evaluate_pg_get_expr(name: &str, args: &[Value]) -> Result<Value, QueryError> {
@@ -259,6 +369,38 @@ fn evaluate_pg_get_indexdef(
         }
         _ => None,
     };
+    Ok(definition.map_or(Value::Null, Value::String))
+}
+
+fn evaluate_pg_get_viewdef(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count(name, args, 1)?;
+    let Some(argument) = args.first() else {
+        return Err(QueryError::General(format!("{name} requires 1 arg")));
+    };
+    if matches!(argument, Value::Null) {
+        return Ok(Value::Null);
+    }
+    let Value::String(view_name) = argument else {
+        return Ok(Value::Null);
+    };
+    let Some((catalog, context)) = session.and_then(CassieSession::object_lookup_context) else {
+        return Ok(Value::Null);
+    };
+    let definition = context
+        .relation_search_order()
+        .into_iter()
+        .find_map(|schema| {
+            let mut scoped_context = context.clone();
+            scoped_context.search_path = vec![schema.to_owned()];
+            let canonical_name =
+                crate::sql::binder::normalize_relation_name(view_name, &scoped_context).ok()?;
+            catalog.get_view(&canonical_name)
+        })
+        .map(|view| format!(" {};", view.query.trim().trim_end_matches(';')));
     Ok(definition.map_or(Value::Null, Value::String))
 }
 
@@ -699,130 +841,6 @@ pub(super) fn scalar_to_f64(value: &Value) -> f64 {
     }
 }
 
-fn evaluate_time_bucket(args: &[Value]) -> Result<Value, QueryError> {
-    if !(2..=3).contains(&args.len()) {
-        return Err(QueryError::General(format!(
-            "time_bucket requires 2 or 3 args, got {}",
-            args.len()
-        )));
-    }
-    if args.iter().any(|arg| matches!(arg, Value::Null)) {
-        return Ok(Value::Null);
-    }
-
-    let width_ns = duration_width_ns(&args[0])?;
-    let timestamp_ns = timestamp_arg_ns("time_bucket", &args[1])?;
-    let origin_ns = if args.len() == 3 {
-        timestamp_arg_ns("time_bucket", &args[2])?
-    } else {
-        0
-    };
-    let delta = timestamp_ns
-        .checked_sub(origin_ns)
-        .ok_or_else(|| QueryError::General("time_bucket timestamp overflow".to_string()))?;
-    let bucket_index = floor_div(delta, width_ns);
-    let bucket_offset = bucket_index
-        .checked_mul(width_ns)
-        .ok_or_else(|| QueryError::General("time_bucket timestamp overflow".to_string()))?;
-    let bucket_ns = origin_ns
-        .checked_add(bucket_offset)
-        .ok_or_else(|| QueryError::General("time_bucket timestamp overflow".to_string()))?;
-    let bucket = OffsetDateTime::from_unix_timestamp_nanos(bucket_ns)
-        .map_err(|_| QueryError::General("time_bucket timestamp overflow".to_string()))?
-        .to_offset(UtcOffset::UTC);
-    let formatted = bucket
-        .format(&Rfc3339)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    Ok(Value::String(formatted))
-}
-
-fn duration_width_ns(value: &Value) -> Result<i128, QueryError> {
-    let Value::String(raw) = value else {
-        return Err(QueryError::General(
-            "time_bucket width must be a duration string".to_string(),
-        ));
-    };
-    let (amount, unit) = parse_duration_parts(raw)?;
-    let multiplier = match unit.as_str() {
-        "ns" | "nanosecond" | "nanoseconds" => 1,
-        "us" | "microsecond" | "microseconds" => 1_000,
-        "ms" | "millisecond" | "milliseconds" => 1_000_000,
-        "s" | "sec" | "second" | "seconds" => 1_000_000_000,
-        "m" | "min" | "minute" | "minutes" => 60_000_000_000,
-        "h" | "hr" | "hour" | "hours" => 3_600_000_000_000,
-        "d" | "day" | "days" => 86_400_000_000_000,
-        "w" | "week" | "weeks" => 604_800_000_000_000,
-        "month" | "months" | "year" | "years" => {
-            return Err(QueryError::General(
-                "time_bucket width cannot use calendar-dependent units".to_string(),
-            ));
-        }
-        _ => {
-            return Err(QueryError::General(format!(
-                "invalid time_bucket width unit '{unit}'"
-            )));
-        }
-    };
-    amount
-        .checked_mul(multiplier)
-        .filter(|width| *width > 0)
-        .ok_or_else(|| QueryError::General("time_bucket width overflow".to_string()))
-}
-
-fn parse_duration_parts(raw: &str) -> Result<(i128, String), QueryError> {
-    let value = raw.trim();
-    if value.is_empty() {
-        return Err(QueryError::General("invalid time_bucket width".to_string()));
-    }
-    let split_at = value
-        .find(|ch: char| !(ch.is_ascii_digit() || ch == '-' || ch == '+'))
-        .unwrap_or(value.len());
-    let number = value[..split_at].trim();
-    let unit = value[split_at..].trim().to_ascii_lowercase();
-    if number.is_empty() || unit.is_empty() {
-        return Err(QueryError::General("invalid time_bucket width".to_string()));
-    }
-    let amount = number
-        .parse::<i128>()
-        .map_err(|_| QueryError::General("invalid time_bucket width amount".to_string()))?;
-    if amount <= 0 {
-        return Err(QueryError::General(
-            "time_bucket width must be positive".to_string(),
-        ));
-    }
-    Ok((amount, unit))
-}
-
-fn timestamp_arg_ns(name: &str, value: &Value) -> Result<i128, QueryError> {
-    if let Value::Typed(typed) = value {
-        if let Some(raw) = crate::types::extended::temporal_legacy_text(typed) {
-            return parse_timestamp_utc(&raw);
-        }
-    }
-    let Value::String(raw) = value else {
-        return Err(QueryError::General(format!(
-            "function '{name}' expects timestamp input"
-        )));
-    };
-    parse_timestamp_utc(raw)
-}
-
-fn parse_timestamp_utc(raw: &str) -> Result<i128, QueryError> {
-    crate::types::temporal::parse_timestamp_utc(raw.trim())
-        .map(OffsetDateTime::unix_timestamp_nanos)
-        .map_err(|_| QueryError::General("invalid time_bucket timestamp".to_string()))
-}
-
-fn floor_div(value: i128, divisor: i128) -> i128 {
-    let quotient = value / divisor;
-    let remainder = value % divisor;
-    if remainder != 0 && ((remainder > 0) != (divisor > 0)) {
-        quotient - 1
-    } else {
-        quotient
-    }
-}
-
 pub(super) fn to_text(value: &Value) -> String {
     match value {
         Value::String(value) => value.clone(),
@@ -1080,3 +1098,5 @@ pub(super) fn parse_vector_text(value: &str) -> Option<Vec<f32>> {
     }
     Some(out)
 }
+#[path = "json_path_functions.rs"]
+mod json_path_functions;

@@ -87,9 +87,12 @@ fn should_preserve_coalesce_operand_evaluation_laws() {
     // Assert
     assert_eq!(lazy, vec![vec![Value::Float64(9_007_199_254_740_991.0)]]);
     assert_eq!(nulls, vec![vec![Value::Null]]);
-    assert!(explicit_error
-        .to_string()
-        .contains("cannot cast value to INT"));
+    assert!(
+        explicit_error
+            .to_string()
+            .contains("is out of range for type integer"),
+        "{explicit_error}"
+    );
     assert_eq!(integers, vec![vec![Value::Int64(9_007_199_254_740_992)]]);
 }
 

@@ -31,6 +31,13 @@ pub(crate) fn validate_with_controls(
     if *target == DataType::Bytea {
         return crate::types::bytea_input::validate(input).map_err(CassieError::from);
     }
+    if *target == DataType::JsonPath {
+        return sql_json_path::JsonPath::new(input)
+            .map(|_| ())
+            .map_err(|error| {
+                CassieError::from(crate::app::DiagnosticError::new("42601", error.to_string()))
+            });
+    }
     let Some(diagnostic) = diagnostic(input, target) else {
         return Ok(());
     };
@@ -118,7 +125,7 @@ pub(crate) fn diagnostic(input: &str, target: &DataType) -> Option<ScalarLiteral
                 crate::types::FloatInputError::Syntax => Syntax("double precision"),
                 crate::types::FloatInputError::Range => ScalarLiteralDiagnostic::FloatRange,
             }),
-        DataType::Json => serde_json::from_str::<serde::de::IgnoredAny>(input)
+        DataType::Json | DataType::Jsonb => serde_json::from_str::<serde::de::IgnoredAny>(input)
             .err()
             .map(|_| Syntax("json")),
         _ => None,

@@ -1,3 +1,6 @@
+#[path = "binder/database_commands.rs"]
+mod database_commands;
+use database_commands::{bind_create_database_statement, bind_drop_database_statement};
 mod function_casts;
 #[path = "binder/function_validation.rs"]
 mod function_validation;
@@ -5,6 +8,14 @@ mod function_validation;
 mod grouped_projection;
 #[path = "binder/integer_operators.rs"]
 mod integer_operators;
+#[path = "binder/json_comparison.rs"]
+mod json_comparison;
+#[path = "binder/json_containment.rs"]
+pub(crate) mod json_containment;
+#[path = "binder/json_extract.rs"]
+mod json_extract;
+#[path = "binder/json_functions.rs"]
+mod json_functions;
 mod like_predicates;
 mod pagination_references;
 #[path = "binder/string_operators.rs"]
@@ -72,6 +83,7 @@ use scope::CteScope;
 
 #[path = "binder/case_unify.rs"]
 mod case_unify;
+pub(crate) use case_unify::coerce_parameterized_boolean_case_results;
 #[path = "binder/commands.rs"]
 mod commands;
 #[path = "binder/conditional_bindings.rs"]
@@ -923,57 +935,6 @@ fn bind_create_schema_statement(
             schema,
             if_not_exists,
         }),
-    ))
-}
-
-fn bind_create_database_statement(
-    statement: CreateDatabaseStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-) -> Result<ParsedStatement, CassieError> {
-    let CreateDatabaseStatement {
-        name,
-        if_not_exists,
-    } = statement;
-    let name = normalize_database_name(name.trim())?;
-    if name.is_empty() {
-        return Err(CassieError::Planner(
-            "CREATE DATABASE requires a name".into(),
-        ));
-    }
-    if !if_not_exists && catalog.database_exists(&name) {
-        return Err(CassieError::Planner(format!(
-            "database '{name}' already exists"
-        )));
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::CreateDatabase(CreateDatabaseStatement {
-            name,
-            if_not_exists,
-        }),
-    ))
-}
-
-fn bind_drop_database_statement(
-    statement: DropDatabaseStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-) -> Result<ParsedStatement, CassieError> {
-    let DropDatabaseStatement { name, if_exists } = statement;
-    let name = normalize_database_name(name.trim())?;
-    if name.is_empty() {
-        return Err(CassieError::Planner("DROP DATABASE requires a name".into()));
-    }
-    if !if_exists && !catalog.database_exists(&name) {
-        return Err(CassieError::CatalogObjectNotFound {
-            kind: CatalogObjectKind::Database,
-            name,
-        });
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::DropDatabase(DropDatabaseStatement { name, if_exists }),
     ))
 }
 

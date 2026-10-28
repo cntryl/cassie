@@ -7,7 +7,7 @@ use super::support_pgwire as support;
 type Frames = Vec<(u8, Vec<u8>)>;
 type PortalPages = (Vec<String>, Vec<String>);
 
-fn seeded_cassie(_path: &str, table: &str, count: usize) -> Cassie {
+fn seeded_cassie(table: &str, count: usize) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
@@ -77,14 +77,13 @@ async fn round_trip(
 
 /// Opens a transaction, suspends a streaming portal after two rows, stages
 /// `staged_sql` in the same transaction, and resumes the portal.
-fn resume_after_staged_write(label: &str, staged_sql: &str) -> PortalPages {
-    let path = support::data_dir(label);
+fn resume_after_staged_write(staged_sql: &str) -> PortalPages {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     let pages = runtime.block_on(async {
-        let cassie = seeded_cassie(&path, "portal_staged_resume", 6);
+        let cassie = seeded_cassie("portal_staged_resume", 6);
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -135,7 +134,6 @@ fn resume_after_staged_write(label: &str, staged_sql: &str) -> PortalPages {
         server.stop().await;
         (data_values(&first), data_values(&second))
     });
-    let _ = std::fs::remove_dir_all(path);
     pages
 }
 
@@ -149,7 +147,7 @@ fn should_resume_suspended_portal_from_original_result_after_staged_insert() {
     let staged_sql = "INSERT INTO portal_staged_resume (payload) VALUES ('staged')";
 
     // Act
-    let (first, second) = resume_after_staged_write("portal-staged-insert", staged_sql);
+    let (first, second) = resume_after_staged_write(staged_sql);
 
     // Assert
     assert_eq!(first, original_rows()[..2].to_vec());
@@ -162,7 +160,7 @@ fn should_resume_suspended_portal_from_original_result_after_staged_delete() {
     let staged_sql = "DELETE FROM portal_staged_resume WHERE payload = 'value-00'";
 
     // Act
-    let (first, second) = resume_after_staged_write("portal-staged-delete", staged_sql);
+    let (first, second) = resume_after_staged_write(staged_sql);
 
     // Assert
     assert_eq!(first, original_rows()[..2].to_vec());
@@ -172,14 +170,13 @@ fn should_resume_suspended_portal_from_original_result_after_staged_delete() {
 #[test]
 fn should_return_select_zero_when_completed_select_portal_executes_again() {
     // Arrange
-    let path = support::data_dir("portal-completed-select");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = seeded_cassie(&path, "portal_completed_select", 3);
+        let cassie = seeded_cassie("portal_completed_select", 3);
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -223,20 +220,18 @@ fn should_return_select_zero_when_completed_select_portal_executes_again() {
         drop(socket);
         server.stop().await;
     });
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_not_rerun_insert_when_completed_insert_portal_executes_again() {
     // Arrange
-    let path = support::data_dir("portal-completed-insert");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = seeded_cassie(&path, "portal_completed_insert", 0);
+        let cassie = seeded_cassie("portal_completed_insert", 0);
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -288,20 +283,18 @@ fn should_not_rerun_insert_when_completed_insert_portal_executes_again() {
         drop(socket);
         server.stop().await;
     });
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_drop_suspended_portal_when_extended_commit_ends_transaction() {
     // Arrange
-    let path = support::data_dir("portal-extended-commit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = seeded_cassie(&path, "portal_extended_commit", 4);
+        let cassie = seeded_cassie("portal_extended_commit", 4);
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -364,20 +357,18 @@ fn should_drop_suspended_portal_when_extended_commit_ends_transaction() {
         drop(socket);
         server.stop().await;
     });
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains_open() {
     // Arrange
-    let path = support::data_dir("portal-extended-commit-chain");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = seeded_cassie(&path, "portal_extended_commit_chain", 4);
+        let cassie = seeded_cassie("portal_extended_commit_chain", 4);
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -446,19 +437,17 @@ fn should_drop_suspended_portal_given_commit_chain_when_next_transaction_remains
         drop(socket);
         server.stop().await;
     });
-    let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
 fn should_use_default_characteristics_given_failed_transaction_when_commit_or_rollback_chains() {
     // Arrange
-    let path = support::data_dir("failed-chain-characteristics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = seeded_cassie(&path, "failed_chain_rows", 1);
+        let cassie = seeded_cassie("failed_chain_rows", 1);
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr).await.expect("connect");
         let (read_half, mut write_half) = socket.split();
@@ -486,20 +475,18 @@ fn should_use_default_characteristics_given_failed_transaction_when_commit_or_ro
         drop(socket);
         server.stop().await;
     });
-    std::fs::remove_dir_all(path).expect("remove failed-chain fixture");
 }
 
 #[test]
 fn should_report_transaction_status_given_implicit_begin_modes_when_prior_query_established_boundary(
 ) {
     // Arrange
-    let path = support::data_dir("implicit-begin-mode-boundary");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let cassie = seeded_cassie(&path, "implicit_begin_rows", 1);
+        let cassie = seeded_cassie("implicit_begin_rows", 1);
         let server = support::spawn_server(cassie).await;
         let mut socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -578,5 +565,4 @@ fn should_report_transaction_status_given_implicit_begin_modes_when_prior_query_
         drop(socket);
         server.stop().await;
     });
-    std::fs::remove_dir_all(path).expect("remove implicit-BEGIN fixture");
 }

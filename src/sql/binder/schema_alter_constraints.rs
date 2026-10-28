@@ -43,7 +43,8 @@ pub(super) fn bind_alter_constraint_targets(
         | AlterTableOperation::AlterColumnSetNotNull { field }
         | AlterTableOperation::AlterColumnDropNotNull { field }
         | AlterTableOperation::AlterColumnIdentity { field, .. }
-        | AlterTableOperation::DropColumn { field } => {
+        | AlterTableOperation::AlterColumnType { field, .. }
+        | AlterTableOperation::DropColumn { field, .. } => {
             use_declared_column_spelling(field, schema);
             return Ok(());
         }

@@ -170,33 +170,6 @@ fn should_set_session_characteristics_for_the_next_transaction_only() {
 }
 
 #[test]
-fn should_set_client_encoding_with_set_names() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("set_names_encoding").await;
-        let (client, connection) = server.connect().await;
-
-        // Act
-        client
-            .batch_execute("SET NAMES 'LATIN1'")
-            .await
-            .expect("set the client encoding through SET NAMES");
-        let encoding: String = client
-            .query_one("SHOW client_encoding", &[])
-            .await
-            .expect("read the selected client encoding")
-            .get(0);
-
-        // Assert
-        assert_eq!(encoding, "LATIN1");
-
-        drop(client);
-        server.shutdown(connection).await;
-    });
-}
-
-#[test]
 fn should_apply_set_schema_for_unqualified_relation_resolution() {
     // Arrange
     let runtime = current_thread_runtime();

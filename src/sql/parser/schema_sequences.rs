@@ -15,6 +15,31 @@ pub(super) fn parse_alter_column_operation(raw: &str) -> Result<AlterTableOperat
     let action = action.trim();
     let lower = action.to_ascii_lowercase();
 
+    let type_clause = lower
+        .strip_prefix("set data type ")
+        .map(|_| "set data type ".len())
+        .or_else(|| lower.strip_prefix("type ").map(|_| "type ".len()));
+    if let Some(type_offset) = type_clause {
+        let clause = action[type_offset..].trim();
+        let using_offset = super::find_top_level_keyword(clause, 0, "using");
+        let Some(using_offset) = using_offset else {
+            return Err(SqlError::unsupported(
+                "ALTER COLUMN TYPE requires an explicit USING expression".into(),
+            ));
+        };
+        let data_type = super::parse_data_type(clause[..using_offset].trim())?;
+        let expression = clause[using_offset + "using".len()..].trim();
+        if expression.is_empty() {
+            return Err(SqlError::new("USING requires an expression".into()));
+        }
+        let using = super::super::expr::parse_expression(expression)?;
+        return Ok(AlterTableOperation::AlterColumnType {
+            field,
+            data_type,
+            using,
+        });
+    }
+
     if lower.starts_with("set default") {
         let default = action["set default".len()..].trim();
         if default.is_empty() {

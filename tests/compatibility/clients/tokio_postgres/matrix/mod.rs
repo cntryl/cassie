@@ -21,6 +21,7 @@ fn temp_dir(label: &str) -> PathBuf {
 
 pub(super) struct CompatibilityServer {
     pub(super) addr: SocketAddr,
+    pub(super) cassie: Cassie,
     server: tokio::task::JoinHandle<()>,
 }
 
@@ -35,15 +36,20 @@ impl CompatibilityServer {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-
+        let server_cassie = cassie.clone();
         let server = tokio::spawn(async move {
-            let _ = cassie::pgwire::server::run(addr.to_string(), Arc::new(cassie.clone()), config)
-                .await;
+            let _ = cassie::pgwire::server::run_with_listener(
+                listener,
+                Arc::new(server_cassie),
+                config,
+            )
+            .await;
         });
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        Self { addr, server }
+        Self {
+            addr,
+            cassie,
+            server,
+        }
     }
 
     pub(super) async fn connect(&self) -> (tokio_postgres::Client, tokio::task::JoinHandle<()>) {

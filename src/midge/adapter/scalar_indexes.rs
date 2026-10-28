@@ -359,7 +359,8 @@ impl Midge {
             if value.is_null()
                 && !index.nulls_not_distinct()
                 && !row_schema.fields.iter().any(|field_meta| {
-                    field_meta.name == field && matches!(field_meta.data_type, DataType::Json)
+                    field_meta.name == field
+                        && matches!(field_meta.data_type, DataType::Json | DataType::Jsonb)
                 })
             {
                 return Ok(None);
@@ -539,7 +540,9 @@ fn payload_to_row(payload: &serde_json::Value, row_schema: &RowSchema) -> Vec<(S
 }
 
 fn json_to_query_value(value: &serde_json::Value, data_type: Option<&DataType>) -> Value {
-    if matches!(data_type, Some(DataType::Json)) && (value.is_null() || value.is_string()) {
+    if data_type == Some(&DataType::Jsonb)
+        || (matches!(data_type, Some(DataType::Json)) && (value.is_null() || value.is_string()))
+    {
         return Value::Json(value.clone());
     }
     if value.is_null() {

@@ -2,6 +2,21 @@
 use crate::support_bind_planning as planning;
 
 #[test]
+fn should_preserve_outer_cte_given_recursive_shadow_when_derived_rows_are_joined() {
+    // Arrange
+    let sql = "WITH a AS (SELECT 99::INT AS n) \
+        SELECT SUM(a.n + q.n)::INT FROM a CROSS JOIN \
+        (WITH RECURSIVE a(n) AS (SELECT 1::INT UNION ALL \
+            SELECT n+1 FROM a WHERE n<2) SELECT n FROM a) q";
+
+    // Act
+    let batches = planning::pruned("cte-recursive-shadow-outer", sql);
+
+    // Assert
+    planning::assert_pruned(&batches, 23, "201");
+}
+
+#[test]
 fn should_prune_unused_given_cte_scopes_when_binding_reaches_only_used_queries() {
     // Arrange
     let sql = "WITH unused AS (SELECT 1/0 AS n) SELECT 7::INT";

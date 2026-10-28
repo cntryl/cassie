@@ -33,9 +33,8 @@ fn should_execute_table_free_literal_alias_cast_projection() {
             ("enabled", 16),
             ("missing", 705),
             ("two", 23),
-            // int4 arithmetic is reported as bigint; see
-            // docs/postgres-compatibility.md.
-            ("total", 20),
+            // Integer arithmetic preserves its resolved native width.
+            ("total", 23),
         ]
     );
     assert_eq!(

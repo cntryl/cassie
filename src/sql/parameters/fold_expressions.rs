@@ -61,7 +61,8 @@ impl Fold<'_, '_> {
             ast::Expr::Binary { op, left, right } => {
                 if matches!(
                     op,
-                    ast::BinaryOp::Eq
+                    ast::BinaryOp::JsonbCompare { .. }
+                        | ast::BinaryOp::Eq
                         | ast::BinaryOp::NotEq
                         | ast::BinaryOp::IsDistinctFrom
                         | ast::BinaryOp::IsNotDistinctFrom
@@ -193,8 +194,13 @@ impl Fold<'_, '_> {
             ast::BinaryOp::JsonbKeyExistsAny | ast::BinaryOp::JsonbKeyExistsAll => 1009,
             _ => return Ok(None),
         };
+        let json_oid = if self.summaries.values[frame.start].oid == 114 {
+            114
+        } else {
+            3802
+        };
         self.occurrences
-            .coerce(&mut self.summaries.values[frame.start], 114, true)?;
+            .coerce(&mut self.summaries.values[frame.start], json_oid, true)?;
         self.occurrences
             .coerce(&mut self.summaries.values[frame.start + 1], right_oid, true)?;
         Ok(Some(Summary::known(16)))
@@ -205,12 +211,14 @@ impl Fold<'_, '_> {
         op: &ast::BinaryOp,
         frame: &Frame<'_>,
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
-        if !matches!(op, ast::BinaryOp::Sub) || self.summaries.values[frame.start].oid != 114 {
+        if !matches!(op, ast::BinaryOp::Sub)
+            || !matches!(self.summaries.values[frame.start].oid, 114 | 3802)
+        {
             return Ok(None);
         }
         self.occurrences
             .coerce(&mut self.summaries.values[frame.start + 1], 25, true)?;
-        Ok(Some(Summary::known(114)))
+        Ok(Some(Summary::known(self.summaries.values[frame.start].oid)))
     }
 
     fn json_delete_path(
@@ -219,13 +227,13 @@ impl Fold<'_, '_> {
         frame: &Frame<'_>,
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
         if !matches!(op, ast::BinaryOp::JsonbDeletePath)
-            || self.summaries.values[frame.start].oid != 114
+            || !matches!(self.summaries.values[frame.start].oid, 114 | 3802)
         {
             return Ok(None);
         }
         self.occurrences
             .coerce(&mut self.summaries.values[frame.start + 1], 1009, true)?;
-        Ok(Some(Summary::known(114)))
+        Ok(Some(Summary::known(self.summaries.values[frame.start].oid)))
     }
 
     fn shift_binary(
@@ -262,10 +270,12 @@ impl Fold<'_, '_> {
             return Ok(None);
         }
         let args = &mut self.summaries.values[frame.start..];
-        let json_oid = super::expressions::oid(&crate::types::DataType::Json);
-        if !args.iter().any(|argument| argument.oid == json_oid) {
+        let Some(json_oid) = args
+            .iter()
+            .find_map(|argument| matches!(argument.oid, 114 | 3802).then_some(argument.oid))
+        else {
             return Ok(None);
-        }
+        };
         if args
             .iter()
             .any(|argument| !matches!(argument.oid, 0 | 705) && argument.oid != json_oid)
@@ -278,6 +288,35 @@ impl Fold<'_, '_> {
             }
         }
         Ok(Some(Summary::known(json_oid)))
+    }
+
+    fn json_containment(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let Some(symbol) = crate::sql::binder::json_containment::operator_symbol(op) else {
+            return Ok(None);
+        };
+        let args = &mut self.summaries.values[frame.start..];
+        let Some(json_oid) = args
+            .iter()
+            .find_map(|argument| matches!(argument.oid, 114 | 3802).then_some(argument.oid))
+        else {
+            return Ok(None);
+        };
+        if args
+            .iter()
+            .any(|argument| !matches!(argument.oid, 0 | 705) && argument.oid != json_oid)
+        {
+            self.occurrences.undefined_function(symbol, 2, None)?;
+        }
+        for argument in args.iter_mut() {
+            if matches!(argument.oid, 0 | 705) {
+                self.occurrences.coerce(argument, json_oid, true)?;
+            }
+        }
+        Ok(Some(Summary::known(16)))
     }
 
     fn specialized_binary(
@@ -300,10 +339,38 @@ impl Fold<'_, '_> {
         ) {
             return Ok(Some(Summary::known(16)));
         }
+        if let Some(summary) = self.json_containment(op, frame)? {
+            return Ok(Some(summary));
+        }
         if let Some(summary) = self.extended_binary(op, frame)? {
             return Ok(Some(summary));
         }
         self.json_concat(op, frame)
+    }
+
+    fn json_extraction(
+        &mut self,
+        path: bool,
+        as_text: bool,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        let json_oid = if self.summaries.values[frame.start].oid == 114 {
+            114
+        } else {
+            3802
+        };
+        self.occurrences
+            .coerce(&mut self.summaries.values[frame.start], json_oid, true)?;
+        let selector = &mut self.summaries.values[frame.start + 1];
+        let oid = if path {
+            1009
+        } else if matches!(selector.oid, 21 | 23 | 20) {
+            23
+        } else {
+            25
+        };
+        self.occurrences.coerce(selector, oid, true)?;
+        Ok(Summary::known(if as_text { 25 } else { json_oid }))
     }
 
     fn binary(
@@ -311,6 +378,9 @@ impl Fold<'_, '_> {
         op: &ast::BinaryOp,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if let ast::BinaryOp::JsonExtract { path, as_text, .. } = op {
+            return self.json_extraction(*path, *as_text, frame);
+        }
         if let Some(summary) = self.specialized_binary(op, frame)? {
             return Ok(summary);
         }
@@ -376,7 +446,8 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::PgvectorCosine
             | ast::BinaryOp::PgvectorL2
             | ast::BinaryOp::PgvectorDot => Summary::known(701),
-            ast::BinaryOp::Eq
+            ast::BinaryOp::JsonbCompare { .. }
+            | ast::BinaryOp::Eq
             | ast::BinaryOp::Typed { .. }
             | ast::BinaryOp::Quantified { .. }
             | ast::BinaryOp::NotEq
@@ -390,9 +461,14 @@ impl Fold<'_, '_> {
             | ast::BinaryOp::JsonbKeyExists
             | ast::BinaryOp::JsonbKeyExistsAny
             | ast::BinaryOp::JsonbKeyExistsAll
+            | ast::BinaryOp::JsonPathExists
+            | ast::BinaryOp::JsonPathMatch
             | ast::BinaryOp::And
             | ast::BinaryOp::Or => Summary::known(16),
             ast::BinaryOp::JsonbDeletePath => Summary::known(114),
+            ast::BinaryOp::JsonExtract { as_text, .. } => {
+                Summary::known(if *as_text { 25 } else { 114 })
+            }
         })
     }
 

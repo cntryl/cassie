@@ -435,7 +435,7 @@ fn should_reject_invalid_cast_expression() {
         assert!(selected
             .unwrap_err()
             .to_string()
-            .contains("cannot cast value to INT"));
+            .contains("invalid input syntax for type integer"));
 
         let _ = std::fs::remove_dir_all(path);
     });

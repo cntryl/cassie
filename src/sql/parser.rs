@@ -34,6 +34,7 @@ pub enum SqlErrorKind {
     DuplicateColumn,
     ResourceLimit,
     UndefinedFunction,
+    UndefinedObject,
     /// A type modifier outside its documented range (SQLSTATE 22023).
     InvalidParameterValue,
 }
@@ -71,6 +72,14 @@ impl SqlError {
     pub fn undefined_function(message: String) -> Self {
         Self {
             kind: SqlErrorKind::UndefinedFunction,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn undefined_object(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::UndefinedObject,
             message,
         }
     }

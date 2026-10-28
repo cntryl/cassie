@@ -495,6 +495,22 @@ impl Catalog {
         self.bump_version();
     }
 
+    pub(crate) fn set_collection_field_type(
+        &self,
+        collection: &str,
+        name: &str,
+        data_type: DataType,
+    ) {
+        let mut schemas = self.schemas.write();
+        if let Some(field) = schemas
+            .get_mut(collection)
+            .and_then(|schema| schema.fields.iter_mut().find(|field| field.name == name))
+        {
+            field.data_type = data_type;
+            self.bump_version();
+        }
+    }
+
     pub fn remove_collection_field(&self, collection: &str, name: &str) {
         let mut schemas = self.schemas.write();
         let Some(schema) = schemas.get_mut(collection) else {

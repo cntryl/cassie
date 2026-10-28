@@ -221,7 +221,7 @@ fn validate_source_field(
 
     if matches!(
         source_field_metadata.data_type,
-        DataType::Text | DataType::Json
+        DataType::Text | DataType::Json | DataType::Jsonb
     ) {
         return Ok(());
     }

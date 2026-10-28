@@ -73,7 +73,7 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
 
 pub(crate) fn has_distinct_equality(data_type: &DataType) -> bool {
     match data_type {
-        DataType::Json => false,
+        DataType::Json | DataType::Jsonb => false,
         DataType::Array(element) => has_distinct_equality(element),
         _ => true,
     }
@@ -91,10 +91,34 @@ pub(crate) enum FunctionInputSignature {
     BitwiseInteger,
     RegexpReplace,
     Positional(&'static [i32]),
+    VariadicTail { first: i32, tail: i32 },
+}
+
+impl FunctionInputSignature {
+    pub(crate) fn argument_oid(self, index: usize) -> Option<i32> {
+        match self {
+            Self::Positional(oids) => oids.get(index).copied(),
+            Self::VariadicTail { first, tail } => Some(if index == 0 { first } else { tail }),
+            _ => None,
+        }
+    }
 }
 
 pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSignature> {
     match id {
+        FunctionId::Json(super::json::JsonFunction::ExtractPath { binary, .. }) => {
+            Some(FunctionInputSignature::VariadicTail {
+                first: if binary { 3802 } else { 114 },
+                tail: 25,
+            })
+        }
+        FunctionId::Json(super::json::JsonFunction::ToJson(_)) => {
+            Some(FunctionInputSignature::AnyElement)
+        }
+        FunctionId::Json(kind) => match super::json::inputs(kind) {
+            Some(oids) => Some(FunctionInputSignature::Positional(oids)),
+            None => None,
+        },
         FunctionId::Encode => Some(FunctionInputSignature::Positional(&[17, 25])),
         FunctionId::GetByte => Some(FunctionInputSignature::Positional(&[17, 23])),
         FunctionId::SetByte => Some(FunctionInputSignature::Positional(&[17, 23, 23])),
@@ -119,6 +143,11 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Ascii
         | FunctionId::Format => Some(FunctionInputSignature::Positional(&[25])),
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
+        FunctionId::PgGetFunctionArguments
+        | FunctionId::PgGetFunctionIdentityArguments
+        | FunctionId::PgGetFunctionResult
+        | FunctionId::PgIsOtherTempSchema => Some(FunctionInputSignature::Positional(&[26])),
+        FunctionId::PgMyTempSchema => Some(FunctionInputSignature::Positional(&[])),
         FunctionId::Lower | FunctionId::ConcatWs => Some(FunctionInputSignature::Text),
         FunctionId::BoolAnd | FunctionId::BoolOr => Some(FunctionInputSignature::Boolean),
         FunctionId::AnyValue => Some(FunctionInputSignature::AnyElement),

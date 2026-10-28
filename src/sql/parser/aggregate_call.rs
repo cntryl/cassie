@@ -37,6 +37,9 @@ fn parse_function_with_ordered_set_validation(
         Some(Box::new(parse_filter(tail)?))
     };
     let mut body = lexical::trim_separators(&raw[open + 1..close]);
+    if let Some(function) = parse_selected_sql_json(name, body, tail)? {
+        return Ok(Some(function));
+    }
     let quantifier = if let Some(end) = lexical::pattern_end(body, 0, "distinct") {
         body = lexical::trim_separators(&body[end..]);
         if body.is_empty() || body == "*" {
@@ -54,17 +57,20 @@ fn parse_function_with_ordered_set_validation(
     } else {
         AggregateQuantifier::Default
     };
-    let (args_raw, aggregate_order_by) = if let Some((position, end)) =
-        super::clauses::find_top_level_keyword_span(body, 0, "order by")
+    if name.eq_ignore_ascii_case("json_array") && super::schema::starts_with_keyword(body, "select")
     {
-        let order = lexical::trim_separators(&body[end..]);
-        if order.is_empty() {
-            return Err(SqlError::syntax("aggregate ORDER BY requires keys".into()));
+        if !tail.is_empty() {
+            return Err(SqlError::syntax(
+                "JSON_ARRAY query input does not accept aggregate clauses".into(),
+            ));
         }
-        (&body[..position], parse_order_by(order)?)
-    } else {
-        (body, Vec::new())
-    };
+        return Ok(Some(FunctionCall {
+            name: name.to_owned(),
+            args: vec![parse_expression(&format!("ARRAY({body})"))?],
+            ..FunctionCall::default()
+        }));
+    }
+    let (args_raw, aggregate_order_by) = split_aggregate_order(body)?;
     if has_within_group && !aggregate_order_by.is_empty() {
         return Err(SqlError::syntax(
             "WITHIN GROUP calls cannot also have aggregate-local ORDER BY".into(),
@@ -75,27 +81,7 @@ fn parse_function_with_ordered_set_validation(
     } else {
         aggregate_order_by
     };
-    let (resolved_name, args) =
-        if let Some(call) = super::pattern_function_call::arguments(name, args_raw)? {
-            call
-        } else if let Some(call) = text_call::arguments(name, args_raw)? {
-            call
-        } else {
-            let arguments = if lexical::trim_separators(args_raw).is_empty() {
-                Vec::new()
-            } else {
-                split_csv(args_raw)
-                    .into_iter()
-                    .map(|raw| {
-                        if lexical::trim_separators(raw).is_empty() {
-                            return Err(SqlError::syntax("missing function argument".into()));
-                        }
-                        parse_expression(raw)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?
-            };
-            (name.to_owned(), arguments)
-        };
+    let (resolved_name, args) = parse_arguments(name, args_raw)?;
     if !order_by.is_empty() && lexical::trim_separators(args_raw) == "*" {
         return Err(SqlError::syntax(
             "aggregate star does not accept ORDER BY".into(),
@@ -117,6 +103,129 @@ fn parse_function_with_ordered_set_validation(
         filter,
         order_by,
     }))
+}
+
+fn split_aggregate_order(body: &str) -> Result<(&str, Vec<super::OrderExpr>), SqlError> {
+    let Some((position, end)) = super::clauses::find_top_level_keyword_span(body, 0, "order by")
+    else {
+        return Ok((body, Vec::new()));
+    };
+    let order = lexical::trim_separators(&body[end..]);
+    if order.is_empty() {
+        return Err(SqlError::syntax("aggregate ORDER BY requires keys".into()));
+    }
+    Ok((&body[..position], parse_order_by(order)?))
+}
+
+fn parse_arguments(name: &str, raw: &str) -> Result<(String, Vec<super::Expr>), SqlError> {
+    if let Some(call) = super::pattern_function_call::arguments(name, raw)? {
+        return Ok(call);
+    }
+    if let Some(call) = text_call::arguments(name, raw)? {
+        return Ok(call);
+    }
+    let arguments = if name.eq_ignore_ascii_case("json_array")
+        && super::schema::starts_with_keyword(raw, "select")
+    {
+        vec![parse_expression(&format!("ARRAY({raw})"))?]
+    } else if lexical::trim_separators(raw).is_empty() {
+        Vec::new()
+    } else {
+        split_csv(raw)
+            .into_iter()
+            .map(|argument| {
+                if lexical::trim_separators(argument).is_empty() {
+                    return Err(SqlError::syntax("missing function argument".into()));
+                }
+                parse_expression(argument)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    Ok((name.to_owned(), arguments))
+}
+
+fn json_exists_policy(input: &str) -> Result<(&str, &'static str), SqlError> {
+    let trimmed = lexical::trim_separators(input);
+    let lower = trimmed.to_ascii_lowercase();
+    let Some(position) = lower.rfind(" on error") else {
+        return Ok((trimmed, "error"));
+    };
+    let prefix = lexical::trim_separators(&trimmed[..position]);
+    for (word, policy) in [
+        ("false", "false"),
+        ("true", "true"),
+        ("unknown", "unknown"),
+        ("error", "error"),
+    ] {
+        if prefix
+            .get(prefix.len().saturating_sub(word.len())..)
+            .is_some_and(|suffix| suffix.eq_ignore_ascii_case(word))
+            && prefix
+                .get(..prefix.len().saturating_sub(word.len()))
+                .is_some_and(|path| !path.trim_end().ends_with(word))
+        {
+            let path_end = prefix.len() - word.len();
+            return Ok((lexical::trim_separators(&prefix[..path_end]), policy));
+        }
+    }
+    Err(SqlError::syntax(
+        "invalid JSON_EXISTS ON ERROR policy".into(),
+    ))
+}
+
+fn parse_selected_sql_json(
+    name: &str,
+    body: &str,
+    tail: &str,
+) -> Result<Option<FunctionCall>, SqlError> {
+    if name.eq_ignore_ascii_case("json") {
+        if !tail.is_empty() {
+            return Err(SqlError::syntax(
+                "unexpected JSON constructor clause".into(),
+            ));
+        }
+        let (input, unique) = json_input_unique_policy(body);
+        return Ok(Some(FunctionCall {
+            name: "_cassie_json_input".into(),
+            args: vec![parse_expression(input)?, super::Expr::BoolLiteral(unique)],
+            ..FunctionCall::default()
+        }));
+    }
+    if name.eq_ignore_ascii_case("json_exists") {
+        if !tail.is_empty() {
+            return Err(SqlError::syntax("unexpected JSON_EXISTS clause".into()));
+        }
+        let args = split_csv(body);
+        let [document, path_and_policy] = args.as_slice() else {
+            return Err(SqlError::syntax(
+                "JSON_EXISTS expects document and path".into(),
+            ));
+        };
+        let (path, policy) = json_exists_policy(path_and_policy)?;
+        return Ok(Some(FunctionCall {
+            name: "_cassie_json_exists".into(),
+            args: vec![
+                parse_expression(document)?,
+                parse_expression(path)?,
+                super::Expr::StringLiteral(policy.into()),
+            ],
+            ..FunctionCall::default()
+        }));
+    }
+    Ok(None)
+}
+
+fn json_input_unique_policy(input: &str) -> (&str, bool) {
+    let trimmed = lexical::trim_separators(input);
+    for (suffix, unique) in [(" with unique keys", true), (" without unique keys", false)] {
+        if trimmed.to_ascii_lowercase().ends_with(suffix) {
+            return (
+                lexical::trim_separators(&trimmed[..trimmed.len() - suffix.len()]),
+                unique,
+            );
+        }
+    }
+    (trimmed, false)
 }
 
 fn validate_ordered_set_call(

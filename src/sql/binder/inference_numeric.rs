@@ -1,5 +1,5 @@
 //! Result types of operators and functions over the `numeric` family.
-use super::{infer_expr_type, is_integer_type, DataType, Expr, FunctionCall, HashMap, Schema};
+use super::{infer_expr_type, DataType, Expr, FunctionCall, HashMap, Schema};
 
 pub(super) const NUMERIC: DataType =
     DataType::Extended(crate::types::extended::ExtendedType::Numeric(None));
@@ -113,13 +113,15 @@ pub(super) fn arithmetic_type(
     }
     let left_type = infer_expr_type(left, source_schema, user_functions, parameter_types);
     let right_type = infer_expr_type(right, source_schema, user_functions, parameter_types);
-    if left_type.as_ref().is_some_and(is_integer_type)
-        && right_type.as_ref().is_some_and(is_integer_type)
-    {
-        DataType::BigInt
-    } else {
-        DataType::Float
-    }
+    left_type
+        .as_ref()
+        .and_then(crate::types::IntegerWidth::from_data_type)
+        .zip(
+            right_type
+                .as_ref()
+                .and_then(crate::types::IntegerWidth::from_data_type),
+        )
+        .map_or(DataType::Float, |(left, right)| left.max(right).data_type())
 }
 
 /// The result type when an arithmetic operand is `numeric` or `real`.

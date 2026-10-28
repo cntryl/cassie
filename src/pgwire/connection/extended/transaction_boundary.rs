@@ -31,6 +31,7 @@ pub(super) fn admit_statement(
     state: &mut SessionState,
     session: &CassieSession,
     parsed: &ParsedStatement,
+    catalog: &crate::catalog::Catalog,
     first_execute: bool,
 ) -> Result<bool, ExtendedQueryError> {
     let standalone = parsed.statement.family() != StatementFamily::Runtime;
@@ -44,7 +45,7 @@ pub(super) fn admit_statement(
     }
     if !session.is_transaction_active()
         && !session.is_transaction_failed()
-        && super::super::transactions::eligible(parsed)
+        && super::super::transactions::eligible(parsed, catalog)
     {
         session
             .begin_implicit_transaction()

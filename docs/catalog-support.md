@@ -99,6 +99,20 @@ rows documented below are derived only from existing catalog metadata.
 Compiled plans rebuild at epoch 14. No persistent metadata or layout changes
 are selected by this batch.
 
+`pg_tables` and `pg_views` expose native NAME descriptors for their schema and
+object names. Their owner fields remain NULL because relation ownership is not
+stored. `pg_constraint.conenforced` is true for the constraints Cassie stores;
+generated primary-key and NOT NULL names follow PostgreSQL's catalog naming
+convention, while explicit names are preserved. The rest of its experimental catalog columns retain their current logical
+carriers. `pg_proc` exposes the pinned built-in routine name, OID, and result
+type rows used by the selected introspection helpers; it does not advertise
+user-defined SQL routine identities. Built-in `pg_get_function_arguments`,
+`pg_get_function_identity_arguments`, and `pg_get_function_result` resolve the
+pinned built-in `pg_proc` identity table; user-defined routine signatures are
+not implied by this helper. `pg_my_temp_schema()` returns OID 0 and
+`pg_is_other_temp_schema(oid)` returns false because Cassie does not create
+temporary schemas.
+
 Sequence probes use the implemented SERIAL/BIGSERIAL column defaults and
 omitted-field INSERT path. Standalone nextval() and CREATE SEQUENCE AS are not
 implemented; exploratory native probes confirm their required state/bounds law,
@@ -115,6 +129,11 @@ rows, OID/reg* lifecycle and wider DDL remain unqualified; current issue criteri
 define any active follow-up.
 Native column names and selected values are independent pinned observations;
 logical-carrier descriptors do not establish PostgreSQL descriptor ABI parity.
+The experimental `pg_type.typarray` value links only scalar types whose array
+OIDs are present in Cassie's finite built-in array registry; array types and
+types without a registered built-in array report zero. This supports the
+selected registered-array TypeInfo/COPY path and does not add custom array
+type identities.
 Executed counts and remaining failures are recorded in
 [validation](testing/validation.md).
 
@@ -168,6 +187,11 @@ advertising TEXT as its native inferred identity. An explicit `$1::TEXT` uses
 OID 25 and the selected name coercion. Non-ASCII lookup observations are pinned
 to the recorded Darwin oracle; broader locale/encoding qualification remains
 under #821. This helper retains stable rather than immutable classification.
+
+`pg_settings_get_flags(text)` returns PostgreSQL flag metadata for the finite
+known name `work_mem` (`{EXPLAIN}`) and SQL NULL for unknown names. This does not
+add `work_mem` to Cassie's supported session-setting registry or make it
+available through `current_setting`/`SET`.
 
 The additive `SizeInputError`/`CassieError::SizeInput` API carries typed invalid
 size, numeric syntax, numeric range and bigint range failures. Size constants
@@ -248,10 +272,28 @@ callers do not mutate shared session state. Text ownership and evaluator scratch
 use query-memory admission; cancellation/error paths release that ownership.
 Execution-result caching bypasses this helper, including calls through views;
 compiled plans remain reusable and rebuild at epoch 18. Extra arguments reject
-with native 42883. No persistent representation or native type identity changes.
-This selected primitive helper leaves complete session introspection, native
-NAME/OID/RECORD types and full resource qualification unqualified under the
-current feature and v1.0 qualification records.
+with native 42883. No persistent representation changes. This selected
+primitive helper leaves complete session introspection and native OID/RECORD
+types unqualified under the current feature and v1.0 qualification records.
+
+`current_catalog`, `current_user`, `session_user`, `current_role`,
+`current_database()`, and `pg_client_encoding()` return native `name` identity
+(OID 19). Explicit NAME casts, assignments, parameters, and results preserve
+that identity in text and binary formats; text input truncates at a complete
+UTF-8 boundary of 63 bytes and binary input rejects longer values.
+`current_schemas(boolean)` returns native `name[]` identity (OID 1003, element
+OID 19). The selected one-dimensional NAME[] text/binary parameter, assignment,
+and result paths reuse the existing array carrier. NAME[] text input uses
+PostgreSQL array syntax, direct array text results retain Cassie's JSON-array
+spelling, and explicit casts to text use PostgreSQL array text; binary values
+use PostgreSQL array framing. `pg_client_encoding()` reports the validated
+UTF8 session setting. NAME values reuse the existing string row tag; no
+persistent row layout changes. Locale-sensitive catalog ordering and wider
+NAME[] bounds/assignment semantics remain pending.
+`SET ROLE` and `SET SESSION AUTHORIZATION` return `0A000`; authenticated role
+switching and restricted-role privilege matrices remain under #831.
+PostgreSQL backend-statistics reset helpers also return `0A000`: Midge does not
+maintain PostgreSQL backend statistics for Cassie to reset.
 
 
 Selected `pg_column_size(any)` support returns INT (OID 23). Explicit existing

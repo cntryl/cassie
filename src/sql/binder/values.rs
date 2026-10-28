@@ -163,11 +163,15 @@ fn validate(
                     | DataType::Int
                     | DataType::BigInt
                     | DataType::Float
+                    | DataType::Name
                     | DataType::Text
                     | DataType::Char { .. }
                     | DataType::Varchar { .. }
                     | DataType::Uuid
                     | DataType::Bytea
+                    | DataType::Json
+                    | DataType::Jsonb
+                    | DataType::JsonPath
                     | DataType::Date
                     | DataType::Time
                     | DataType::Timestamp

@@ -4,6 +4,7 @@
 //! retain the underlying source and supply distinct runtime row qualifiers.
 
 use super::{CassieError, Catalog, CteScope, Expr, QuerySource, SelectItem, SelectStatement};
+use crate::sql::ast::{RowComparison, RowComparisonOp};
 use crate::sql::ColumnIdentifierPath;
 use crate::types::Schema;
 use std::fmt::Write;
@@ -56,6 +57,7 @@ pub(super) fn columns(
                     "relation alias list has more names than source columns".into(),
                 ));
             }
+            let identity_alias = aliases.is_empty() && binding.has_implicit_identity();
             return Ok(binding
                 .visible
                 .iter()
@@ -63,10 +65,14 @@ pub(super) fn columns(
                 .enumerate()
                 .map(|(index, (name, row))| {
                     (
-                        aliases
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_else(|| ColumnIdentifierPath::stored_field_key(name)),
+                        aliases.get(index).cloned().unwrap_or_else(|| {
+                            let visible = if identity_alias && name == "_id" {
+                                "id"
+                            } else {
+                                name
+                            };
+                            ColumnIdentifierPath::stored_field_key(visible)
+                        }),
                         ColumnIdentifierPath::stored_field_key(&row.name),
                     )
                 })
@@ -149,7 +155,7 @@ fn namespaces(
                 name,
                 qualifier: qualifier(alias),
                 fields: columns(source, column_aliases, catalog, scope)?,
-                reserved_identity: base_identity(source, catalog),
+                reserved_identity: base_identity(source, catalog, scope),
             });
         }
         QuerySource::Join { left, right, .. } => {
@@ -162,7 +168,7 @@ fn namespaces(
             qualifier: name.to_string(),
             hidden: Vec::new(),
             fields: columns(source, &[], catalog, scope)?,
-            reserved_identity: base_identity(source, catalog),
+            reserved_identity: base_identity(source, catalog, scope),
         }),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
             result.push(Namespace {
@@ -171,7 +177,7 @@ fn namespaces(
                 qualifier: name.clone(),
                 hidden: Vec::new(),
                 fields: columns(source, &[], catalog, scope)?,
-                reserved_identity: false,
+                reserved_identity: base_identity(source, catalog, scope),
             });
         }
         QuerySource::Subquery { alias, .. } => result.push(Namespace {
@@ -332,8 +338,39 @@ fn rewrite_with_outer(
         nested::rewrite(&mut subquery.query, spaces)?;
     }
     if let Expr::Column(name) = expr {
+        if let Some(fields) = relation_row_fields(name, spaces, single, lateral_fields)? {
+            *expr = Expr::Function(Box::new(crate::sql::ast::FunctionCall {
+                name: "row".into(),
+                args: fields,
+                ..crate::sql::ast::FunctionCall::default()
+            }));
+            return Ok(());
+        }
         *name = reference_with_outer(name, spaces, single, lateral_fields)?;
         return Ok(());
+    }
+    if let Expr::RowCompare(comparison) = expr {
+        expand_row_fields(&mut comparison.left, spaces, single, lateral_fields)?;
+        expand_row_fields(&mut comparison.right, spaces, single, lateral_fields)?;
+        return Ok(());
+    }
+    if let Expr::Binary { left, op, right } = expr {
+        if let (Expr::Column(left_name), Expr::Column(right_name)) = (left.as_ref(), right.as_ref())
+        {
+            if let (Some(left_fields), Some(right_fields)) = (
+                relation_row_fields(left_name, spaces, single, lateral_fields)?,
+                relation_row_fields(right_name, spaces, single, lateral_fields)?,
+            ) {
+                if let Some(op) = RowComparisonOp::from_binary(op) {
+                    *expr = Expr::RowCompare(Box::new(RowComparison {
+                        left: left_fields,
+                        op,
+                        right: right_fields,
+                    }));
+                    return Ok(());
+                }
+            }
+        }
     }
     let mut failure = None;
     *expr = expr.map_children(|child| {
@@ -344,6 +381,58 @@ fn rewrite_with_outer(
         child
     });
     failure.map_or(Ok(()), Err)
+}
+
+fn relation_row_fields(
+    name: &str,
+    spaces: &[Namespace],
+    single: bool,
+    lateral_fields: &std::collections::HashSet<String>,
+) -> Result<Option<Vec<Expr>>, CassieError> {
+    let Some(space) = spaces
+        .iter()
+        .find(|space| space.name == name || space.qualifier == name)
+    else {
+        return Ok(None);
+    };
+    let fields = space
+        .fields
+        .iter()
+        .map(|(visible, _)| {
+            let qualified = format!("{}.{visible}", space.name);
+            reference_with_outer(&qualified, spaces, single, lateral_fields).map(Expr::Column)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(fields))
+}
+
+fn expand_row_fields(
+    fields: &mut Vec<Expr>,
+    spaces: &[Namespace],
+    single: bool,
+    lateral_fields: &std::collections::HashSet<String>,
+) -> Result<(), CassieError> {
+    let mut expanded = Vec::with_capacity(fields.len());
+    for field in fields.drain(..) {
+        if let Expr::Column(name) = &field {
+            if let Some(relation) = name.strip_suffix(".*") {
+                let Some(row_fields) =
+                    relation_row_fields(relation, spaces, single, lateral_fields)?
+                else {
+                    return Err(CassieError::Planner(format!(
+                        "unknown relation qualifier '{relation}'"
+                    )));
+                };
+                expanded.extend(row_fields);
+                continue;
+            }
+        }
+        let mut field = field;
+        rewrite_with_outer(&mut field, spaces, single, lateral_fields)?;
+        expanded.push(field);
+    }
+    *fields = expanded;
+    Ok(())
 }
 
 pub(super) fn lower_join_on(
@@ -547,7 +636,12 @@ fn has_alias(source: &QuerySource) -> bool {
     }
 }
 
-fn base_identity(source: &QuerySource, catalog: &Catalog) -> bool {
+fn base_identity(source: &QuerySource, catalog: &Catalog, scope: &CteScope<'_>) -> bool {
+    if let QuerySource::Cte(name) = source {
+        return scope
+            .get(&name.to_ascii_lowercase())
+            .is_some_and(super::CteBinding::has_implicit_identity);
+    }
     let QuerySource::Collection(name) = source else {
         return false;
     };

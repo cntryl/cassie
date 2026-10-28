@@ -13,7 +13,12 @@ pub(super) fn comparison(left: &str, op: BinaryOp, right: &str) -> Result<Expr, 
         let op = RowComparisonOp::from_binary(&op).ok_or_else(|| {
             SqlError::unsupported("operator on row constructors is not yet supported".into())
         })?;
-        if left.len() != right.len() {
+        if left.len() != right.len()
+            && !left
+                .iter()
+                .chain(&right)
+                .any(|field| matches!(field, Expr::Column(name) if name.ends_with(".*")))
+        {
             return Err(SqlError::syntax(
                 "unequal number of entries in row expressions".into(),
             ));
@@ -66,5 +71,16 @@ fn fields(raw: &str) -> Result<Vec<Expr>, SqlError> {
             "ROW expressions can have at most 1664 entries".into(),
         ));
     }
-    fields.into_iter().map(parse_expression).collect()
+    fields
+        .into_iter()
+        .map(|field| {
+            let field = lexical::trim_separators(field);
+            if let Some(relation) = field.strip_suffix(".*") {
+                if !relation.is_empty() && !relation.chars().any(char::is_whitespace) {
+                    return Ok(Expr::Column(format!("{relation}.*")));
+                }
+            }
+            parse_expression(field)
+        })
+        .collect()
 }

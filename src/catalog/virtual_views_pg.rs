@@ -103,6 +103,7 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
         text("typtype"),
         text("typcategory"),
         oid("typelem"),
+        oid("typarray"),
         oid("typbasetype"),
         oid("typrelid"),
     ]
@@ -290,7 +291,7 @@ pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> V
             let Some(constraint) = constraint_for_field(&constraints, &field.name) else {
                 continue;
             };
-            let Some(default) = constraint_default_expression(constraint) else {
+            let Some(default) = constraint_default_expression(constraint, &field.data_type) else {
                 continue;
             };
             rows.push(vec![
@@ -379,7 +380,14 @@ fn namespace_row(catalog: &Catalog, canonical: &str, name: &str) -> VirtualRow {
 
 fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta>) -> VirtualRow {
     let relation_name = local_name(name);
-    let schema_name = relation_schema_name(name);
+    let schema_name = index.map_or_else(
+        || relation_schema_name(name),
+        |index| relation_schema_name(&index.collection),
+    );
+    let namespace = index.map_or_else(
+        || relation_namespace(name),
+        |index| relation_namespace(&index.collection),
+    );
     vec![
         int_value(
             "oid",
@@ -389,10 +397,7 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
         string("relkind", kind),
         int_value("relam", relation_access_method_oid(kind, index)),
         string("relnamespace", &schema_name),
-        int_value(
-            "relnamespace_oid",
-            namespace_oid(catalog, &relation_namespace(name)),
-        ),
+        int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string(
@@ -613,18 +618,30 @@ fn constraint_has_default(constraint: Option<&FieldConstraint>) -> bool {
     })
 }
 
-pub(super) fn constraint_default_expression(constraint: &FieldConstraint) -> Option<String> {
+pub(super) fn constraint_default_expression(
+    constraint: &FieldConstraint,
+    data_type: &crate::types::DataType,
+) -> Option<String> {
     if let Some(expression) = constraint.default_expression.as_ref() {
         return Some(expression.clone());
     }
-    constraint.default_value.as_ref().map(default_expression)
+    constraint
+        .default_value
+        .as_ref()
+        .map(|value| default_expression(value, data_type))
 }
 
-fn default_expression(value: &serde_json::Value) -> String {
+fn default_expression(value: &serde_json::Value, data_type: &crate::types::DataType) -> String {
     if value.is_null() {
         return "NULL".to_string();
     }
     if let Some(value) = value.as_str() {
+        if matches!(
+            data_type,
+            crate::types::DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
+        ) {
+            return value.to_owned();
+        }
         return format!("'{}'", value.replace('\'', "''"));
     }
     value.to_string()
@@ -654,16 +671,34 @@ fn builtin_type_rows(catalog: &Catalog) -> Vec<VirtualRow> {
 }
 
 fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> VirtualRow {
-    let typname = data_type.type_name();
+    let type_oid = data_type.type_oid();
+    let builtin_type = u32::try_from(type_oid)
+        .ok()
+        .and_then(|oid| crate::catalog::builtin_identity::builtin_identities().type_by_oid(oid));
+    let typname =
+        builtin_type.map_or_else(|| data_type.type_name(), |metadata| metadata.name.clone());
     vec![
-        int_value("oid", data_type.type_oid()),
+        int_value("oid", type_oid),
         string("typname", typname),
         int_value("typnamespace", namespace_oid(catalog, namespace)),
         int_value("typlen", i64::from(data_type.typlen())),
         bool_value("typbyval", is_type_passed_by_value(data_type)),
         string("typtype", type_kind(data_type)),
         string("typcategory", type_category(data_type)),
-        int_value("typelem", element_type_oid(data_type)),
+        int_value(
+            "typelem",
+            builtin_type.map_or_else(
+                || element_type_oid(data_type),
+                |metadata| i64::from(metadata.element),
+            ),
+        ),
+        int_value(
+            "typarray",
+            builtin_type.map_or_else(
+                || array_type_oid(data_type),
+                |metadata| i64::from(metadata.array),
+            ),
+        ),
         int_value("typbasetype", 0),
         int_value("typrelid", 0),
     ]
@@ -699,10 +734,12 @@ fn type_category(data_type: &DataType) -> String {
         | DataType::BigInt
         | DataType::Float
         | DataType::ObjectId(_) => "N".to_string(),
-        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json => {
-            "S".to_string()
-        }
-        DataType::Bytea | DataType::Uuid => "U".to_string(),
+        DataType::Name
+        | DataType::Text
+        | DataType::Char { .. }
+        | DataType::Varchar { .. }
+        | DataType::Json => "S".to_string(),
+        DataType::Bytea | DataType::Uuid | DataType::Jsonb | DataType::JsonPath => "U".to_string(),
         DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
         DataType::Vector(_) => "V".to_string(),
         DataType::Array(_) => "A".to_string(),
@@ -715,6 +752,17 @@ fn element_type_oid(data_type: &DataType) -> i64 {
         DataType::Array(inner) => inner.type_oid(),
         _ => 0,
     }
+}
+
+fn array_type_oid(data_type: &DataType) -> i64 {
+    if matches!(data_type, DataType::Array(_)) {
+        return 0;
+    }
+
+    u32::try_from(data_type.type_oid())
+        .ok()
+        .and_then(crate::catalog::builtin_identity::builtin_array_oid)
+        .map_or(0, i64::from)
 }
 
 pub(super) fn postgres_role_oid() -> i64 {

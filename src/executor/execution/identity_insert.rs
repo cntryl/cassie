@@ -1,16 +1,17 @@
 //! Identity column rules for `INSERT`: `GENERATED ALWAYS` rejects explicit
 //! values unless `OVERRIDING SYSTEM VALUE`, and `OVERRIDING USER VALUE`
 //! discards explicit identity values so the sequence supplies them.
-use super::{Cassie, FieldMeta, QueryError, Value};
+use super::{Cassie, FieldMeta, QueryError};
 use crate::catalog::{IdentityGeneration, SequenceError};
 use crate::sql::ast::{InsertOverriding, InsertStatement};
 
-pub(super) fn apply_identity_policy(
+pub(super) fn apply_identity_policy<T>(
     cassie: &Cassie,
     statement: &InsertStatement,
     fields: Vec<FieldMeta>,
-    rows: Vec<Vec<Value>>,
-) -> Result<(Vec<FieldMeta>, Vec<Vec<Value>>), QueryError> {
+    rows: Vec<Vec<T>>,
+    is_default: impl Fn(&T) -> bool,
+) -> Result<(Vec<FieldMeta>, Vec<Vec<T>>), QueryError> {
     let constraints = cassie.catalog.get_constraints(statement.table.as_ref());
     let identity = |field: &FieldMeta| {
         constraints
@@ -22,7 +23,12 @@ pub(super) fn apply_identity_policy(
     for (index, field) in fields.iter().enumerate() {
         match (identity(field), statement.overriding) {
             (Some(_), Some(InsertOverriding::User)) => discarded.push(index),
-            (Some(IdentityGeneration::Always), None) => {
+            (Some(IdentityGeneration::Always), None)
+                if rows.is_empty()
+                    || rows
+                        .iter()
+                        .any(|row| row.get(index).is_none_or(|cell| !is_default(cell))) =>
+            {
                 return Err(QueryError::Cassie(
                     SequenceError {
                         sqlstate: "428C9",

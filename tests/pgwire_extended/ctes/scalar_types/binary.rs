@@ -11,7 +11,7 @@ fn should_infer_bigint_oid_zero_parameter_across_binary_cycle() {
     let portal = "coalesce_oid_zero_bigint_portal";
     let sql = "SELECT COALESCE($1, NULL::BIGINT) AS chosen";
     let input = 41_i64.to_be_bytes();
-    let expected = 42_i64.to_be_bytes();
+    let expected = 41_i64.to_be_bytes();
     let steps = vec![
         Step::ParseFlush(wire::parse_frame_with_types(statement, sql, &[0])),
         Step::ThroughReady(vec![

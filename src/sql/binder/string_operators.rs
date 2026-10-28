@@ -29,11 +29,14 @@ pub(super) fn resolve(
         *op = BinaryOp::ByteaConcat;
         return Ok(());
     }
-    if left == Some(&DataType::Json) || right == Some(&DataType::Json) {
+    if left.is_some_and(DataType::is_json) || right.is_some_and(DataType::is_json) {
         if [left, right]
             .into_iter()
             .flatten()
-            .all(|kind| matches!(kind, DataType::Json | DataType::Null))
+            .all(|kind| matches!(kind, DataType::Json | DataType::Jsonb | DataType::Null))
+            && (left == right
+                || left.is_none_or(|kind| *kind == DataType::Null)
+                || right.is_none_or(|kind| *kind == DataType::Null))
         {
             return Ok(());
         }
@@ -86,20 +89,22 @@ pub(super) fn qualify(
     if *op != BinaryOp::Concat {
         return;
     }
-    let json_left = left_type == Some(&DataType::Json);
-    let json_right = right_type == Some(&DataType::Json);
+    let json_left = left_type.is_some_and(DataType::is_json);
+    let json_right = right_type.is_some_and(DataType::is_json);
     let bytea_left = left_type == Some(&DataType::Bytea);
     let bytea_right = right_type == Some(&DataType::Bytea);
     if json_left && matches!(right, Expr::StringLiteral(_)) {
-        cast(right, DataType::Json, None);
+        cast(right, left_type.cloned().unwrap_or(DataType::Jsonb), None);
     } else if json_right && matches!(left, Expr::StringLiteral(_)) {
-        cast(left, DataType::Json, None);
+        cast(left, right_type.cloned().unwrap_or(DataType::Jsonb), None);
     }
     if json_left && !is_json_cast(left) {
-        cast(left, DataType::Json, Some(DataType::Json));
+        let kind = left_type.cloned().unwrap_or(DataType::Jsonb);
+        cast(left, kind.clone(), Some(kind));
     }
     if json_right && !is_json_cast(right) {
-        cast(right, DataType::Json, Some(DataType::Json));
+        let kind = right_type.cloned().unwrap_or(DataType::Jsonb);
+        cast(right, kind.clone(), Some(kind));
     }
     if !json_left && !json_right && bytea_left && matches!(right, Expr::StringLiteral(_)) {
         cast(right, DataType::Bytea, None);
@@ -124,7 +129,7 @@ fn is_json_cast(expression: &Expr) -> bool {
     matches!(
         expression,
         Expr::Cast {
-            data_type: DataType::Json,
+            data_type: DataType::Json | DataType::Jsonb,
             ..
         }
     )

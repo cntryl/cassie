@@ -62,7 +62,8 @@ pub(super) fn normalize_element(
             .and_then(serde_json::Number::from_f64)
             .map(JsonValue::Number)
             .ok_or_else(|| "float array element expects a finite f64 number".to_string()),
-        DataType::Text
+        DataType::Name
+        | DataType::Text
         | DataType::Char { .. }
         | DataType::Varchar { .. }
         | DataType::Uuid
@@ -77,12 +78,18 @@ pub(super) fn normalize_element(
         }
         // These are document/storage families, not the selected scalar-array
         // wire family matrix. Keep their existing element policy.
-        DataType::Json | DataType::Vector(_) | DataType::Array(_) | DataType::Null => Ok(value),
+        DataType::Json
+        | DataType::Jsonb
+        | DataType::JsonPath
+        | DataType::Vector(_)
+        | DataType::Array(_)
+        | DataType::Null => Ok(value),
     }
 }
 
 fn normalize_string(text: String, data_type: &DataType) -> Result<String, String> {
     match data_type {
+        DataType::Name => Ok(crate::types::name::parse_text(&text)),
         DataType::Char {
             length: Some(length),
         } => {

@@ -15,7 +15,11 @@ pub(super) fn validate(
     if kinds.iter().flatten().any(|kind| {
         matches!(
             kind,
-            DataType::Array(_) | DataType::Json | DataType::Vector(_) | DataType::Bytea
+            DataType::Array(_)
+                | DataType::Json
+                | DataType::Jsonb
+                | DataType::Vector(_)
+                | DataType::Bytea
         )
     }) {
         return Err(CassieError::Unsupported(

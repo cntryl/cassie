@@ -8,6 +8,153 @@
 use super::{
     infer_expr_type, DataType, Expr, FieldSchema, HashMap, Schema, SelectItem, SelectStatement,
 };
+use crate::sql::ast::{CteQuery, ParsedStatement, QuerySource, QueryStatement};
+
+pub(crate) fn coerce_parameterized_boolean_case_results(
+    statement: &mut ParsedStatement,
+    parameter_type_oids: &[i32],
+) {
+    match &mut statement.statement {
+        QueryStatement::Select(select) => {
+            visit_select(select, parameter_type_oids);
+        }
+        QueryStatement::Explain(explain) => {
+            coerce_parameterized_boolean_case_results(&mut explain.statement, parameter_type_oids);
+        }
+        _ => {}
+    }
+}
+
+fn visit_select(select: &mut SelectStatement, parameter_type_oids: &[i32]) {
+    visit_source(&mut select.source, parameter_type_oids);
+    for cte in &mut select.ctes {
+        match &mut cte.query {
+            CteQuery::Simple(statement) => {
+                coerce_parameterized_boolean_case_results(statement, parameter_type_oids);
+            }
+            CteQuery::Recursive {
+                base, recursive, ..
+            } => {
+                coerce_parameterized_boolean_case_results(base, parameter_type_oids);
+                coerce_parameterized_boolean_case_results(recursive, parameter_type_oids);
+            }
+        }
+    }
+    if let Some(set) = &mut select.set {
+        visit_select(&mut set.right, parameter_type_oids);
+    }
+    for item in &mut select.projection {
+        visit_item(item, parameter_type_oids);
+    }
+    for expression in select
+        .filter
+        .iter_mut()
+        .chain(&mut select.having)
+        .chain(&mut select.distinct_on)
+        .chain(&mut select.group_by)
+    {
+        visit_expression(expression, parameter_type_oids);
+    }
+    for order in &mut select.order {
+        visit_expression(&mut order.expr, parameter_type_oids);
+    }
+}
+
+fn visit_item(item: &mut SelectItem, parameter_type_oids: &[i32]) {
+    match item {
+        SelectItem::Expr { expr, .. } => visit_expression(expr, parameter_type_oids),
+        SelectItem::Function { function, .. } => {
+            for expression in function.expressions_mut() {
+                visit_expression(expression, parameter_type_oids);
+            }
+        }
+        SelectItem::WindowFunction { function, .. } => {
+            for expression in function.args.iter_mut().chain(&mut function.partition_by) {
+                visit_expression(expression, parameter_type_oids);
+            }
+            for order in &mut function.order_by {
+                visit_expression(&mut order.expr, parameter_type_oids);
+            }
+        }
+        SelectItem::Wildcard | SelectItem::Column { .. } => {}
+    }
+}
+
+fn visit_source(source: &mut QuerySource, parameter_type_oids: &[i32]) {
+    match source {
+        QuerySource::Values { rows } => {
+            for expression in rows.iter_mut().flatten() {
+                visit_expression(expression, parameter_type_oids);
+            }
+        }
+        QuerySource::Aliased { source, .. } => visit_source(source, parameter_type_oids),
+        QuerySource::Subquery { select, .. } => visit_select(select, parameter_type_oids),
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            visit_source(left, parameter_type_oids);
+            visit_source(right, parameter_type_oids);
+            visit_expression(on, parameter_type_oids);
+        }
+        QuerySource::TableFunction { function, .. } => {
+            for expression in function.expressions_mut() {
+                visit_expression(expression, parameter_type_oids);
+            }
+        }
+        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => {}
+    }
+}
+
+fn visit_expression(expression: &mut Expr, parameter_type_oids: &[i32]) {
+    match expression {
+        Expr::Exists(statement) => {
+            coerce_parameterized_boolean_case_results(statement, parameter_type_oids);
+        }
+        Expr::Subquery(subquery) => {
+            for operand in subquery.operands_mut() {
+                visit_expression(operand, parameter_type_oids);
+            }
+            coerce_parameterized_boolean_case_results(&mut subquery.query, parameter_type_oids);
+        }
+        _ => {
+            let _ = expression.try_visit_children_mut(|child| {
+                visit_expression(child, parameter_type_oids);
+                Ok::<(), std::convert::Infallible>(())
+            });
+        }
+    }
+    let Expr::Case {
+        branches,
+        else_expr,
+        ..
+    } = expression
+    else {
+        return;
+    };
+    let parameter_is_boolean = branches
+        .iter()
+        .map(|(_, result)| result)
+        .chain(else_expr.as_deref())
+        .any(|result| {
+            matches!(result, Expr::Param(index) if parameter_type_oids.get(*index) == Some(&16))
+        });
+    if !parameter_is_boolean {
+        return;
+    }
+    let coerce = |result: &mut Expr| {
+        if let Expr::StringLiteral(input) = result {
+            if let Some(value) = crate::types::boolean::parse_text(input) {
+                *result = Expr::BoolLiteral(value);
+            }
+        }
+    };
+    for (_, result) in branches {
+        coerce(result);
+    }
+    if let Some(result) = else_expr {
+        coerce(result);
+    }
+}
 
 pub(super) fn unify_select_case_results(
     select: &mut SelectStatement,
@@ -65,6 +212,25 @@ fn unify_case_results(expr: &Expr, schema: &Schema) -> Expr {
             .map(|(_, then)| then)
             .chain(else_expr.as_deref())
     };
+    let has_boolean = results().any(|result| result_type(result) == Some(DataType::Boolean));
+    if has_boolean {
+        let coerce_boolean_literal = |result: &Expr| match result {
+            Expr::StringLiteral(input) => crate::types::boolean::parse_text(input)
+                .map_or_else(|| result.clone(), Expr::BoolLiteral),
+            _ => result.clone(),
+        };
+        return Expr::Case {
+            operand: operand.clone(),
+            branches: branches
+                .iter()
+                .map(|(when, then)| (when.clone(), coerce_boolean_literal(then)))
+                .collect(),
+            else_expr: else_expr
+                .as_deref()
+                .map(coerce_boolean_literal)
+                .map(Box::new),
+        };
+    }
     let has_float = results().any(|result| result_type(result) == Some(DataType::Float));
     let has_integer =
         results().any(|result| result_type(result).is_some_and(|data_type| is_integer(&data_type)));

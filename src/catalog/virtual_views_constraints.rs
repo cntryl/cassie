@@ -53,6 +53,7 @@ pub(super) fn pg_constraint_schema() -> Vec<(String, DataType)> {
         text("confrelid"),
         int("confrelid_oid"),
         text("confkey"),
+        bool("conenforced"),
         bool("convalidated"),
         bool("condeferrable"),
         bool("condeferred"),
@@ -226,7 +227,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    &constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
+                    &pg_constraint_name(&collection.name, &constraint, ConstraintKind::PrimaryKey),
                     "p",
                     None,
                     None,
@@ -237,7 +238,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    &constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
+                    &pg_constraint_name(&collection.name, &constraint, ConstraintKind::Unique),
                     "u",
                     None,
                     None,
@@ -248,7 +249,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    &constraint_name(&collection.name, &constraint, ConstraintKind::Check),
+                    &pg_constraint_name(&collection.name, &constraint, ConstraintKind::Check),
                     "c",
                     None,
                     None,
@@ -259,11 +260,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    &crate::catalog::generated_constraint_name(
-                        &collection.name,
-                        &constraint.field,
-                        "n",
-                    ),
+                    &not_null_constraint_name(&collection.name, &constraint.field),
                     "n",
                     None,
                     None,
@@ -274,7 +271,7 @@ pub(super) fn pg_constraint(catalog: &Catalog, current_database: Option<&str>) -
                     catalog,
                     &collection.name,
                     &constraint.field,
-                    &constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
+                    &pg_constraint_name(&collection.name, &constraint, ConstraintKind::ForeignKey),
                     "f",
                     constraint.references_table.as_deref(),
                     constraint.references_field.as_deref(),
@@ -388,10 +385,15 @@ fn pg_constraint_row(
                 .map(|field| field_number(catalog, referenced_table, field))
                 .unwrap_or_default(),
         ),
+        bool_value("conenforced", true),
         bool_value("convalidated", true),
         bool_value("condeferrable", false),
         bool_value("condeferred", false),
     ]
+}
+
+fn not_null_constraint_name(collection: &str, field: &str) -> String {
+    format!("{}_{}_not_null", local_name(collection), field)
 }
 
 fn field_number(catalog: &Catalog, collection: &str, field: &str) -> String {
@@ -436,6 +438,30 @@ fn constraint_name(collection: &str, constraint: &FieldConstraint, kind: Constra
             .foreign_key_name
             .clone()
             .unwrap_or_else(|| fallback_constraint_name(collection, constraint, "FOREIGN KEY")),
+    }
+}
+
+fn pg_constraint_name(
+    collection: &str,
+    constraint: &FieldConstraint,
+    kind: ConstraintKind,
+) -> String {
+    match kind {
+        ConstraintKind::PrimaryKey => constraint
+            .primary_key_name
+            .clone()
+            .or_else(|| constraint.constraint_index_name.clone())
+            .unwrap_or_else(|| format!("{}_pkey", local_name(collection))),
+        ConstraintKind::Unique => constraint
+            .unique_name
+            .clone()
+            .or_else(|| constraint.constraint_index_name.clone())
+            .unwrap_or_else(|| {
+                crate::catalog::generated_constraint_name(collection, &constraint.field, "UNIQUE")
+            }),
+        ConstraintKind::Check | ConstraintKind::ForeignKey => {
+            constraint_name(collection, constraint, kind)
+        }
     }
 }
 

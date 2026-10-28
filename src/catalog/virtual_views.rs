@@ -29,6 +29,8 @@ mod virtual_views_dependencies;
 mod virtual_views_empty;
 #[path = "virtual_views_pg.rs"]
 mod virtual_views_pg;
+#[path = "virtual_views_procedures.rs"]
+mod virtual_views_procedures;
 #[path = "virtual_views_projections.rs"]
 mod virtual_views_projections;
 #[path = "virtual_views_relations.rs"]
@@ -186,6 +188,7 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
             text("fallback_reason"),
         ]),
         "pg_catalog.pg_type" => Some(virtual_views_pg::type_schema()),
+        "pg_catalog.pg_proc" => Some(virtual_views_procedures::schema()),
         _ => None,
     }
 }
@@ -437,6 +440,7 @@ fn pg_catalog_core_rows(
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog, current_database)),
+        "pg_catalog.pg_proc" => Some(virtual_views_procedures::rows()),
         _ => virtual_views_empty::rows(name)
             .or_else(|| virtual_views_relations::rows(catalog, name, current_database)),
     }
@@ -694,7 +698,9 @@ fn information_schema_column_row(
             // Identity columns report their generation, not a default.
             constraint
                 .filter(|constraint| constraint.identity.is_none())
-                .and_then(virtual_views_pg::constraint_default_expression),
+                .and_then(|constraint| {
+                    virtual_views_pg::constraint_default_expression(constraint, data_type)
+                }),
         ),
         string(
             "udt_catalog",
@@ -854,6 +860,7 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::BigInt => "bigint".to_string(),
         DataType::Float => "double precision".to_string(),
         DataType::Boolean => "boolean".to_string(),
+        DataType::Name => "name".to_string(),
         DataType::Text => "text".to_string(),
         DataType::Char { length } => match length {
             Some(length) => format!("char({length})"),
@@ -870,6 +877,8 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Timestamp => "timestamp".to_string(),
         DataType::Vector(dimensions) => format!("vector({dimensions})"),
         DataType::Json => "json".to_string(),
+        DataType::Jsonb => "jsonb".to_string(),
+        DataType::JsonPath => "jsonpath".to_string(),
         DataType::Array(inner) => format!("{}[]", inner.type_name()),
         DataType::ObjectId(kind) => kind.name().to_string(),
         DataType::Extended(kind) => kind.name().to_string(),

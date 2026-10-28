@@ -31,6 +31,7 @@ pub enum DataType {
     BigInt,
     Float,
     Boolean,
+    Name,
     Text,
     Char { length: Option<u32> },
     Varchar { length: Option<u32> },
@@ -41,12 +42,18 @@ pub enum DataType {
     Timestamp,
     Vector(usize),
     Json,
+    Jsonb,
+    JsonPath,
     Array(Box<DataType>),
     ObjectId(super::ObjectIdKind),
     Extended(super::extended::ExtendedType),
 }
 
 impl DataType {
+    pub(crate) const fn is_json(&self) -> bool {
+        matches!(self, Self::Json | Self::Jsonb)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -63,6 +70,7 @@ impl DataType {
             Self::BigInt => "bigint".to_string(),
             Self::Float => "float".to_string(),
             Self::Boolean => "boolean".to_string(),
+            Self::Name => "name".to_string(),
             Self::Text => "text".to_string(),
             Self::Char { length } => match length {
                 Some(length) => format!("char({length})"),
@@ -79,6 +87,8 @@ impl DataType {
             Self::Timestamp => "timestamp".to_string(),
             Self::Vector(dimensions) => format!("vector({dimensions})"),
             Self::Json => "json".to_string(),
+            Self::Jsonb => "jsonb".to_string(),
+            Self::JsonPath => "jsonpath".to_string(),
             Self::Array(inner) => format!("{}[]", inner.type_name()),
             Self::ObjectId(kind) => kind.name().to_string(),
             Self::Extended(kind) => kind.type_name(),
@@ -140,6 +150,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
     let raw = raw.trim();
     if raw.ends_with("[]") {
         let inner = parse_sql_type(raw.strip_suffix("[]").unwrap_or(raw).trim())?;
+        if matches!(inner, DataType::JsonPath) {
+            return Err("JSONPATH arrays are not supported".to_string());
+        }
         if matches!(inner, DataType::Array(_)) {
             return Err("array-of-array types are not supported".to_string());
         }
@@ -151,16 +164,7 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         return temporal;
     }
     if let Some(local_name) = lower.strip_prefix("pg_catalog.") {
-        let name = local_name
-            .split_once('(')
-            .map_or(local_name, |(name, _)| name.trim());
-        let known_builtin = super::builtin::BUILTIN_TYPES.iter().any(|metadata| {
-            metadata.name == name && metadata.kind != super::builtin::BuiltinKind::Unknown
-        });
-        if !known_builtin {
-            return Err(format!("unsupported data type '{raw}'"));
-        }
-        return parse_sql_type(local_name);
+        return parse_pg_catalog_type(raw, local_name);
     }
     if lower.split_whitespace().eq(["double", "precision"]) {
         return Ok(DataType::Float);
@@ -239,6 +243,24 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
     named_type(&lower, raw)
 }
 
+fn parse_pg_catalog_type(raw: &str, local_name: &str) -> Result<DataType, String> {
+    let data_type = parse_sql_type(local_name).map_err(|message| {
+        if message.starts_with("unsupported data type '") {
+            format!("unsupported data type '{raw}'")
+        } else {
+            message
+        }
+    })?;
+    let is_selected_builtin = u32::try_from(data_type.type_oid())
+        .ok()
+        .and_then(super::builtin::builtin_for_oid)
+        .is_some_and(|metadata| metadata.kind != super::builtin::BuiltinKind::Unknown);
+    if !is_selected_builtin {
+        return Err(format!("unsupported data type '{raw}'"));
+    }
+    Ok(data_type)
+}
+
 fn parse_float_type(modifier: &str, raw: &str) -> Result<DataType, String> {
     let precision = parse_float_precision(modifier, raw)?;
     Ok(if precision <= 24 {
@@ -280,6 +302,7 @@ fn named_type(lower: &str, raw: &str) -> Result<DataType, String> {
         "bigint" | "int8" => Ok(DataType::BigInt),
         "float" | "float8" | "double" => Ok(DataType::Float),
         "boolean" | "bool" => Ok(DataType::Boolean),
+        "name" => Ok(DataType::Name),
         "text" | "string" => Ok(DataType::Text),
         "bpchar" => Ok(DataType::Char { length: None }),
         "uuid" => Ok(DataType::Uuid),
@@ -287,7 +310,9 @@ fn named_type(lower: &str, raw: &str) -> Result<DataType, String> {
         "date" => Ok(DataType::Date),
         "time" => Ok(DataType::Time),
         "timestamp" => Ok(DataType::Timestamp),
-        "json" | "jsonb" => Ok(DataType::Json),
+        "json" => Ok(DataType::Json),
+        "jsonb" => Ok(DataType::Jsonb),
+        "jsonpath" => Ok(DataType::JsonPath),
         name => super::ObjectIdKind::from_name(name)
             .map(DataType::ObjectId)
             .or_else(|| super::extended::ExtendedType::from_sql_name(name).map(DataType::Extended))

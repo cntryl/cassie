@@ -2,7 +2,7 @@ use crate::app::CassieError;
 use crate::executor::ColumnMeta;
 use crate::types::Value;
 
-use super::request::{CopyRequest, CopyWireFormat, ForceQuote};
+use super::request::{CopyHeader, CopyRequest, CopyWireFormat, ForceQuote};
 
 const BINARY_SIGNATURE: &[u8; 11] = b"PGCOPY\n\xff\r\n\0";
 
@@ -23,7 +23,7 @@ pub(super) fn binary_trailer() -> Vec<u8> {
 }
 
 pub(super) fn encode_header(request: &CopyRequest, columns: &[ColumnMeta]) -> Option<Vec<u8>> {
-    if request.format != CopyWireFormat::Csv || !request.header {
+    if request.format != CopyWireFormat::Csv || request.header == CopyHeader::None {
         return None;
     }
     let mut fields = Vec::with_capacity(columns.len());

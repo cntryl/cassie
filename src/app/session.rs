@@ -670,6 +670,14 @@ impl CassieSession {
         self.transaction.lock().catalog_overlay.clone()
     }
 
+    pub(crate) fn transaction_catalog_version(&self) -> Option<u64> {
+        self.transaction
+            .lock()
+            .catalog_overlay
+            .as_ref()
+            .map(Catalog::version)
+    }
+
     pub(crate) fn begin_transaction_catalog_overlay(&self, catalog: &Catalog) -> Catalog {
         let mut transaction = self.transaction.lock();
         if transaction.catalog_overlay.is_none() {

@@ -31,7 +31,7 @@ fn should_parse_supported_scalar_sql_types() {
     assert_eq!(bigint, DataType::BigInt);
     assert_eq!(vector, DataType::Vector(2));
     assert_eq!(json, DataType::Json);
-    assert_eq!(jsonb, DataType::Json);
+    assert_eq!(jsonb, DataType::Jsonb);
     assert_eq!(uuid, DataType::Uuid);
     // A declared precision is a typmod of the native timestamp type.
     assert_eq!(

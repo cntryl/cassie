@@ -267,6 +267,7 @@ fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlError> {
 }
 
 fn parse_column_name(raw: &str) -> Result<String, SqlError> {
+    let raw = super::super::lexical::trim_separators(raw);
     let path = crate::sql::ColumnIdentifierPath::parse_sql(raw).map_err(SqlError::new)?;
     if path.is_qualified() || path.final_name() == "*" {
         return Err(SqlError::new(format!("invalid CTE column name '{raw}'")));

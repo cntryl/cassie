@@ -1,3 +1,10 @@
+#[path = "filter/binary_expr.rs"]
+mod binary_expr;
+use binary_expr::eval_binary_expr;
+#[path = "filter/cast_expr.rs"]
+mod cast_expr;
+use cast_expr::eval_cast_expr;
+
 use crate::executor::batch::RowAccess;
 use std::collections::{HashMap, HashSet};
 
@@ -23,12 +30,20 @@ pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
 pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<Expr, QueryError> + 'a;
 #[path = "filter/json_concat.rs"]
 mod json_concat;
+#[path = "filter/json_containment.rs"]
+mod json_containment;
 #[path = "filter/json_delete.rs"]
 mod json_delete;
 #[path = "filter/json_document.rs"]
 mod json_document;
+#[path = "filter/json_extract.rs"]
+mod json_extract;
 #[path = "filter/json_key_exists.rs"]
 mod json_key_exists;
+#[path = "filter/json_order.rs"]
+mod json_order;
+#[path = "filter/json_path_operator.rs"]
+mod json_path_operator;
 #[path = "filter/quantified_array.rs"]
 mod quantified_array;
 #[path = "filter/subquery_value.rs"]
@@ -507,6 +522,25 @@ fn cast_scalar(
         DataType::Int => integers::cast(value, crate::types::IntegerWidth::I32, controls),
         DataType::BigInt => integers::cast(value, crate::types::IntegerWidth::I64, controls),
         DataType::ObjectId(_) => object_ids::cast(value),
+        DataType::JsonPath => {
+            let path = value
+                .as_str()
+                .ok_or_else(|| QueryError::General("cannot cast value to JSONPATH".into()))?;
+            sql_json_path::JsonPath::new(path)
+                .map(|parsed| {
+                    let has_variables = path.as_bytes().windows(2).any(|pair| {
+                        pair[0] == b'$' && (pair[1].is_ascii_alphabetic() || pair[1] == b'_')
+                    });
+                    ScalarValue::Str(if has_variables {
+                        path.to_owned()
+                    } else {
+                        parsed.to_string()
+                    })
+                })
+                .map_err(|error| {
+                    QueryError::Cassie(crate::app::CassieError::Parse(error.to_string()))
+                })
+        }
         DataType::Extended(kind) => kind
             .cast_from(&value.to_value())
             .map(ScalarValue::Typed)
@@ -524,14 +558,10 @@ fn cast_scalar(
             })
             .ok_or_else(|| QueryError::General("cannot cast value to FLOAT".to_string())),
         DataType::Boolean => cast_boolean_scalar(value),
-        DataType::Text => Ok(ScalarValue::Str(match value {
-            ScalarValue::Bool(value) => value.to_string(),
-            ScalarValue::Int(value) => value.to_string(),
-            ScalarValue::Float(value) => value.to_string(),
-            ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
-            ScalarValue::Typed(value) => value.text(),
-            ScalarValue::Null => String::new(),
-        })),
+        DataType::Name => Ok(ScalarValue::Str(crate::types::name::parse_text(
+            &cast_string_scalar(value),
+        ))),
+        DataType::Text => Ok(ScalarValue::Str(cast_string_scalar(value))),
         DataType::Char { length } => casts::character(value, *length),
         DataType::Varchar { length } => cast_varchar_text(value, *length),
         DataType::Bytea => {
@@ -562,6 +592,12 @@ fn cast_scalar(
             crate::types::temporal::canonical_timestamp,
         ),
         DataType::Json => cast_json_text(value, controls).map(ScalarValue::Json),
+        DataType::Jsonb => {
+            let text = cast_json_text(value, controls)?;
+            crate::types::jsonb::canonical(&text)
+                .map(ScalarValue::Json)
+                .map_err(|error| crate::app::CassieError::TypeInput(error).into())
+        }
         DataType::Array(element) if **element == DataType::Text => text_arrays::cast(value),
         DataType::Array(_) => Err(QueryError::General(
             "cannot cast scalar value to ARRAY".to_string(),
@@ -569,6 +605,17 @@ fn cast_scalar(
         DataType::Vector(_) => Err(QueryError::General(
             "cannot cast scalar value to VECTOR".to_string(),
         )),
+    }
+}
+
+fn cast_string_scalar(value: &ScalarValue) -> String {
+    match value {
+        ScalarValue::Bool(value) => value.to_string(),
+        ScalarValue::Int(value) => value.to_string(),
+        ScalarValue::Float(value) => value.to_string(),
+        ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
+        ScalarValue::Typed(value) => value.text(),
+        ScalarValue::Null => String::new(),
     }
 }
 
@@ -811,101 +858,25 @@ fn evaluate_function_scalar<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    evaluate_function(function, row, context).map(|value| scalar_from_value(&value))
-}
-
-fn eval_binary_expr<R: RowAccess + ?Sized>(
-    row: &R,
-    left: &Expr,
-    op: &BinaryOp,
-    right: &Expr,
-    context: EvalContext<'_>,
-) -> Result<ScalarValue, QueryError> {
-    if matches!(op, BinaryOp::And | BinaryOp::Or) {
-        if let Some(value) = constants::logical(left, op, right, row, context)? {
-            return Ok(value);
-        }
-        let left = eval_scalar_with_context(row, left, context)?;
-        if matches!(&left, ScalarValue::Bool(value) if *value == matches!(op, BinaryOp::Or)) {
-            return Ok(left);
-        }
-        let right = eval_scalar_with_context(row, right, context)?;
-        return binary_scalar(&left, op, &right);
-    }
-    let left_value = eval_scalar_with_context(row, left, context)?;
-    let right_value = eval_scalar_with_context(row, right, context)?;
-    if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
-        && is_json_typed_input(row, left, &left_value)
-    {
-        if matches!(&left_value, ScalarValue::Null) || matches!(&right_value, ScalarValue::Null) {
-            return Ok(ScalarValue::Null);
-        }
-        if !matches!(&left_value, ScalarValue::Json(_)) {
-            return Err(crate::app::CassieError::InvalidParameterValue(
-                "cannot delete from scalar".into(),
+    let value = evaluate_function(function, row, context)?;
+    let json_return = context
+        .user_functions
+        .get(&function.name)
+        .is_some_and(|metadata| metadata.return_type.is_json())
+        || crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+            matches!(
+                metadata.return_type,
+                crate::sql::functions::FunctionReturnType::Json
+                    | crate::sql::functions::FunctionReturnType::Jsonb
             )
-            .into());
-        }
-        return if matches!(op, BinaryOp::JsonbDeletePath) {
-            json_delete::delete_path(&left_value, &right_value)
-        } else {
-            json_delete::delete_operator(&left_value, &right_value)
+        });
+    if json_return && !matches!(value, Value::Null) {
+        return match value {
+            Value::String(document) => Ok(ScalarValue::Json(document)),
+            value => json_concat::as_json_document(&scalar_from_value(&value)),
         };
     }
-    if *op == BinaryOp::Concat {
-        let left_is_json = is_json_typed_input(row, left, &left_value);
-        let right_is_json = is_json_typed_input(row, right, &right_value);
-        if left_is_json || right_is_json {
-            let left_value = if left_is_json {
-                json_concat::as_json_document(&left_value)?
-            } else {
-                left_value
-            };
-            let right_value = if right_is_json {
-                json_concat::as_json_document(&right_value)?
-            } else {
-                right_value
-            };
-            return json_concat::concatenate(&left_value, &right_value);
-        }
-    }
-    if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {
-        return result;
-    }
-    if matches!(
-        op,
-        BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte
-    ) {
-        if let Some(ordering) = super::array_order::compare(
-            row,
-            (left, &left_value.to_value()),
-            (right, &right_value.to_value()),
-            context.user_functions,
-            context.local_args,
-        ) {
-            return Ok(ScalarValue::Bool(match op {
-                BinaryOp::Lt => ordering.is_lt(),
-                BinaryOp::Lte => !ordering.is_gt(),
-                BinaryOp::Gt => ordering.is_gt(),
-                _ => !ordering.is_lt(),
-            }));
-        }
-    }
-    binary_scalar(&left_value, op, &right_value)
-}
-
-fn is_json_typed_input<R: RowAccess + ?Sized>(
-    row: &R,
-    expression: &Expr,
-    value: &ScalarValue,
-) -> bool {
-    match expression {
-        Expr::Column(name) => row
-            .column_type(name)
-            .is_some_and(|data_type| *data_type == DataType::Json),
-        Expr::Cast { data_type, .. } if *data_type == DataType::Json => true,
-        _ => matches!(value, ScalarValue::Json(_)),
-    }
+    Ok(scalar_from_value(&value))
 }
 
 fn eval_is_null_expr<R: RowAccess + ?Sized>(
@@ -1001,106 +972,6 @@ fn bool_to_predicate(value: bool) -> PredicateResult {
     } else {
         PredicateResult::False
     }
-}
-
-fn eval_cast_expr<R: RowAccess + ?Sized>(
-    row: &R,
-    expr: &Expr,
-    data_type: &DataType,
-    source_type: Option<&DataType>,
-    identity: crate::sql::ast::CastIdentity,
-    context: EvalContext<'_>,
-) -> Result<ScalarValue, QueryError> {
-    if *data_type == DataType::Json && source_type == Some(&DataType::Json) {
-        return json_concat::as_json_document(&eval_scalar_with_context(row, expr, context)?);
-    }
-    if matches!(data_type, DataType::Text | DataType::Varchar { .. })
-        && percentile_array_expression(expr)
-    {
-        let value = eval_scalar_with_context(row, expr, context)?;
-        if let ScalarValue::Json(value) = value {
-            if let Ok(array) = serde_json::from_str::<serde_json::Value>(&value) {
-                if let Some(formatted) = crate::types::array::format_json_array_text(&array) {
-                    return casts::scalar(
-                        &ScalarValue::Str(formatted),
-                        data_type,
-                        Some(&DataType::Text),
-                        context.controls.or_else(|| {
-                            context
-                                .session
-                                .and_then(CassieSession::statement_execution_controls)
-                        }),
-                    );
-                }
-            }
-        }
-    }
-    if let Expr::NumericLiteral(value) = expr {
-        return casts::numeric_literal(
-            value,
-            data_type,
-            identity,
-            context.controls.or_else(|| {
-                context
-                    .session
-                    .and_then(CassieSession::statement_execution_controls)
-            }),
-        );
-    }
-    let value = eval_scalar_with_context(row, expr, context)?;
-    if let Some(cast) = object_ids::catalog_cast(&value, data_type, source_type, context.session)? {
-        return Ok(cast);
-    }
-    if identity == crate::sql::ast::CastIdentity::Scalar
-        && *data_type == DataType::Float
-        && crate::sql::binder::generated_float_coercion_case_operand(expr).is_some()
-    {
-        numeric_comparison::float_scalar(&value)
-    } else {
-        casts::scalar(
-            &value,
-            data_type,
-            source_type,
-            context.controls.or_else(|| {
-                context
-                    .session
-                    .and_then(CassieSession::statement_execution_controls)
-            }),
-        )
-    }
-}
-
-fn percentile_array_expression(expression: &Expr) -> bool {
-    let function = match expression {
-        Expr::Function(function) => function.as_ref(),
-        Expr::Column(name)
-            if name.starts_with("percentile_cont(") || name.starts_with("percentile_disc(") =>
-        {
-            return true;
-        }
-        _ => return false,
-    };
-    let percentile = crate::sql::functions::function(&function.name).is_some_and(|metadata| {
-        matches!(
-            metadata.id,
-            crate::sql::functions::FunctionId::PercentileCont
-                | crate::sql::functions::FunctionId::PercentileDisc
-        )
-    });
-    percentile
-        && function
-            .args
-            .first()
-            .is_some_and(|argument| match argument {
-                Expr::Subquery(subquery) => {
-                    matches!(subquery.kind, crate::sql::ast::SubqueryKind::Array)
-                }
-                Expr::Cast {
-                    data_type: DataType::Array(_),
-                    ..
-                } => true,
-                _ => false,
-            })
 }
 
 #[cfg(test)]

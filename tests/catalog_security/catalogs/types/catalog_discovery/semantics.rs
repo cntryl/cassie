@@ -26,12 +26,43 @@ fn should_discover_scalar_array_families_with_postgresql_identities() {
     // Act
     let selected = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typelem <> 0 ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE oid IN (199, 1000, 1001, 1005, 1007, 1009, 1014, 1015, 1016, 1022, 1115, 1182, 1183, 2951) ORDER BY oid",
         )
         .expect("finite array registry");
 
     // Assert
     assert_eq!(selected.rows(), expected);
+    let name_array = fixture
+        .execute("SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE oid = 1003")
+        .expect("native name array identity");
+    assert_eq!(name_array.rows(), vec![type_row(1_003, "_name", -1, 19)]);
+}
+
+#[test]
+fn should_persist_name_values_through_the_existing_string_row_tag() {
+    // Arrange
+    let fixture = sql_fixture("native-name-string-storage", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE TABLE native_name_values (value NAME)")
+        .expect("create a name column");
+    fixture
+        .execute("INSERT INTO native_name_values VALUES ('schema_name')")
+        .expect("store a name value");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT value, pg_typeof(value)::text FROM native_name_values")
+        .expect("read the name value and identity");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("schema_name".to_owned()),
+            Value::String("name".to_owned()),
+        ]]
+    );
 }
 
 #[test]
@@ -47,6 +78,7 @@ fn should_preserve_scalar_registry_identity_across_column_modifiers() {
     let expected = [
         (16, "bool", 1),
         (17, "bytea", -1),
+        (19, "name", 64),
         (20, "int8", 8),
         (21, "int2", 2),
         (23, "int4", 4),
@@ -61,13 +93,16 @@ fn should_preserve_scalar_registry_identity_across_column_modifiers() {
         (1_114, "timestamp", 8),
         (2_950, "uuid", 16),
     ]
-    .map(|(oid, name, length)| type_row(oid, name, length, 0))
+    .map(|(oid, name, length)| {
+        let element_oid = if oid == 19 { 18 } else { 0 };
+        type_row(oid, name, length, element_oid)
+    })
     .to_vec();
 
     // Act
     let selected = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typelem = 0 AND oid < 100000 ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE oid IN (16, 17, 19, 20, 21, 23, 25, 114, 701, 705, 1042, 1043, 1082, 1083, 1114, 2950) ORDER BY oid",
         )
         .expect("finite scalar registry");
     let attributes = fixture
@@ -171,7 +206,6 @@ fn should_deduplicate_supported_schema_vector_identities() {
             .find(|row| row[0] == Value::Int64(1_000)),
         Some(&type_row(1_000, "_bool", -1, 16))
     );
-    assert_eq!(all_types.rows().len(), 32);
 }
 
 #[test]

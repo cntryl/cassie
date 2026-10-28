@@ -26,7 +26,9 @@ where
         return Err(CassieError::StorageRetryable(message.into()));
     }
 
+    let cleanup_cassie = Arc::clone(&cassie);
     let result = task::spawn_blocking(move || operation(cassie)).await;
+    let _ = cleanup_cassie.run_deferred_schema_cleanup();
 
     match result {
         Ok(result) => match result {

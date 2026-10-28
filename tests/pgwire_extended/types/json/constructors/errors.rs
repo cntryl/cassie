@@ -12,6 +12,10 @@ mod json_collection_sql_json_wave;
 mod json_query_quote_policies;
 #[path = "../json_query_returning_alias.rs"]
 mod json_query_returning_alias;
+#[path = "../operators/containment.rs"]
+mod jsonb_containment;
+#[path = "../operators/extraction.rs"]
+mod jsonb_extraction;
 #[path = "../jsonb_string_scalar_key_boundary.rs"]
 mod jsonb_string_scalar_key_boundary;
 #[path = "../jsonpath/jsonpath_accessor_grammar.rs"]
@@ -22,6 +26,8 @@ mod jsonpath_item_methods;
 mod jsonpath_null_semantics;
 #[path = "../jsonpath/jsonpath_operator_semantics.rs"]
 mod jsonpath_operator_semantics;
+#[path = "../native_jsonb.rs"]
+mod native_jsonb;
 #[path = "../jsonpath/operator_overload/errors.rs"]
 mod operator_overload_residuals;
 #[path = "../operator_truth_tables.rs"]
@@ -164,3 +170,18 @@ include!("../table_functions/errors.rs");
 include!("../table_functions/nulls.rs");
 
 include!("../table_functions/semantics.rs");
+
+#[path = "../native_comparisons.rs"]
+mod native_comparisons;
+
+#[path = "../inspection_native.rs"]
+mod inspection_native;
+
+#[path = "../constructor_native.rs"]
+mod constructor_native;
+
+#[path = "../mutation_native.rs"]
+mod mutation_native;
+
+#[path = "../path_function_native.rs"]
+mod path_function_native;

@@ -291,6 +291,7 @@ impl Cassie {
         let context = self.binding_context_for_session(session);
         let mut parsed = parsed;
         binder::values::bind_input_types(&mut parsed, parameter_type_oids)?;
+        binder::coerce_parameterized_boolean_case_results(&mut parsed, parameter_type_oids);
         let mut bound =
             binder::bind_initial_with_controls(parsed, &self.catalog, &context, controls)?;
         if let Some(controls) = controls {

@@ -1,5 +1,7 @@
 mod constant_folding;
+pub(crate) mod json;
 pub(crate) mod primitive_casts;
+mod return_types;
 pub(crate) use constant_folding::is_immutable_scalar;
 mod catalog;
 mod datum_size;
@@ -30,6 +32,8 @@ pub(crate) use bytea::{
 };
 pub(crate) mod math;
 mod temporal;
+mod unsupported_server_control;
+mod unsupported_server_files;
 pub(crate) use temporal::{
     binary_type as temporal_binary_type, clock_dependent as temporal_clock_dependent,
     is_temporal as is_temporal_function, return_type as temporal_return_type,
@@ -40,6 +44,12 @@ pub(crate) use inputs::{
     aggregate_accepts_input, has_distinct_equality, input_signature, FunctionInputSignature,
 };
 pub(crate) use math::MathFunction;
+pub(crate) use unsupported_server_control::{
+    is_server_control_helper, rejection as reject_server_control,
+};
+pub(crate) use unsupported_server_files::{
+    is_server_file_helper, rejection as reject_server_file_access,
+};
 pub(crate) use window::{window_function, WindowArgumentType, WindowFunction};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -111,11 +121,19 @@ pub enum FunctionId {
     PgCharToEncoding,
     PgSizeBytes,
     PgSizePretty,
+    PgGetFunctionArguments,
+    PgGetFunctionIdentityArguments,
+    PgGetFunctionResult,
+    PgMyTempSchema,
+    PgIsOtherTempSchema,
     HasDatabasePrivilege,
     PgBackendPid,
     CurrentQuery,
     CurrentSchema,
+    CurrentSchemas,
     CurrentDatabase,
+    CurrentCatalog,
+    PgClientEncoding,
     CurrentUser,
     SessionUser,
     CurrentRole,
@@ -123,6 +141,7 @@ pub enum FunctionId {
     FormatType,
     PgGetExpr,
     PgGetIndexDef,
+    PgGetViewDef,
     PgGetUserById,
     ObjDescription,
     HasSchemaPrivilege,
@@ -177,6 +196,11 @@ pub enum FunctionId {
     UnicodeVersion,
     PgColumnCompression,
     PgColumnSize,
+    PgColumnToastChunkId,
+    PgSettingsGetFlags,
+    PgRelationFilenode,
+    PgRelationFilepath,
+    PgFilenodeRelation,
     PgTypeof,
     ToRegClass,
     ToRegCollation,
@@ -195,6 +219,7 @@ pub enum FunctionId {
     PgSleep,
     PgSleepFor,
     PgSleepUntil,
+    Json(json::JsonFunction),
     Math(MathFunction),
     /// A date/time builtin; its result type depends on its arguments.
     Temporal,
@@ -212,9 +237,13 @@ pub struct ScalarFunction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionReturnType {
+    Json,
+    Jsonb,
     Bytea,
     Float,
     Text,
+    Name,
+    TextArray,
     Int,
     BigInt,
     Boolean,
@@ -224,6 +253,7 @@ pub enum FunctionReturnType {
     SumArgument,
     Timestamp,
     ObjectId(crate::types::ObjectIdKind),
+    NameArray,
     /// Resolved from the argument types by [`math::result_type`].
     Math,
     Unknown,
@@ -289,6 +319,7 @@ pub fn registry() -> Vec<ScalarFunction> {
         .chain(object_identity::FUNCTIONS)
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
+        .chain(json::FUNCTIONS)
         .chain(math::FUNCTIONS)
         .chain(temporal::SLEEP_FUNCTIONS)
         .cloned()
@@ -311,6 +342,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
         .chain(object_identity::FUNCTIONS)
         .chain(sequences::FUNCTIONS)
         .chain(runtime::FUNCTIONS)
+        .chain(json::FUNCTIONS)
         .chain(math::FUNCTIONS)
         .chain(temporal::FUNCTIONS)
         .chain(temporal::SLEEP_FUNCTIONS)
@@ -348,6 +380,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || bytea::FUNCTIONS
                             .iter()
+                            .chain(json::FUNCTIONS)
                             .chain(math::FUNCTIONS)
                             .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
                         || regression::FUNCTIONS
@@ -371,6 +404,7 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
                         .chain(object_identity::FUNCTIONS)
                         .chain(sequences::FUNCTIONS)
                         .chain(runtime::FUNCTIONS)
+                        .chain(json::FUNCTIONS)
                         .chain(math::FUNCTIONS)
                         .chain(temporal::FUNCTIONS)
                         .chain(temporal::SLEEP_FUNCTIONS)
@@ -669,10 +703,50 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
+        id: FunctionId::CurrentSchemas,
+        name: "current_schemas",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::NameArray,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::CurrentSchemas,
+        name: "pg_catalog.current_schemas",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::NameArray,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
         id: FunctionId::CurrentDatabase,
         name: "current_database",
         arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
+        return_type: FunctionReturnType::Name,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::CurrentCatalog,
+        name: "current_catalog",
+        arity: FunctionArity::Exact(0),
+        return_type: FunctionReturnType::Name,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgClientEncoding,
+        name: "pg_client_encoding",
+        arity: FunctionArity::Exact(0),
+        return_type: FunctionReturnType::Name,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgClientEncoding,
+        name: "pg_catalog.pg_client_encoding",
+        arity: FunctionArity::Exact(0),
+        return_type: FunctionReturnType::Name,
         is_aggregate: false,
         bypass_arity_validation: false,
     },
@@ -680,7 +754,7 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         id: FunctionId::CurrentUser,
         name: "current_user",
         arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
+        return_type: FunctionReturnType::Name,
         is_aggregate: false,
         bypass_arity_validation: false,
     },
@@ -688,7 +762,7 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         id: FunctionId::SessionUser,
         name: "session_user",
         arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
+        return_type: FunctionReturnType::Name,
         is_aggregate: false,
         bypass_arity_validation: false,
     },
@@ -696,7 +770,7 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         id: FunctionId::CurrentRole,
         name: "current_role",
         arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
+        return_type: FunctionReturnType::Name,
         is_aggregate: false,
         bypass_arity_validation: false,
     },
@@ -759,6 +833,22 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
         id: FunctionId::PgGetIndexDef,
         name: "pg_catalog.pg_get_indexdef",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgGetViewDef,
+        name: "pg_get_viewdef",
+        arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgGetViewDef,
+        name: "pg_catalog.pg_get_viewdef",
         arity: FunctionArity::Exact(1),
         return_type: FunctionReturnType::Text,
         is_aggregate: false,

@@ -17,14 +17,7 @@ impl Drop for FixtureDirectory {
 }
 
 fn run_queries(label: &str, queries: Vec<String>) -> Vec<Frames> {
-    run_queries_with_config(
-        label,
-        queries,
-        CassieRuntimeConfig {
-            password: String::new(),
-            ..CassieRuntimeConfig::default()
-        },
-    )
+    run_queries_with_config(label, queries, CassieRuntimeConfig::default())
 }
 
 fn run_queries_with_config(
@@ -86,30 +79,33 @@ fn should_report_the_active_query_given_a_running_statement_when_current_query_i
 }
 
 #[test]
-fn should_report_trust_session_identity_given_session_authorization_when_user_functions_are_read() {
+fn should_reject_session_authorization_change() {
     // Arrange
-    let role = "issue_817_session_identity";
+    let query = "SET SESSION AUTHORIZATION root".to_owned();
 
     // Act
-    let batches = run_queries(
-        "issue-817-session-identity",
-        vec![
-            format!("CREATE ROLE {role}"),
-            format!("SET SESSION AUTHORIZATION {role}"),
-            "SELECT USER, current_user, session_user, system_user IS NULL \
-             AS system_user_is_unavailable"
-                .to_owned(),
-            "RESET SESSION AUTHORIZATION".to_owned(),
-            format!("DROP ROLE {role}"),
-        ],
-    );
+    let batches = run_queries("issue-817-session-authorization", vec![query]);
 
     // Assert
-    assert_eq!(batches.len(), 5);
-    assert!(batches[..2]
-        .iter()
-        .all(|frames| wire::error_code(frames).is_none()));
-    let identity = &batches[2];
+    assert_eq!(batches.len(), 1);
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("0A000"));
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        Vec::<Vec<Option<String>>>::new()
+    );
+}
+
+#[test]
+fn should_report_authenticated_root_session_identity() {
+    // Arrange
+    let query = "SELECT current_user, session_user".to_owned();
+
+    // Act
+    let batches = run_queries("issue-817-session-identity", vec![query]);
+    let identity = &batches[0];
+
+    // Assert
+    assert_eq!(batches.len(), 1);
     assert_eq!(wire::error_code(identity), None);
     let description = identity
         .iter()
@@ -120,18 +116,10 @@ fn should_report_trust_session_identity_given_session_authorization_when_user_fu
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        [19, 19, 19, 16]
+        [19, 19]
     );
     assert_eq!(
         wire::data_rows(identity),
-        vec![vec![
-            Some(role.to_owned()),
-            Some(role.to_owned()),
-            Some(role.to_owned()),
-            Some("t".to_owned()),
-        ]]
+        vec![vec![Some("root".to_owned()), Some("root".to_owned()),]]
     );
-    assert!(batches[3..]
-        .iter()
-        .all(|frames| wire::error_code(frames).is_none()));
 }

@@ -694,8 +694,6 @@ fn should_reject_incomplete_dollar_quotes_given_unmatched_delimiters_when_parsin
 fn should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_a_cast() {
     // Arrange
     let statements = [
-        "SELECT '7'::pg_catalog.int",
-        "SELECT '7'::pg_catalog.integer",
         "SELECT '7'::private.int4",
         "SELECT '7'::pg_catalog.missing_type",
     ];
@@ -710,7 +708,32 @@ fn should_reject_nonexistent_qualified_types_given_builtin_aliases_when_parsing_
 }
 
 #[test]
-fn should_reject_unselected_name_type_casts() {
+fn should_bind_selected_integer_aliases_given_pg_catalog_qualification() {
+    // Arrange
+    let fixture =
+        crate::support_sql_fixture::sql_fixture("issue-796-qualified-integer-aliases", &[]);
+    let statements = [
+        "SELECT '7'::pg_catalog.int AS value",
+        "SELECT '7'::pg_catalog.integer AS value",
+    ];
+
+    // Act
+    let results = statements.map(|sql| fixture.execute(sql));
+
+    // Assert
+    for (sql, result) in statements.into_iter().zip(results) {
+        let result = result.expect("qualified built-in integer alias");
+        assert_eq!(
+            result.rows(),
+            &[vec![cassie::types::Value::Int64(7)]],
+            "{sql}"
+        );
+        assert_eq!(result.columns()[0].type_oid, 23, "{sql}");
+    }
+}
+
+#[test]
+fn should_parse_native_name_type_casts() {
     // Arrange
     let statements = [
         ("SELECT 'word'::name", "name"),
@@ -721,14 +744,8 @@ fn should_reject_unselected_name_type_casts() {
     let parsed = statements.map(|(sql, _)| parse_statement(sql));
 
     // Assert
-    for ((sql, type_name), result) in statements.into_iter().zip(parsed) {
-        let error = result.expect_err("unselected NAME type must reject");
-        assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
-        assert_eq!(
-            error.message(),
-            format!("unsupported data type '{type_name}'"),
-            "the cast must be rejected by type resolution: {sql}"
-        );
+    for ((sql, _), result) in statements.into_iter().zip(parsed) {
+        assert!(result.is_ok(), "native NAME cast should parse: {sql}");
     }
 }
 

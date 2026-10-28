@@ -138,7 +138,9 @@ pub(crate) fn bit_input_selection(
 pub(crate) fn has_distinct_builtin_arity(name: &str, actual: usize, declared: usize) -> bool {
     actual != declared
         && super::function(name).is_some_and(|metadata| {
-            (is_bytea_function(metadata.id) || metadata.id == FunctionId::Lower)
+            (is_bytea_function(metadata.id)
+                || metadata.id == FunctionId::Lower
+                || matches!(metadata.id, FunctionId::Json(_)))
                 && metadata.arity.matches(actual)
         })
 }

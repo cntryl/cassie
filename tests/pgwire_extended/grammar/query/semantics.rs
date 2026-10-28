@@ -32,7 +32,7 @@ fn should_distinguish_icu_collation_order_from_c_order_over_pgwire() {
 }
 
 #[test]
-fn should_parse_postgres_nested_block_comments_beyond_one_hundred_twenty_eight_levels() {
+fn should_reject_nested_block_comments_beyond_one_hundred_twenty_eight_levels() {
     // Arrange
     let comment = format!("{}nested{}", "/*".repeat(129), "*/".repeat(129));
     let sql = format!("{comment} SELECT 7::INT4 AS parsed_value");
@@ -50,17 +50,15 @@ fn should_parse_postgres_nested_block_comments_beyond_one_hundred_twenty_eight_l
         .filter(|frame| frame.0 == b'E')
         .map(|frame| wire::parse_error_fields(&frame.1))
         .collect::<Vec<_>>();
-    assert_eq!(
-        wire::error_code(result),
-        None,
-        "nested block comment ErrorResponse: {errors:?}"
+    assert_eq!(wire::error_code(result).as_deref(), Some("54000"));
+    assert!(errors.iter().any(|fields| {
+        fields.iter().any(|(kind, value)| {
+            *kind == 'M' && value == "nested block comment depth exceeds 128"
+        })
+    }));
+    assert!(
+        !result.iter().any(|frame| frame.0 == b'T'),
+        "resource error precedes metadata"
     );
-    let description = result
-        .iter()
-        .find(|frame| frame.0 == b'T')
-        .expect("nested-comment query RowDescription");
-    let columns = wire::parse_row_description(&description.1);
-    assert_eq!(columns[0].name, "parsed_value");
-    assert_eq!(columns[0].type_oid, 23);
-    assert_eq!(wire::data_rows(result), vec![vec![Some("7".to_owned())]]);
+    assert_eq!(wire::data_rows(result), Vec::<Vec<Option<String>>>::new());
 }

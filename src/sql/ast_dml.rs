@@ -11,11 +11,11 @@ use super::{
 /// The row entry that carries `merge_action()` for `MERGE ... RETURNING`.
 pub const MERGE_ACTION_COLUMN: &str = "__cassie_merge_action";
 
-/// The function name a parsed `column = DEFAULT` assignment carries.
+/// The parser marker for column defaults in mutation assignments and INSERT cells.
 pub const DEFAULT_ASSIGNMENT_MARKER: &str = "__cassie_column_default";
 
 impl Expr {
-    /// Whether this is the `DEFAULT` of a `column = DEFAULT` assignment.
+    /// Whether this expression is a parsed column DEFAULT marker.
     #[must_use]
     pub fn is_default_assignment(&self) -> bool {
         matches!(self, Self::Function(function) if function.name == DEFAULT_ASSIGNMENT_MARKER)

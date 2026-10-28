@@ -11,10 +11,10 @@ fn should_match_mixed_case_0_given_builtin_operator_when_native_value_is_execute
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 55]],
-            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 7]],
+            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 7]],
         ],
     );
 }
@@ -28,10 +28,10 @@ fn should_match_mixed_case_1_given_builtin_operator_when_native_value_is_execute
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 57]],
-            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 9]],
+            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 9]],
         ],
     );
 }
@@ -45,10 +45,10 @@ fn should_match_mixed_case_2_given_builtin_operator_when_native_value_is_execute
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 53]],
-            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 5]],
+            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 5]],
         ],
     );
 }
@@ -155,10 +155,10 @@ fn should_match_mixed_case_9_given_builtin_operator_when_native_value_is_execute
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 51]],
-            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 3]],
+            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 3]],
         ],
     );
 }
@@ -172,10 +172,10 @@ fn should_match_mixed_case_10_given_builtin_operator_when_native_value_is_execut
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 2, 45, 49]],
-            &[&[0, 1, 0, 0, 0, 8, 255, 255, 255, 255, 255, 255, 255, 255]],
+            &[&[0, 1, 0, 0, 0, 4, 255, 255, 255, 255]],
         ],
     );
 }
@@ -189,10 +189,10 @@ fn should_match_mixed_case_11_given_builtin_operator_when_native_value_is_execut
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 49]],
-            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1]],
+            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 1]],
         ],
     );
 }
@@ -206,10 +206,10 @@ fn should_match_mixed_case_12_given_builtin_operator_when_native_value_is_execut
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 53]],
-            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 5]],
+            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 5]],
         ],
     );
 }
@@ -257,10 +257,10 @@ fn should_match_mixed_case_15_given_builtin_operator_when_native_value_is_execut
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 2, 45, 52]],
-            &[&[0, 1, 0, 0, 0, 8, 255, 255, 255, 255, 255, 255, 255, 252]],
+            &[&[0, 1, 0, 0, 0, 4, 255, 255, 255, 252]],
         ],
     );
 }
@@ -274,10 +274,10 @@ fn should_match_mixed_case_16_given_builtin_operator_when_native_value_is_execut
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 1, 54]],
-            &[&[0, 1, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 6]],
+            &[&[0, 1, 0, 0, 0, 4, 0, 0, 0, 6]],
         ],
     );
 }
@@ -291,10 +291,10 @@ fn should_match_mixed_case_17_given_builtin_operator_when_native_value_is_execut
     // Assert
     support_values_casts::assert_result(
         &batches,
-        ("v", 20, 8, -1),
+        ("v", 23, 4, -1),
         [
             &[&[0, 1, 0, 0, 0, 2, 45, 52]],
-            &[&[0, 1, 0, 0, 0, 8, 255, 255, 255, 255, 255, 255, 255, 252]],
+            &[&[0, 1, 0, 0, 0, 4, 255, 255, 255, 252]],
         ],
     );
 }

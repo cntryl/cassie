@@ -619,7 +619,7 @@ fn should_desugar_serial_columns_to_sequence_backed_integer_defaults() {
             vec![
                 vec![
                     Value::String("serial_id".to_string()),
-                    Value::String("int".to_string()),
+                    Value::String("integer".to_string()),
                     Value::String("nextval('serial_orders_serial_id_seq'::regclass)".to_string()),
                     Value::String("NO".to_string()),
                 ],

@@ -24,7 +24,7 @@ fn should_merge_jsonb_objects_with_right_hand_key_precedence() {
     // Assert
     let frames = &batches[0];
     fixture::assert_success(frames);
-    fixture::assert_single_column_descriptors(frames, (114, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(frames, (3802, -1, -1), 0, true);
     assert_eq!(
         wire::data_rows(frames),
         vec![vec![Some("{\"a\": 1, \"b\": 2, \"c\": 3}".to_owned())]]

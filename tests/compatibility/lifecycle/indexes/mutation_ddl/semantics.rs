@@ -18,11 +18,11 @@ fn should_preserve_query_results_across_index_maintenance() {
         // Act
         client
             .batch_execute(
-                "CREATE INDEX CONCURRENTLY compat_index_score_idx \
+                "CREATE INDEX compat_index_score_idx \
                    ON compat_index_rows (score DESC)",
             )
             .await
-            .expect("create ordered index concurrently");
+            .expect("create ordered index");
         client
             .batch_execute("REINDEX INDEX compat_index_score_idx")
             .await

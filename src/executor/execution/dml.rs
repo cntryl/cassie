@@ -35,8 +35,10 @@ mod dml_update;
 mod identity_insert;
 
 pub(super) use dml_delete::execute_delete;
-pub(super) use dml_insert::execute_insert;
 pub(crate) use dml_insert::resolve_transaction_conflict_intents;
+pub(super) use dml_insert::{
+    execute_insert, execute_prepared_insert, prepare_waiting_insert, WaitingInsert,
+};
 pub(crate) use dml_joined::joined_returning_schema;
 pub(crate) use dml_joined_update::{delete_is_joined, update_is_joined};
 pub(super) use dml_merge::execute_merge;
@@ -77,7 +79,7 @@ fn value_to_json_for_field(
     value: &Value,
     data_type: &DataType,
 ) -> Result<serde_json::Value, QueryError> {
-    if let (DataType::Json, Value::String(text)) = (data_type, value) {
+    if let (DataType::Json | DataType::Jsonb, Value::String(text)) = (data_type, value) {
         return serde_json::from_str(text).map_err(|error| {
             crate::app::CassieError::Parse(format!("field '{field}' expects JSON: {error}")).into()
         });
@@ -177,6 +179,28 @@ fn update_assignment_to_json(
     value_to_json(value)
 }
 
+fn apply_update_value(
+    payload: &mut serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    value: &Value,
+    schema: &CollectionSchema,
+) -> Result<(), QueryError> {
+    if matches!(value, Value::Null)
+        && schema
+            .fields
+            .iter()
+            .any(|column| column.name == field && column.data_type.is_json())
+    {
+        payload.remove(field);
+    } else {
+        payload.insert(
+            field.to_string(),
+            update_assignment_to_json(field, value, schema)?,
+        );
+    }
+    Ok(())
+}
+
 fn inserted_row_to_batch_row(
     row_id: &str,
     schema: &CollectionSchema,
@@ -192,7 +216,7 @@ fn inserted_row_to_batch_row(
         let value = payload.get(&field.name).map_or(Value::Null, |value| {
             // JSON document-only scalars stay exact. A missing key remains
             // SQL NULL, as INSERT/UPDATE omit SQL-null JSON fields.
-            if matches!(field.data_type, DataType::Json)
+            if matches!(field.data_type, DataType::Json | DataType::Jsonb)
                 && crate::types::json::requires_document_carrier(value)
             {
                 Value::Json(value.clone())

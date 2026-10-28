@@ -2,8 +2,8 @@
 
 use super::conflict::{excluded_local_args, find_insert_conflict_row_id};
 use super::{
-    dml_referential_actions, filter, inserted_row_to_batch_row, update_assignment_to_json,
-    BatchRow, CassieSession, CollectionSchema, Expr, FunctionMeta, HashMap, InsertExecutionContext,
+    apply_update_value, dml_referential_actions, filter, inserted_row_to_batch_row, BatchRow,
+    CassieSession, CollectionSchema, Expr, FunctionMeta, HashMap, InsertExecutionContext,
     QueryError, Value,
 };
 
@@ -138,10 +138,7 @@ fn apply_row_subqueries(
         let values =
             super::super::dml_row_subquery::evaluate_row_subquery(&scope, assignment, outer)?;
         for (column, value) in assignment.columns.iter().zip(values) {
-            payload.insert(
-                column.clone(),
-                update_assignment_to_json(column, &value, context.schema)?,
-            );
+            apply_update_value(payload, column, &value, context.schema)?;
         }
     }
     Ok(())
@@ -194,17 +191,21 @@ pub(super) fn execute_insert_conflict_update(
     let _type_memory = context
         .controls
         .reserve_query_memory(crate::executor::batch::row_type_bytes([&existing_row]))?;
-    let proposed = context
-        .cassie
-        .payload_with_column_defaults(&context.statement.table, payload)
-        .map_err(QueryError::from)?;
-    let excluded_args = excluded_local_args(&proposed, context.schema);
-    if !conflict_filter_holds(context, conflict_filter, &existing_row, &excluded_args)? {
+    let proposed = if context.apply_defaults {
+        context
+            .cassie
+            .payload_with_column_defaults(&context.statement.table, payload)?
+    } else {
+        payload.clone()
+    };
+    let excluded = excluded_local_args(&proposed, context.schema, context.controls)?;
+    let excluded_args = &excluded.values;
+    if !conflict_filter_holds(context, conflict_filter, &existing_row, excluded_args)? {
         return Ok(None);
     }
     let assignment_context = ConflictAssignmentContext {
         existing_row: &existing_row,
-        excluded_args: &excluded_args,
+        excluded_args,
         params: context.params,
         user_functions: context.user_functions,
         session: context.session,
@@ -222,7 +223,7 @@ pub(super) fn execute_insert_conflict_update(
     apply_row_subqueries(
         context,
         row_subqueries,
-        &subquery_outer_row(&existing_row, &excluded_args, context.statement),
+        &subquery_outer_row(&existing_row, excluded_args, context.statement),
         &mut merged_payload,
     )?;
     let mut merged_payload = serde_json::Value::Object(merged_payload);
@@ -309,10 +310,7 @@ fn merged_conflict_payload(
             context.user_functions,
             context.session,
         )?;
-        merged_payload.insert(
-            field.clone(),
-            update_assignment_to_json(field, &value, context.schema)?,
-        );
+        apply_update_value(&mut merged_payload, field, &value, context.schema)?;
     }
     Ok(merged_payload)
 }

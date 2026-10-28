@@ -143,9 +143,55 @@ fn should_keep_valid_boolean_literals_parseable() {
 
     // Assert
     assert_eq!(batches.len(), cases.len() * 2);
-    for pair in batches.as_chunks::<2>().0 {
-        assert_eq!(tags(&pair[0]), vec![b'1']);
+    for (index, pair) in batches.as_chunks::<2>().0.iter().enumerate() {
+        assert_eq!(
+            tags(&pair[0]),
+            vec![b'1'],
+            "{}: {:?}",
+            cases[index].0,
+            pair[0]
+        );
         assert_eq!(tags(&pair[1]), vec![b'Z']);
         assert_ready(&pair[1]);
     }
+}
+
+fn assert_typed_boolean_case_result(sql: &str, expected: &[u8]) {
+    // Arrange
+    let cycle = fixture::execute_cycle(sql, Some((16, 0, Some(b"false"))), 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("boolean-case-typed-parameter", &[], vec![cycle]);
+
+    // Assert
+    assert_eq!(batches.len(), 1);
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_parameter_oids(frames, &[16]);
+    assert_descriptors(frames, &[(16, 1)], &["flag"], 0, true);
+    assert_eq!(fixture::data_row_payloads(frames), vec![fixture::one_field_row(expected)]);
+    assert_command(frames, b"SELECT 1\0");
+    assert!(frames.iter().any(|(tag, _)| *tag == b'T'), "{sql}");
+}
+
+#[test]
+fn should_infer_boolean_case_result_when_parameter_branch_is_selected() {
+    // Arrange
+    // Act
+    // Assert
+    assert_typed_boolean_case_result(
+        "SELECT CASE WHEN TRUE THEN $1 ELSE 'yes' END AS flag",
+        b"f",
+    );
+}
+
+#[test]
+fn should_infer_boolean_case_result_when_literal_branch_is_selected() {
+    // Arrange
+    // Act
+    // Assert
+    assert_typed_boolean_case_result(
+        "SELECT CASE WHEN FALSE THEN $1 ELSE 'yes' END AS flag",
+        b"t",
+    );
 }

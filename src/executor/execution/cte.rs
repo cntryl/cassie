@@ -103,7 +103,14 @@ pub(super) fn execute_cte<'a>(
     check_timeout(controls)?;
     let _name_memory = controls.reserve_query_memory(cte.name.len())?;
     let cte_name = cte.name.to_ascii_lowercase();
-    let previous = cte_context.remove(&cte_name);
+    // A nonrecursive definition may read an outer CTE with the same name.
+    // Only recursive evaluation installs a private working relation here.
+    let recursive = matches!(cte.query, CteQuery::Recursive { .. });
+    let previous = if recursive {
+        cte_context.remove(&cte_name)
+    } else {
+        None
+    };
     let namespace = context_fields(cte_context, controls)?;
     let fields =
         crate::sql::binder::cte_row_fields(cte, &namespace, &cassie.catalog, user_functions)
@@ -143,7 +150,7 @@ pub(super) fn execute_cte<'a>(
     let output = output.rename(&cte.aliases, controls)?;
     if let Some(previous_rows) = previous {
         cte_context.insert(&cte_name, previous_rows, controls)?;
-    } else {
+    } else if recursive {
         cte_context.remove(&cte_name);
     }
 

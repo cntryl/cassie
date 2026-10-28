@@ -14,7 +14,7 @@ async fn round_trip(
     wire::write_frames(writer, frames).await;
     wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await
 }
-fn fixture(_path: &str) -> Cassie {
+fn fixture() -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("config");
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
@@ -56,9 +56,8 @@ fn runtime() -> tokio::runtime::Runtime {
 #[test]
 fn should_capture_portal_data_at_first_execute_after_bind() {
     // Arrange
-    let path = wire::data_dir("statement-first-execute");
     runtime().block_on(async {
-        let cassie = fixture(&path);
+        let cassie = fixture();
         let server = wire::spawn_server(cassie.clone()).await;
         let socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -110,15 +109,13 @@ fn should_capture_portal_data_at_first_execute_after_bind() {
         drop((reader, writer));
         server.stop().await;
     });
-    std::fs::remove_dir_all(path).expect("fixture cleanup");
 }
 
 #[test]
 fn should_resume_suspended_portal_after_staged_savepoint_rollback() {
     // Arrange
-    let path = wire::data_dir("statement-resume-savepoint");
     runtime().block_on(async {
-        let cassie = fixture(&path);
+        let cassie = fixture();
         let server = wire::spawn_server(cassie.clone()).await;
         let socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -190,15 +187,13 @@ fn should_resume_suspended_portal_after_staged_savepoint_rollback() {
         drop((reader, writer));
         server.stop().await;
     });
-    std::fs::remove_dir_all(path).expect("fixture cleanup");
 }
 
 #[test]
 fn should_release_a_suspended_portal_owner_on_close() {
     // Arrange
-    let path = wire::data_dir("statement-suspended-close");
     runtime().block_on(async {
-        let cassie = fixture(&path);
+        let cassie = fixture();
         let server = wire::spawn_server(cassie.clone()).await;
         let socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -243,5 +238,4 @@ fn should_release_a_suspended_portal_owner_on_close() {
         drop((reader, writer));
         server.stop().await;
     });
-    std::fs::remove_dir_all(path).expect("fixture cleanup");
 }

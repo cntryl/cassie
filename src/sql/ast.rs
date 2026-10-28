@@ -622,7 +622,10 @@ pub enum ReindexTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropTableStatement {
     pub table: String,
+    #[serde(default)]
+    pub additional_tables: Vec<String>,
     pub if_exists: bool,
+    pub cascade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -686,6 +689,7 @@ pub struct DropDatabaseStatement {
 pub struct DropSchemaStatement {
     pub schema: String,
     pub if_exists: bool,
+    pub cascade: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -709,6 +713,8 @@ pub struct CreateViewStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DropViewStatement {
     pub name: String,
+    #[serde(default)]
+    pub additional_names: Vec<String>,
     pub if_exists: bool,
 }
 

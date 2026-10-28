@@ -203,13 +203,27 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 /// The "any other operator" tokens split at the prefix-expression level.
-fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 14] {
+fn json_extraction(path: bool, as_text: bool) -> BinaryOp {
+    BinaryOp::JsonExtract {
+        path,
+        as_text,
+        jsonb: false,
+    }
+}
+
+fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 22] {
     use crate::types::extended::TypedOperator;
     use crate::types::IntegerOperation;
     [
+        ("->", Some(json_extraction(false, false))),
+        ("->>", Some(json_extraction(false, true))),
+        ("#>", Some(json_extraction(true, false))),
+        ("#>>", Some(json_extraction(true, true))),
         ("?|", Some(BinaryOp::JsonbKeyExistsAny)),
         ("?&", Some(BinaryOp::JsonbKeyExistsAll)),
         ("?", Some(BinaryOp::JsonbKeyExists)),
+        ("@?", Some(BinaryOp::JsonPathExists)),
+        ("@@", Some(BinaryOp::JsonPathMatch)),
         ("||", Some(BinaryOp::Concat)),
         (
             "|",
@@ -230,6 +244,18 @@ fn prefix_operators() -> [(&'static str, Option<BinaryOp>); 14] {
             }),
         ),
         ("#-", Some(BinaryOp::JsonbDeletePath)),
+        (
+            "@>",
+            Some(BinaryOp::Typed {
+                operator: TypedOperator::ContainsOrEqual,
+            }),
+        ),
+        (
+            "<@",
+            Some(BinaryOp::Typed {
+                operator: TypedOperator::ContainedOrEqual,
+            }),
+        ),
         (
             "<<",
             Some(BinaryOp::Bitwise {

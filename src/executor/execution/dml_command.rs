@@ -579,23 +579,35 @@ fn execute_insert_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = execute_atomic_dml(
-            cassie,
-            session,
-            &statement.table,
-            controls,
-            statement.on_conflict.is_none(),
-            |working| {
-                super::dml::execute_insert(
-                    cassie,
-                    Some(working),
-                    statement,
-                    params,
-                    user_functions,
-                    controls,
-                )
-            },
-        )?;
+        let result = if let Some(arbiter) = super::dml_upsert_wait::arbiter(cassie, statement) {
+            super::dml_upsert_wait::execute(super::dml_upsert_wait::UpsertRequest {
+                cassie,
+                session,
+                statement,
+                params,
+                functions: user_functions,
+                controls,
+                arbiter: &arbiter,
+            })?
+        } else {
+            execute_atomic_dml(
+                cassie,
+                session,
+                &statement.table,
+                controls,
+                statement.on_conflict.is_none(),
+                |working| {
+                    super::dml::execute_insert(
+                        cassie,
+                        Some(working),
+                        statement,
+                        params,
+                        user_functions,
+                        controls,
+                    )
+                },
+            )?
+        };
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())

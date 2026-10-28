@@ -7,8 +7,9 @@ fn assert_renamed_alter_restart(
     after_rows: &[Vec<cassie::types::Value>],
 ) {
     assert_eq!(after_catalog, before_catalog);
-    assert_eq!(after_catalog[0][1], cassie::types::Value::Int64(1700));
-    assert_eq!(after_catalog[0][2], cassie::types::Value::Int64(1_310_724));
+    assert_eq!(after_catalog[0][1], cassie::types::Value::Int64(23));
+    assert_eq!(after_catalog[0][2], cassie::types::Value::Int64(-1));
+    assert_eq!(after_catalog[0][3], cassie::types::Value::Bool(true));
     assert_eq!(after_rows, before_rows);
     assert_eq!(
         after_rows,
@@ -115,21 +116,6 @@ fn should_apply_using_conversion_with_column_addition_in_one_alter() {
         } else {
             None
         };
-        let amount_typmod = if alter_result.is_ok() {
-            Some(
-                client
-                    .query_one(
-                        "SELECT atttypmod FROM pg_catalog.pg_attribute \
-                         WHERE attrelid = 'compat_issue839_alter_rows'::regclass \
-                           AND attname = 'amount'",
-                        &[],
-                    )
-                    .await,
-            )
-        } else {
-            None
-        };
-
         // Assert
         drop(client);
         server.shutdown(connection).await;
@@ -161,10 +147,7 @@ fn should_apply_using_conversion_with_column_addition_in_one_alter() {
             .expect("read the converted column descriptor after ALTER")
             .expect("describe converted numeric column");
         assert_eq!(amount_descriptor.columns()[0].type_().oid(), 1700);
-        let amount_typmod = amount_typmod
-            .expect("read the converted column typmod after ALTER")
-            .expect("read numeric precision and scale");
-        assert_eq!(amount_typmod.get::<_, i32>(0), 1_310_724);
+        assert_eq!(amount_descriptor.columns()[0].type_modifier(), 1_310_724);
     });
 }
 
@@ -241,6 +224,63 @@ fn should_rollback_multi_action_alter_after_using_failure() {
 }
 
 #[test]
+fn should_reject_type_using_that_violates_unique_constraint_without_partial_rewrite() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_839_alter_unique_collision").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_issue839_unique_rows \
+                 (id INT PRIMARY KEY, amount INT UNIQUE)",
+                "INSERT INTO compat_issue839_unique_rows VALUES (1, 22), (2, 24)",
+            ],
+        )
+        .await
+        .expect("create rows protected by a unique constraint");
+
+        // Act
+        let alter_result = client
+            .batch_execute(
+                "ALTER TABLE compat_issue839_unique_rows \
+                 ALTER COLUMN amount TYPE NUMERIC(20,0) USING 1::numeric",
+            )
+            .await;
+        let rows = client
+            .query(
+                "SELECT id, amount FROM compat_issue839_unique_rows ORDER BY id",
+                &[],
+            )
+            .await
+            .expect("read original values after a rejected conversion");
+        let columns = client
+            .query(
+                "SELECT data_type FROM information_schema.columns \
+                 WHERE table_name = 'compat_issue839_unique_rows' AND column_name = 'amount'",
+                &[],
+            )
+            .await
+            .expect("read the original declared type after a rejected conversion");
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        let error = alter_result.expect_err("converted duplicate values must violate UNIQUE");
+        assert_eq!(db_error(&error).code().code(), "23505");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.get::<_, i32>(0), row.get::<_, i32>(1)))
+                .collect::<Vec<_>>(),
+            vec![(1, 22), (2, 24)]
+        );
+        assert_eq!(columns.len(), 1);
+        assert_eq!(columns[0].get::<_, String>(0), "integer");
+    });
+}
+
+#[test]
 fn should_emit_if_exists_notices_with_command_tags() {
     // Arrange
     let runtime = current_thread_runtime();
@@ -273,22 +313,17 @@ fn should_emit_if_exists_notices_with_command_tags() {
              ADD COLUMN added INT DEFAULT 7",
         )
         .await;
-        let inserted = client
-            .query_one(
-                "INSERT INTO compat_issue839_alter_present (id) VALUES (1) RETURNING added",
-                &[],
-            )
-            .await
-            .expect("verify that the present IF EXISTS ALTER ran");
-
         // Assert
-        drop(client);
-        server.shutdown(connection).await;
-        for frames in [&absent_drop, &present_drop, &absent_alter, &present_alter] {
+        for (statement, frames) in [
+            ("absent DROP TABLE", &absent_drop),
+            ("present DROP TABLE", &present_drop),
+            ("absent ALTER TABLE", &absent_alter),
+            ("present ALTER TABLE", &present_alter),
+        ] {
             assert_eq!(
                 support_pgwire::error_code(frames),
                 None,
-                "frames: {frames:?}"
+                "{statement} frames: {frames:?}"
             );
         }
         let absent_drop_notices = notice_fields(&absent_drop);
@@ -320,7 +355,16 @@ fn should_emit_if_exists_notices_with_command_tags() {
             Vec::<Vec<(char, String)>>::new()
         );
         assert_eq!(command_tag(&present_alter).as_deref(), Some("ALTER TABLE"));
+        let inserted = client
+            .query_one(
+                "INSERT INTO compat_issue839_alter_present (id) VALUES (1) RETURNING added",
+                &[],
+            )
+            .await
+            .expect("verify that the present IF EXISTS ALTER ran");
         assert_eq!(inserted.get::<_, i32>(0), 7);
+        drop(client);
+        server.shutdown(connection).await;
     });
 }
 
@@ -351,13 +395,13 @@ fn should_preserve_relation_index_identity_across_schema_move() {
                         table_schema.nspname, index_schema.nspname \
                  FROM pg_catalog.pg_class AS table_class \
                  JOIN pg_catalog.pg_namespace AS table_schema \
-                   ON table_schema.oid = table_class.relnamespace \
+                   ON table_schema.nspname = table_class.relnamespace \
                  JOIN pg_catalog.pg_index AS index_metadata \
-                   ON index_metadata.indrelid = table_class.oid \
+                   ON index_metadata.indrelid = table_class.relname \
                  JOIN pg_catalog.pg_class AS index_class \
-                   ON index_class.oid = index_metadata.indexrelid \
+                   ON index_class.relname = index_metadata.indexrelid \
                  JOIN pg_catalog.pg_namespace AS index_schema \
-                   ON index_schema.oid = index_class.relnamespace \
+                   ON index_schema.nspname = index_class.relnamespace \
                  WHERE table_schema.nspname = 'compat_issue839_move_source' \
                    AND table_class.relname = 'rows' \
                    AND index_class.relname = 'compat_issue839_move_note_idx'",
@@ -380,13 +424,13 @@ fn should_preserve_relation_index_identity_across_schema_move() {
                         table_schema.nspname, index_schema.nspname \
                  FROM pg_catalog.pg_class AS table_class \
                  JOIN pg_catalog.pg_namespace AS table_schema \
-                   ON table_schema.oid = table_class.relnamespace \
+                   ON table_schema.nspname = table_class.relnamespace \
                  JOIN pg_catalog.pg_index AS index_metadata \
-                   ON index_metadata.indrelid = table_class.oid \
+                   ON index_metadata.indrelid = table_class.relname \
                  JOIN pg_catalog.pg_class AS index_class \
-                   ON index_class.oid = index_metadata.indexrelid \
+                   ON index_class.relname = index_metadata.indexrelid \
                  JOIN pg_catalog.pg_namespace AS index_schema \
-                   ON index_schema.oid = index_class.relnamespace \
+                   ON index_schema.nspname = index_class.relnamespace \
                  WHERE table_schema.nspname = 'compat_issue839_move_target' \
                    AND table_class.relname = 'rows' \
                    AND index_class.relname = 'compat_issue839_move_note_idx'",
@@ -436,10 +480,12 @@ fn should_reject_drop_restrict_then_cascade_dependent_view() {
         execute_statements(
             &client,
             &[
-                "CREATE TABLE compat_issue839_drop_base (id INT)",
+                "CREATE TABLE compat_issue839_drop_base (id INT PRIMARY KEY)",
                 "INSERT INTO compat_issue839_drop_base VALUES (7)",
                 "CREATE VIEW compat_issue839_drop_view \
                  AS SELECT id FROM compat_issue839_drop_base",
+                "CREATE TABLE compat_issue839_drop_child \
+                 (parent_id INT REFERENCES compat_issue839_drop_base(id))",
             ],
         )
         .await
@@ -466,6 +512,9 @@ fn should_reject_drop_restrict_then_cascade_dependent_view() {
             .await
             .expect("inspect both dependent objects after CASCADE")
             .get(0);
+        let child_insert = client
+            .execute("INSERT INTO compat_issue839_drop_child VALUES (99)", &[])
+            .await;
 
         // Assert
         drop(client);
@@ -488,6 +537,109 @@ fn should_reject_drop_restrict_then_cascade_dependent_view() {
             "CASCADE should remove the dependency: {cascade_result:?}"
         );
         assert_eq!(remaining_objects, 0);
+        assert!(
+            child_insert.is_ok(),
+            "CASCADE should remove the foreign key from the surviving child table: {child_insert:?}"
+        );
+    });
+}
+
+#[test]
+fn should_find_dependencies_in_cte_backed_views_when_dropping_tables() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_839_drop_cte_dependency").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_issue839_cte_base (id INT PRIMARY KEY)",
+                "INSERT INTO compat_issue839_cte_base VALUES (11)",
+                "CREATE VIEW compat_issue839_cte_view AS \
+                 WITH base_rows AS (SELECT id FROM compat_issue839_cte_base) \
+                 SELECT id FROM base_rows",
+            ],
+        )
+        .await
+        .expect("create a table and a CTE-backed dependent view");
+
+        // Act
+        let restricted_drop = client
+            .batch_execute("DROP TABLE compat_issue839_cte_base RESTRICT")
+            .await;
+        let view_rows = client
+            .query("SELECT id FROM compat_issue839_cte_view", &[])
+            .await;
+        let cascade_result = client
+            .batch_execute("DROP TABLE compat_issue839_cte_base CASCADE")
+            .await;
+        let remaining: i64 = client
+            .query_one(
+                "SELECT count(*) FROM pg_catalog.pg_class \
+                 WHERE relname IN (\
+                   'compat_issue839_cte_base', 'compat_issue839_cte_view'\
+                 )",
+                &[],
+            )
+            .await
+            .expect("inspect relation state after CASCADE")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        let error = restricted_drop.expect_err("RESTRICT must find the CTE-backed dependency");
+        assert_eq!(db_error(&error).code().code(), "2BP01");
+        assert_eq!(
+            view_rows
+                .expect("the view remains queryable after RESTRICT")
+                .first()
+                .expect("the view retains its row")
+                .get::<_, i32>(0),
+            11
+        );
+        cascade_result.expect("CASCADE must remove the dependent CTE-backed view");
+        assert_eq!(remaining, 0);
+    });
+}
+
+#[test]
+fn should_preserve_unrelated_view_with_prefixed_relation_name_on_cascade() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("drop_table_cascade_prefix").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_cascade_source (id INT)",
+                "CREATE TABLE compat_cascade_source_archive (id INT)",
+                "INSERT INTO compat_cascade_source_archive VALUES (13)",
+                "CREATE VIEW compat_cascade_source_archive_view \
+                 AS SELECT id FROM compat_cascade_source_archive \
+                   AS compat_cascade_source",
+            ],
+        )
+        .await
+        .expect("create a dropped table and a similarly named independent view");
+
+        // Act
+        client
+            .batch_execute("DROP TABLE compat_cascade_source CASCADE")
+            .await
+            .expect("drop the table without dropping similarly named relations");
+        let retained_value: i32 = client
+            .query_one("SELECT id FROM compat_cascade_source_archive_view", &[])
+            .await
+            .expect("read the independent view after the cascade")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(retained_value, 13);
     });
 }
 
@@ -584,7 +736,7 @@ fn should_persist_renamed_alter_relation_after_restart() {
             "CREATE TABLE compat_issue839_restart.rows (id INT, amount INT)",
             "INSERT INTO compat_issue839_restart.rows VALUES (1, 41), (2, NULL)",
             "ALTER TABLE compat_issue839_restart.rows \
-             ALTER COLUMN amount TYPE NUMERIC(20,0) USING amount::numeric, \
+             ALTER COLUMN amount SET DEFAULT 73, \
              ADD COLUMN note TEXT DEFAULT 'persisted'",
             "ALTER TABLE compat_issue839_restart.rows RENAME TO rows_v2",
         ] {
@@ -597,15 +749,15 @@ fn should_persist_renamed_alter_relation_after_restart() {
         let catalog = cassie
             .execute_sql(
                 &session,
-                "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT \
+                "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT, a.atthasdef \
                  FROM pg_catalog.pg_class AS c \
-                 JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace \
-                 JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid \
+                 JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace_oid \
+                 JOIN pg_catalog.pg_attribute AS a ON a.attrelid_oid = c.oid \
                  WHERE n.nspname = 'compat_issue839_restart' \
                    AND c.relname = 'rows_v2' AND a.attname = 'amount'",
                 vec![],
             )
-            .expect("read renamed relation and numeric column metadata before restart")
+            .expect("read renamed relation and ALTERed column metadata before restart")
             .rows()
             .to_vec();
         let rows = cassie
@@ -632,15 +784,15 @@ fn should_persist_renamed_alter_relation_after_restart() {
     let catalog_after_restart = reopened
         .execute_sql(
             &session,
-            "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT \
+            "SELECT c.oid::BIGINT, a.atttypid::BIGINT, a.atttypmod::BIGINT, a.atthasdef \
              FROM pg_catalog.pg_class AS c \
-             JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace \
-             JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid \
+             JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace_oid \
+             JOIN pg_catalog.pg_attribute AS a ON a.attrelid_oid = c.oid \
              WHERE n.nspname = 'compat_issue839_restart' \
                AND c.relname = 'rows_v2' AND a.attname = 'amount'",
             vec![],
         )
-        .expect("read renamed relation and numeric column metadata after restart")
+        .expect("read renamed relation and ALTERed column metadata after restart")
         .rows()
         .to_vec();
     let rows_after_restart = reopened

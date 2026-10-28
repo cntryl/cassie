@@ -31,6 +31,7 @@ impl Cassie {
             "auth_user": &self.auth_user,
             "runtime": snapshot.runtime,
             "query": snapshot.query,
+            "transactions": { "unique_waiters": self.transaction_unique_waits.waiting_count() },
             "rest": snapshot.rest,
             "pgwire": snapshot.pgwire,
             "search": snapshot.search,

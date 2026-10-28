@@ -66,7 +66,7 @@ impl Fold<'_, '_> {
             && boolean_metadata.is_none()
             && !function.has_modifiers()
         {
-            return Ok(Summary::unqualified());
+            return Ok(Self::zero_argument_output(function));
         }
         let declared = self.declared_function_summary(function, frame)?;
         if let Some(summary) = declared {
@@ -116,6 +116,13 @@ impl Fold<'_, '_> {
         self.apply_input_signature(function, metadata, frame)
     }
 
+    fn zero_argument_output(function: &ast::FunctionCall) -> Summary {
+        functions::function(&function.name)
+            .filter(|metadata| metadata.arity.matches(0))
+            .and_then(|metadata| metadata.return_type.fixed_type())
+            .map_or_else(Summary::unqualified, |kind| Summary::known(oid(&kind)))
+    }
+
     fn type_function_summary(
         &mut self,
         function: &ast::FunctionCall,
@@ -162,31 +169,21 @@ impl Fold<'_, '_> {
     ) -> Result<Summary, ParameterAdmissionError> {
         let signature = self.qualified_input_signature(function, metadata, frame);
         match signature {
-            Some(FunctionInputSignature::Positional(oids)) => self.positional_function(
+            Some(
+                signature @ (FunctionInputSignature::Positional(_)
+                | FunctionInputSignature::VariadicTail { .. }),
+            ) => self.positional_function(
                 function,
                 metadata.expect("positional metadata"),
-                oids,
+                (0..function.args.len()).filter_map(|index| signature.argument_oid(index)),
                 frame,
             ),
             Some(FunctionInputSignature::RegexpReplace) => {
-                let oids = match function.args.len() {
-                    3 => &[25, 25, 25][..],
-                    4 => {
-                        let fourth = self.summaries.values[frame.start + 3];
-                        if matches!(fourth.oid, 21 | 23) {
-                            &[25, 25, 25, 23][..]
-                        } else {
-                            &[25, 25, 25, 25][..]
-                        }
-                    }
-                    5 => &[25, 25, 25, 23, 23][..],
-                    6 => &[25, 25, 25, 23, 23, 25][..],
-                    _ => &[],
-                };
+                let oids = self.regexp_replace_oids(function.args.len(), frame);
                 self.positional_function(
                     function,
                     metadata.expect("regexp_replace metadata"),
-                    oids,
+                    oids.iter().copied(),
                     frame,
                 )
             }
@@ -211,7 +208,7 @@ impl Fold<'_, '_> {
                 }
                 Ok(Summary::known(16))
             }
-            Some(FunctionInputSignature::AnyElement) => self.any_element_input(frame),
+            Some(FunctionInputSignature::AnyElement) => self.any_element_output(metadata, frame),
             Some(FunctionInputSignature::BitwiseInteger) => {
                 let metadata = metadata.expect("bitwise aggregate signature metadata");
                 let summary = &mut self.summaries.values[frame.start];
@@ -260,6 +257,28 @@ impl Fold<'_, '_> {
                 Ok(Summary::unqualified())
             }
         }
+    }
+
+    fn regexp_replace_oids(&self, arity: usize, frame: &Frame<'_>) -> &'static [i32] {
+        match arity {
+            3 => &[25, 25, 25],
+            4 if matches!(self.summaries.values[frame.start + 3].oid, 21 | 23) => &[25, 25, 25, 23],
+            4 => &[25, 25, 25, 25],
+            5 => &[25, 25, 25, 23, 23],
+            6 => &[25, 25, 25, 23, 23, 25],
+            _ => &[],
+        }
+    }
+
+    fn any_element_output(
+        &mut self,
+        metadata: Option<&functions::ScalarFunction>,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        let input = self.any_element_input(frame)?;
+        Ok(metadata
+            .and_then(|metadata| metadata.return_type.fixed_type())
+            .map_or(input, |kind| Summary::known(oid(&kind))))
     }
 
     fn any_element_input(&mut self, frame: &Frame<'_>) -> Result<Summary, ParameterAdmissionError> {
@@ -427,7 +446,7 @@ impl Fold<'_, '_> {
         &mut self,
         function: &ast::FunctionCall,
         metadata: &functions::ScalarFunction,
-        oids: &[i32],
+        oids: impl IntoIterator<Item = i32>,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
         // `power(numeric, numeric)` is its own overload.
@@ -441,7 +460,7 @@ impl Fold<'_, '_> {
         }
         for (summary, oid) in self.summaries.values[frame.start..].iter_mut().zip(oids) {
             check_controls(self.controls)?;
-            let accepted = match *oid {
+            let accepted = match oid {
                 17 => matches!(summary.oid, 0 | 17 | 705),
                 25 => matches!(summary.oid, 0 | 25 | 1042 | 1043 | 705),
                 20 => matches!(summary.oid, 0 | 20 | 21 | 23 | 705),
@@ -449,10 +468,11 @@ impl Fold<'_, '_> {
                 // Float arguments reach the binder, which names the full
                 // undefined `numeric` overload signature.
                 1700 => matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700),
-                _ => {
+                23 => {
                     matches!(summary.oid, 0 | 21 | 23 | 705)
                         || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)
                 }
+                expected => matches!(summary.oid, 0 | 705) || summary.oid == expected,
             };
             if !accepted && summary.qualified {
                 self.occurrences.undefined_function(
@@ -461,7 +481,7 @@ impl Fold<'_, '_> {
                     Some(summary.oid),
                 )?;
             }
-            self.occurrences.coerce(summary, *oid, true)?;
+            self.occurrences.coerce(summary, oid, true)?;
         }
         if let functions::FunctionId::Math(math) = metadata.id {
             let arguments = self.summaries.values[frame.start..]
@@ -484,6 +504,8 @@ impl Fold<'_, '_> {
             functions::FunctionReturnType::Int => 23,
             functions::FunctionReturnType::BigInt => 20,
             functions::FunctionReturnType::Boolean => 16,
+            functions::FunctionReturnType::Json => 114,
+            functions::FunctionReturnType::Jsonb => 3802,
             functions::FunctionReturnType::Bytea => 17,
             _ => 25,
         }))

@@ -122,7 +122,8 @@ pub(super) fn validate_alter_column_operation(
         AlterTableOperation::AlterColumnDropDefault { field }
         | AlterTableOperation::AlterColumnSetNotNull { field }
         | AlterTableOperation::AlterColumnDropNotNull { field }
-        | AlterTableOperation::AlterColumnIdentity { field, .. } => {
+        | AlterTableOperation::AlterColumnIdentity { field, .. }
+        | AlterTableOperation::AlterColumnType { field, .. } => {
             validate_alter_column_field(table, "ALTER COLUMN", field, existing_fields)?;
         }
         _ => {}

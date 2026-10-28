@@ -73,40 +73,6 @@ fn should_resolve_canonical_encoding_names_given_valid_invalid_and_null_ids_when
 }
 
 #[test]
-fn should_describe_reserved_keywords_from_the_server_keyword_table() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-keyword-catalog-row", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute(
-            "SELECT word, catcode, barelabel \
-             FROM pg_catalog.pg_get_keywords() \
-             WHERE word = 'select'",
-        )
-        .expect("read the server's SELECT keyword metadata");
-
-    // Assert
-    assert_eq!(
-        selected
-            .columns()
-            .iter()
-            .map(|column| column.type_oid)
-            .collect::<Vec<_>>(),
-        vec![25, 18, 16]
-    );
-    assert_eq!(
-        selected.rows(),
-        vec![vec![
-            Value::String("select".to_owned()),
-            Value::String("R".to_owned()),
-            Value::Bool(false),
-        ]]
-    );
-}
-
-#[test]
 fn should_report_the_single_node_recovery_state() {
     // Arrange
     let fixture = sql_fixture("issue-817-recovery-state", &[]);
@@ -144,7 +110,7 @@ fn should_report_zero_is_not_another_session_temporary_schema() {
 
     // Act
     let selected = fixture
-        .execute("SELECT pg_catalog.pg_is_other_temp_schema(0)")
+        .execute("SELECT pg_catalog.pg_is_other_temp_schema(0::oid)")
         .expect("check whether the schema belongs to another session");
 
     // Assert

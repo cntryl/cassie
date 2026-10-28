@@ -356,6 +356,18 @@ pub(super) async fn write_command_complete(
     Ok(())
 }
 
+pub(super) async fn write_notice_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    message: &str,
+) -> io::Result<()> {
+    let mut payload = Vec::new();
+    payload.extend_from_slice(b"SNOTICE\0C00000\0M");
+    payload.extend_from_slice(message.as_bytes());
+    payload.push(0);
+    payload.push(0);
+    write_backend_frame(write_half, b'N', &payload).await
+}
+
 pub(super) async fn write_copy_in_response(
     write_half: &mut (impl AsyncWrite + Unpin),
     column_count: usize,

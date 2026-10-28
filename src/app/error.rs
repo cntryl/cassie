@@ -276,6 +276,9 @@ impl CassieError {
             Self::InvalidQuery(message) if message == "invalid Unicode escape in escape string" => {
                 bad_request_descriptor("22025", "invalid Unicode escape".into())
             }
+            Self::InvalidQuery(message) if message == "invalid escape string" => {
+                bad_request_descriptor("22025", message.clone())
+            }
             Self::InvalidQuery(message)
                 if message.starts_with("invalid byte sequence for encoding \"UTF8\":") =>
             {
@@ -562,6 +565,9 @@ fn unsupported_descriptor(message: String) -> CassieErrorDescriptor {
 }
 
 fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
+    if text_boolean_predicate_mismatch(message) {
+        return bad_request_descriptor("42804", message.to_string());
+    }
     if message == "relation alias list has more names than source columns"
         || (message.starts_with("GROUP BY position ")
             && message.ends_with(" is not in select list"))
@@ -584,6 +590,20 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
         return timeout_descriptor();
     }
     bad_request_descriptor("42601", message.to_string())
+}
+
+fn text_boolean_predicate_mismatch(message: &str) -> bool {
+    let Some((context, found)) = message.split_once(" expression must have BOOLEAN type (found ")
+    else {
+        return false;
+    };
+    if found != "Text)" {
+        return false;
+    }
+    matches!(
+        context,
+        "WHERE" | "HAVING" | "JOIN ON" | "Boolean operator" | "NOT" | "CASE WHEN"
+    ) || context.ends_with(" WHERE")
 }
 
 fn pagination_sql_state(message: &str) -> Option<&'static str> {
@@ -692,6 +712,9 @@ impl From<crate::sql::SqlError> for CassieError {
             | crate::sql::SqlErrorKind::DuplicateColumn
             | crate::sql::SqlErrorKind::UndefinedFunction => {
                 CassieError::Execution(value.to_string())
+            }
+            crate::sql::SqlErrorKind::UndefinedObject => {
+                CassieError::from(DiagnosticError::new("42704", value.to_string()))
             }
             crate::sql::SqlErrorKind::Unsupported => CassieError::Unsupported(value.to_string()),
             crate::sql::SqlErrorKind::ResourceLimit => {

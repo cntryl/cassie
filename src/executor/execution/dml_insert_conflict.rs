@@ -1,8 +1,6 @@
 //! Finding the existing row an `INSERT ... ON CONFLICT` proposal conflicts with.
 
-use super::{
-    json_to_value, Cassie, CassieSession, CollectionSchema, DataType, HashMap, QueryError, Value,
-};
+use super::{json_to_value, Cassie, CassieSession, CollectionSchema, HashMap, QueryError, Value};
 
 fn find_target_field_conflict_row_id(
     cassie: &Cassie,
@@ -96,28 +94,77 @@ pub(super) fn find_insert_conflict_row_id(
     )
 }
 
+pub(super) struct ExcludedArgs {
+    pub(super) values: HashMap<String, Value>,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+
 pub(super) fn excluded_local_args(
     payload: &serde_json::Value,
     schema: &CollectionSchema,
-) -> HashMap<String, Value> {
-    let mut out = HashMap::new();
-    let Some(object) = payload.as_object() else {
-        return out;
-    };
-    for (field, value) in object {
-        let value = schema
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<ExcludedArgs, QueryError> {
+    use crate::executor::retained_memory::{add, serialized_json_bytes};
+    controls.check_interruption()?;
+    let object = payload.as_object();
+    let mut bytes = 0;
+    if let Some(object) = object {
+        for (field, value) in object {
+            bytes = add(
+                bytes,
+                add(
+                    excluded_entry_bytes(field)?,
+                    crate::runtime::accounted::json::serialized_decode_bytes(
+                        serialized_json_bytes(value)?,
+                    )?,
+                )?,
+            )?;
+        }
+        for field in schema
             .fields
             .iter()
-            .find(|candidate| candidate.name == *field)
-            .filter(|candidate| {
-                matches!(candidate.data_type, DataType::Json)
-                    && crate::types::json::requires_document_carrier(value)
-            })
-            .map_or_else(|| json_to_value(value), |_| Value::Json(value.clone()));
-        let key = crate::sql::ColumnIdentifierPath::from_field_name(field).lookup_key();
-        out.insert(format!("excluded.{key}"), value);
+            .filter(|field| !object.contains_key(&field.name))
+        {
+            bytes = add(bytes, excluded_entry_bytes(&field.name)?)?;
+        }
     }
-    out
+    let memory = controls.reserve_query_memory(bytes)?;
+    let mut out = HashMap::new();
+    if let Some(object) = object {
+        for field in schema
+            .fields
+            .iter()
+            .filter(|field| !object.contains_key(&field.name))
+        {
+            let key = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+            out.insert(format!("excluded.{key}"), Value::Null);
+        }
+        for (field, value) in object {
+            let value = schema
+                .fields
+                .iter()
+                .find(|candidate| candidate.name == *field)
+                .filter(|candidate| {
+                    candidate.data_type.is_json()
+                        && crate::types::json::requires_document_carrier(value)
+                })
+                .map_or_else(|| json_to_value(value), |_| Value::Json(value.clone()));
+            let key = crate::sql::ColumnIdentifierPath::from_field_name(field).lookup_key();
+            out.insert(format!("excluded.{key}"), value);
+        }
+    }
+    Ok(ExcludedArgs {
+        values: out,
+        _memory: memory,
+    })
+}
+
+fn excluded_entry_bytes(field: &str) -> Result<usize, crate::app::CassieError> {
+    use crate::executor::retained_memory::{add, mul};
+    add(
+        mul(field.len(), 6)?,
+        std::mem::size_of::<(String, Value)>() * 4 + 64,
+    )
 }
 
 /// Finds the row an expression unique index says `payload` conflicts with,
@@ -256,3 +303,7 @@ fn find_any_unique_conflict(
 
     Ok(None)
 }
+
+#[cfg(test)]
+#[path = "insert_excluded_tests.rs"]
+mod tests;

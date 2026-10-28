@@ -160,6 +160,9 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
             .from_json(&value)
             .map(|typed| typed.to_json())
             .map_err(|error| error.to_string()),
+        DataType::Name => coerce_text(value, "name", |text| {
+            Ok(crate::types::name::parse_text(text))
+        }),
         DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => Ok(match value {
             Value::Number(number) => Value::String(number.to_string()),
             Value::Bool(flag) => Value::String(flag.to_string()),
@@ -177,11 +180,15 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
                 .map(|parsed| parsed.to_string())
                 .map_err(|error| error.to_string())
         }),
-        DataType::Json => Ok(match value {
+        DataType::Json | DataType::Jsonb => Ok(match value {
             Value::String(text) => serde_json::from_str(&text).unwrap_or(Value::String(text)),
             other => other,
         }),
-        DataType::Null | DataType::Bytea | DataType::Vector(_) | DataType::Array(_) => Ok(value),
+        DataType::Null
+        | DataType::Bytea
+        | DataType::JsonPath
+        | DataType::Vector(_)
+        | DataType::Array(_) => Ok(value),
     }
 }
 

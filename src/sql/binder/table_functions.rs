@@ -7,6 +7,23 @@ fn validate_graph_table_function(
     function: &FunctionCall,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
+    if crate::sql::functions::is_server_file_helper(&function.name) {
+        return Err(crate::sql::functions::reject_server_file_access());
+    }
+    if function.name.eq_ignore_ascii_case("jsonb_path_query")
+        || function.name.eq_ignore_ascii_case("jsonb_path_query_tz")
+    {
+        if !(2..=4).contains(&function.args.len()) || function.has_modifiers() {
+            return Err(CassieError::Execution(format!(
+                "function {}(jsonb, jsonpath, jsonb, boolean) does not exist",
+                function.name
+            )));
+        }
+        for arg in &function.args {
+            validate_expression(arg, lateral_fields, &HashSet::new(), false)?;
+        }
+        return Ok(());
+    }
     let modules = crate::sql::functions::is_loaded_modules(&function.name);
     let options = crate::sql::functions::is_options_table(&function.name);
     if (modules && !function.args.is_empty()) || (options && function.args.len() != 1) {
@@ -70,6 +87,11 @@ pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
 }
 
 pub(super) fn columns(name: &str) -> Vec<(String, DataType)> {
+    if name.eq_ignore_ascii_case("jsonb_path_query")
+        || name.eq_ignore_ascii_case("jsonb_path_query_tz")
+    {
+        return vec![("value".to_string(), DataType::Jsonb)];
+    }
     if let Some(columns) = crate::sql::functions::catalog_table_columns(name) {
         return columns;
     }

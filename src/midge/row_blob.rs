@@ -48,7 +48,7 @@ pub(crate) fn decode_compact_field_value(
     data_type: &DataType,
     bytes: &[u8],
 ) -> Result<Option<serde_json::Value>, CassieError> {
-    if matches!(data_type, DataType::Json) && bytes.first() == Some(&TYPE_NULL) {
+    if matches!(data_type, DataType::Json | DataType::Jsonb) && bytes.first() == Some(&TYPE_NULL) {
         return Ok(None);
     }
     decode_compact_value(bytes).map(Some)
@@ -510,7 +510,7 @@ impl<'a> RowDirectory<'a> {
             return Ok(None);
         }
         if field_bit(self.nulls, field_id) {
-            if matches!(field.data_type, DataType::Json) {
+            if matches!(field.data_type, DataType::Json | DataType::Jsonb) {
                 // Older rows encoded JSON document null with the generic SQL
                 // NULL tag. Under the current contract those rows are SQL NULL.
                 return Ok(None);
@@ -587,14 +587,18 @@ fn expected_type_tag(data_type: &DataType) -> u8 {
         DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::ObjectId(_) => TYPE_I64,
         DataType::Float => TYPE_F64,
         DataType::Boolean => TYPE_BOOL,
-        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => TYPE_STRING,
+        DataType::Name
+        | DataType::Text
+        | DataType::Char { .. }
+        | DataType::Varchar { .. }
+        | DataType::JsonPath => TYPE_STRING,
         DataType::Uuid => TYPE_UUID,
         DataType::Date => TYPE_DATE,
         DataType::Time => TYPE_TIME,
         DataType::Timestamp => TYPE_TIMESTAMP,
         DataType::Bytea => TYPE_BYTEA,
         DataType::Array(_) => TYPE_ARRAY,
-        DataType::Json => TYPE_JSON,
+        DataType::Json | DataType::Jsonb => TYPE_JSON,
         DataType::Vector(_) => TYPE_VECTOR_F32,
         DataType::Extended(_) => TYPE_EXTENDED,
     }

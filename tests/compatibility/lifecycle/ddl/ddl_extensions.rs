@@ -2,23 +2,17 @@ use super::*;
 
 #[path = "atomic_drop.rs"]
 mod atomic_drop;
-#[path = "../extensions/extension_catalog_coverage.rs"]
-mod extension_catalog_coverage;
-#[path = "../extensions/extension_schema_relocation.rs"]
-mod extension_schema_relocation;
 #[path = "atomic_lifecycle.rs"]
 mod issue_839_atomic_lifecycle;
-#[path = "../namespaces/database_temp_lifecycle.rs"]
-mod postgresql18_database_temp_lifecycle;
+#[path = "recreate_relation.rs"]
+mod recreate_relation;
 #[path = "../sequences/sequence_identity.rs"]
 mod sequence_identity_wave7;
 
 #[path = "../indexes/index.rs"]
 mod index_contracts;
-#[path = "maintenance_statistics_refresh.rs"]
-mod maintenance_statistics_refresh;
-#[path = "../extensions/pgcrypto_extension.rs"]
-mod pgcrypto_extension;
+#[path = "../extensions/dependency_targets.rs"]
+mod pgcrypto_installation_boundary;
 #[path = "../tables/table_forms.rs"]
 mod table_forms;
 #[path = "../tables/table_storage_access.rs"]

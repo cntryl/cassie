@@ -41,6 +41,7 @@ pub(super) fn decode_text_parameter(
         Some(BuiltinKind::Int4) => parse_integer(text, crate::types::IntegerWidth::I32),
         Some(BuiltinKind::Int8) => parse_integer(text, crate::types::IntegerWidth::I64),
         Some(BuiltinKind::Float8) => parse_float(text).map(Value::Float64),
+        Some(BuiltinKind::Name) => Ok(Value::String(crate::types::name::parse_text(text))),
         Some(BuiltinKind::Extended(kind)) if kind.binds_parameters() => {
             kind.parse_text(text).map(Value::Typed).map_err(|error| {
                 ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
@@ -48,9 +49,22 @@ pub(super) fn decode_text_parameter(
         }
         _ if oid == OID_NUMERIC => parse_numeric(text),
         _ if oid == OID_FLOAT4 => parse_float(text).map(Value::Float64),
+        Some(BuiltinKind::Jsonb) => {
+            crate::types::jsonb::canonical(text).map_err(|error| {
+                ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
+            })?;
+            serde_json::from_str(text)
+                .map(Value::Json)
+                .map_err(|_| ExtendedQueryError::protocol("invalid JSONB bind parameter"))
+        }
         Some(BuiltinKind::Json) => serde_json::from_str(text)
             .map(Value::Json)
             .map_err(|_| ExtendedQueryError::protocol("invalid JSON bind parameter")),
+        Some(BuiltinKind::JsonPath) => sql_json_path::JsonPath::new(text)
+            .map(|path| Value::String(path.to_string()))
+            .map_err(|error| {
+                ExtendedQueryError::cassie(&crate::app::CassieError::Parse(error.to_string()))
+            }),
         Some(BuiltinKind::Date) => temporal_parameter(text, ExtendedType::Date),
         Some(BuiltinKind::Time) => temporal_parameter(text, ExtendedType::Time { precision: None }),
         Some(BuiltinKind::Timestamp) => {

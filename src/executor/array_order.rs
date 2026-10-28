@@ -166,7 +166,7 @@ fn array_key(json: &serde_json::Value, element_type: &DataType) -> Option<Semant
 }
 
 fn element_key(value: &serde_json::Value, data_type: &DataType) -> SemanticValue {
-    if matches!(data_type, DataType::Json) && !value.is_null() {
+    if matches!(data_type, DataType::Json | DataType::Jsonb) && !value.is_null() {
         return SemanticValue::from_value(&Value::Json(value.clone()));
     }
     match value {

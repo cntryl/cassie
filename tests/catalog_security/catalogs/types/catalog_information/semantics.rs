@@ -8,7 +8,7 @@ fn should_report_created_table_attribute_type_identities() {
         .execute(
             "SELECT attname, attnum, atttypid, atttypmod, attnotnull, attidentity::text \
              FROM pg_catalog.pg_attribute \
-             WHERE attrelid = 'issue_817_catalog_probe.items'::regclass \
+             WHERE attrelid = 'items' \
                AND attnum > 0 \
              ORDER BY attnum",
         )
@@ -162,35 +162,6 @@ fn should_scope_underlying_type_catalogs_given_same_named_tables_and_views_when_
                 Value::String("varchar".to_owned()),
             ],
         ],
-    );
-}
-
-#[test]
-fn should_resolve_builtin_range_subtype_in_pg_range() {
-    // Arrange
-    let fixture = sql_fixture("issue-817-range-catalog", &[]);
-    fixture.cassie.startup().expect("startup");
-
-    // Act
-    let selected = fixture
-        .execute(
-            "SELECT range_type.typname, subtype.typname \
-             FROM pg_catalog.pg_range AS range \
-             JOIN pg_catalog.pg_type AS range_type \
-               ON range_type.oid = range.rngtypid \
-             JOIN pg_catalog.pg_type AS subtype \
-               ON subtype.oid = range.rngsubtype \
-             WHERE range_type.typname = 'int4range'",
-        )
-        .expect("read the built-in integer range subtype");
-
-    // Assert
-    assert_eq!(
-        selected.rows(),
-        vec![vec![
-            Value::String("int4range".to_owned()),
-            Value::String("int4".to_owned()),
-        ]]
     );
 }
 

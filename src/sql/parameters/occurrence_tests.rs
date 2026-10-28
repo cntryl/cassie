@@ -471,7 +471,7 @@ fn should_preserve_legacy_arithmetic_predicate_admission() {
 }
 
 #[test]
-fn should_preserve_legacy_array_case_parameter_identities() {
+fn should_preserve_standard_array_case_parameter_identities() {
     // Arrange
     let statement =
         parse_statement("SELECT CASE WHEN TRUE THEN $1 ELSE CAST(NULL AS INT[]) END AS value")
@@ -498,11 +498,11 @@ fn should_preserve_legacy_array_case_parameter_identities() {
         let (oids, retained) = outcome.unwrap_or_else(|error| {
             panic!("OID {provided}: preserve legacy CASE parameter identity: {error:?}")
         });
-        assert_eq!(oids, [34_023]);
+        assert_eq!(oids, [1_007]);
         assert_eq!(retained, size_of::<i32>());
         assert_eq!(released, 0);
     }
-    assert_eq!(public, [vec![34_023], vec![34_023], vec![0]]);
+    assert_eq!(public, [vec![1_007], vec![1_007], vec![0]]);
 }
 
 fn source_local_column_cases() -> [(&'static str, Vec<i32>, Vec<i32>); 15] {

@@ -243,3 +243,59 @@ fn should_drop_a_declared_id_column_but_never_the_internal_identity() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_preserve_implicit_identity_given_aliased_wildcard_ctes_when_columns_are_qualified() {
+    // Arrange
+    let cassie = support::new_in_memory_cassie().expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE cte_identity_alias (label TEXT)",
+        "INSERT INTO cte_identity_alias VALUES ('a')",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).expect(sql);
+    }
+    let identity = identity_of(&cassie, &session, "SELECT id FROM cte_identity_alias");
+    let queries = [
+        "WITH c AS (SELECT * FROM cte_identity_alias) SELECT x.id FROM c AS x",
+        "WITH c AS (SELECT * FROM cte_identity_alias) SELECT id FROM c AS x",
+        "WITH c AS (SELECT * FROM cte_identity_alias) SELECT x._id FROM c AS x",
+        "WITH c AS (SELECT * FROM cte_identity_alias) SELECT x.key FROM c AS x(key,label)",
+    ];
+    // Act
+    let results = queries.map(|sql| cassie.execute_sql(&session, sql, vec![]));
+    let wildcard = cassie.execute_sql(
+        &session,
+        "WITH c AS (SELECT * FROM cte_identity_alias) SELECT * FROM c AS x",
+        vec![],
+    );
+    let hidden = cassie.execute_sql(
+        &session,
+        "WITH c AS (SELECT * FROM cte_identity_alias) SELECT x.id FROM c AS x(key,label)",
+        vec![],
+    );
+    // Assert
+    for (sql, result) in queries.into_iter().zip(results) {
+        let result = result.expect(sql);
+        assert_eq!(result.rows(), vec![vec![Value::String(identity.clone())]]);
+        assert_eq!(result.columns()[0].type_oid, 25);
+    }
+    let wildcard = wildcard.expect("wildcard CTE shape");
+    assert_eq!(
+        wildcard.rows(),
+        vec![vec![Value::String(identity), Value::String("a".into())]]
+    );
+    assert_eq!(
+        wildcard
+            .columns()
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["id", "label"]
+    );
+    assert!(matches!(
+        hidden,
+        Err(cassie::app::CassieError::UndefinedColumn(_))
+    ));
+}

@@ -160,7 +160,7 @@ fn should_preserve_copy_boolean_rejection_atomicity() {
         .copy_from_csv_stdin(&fixture.session, &statement, b"1,t\n2,o\n");
 
     // Assert
-    assert!(matches!(copied, Err(CassieError::Parse(_))));
+    assert!(matches!(copied, Err(CassieError::BooleanInput(_))));
     assert_eq!(
         fixture.rows("SELECT id, flag FROM bool_copy_rejected ORDER BY id"),
         vec![vec![Value::Int64(0), Value::Bool(false)]]

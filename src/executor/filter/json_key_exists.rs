@@ -20,7 +20,8 @@ pub(super) fn evaluate(
     let exists = |key: &str| match &document {
         JsonValue::Object(object) => object.contains_key(key),
         JsonValue::Array(values) => values.iter().any(|value| value.as_str() == Some(key)),
-        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) | JsonValue::String(_) => false,
+        JsonValue::String(value) => value == key,
+        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) => false,
     };
 
     match op {

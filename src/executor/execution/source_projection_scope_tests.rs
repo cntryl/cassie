@@ -85,7 +85,12 @@ fn should_retain_precomputed_window_alias_copy_backing() {
     let select = "first_value(n) OVER () AS x";
     // Act
     // Assert
-    run_projection(select, "x", &"s".repeat(65536), false);
+    run_projection(
+        select,
+        &crate::executor::projection::window_value_key(0),
+        &"s".repeat(65536),
+        false,
+    );
 }
 
 #[test]

@@ -144,3 +144,17 @@ fn should_encode_mixed_result_frames_without_growing_the_admitted_frame_buffer()
     assert_eq!(after_frames, retained);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_expanded_jsonb_encoder_buffers_given_short_exponents_when_encoding_results() {
+    // Arrange
+    let value = Value::String("{\"n\":1e1000}".to_owned());
+    // Act
+    let bound = cell_bytes(&value, 3802, 1, false).expect("JSONB admission");
+    let encoded = value_to_binary(&value, 3802).expect("JSONB encoding");
+    // Assert
+    assert!(encoded.len() <= bound.encoded);
+    // Canonical construction holds formatted children and joined output together;
+    // binary framing adds the versioned output while canonical text is still live.
+    assert!(bound.scratch >= encoded.capacity() * 3);
+}

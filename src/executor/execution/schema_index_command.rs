@@ -124,19 +124,32 @@ pub(in crate::executor::execution) fn reindex(
                 .map_err(|error| QueryError::General(error.to_string()))?;
         }
         ReindexTarget::Table { name } => {
-            if cassie
-                .catalog
-                .list_indexes(name)
-                .iter()
-                .any(|index| index.kind != catalog::IndexKind::Scalar)
-            {
-                return Err(QueryError::General(
-                    "REINDEX TABLE currently supports scalar indexes only".to_string(),
-                ));
-            }
             cassie
                 .midge
-                .rebuild_scalar_indexes_for_collection(name)
+                .with_collection_gates(std::slice::from_ref(name), || {
+                    if !cassie.catalog.exists(name)
+                        && !cassie.catalog.is_sql_materialized_view(name)
+                    {
+                        return Err(crate::app::CassieError::CollectionNotFound(name.clone()));
+                    }
+                    let collection = cassie
+                        .catalog
+                        .materialized_view_output_collection(name)
+                        .unwrap_or_else(|| name.clone());
+                    if cassie
+                        .catalog
+                        .list_indexes(&collection)
+                        .iter()
+                        .any(|index| index.kind != catalog::IndexKind::Scalar)
+                    {
+                        return Err(crate::app::CassieError::Unsupported(
+                            "REINDEX TABLE currently supports scalar indexes only".to_string(),
+                        ));
+                    }
+                    cassie
+                        .midge
+                        .rebuild_scalar_indexes_for_collection(&collection)
+                })
                 .map_err(|error| QueryError::General(error.to_string()))?;
         }
     }

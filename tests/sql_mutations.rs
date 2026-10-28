@@ -186,3 +186,9 @@ mod materialized_view_rename;
 
 #[path = "support/catalog_directory.rs"]
 mod support_catalog_directory;
+
+#[path = "sql_mutations/ddl/scalar_reindex_repair.rs"]
+mod scalar_reindex_repair;
+
+#[path = "support/scalar_index_rebuild.rs"]
+mod support_scalar_index_rebuild;

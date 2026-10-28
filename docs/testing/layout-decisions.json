@@ -978,6 +978,10 @@
       "suite": "compatibility",
       "category": "lifecycle/indexes"
     },
+    "tests/compatibility/lifecycle/indexes/materialized_view_reindex.rs": {
+      "suite": "compatibility",
+      "category": "lifecycle/indexes"
+    },
     "tests/compatibility/lifecycle/indexes/index.rs": {
       "suite": "compatibility",
       "category": "lifecycle/indexes"
@@ -4243,6 +4247,10 @@
       "category": "ddl"
     },
     "tests/sql_mutations/ddl/idempotent_ddl.rs": {
+      "suite": "sql_mutations",
+      "category": "ddl"
+    },
+    "tests/sql_mutations/ddl/scalar_reindex_repair.rs": {
       "suite": "sql_mutations",
       "category": "ddl"
     },

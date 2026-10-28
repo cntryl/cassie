@@ -10,6 +10,8 @@ mod generated_index_name;
 mod included_partial_indexes;
 #[path = "materialized_view_indexes.rs"]
 mod materialized_view_indexes;
+#[path = "materialized_view_reindex.rs"]
+mod materialized_view_reindex;
 #[path = "nulls_not_distinct.rs"]
 mod nulls_not_distinct;
 #[path = "operator_class_key_modifiers.rs"]

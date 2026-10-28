@@ -434,18 +434,33 @@ impl Midge {
             .iter()
             .filter(|constraint| constraint.primary_key || constraint.unique)
         {
-            let expected_fields = if let Some(unique_name) = &constraint.unique_name {
+            let key_name = if constraint.primary_key {
+                constraint.primary_key_name.as_ref()
+            } else {
+                constraint.unique_name.as_ref()
+            };
+            let expected_fields = if let Some(key_name) = key_name {
                 let mut members = constraints
                     .iter()
                     .filter(|candidate| {
-                        candidate.unique
-                            && candidate
-                                .unique_name
-                                .as_ref()
-                                .is_some_and(|name| name.eq_ignore_ascii_case(unique_name))
+                        let candidate_name = if constraint.primary_key && candidate.primary_key {
+                            candidate.primary_key_name.as_ref()
+                        } else if !constraint.primary_key && candidate.unique {
+                            candidate.unique_name.as_ref()
+                        } else {
+                            None
+                        };
+                        candidate_name.is_some_and(|name| name.eq_ignore_ascii_case(key_name))
                     })
                     .collect::<Vec<_>>();
-                members.sort_by_key(|member| member.unique_ordinal.unwrap_or(u32::MAX));
+                members.sort_by_key(|member| {
+                    if constraint.primary_key {
+                        member.primary_key_ordinal
+                    } else {
+                        member.unique_ordinal
+                    }
+                    .unwrap_or(u32::MAX)
+                });
                 members
                     .into_iter()
                     .map(|member| member.field.as_str())

@@ -1470,6 +1470,10 @@
       "suite": "compatibility",
       "category": "lifecycle/tables"
     },
+    "tests/compatibility/lifecycle/tables/table_forms/like_primary_key.rs": {
+      "suite": "compatibility",
+      "category": "lifecycle/tables/table_forms"
+    },
     "tests/compatibility/lifecycle/tables/table_forms/metadata.rs": {
       "suite": "compatibility",
       "category": "lifecycle/tables/table_forms"
@@ -4251,6 +4255,10 @@
       "category": "ddl"
     },
     "tests/sql_mutations/ddl/idempotent_ddl.rs": {
+      "suite": "sql_mutations",
+      "category": "ddl"
+    },
+    "tests/sql_mutations/ddl/like_composite_primary_key.rs": {
       "suite": "sql_mutations",
       "category": "ddl"
     },

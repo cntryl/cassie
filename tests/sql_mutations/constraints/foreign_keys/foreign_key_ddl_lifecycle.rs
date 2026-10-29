@@ -128,6 +128,76 @@ fn should_reject_dropping_a_table_that_a_foreign_key_still_references() {
 }
 
 #[test]
+fn should_restore_inbound_foreign_key_after_table_cascade_rollback() {
+    with_cassie("fk-ddl-drop-table-cascade-rollback", |path| {
+        // Arrange
+        let (cassie, session) = start(path);
+        exec_all(&cassie, &session, &PARENT_CHILD);
+
+        // Act
+        run(&cassie, &session, "BEGIN").expect("begin cascade rollback");
+        run(&cassie, &session, "DROP TABLE p CASCADE").expect("stage cascade drop");
+        run(
+            &cassie,
+            &session,
+            "INSERT INTO c (cid, pid) VALUES (11, 999)",
+        )
+        .expect("cascade removes the referencing constraint in the transaction");
+        run(&cassie, &session, "ROLLBACK").expect("rollback cascade drop");
+
+        // Assert
+        assert!(cassie.catalog.exists("p"), "rollback restores the parent");
+        assert_foreign_key_error(
+            run(
+                &cassie,
+                &session,
+                "INSERT INTO c (cid, pid) VALUES (12, 999)",
+            ),
+            "rollback restores the inbound foreign key",
+        );
+        assert_eq!(
+            rows(&cassie, &session, "SELECT cid, pid FROM c ORDER BY cid"),
+            vec![vec![Value::Int64(10), Value::Int64(1)]]
+        );
+    });
+}
+
+#[test]
+fn should_preserve_inbound_foreign_key_removal_after_table_cascade_restart() {
+    with_cassie("fk-ddl-drop-table-cascade-restart", |path| {
+        // Arrange
+        let (cassie, session) = start_local(path);
+        exec_all(&cassie, &session, &PARENT_CHILD);
+
+        // Act
+        run(&cassie, &session, "BEGIN").expect("begin committed cascade");
+        run(&cassie, &session, "DROP TABLE p CASCADE").expect("stage committed cascade");
+        run(&cassie, &session, "COMMIT").expect("commit cascade drop");
+        drop(cassie);
+        let (cassie, session) = start_local(path);
+        run(
+            &cassie,
+            &session,
+            "INSERT INTO c (cid, pid) VALUES (13, 999)",
+        )
+        .expect("committed cascade removes the inbound foreign key after restart");
+
+        // Assert
+        assert!(
+            !cassie.catalog.exists("p"),
+            "parent remains dropped after restart"
+        );
+        assert_eq!(
+            rows(&cassie, &session, "SELECT cid, pid FROM c ORDER BY cid"),
+            vec![
+                vec![Value::Int64(10), Value::Int64(1)],
+                vec![Value::Int64(13), Value::Int64(999)],
+            ]
+        );
+    });
+}
+
+#[test]
 fn should_enforce_foreign_key_added_by_alter_table_when_column_case_differs() {
     with_cassie("fk-ddl-alter-column-case", |path| {
         // Arrange

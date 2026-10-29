@@ -20,17 +20,11 @@ for each SQL capability's current status.
 
 ## Current checkpoint — 2026-10-29
 
-The current candidate is based on merged main
-`9b1f0a33dadd5885753051865fe4e4a9445aff76` (PR #1098). PR #1098 adds rollback
-and committed-restart evidence for inbound foreign keys when their referenced
-table moves schemas; broader #839 acceptance remains open. The uncommitted
-#842 candidate builds on this base. Its ordered local gate passes:
-`cargo build --locked --bin cassie`, `cargo test --locked` (**9,833 passed, 0
-failed, 12 ignored** across 35 targets), strict full pedantic Clippy,
-formatting, and both touched-test validators (**3/3** and **12/12**). The test
-count aggregates all workspace targets. This supersedes the 2026-10-22 failure
-inventory and its statement that the full suite is still failing; those
-results remain as historical baseline evidence below.
+The current worktree is based on merged main
+`5a4d47cc714e9dc64bba8981ae843c53037c89ce` (PR #1099). The owner moved #833's
+broader protocol, concurrency and catalog qualification to v1.0 after
+reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
+named enums #827 to v0.4.
 
 PR #1092 merged as `708c0e377b8ccc0ae7a4285b33964faf80100333`; its #839
 regression `should_keep_unique_enforcement_after_using_type_rewrite_restart`
@@ -54,41 +48,43 @@ rollback keeps the foreign key on the source relation, and a committed move
 remains enforced after restart. The focused schema-move tests pass **9/9**; the
 foreign-key lifecycle file validates **17/17**.
 
-The #842 candidate fixes a schema-move catalog mismatch: the planner and
-`pg_indexes` used the destination-scoped index name, while catalog `IndexMeta`
-retained its source-scoped name, so target-qualified `DROP INDEX` returned
-`42704`. The update now synchronizes the catalog and durable Midge names while
-preserving the index OID and unique-reservation identity. Tests cover partial
-covering-index selection and rows after the move, rollback to the source
-schema, unique enforcement, target-qualified drop, independent scan equality,
-and restart behavior for identity, uniqueness, and qualified drop. #842 remains
-open for its broader index-shape and lifecycle acceptance. The touched-test
-validators pass **3/3** and **12/12**.
+PR #1099 merged the #842 schema-move catalog fix as
+`5a4d47cc714e9dc64bba8981ae843c53037c89ce`. It synchronizes catalog and durable
+Midge index names while preserving index OID and unique-reservation identity;
+#842 remains open for broader index-shape and lifecycle acceptance.
 
-The current test inventory has 1,569 files, 8,335 Rust test declarations,
-8,463 registered Rust instances, 21 Python test declarations, and 131 planned
-tests, with zero registration or placement errors. Missing historical source
-paths remain visible as text linked to their owner issues; they are not marked
-executed.
-The regenerated inventory check reports no unregistered tests, unresolved
-module paths, repeated module registrations, duplicate identities, unsharded
-targets, or oversized files. `cntryl-tools validate-docs` validates **126
-Markdown documents**. The full suite also retains the two selected #807 array
-regressions from the previous checkpoint.
+The current uncommitted #839 slice adds rollback and local-restart evidence for
+`ALTER TABLE ... DROP COLUMN ... CASCADE`, including dependent-view and
+foreign-key restoration/removal, referential integrity, and unrelated parent
+data preservation. This is test and documentation coverage for existing
+runtime behavior; #839 remains open for the other lifecycle obligations,
+including column-level `RESTRICT` rejection.
 
-Jev's focused adversarial question was whether the bounded table schema-move
-fix leaves a material correctness gap; the estimated probability was **0.19**,
-below the **0.30** probe threshold. Source inspection and the green rollback,
-catalog, index-plan, uniqueness, OID, restart, qualified-drop, and scan tests
-support proceeding with this bounded slice.
+The ordered local gate passes on this candidate: `cargo build --locked --bin
+cassie`, `cargo test --locked` (**9,835 passed, 0 failed, 12 ignored** across
+35 targets), strict full pedantic Clippy, formatting, and the touched-test
+validator (**4/4**). `cntryl-tools validate-docs` validates **126 Markdown
+documents**. The test inventory has 1,569 files, 8,337 Rust test declarations,
+8,465 registered Rust instances, 21 Python test declarations, and 131 planned
+tests; its check reports no unregistered tests, unresolved module paths,
+repeated registrations, duplicate identities, unsharded targets, or oversized
+files. Missing historical source paths remain linked to owner issues and are
+not marked executed. These counts aggregate workspace targets and declarations
+respectively.
+
+Jev's focused adversarial question was whether the bounded #842 table
+schema-move fix leaves a material correctness gap; the estimated probability
+was **0.19**, below the **0.30** probe threshold. Source inspection and the
+green rollback, catalog, index-plan, uniqueness, OID, restart, qualified-drop,
+and scan tests supported PR #1099's completed slice. Jev did not review this
+#839 coverage increment.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.
 Release readiness remains incomplete: selected local-development/client
 workflows and exact-release-commit browser, benchmark, and disk-backed
-operational evidence still need resolution. Owner direction moved enum issue
-#827 to v0.4. Actions remain disabled, so hosted checks and publication are
-unavailable.
+operational evidence still need resolution. Actions remain disabled, so hosted
+checks and publication are unavailable.
 
 ## Baseline discovery
 

@@ -26,8 +26,32 @@ the production evidence below.
 
 ## Current Local Check Snapshot
 
-On 2026-10-19, the required local gates were run on `main` at base commit
-`39523c963b744e375070c749ecb56a3897845c9e` with this uncommitted documentation
+On 2026-10-29 the ordered local gate passed on the documentation scope
+worktree `audit/v03-mvp-scope-20261029`, based on main
+`3eb621c640cd1df0e95a43819fd4735c013659dd`:
+
+- `cargo build --locked --bin cassie`: passed.
+- `cargo test --locked`: 9,844 passed, 0 failed, 12 ignored across 35 targets.
+- Strict workspace/all-target/all-feature pedantic Clippy: passed.
+- `cargo fmt --all -- --check`: passed.
+- No Rust test files were changed by this documentation scope slice.
+- `cntryl-tools validate-docs`: passed for 126 Markdown documents.
+
+This is local working-tree evidence, not validation on a frozen release
+commit. Selected client workflows and exact-release-commit browser, benchmark,
+and disk-backed operational evidence still need resolution. GitHub Actions are
+disabled, so hosted checks and publication are unavailable.
+
+The earlier [Local Development Readiness checkpoint](local-development-readiness.md)
+records the same test count on a candidate working tree based on `75dd9269`,
+without an exact run-tree SHA. PR #1115 subsequently merged its composite-index
+restart test to main at `3eb621c640cd1df0e95a43819fd4735c013659dd`; its hosted
+check rollup was empty while Actions were disabled.
+
+### Historical main snapshot — 2026-10-19
+
+The earlier local gate ran on `main` at base commit
+`39523c963b744e375070c749ecb56a3897845c9e` with an uncommitted documentation
 and test-fixture-label reconciliation. No runtime source changed.
 
 - `cargo build --locked --bin cassie`: passed.
@@ -45,21 +69,13 @@ and test-fixture-label reconciliation. No runtime source changed.
 - `cntryl-tools validate-tests -f tests/sql_queries/types/uuid_lsn/uuid_hash_lsn.rs`:
   passed (36/36).
 
-The GitHub Actions repository setting is disabled by user direction, and no
-workflow run is queued or in progress. No workflow was dispatched for this
-snapshot. Hosted checks are unavailable; this local worktree result is not a
-release-commit gate. Historical workflow artifacts elsewhere in this document
-are retained evidence from earlier runs and do not imply that workflows are
-enabled now.
-
 ## Workflow and Branch-Protection State
 
-GitHub readback on 2026-10-19 confirmed repository Actions permission is
-disabled (`enabled: false`) and no workflow runs are queued or in progress.
-The `Protect main branch` ruleset (`21147564`) is also disabled. Its stored
-pull-request, deletion, non-fast-forward, and `backend` status-check rules are
-not enforced while the ruleset is disabled. There is no current hosted CI
-result; local gates and historical check runs do not supply one.
+GitHub readback on 2026-10-29 confirmed repository Actions permission is
+disabled (`enabled: false`), the `Protect main branch` ruleset (`21147564`) is
+disabled, and the `main` branch has no active protection. No hosted result is
+available; local gates and historical check runs do not supply one. No workflow
+was enabled or dispatched during this audit.
 
 Historical coverage recorded on 2026-10-12 is retained as context only: backend
 CI filtered out `ui/**`, frontend CI ran for frontend-related paths, and PRs
@@ -201,6 +217,11 @@ projection lifecycle remain outside this contract.
 - Smoke results are regression diagnostics, not service-level objectives or capacity claims.
 
 ## Remaining Production Blockers
+
+Tracking owners #8, #29, and #781 were closed as `NOT_PLANNED` on 2026-10-28.
+Their closure comments say this did not complete the acceptance criteria or
+resolve the outstanding evidence gaps. The blockers below remain active under
+the roadmap's v1.0 production-readiness boundary.
 
 - Database-image checksums detect content changes but do not authenticate who produced an image.
   Operators must follow the detached-signature and trusted-identity procedure in

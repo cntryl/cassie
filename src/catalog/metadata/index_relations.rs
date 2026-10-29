@@ -1,5 +1,31 @@
 use super::Catalog;
-use crate::catalog::{local_name, name_matches, parse_name, IndexMeta, ParsedName};
+use crate::catalog::{
+    canonical_relation_name, local_name, name_matches, parse_name, IndexMeta, ParsedName,
+    RelationId,
+};
+
+pub(super) fn rename_scoped_index_name(
+    current_collection: &str,
+    next_collection: &str,
+    index_name: &str,
+) -> String {
+    let Some(current) = RelationId::parse_canonical(current_collection) else {
+        return index_name.to_string();
+    };
+    let Some(next) = RelationId::parse_canonical(next_collection) else {
+        return index_name.to_string();
+    };
+    let Some(index) = RelationId::parse_canonical(index_name) else {
+        return index_name.to_string();
+    };
+    if index.database.eq_ignore_ascii_case(&current.database)
+        && index.schema.eq_ignore_ascii_case(&current.schema)
+    {
+        canonical_relation_name(&next.database, &next.schema, &index.name)
+    } else {
+        index_name.to_string()
+    }
+}
 
 impl Catalog {
     pub(crate) fn is_sql_materialized_view(&self, relation: &str) -> bool {

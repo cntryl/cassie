@@ -289,14 +289,22 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 
 `ALTER TABLE ... SET SCHEMA` moves column-owned sequences with the table,
 preserves sequence identity and position, updates the recorded owner, and rewrites
-sequence-backed defaults. It also updates inbound foreign-key references to the
-moved relation. Rollback leaves the table, owned sequences, and foreign-key
-references in the source schema; committed sequence and foreign-key behavior
-remains usable after local-storage restart. Evidence:
+sequence-backed defaults. It also moves associated indexes, synchronizes their
+schema-qualified names, and updates inbound foreign-key references to the moved
+relation. Rollback restores the table, indexes, owned sequences, and foreign-key
+references to the source schema. A committed partial covering index remains
+selected after the move, target-qualified `DROP INDEX` succeeds, and unique
+indexes continue rejecting duplicate keys. Index OIDs, unique enforcement, and
+qualified drop survive local-storage restart. Committed sequence and foreign-key
+behavior also remains usable after restart. Evidence:
 [`should_move_explicitly_owned_sequence_with_table_schema`](../tests/sql_mutations/ddl/schema_move_sequences.rs),
 [`should_restore_foreign_key_to_source_after_referenced_table_schema_move_rollback`](../tests/sql_mutations/constraints/foreign_keys/foreign_key_ddl_lifecycle.rs),
+[`should_preserve_foreign_key_to_referenced_table_after_schema_move_restart`](../tests/sql_mutations/constraints/foreign_keys/foreign_key_ddl_lifecycle.rs),
+[`should_preserve_partial_covering_index_across_table_schema_move`](../tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs),
+[`should_preserve_moved_index_identity_after_local_restart`](../tests/sql_mutations/ddl/scalar_index_rename.rs),
+[`should_enforce_moved_unique_index_after_local_restart`](../tests/sql_mutations/ddl/scalar_index_rename.rs),
 and
-[`should_preserve_foreign_key_to_referenced_table_after_schema_move_restart`](../tests/sql_mutations/constraints/foreign_keys/foreign_key_ddl_lifecycle.rs).
+[`should_drop_moved_index_by_target_qualified_name_after_local_restart`](../tests/sql_mutations/ddl/scalar_index_rename.rs).
 
 ### Partial scalar-index entry recovery
 

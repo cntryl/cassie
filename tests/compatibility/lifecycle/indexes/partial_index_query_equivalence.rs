@@ -56,6 +56,35 @@ async fn active_partial_index_plan(client: &tokio_postgres::Client) -> String {
         .get(0)
 }
 
+async fn query_moved_partial_index_rows(
+    client: &tokio_postgres::Client,
+    relation: &str,
+) -> Vec<(i32, String)> {
+    let sql = format!(
+        "SELECT key_value, payload FROM {relation} \
+         WHERE active AND key_value = 30 ORDER BY payload"
+    );
+    client
+        .query(&sql, &[])
+        .await
+        .expect("read rows through the moved partial index")
+        .iter()
+        .map(|row| (row.get(0), row.get(1)))
+        .collect()
+}
+
+async fn moved_partial_index_plan(client: &tokio_postgres::Client, relation: &str) -> String {
+    let sql = format!(
+        "EXPLAIN SELECT key_value, payload FROM {relation} \
+         WHERE active AND key_value = 30"
+    );
+    client
+        .query_one(&sql, &[])
+        .await
+        .expect("explain the moved partial-index lookup")
+        .get(0)
+}
+
 async fn create_active_partial_index(client: &tokio_postgres::Client) {
     client
         .batch_execute(
@@ -268,6 +297,156 @@ fn should_preserve_partial_index_query_results_for_null_excluded_rows_through_li
         assert_eq!(nulls_after_create, expected_nulls);
         assert_eq!(nulls_after_drop, expected_nulls);
 
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+async fn create_partial_index_schema_move_fixture(client: &tokio_postgres::Client) {
+    execute_statements(
+        client,
+        &[
+            "CREATE SCHEMA partial_move_source",
+            "CREATE SCHEMA partial_move_target",
+            "CREATE TABLE partial_move_source.rows \
+               (id INT PRIMARY KEY, key_value INT, active BOOLEAN NOT NULL, payload TEXT)",
+            "INSERT INTO partial_move_source.rows VALUES \
+               (1, 30, TRUE, 'a'), (2, 20, FALSE, 'enter'), \
+               (3, 30, TRUE, 'b'), (4, 40, FALSE, 'inactive-40'), \
+               (5, 30, TRUE, 'c'), (6, 30, TRUE, 'd'), \
+               (7, 70, FALSE, 'inactive-70'), (8, 80, FALSE, 'inactive-80'), \
+               (9, 90, FALSE, 'inactive-90'), (10, 100, FALSE, 'inactive-100'), \
+               (11, 110, FALSE, 'inactive-110'), (12, 120, FALSE, 'inactive-120')",
+            "CREATE INDEX partial_move_idx ON partial_move_source.rows \
+               (key_value) INCLUDE (payload) WHERE active AND key_value = 30",
+            "CREATE UNIQUE INDEX partial_move_payload_uq ON partial_move_source.rows (payload)",
+        ],
+    )
+    .await
+    .expect("create a populated table and partial covering index");
+}
+
+fn expected_partial_index_schema_move_rows() -> Vec<(i32, String)> {
+    vec![
+        (30, "a".to_owned()),
+        (30, "b".to_owned()),
+        (30, "c".to_owned()),
+        (30, "d".to_owned()),
+    ]
+}
+
+async fn assert_partial_index_plan_uses_index(
+    client: &tokio_postgres::Client,
+    relation: &str,
+    phase: &str,
+) {
+    let plan = moved_partial_index_plan(client, relation).await;
+    assert!(
+        plan.contains("partial_move_idx"),
+        "expected the {phase} lookup to use the partial index, got {plan}"
+    );
+}
+
+async fn assert_partial_move_unique_index_rejects_duplicate(
+    client: &tokio_postgres::Client,
+    relation: &str,
+    phase: &str,
+) {
+    let sql = format!("INSERT INTO {relation} VALUES (13, 130, FALSE, 'a')");
+    let message = format!("the {phase} unique index should reject a duplicate");
+    let error = client.batch_execute(&sql).await.expect_err(&message);
+    assert_eq!(db_error(&error).code().code(), "23505");
+}
+
+async fn rollback_partial_index_schema_move(
+    client: &tokio_postgres::Client,
+    expected: &[(i32, String)],
+) {
+    client
+        .batch_execute("BEGIN")
+        .await
+        .expect("begin schema-move rollback probe");
+    client
+        .batch_execute("ALTER TABLE partial_move_source.rows SET SCHEMA partial_move_target")
+        .await
+        .expect("move the indexed table inside a transaction");
+    assert_eq!(
+        query_moved_partial_index_rows(client, "partial_move_target.rows").await,
+        expected
+    );
+    client
+        .batch_execute("ROLLBACK")
+        .await
+        .expect("roll back the indexed table schema move");
+    assert_eq!(
+        query_moved_partial_index_rows(client, "partial_move_source.rows").await,
+        expected
+    );
+    assert_partial_index_plan_uses_index(client, "partial_move_source.rows", "rollback").await;
+    assert_partial_move_unique_index_rejects_duplicate(
+        client,
+        "partial_move_source.rows",
+        "source",
+    )
+    .await;
+}
+
+#[test]
+fn should_preserve_partial_covering_index_across_table_schema_move() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("partial_index_schema_move").await;
+        let (client, connection) = server.connect().await;
+        create_partial_index_schema_move_fixture(&client).await;
+        let expected = expected_partial_index_schema_move_rows();
+        assert_eq!(
+            query_moved_partial_index_rows(&client, "partial_move_source.rows").await,
+            expected
+        );
+        assert_partial_index_plan_uses_index(&client, "partial_move_source.rows", "source").await;
+
+        // Act
+        rollback_partial_index_schema_move(&client, &expected).await;
+        client
+            .batch_execute("ALTER TABLE partial_move_source.rows SET SCHEMA partial_move_target")
+            .await
+            .expect("commit the indexed table schema move");
+        assert_eq!(
+            client
+                .query(
+                    "SELECT schemaname, tablename FROM pg_catalog.pg_indexes \
+                     WHERE indexname = 'partial_move_idx'",
+                    &[],
+                )
+                .await
+                .expect("read the moved index catalog entry")
+                .iter()
+                .map(|row| (row.get::<_, String>(0), row.get::<_, String>(1)))
+                .collect::<Vec<_>>(),
+            vec![("partial_move_target".to_owned(), "rows".to_owned())]
+        );
+        assert_partial_index_plan_uses_index(&client, "partial_move_target.rows", "target").await;
+        assert_eq!(
+            query_moved_partial_index_rows(&client, "partial_move_target.rows").await,
+            expected
+        );
+        assert_partial_move_unique_index_rejects_duplicate(
+            &client,
+            "partial_move_target.rows",
+            "moved",
+        )
+        .await;
+        client
+            .batch_execute("DROP INDEX partial_move_target.partial_move_idx")
+            .await
+            .expect("drop the moved index to read through an independent scan");
+
+        // Assert
+        assert_eq!(
+            query_moved_partial_index_rows(&client, "partial_move_target.rows").await,
+            expected
+        );
         drop(client);
         server.shutdown(connection).await;
     });

@@ -26,7 +26,7 @@ pub(super) async fn run_batch(
             .map_err(|_| ())?;
     }
     for (statement, parsed) in statements.into_iter().zip(parsed) {
-        let notice = missing_relation_notice(&cassie, &parsed);
+        let notice = missing_relation_notice(&cassie, session, &parsed);
         if !session.is_transaction_active()
             && !session.is_transaction_failed()
             && transactions::eligible(&parsed, &cassie.catalog)
@@ -54,10 +54,15 @@ pub(super) async fn run_batch(
     Ok(())
 }
 
-fn missing_relation_notice(cassie: &Cassie, parsed: &ParsedStatement) -> Option<String> {
+pub(super) fn missing_relation_notice(
+    cassie: &Cassie,
+    session: &CassieSession,
+    parsed: &ParsedStatement,
+) -> Option<String> {
     match &parsed.statement {
         QueryStatement::DropTable(statement)
-            if statement.if_exists && !cassie.catalog.exists(&statement.table) =>
+            if statement.if_exists
+                && !session.transaction_relation_exists(&cassie.catalog, &statement.table) =>
         {
             Some(format!(
                 "table \"{}\" does not exist, skipping",
@@ -65,7 +70,8 @@ fn missing_relation_notice(cassie: &Cassie, parsed: &ParsedStatement) -> Option<
             ))
         }
         QueryStatement::AlterTable(statement)
-            if statement.if_exists && !cassie.catalog.exists(&statement.table) =>
+            if statement.if_exists
+                && !session.transaction_relation_exists(&cassie.catalog, &statement.table) =>
         {
             Some(format!(
                 "relation \"{}\" does not exist, skipping",

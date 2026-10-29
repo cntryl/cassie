@@ -27,46 +27,10 @@ fn assert_renamed_alter_restart(
         ]
     );
 }
-use std::time::Duration;
-
 #[path = "drop_column_cascade.rs"]
 mod drop_column_cascade;
 #[path = "savepoint_identity.rs"]
 mod savepoint_identity;
-
-async fn simple_query_frames(server: &CompatibilityServer, sql: &str) -> Vec<(u8, Vec<u8>)> {
-    let socket = tokio::net::TcpStream::connect(server.addr)
-        .await
-        .expect("connect raw pgwire client");
-    let (mut reader, mut writer) = socket.into_split();
-    support_pgwire::complete_startup(&mut reader, &mut writer).await;
-    support_pgwire::write_frames(&mut writer, vec![support_pgwire::simple_query_frame(sql)]).await;
-    support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await
-}
-
-fn command_tag(frames: &[(u8, Vec<u8>)]) -> Option<String> {
-    frames
-        .iter()
-        .find(|(tag, _)| *tag == b'C')
-        .map(|(_, payload)| {
-            String::from_utf8_lossy(payload.strip_suffix(&[0]).unwrap_or(payload)).into_owned()
-        })
-}
-
-fn notice_fields(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<(char, String)>> {
-    frames
-        .iter()
-        .filter(|(tag, _)| *tag == b'N')
-        .map(|(_, payload)| support_pgwire::parse_error_fields(payload))
-        .collect()
-}
-
-fn notice_field(fields: &[(char, String)], kind: char) -> Option<&str> {
-    fields
-        .iter()
-        .find(|(field_kind, _)| *field_kind == kind)
-        .map(|(_, value)| value.as_str())
-}
 
 #[test]
 fn should_apply_using_conversion_with_column_addition_in_one_alter() {
@@ -277,94 +241,6 @@ fn should_reject_type_using_that_violates_unique_constraint_without_partial_rewr
         );
         assert_eq!(columns.len(), 1);
         assert_eq!(columns[0].get::<_, String>(0), "integer");
-    });
-}
-
-#[test]
-fn should_emit_if_exists_notices_with_command_tags() {
-    // Arrange
-    let runtime = current_thread_runtime();
-    runtime.block_on(async {
-        let server = CompatibilityServer::start("issue_839_if_exists_notices").await;
-        let (client, connection) = server.connect().await;
-        execute_statements(
-            &client,
-            &[
-                "CREATE TABLE compat_issue839_drop_present (id INT)",
-                "CREATE TABLE compat_issue839_alter_present (id INT)",
-            ],
-        )
-        .await
-        .expect("create present objects for IF EXISTS comparisons");
-
-        // Act
-        let absent_drop =
-            simple_query_frames(&server, "DROP TABLE IF EXISTS compat_issue839_drop_absent").await;
-        let present_drop =
-            simple_query_frames(&server, "DROP TABLE IF EXISTS compat_issue839_drop_present").await;
-        let absent_alter = simple_query_frames(
-            &server,
-            "ALTER TABLE IF EXISTS compat_issue839_alter_absent ADD COLUMN ignored INT",
-        )
-        .await;
-        let present_alter = simple_query_frames(
-            &server,
-            "ALTER TABLE IF EXISTS compat_issue839_alter_present \
-             ADD COLUMN added INT DEFAULT 7",
-        )
-        .await;
-        // Assert
-        for (statement, frames) in [
-            ("absent DROP TABLE", &absent_drop),
-            ("present DROP TABLE", &present_drop),
-            ("absent ALTER TABLE", &absent_alter),
-            ("present ALTER TABLE", &present_alter),
-        ] {
-            assert_eq!(
-                support_pgwire::error_code(frames),
-                None,
-                "{statement} frames: {frames:?}"
-            );
-        }
-        let absent_drop_notices = notice_fields(&absent_drop);
-        assert_eq!(absent_drop_notices.len(), 1);
-        assert_eq!(notice_field(&absent_drop_notices[0], 'S'), Some("NOTICE"));
-        assert_eq!(notice_field(&absent_drop_notices[0], 'C'), Some("00000"));
-        assert_eq!(
-            notice_field(&absent_drop_notices[0], 'M'),
-            Some("table \"compat_issue839_drop_absent\" does not exist, skipping")
-        );
-        assert_eq!(command_tag(&absent_drop).as_deref(), Some("DROP TABLE"));
-        assert_eq!(
-            notice_fields(&present_drop),
-            Vec::<Vec<(char, String)>>::new()
-        );
-        assert_eq!(command_tag(&present_drop).as_deref(), Some("DROP TABLE"));
-
-        let absent_alter_notices = notice_fields(&absent_alter);
-        assert_eq!(absent_alter_notices.len(), 1);
-        assert_eq!(notice_field(&absent_alter_notices[0], 'S'), Some("NOTICE"));
-        assert_eq!(notice_field(&absent_alter_notices[0], 'C'), Some("00000"));
-        assert_eq!(
-            notice_field(&absent_alter_notices[0], 'M'),
-            Some("relation \"compat_issue839_alter_absent\" does not exist, skipping")
-        );
-        assert_eq!(command_tag(&absent_alter).as_deref(), Some("ALTER TABLE"));
-        assert_eq!(
-            notice_fields(&present_alter),
-            Vec::<Vec<(char, String)>>::new()
-        );
-        assert_eq!(command_tag(&present_alter).as_deref(), Some("ALTER TABLE"));
-        let inserted = client
-            .query_one(
-                "INSERT INTO compat_issue839_alter_present (id) VALUES (1) RETURNING added",
-                &[],
-            )
-            .await
-            .expect("verify that the present IF EXISTS ALTER ran");
-        assert_eq!(inserted.get::<_, i32>(0), 7);
-        drop(client);
-        server.shutdown(connection).await;
     });
 }
 

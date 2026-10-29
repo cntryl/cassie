@@ -4,18 +4,18 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1569 |
-| Rust files | 1537 |
-| Rust test declarations | 8339 |
+| Files under `tests/` | 1570 |
+| Rust files | 1538 |
+| Rust test declarations | 8342 |
 | Python test declarations | 21 |
-| Static Rust registration instances | 8467 |
+| Static Rust registration instances | 8470 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
 | Duplicate registered test identities | 0 |
 | Repeated module registrations | 0 |
-| Files with a reviewed physical placement | 1333 |
+| Files with a reviewed physical placement | 1334 |
 | Targets absent from exactly one CI shard | 0 |
 | Existing files over their line limit | 0 |
 | Destination name conflicts | 0 |
@@ -32,7 +32,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [backend_ci](inventory/backend_ci.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 323 | 0 |
-| [compatibility](inventory/compatibility.md) | 392 | 0 |
+| [compatibility](inventory/compatibility.md) | 395 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |

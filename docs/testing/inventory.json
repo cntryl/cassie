@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1569,
-    "rust_files": 1537,
-    "rust_test_declarations": 8339,
+    "files": 1570,
+    "rust_files": 1538,
+    "rust_test_declarations": 8342,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8467,
+    "registered_rust_instances": 8470,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -299,7 +299,7 @@
         "test_declarations": 13
       }
     ],
-    "reviewed_layout_files": 1333,
+    "reviewed_layout_files": 1334,
     "placement_status": "Reviewed physical placements are recorded in layout-decisions.json; remaining placements are proposals. No test result is inferred."
   },
   "tests": [
@@ -20413,8 +20413,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_apply_using_conversion_with_column_addition_in_one_alter",
       "name": "should_apply_using_conversion_with_column_addition_in_one_alter",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 72,
-      "end_line": 152,
+      "line": 36,
+      "end_line": 116,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20444,8 +20444,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_rollback_multi_action_alter_after_using_failure",
       "name": "should_rollback_multi_action_alter_after_using_failure",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 155,
-      "end_line": 224,
+      "line": 119,
+      "end_line": 188,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20475,8 +20475,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_reject_type_using_that_violates_unique_constraint_without_partial_rewrite",
       "name": "should_reject_type_using_that_violates_unique_constraint_without_partial_rewrite",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 227,
-      "end_line": 281,
+      "line": 191,
+      "end_line": 245,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20503,42 +20503,11 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_emit_if_exists_notices_with_command_tags",
-      "name": "should_emit_if_exists_notices_with_command_tags",
-      "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 284,
-      "end_line": 369,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "compatibility",
-          "name": "compatibility::lifecycle::ddl_extensions::issue_839_atomic_lifecycle::should_emit_if_exists_notices_with_command_tags"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "compatibility",
-        "category": "lifecycle/ddl",
-        "directory": "tests/compatibility/lifecycle/ddl",
-        "file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_preserve_relation_index_identity_across_schema_move",
       "name": "should_preserve_relation_index_identity_across_schema_move",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 372,
-      "end_line": 471,
+      "line": 248,
+      "end_line": 347,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20568,8 +20537,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_reject_drop_restrict_then_cascade_dependent_view",
       "name": "should_reject_drop_restrict_then_cascade_dependent_view",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 474,
-      "end_line": 545,
+      "line": 350,
+      "end_line": 421,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20599,8 +20568,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_find_dependencies_in_cte_backed_views_when_dropping_tables",
       "name": "should_find_dependencies_in_cte_backed_views_when_dropping_tables",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 548,
-      "end_line": 605,
+      "line": 424,
+      "end_line": 481,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20630,8 +20599,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_preserve_unrelated_view_with_prefixed_relation_name_on_cascade",
       "name": "should_preserve_unrelated_view_with_prefixed_relation_name_on_cascade",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 608,
-      "end_line": 644,
+      "line": 484,
+      "end_line": 520,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20661,8 +20630,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_rollback_renamed_table_drop_with_transaction",
       "name": "should_rollback_renamed_table_drop_with_transaction",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 647,
-      "end_line": 722,
+      "line": 523,
+      "end_line": 598,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20692,8 +20661,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_persist_renamed_alter_relation_after_restart",
       "name": "should_persist_renamed_alter_relation_after_restart",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 725,
-      "end_line": 816,
+      "line": 601,
+      "end_line": 692,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -20723,8 +20692,8 @@
       "id": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs::should_keep_unique_enforcement_after_using_type_rewrite_restart",
       "name": "should_keep_unique_enforcement_after_using_type_rewrite_restart",
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
-      "line": 896,
-      "end_line": 936,
+      "line": 772,
+      "end_line": 812,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -21737,6 +21706,130 @@
         "category": "lifecycle/ddl",
         "directory": "tests/compatibility/lifecycle/ddl",
         "file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs::should_emit_if_exists_notices_with_command_tags",
+      "name": "should_emit_if_exists_notices_with_command_tags",
+      "current_file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+      "line": 102,
+      "end_line": 187,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::issue_839_if_exists_notices::should_emit_if_exists_notices_with_command_tags"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs::should_emit_if_exists_notice_during_extended_query_execution",
+      "name": "should_emit_if_exists_notice_during_extended_query_execution",
+      "current_file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+      "line": 190,
+      "end_line": 296,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::issue_839_if_exists_notices::should_emit_if_exists_notice_during_extended_query_execution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs::should_not_notice_when_extended_query_alters_a_relation_created_in_transaction",
+      "name": "should_not_notice_when_extended_query_alters_a_relation_created_in_transaction",
+      "current_file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+      "line": 299,
+      "end_line": 365,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::issue_839_if_exists_notices::should_not_notice_when_extended_query_alters_a_relation_created_in_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs::should_not_notice_when_simple_query_alters_a_relation_created_in_transaction",
+      "name": "should_not_notice_when_simple_query_alters_a_relation_created_in_transaction",
+      "current_file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+      "line": 368,
+      "end_line": 419,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::issue_839_if_exists_notices::should_not_notice_when_simple_query_alters_a_relation_created_in_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
@@ -262870,9 +262963,9 @@
       "current_file": "tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 936,
-      "sha256": "4f273d96fdc1c40bcb8d09ccaa4380dd2df7e5f0aacdee3bbc2630c6478f0cdd",
-      "test_declarations": 11,
+      "lines": 812,
+      "sha256": "b7b180b340518c74835db75d0e4d929852c4f7ddc6c09c521022bffb1662900c",
+      "test_declarations": 10,
       "registered_suites": [
         "compatibility"
       ],
@@ -262945,8 +263038,8 @@
       "current_file": "tests/compatibility/lifecycle/ddl/ddl_extensions.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 29,
-      "sha256": "008071da783fe64bff54a2b3daee36d0db6e0029bbb1dad57ed11e925da179cf",
+      "lines": 31,
+      "sha256": "37a3cde4556a0e290a2f7c92c6c770842d5a709bb3c88a80423c169795e9a049",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -262968,6 +263061,21 @@
       ],
       "destinations": [
         "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/compatibility/lifecycle/ddl/if_exists_notices.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 419,
+      "sha256": "c0399ebfc3a5d5376a1f8835c078954f43a3753fda8731d74c04d01be7613650",
+      "test_declarations": 4,
+      "registered_suites": [
+        "compatibility"
+      ],
+      "destinations": [
+        "tests/compatibility/lifecycle/ddl/if_exists_notices.rs"
       ],
       "line_limit": 1000
     },

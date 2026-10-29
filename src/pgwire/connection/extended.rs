@@ -707,6 +707,7 @@ async fn execute_prepared_portal(
         max_rows,
         standalone,
     } = request;
+    let notice = super::simple_execution::missing_relation_notice(&cassie, session, &parsed);
     let execution_session = session.clone();
     let sql = prepared.query.clone();
     let params = portal.params.clone();
@@ -750,6 +751,11 @@ async fn execute_prepared_portal(
         }
     }
     transaction_owner.close_completed(state, runtime, session);
+    if let Some(notice) = notice {
+        super::writers::write_notice_response(write_half, &notice)
+            .await
+            .map_err(|error| ExtendedQueryError::write_failed(&error))?;
+    }
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.row_count() {
         Some(cancellation.suspend())

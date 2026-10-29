@@ -21,8 +21,9 @@ for each SQL capability's current status.
 ## Current checkpoint — 2026-10-29
 
 The current worktree is based on merged main
-`1468f57fded38ea93125c0c6080ec10c35e6889b` (PR #1100). The owner moved #833's
-broader protocol, concurrency and catalog qualification to v1.0 after
+`3ff17dc17a8bdbe54bc78f23416473e78323d721` (PR #1101, after PR #1100).
+The owner moved #833's broader protocol, concurrency and catalog qualification
+to v1.0 after
 reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
 named enums #827 to v0.4.
 
@@ -63,16 +64,23 @@ diagnostic: PostgreSQL 18.6 returns `2BP01`, while the previous Cassie path
 returned `22000`. The typed diagnostic now preserves the foreign-key name in
 DETAIL and supplies the CASCADE hint. Focused tests cover inbound foreign-key
 and view dependencies and verify the rejected operation leaves columns and
-dependencies intact. #839 remains open for other lifecycle obligations,
-including `ALTER TABLE IF EXISTS` notices and remaining forms.
+dependencies intact. A follow-up #839 regression reproduced a missing extended-
+protocol NOTICE for absent `ALTER TABLE IF EXISTS`: PostgreSQL 18.6 emitted it
+during Execute while Cassie emitted none. The focused test failed before the
+fix and passes after the extended path writes the same NOTICE before the
+command tag. Additional red/green cases verify that transaction-local CREATE
+followed by ALTER emits no false notice over either Simple Query or extended
+protocol; PostgreSQL 18.6 returned no notices for that transaction-local case.
+#839 remains open for its other lifecycle forms.
 
 The ordered local gate passes on this candidate: `cargo build --locked --bin
-cassie`, `cargo test --locked` (**9,837 passed, 0 failed, 12 ignored** across
-35 targets), strict full pedantic Clippy, formatting, and touched-test
-validation (**6/6** and **17/17**). `cntryl-tools validate-docs` validates
-**126 Markdown documents**. The test inventory has 1,569 files, 8,339 Rust test
-declarations, 8,467 registered Rust instances, 21 Python test declarations,
-and 131 planned tests; its check reports no unregistered tests, unresolved
+cassie`, `cargo test --locked` (**9,840 passed, 0 failed, 12 ignored**), strict
+full pedantic Clippy, formatting, and touched-test validation (**4/4** for the
+new IF EXISTS module and **10/10** for the remaining atomic-lifecycle tests;
+the PR #1101 files passed **6/6** and **17/17**). `cntryl-tools validate-docs`
+validates **126 Markdown documents**. The test inventory has 1,570 files,
+8,342 Rust test declarations, 8,470 registered Rust instances, 21 Python test
+declarations, and 131 planned tests; its check reports no unregistered tests, unresolved
 module paths, repeated registrations, duplicate identities, unsharded
 targets, or oversized files. Missing historical source paths remain linked to
 owner issues and are not marked executed. These counts aggregate workspace
@@ -83,7 +91,9 @@ schema-move fix leaves a material correctness gap; the estimated probability
 was **0.19**, below the **0.30** probe threshold. Source inspection and the
 green rollback, catalog, index-plan, uniqueness, OID, restart, qualified-drop,
 and scan tests supported PR #1099's completed slice. Jev did not review the
-#839 CASCADE coverage or this RESTRICT correction.
+#839 CASCADE coverage, the RESTRICT correction, or the extended-query NOTICE
+slice; its behavior is established by PostgreSQL 18.6 probes and focused
+wire tests.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.

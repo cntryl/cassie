@@ -5,9 +5,18 @@ use super::{
     TransactionIsolation,
 };
 use crate::app::TransactionErrorKind;
+use crate::catalog::Catalog;
 use crate::sql::ast::TransactionModes;
 
 impl CassieSession {
+    pub(crate) fn transaction_relation_exists(&self, catalog: &Catalog, relation: &str) -> bool {
+        let transaction = self.transaction.lock();
+        transaction.catalog_overlay.as_ref().map_or_else(
+            || catalog.relation_exists(relation),
+            |overlay| overlay.relation_exists(relation),
+        )
+    }
+
     pub(crate) fn begin_transaction(
         &self,
         isolation: Option<TransactionIsolation>,

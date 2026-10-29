@@ -1,3 +1,132 @@
+fn psql_probe_command(psql_bin: &str, connection: &str) -> Command {
+    let mut command = Command::new(psql_bin);
+    command.args([
+        "-X",
+        "--tuples-only",
+        "--no-align",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-v",
+        "VERBOSITY=sqlstate",
+        "-d",
+        connection,
+        "-c",
+        "CREATE TABLE compat_psql_probe (id INT PRIMARY KEY, title TEXT UNIQUE NOT NULL)",
+        "-c",
+        "CREATE TABLE compat_psql_status (id INT PRIMARY KEY, status TEXT NOT NULL)",
+        "-c",
+        "BEGIN",
+        "-c",
+        "INSERT INTO compat_psql_probe VALUES (1, 'alpha')",
+        "-c",
+        "INSERT INTO compat_psql_status VALUES (1, 'active')",
+        "-c",
+        "COMMIT",
+        "-c",
+        "SELECT title FROM compat_psql_probe ORDER BY title",
+        "-c",
+        "SELECT 'psql_catalog', table_name FROM information_schema.tables \
+                 WHERE table_name = 'compat_psql_probe'",
+        "-c",
+        "SELECT 'psql_join', p.title, s.status FROM compat_psql_probe p \
+                 JOIN compat_psql_status s ON p.id = s.id WHERE p.id = 1",
+        "-c",
+        "SELECT 'psql_after_commit', COUNT(*) FROM compat_psql_probe",
+        "-c",
+        "BEGIN",
+        "-c",
+        "INSERT INTO compat_psql_probe VALUES (2, 'beta')",
+        "-c",
+        "ROLLBACK",
+        "-c",
+        "SELECT 'psql_after_rollback', COUNT(*) FROM compat_psql_probe",
+        "-c",
+        "SELECT 'psql_pid_before', pg_backend_pid()",
+        "-c",
+        "\\set ON_ERROR_STOP off",
+        "-c",
+        "INSERT INTO compat_psql_probe VALUES (3, 'alpha')",
+        "-c",
+        "\\set ON_ERROR_STOP on",
+        "-c",
+        "SELECT 'psql_after_duplicate', title FROM compat_psql_probe WHERE id = 1",
+        "-c",
+        "SELECT 'psql_pid_after_duplicate', pg_backend_pid()",
+        "-c",
+        "\\set ON_ERROR_STOP off",
+        "-c",
+        "SELECT title FROM compat_psql_missing",
+        "-c",
+        "\\set ON_ERROR_STOP on",
+        "-c",
+        "SELECT 'psql_after_missing', title FROM compat_psql_probe WHERE id = 1",
+        "-c",
+        "SELECT 'psql_pid_after_missing', pg_backend_pid()",
+    ]);
+    command
+}
+
+fn assert_psql_probe(output: &ProbeOutput) {
+    assert!(
+        !output.timed_out,
+        "psql timed out\nstdout:\n{}\nstderr:\n{}",
+        output.stdout, output.stderr
+    );
+    assert!(
+        output.success,
+        "psql failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
+        output.status_code, output.stdout, output.stderr
+    );
+    assert!(output.stdout.lines().any(|line| line.trim() == "alpha"));
+    for expected in [
+        "psql_catalog|compat_psql_probe",
+        "psql_join|alpha|active",
+        "psql_after_commit|1",
+        "psql_after_rollback|1",
+        "psql_after_duplicate|alpha",
+        "psql_after_missing|alpha",
+    ] {
+        assert!(
+            output.stdout.lines().any(|line| line.trim() == expected),
+            "missing expected psql marker: {expected}\nstdout:\n{}\nstderr:\n{}",
+            output.stdout,
+            output.stderr
+        );
+    }
+    let pid = |prefix: &str| {
+        output
+            .stdout
+            .lines()
+            .find_map(|line| line.trim().strip_prefix(prefix))
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|value| *value != 0)
+            .unwrap_or_else(|| panic!("missing nonzero psql backend PID: {prefix}"))
+    };
+    let initial_pid = pid("psql_pid_before|");
+    assert_eq!(pid("psql_pid_after_duplicate|"), initial_pid);
+    assert_eq!(pid("psql_pid_after_missing|"), initial_pid);
+    let errors: Vec<_> = output
+        .stderr
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("ERROR:"))
+        .collect();
+    assert_eq!(errors, ["ERROR:  23505", "ERROR:  42P01"]);
+    for marker in [
+        "psql_catalog|compat_psql_probe",
+        "psql_join|alpha|active",
+        "psql_after_commit|1",
+        "psql_after_rollback|1",
+        "psql_after_duplicate|alpha",
+        "psql_after_missing|alpha",
+        "psql_error_duplicate|23505",
+        "psql_error_missing|42P01",
+        "psql_same_session|true",
+    ] {
+        println!("{marker}");
+    }
+}
+
 #[test]
 #[ignore = "requires local psql; run with CASSIE_RUN_PSQL_COMPAT=1 cargo test --locked --test compatibility compatibility_matrix::should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture"]
 fn should_validate_psql_read_model_probe_when_enabled() {
@@ -21,22 +150,7 @@ fn should_validate_psql_read_model_probe_when_enabled() {
 
         // Act
         let output = tokio::task::spawn_blocking(move || {
-            let mut command = Command::new(psql_bin);
-            command.args([
-                "-X",
-                "--tuples-only",
-                "--no-align",
-                "-v",
-                "ON_ERROR_STOP=1",
-                "-d",
-                &connection,
-                "-c",
-                "CREATE TABLE compat_psql_probe (title TEXT)",
-                "-c",
-                "INSERT INTO compat_psql_probe (title) VALUES ('alpha')",
-                "-c",
-                "SELECT title FROM compat_psql_probe ORDER BY title",
-            ]);
+            let command = psql_probe_command(&psql_bin, &connection);
             run_external_probe(command, Duration::from_secs(20))
         })
         .await
@@ -48,23 +162,10 @@ fn should_validate_psql_read_model_probe_when_enabled() {
                 panic!("run psql compatibility probe: {error}");
             }
         };
-        let returned_alpha = output.stdout.lines().any(|line| line.trim() == "alpha");
         server.shutdown_without_client().await;
 
         // Assert
-        assert!(
-            !output.timed_out,
-            "psql timed out\nstdout:\n{}\nstderr:\n{}",
-            output.stdout, output.stderr
-        );
-        assert!(
-            output.success,
-            "psql failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
-            output.status_code,
-            output.stdout,
-            output.stderr
-        );
-        assert!(returned_alpha);
+        assert_psql_probe(&output);
     });
 }
 

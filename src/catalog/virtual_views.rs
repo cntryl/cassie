@@ -7,6 +7,21 @@ use crate::types::{DataType, Value};
 
 pub type VirtualRow = Vec<(String, Value)>;
 
+const INFORMATION_SCHEMA_TABLES: &[(&str, DataType)] = &[
+    ("table_schema", DataType::Text),
+    ("table_name", DataType::Text),
+    ("table_type", DataType::Text),
+];
+
+/// Borrow the stable table-discovery shape without materializing owned metadata.
+pub(crate) fn borrowed_information_schema_tables(
+    name: &str,
+) -> Option<&'static [(&'static str, DataType)]> {
+    name.trim()
+        .eq_ignore_ascii_case("information_schema.tables")
+        .then_some(INFORMATION_SCHEMA_TABLES)
+}
+
 pub(crate) fn index_definition_by_oid(catalog: &Catalog, oid: i64) -> Option<String> {
     virtual_views_pg::index_definition_by_oid(catalog, oid)
 }
@@ -74,11 +89,12 @@ pub fn rows(
 
 fn information_schema_schema(name: &str) -> Option<Vec<(String, DataType)>> {
     match name {
-        "information_schema.tables" => Some(vec![
-            text("table_schema"),
-            text("table_name"),
-            text("table_type"),
-        ]),
+        "information_schema.tables" => Some(
+            INFORMATION_SCHEMA_TABLES
+                .iter()
+                .map(|(field, data_type)| ((*field).to_owned(), data_type.clone()))
+                .collect(),
+        ),
         "information_schema.columns" => Some(vec![
             text("table_schema"),
             text("table_name"),

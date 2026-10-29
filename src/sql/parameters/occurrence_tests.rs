@@ -628,3 +628,78 @@ fn should_require_binding_before_publishing_types_given_a_rejected_cast_argument
     drop(prefix);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_infer_bare_virtual_catalog_columns_without_an_owned_source_map() {
+    // Arrange
+    let catalog = Catalog::new();
+    let statements = [
+        "SELECT table_name FROM information_schema.tables WHERE table_name = $1",
+        "SELECT table_name FROM information_schema.tables WHERE tables.table_name = $1",
+    ]
+    .map(|sql| parse_statement(sql).expect("virtual source SQL"));
+    let generous = controls(1_048_576);
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let cancelled_controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let borrowed = crate::catalog::virtual_views::borrowed_information_schema_tables(
+        " INFORMATION_SCHEMA.TABLES ",
+    )
+    .expect("borrow the supported virtual schema");
+    let owned = crate::catalog::virtual_views::schema("information_schema.tables")
+        .expect("materialize the supported virtual schema");
+
+    // Act
+    let mut observations = Vec::new();
+    let mut bare_peak = 0;
+    for (index, statement) in statements.iter().enumerate() {
+        let crate::sql::QueryStatement::Select(select) = &statement.statement else {
+            panic!("SELECT statement");
+        };
+        let fields = crate::sql::source_field_type_map_with_parameters(
+            &select.source,
+            &select.ctes,
+            &catalog,
+            &[0],
+        );
+        let admitted = checked_parse_parameter_types(statement, &[0], &catalog, &generous)
+            .expect("infer virtual field type");
+        let oids = admitted.types().to_vec();
+        drop(admitted);
+        if index == 0 {
+            bare_peak = generous.peak_query_memory_bytes();
+        }
+        observations.push((fields.is_empty(), oids));
+    }
+    let constrained = controls(bare_peak.checked_sub(1).expect("nonzero inference peak"));
+    let denied = checked_parse_parameter_types(&statements[0], &[0], &catalog, &constrained);
+    cancellation.cancel();
+    let cancelled =
+        checked_parse_parameter_types(&statements[0], &[0], &catalog, &cancelled_controls);
+
+    // Assert
+    assert_eq!(borrowed.len(), owned.len());
+    for ((borrowed_name, borrowed_type), (owned_name, owned_type)) in borrowed.iter().zip(&owned) {
+        assert_eq!(*borrowed_name, owned_name.as_str());
+        assert_eq!(borrowed_type, owned_type);
+    }
+    assert!(borrowed.iter().all(|(name, _)| *name != "no_such_column"));
+    assert!(
+        crate::catalog::virtual_views::borrowed_information_schema_tables(
+            "information_schema.no_such_view"
+        )
+        .is_none()
+    );
+    for (map_is_empty, oids) in observations {
+        assert!(map_is_empty, "bare virtual metadata must stay borrowed");
+        assert_eq!(oids, [25]);
+    }
+    assert_eq!(generous.current_query_memory_bytes(), 0);
+    assert!(matches!(denied, Err(ParameterAdmissionError::Memory(_))));
+    assert_eq!(constrained.current_query_memory_bytes(), 0);
+    assert!(matches!(cancelled, Err(ParameterAdmissionError::Cancelled)));
+    assert_eq!(cancelled_controls.current_query_memory_bytes(), 0);
+}

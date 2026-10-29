@@ -17,8 +17,17 @@ impl Fold<'_, '_> {
             return Some(oid(data_type));
         }
         let field = column.field_lookup_key();
+        let borrowed_virtual_oid = || {
+            let ast::QuerySource::Collection(name) = self.contexts.values[context].source else {
+                return None;
+            };
+            crate::catalog::virtual_views::borrowed_information_schema_tables(name)?
+                .iter()
+                .find(|(field_name, _)| *field_name == field)
+                .map(|(_, data_type)| oid(data_type))
+        };
         if !column.is_qualified() {
-            return fields.get(&field).map(oid);
+            return fields.get(&field).map(oid).or_else(borrowed_virtual_oid);
         }
         let qualifier = lookup.strip_suffix(&field)?.strip_suffix('.')?;
         let namespace = namespace.strip_suffix(&field)?.strip_suffix('.')?;
@@ -41,7 +50,7 @@ impl Fold<'_, '_> {
             | ast::QuerySource::SingleRow => false,
         };
         if own {
-            fields.get(&field).map(oid)
+            fields.get(&field).map(oid).or_else(borrowed_virtual_oid)
         } else {
             None
         }

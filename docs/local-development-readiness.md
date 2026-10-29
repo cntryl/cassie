@@ -21,7 +21,7 @@ for each SQL capability's current status.
 ## Current checkpoint — 2026-10-29
 
 The current worktree is based on merged main
-`5a4d47cc714e9dc64bba8981ae843c53037c89ce` (PR #1099). The owner moved #833's
+`1468f57fded38ea93125c0c6080ec10c35e6889b` (PR #1100). The owner moved #833's
 broader protocol, concurrency and catalog qualification to v1.0 after
 reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
 named enums #827 to v0.4.
@@ -53,31 +53,37 @@ PR #1099 merged the #842 schema-move catalog fix as
 Midge index names while preserving index OID and unique-reservation identity;
 #842 remains open for broader index-shape and lifecycle acceptance.
 
-The current uncommitted #839 slice adds rollback and local-restart evidence for
+PR #1100 adds rollback and local-restart evidence for
 `ALTER TABLE ... DROP COLUMN ... CASCADE`, including dependent-view and
 foreign-key restoration/removal, referential integrity, and unrelated parent
-data preservation. This is test and documentation coverage for existing
-runtime behavior; #839 remains open for the other lifecycle obligations,
-including column-level `RESTRICT` rejection.
+data preservation.
+
+The current #839 increment fixes the column-level `RESTRICT` foreign-key
+diagnostic: PostgreSQL 18.6 returns `2BP01`, while the previous Cassie path
+returned `22000`. The typed diagnostic now preserves the foreign-key name in
+DETAIL and supplies the CASCADE hint. Focused tests cover inbound foreign-key
+and view dependencies and verify the rejected operation leaves columns and
+dependencies intact. #839 remains open for other lifecycle obligations,
+including `ALTER TABLE IF EXISTS` notices and remaining forms.
 
 The ordered local gate passes on this candidate: `cargo build --locked --bin
-cassie`, `cargo test --locked` (**9,835 passed, 0 failed, 12 ignored** across
-35 targets), strict full pedantic Clippy, formatting, and the touched-test
-validator (**4/4**). `cntryl-tools validate-docs` validates **126 Markdown
-documents**. The test inventory has 1,569 files, 8,337 Rust test declarations,
-8,465 registered Rust instances, 21 Python test declarations, and 131 planned
-tests; its check reports no unregistered tests, unresolved module paths,
-repeated registrations, duplicate identities, unsharded targets, or oversized
-files. Missing historical source paths remain linked to owner issues and are
-not marked executed. These counts aggregate workspace targets and declarations
-respectively.
+cassie`, `cargo test --locked` (**9,837 passed, 0 failed, 12 ignored** across
+35 targets), strict full pedantic Clippy, formatting, and touched-test
+validation (**6/6** and **17/17**). `cntryl-tools validate-docs` validates
+**126 Markdown documents**. The test inventory has 1,569 files, 8,339 Rust test
+declarations, 8,467 registered Rust instances, 21 Python test declarations,
+and 131 planned tests; its check reports no unregistered tests, unresolved
+module paths, repeated registrations, duplicate identities, unsharded
+targets, or oversized files. Missing historical source paths remain linked to
+owner issues and are not marked executed. These counts aggregate workspace
+targets and declarations respectively.
 
 Jev's focused adversarial question was whether the bounded #842 table
 schema-move fix leaves a material correctness gap; the estimated probability
 was **0.19**, below the **0.30** probe threshold. Source inspection and the
 green rollback, catalog, index-plan, uniqueness, OID, restart, qualified-drop,
-and scan tests supported PR #1099's completed slice. Jev did not review this
-#839 coverage increment.
+and scan tests supported PR #1099's completed slice. Jev did not review the
+#839 CASCADE coverage or this RESTRICT correction.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.

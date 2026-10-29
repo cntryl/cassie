@@ -170,11 +170,21 @@ pub(super) fn reject_referenced_column_drop(
                 && references_field(&constraint, field)
                 && !declared_on_dropped_column
             {
-                return Err(QueryError::General(format!(
-                    "cannot drop column '{field}' of '{table}' because foreign key constraint '{}' on '{}' depends on it",
-                    constraint.foreign_key_constraint_name(&collection.name),
-                    collection.name
-                )));
+                let constraint_name = constraint.foreign_key_constraint_name(&collection.name);
+                return Err(QueryError::Cassie(
+                    crate::app::DiagnosticError::new(
+                        "2BP01",
+                        format!(
+                            "cannot drop column {field} of table {table} because other objects depend on it"
+                        ),
+                    )
+                    .with_detail(format!(
+                        "constraint {constraint_name} on table {} depends on column {field} of table {table}",
+                        collection.name
+                    ))
+                    .with_hint("Use DROP ... CASCADE to drop the dependent objects too.")
+                    .into(),
+                ));
             }
         }
     }

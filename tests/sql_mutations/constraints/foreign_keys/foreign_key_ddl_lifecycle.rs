@@ -330,6 +330,105 @@ fn should_carry_foreign_key_when_the_referenced_table_is_renamed() {
     });
 }
 
+fn create_schema_move_foreign_key_fixture(cassie: &Cassie, session: &CassieSession) {
+    exec_all(
+        cassie,
+        session,
+        &[
+            "CREATE SCHEMA move_source",
+            "CREATE SCHEMA move_target",
+            "CREATE TABLE move_source.p (id INT PRIMARY KEY)",
+            "CREATE TABLE c (cid INT PRIMARY KEY, pid INT, CONSTRAINT cfk FOREIGN KEY (pid) REFERENCES move_source.p(id) ON DELETE RESTRICT)",
+            "INSERT INTO move_source.p (id) VALUES (1)",
+            "INSERT INTO c (cid, pid) VALUES (10, 1)",
+        ],
+    );
+}
+
+#[test]
+fn should_restore_foreign_key_to_source_after_referenced_table_schema_move_rollback() {
+    with_cassie("fk-ddl-schema-move-rollback", |path| {
+        // Arrange
+        let (cassie, session) = start(path);
+        create_schema_move_foreign_key_fixture(&cassie, &session);
+
+        // Act
+        run(&cassie, &session, "BEGIN").expect("begin schema-move rollback");
+        run(
+            &cassie,
+            &session,
+            "ALTER TABLE move_source.p SET SCHEMA move_target",
+        )
+        .expect("stage parent schema move");
+        run(&cassie, &session, "ROLLBACK").expect("rollback parent schema move");
+
+        // Assert
+        assert!(cassie.catalog.exists("move_source.p"));
+        assert!(!cassie.catalog.exists("move_target.p"));
+        run(&cassie, &session, "INSERT INTO c (cid, pid) VALUES (11, 1)")
+            .expect("source-schema parent remains referenced");
+        assert_foreign_key_error(
+            run(
+                &cassie,
+                &session,
+                "INSERT INTO c (cid, pid) VALUES (12, 999)",
+            ),
+            "rollback restores the source-schema reference",
+        );
+        assert_foreign_key_error(
+            run(&cassie, &session, "DELETE FROM move_source.p WHERE id = 1"),
+            "rollback restores the referenced parent",
+        );
+    });
+}
+
+#[test]
+fn should_preserve_foreign_key_to_referenced_table_after_schema_move_restart() {
+    with_cassie("fk-ddl-schema-move-restart", |path| {
+        // Arrange
+        let (cassie, session) = start_local(path);
+        create_schema_move_foreign_key_fixture(&cassie, &session);
+
+        // Act
+        run(&cassie, &session, "BEGIN").expect("begin schema move");
+        run(
+            &cassie,
+            &session,
+            "ALTER TABLE move_source.p SET SCHEMA move_target",
+        )
+        .expect("move referenced parent schema");
+        run(&cassie, &session, "COMMIT").expect("commit parent schema move");
+        drop(session);
+        drop(cassie);
+        let (cassie, session) = start_local(path);
+
+        // Assert
+        assert!(!cassie.catalog.exists("move_source.p"));
+        assert!(cassie.catalog.exists("move_target.p"));
+        run(&cassie, &session, "INSERT INTO c (cid, pid) VALUES (11, 1)")
+            .expect("restarted child retains its renamed reference");
+        assert_foreign_key_error(
+            run(
+                &cassie,
+                &session,
+                "INSERT INTO c (cid, pid) VALUES (12, 999)",
+            ),
+            "restarted child rejects an orphan",
+        );
+        assert_foreign_key_error(
+            run(&cassie, &session, "DELETE FROM move_target.p WHERE id = 1"),
+            "restarted parent remains referenced",
+        );
+        assert_eq!(
+            rows(&cassie, &session, "SELECT cid, pid FROM c ORDER BY cid"),
+            vec![
+                vec![Value::Int64(10), Value::Int64(1)],
+                vec![Value::Int64(11), Value::Int64(1)],
+            ]
+        );
+    });
+}
+
 #[test]
 fn should_carry_self_referencing_foreign_key_through_renames() {
     with_cassie("fk-ddl-self-reference", |path| {

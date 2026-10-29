@@ -20,10 +20,12 @@ for each SQL capability's current status.
 
 ## Current checkpoint — 2026-10-29
 
-The test and inventory repair tree is based on merged main `962a274b` (PR
-#1095). Its ordered local gate passes: `cargo build --locked --bin cassie`,
-`cargo test --locked` (**9,820 passed, 0 failed, 12 ignored** across 35
-targets), strict full pedantic Clippy, formatting, and touched-test validation.
+The current candidate is based on merged main
+`02911623900f8a2d88a81584afbcf38b6cb934ab` (PR #1097); its tree matches the
+locally validated PR head. The ordered local gate on this candidate passes:
+`cargo build --locked --bin cassie`, `cargo test --locked` (**9,829 passed, 0
+failed, 12 ignored** across 35 targets), strict full pedantic Clippy,
+formatting, and touched-test validation.
 The test count aggregates all workspace targets. This supersedes the
 2026-10-22 failure inventory and its statement that the full suite is still
 failing; those results remain as historical baseline evidence below.
@@ -42,15 +44,23 @@ and committed restart; the executor behavior was already present, so that was a
 coverage and documentation correction, not a runtime change. Its touched-file
 validator reports **15/15 compliant**.
 
-This slice registers and executes two existing #807 array tests: custom-lower-
-bound `array_position` and preservation of nondefault bounds in text Bind. Both
-focused cases pass, and the full locked suite includes them. The inventory
-regenerates cleanly with 1,568 test files, 8,322 Rust test declarations, 8,450
-registered Rust instances, 21 Python test declarations, 131 planned tests, and
-zero registration or placement errors. Missing historical source paths remain
-visible as text linked to their owner issues; they are not marked executed.
-`cntryl-tools validate-docs` now validates **126 Markdown documents**. The
-inventory generator's Python suite passes **5/5**.
+PR #1097 moves explicitly owned, identity, SERIAL, and legacy-owned sequences
+with their table across schemas. Its tests cover collision preflight, preserved
+sequence identity and position, rewritten defaults, transaction rollback, and
+local-storage restart. This candidate adds referenced-table schema-move
+witnesses: rollback keeps the foreign key on the source relation, and a
+committed move remains enforced after restart. The focused schema-move tests
+pass **9/9**; the foreign-key lifecycle file validates **17/17**.
+
+The current test inventory has 1,569 files, 8,331 Rust test declarations,
+8,459 registered Rust instances, 21 Python test declarations, and 131 planned
+tests, with zero registration or placement errors. Missing historical source
+paths remain visible as text linked to their owner issues; they are not marked
+executed.
+The inventory generator's Python suite passes **5/5**, and
+`cntryl-tools validate-docs` validates **126 Markdown documents**. The full
+suite also retains the two selected #807 array regressions from the previous
+checkpoint.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.

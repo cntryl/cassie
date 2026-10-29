@@ -230,9 +230,9 @@
     ],
     "files": 1569,
     "rust_files": 1537,
-    "rust_test_declarations": 8335,
+    "rust_test_declarations": 8337,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8463,
+    "registered_rust_instances": 8465,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -21560,8 +21560,8 @@
       "id": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs::should_remove_dependent_view_when_dropping_column_with_cascade",
       "name": "should_remove_dependent_view_when_dropping_column_with_cascade",
       "current_file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
-      "line": 4,
-      "end_line": 80,
+      "line": 30,
+      "end_line": 106,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -21591,8 +21591,8 @@
       "id": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs::should_remove_foreign_key_when_dropping_referenced_column_with_cascade",
       "name": "should_remove_foreign_key_when_dropping_referenced_column_with_cascade",
       "current_file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
-      "line": 83,
-      "end_line": 131,
+      "line": 109,
+      "end_line": 157,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -21601,6 +21601,68 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::ddl_extensions::issue_839_atomic_lifecycle::drop_column_cascade::should_remove_foreign_key_when_dropping_referenced_column_with_cascade"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs::should_restore_dropped_column_dependencies_after_transaction_rollback",
+      "name": "should_restore_dropped_column_dependencies_after_transaction_rollback",
+      "current_file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
+      "line": 233,
+      "end_line": 273,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::issue_839_atomic_lifecycle::drop_column_cascade::should_restore_dropped_column_dependencies_after_transaction_rollback"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs::should_recover_column_cascade_dependency_removal_after_local_restart",
+      "name": "should_recover_column_cascade_dependency_removal_after_local_restart",
+      "current_file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
+      "line": 276,
+      "end_line": 349,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::issue_839_atomic_lifecycle::drop_column_cascade::should_recover_column_cascade_dependency_removal_after_local_restart"
         }
       ],
       "attributes": [
@@ -262836,9 +262898,9 @@
       "current_file": "tests/compatibility/lifecycle/ddl/drop_column_cascade.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 131,
-      "sha256": "38a657496814f815cdc19ab1bc9a597c61a0e3b5fdc20c61abc7777726d16883",
-      "test_declarations": 2,
+      "lines": 349,
+      "sha256": "62268c9dfe765dea9deb10ddacd71c355605c5bd4e06072e35199dbb26314637",
+      "test_declarations": 4,
       "registered_suites": [
         "compatibility"
       ],

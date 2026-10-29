@@ -285,6 +285,40 @@ fn should_drop_foreign_key_with_the_child_column_it_is_declared_on() {
 }
 
 #[test]
+fn should_restore_child_foreign_key_after_column_drop_rollback() {
+    with_cassie("fk-ddl-drop-child-rollback", |path| {
+        // Arrange
+        let (cassie, session) = start(path);
+        exec_all(&cassie, &session, &PARENT_CHILD);
+        run(&cassie, &session, "BEGIN").expect("begin column-drop transaction");
+
+        // Act
+        run(&cassie, &session, "ALTER TABLE c DROP COLUMN pid")
+            .expect("drop the child column and its foreign key");
+        run(&cassie, &session, "ROLLBACK").expect("rollback child-column drop");
+
+        // Assert
+        assert_eq!(
+            rows(
+                &cassie,
+                &session,
+                "SELECT constraint_name FROM information_schema.table_constraints \
+                 WHERE constraint_type = 'FOREIGN KEY'",
+            ),
+            vec![vec![Value::String("cfk".to_owned())]]
+        );
+        assert_foreign_key_error(
+            run(
+                &cassie,
+                &session,
+                "INSERT INTO c (cid, pid) VALUES (11, 999)",
+            ),
+            "rolled-back child-column drop restores foreign-key enforcement",
+        );
+    });
+}
+
+#[test]
 fn should_carry_foreign_key_when_the_referenced_column_is_renamed() {
     with_cassie("fk-ddl-rename-column", |path| {
         // Arrange

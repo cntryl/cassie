@@ -4705,3 +4705,29 @@ an owned listener and a `pg_sleep` entry barrier instead of rebind/startup and
 execution sleeps; its two cases pass, with touched-test validation 2/2.
 `cntryl-tools validate-docs` validated 126 Markdown documents. GitHub Actions
 remain disabled, so hosted checks are unavailable.
+
+## 2026-10-29 — #839 child-side foreign-key rollback
+
+`should_restore_child_foreign_key_after_column_drop_rollback` starts an
+explicit transaction, drops the child column that owns a foreign key, and
+rolls the transaction back. It verifies the named constraint is restored and
+still rejects an orphan insert. The existing
+`should_drop_foreign_key_with_the_child_column_it_is_declared_on` separately
+verifies the committed drop remains removed after local restart. The new
+focused regression passed 1/1 on branch
+`audit/v03-839-next-lifecycle-20261029`, based on merged main
+`4d8f334bcec23e3833242befbc117a23c613911e`; no runtime behavior changed.
+
+The ordered local gate on this candidate passed: `cargo build --locked --bin
+cassie`; `cargo test --locked` (9,842 passed, 0 failed, 12 ignored across 35
+targets; doc-tests passed with 0 tests); strict workspace/all-target/all-
+feature pedantic Clippy; `cargo fmt --all -- --check`; and
+`cntryl-tools validate-tests -f
+tests/sql_mutations/constraints/foreign_keys/foreign_key_ddl_lifecycle.rs`
+(18/18 compliant). `target/test-inventory-tools312/bin/python
+tools/test_inventory.py --check` passed with 8,344 Rust declarations and
+8,472 registered instances, with no unregistered tests, unresolved module
+paths, duplicate identities, or shard errors. `cntryl-tools validate-docs`
+validated 126 Markdown documents, and `git diff --check` passed. This slice
+changes test coverage and documentation only; GitHub Actions remain disabled,
+so hosted checks are unavailable and not claimed as passed.

@@ -20,9 +20,7 @@ for each SQL capability's current status.
 
 ## Current checkpoint — 2026-10-29
 
-The current candidate branch is
-`audit/v03-842-expression-index-restart-20261029`, based on merged main
-`19edf3a36fc9d2a65187d137370b6f164fcdfb2e` (PR #1102, after PR #1101).
+The current candidate branch is `audit/v03-839-next-lifecycle-20261029`, based on merged main `4d8f334bcec23e3833242befbc117a23c613911e` (PR #1103, after PR #1102).
 The owner moved #833's broader protocol, concurrency and catalog qualification
 to v1.0 after
 reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
@@ -37,9 +35,7 @@ and after local restart. PR #1094 merged as
 relation identity through `pg_class`, `pg_attribute`, `regclass`, rename,
 refresh and restart. The selected #842 partial-index restart regression
 verifies committed entry changes remain queryable and match an independent
-scan. This branch adds a #842 witness verifying a populated `lower(email)`
-index stays selected after committed key rekeying and local restart, with
-matching independent-scan results. PR #1095 added separate FK table-CASCADE tests for transaction rollback
+scan. PR #1103 added the #842 `lower(email)` restart witness and stabilized the pgwire cancellation test after a full-suite timeout. This #839 candidate adds rollback evidence for dropping a child column that owns a foreign key; the committed-drop restart path already had a separate witness. PR #1095 added separate FK table-CASCADE tests for transaction rollback
 and committed restart; the executor behavior was already present, so that was a
 coverage and documentation correction, not a runtime change. Its touched-file
 validator reports **15/15 compliant**.
@@ -77,17 +73,17 @@ protocol; PostgreSQL 18.6 returned no notices for that transaction-local case.
 #839 remains open for its other lifecycle forms.
 
 The ordered local gate passes on this candidate branch: `cargo build --locked
---bin cassie`; `cargo test --locked` (**9,841 passed, 0 failed, 12 ignored
+--bin cassie`; `cargo test --locked` (**9,842 passed, 0 failed, 12 ignored
 across 35 targets**); strict full pedantic Clippy; `cargo fmt --all -- --check`;
-and touched-test validation (**2/2** for pgwire cancellation and **7/7** for
-scalar-index restart). `cntryl-tools validate-docs` validates **126 Markdown
-documents**. The checked test inventory has 1,570 files, 8,343 Rust test
-declarations, 8,471 registered Rust instances, 21 Python test declarations,
-and 131 planned tests; it reports no unregistered tests, unresolved module
-paths, repeated registrations, duplicate identities, unsharded targets, or
-oversized files. Missing historical source paths remain linked to owner issues
-and are not marked executed. These counts aggregate workspace targets and
-declarations respectively.
+and touched-test validation (**18/18** for the foreign-key lifecycle file).
+`cntryl-tools validate-docs` validates **126 Markdown documents**. The checked
+test inventory has 1,570 files, 8,344 Rust test declarations, 8,472
+registered Rust instances, 21 Python test declarations, and 131 planned tests;
+it reports no unregistered tests, unresolved module paths, repeated
+registrations, duplicate identities, unsharded targets, or oversized files.
+Missing historical source paths remain linked to owner issues and are not
+marked executed. These counts aggregate workspace targets and declarations
+respectively.
 
 Jev's focused adversarial question was whether the bounded #842 table
 schema-move fix leaves a material correctness gap; the estimated probability

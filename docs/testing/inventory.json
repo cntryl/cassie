@@ -230,9 +230,9 @@
     ],
     "files": 1569,
     "rust_files": 1537,
-    "rust_test_declarations": 8331,
+    "rust_test_declarations": 8335,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8459,
+    "registered_rust_instances": 8463,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -22459,8 +22459,8 @@
       "id": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs::should_preserve_partial_index_query_results_for_null_excluded_rows_through_lifecycle",
       "name": "should_preserve_partial_index_query_results_for_null_excluded_rows_through_lifecycle",
       "current_file": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs",
-      "line": 206,
-      "end_line": 274,
+      "line": 235,
+      "end_line": 303,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -22487,11 +22487,42 @@
       }
     },
     {
+      "id": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs::should_preserve_partial_covering_index_across_table_schema_move",
+      "name": "should_preserve_partial_covering_index_across_table_schema_move",
+      "current_file": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs",
+      "line": 395,
+      "end_line": 453,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::partial_index_query_equivalence::should_preserve_partial_covering_index_across_table_schema_move"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/indexes",
+        "directory": "tests/compatibility/lifecycle/indexes",
+        "file": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs::should_maintain_partial_index_entries_through_predicate_changing_writes",
       "name": "should_maintain_partial_index_entries_through_predicate_changing_writes",
       "current_file": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs",
-      "line": 277,
-      "end_line": 341,
+      "line": 456,
+      "end_line": 520,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187177,8 +187208,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_preserve_scalar_entries_when_index_is_renamed",
       "name": "should_preserve_scalar_entries_when_index_is_renamed",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 7,
-      "end_line": 40,
+      "line": 74,
+      "end_line": 107,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187208,8 +187239,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_rename_constraint_ownership_with_backing_index",
       "name": "should_rename_constraint_ownership_with_backing_index",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 43,
-      "end_line": 72,
+      "line": 110,
+      "end_line": 139,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187239,8 +187270,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_restore_original_index_name_after_savepoint_rollback",
       "name": "should_restore_original_index_name_after_savepoint_rollback",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 75,
-      "end_line": 103,
+      "line": 142,
+      "end_line": 170,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187270,8 +187301,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_reject_same_schema_index_rename_collision",
       "name": "should_reject_same_schema_index_rename_collision",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 106,
-      "end_line": 126,
+      "line": 173,
+      "end_line": 193,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187301,8 +187332,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_refresh_materialized_view_using_renamed_index",
       "name": "should_refresh_materialized_view_using_renamed_index",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 129,
-      "end_line": 158,
+      "line": 196,
+      "end_line": 225,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187332,8 +187363,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_recover_renamed_constraint_index_after_local_restart",
       "name": "should_recover_renamed_constraint_index_after_local_restart",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 161,
-      "end_line": 207,
+      "line": 228,
+      "end_line": 274,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187360,11 +187391,104 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_preserve_moved_index_identity_after_local_restart",
+      "name": "should_preserve_moved_index_identity_after_local_restart",
+      "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
+      "line": 277,
+      "end_line": 289,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "scalar_index_rename::should_preserve_moved_index_identity_after_local_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_enforce_moved_unique_index_after_local_restart",
+      "name": "should_enforce_moved_unique_index_after_local_restart",
+      "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
+      "line": 292,
+      "end_line": 310,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "scalar_index_rename::should_enforce_moved_unique_index_after_local_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_drop_moved_index_by_target_qualified_name_after_local_restart",
+      "name": "should_drop_moved_index_by_target_qualified_name_after_local_restart",
+      "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
+      "line": 313,
+      "end_line": 341,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "scalar_index_rename::should_drop_moved_index_by_target_qualified_name_after_local_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_reject_qualified_index_rename_destination",
       "name": "should_reject_qualified_index_rename_destination",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 210,
-      "end_line": 228,
+      "line": 344,
+      "end_line": 362,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187394,8 +187518,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_preserve_constraint_ownership_through_repeated_quoted_renames",
       "name": "should_preserve_constraint_ownership_through_repeated_quoted_renames",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 231,
-      "end_line": 252,
+      "line": 365,
+      "end_line": 386,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187425,8 +187549,8 @@
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_keep_index_rename_collisions_within_the_owning_schema",
       "name": "should_keep_index_rename_collisions_within_the_owning_schema",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
-      "line": 255,
-      "end_line": 281,
+      "line": 389,
+      "end_line": 415,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -262952,9 +263076,9 @@
       "current_file": "tests/compatibility/lifecycle/indexes/partial_index_query_equivalence.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 341,
-      "sha256": "61c6799a339c6a30eac63d6e6fd5e2e9dc588d92d30a190dcc1917c43bcb1560",
-      "test_declarations": 2,
+      "lines": 520,
+      "sha256": "b0dd782e8f5cf409919bedbdcf318970447ceb645b3fa6b4551effaf2eaed3fd",
+      "test_declarations": 3,
       "registered_suites": [
         "compatibility"
       ],
@@ -276954,9 +277078,9 @@
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 281,
-      "sha256": "623d1a07e6dab673ea72b93cb49fafa38cb76755fe3b954d5eb26f635cb9434a",
-      "test_declarations": 9,
+      "lines": 415,
+      "sha256": "215d58999f76e5dcff4b2ebc233ceb34d970318fc39f42bec79f41e52ad111d3",
+      "test_declarations": 12,
       "registered_suites": [
         "sql_mutations"
       ],

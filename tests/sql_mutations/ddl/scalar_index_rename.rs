@@ -1,7 +1,74 @@
 //! Scalar index rename preserves durable identity and constraint ownership.
 use crate::support_scalar_index_rebuild::entries;
 use crate::support_sql_fixture::sql_fixture;
+use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
+
+fn schema_moved_index_oid(cassie: &Cassie, session: &CassieSession, schema: &str) -> Value {
+    let sql = format!(
+        "SELECT index_class.oid::bigint \
+         FROM pg_catalog.pg_class AS index_class \
+         JOIN pg_catalog.pg_namespace AS index_schema \
+           ON index_schema.nspname = index_class.relnamespace \
+         WHERE index_schema.nspname = '{schema}' \
+           AND index_class.relname = 'schema_move_idx'"
+    );
+    cassie
+        .execute_sql(session, &sql, vec![])
+        .expect("read the schema-moved index OID")
+        .rows()[0][0]
+        .clone()
+}
+
+fn create_schema_moved_index_restart_fixture(
+    directory: &crate::support_catalog_directory::CatalogDirectory,
+) -> Value {
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &directory.0,
+        cassie::config::CassieRuntimeConfig::default(),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE SCHEMA index_move_source",
+        "CREATE SCHEMA index_move_target",
+        "CREATE TABLE index_move_source.rows (id INT, payload TEXT)",
+        "INSERT INTO index_move_source.rows VALUES (1, 'kept')",
+        "CREATE INDEX schema_move_idx ON index_move_source.rows (id) \
+         WHERE payload IS NOT NULL",
+        "CREATE UNIQUE INDEX schema_move_payload_uq \
+         ON index_move_source.rows (payload)",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).unwrap();
+    }
+    let original_oid = schema_moved_index_oid(&cassie, &session, "index_move_source");
+    cassie
+        .execute_sql(
+            &session,
+            "ALTER TABLE index_move_source.rows SET SCHEMA index_move_target",
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(
+        schema_moved_index_oid(&cassie, &session, "index_move_target"),
+        original_oid
+    );
+    original_oid
+}
+
+fn open_restarted_schema_moved_index_fixture(
+    directory: &crate::support_catalog_directory::CatalogDirectory,
+) -> (Cassie, CassieSession) {
+    let cassie = Cassie::new_with_data_dir_and_config(
+        &directory.0,
+        cassie::config::CassieRuntimeConfig::default(),
+    )
+    .unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    (cassie, session)
+}
 
 #[test]
 fn should_preserve_scalar_entries_when_index_is_renamed() {
@@ -204,6 +271,73 @@ fn should_recover_renamed_constraint_index_after_local_restart() {
     cassie
         .execute_sql(&session, "INSERT INTO rename_rows VALUES(7)", vec![])
         .unwrap();
+}
+
+#[test]
+fn should_preserve_moved_index_identity_after_local_restart() {
+    // Arrange
+    let directory =
+        crate::support_catalog_directory::CatalogDirectory::new("index-schema-move-restart");
+    let original_oid = create_schema_moved_index_restart_fixture(&directory);
+
+    // Act
+    let (cassie, session) = open_restarted_schema_moved_index_fixture(&directory);
+    let after_restart = schema_moved_index_oid(&cassie, &session, "index_move_target");
+
+    // Assert
+    assert_eq!(original_oid, after_restart);
+}
+
+#[test]
+fn should_enforce_moved_unique_index_after_local_restart() {
+    // Arrange
+    let directory =
+        crate::support_catalog_directory::CatalogDirectory::new("index-schema-move-unique-restart");
+    create_schema_moved_index_restart_fixture(&directory);
+    let (cassie, session) = open_restarted_schema_moved_index_fixture(&directory);
+
+    // Act
+    let duplicate = cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO index_move_target.rows VALUES (2, 'kept')",
+            vec![],
+        )
+        .expect_err("the moved unique index should reject a duplicate after restart");
+
+    // Assert
+    assert!(duplicate.to_string().contains("duplicate key"));
+}
+
+#[test]
+fn should_drop_moved_index_by_target_qualified_name_after_local_restart() {
+    // Arrange
+    let directory =
+        crate::support_catalog_directory::CatalogDirectory::new("index-schema-move-drop-restart");
+    create_schema_moved_index_restart_fixture(&directory);
+    let (cassie, session) = open_restarted_schema_moved_index_fixture(&directory);
+
+    // Act
+    cassie
+        .execute_sql(
+            &session,
+            "DROP INDEX index_move_target.schema_move_idx",
+            vec![],
+        )
+        .expect("drop the moved index by its target-qualified name after restart");
+
+    // Assert
+    assert_eq!(
+        cassie
+            .execute_sql(
+                &session,
+                "SELECT id, payload FROM index_move_target.rows ORDER BY id",
+                vec![],
+            )
+            .unwrap()
+            .rows(),
+        &[vec![Value::Int64(1), Value::String("kept".to_owned())]]
+    );
 }
 
 #[test]

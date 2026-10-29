@@ -535,7 +535,11 @@ pub(super) fn rename_collection_indexes(
         let Ok(mut metadata) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
             continue;
         };
-        metadata.name = renamed_scoped_relation_name(current_name, next_name, &metadata.name);
+        let next_index_name = renamed_scoped_relation_name(current_name, next_name, &metadata.name);
+        if next_index_name != metadata.name {
+            metadata.preserve_identity_before_name_change();
+            metadata.name = next_index_name;
+        }
         metadata.collection = next_name.to_string();
         tx.delete(key).map_err(CassieError::from)?;
         let next_key = Midge::index_key(&metadata.collection, &metadata.name);

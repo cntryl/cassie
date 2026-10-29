@@ -590,6 +590,12 @@ impl Catalog {
 
         for (key, mut index) in existing_indexes {
             indexes.remove(&key);
+            let next_index_name =
+                index_relations::rename_scoped_index_name(current_name, next_name, &index.name);
+            if next_index_name != index.name {
+                index.preserve_identity_before_name_change();
+                index.name = next_index_name;
+            }
             index.collection = next_name.to_string();
             indexes.insert(Self::index_key(&index.collection, &index.name), index);
         }

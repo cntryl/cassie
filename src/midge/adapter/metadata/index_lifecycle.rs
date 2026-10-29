@@ -35,13 +35,7 @@ impl Midge {
         }
         let mut metadata: IndexMeta = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
-        metadata.set_catalog_oid_if_missing(crate::catalog::object_identity::stable_index_oid(
-            &metadata.name,
-        ));
-        if metadata.unique {
-            let reservation_name = metadata.name.clone();
-            metadata.set_unique_reservation_name_if_missing(&reservation_name);
-        }
+        metadata.preserve_identity_before_name_change();
         metadata.name = next_name.to_string();
         if current_key != next_key {
             tx.delete(current_key).map_err(CassieError::from)?;

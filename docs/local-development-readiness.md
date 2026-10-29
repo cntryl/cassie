@@ -21,14 +21,16 @@ for each SQL capability's current status.
 ## Current checkpoint — 2026-10-29
 
 The current candidate is based on merged main
-`02911623900f8a2d88a81584afbcf38b6cb934ab` (PR #1097); its tree matches the
-locally validated PR head. The ordered local gate on this candidate passes:
-`cargo build --locked --bin cassie`, `cargo test --locked` (**9,829 passed, 0
+`9b1f0a33dadd5885753051865fe4e4a9445aff76` (PR #1098). PR #1098 adds rollback
+and committed-restart evidence for inbound foreign keys when their referenced
+table moves schemas; broader #839 acceptance remains open. The uncommitted
+#842 candidate builds on this base. Its ordered local gate passes:
+`cargo build --locked --bin cassie`, `cargo test --locked` (**9,833 passed, 0
 failed, 12 ignored** across 35 targets), strict full pedantic Clippy,
-formatting, and touched-test validation.
-The test count aggregates all workspace targets. This supersedes the
-2026-10-22 failure inventory and its statement that the full suite is still
-failing; those results remain as historical baseline evidence below.
+formatting, and both touched-test validators (**3/3** and **12/12**). The test
+count aggregates all workspace targets. This supersedes the 2026-10-22 failure
+inventory and its statement that the full suite is still failing; those
+results remain as historical baseline evidence below.
 
 PR #1092 merged as `708c0e377b8ccc0ae7a4285b33964faf80100333`; its #839
 regression `should_keep_unique_enforcement_after_using_type_rewrite_restart`
@@ -47,20 +49,38 @@ validator reports **15/15 compliant**.
 PR #1097 moves explicitly owned, identity, SERIAL, and legacy-owned sequences
 with their table across schemas. Its tests cover collision preflight, preserved
 sequence identity and position, rewritten defaults, transaction rollback, and
-local-storage restart. This candidate adds referenced-table schema-move
-witnesses: rollback keeps the foreign key on the source relation, and a
-committed move remains enforced after restart. The focused schema-move tests
-pass **9/9**; the foreign-key lifecycle file validates **17/17**.
+local-storage restart. PR #1098 adds referenced-table schema-move witnesses:
+rollback keeps the foreign key on the source relation, and a committed move
+remains enforced after restart. The focused schema-move tests pass **9/9**; the
+foreign-key lifecycle file validates **17/17**.
 
-The current test inventory has 1,569 files, 8,331 Rust test declarations,
-8,459 registered Rust instances, 21 Python test declarations, and 131 planned
+The #842 candidate fixes a schema-move catalog mismatch: the planner and
+`pg_indexes` used the destination-scoped index name, while catalog `IndexMeta`
+retained its source-scoped name, so target-qualified `DROP INDEX` returned
+`42704`. The update now synchronizes the catalog and durable Midge names while
+preserving the index OID and unique-reservation identity. Tests cover partial
+covering-index selection and rows after the move, rollback to the source
+schema, unique enforcement, target-qualified drop, independent scan equality,
+and restart behavior for identity, uniqueness, and qualified drop. #842 remains
+open for its broader index-shape and lifecycle acceptance. The touched-test
+validators pass **3/3** and **12/12**.
+
+The current test inventory has 1,569 files, 8,335 Rust test declarations,
+8,463 registered Rust instances, 21 Python test declarations, and 131 planned
 tests, with zero registration or placement errors. Missing historical source
 paths remain visible as text linked to their owner issues; they are not marked
 executed.
-The inventory generator's Python suite passes **5/5**, and
-`cntryl-tools validate-docs` validates **126 Markdown documents**. The full
-suite also retains the two selected #807 array regressions from the previous
-checkpoint.
+The regenerated inventory check reports no unregistered tests, unresolved
+module paths, repeated module registrations, duplicate identities, unsharded
+targets, or oversized files. `cntryl-tools validate-docs` validates **126
+Markdown documents**. The full suite also retains the two selected #807 array
+regressions from the previous checkpoint.
+
+Jev's focused adversarial question was whether the bounded table schema-move
+fix leaves a material correctness gap; the estimated probability was **0.19**,
+below the **0.30** probe threshold. Source inspection and the green rollback,
+catalog, index-plan, uniqueness, OID, restart, qualified-drop, and scan tests
+support proceeding with this bounded slice.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.

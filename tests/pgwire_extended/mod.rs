@@ -1,5 +1,9 @@
+#[path = "types/arrays/array_position_start_overloads.rs"]
+mod array_position_start_overloads;
 #[path = "merge/merge_row_images.rs"]
 mod merge_row_images;
+#[path = "types/arrays/multidimensional_slices.rs"]
+mod multidimensional_array_slices;
 #[path = "aggregates/aggregate_errors.rs"]
 mod postgresql18_aggregate_errors;
 #[path = "aggregates/arrays/array_aggregate.rs"]

@@ -20,13 +20,13 @@ for each SQL capability's current status.
 
 ## Current checkpoint — 2026-10-29
 
-The local #839 evidence tree is based on merged main `848309a5` (PR #1094).
-Its exact locked suite passes: **9,818 passed, 0 failed, 12 ignored** across 35
-targets. The ordered build, full locked suite, strict full pedantic Clippy,
-formatting check, and touched-test validation pass. The test count aggregates
-all workspace targets. This supersedes the 2026-10-22 failure inventory and its
-statement that the full suite is still failing; those results remain as
-historical baseline evidence below.
+The test and inventory repair tree is based on merged main `962a274b` (PR
+#1095). Its ordered local gate passes: `cargo build --locked --bin cassie`,
+`cargo test --locked` (**9,820 passed, 0 failed, 12 ignored** across 35
+targets), strict full pedantic Clippy, formatting, and touched-test validation.
+The test count aggregates all workspace targets. This supersedes the
+2026-10-22 failure inventory and its statement that the full suite is still
+failing; those results remain as historical baseline evidence below.
 
 PR #1092 merged as `708c0e377b8ccc0ae7a4285b33964faf80100333`; its #839
 regression `should_keep_unique_enforcement_after_using_type_rewrite_restart`
@@ -37,26 +37,28 @@ and after local restart. PR #1094 merged as
 relation identity through `pg_class`, `pg_attribute`, `regclass`, rename,
 refresh and restart. The selected #842 partial-index restart regression
 verifies committed entry changes remain queryable and match an independent
-scan. This #839 evidence tree adds separate FK table-CASCADE tests for
-transaction rollback and committed restart; the executor behavior was already
-present, so this is a coverage and documentation correction, not a runtime
-change. Its touched-file validator reports **15/15 compliant**.
+scan. PR #1095 added separate FK table-CASCADE tests for transaction rollback
+and committed restart; the executor behavior was already present, so that was a
+coverage and documentation correction, not a runtime change. Its touched-file
+validator reports **15/15 compliant**.
 
-`cntryl-tools validate-docs` still fails with **174 broken links**: 125 anchors
-in `docs/testing/inventory/pgwire_extended.md`, 48 planned-test links in
-`docs/testing/planned-tests.md`, and one stale source-directory link in
-`docs/query-engine-invariant-ownership.md`. None refers to the support and
-scope-map files updated in this slice. Inventory regeneration is separately
-blocked by the unregistered array test owner tracked under #807; do not mark
-that planned coverage executed or delete it to make the inventory pass.
+This slice registers and executes two existing #807 array tests: custom-lower-
+bound `array_position` and preservation of nondefault bounds in text Bind. Both
+focused cases pass, and the full locked suite includes them. The inventory
+regenerates cleanly with 1,568 test files, 8,322 Rust test declarations, 8,450
+registered Rust instances, 21 Python test declarations, 131 planned tests, and
+zero registration or placement errors. Missing historical source paths remain
+visible as text linked to their owner issues; they are not marked executed.
+`cntryl-tools validate-docs` now validates **126 Markdown documents**. The
+inventory generator's Python suite passes **5/5**.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.
 Release readiness remains incomplete: selected local-development/client
-workflows, exact-release-commit browser/benchmark/disk-backed operational
-evidence, and the documentation link gate still need resolution. Owner direction
-moved enum issue #827 to v0.4. Actions remain disabled, so hosted checks and
-publication are unavailable.
+workflows and exact-release-commit browser, benchmark, and disk-backed
+operational evidence still need resolution. Owner direction moved enum issue
+#827 to v0.4. Actions remain disabled, so hosted checks and publication are
+unavailable.
 
 ## Baseline discovery
 

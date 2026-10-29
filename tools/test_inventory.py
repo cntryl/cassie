@@ -408,6 +408,10 @@ def choose_placement(path: str, test: dict, targets: list[str], file_lines: int,
     }
 
 
+def is_test_inventory_file(path):
+    return path.is_file() and path.suffix != ".pyc" and "__pycache__" not in path.parts
+
+
 def gather():
     metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], cwd=ROOT))
     targets = {t["name"]: Path(t["src_path"]) for p in metadata["packages"] for t in p["targets"] if t["test"] and "test" in t["kind"]}
@@ -418,7 +422,7 @@ def gather():
         for i, arg in enumerate(args[:-1]):
             if arg == "--test":
                 sharded[args[i + 1]].append(shard["shard"])
-    files = sorted(p for p in (ROOT / "tests").rglob("*") if p.is_file())
+    files = sorted(p for p in (ROOT / "tests").rglob("*") if is_test_inventory_file(p))
     parsed = {p.resolve(): rust_declarations(p) for p in files if p.suffix == ".rs"}
     registrations = defaultdict(list)
     unresolved = []
@@ -631,12 +635,36 @@ def render(data):
         destinations = "; ".join(f"`{d}`" for d in f["destinations"]) or "Registration/imports follow relocated children; no test body in this file."
         lines.append(f"| `{f['current_file']}` | {f['role']} | {f['lines']} | {f['test_declarations']} | {', '.join(f['registered_suites']) or '—'} | {f['action']} | {destinations} |")
     outputs[OUTPUT / "files.md"] = "\n".join(lines) + "\n"
-    lines = ["# Reconciled backfill tests", "", "Every inventory item links to an actual registered test. A refined name or an existing equivalent retains the original planning name for traceability. Authoring a test does not establish that its intended runtime path is reached; see the separate execution status and validation record.", "", "| Issue | Owner / category | Inventory name | Actual assertion | Authoring | Cassie execution |", "| --- | --- | --- | --- | --- | --- |"]
-    for t in data["planned_tests"]:
-        actual = t.get("actual_test", t["name"])
-        lines.append(f"| #{t['issue']} | `{t['suite']}/{t['category']}` | `{t['name']}` | [`{actual}`](../../{t['file']}) | {t['status']} | {t['execution_status']} |")
-    outputs[OUTPUT / "planned-tests.md"] = "\n".join(lines) + "\n"
+    outputs[OUTPUT / "planned-tests.md"] = render_planned_tests(data["planned_tests"])
     return outputs
+
+
+def render_planned_tests(planned):
+    lines = [
+        "# Reconciled backfill tests",
+        "",
+        "A current assertion links to its source file. When the recorded source path is absent, the row keeps that path as text and links the owning issue instead. This records missing source evidence without treating it as executed or passed.",
+        "A refined name or an existing equivalent retains the original planning name for traceability. Authoring and Cassie execution status are separate.",
+        "",
+        "| Issue | Owner / category | Inventory name | Assertion / source record | Authoring | Cassie execution |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for test in planned:
+        actual = test.get("actual_test", test["name"])
+        if (ROOT / test["file"]).is_file():
+            assertion = f"[`{actual}`](../../{test['file']})"
+        else:
+            issue_link = f"https://github.com/cntryl/cassie/issues/{test['issue']}"
+            assertion = (
+                f"`{actual}` (no current source at `{test['file']}`; "
+                f"see [#{test['issue']}]({issue_link}))"
+            )
+        lines.append(
+            f"| #{test['issue']} | `{test['suite']}/{test['category']}` | "
+            f"`{test['name']}` | {assertion} | {test['status']} | "
+            f"{test['execution_status']} |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def main():

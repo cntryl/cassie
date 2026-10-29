@@ -3,27 +3,6 @@
 use super::super::support_pgwire as wire;
 use super::super::support_type_metadata_contract as fixture;
 
-fn binary_data_row(fields: &[Option<&[u8]>]) -> Vec<u8> {
-    let mut row = i16::try_from(fields.len())
-        .expect("array slice result field count")
-        .to_be_bytes()
-        .to_vec();
-    for field in fields {
-        match field {
-            Some(bytes) => {
-                row.extend_from_slice(
-                    &i32::try_from(bytes.len())
-                        .expect("array slice result field length")
-                        .to_be_bytes(),
-                );
-                row.extend_from_slice(bytes);
-            }
-            None => row.extend_from_slice(&(-1_i32).to_be_bytes()),
-        }
-    }
-    row
-}
-
 #[test]
 fn should_preserve_nondefault_bounds_in_int4_array_text_bind() {
     // Arrange

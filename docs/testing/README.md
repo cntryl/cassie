@@ -15,7 +15,7 @@ and current product scope from the [Product Roadmap](../product-roadmap.md).
 | --- | --- |
 | [Summary and owner index](summary.md) | Current counts, every owner page, Cargo registrations, files over their size limit |
 | [Every existing file](files.md) | Current file, role, size, test count, registered suites, selected destinations and migration action |
-| [Reconciled backfill tests](planned-tests.md) | Each inventory `should_…_given_…_when_…` name, issue, actual assertion and authoring/execution status |
+| [Reconciled backfill tests](planned-tests.md) | Each inventory name, issue, current assertion source when present, and separate authoring/execution status; missing source paths link to their owner issue |
 | [Machine-readable inventory](inventory.json) | Every existing declaration, source location, full registered test identities and selected placement, plus every reconciled backfill item |
 | [Editable backfill list](planned-tests.json) | The editable issue-to-assertion ledger |
 | [Owner assertion anchors](owner-assertions.md) | Representative test links from the 2026-10-15 owner snapshot |

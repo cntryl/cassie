@@ -20,11 +20,30 @@ for each SQL capability's current status.
 
 ## Current checkpoint — 2026-10-29
 
-The current candidate branch is `audit/v03-842-composite-index-restart-20261029`, based on merged main `75dd92692549a8dbc884158e98c86823d48c9a12` (PR #1114, after PR #1104).
+The current candidate branch is `audit/v03-826-cancel-refresh-20261029`, based on merged main `3eb621c640cd1df0e95a43819fd4735c013659dd` (PR #1115).
 The owner moved #833's broader protocol, concurrency and catalog qualification
 to v1.0 after
 reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
 named enums #827 to v0.4.
+
+This candidate fixes cleanup when concurrent materialized-view refresh is
+cancelled after replacement output and copied indexes are built but before
+activation. The failed candidate is recorded, its physical output and copied
+indexes are removed, and the prior output remains active. An injected
+pre-publication error exercises the same cleanup path. Cancellation arriving
+while activation metadata is being prepared is checked again before publication.
+A local-storage test restarts after cancellation, confirms the failed candidate
+and previous output recover correctly, then completes a subsequent refresh.
+These five deterministic unit tests passed 5/5; the focused materialized-view
+compatibility group passed 23/23 runnable cases with 2 explicit access-method
+cases ignored. The final activation interruption check is the cooperative
+cancellation boundary: a cancellation observed before it aborts and cleans the
+candidate; one arriving after it may race with successful synchronous
+publication, consistent with staged writes. A deterministic probe covers both
+sides of that boundary. The previous full gate passed 9,847/0/12 before this
+last boundary fix and its two additional probes; exact-tree qualification is in
+progress. GitHub Actions remain disabled, so hosted checks are unavailable and
+are not claimed as passed.
 
 PR #1092 merged as `708c0e377b8ccc0ae7a4285b33964faf80100333`; its #839
 regression `should_keep_unique_enforcement_after_using_type_rewrite_restart`
@@ -35,7 +54,7 @@ and after local restart. PR #1094 merged as
 relation identity through `pg_class`, `pg_attribute`, `regclass`, rename,
 refresh and restart. The selected #842 partial-index restart regression
 verifies committed entry changes remain queryable and match an independent
-scan. PR #1103 added the #842 `lower(email)` restart witness and stabilized the pgwire cancellation test after a full-suite timeout. PR #1104 merged the #839 child-owned foreign-key rollback witness; the committed-drop restart path already had a separate witness. PR #1114 merged the #839 combined `NUMERIC(20,0) USING` conversion and literal-default column addition restart witness. This candidate adds local-restart evidence for a composite secondary index built over populated rows and maintained through writes. PR #1095 added separate FK table-CASCADE tests for transaction rollback
+scan. PR #1103 added the #842 `lower(email)` restart witness and stabilized the pgwire cancellation test after a full-suite timeout. PR #1104 merged the #839 child-owned foreign-key rollback witness; the committed-drop restart path already had a separate witness. PR #1114 merged the #839 combined `NUMERIC(20,0) USING` conversion and literal-default column addition restart witness. PR #1115 added local-restart evidence for a composite secondary index built over populated rows and maintained through writes. PR #1095 added separate FK table-CASCADE tests for transaction rollback
 and committed restart; the executor behavior was already present, so that was a
 coverage and documentation correction, not a runtime change. Its touched-file
 validator reports **15/15 compliant**.

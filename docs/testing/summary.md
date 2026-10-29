@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1570 |
 | Rust files | 1538 |
-| Rust test declarations | 8343 |
+| Rust test declarations | 8344 |
 | Python test declarations | 21 |
-| Static Rust registration instances | 8471 |
+| Static Rust registration instances | 8472 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
@@ -53,7 +53,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 4 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 388 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 389 | 0 |
 | [sql_queries](inventory/sql_queries.md) | 1739 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |

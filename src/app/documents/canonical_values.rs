@@ -1,5 +1,5 @@
 use crate::catalog::FieldMeta;
-use crate::types::DataType;
+use crate::types::{extended::ExtendedType, DataType};
 
 /// Rewrites typed text values in `payload` to the canonical form storage
 /// persists, before validation, UNIQUE checks, staging and RETURNING see it.
@@ -8,6 +8,7 @@ use crate::types::DataType;
 ///   such as `'x  '` fit `CHAR(1)`, as PostgreSQL allows.
 /// - `DATE`, `TIME` and `TIMESTAMP` use the shared temporal canonical forms.
 /// - `UUID` becomes lowercase hyphenated text and `BYTEA` lowercase hex.
+/// - `NUMERIC` JSON values use their typmod-aware decimal text storage form.
 ///
 /// Values that do not parse are left unchanged so schema validation reports
 /// them with its usual error.
@@ -16,6 +17,16 @@ pub(super) fn canonicalize_typed_values(fields: &[FieldMeta], payload: &mut serd
         return;
     };
     for field in fields {
+        if let DataType::Extended(kind @ ExtendedType::Numeric(_)) = field.data_type {
+            let canonical_numeric = object
+                .get(&field.name)
+                .and_then(|value| kind.from_json(value).ok())
+                .map(|typed| typed.to_json());
+            if let Some(canonical_numeric) = canonical_numeric {
+                object.insert(field.name.clone(), canonical_numeric);
+            }
+            continue;
+        }
         let Some(serde_json::Value::String(text)) = object.get_mut(&field.name) else {
             continue;
         };

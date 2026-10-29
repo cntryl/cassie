@@ -18,6 +18,33 @@ for each SQL capability's current status.
 - GitHub Actions remain disabled. Local evidence is reported as local; hosted
   checks are unavailable.
 
+## Current checkpoint — 2026-10-28
+
+The complete default locked suite now passes on the current release-work branch
+based on main `364b801f`: **9,813 passed, 0 failed, 12 ignored** across 35
+targets. The ordered `cargo build --locked --bin cassie`, `cargo test --locked`,
+strict full pedantic Clippy, formatting check, and touched-test validation pass.
+The test count aggregates the workspace test targets. This supersedes the
+2026-10-22 failure inventory and its statement that the full suite is still
+failing; those results remain as historical baseline evidence below.
+
+The new #839 regression `should_keep_unique_enforcement_after_using_type_rewrite_restart`
+reproduces a numeric UNIQUE bypass before the fix and passes after typmod-aware
+NUMERIC input canonicalization. It checks value and NULL preservation, NUMERIC
+OID/typmod after local restart, and named UNIQUE enforcement before and after
+restart. The touched-file validator reports **11/11 compliant**. The 13-case
+`foreign_key_ddl_lifecycle` group and the earlier 13-case
+`issue_839_atomic_lifecycle` compatibility group passed before this regression
+was added; the final workspace run also passes with the new case included. The
+five failures listed in the older identity delta have been superseded.
+
+The nested `cpu_identity` stress harness prints `failed quality (no benchmark
+rows)` inside a passing Cargo test target. This is not benchmark qualification.
+Release readiness remains incomplete: the selected local-development/client
+workflows and release-commit browser, benchmark, and disk-backed operational
+evidence still need their own exact-head qualification. Actions remain disabled,
+so hosted checks and publication are unavailable.
+
 ## Baseline discovery
 
 The initial complete discovery run executed on 2026-10-21 from

@@ -373,3 +373,49 @@ fn should_commit_added_literal_default_backfill_without_other_staged_writes() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_reject_mixed_simple_query_ddl_before_execution() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("mixed_simple_query_ddl_preflight").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let mixed_query = client
+            .batch_execute(
+                "CREATE TABLE compat_mixed_simple_query_ddl \
+                 (id INT PRIMARY KEY, value TEXT UNIQUE); \
+                 INSERT INTO compat_mixed_simple_query_ddl \
+                 VALUES (1, 'duplicate'), (2, 'duplicate')",
+            )
+            .await;
+        let mixed_query_sqlstate = mixed_query
+            .as_ref()
+            .err()
+            .map(|error| db_error(error).code().code().to_owned());
+        let table_count: i64 = client
+            .query_one(
+                "SELECT count(*) FROM information_schema.tables \
+                 WHERE table_schema = 'public' \
+                   AND table_name = 'compat_mixed_simple_query_ddl'",
+                &[],
+            )
+            .await
+            .expect("read the catalog after the rejected Simple Query")
+            .get(0);
+        let recovered_value: i32 = client
+            .query_one("SELECT 1", &[])
+            .await
+            .expect("read after the preflight rejection")
+            .get(0);
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(mixed_query_sqlstate.as_deref(), Some("0A000"));
+        assert_eq!(table_count, 0);
+        assert_eq!(recovered_value, 1);
+    });
+}

@@ -10,6 +10,19 @@ relational contract or close #761.
 > current GitHub issue state, or an active full-parity product goal. PostgreSQL
 > 18.6 observations are reference evidence for selected behaviors only.
 
+## 2026-10-28 — #833 standalone DDL preflight
+
+A focused pgwire probe sent `CREATE TABLE` followed by `INSERT` in one
+`batch_execute` Simple Query. Cassie returned SQLSTATE `0A000` with
+`DDL and catalog operations require a standalone Query`, before creating the
+table. This matches the selected [wire transaction contract](../pgwire-transaction-contract.md),
+which rejects mixed Simple Query messages containing DDL before execution. The
+regression `should_reject_mixed_simple_query_ddl_before_execution` asserts the
+table is absent and the same connection accepts a follow-up query; it passed
+1/1. The initial positive mixed-query expectation was outside the documented
+profile, so no runtime behavior changed. This is one negative boundary case and
+does not complete #833 or qualify a release candidate.
+
 ## 2026-10-28 — #842 partial scalar-index write maintenance
 
 Added `should_maintain_partial_index_entries_through_predicate_changing_writes`

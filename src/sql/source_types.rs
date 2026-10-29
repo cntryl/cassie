@@ -70,10 +70,7 @@ pub(crate) fn source_field_type_map_with_parameters(
             }
             fields
         }
-        ast::QuerySource::Collection(collection) => catalog
-            .get_schema(collection)
-            .map(|schema| field_type_map(schema.fields.iter()))
-            .unwrap_or_default(),
+        ast::QuerySource::Collection(collection) => collection_field_type_map(collection, catalog),
         ast::QuerySource::TableSample { source, .. } => {
             source_field_type_map_with_parameters(source, ctes, catalog, parameter_types)
         }
@@ -116,5 +113,16 @@ pub(crate) fn source_field_type_map_with_parameters(
         .map(|schema| field_type_map(schema.fields.iter()))
         .unwrap_or_default(),
         ast::QuerySource::TableFunction { .. } | ast::QuerySource::SingleRow => FieldTypeMap::new(),
+    }
+}
+
+fn collection_field_type_map(collection: &str, catalog: &crate::catalog::Catalog) -> FieldTypeMap {
+    if crate::catalog::virtual_views::borrowed_information_schema_tables(collection).is_some() {
+        FieldTypeMap::new()
+    } else {
+        catalog
+            .get_schema(collection)
+            .map(|schema| field_type_map(schema.fields.iter()))
+            .unwrap_or_default()
     }
 }

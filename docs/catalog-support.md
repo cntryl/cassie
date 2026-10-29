@@ -28,6 +28,11 @@ SQLSTATE `42P01`; Cassie does not synthesize undocumented PostgreSQL-internal ro
 
 Rows are scoped to the connected database and reflect create, rename, drop, and restart hydration.
 The sqlx 0.8.3 and Diesel 2.2.6 retained probes use this view for named table discovery.
+For selected bare, qualified and aliased predicates, an unspecified parameter
+compared with `table_name` infers Cassie's declared `TEXT` type (OID 25).
+PostgreSQL 18.6 instead infers its `name` type (OID 19); this does not claim
+parameter-type identity parity. Qualified parameter inference across mixed
+unaliased joins remains open under [#780](https://github.com/cntryl/cassie/issues/780).
 
 ### `information_schema.columns`
 

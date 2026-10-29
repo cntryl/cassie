@@ -48,6 +48,14 @@ graphical plan rendering, and primary-key grid editing still require separately 
 pgAdmin and DBeaver desktop runners. No such repository runner is currently available, so those
 gates and exact-revision live artifacts remain open.
 
+## psql and tokio-postgres workflows
+
+The selected psql 16.6 and tokio-postgres 0.7.18 read-model workflows cover
+named table discovery, a join, commit and rollback, and a successful query on
+the same backend after duplicate-key and missing-relation errors in
+idle/autocommit mode. They do not qualify failed explicit transactions,
+savepoints, the remaining client matrix, or full PostgreSQL wire parity.
+
 ## sqlx workflow
 
 The `sqlx` lane builds the isolated, locked fixture in `tests/fixtures/sqlx_probe` and connects

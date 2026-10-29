@@ -158,3 +158,6 @@ include!("semantics.rs");
 include!("metadata.rs");
 
 include!("recovery.rs");
+
+#[path = "named_workflow.rs"]
+mod named_workflow;

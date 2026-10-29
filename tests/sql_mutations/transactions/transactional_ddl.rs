@@ -15,6 +15,9 @@ mod catalog_snapshot;
 #[path = "restart_publication.rs"]
 mod restart_publication;
 
+#[path = "rebuild_swap.rs"]
+mod rebuild_swap;
+
 fn visible_materialized_view(cassie: &Cassie, session: &CassieSession) -> Vec<Vec<Value>> {
     cassie
         .execute_sql(

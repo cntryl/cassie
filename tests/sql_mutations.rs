@@ -201,3 +201,6 @@ mod scalar_index_rename;
 
 #[path = "sql_mutations/ddl/like_composite_primary_key.rs"]
 mod like_composite_primary_key;
+
+#[path = "sql_mutations/ddl/rebuild_swap_restart.rs"]
+mod rebuild_swap_restart;

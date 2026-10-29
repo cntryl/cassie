@@ -145,6 +145,8 @@ mod catalogs_settings;
 
 #[path = "catalog_security/catalogs/catalog_read_models.rs"]
 mod catalog_read_models;
+#[path = "catalog_security/catalogs/information_schema_restart_scope.rs"]
+mod information_schema_restart_scope;
 
 #[path = "support/catalog_directory.rs"]
 mod support_catalog_directory;

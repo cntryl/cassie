@@ -72,6 +72,11 @@ OID compatibility, or hosted PostgreSQL behavior.
 
 - `catalog_introspection` in `tests/catalog_security.rs` covers table discovery, complete column
   order after restart, and rename/drop visibility after restart.
+- `should_preserve_database_scoped_information_schema_after_drop_restart` creates
+  same-named tables with different metadata in two databases, renames and drops one,
+  then reopens local storage in a child explicitly configured for local mode. It checks table
+  and column absence only in the changed database and preserved type, default, nullability
+  and ordinal values in the other.
 - `catalog_orm_metadata` in `tests/catalog_security.rs` covers the complete supported column shape,
   defaults, nullability, and type metadata.
 - `compatibility_matrix` in `tests/compatibility.rs` verifies pgwire SQLSTATE `42P01` and relation

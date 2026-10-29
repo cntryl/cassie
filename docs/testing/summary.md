@@ -4,18 +4,18 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1559 |
-| Rust files | 1527 |
-| Rust test declarations | 8406 |
-| Python test declarations | 19 |
-| Static Rust registration instances | 8534 |
+| Files under `tests/` | 1568 |
+| Rust files | 1536 |
+| Rust test declarations | 8322 |
+| Python test declarations | 21 |
+| Static Rust registration instances | 8450 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
 | Duplicate registered test identities | 0 |
 | Repeated module registrations | 0 |
-| Files with a reviewed physical placement | 1326 |
+| Files with a reviewed physical placement | 1333 |
 | Targets absent from exactly one CI shard | 0 |
 | Existing files over their line limit | 0 |
 | Destination name conflicts | 0 |
@@ -32,7 +32,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [backend_ci](inventory/backend_ci.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 323 | 0 |
-| [compatibility](inventory/compatibility.md) | 377 | 0 |
+| [compatibility](inventory/compatibility.md) | 387 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |
@@ -44,7 +44,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [parser_types](inventory/parser_types.md) | 402 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 3729 | 8 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 3599 | 8 |
 | [planner_controls](inventory/planner_controls.md) | 123 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 76 | 0 |
@@ -53,14 +53,14 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 4 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 341 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 376 | 0 |
 | [sql_queries](inventory/sql_queries.md) | 1739 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
-| [storage_indexes](inventory/storage_indexes.md) | 184 | 0 |
+| [storage_indexes](inventory/storage_indexes.md) | 185 | 0 |
 | [support](inventory/support.md) | 8 | 0 |
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
-| [test_inventory](inventory/test_inventory.md) | 3 | 0 |
+| [test_inventory](inventory/test_inventory.md) | 5 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |
 | [vector_embeddings](inventory/vector_embeddings.md) | 169 | 0 |
 
@@ -122,7 +122,6 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | `tests/pgwire_extended/grammar/values_casts_uuid.rs` | 849 | 24 |
 | `tests/pgwire_extended/type_resolution/output_source_seams.rs` | 852 | 14 |
 | `tests/pgwire_extended/types/bit_bytea/casts_int8.rs` | 812 | 45 |
-| `tests/pgwire_extended/types/json/operator_overload/semantics.rs` | 852 | 31 |
 | `tests/sql_mutations/insert/insert_values.rs` | 819 | 20 |
 | `tests/sql_queries/aggregates/windows/aggregate_query/semantics.rs` | 822 | 23 |
 | `tests/sql_queries/functions/temporal/temporal_functions.rs` | 816 | 58 |

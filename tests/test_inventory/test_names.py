@@ -8,10 +8,52 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
-from test_inventory import clean_name
+from test_inventory import clean_name, is_test_inventory_file, render_planned_tests
 
 
 class InventoryNameTests(unittest.TestCase):
+    def should_exclude_python_bytecode_from_the_test_file_inventory(self):
+        # Arrange
+        bytecode = ROOT / "tests/test_inventory/__pycache__/test_names.cpython-312.pyc"
+        source = ROOT / "tests/test_inventory/test_names.py"
+
+        # Act
+        bytecode_is_inventory = is_test_inventory_file(bytecode)
+        source_is_inventory = is_test_inventory_file(source)
+
+        # Assert
+        self.assertFalse(bytecode_is_inventory)
+        self.assertTrue(source_is_inventory)
+
+    def should_link_owner_issue_for_backfill_rows_without_a_current_source(self):
+        # Arrange
+        planned = [
+            {
+                "issue": 799,
+                "suite": "storage_indexes",
+                "category": "text_search",
+                "name": "should_rebuild_indexed_lexemes",
+                "actual_test": "should_rebuild_indexed_lexemes",
+                "file": "tests/storage_indexes/text_search/missing.rs",
+                "status": "authored",
+                "execution_status": "failed_observed",
+            }
+        ]
+
+        # Act
+        rendered = render_planned_tests(planned)
+
+        # Assert
+        self.assertIn("no current source at", rendered)
+        self.assertIn(
+            "[#799](https://github.com/cntryl/cassie/issues/799)",
+            rendered,
+        )
+        self.assertNotIn(
+            "](../../tests/storage_indexes/text_search/missing.rs)",
+            rendered,
+        )
+
     def should_select_the_earliest_valid_wave_suffix(self):
         # Arrange
         cases = [

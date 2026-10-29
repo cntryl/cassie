@@ -4754,6 +4754,47 @@ errors. `cntryl-tools validate-docs` validated 126 Markdown documents, and
 `git diff --check` passed. GitHub Actions remain disabled, so hosted checks are
 unavailable and are not claimed as passed.
 
+## 2026-10-29 — #826 concurrent-refresh cancellation cleanup
+
+The deterministic unit regressions cancel `REFRESH MATERIALIZED VIEW
+CONCURRENTLY` before activation, inject an activation failure before
+publication, cancel after activation metadata is prepared but before the final
+interruption check, verify a cancellation arriving immediately after that check
+can complete publication, and repeat cancellation with local storage followed
+by restart. The first cancellation and activation-failure regressions failed
+red because the candidate stayed `Built`. The pre-check cancellation probe
+failed red because the refresh returned success and published the candidate.
+The implementation checks interruption immediately before metadata
+publication, then discards unpublished output/indexes and marks the candidate
+failed on any observed activation error.
+
+All five focused unit regressions passed **5/5**, including the documented
+cooperative boundary, restored rows, index state, and a successful refresh
+after restart. The materialized-view compatibility group passed **23 passed / 0
+failed / 2 ignored**; the ignored cases explicitly exercise unsupported
+access-method behavior. The ordered exact-tree gate passed on base
+`a4e5ec52566b4032c0a1e617e0b95d09c77107af`: `cargo build --locked --bin cassie`;
+`cargo test --locked` (**9,853 passed / 0 failed / 12 ignored across 35
+targets**, plus successful doc-tests); strict workspace/all-target/all-feature
+pedantic Clippy; and `cargo fmt --all -- --check`. The touched-test validator
+passed **5/5**; `cntryl-tools validate-docs` validated 126 Markdown documents.
+The generated inventory check passed with 8,350 Rust declarations and 8,478
+registered instances, with no unregistered tests, unresolved modules, duplicate
+identities, shard errors or oversized files. GitHub Actions remain disabled;
+hosted checks are unavailable and are not claimed as passed.
+
+Jev's initial adversarial gap probability was **0.43**; red/green probes covered
+cancellation and injected pre-publication activation failure. The follow-up was
+**0.44**, so a local-storage restart probe was added and passed. Jev's next
+estimate was **0.34**; source tracing then motivated the deterministic
+pre-publication cancellation probe, which exposed the missing final interruption
+check. A follow-up estimate was **0.42**. The ranked boundary probe selected
+cancellation after the final check; the new passing test and matching staged-
+write checks support treating this as the cooperative publication boundary.
+Jev's typed questions and responses are retained under ignored
+`target/jev/v03-826-cancel-refresh/`. GitHub Actions remain disabled; hosted
+checks are unavailable and are not claimed as passed.
+
 ## 2026-10-29 — #842 composite secondary-index restart
 
 `should_recover_composite_index_entries_after_committed_writes_on_restart`

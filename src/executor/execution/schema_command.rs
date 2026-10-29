@@ -856,6 +856,8 @@ fn alter_table_set_schema(
             "collection '{next_table}' already exists"
         )));
     }
+    let sequence_move =
+        schema_sequence_rename::prepare_owned_table_sequence_move(cassie, table, &next_table)?;
 
     cassie
         .midge
@@ -870,7 +872,7 @@ fn alter_table_set_schema(
             .rename_transaction_collections(&[(table.to_owned(), next_table.clone())])
             .map_err(QueryError::Cassie)?;
     }
-    schema_sequence_rename::rename_owned_table_sequences(cassie, &next_table)?;
+    schema_sequence_rename::move_owned_table_sequences(cassie, sequence_move)?;
     schema_graph_rename::rename_graph_tables(cassie, table, &next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, &next_table)?;
     cassie

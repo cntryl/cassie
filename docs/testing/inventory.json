@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1568,
-    "rust_files": 1536,
-    "rust_test_declarations": 8322,
+    "files": 1569,
+    "rust_files": 1537,
+    "rust_test_declarations": 8329,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8450,
+    "registered_rust_instances": 8457,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -187515,6 +187515,223 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/schema_move_sequences.rs::should_move_explicitly_owned_sequence_with_table_schema",
+      "name": "should_move_explicitly_owned_sequence_with_table_schema",
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "line": 24,
+      "end_line": 100,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "schema_move_sequences::should_move_explicitly_owned_sequence_with_table_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/schema_move_sequences.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/schema_move_sequences.rs::should_reject_table_schema_move_when_owned_sequence_name_conflicts",
+      "name": "should_reject_table_schema_move_when_owned_sequence_name_conflicts",
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "line": 201,
+      "end_line": 244,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "schema_move_sequences::should_reject_table_schema_move_when_owned_sequence_name_conflicts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/schema_move_sequences.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/schema_move_sequences.rs::should_reject_table_schema_move_when_target_sequence_name_exists",
+      "name": "should_reject_table_schema_move_when_target_sequence_name_exists",
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "line": 247,
+      "end_line": 290,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "schema_move_sequences::should_reject_table_schema_move_when_target_sequence_name_exists"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/schema_move_sequences.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/schema_move_sequences.rs::should_move_quoted_owned_sequence_with_table_schema",
+      "name": "should_move_quoted_owned_sequence_with_table_schema",
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "line": 293,
+      "end_line": 351,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "schema_move_sequences::should_move_quoted_owned_sequence_with_table_schema"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/schema_move_sequences.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/schema_move_sequences.rs::should_move_serial_sequence_without_sequence_owner_metadata",
+      "name": "should_move_serial_sequence_without_sequence_owner_metadata",
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "line": 354,
+      "end_line": 414,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "schema_move_sequences::should_move_serial_sequence_without_sequence_owner_metadata"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/schema_move_sequences.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/schema_move_sequences.rs::should_rollback_cross_table_default_rewrite_when_owned_sequence_move_rolls_back",
+      "name": "should_rollback_cross_table_default_rewrite_when_owned_sequence_move_rolls_back",
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "line": 417,
+      "end_line": 460,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "schema_move_sequences::should_rollback_cross_table_default_rewrite_when_owned_sequence_move_rolls_back"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/schema_move_sequences.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/schema_move_sequences.rs::should_rewrite_other_table_defaults_when_owned_sequence_moves",
+      "name": "should_rewrite_other_table_defaults_when_owned_sequence_moves",
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "line": 463,
+      "end_line": 504,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "schema_move_sequences::should_rewrite_other_table_defaults_when_owned_sequence_moves"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "sequences",
+        "directory": "tests/sql_mutations/sequences",
+        "file": "tests/sql_mutations/sequences/schema_move_sequences.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/delete/semantics.rs::should_execute_delete_where_returning_rows",
       "name": "should_execute_delete_where_returning_rows",
       "current_file": "tests/sql_mutations/delete/semantics.rs",
@@ -276702,6 +276919,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/ddl/schema_move_sequences.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 504,
+      "sha256": "f10c4066041e755330ab29324eaac2c1f4f1c1048c3eec20d132ae2a1fdc7074",
+      "test_declarations": 7,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/sequences/schema_move_sequences.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/delete/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -277318,8 +277550,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 200,
-      "sha256": "82033b80f840fd64699c0b5d3c08322e2b112283a22c4bd1aa092f83c2d75fda",
+      "lines": 203,
+      "sha256": "e33800aaa5a19ab33ca707cfa4ee3a86ed4d3018f1ccc2154d79be47f6466e93",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

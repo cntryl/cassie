@@ -4,6 +4,8 @@ use super::*;
 mod drop_index_if_exists_scope;
 #[path = "expression_index_definition.rs"]
 mod expression_index_definition;
+#[path = "expression_index_rollback.rs"]
+mod expression_index_rollback;
 #[path = "generated_index_name.rs"]
 mod generated_index_name;
 #[path = "included_partial_indexes.rs"]

@@ -80,7 +80,7 @@ explicitly when a gate slips.
 | Target date | Gate | Exit condition | Status |
 | --- | --- | --- | --- |
 | 2026-10-23 | Replay contract | Prove that the owning database-family row batch can commit before the replay-state transaction, that ledger and checkpoint commit together, and that same-batch retry handles both an aborted replay-state commit and an error response after a successful replay-state commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
-| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open; the [issue map](v0.3-scope-map.md) was refreshed against 2026-10-29 GitHub state. After eight deferrals, v0.3 has 16 members (5 open, 11 closed). Selected client/COPY criteria are recorded in #817/#821/#846; #819 and #823 are deferred with their finite boundaries recorded, and #826 now owns the selected lifecycle and rebuild criteria separated from #839. Closed `NOT_PLANNED` #777/#780 do not establish client or wire acceptance. |
+| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Open; the [issue map](v0.3-scope-map.md) was refreshed against 2026-10-29 GitHub state. After eight deferrals, v0.3 has 16 members (7 open, 9 closed). At the user's direction #780 was reopened for wire qualification and its incomplete #777 client/catalog prerequisite was also reopened. Selected client/COPY criteria remain in #817/#821/#846; #819 and #823 are deferred, and #826 owns the selected lifecycle and rebuild criteria separated from #839. |
 
 The replay recovery proof is complete locally; this does not establish a hosted
 pass. If later changes invalidate the proof, keep the v0.3 target visibly at risk
@@ -154,10 +154,11 @@ relational pipeline; that pipeline remains Planned.
    state, providers, ANN/text/hybrid/graph/time-series and portable kernel laws.
    Retain #763's completed finite Data-family statement-view and immutable-overlay
    prerequisite from [PR #871](https://github.com/cntryl/cassie/pull/871), commit
-   `ce72a23f2d0a3cdb9a811107aec7629151fcd319`; full #819/#833 isolation and
-   transactional-catalog acceptance remains within the projection-store and
-   production milestones under the owning issue criteria; the former parity
-   program is closed and is not a dependency.
+   `ce72a23f2d0a3cdb9a811107aec7629151fcd319`. Selected same-family
+   transactional-catalog runtime remains in the projection-store scope; broader
+   #833 qualification belongs to v1.0. Higher isolation and wider conflict-wait
+   features remain open under #819 without a selected milestone. The former
+   parity program is closed and is not a dependency.
 5. Compatibility and release evidence: [#777](https://github.com/cntryl/cassie/issues/777)–[#780](https://github.com/cntryl/cassie/issues/780) qualify the completed selected
    client/wire/control/cross-path subset; [#8](https://github.com/cntryl/cassie/issues/8) owns native operational objectives
    and repeated evidence, [#29](https://github.com/cntryl/cassie/issues/29) owns local diagnostic promotion after [#8](https://github.com/cntryl/cassie/issues/8), and [#781](https://github.com/cntryl/cassie/issues/781)

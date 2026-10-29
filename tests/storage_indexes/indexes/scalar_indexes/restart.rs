@@ -509,6 +509,103 @@ fn should_recover_partial_index_entries_after_committed_writes_on_restart() {
 }
 
 #[test]
+fn should_recover_composite_index_entries_after_committed_writes_on_restart() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("composite_index_entries_restart");
+    {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        for statement in [
+            "CREATE TABLE sql_composite_index_entries_restart \
+               (id INT PRIMARY KEY, tenant_id TEXT NOT NULL, status TEXT NOT NULL, payload TEXT)",
+            "INSERT INTO sql_composite_index_entries_restart VALUES \
+               (1, 'tenant-a', 'open', 'move-in'), \
+               (2, 'tenant-a', 'closed', 'delete'), \
+               (3, 'tenant-b', 'closed', 'other-tenant'), \
+               (4, 'tenant-a', 'open', 'move-out'), \
+               (6, 'tenant-a', 'closed', 'existing')",
+            "CREATE INDEX sql_composite_index_entries_restart_idx \
+               ON sql_composite_index_entries_restart (tenant_id, status)",
+            "UPDATE sql_composite_index_entries_restart \
+               SET status = 'closed', payload = 'moved-in' WHERE id = 1",
+            "UPDATE sql_composite_index_entries_restart \
+               SET tenant_id = 'tenant-b', status = 'closed' WHERE id = 4",
+            "DELETE FROM sql_composite_index_entries_restart WHERE id = 2",
+            "INSERT INTO sql_composite_index_entries_restart \
+               VALUES (5, 'tenant-a', 'closed', 'inserted')",
+        ] {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .unwrap_or_else(|error| panic!("execute {statement}: {error}"));
+        }
+    }
+
+    let restarted = Cassie::new_with_data_dir(&path).unwrap();
+    restarted.startup().unwrap();
+    let session = restarted.create_session("tester", None);
+
+    // Act
+    let indexed_rows = restarted
+        .execute_sql(
+            &session,
+            "SELECT id, payload FROM sql_composite_index_entries_restart \
+             WHERE tenant_id = 'tenant-a' AND status = 'closed' ORDER BY id",
+            vec![],
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+    let explain = restarted
+        .execute_sql(
+            &session,
+            "EXPLAIN SELECT id, payload \
+             FROM sql_composite_index_entries_restart \
+             WHERE tenant_id = 'tenant-a' AND status = 'closed' ORDER BY id",
+            vec![],
+        )
+        .unwrap();
+    let Value::String(plan) = &explain.rows()[0][0] else {
+        panic!("expected textual plan");
+    };
+    restarted
+        .execute_sql(
+            &session,
+            "DROP INDEX sql_composite_index_entries_restart_idx",
+            vec![],
+        )
+        .unwrap();
+    let scanned_rows = restarted
+        .execute_sql(
+            &session,
+            "SELECT id, payload FROM sql_composite_index_entries_restart \
+             WHERE tenant_id = 'tenant-a' AND status = 'closed' ORDER BY id",
+            vec![],
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert!(
+        plan.contains("sql_composite_index_entries_restart_idx"),
+        "the hydrated composite index should serve its matching query: {plan}"
+    );
+    assert_eq!(
+        indexed_rows,
+        vec![
+            vec![Value::Int64(1), Value::String("moved-in".to_owned())],
+            vec![Value::Int64(5), Value::String("inserted".to_owned())],
+            vec![Value::Int64(6), Value::String("existing".to_owned())],
+        ]
+    );
+    assert_eq!(scanned_rows, indexed_rows);
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_recover_expression_index_after_committed_rekey() {
     // Arrange
     use_local_storage();

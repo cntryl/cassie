@@ -20,7 +20,7 @@ for each SQL capability's current status.
 
 ## Current checkpoint — 2026-10-29
 
-The current candidate branch is `audit/v03-839-multiaction-restart-20261029`, based on merged main `c390e0f24fd76e2a3e3c1fbf946716f365523cd6` (PR #1104, after PR #1103).
+The current candidate branch is `audit/v03-842-composite-index-restart-20261029`, based on merged main `75dd92692549a8dbc884158e98c86823d48c9a12` (PR #1114, after PR #1104).
 The owner moved #833's broader protocol, concurrency and catalog qualification
 to v1.0 after
 reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
@@ -35,7 +35,7 @@ and after local restart. PR #1094 merged as
 relation identity through `pg_class`, `pg_attribute`, `regclass`, rename,
 refresh and restart. The selected #842 partial-index restart regression
 verifies committed entry changes remain queryable and match an independent
-scan. PR #1103 added the #842 `lower(email)` restart witness and stabilized the pgwire cancellation test after a full-suite timeout. PR #1104 merged the #839 child-owned foreign-key rollback witness; the committed-drop restart path already had a separate witness. This candidate adds local-restart evidence for the combined `NUMERIC(20,0) USING` conversion and literal-default column addition. PR #1095 added separate FK table-CASCADE tests for transaction rollback
+scan. PR #1103 added the #842 `lower(email)` restart witness and stabilized the pgwire cancellation test after a full-suite timeout. PR #1104 merged the #839 child-owned foreign-key rollback witness; the committed-drop restart path already had a separate witness. PR #1114 merged the #839 combined `NUMERIC(20,0) USING` conversion and literal-default column addition restart witness. This candidate adds local-restart evidence for a composite secondary index built over populated rows and maintained through writes. PR #1095 added separate FK table-CASCADE tests for transaction rollback
 and committed restart; the executor behavior was already present, so that was a
 coverage and documentation correction, not a runtime change. Its touched-file
 validator reports **15/15 compliant**.
@@ -73,11 +73,11 @@ protocol; PostgreSQL 18.6 returned no notices for that transaction-local case.
 #839 remains open for its other lifecycle forms.
 
 The ordered local gate passes on this candidate branch: `cargo build --locked
---bin cassie`; `cargo test --locked` (**9,843 passed, 0 failed, 12 ignored
+--bin cassie`; `cargo test --locked` (**9,844 passed, 0 failed, 12 ignored
 across 35 targets**); strict full pedantic Clippy; `cargo fmt --all -- --check`;
-and touched-test validation (**11/11** for the combined ALTER lifecycle file).
+and touched-test validation (**8/8** for the scalar-index restart file).
 `cntryl-tools validate-docs` validates **126 Markdown documents**. The checked
-test inventory has 1,570 files, 8,345 Rust test declarations, 8,473
+test inventory has 1,570 files, 8,346 Rust test declarations, 8,474
 registered Rust instances, 21 Python test declarations, and 131 planned tests;
 it reports no unregistered tests, unresolved module paths, repeated
 registrations, duplicate identities, unsharded targets, or oversized files.

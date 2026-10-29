@@ -4753,3 +4753,25 @@ unregistered tests, unresolved module paths, duplicate identities, or shard
 errors. `cntryl-tools validate-docs` validated 126 Markdown documents, and
 `git diff --check` passed. GitHub Actions remain disabled, so hosted checks are
 unavailable and are not claimed as passed.
+
+## 2026-10-29 — #842 composite secondary-index restart
+
+`should_recover_composite_index_entries_after_committed_writes_on_restart`
+creates a composite secondary index over populated rows, changes indexed keys,
+deletes and inserts matching rows, and leaves an original matching row
+untouched to exercise index backfill. After reopening local storage, it verifies
+the eligible query selects the composite index and compares the rows with an
+independent scan after dropping the index. The focused test passed 1/1; this
+slice changes coverage and documentation only.
+
+The ordered local gate passed on branch
+`audit/v03-842-composite-index-restart-20261029`, based on merged main
+`75dd92692549a8dbc884158e98c86823d48c9a12`: build; full locked tests (9,844
+passed, 0 failed, 12 ignored across 35 targets; doc-tests passed with 0 tests);
+strict workspace/all-target/all-feature pedantic Clippy; formatting; and
+touched-test validation (8/8 compliant). The generated inventory check passed
+with 8,346 Rust declarations and 8,474 registered instances, with no
+unregistered tests, unresolved module paths, duplicate identities, or shard
+errors. `cntryl-tools validate-docs` validated 126 Markdown documents, and
+`git diff --check` passed. GitHub Actions remain disabled, so hosted checks are
+unavailable and are not claimed as passed.

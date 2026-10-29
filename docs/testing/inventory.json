@@ -230,9 +230,9 @@
     ],
     "files": 1570,
     "rust_files": 1538,
-    "rust_test_declarations": 8345,
+    "rust_test_declarations": 8346,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8473,
+    "registered_rust_instances": 8474,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -250724,11 +250724,42 @@
       }
     },
     {
+      "id": "tests/storage_indexes/indexes/scalar_indexes/restart.rs::should_recover_composite_index_entries_after_committed_writes_on_restart",
+      "name": "should_recover_composite_index_entries_after_committed_writes_on_restart",
+      "current_file": "tests/storage_indexes/indexes/scalar_indexes/restart.rs",
+      "line": 512,
+      "end_line": 606,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "integration_sql_scalar_indexes::should_recover_composite_index_entries_after_committed_writes_on_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "indexes/scalar_indexes",
+        "directory": "tests/storage_indexes/indexes/scalar_indexes",
+        "file": "tests/storage_indexes/indexes/scalar_indexes/restart.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/storage_indexes/indexes/scalar_indexes/restart.rs::should_recover_expression_index_after_committed_rekey",
       "name": "should_recover_expression_index_after_committed_rekey",
       "current_file": "tests/storage_indexes/indexes/scalar_indexes/restart.rs",
-      "line": 512,
-      "end_line": 602,
+      "line": 609,
+      "end_line": 699,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -281195,9 +281226,9 @@
       "current_file": "tests/storage_indexes/indexes/scalar_indexes/restart.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 602,
-      "sha256": "fe2b6cc809a1fad4b8af86b5a9ecec70a6a497142bc10f0c708286f4c19649d6",
-      "test_declarations": 7,
+      "lines": 699,
+      "sha256": "53ea7f65b8c9596607ad2ce810d02828d0df5420fb5be0825c00f7e82784836b",
+      "test_declarations": 8,
       "registered_suites": [
         "storage_indexes"
       ],

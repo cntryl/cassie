@@ -330,6 +330,16 @@ in [`restart.rs`](../tests/storage_indexes/indexes/scalar_indexes/restart.rs).
 This covers one persisted write-maintenance shape; broader scalar-index restart
 and index-shape qualification remains pending under [#842](https://github.com/cntryl/cassie/issues/842).
 
+### Composite scalar-index entry recovery
+
+A composite btree index created over populated rows retains its key updates,
+insertions, and deletions through local-storage restart. The matching query
+still selects the hydrated index and returns the same rows as an independent
+scan after the index is dropped. Evidence:
+[`should_recover_composite_index_entries_after_committed_writes_on_restart`](../tests/storage_indexes/indexes/scalar_indexes/restart.rs).
+This records one composite secondary-index restart witness; broader scalar-index
+shape and lifecycle qualification remains pending under [#842](https://github.com/cntryl/cassie/issues/842).
+
 ### Materialized-view rename
 
 `ALTER MATERIALIZED VIEW name RENAME TO new_local_name` renames a SQL

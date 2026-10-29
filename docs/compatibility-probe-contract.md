@@ -52,9 +52,12 @@ gates and exact-revision live artifacts remain open.
 
 The `sqlx` lane builds the isolated, locked fixture in `tests/fixtures/sqlx_probe` and connects
 over loopback pgwire. It verifies supported information-schema discovery, prepared positional
-parameters, a committed parameterized write, rollback visibility, and deterministic `23505`
-and `42P01` SQLSTATE mapping. The retained manifest records the requested Cassie revision and
-the exact `rustc` toolchain; it contains no connection URL or credentials.
+parameters, a committed parameterized write, a parameterized join, rollback visibility,
+and deterministic `23505` and `42P01` SQLSTATE mapping. It checks a successful read
+on the same backend session after each error in idle/autocommit mode. It does not
+qualify recovery inside a failed explicit transaction or after rollback to a savepoint.
+The retained manifest records the requested Cassie
+revision and the exact `rustc` toolchain; it contains no connection URL or credentials.
 
 This probe does not certify sqlx migrations, compile-time query macros, COPY, LISTEN/NOTIFY,
 PostgreSQL extensions or internal catalogs, non-default isolation modes, replication, or full
@@ -64,9 +67,13 @@ PostgreSQL compatibility. A client-version change requires a new retained probe 
 
 The `diesel` lane builds the isolated, locked fixture in `tests/fixtures/diesel_probe` and
 connects over loopback pgwire. It verifies supported information-schema discovery, bound SQL
-queries, a committed write, rollback visibility, unique-violation mapping, and deterministic
-missing-relation behavior. The retained manifest records the requested Cassie revision, exact
-`rustc` toolchain, Diesel version, profile, protocol mode, and outcome without credentials.
+queries, a committed write, a parameterized join, rollback visibility, unique-violation
+mapping, and deterministic missing-relation behavior. It checks a successful read on
+the same backend session after each error in idle/autocommit mode. It does not
+qualify recovery inside a failed explicit transaction or after rollback to a savepoint.
+The retained manifest records the requested Cassie
+revision, exact `rustc` toolchain, Diesel version, profile, protocol mode, and outcome without
+credentials.
 
 This probe does not certify Diesel migrations, schema generation, Diesel's typed query DSL,
 COPY, LISTEN/NOTIFY, PostgreSQL extensions or internal catalogs, non-default isolation modes,

@@ -44,22 +44,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .fetch_one(&pool)
         .await?;
 
+    let mut connection = pool.acquire().await?;
+    let backend_pid: i64 = sqlx::query_scalar("SELECT pg_backend_pid()::BIGINT")
+        .fetch_one(&mut *connection)
+        .await?;
+    assert!(backend_pid > 0, "backend identity must be nonzero");
+    let joined: String = sqlx::query_scalar(
+        "SELECT left_row.title FROM compat_sqlx_probe AS left_row \
+         JOIN compat_sqlx_probe AS right_row ON left_row.id = right_row.id \
+         WHERE right_row.id = $1",
+    )
+    .bind(1_i32)
+    .fetch_one(&mut *connection)
+    .await?;
+
     let duplicate = sqlx::query("INSERT INTO compat_sqlx_probe (id, title) VALUES ($1, $2)")
         .bind(3_i32)
         .bind("alpha")
-        .execute(&pool)
+        .execute(&mut *connection)
         .await
         .expect_err("duplicate unique value should fail");
+    let after_duplicate: String =
+        sqlx::query_scalar("SELECT title FROM compat_sqlx_probe WHERE id = $1")
+            .bind(1_i32)
+            .fetch_one(&mut *connection)
+            .await?;
+    let backend_after_duplicate: i64 = sqlx::query_scalar("SELECT pg_backend_pid()::BIGINT")
+        .fetch_one(&mut *connection)
+        .await?;
     let missing = sqlx::query("SELECT title FROM compat_sqlx_missing")
-        .execute(&pool)
+        .execute(&mut *connection)
         .await
         .expect_err("missing relation should fail");
+    let after_missing: String =
+        sqlx::query_scalar("SELECT title FROM compat_sqlx_probe WHERE id = $1")
+            .bind(1_i32)
+            .fetch_one(&mut *connection)
+            .await?;
+    let backend_after_missing: i64 = sqlx::query_scalar("SELECT pg_backend_pid()::BIGINT")
+        .fetch_one(&mut *connection)
+        .await?;
+    assert_eq!(backend_pid, backend_after_duplicate);
+    assert_eq!(backend_pid, backend_after_missing);
 
     println!("sqlx_catalog={catalog}");
     println!("sqlx_prepared={prepared}");
     println!("sqlx_transaction_row_count={row_count}");
     println!("sqlx_duplicate_sqlstate={}", sqlstate(&duplicate));
     println!("sqlx_missing_sqlstate={}", sqlstate(&missing));
+    println!("sqlx_joined={joined}");
+    println!("sqlx_after_duplicate={after_duplicate}");
+    println!("sqlx_after_missing={after_missing}");
+    println!("sqlx_same_session=true");
     Ok(())
 }
 

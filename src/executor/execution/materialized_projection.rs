@@ -19,6 +19,10 @@ use super::{
 use crate::midge::adapter::RootHashRecord;
 use crate::types::json::try_value_to_json;
 
+#[cfg(test)]
+#[path = "materialized_projection_test_support.rs"]
+pub(super) mod test_support;
+
 pub(super) use super::materialized_projection_maintenance::mark_source_projections_stale;
 
 pub(super) fn reject_write(cassie: &Cassie, relation: &str) -> Result<(), QueryError> {
@@ -605,8 +609,13 @@ pub(super) fn activate_projection_version(
         unsafe_override,
         last_error: None,
     };
+    #[cfg(test)]
+    test_support::cancel_activation_before_publication_if_armed();
     crate::executor::check_projection_activation_failure_point()
         .map_err(|error| QueryError::General(error.to_string()))?;
+    controls.check_interruption()?;
+    #[cfg(test)]
+    test_support::cancel_activation_after_interruption_check_if_armed();
     persist_projection_metadata(cassie, metadata)?;
     cassie.runtime.record_projection_swap(name.to_string());
     cassie

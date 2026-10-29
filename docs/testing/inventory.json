@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1570,
-    "rust_files": 1538,
-    "rust_test_declarations": 8346,
+    "files": 1574,
+    "rust_files": 1542,
+    "rust_test_declarations": 8350,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8474,
+    "registered_rust_instances": 8478,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -21867,6 +21867,37 @@
       }
     },
     {
+      "id": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs::should_publish_rebuild_swap_to_other_pgwire_sessions_only_after_commit",
+      "name": "should_publish_rebuild_swap_to_other_pgwire_sessions_only_after_commit",
+      "current_file": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs",
+      "line": 14,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::rebuild_swap::should_publish_rebuild_swap_to_other_pgwire_sessions_only_after_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/compatibility/lifecycle/ddl/recreate_relation.rs::should_recreate_relation_after_drop",
       "name": "should_recreate_relation_after_drop",
       "current_file": "tests/compatibility/lifecycle/ddl/recreate_relation.rs",
@@ -22146,6 +22177,37 @@
       }
     },
     {
+      "id": "tests/compatibility/lifecycle/indexes/expression_index_rollback.rs::should_preserve_expression_index_scan_equivalence_through_transaction_resolution",
+      "name": "should_preserve_expression_index_scan_equivalence_through_transaction_resolution",
+      "current_file": "tests/compatibility/lifecycle/indexes/expression_index_rollback.rs",
+      "line": 86,
+      "end_line": 141,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::index_contracts::expression_index_rollback::should_preserve_expression_index_scan_equivalence_through_transaction_resolution"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/indexes",
+        "directory": "tests/compatibility/lifecycle/indexes",
+        "file": "tests/compatibility/lifecycle/indexes/expression_index_rollback.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/compatibility/lifecycle/indexes/generated_index_name.rs::should_generate_postgresql_name_for_an_unnamed_index",
       "name": "should_generate_postgresql_name_for_an_unnamed_index",
       "current_file": "tests/compatibility/lifecycle/indexes/generated_index_name.rs",
@@ -22211,8 +22273,8 @@
       "id": "tests/compatibility/lifecycle/indexes/index.rs::should_report_descending_btree_key_order",
       "name": "should_report_descending_btree_key_order",
       "current_file": "tests/compatibility/lifecycle/indexes/index.rs",
-      "line": 35,
-      "end_line": 75,
+      "line": 37,
+      "end_line": 77,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -22242,8 +22304,8 @@
       "id": "tests/compatibility/lifecycle/indexes/index.rs::should_reject_hash_indexes_until_storage_supports_the_method",
       "name": "should_reject_hash_indexes_until_storage_supports_the_method",
       "current_file": "tests/compatibility/lifecycle/indexes/index.rs",
-      "line": 78,
-      "end_line": 116,
+      "line": 80,
+      "end_line": 118,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -22273,8 +22335,8 @@
       "id": "tests/compatibility/lifecycle/indexes/index.rs::should_rebuild_an_existing_index_with_reindex",
       "name": "should_rebuild_an_existing_index_with_reindex",
       "current_file": "tests/compatibility/lifecycle/indexes/index.rs",
-      "line": 119,
-      "end_line": 159,
+      "line": 121,
+      "end_line": 161,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -22304,8 +22366,8 @@
       "id": "tests/compatibility/lifecycle/indexes/index.rs::should_rebuild_all_indexes_for_a_table",
       "name": "should_rebuild_all_indexes_for_a_table",
       "current_file": "tests/compatibility/lifecycle/indexes/index.rs",
-      "line": 162,
-      "end_line": 205,
+      "line": 164,
+      "end_line": 207,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -22335,8 +22397,8 @@
       "id": "tests/compatibility/lifecycle/indexes/index.rs::should_drop_only_the_schema_qualified_index_without_an_on_clause",
       "name": "should_drop_only_the_schema_qualified_index_without_an_on_clause",
       "current_file": "tests/compatibility/lifecycle/indexes/index.rs",
-      "line": 208,
-      "end_line": 268,
+      "line": 210,
+      "end_line": 270,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187484,6 +187546,37 @@
       }
     },
     {
+      "id": "tests/sql_mutations/ddl/rebuild_swap_restart.rs::should_recover_swapped_rebuild_tables_after_local_restart",
+      "name": "should_recover_swapped_rebuild_tables_after_local_restart",
+      "current_file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
+      "line": 7,
+      "end_line": 87,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rebuild_swap_restart::should_recover_swapped_rebuild_tables_after_local_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/ddl/scalar_index_rename.rs::should_preserve_scalar_entries_when_index_is_renamed",
       "name": "should_preserve_scalar_entries_when_index_is_renamed",
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
@@ -190491,6 +190584,37 @@
       }
     },
     {
+      "id": "tests/sql_mutations/transactions/rebuild_swap.rs::should_publish_staging_table_rename_swap_only_after_commit",
+      "name": "should_publish_staging_table_rename_swap_only_after_commit",
+      "current_file": "tests/sql_mutations/transactions/rebuild_swap.rs",
+      "line": 33,
+      "end_line": 121,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transactional_ddl::rebuild_swap::should_publish_staging_table_rename_swap_only_after_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/rebuild_swap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/transactions/restart_publication.rs::should_preserve_transactional_catalog_publication_across_restart",
       "name": "should_preserve_transactional_catalog_publication_across_restart",
       "current_file": "tests/sql_mutations/transactions/restart_publication.rs",
@@ -192509,8 +192633,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_restore_transactional_catalog_at_savepoint_rollback",
       "name": "should_restore_transactional_catalog_at_savepoint_rollback",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 33,
-      "end_line": 66,
+      "line": 36,
+      "end_line": 69,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192540,8 +192664,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_restore_dropped_table_after_transaction_rollback",
       "name": "should_restore_dropped_table_after_transaction_rollback",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 69,
-      "end_line": 92,
+      "line": 72,
+      "end_line": 95,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192571,8 +192695,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_commit_table_drop_after_staging_a_row_write",
       "name": "should_commit_table_drop_after_staging_a_row_write",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 95,
-      "end_line": 120,
+      "line": 98,
+      "end_line": 123,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192602,8 +192726,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_staged_row_after_transactional_table_rename",
       "name": "should_publish_a_staged_row_after_transactional_table_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 123,
-      "end_line": 154,
+      "line": 126,
+      "end_line": 157,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192633,8 +192757,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_staged_row_after_transactional_schema_rename",
       "name": "should_publish_a_staged_row_after_transactional_schema_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 157,
-      "end_line": 196,
+      "line": 160,
+      "end_line": 199,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192664,8 +192788,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_a_view_after_transactional_schema_rename",
       "name": "should_publish_a_view_after_transactional_schema_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 199,
-      "end_line": 233,
+      "line": 202,
+      "end_line": 236,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192695,8 +192819,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_preserve_staged_values_after_transactional_column_rename",
       "name": "should_preserve_staged_values_after_transactional_column_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 236,
-      "end_line": 261,
+      "line": 239,
+      "end_line": 264,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192726,8 +192850,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_resolve_staged_conflict_after_transactional_target_column_rename",
       "name": "should_resolve_staged_conflict_after_transactional_target_column_rename",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 264,
-      "end_line": 297,
+      "line": 267,
+      "end_line": 300,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192757,8 +192881,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_rollback_materialized_view_publication_with_transaction",
       "name": "should_rollback_materialized_view_publication_with_transaction",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 300,
-      "end_line": 347,
+      "line": 303,
+      "end_line": 350,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192788,8 +192912,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_publish_materialized_view_after_commit",
       "name": "should_publish_materialized_view_after_commit",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 350,
-      "end_line": 396,
+      "line": 353,
+      "end_line": 399,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192819,8 +192943,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_remove_failed_materialized_view_creation",
       "name": "should_remove_failed_materialized_view_creation",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 399,
-      "end_line": 421,
+      "line": 402,
+      "end_line": 424,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192850,8 +192974,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_rollback_materialized_view_refresh",
       "name": "should_rollback_materialized_view_refresh",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 424,
-      "end_line": 495,
+      "line": 427,
+      "end_line": 498,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192881,8 +193005,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_reject_view_commands_for_materialized_projection",
       "name": "should_reject_view_commands_for_materialized_projection",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 498,
-      "end_line": 536,
+      "line": 501,
+      "end_line": 539,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -192912,8 +193036,8 @@
       "id": "tests/sql_mutations/transactions/transactional_ddl.rs::should_report_unpopulated_view_scan_inside_transaction",
       "name": "should_report_unpopulated_view_scan_inside_transaction",
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
-      "line": 539,
-      "end_line": 585,
+      "line": 542,
+      "end_line": 588,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -263162,8 +263286,8 @@
       "current_file": "tests/compatibility/lifecycle/ddl/ddl_extensions.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 31,
-      "sha256": "37a3cde4556a0e290a2f7c92c6c770842d5a709bb3c88a80423c169795e9a049",
+      "lines": 33,
+      "sha256": "241731e183043699e15464e1f597afc0ed3962765e9d90c758823afc6428d4b2",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -263200,6 +263324,21 @@
       ],
       "destinations": [
         "tests/compatibility/lifecycle/ddl/if_exists_notices.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 94,
+      "sha256": "88f18bae384853e892626e84555a8e322b76b452d2ee362e9fea1d52017d8cfc",
+      "test_declarations": 1,
+      "registered_suites": [
+        "compatibility"
+      ],
+      "destinations": [
+        "tests/compatibility/lifecycle/ddl/rebuild_swap.rs"
       ],
       "line_limit": 1000
     },
@@ -263309,6 +263448,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/compatibility/lifecycle/indexes/expression_index_rollback.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 141,
+      "sha256": "1a82af0554e5b163b0424d068f8d0825f520626c209d9c769e9aa681dada5bf4",
+      "test_declarations": 1,
+      "registered_suites": [
+        "compatibility"
+      ],
+      "destinations": [
+        "tests/compatibility/lifecycle/indexes/expression_index_rollback.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/compatibility/lifecycle/indexes/generated_index_name.rs",
       "role": "test_module",
       "action": "keep",
@@ -263342,8 +263496,8 @@
       "current_file": "tests/compatibility/lifecycle/indexes/index.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 268,
-      "sha256": "3a3a59c85f8fb3109bd309a13705e219ec4a657b155c98f987b464529abcbf7e",
+      "lines": 270,
+      "sha256": "aee9391c56dedca585b5fca41ba603eb6ba19bba0d4aa8c3b72362bc1843f77b",
       "test_declarations": 5,
       "registered_suites": [
         "compatibility"
@@ -277431,6 +277585,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 87,
+      "sha256": "8dd5cdbb50da03fdcff24404c2fb168e5fbfeee8ab2708243e164fa2911de8db",
+      "test_declarations": 1,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/ddl/rebuild_swap_restart.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/ddl/scalar_index_rename.rs",
       "role": "test_module",
       "action": "keep",
@@ -277746,6 +277915,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/transactions/rebuild_swap.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 121,
+      "sha256": "c03eeefa2d7f037b6b85d831be12ac4857870ce8cea797cc700f30900802153a",
+      "test_declarations": 1,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/transactions/rebuild_swap.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/transactions/restart_publication.rs",
       "role": "test_module",
       "action": "keep",
@@ -277989,8 +278173,8 @@
       "current_file": "tests/sql_mutations/transactions/transactional_ddl.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 585,
-      "sha256": "751837dbf53708d6844652575fa6f777843a68e0fdb712d2e8d7e8a88188444f",
+      "lines": 588,
+      "sha256": "99b3a063ad639997106918280be628690181797b17ed93e4384346c15118816f",
       "test_declarations": 14,
       "registered_suites": [
         "sql_mutations"
@@ -278092,8 +278276,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 203,
-      "sha256": "e33800aaa5a19ab33ca707cfa4ee3a86ed4d3018f1ccc2154d79be47f6466e93",
+      "lines": 206,
+      "sha256": "c091e5b5dc8c27bb4b9b099c0843a6103898e4c725bca212675923d79a00ae14",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"

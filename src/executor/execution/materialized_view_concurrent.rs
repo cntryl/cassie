@@ -91,13 +91,20 @@ pub(super) fn refresh_materialized_view_versioned(
         cassie.catalog.register_index(replacement);
     }
 
-    super::materialized_projection::activate_projection_version(
+    #[cfg(test)]
+    tests::cancel_before_activation_if_armed();
+
+    if let Err(error) = super::materialized_projection::activate_projection_version(
         cassie,
         name,
         &version.version_id,
         false,
         controls,
-    )?;
+    ) {
+        discard_output(cassie, &version.output_collection);
+        mark_version_failed(cassie, name, &version.version_id, &error.to_string())?;
+        return Err(error);
+    }
     cassie
         .runtime
         .record_materialized_projection_refresh(name.to_string());
@@ -183,3 +190,7 @@ fn mark_version_failed(
     metadata.last_error = Some(message.to_string());
     super::materialized_projection::persist_projection_metadata(cassie, metadata)
 }
+
+#[cfg(test)]
+#[path = "materialized_view_concurrent_tests.rs"]
+mod tests;

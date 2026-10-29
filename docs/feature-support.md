@@ -263,6 +263,11 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 
 ## Mutation and Catalog
 
+The selected index and mutation behaviors below do not qualify every concurrent
+conflict path. Projectors must follow the [v0.3 concurrency boundary](pgwire-transaction-contract.md#projector-concurrency-boundary-for-v03)
+for all writers to affected tables where the documented owner-wait contract
+does not apply, including serialization through transaction resolution.
+
 | Capability | Behavior | Status |
 | --- | --- | --- |
 | Composite primary keys | Table-level `PRIMARY KEY (column, ...)` in `CREATE TABLE` and named or unnamed `ALTER TABLE ... ADD [CONSTRAINT name] PRIMARY KEY (column, ...)` enforce uniqueness on the ordered tuple and `NOT NULL` on each member. Dropping the primary-key constraint removes its tuple index. `CREATE TABLE LIKE ... INCLUDING INDEXES` and `INCLUDING ALL` copy the ordered tuple into a target-owned primary constraint and index. `EXCLUDING INDEXES` retains column `NOT NULL` while omitting primary-key uniqueness. Focused clone lifecycle evidence: [`like_composite_primary_key.rs`](../tests/sql_mutations/ddl/like_composite_primary_key.rs). Evidence: [`should_project_composite_primary_key_dependencies_through_a_join`](../tests/sql_queries/joins/aggregate_window_oracle/semantics.rs), [`should_manage_a_composite_primary_key_through_alter_table`](../tests/sql_mutations/constraints/unique/composite_unique_constraints.rs). | Experimental |

@@ -79,6 +79,28 @@ under #819 and its named downstream owners. Focused executable evidence is in
 [`transaction_errors.rs`](../tests/sql_mutations/transactions/transaction_errors.rs)
 and the completing PR; the implementation does not complete #819.
 
+## Projector concurrency boundary for v0.3
+
+The MVP retains the wait behavior described above. No selected v0.3 workflow
+requires overlapping conflicting writes on the unqualified key shapes or paths
+listed above. The qualified wait applies only where both the owning write and
+the competing write meet the documented slice. Otherwise, coordinate all writers
+to the affected table, including non-projector and COPY clients, from transaction
+start through commit or rollback. The safe default is one writer per affected
+table; use finer partitioning only when external coordination guarantees that
+all old and new unique keys touched by concurrent transactions are disjoint.
+That external coordination is not a claim that broader concurrency is qualified.
+Serializing statement submission alone is insufficient. Treat statement success
+and RETURNING values as provisional until the transaction commits. An
+unqualified competing operation may return before its owner resolves and may
+fail at commit.
+
+This operating boundary does not assert that unsupported concurrent cases are
+rejected or that their final results are qualified. Scalar-index lifecycle
+coverage does not establish concurrent conflict-wait semantics. Wider waits
+and snapshot isolation remain open under #819, outside the v0.3 milestone.
+Representative concurrency qualification remains a v1.0 obligation.
+
 ## Selected local-development contract expansion
 
 The table above records the finite #755 wire boundary. The local-development

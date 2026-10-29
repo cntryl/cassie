@@ -20,8 +20,9 @@ for each SQL capability's current status.
 
 ## Current checkpoint — 2026-10-29
 
-The current worktree is based on merged main
-`3ff17dc17a8bdbe54bc78f23416473e78323d721` (PR #1101, after PR #1100).
+The current candidate branch is
+`audit/v03-842-expression-index-restart-20261029`, based on merged main
+`19edf3a36fc9d2a65187d137370b6f164fcdfb2e` (PR #1102, after PR #1101).
 The owner moved #833's broader protocol, concurrency and catalog qualification
 to v1.0 after
 reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
@@ -36,7 +37,9 @@ and after local restart. PR #1094 merged as
 relation identity through `pg_class`, `pg_attribute`, `regclass`, rename,
 refresh and restart. The selected #842 partial-index restart regression
 verifies committed entry changes remain queryable and match an independent
-scan. PR #1095 added separate FK table-CASCADE tests for transaction rollback
+scan. This branch adds a #842 witness verifying a populated `lower(email)`
+index stays selected after committed key rekeying and local restart, with
+matching independent-scan results. PR #1095 added separate FK table-CASCADE tests for transaction rollback
 and committed restart; the executor behavior was already present, so that was a
 coverage and documentation correction, not a runtime change. Its touched-file
 validator reports **15/15 compliant**.
@@ -73,18 +76,18 @@ followed by ALTER emits no false notice over either Simple Query or extended
 protocol; PostgreSQL 18.6 returned no notices for that transaction-local case.
 #839 remains open for its other lifecycle forms.
 
-The ordered local gate passes on this candidate: `cargo build --locked --bin
-cassie`, `cargo test --locked` (**9,840 passed, 0 failed, 12 ignored**), strict
-full pedantic Clippy, formatting, and touched-test validation (**4/4** for the
-new IF EXISTS module and **10/10** for the remaining atomic-lifecycle tests;
-the PR #1101 files passed **6/6** and **17/17**). `cntryl-tools validate-docs`
-validates **126 Markdown documents**. The test inventory has 1,570 files,
-8,342 Rust test declarations, 8,470 registered Rust instances, 21 Python test
-declarations, and 131 planned tests; its check reports no unregistered tests, unresolved
-module paths, repeated registrations, duplicate identities, unsharded
-targets, or oversized files. Missing historical source paths remain linked to
-owner issues and are not marked executed. These counts aggregate workspace
-targets and declarations respectively.
+The ordered local gate passes on this candidate branch: `cargo build --locked
+--bin cassie`; `cargo test --locked` (**9,841 passed, 0 failed, 12 ignored
+across 35 targets**); strict full pedantic Clippy; `cargo fmt --all -- --check`;
+and touched-test validation (**2/2** for pgwire cancellation and **7/7** for
+scalar-index restart). `cntryl-tools validate-docs` validates **126 Markdown
+documents**. The checked test inventory has 1,570 files, 8,343 Rust test
+declarations, 8,471 registered Rust instances, 21 Python test declarations,
+and 131 planned tests; it reports no unregistered tests, unresolved module
+paths, repeated registrations, duplicate identities, unsharded targets, or
+oversized files. Missing historical source paths remain linked to owner issues
+and are not marked executed. These counts aggregate workspace targets and
+declarations respectively.
 
 Jev's focused adversarial question was whether the bounded #842 table
 schema-move fix leaves a material correctness gap; the estimated probability
@@ -97,10 +100,13 @@ wire tests.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.
-Release readiness remains incomplete: selected local-development/client
-workflows and exact-release-commit browser, benchmark, and disk-backed
-operational evidence still need resolution. Actions remain disabled, so hosted
-checks and publication are unavailable.
+The full suite initially hit a timeout in the pre-existing matching-backend
+cancellation test; the test now retains its bound listener and synchronizes at
+the `pg_sleep` entry boundary before sending CancelRequest. Both cancellation
+tests and the subsequent full suite pass. Release readiness remains incomplete:
+selected local-development/client workflows and exact-release-commit browser,
+benchmark, and disk-backed operational evidence still need resolution. Actions
+remain disabled, so hosted checks and publication are unavailable.
 
 ## Baseline discovery
 

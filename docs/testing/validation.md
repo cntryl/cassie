@@ -4686,3 +4686,22 @@ Final local validation on `audit/v03-839-extended-if-exists-notice-20261029`:
 The nested `cpu_identity` harness reported no benchmark rows inside a passing
 Cargo target; this is not benchmark qualification. GitHub Actions remain
 disabled, so hosted checks are unavailable and not claimed as passed.
+
+## 2026-10-29 — #842 expression-index key recovery after restart
+
+`should_recover_expression_index_after_committed_rekey` adds a disk-backed
+qualification witness for an expression index on `lower(email)`. It creates
+the index over populated rows, commits an indexed-key rewrite and membership
+changes, restarts, verifies the matching expression query still selects the
+hydrated index, and compares its rows with an independent scan. The focused
+test passed on branch
+`audit/v03-842-expression-index-restart-20261029`, based on merged main
+`19edf3a36fc9d2a65187d137370b6f164fcdfb2e`; no runtime behavior changed.
+The ordered local gate passed on that branch: build, full locked tests
+(9,841 passed, 0 failed, 12 ignored across 35 targets), strict full pedantic
+Clippy, formatting, and touched-test validation (7/7). The same full run
+initially exposed a timeout in the pgwire cancellation test. The test now uses
+an owned listener and a `pg_sleep` entry barrier instead of rebind/startup and
+execution sleeps; its two cases pass, with touched-test validation 2/2.
+`cntryl-tools validate-docs` validated 126 Markdown documents. GitHub Actions
+remain disabled, so hosted checks are unavailable.

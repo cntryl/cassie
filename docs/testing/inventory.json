@@ -230,9 +230,9 @@
     ],
     "files": 1570,
     "rust_files": 1538,
-    "rust_test_declarations": 8342,
+    "rust_test_declarations": 8343,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8470,
+    "registered_rust_instances": 8471,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -52235,7 +52235,7 @@
       "name": "should_cancel_only_the_backend_given_matching_process_id_and_secret",
       "current_file": "tests/pgwire_core/cancellation/semantics.rs",
       "line": 11,
-      "end_line": 84,
+      "end_line": 95,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -52265,8 +52265,8 @@
       "id": "tests/pgwire_core/cancellation/semantics.rs::should_ignore_a_cancel_request_given_a_stale_backend_secret",
       "name": "should_ignore_a_cancel_request_given_a_stale_backend_secret",
       "current_file": "tests/pgwire_core/cancellation/semantics.rs",
-      "line": 87,
-      "end_line": 155,
+      "line": 98,
+      "end_line": 164,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -250662,6 +250662,37 @@
       }
     },
     {
+      "id": "tests/storage_indexes/indexes/scalar_indexes/restart.rs::should_recover_expression_index_after_committed_rekey",
+      "name": "should_recover_expression_index_after_committed_rekey",
+      "current_file": "tests/storage_indexes/indexes/scalar_indexes/restart.rs",
+      "line": 512,
+      "end_line": 602,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "storage_indexes",
+          "name": "integration_sql_scalar_indexes::should_recover_expression_index_after_committed_rekey"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "storage_indexes",
+        "category": "indexes/scalar_indexes",
+        "directory": "tests/storage_indexes/indexes/scalar_indexes",
+        "file": "tests/storage_indexes/indexes/scalar_indexes/restart.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/storage_indexes/indexes/scalar_indexes/semantics.rs::should_explain_index_aware_plan_for_scalar_equality_filter",
       "name": "should_explain_index_aware_plan_for_scalar_equality_filter",
       "current_file": "tests/storage_indexes/indexes/scalar_indexes/semantics.rs",
@@ -267222,8 +267253,8 @@
       "current_file": "tests/pgwire_core/cancellation/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 155,
-      "sha256": "b4f85bfd5f8f9651a0ccfaa7f542812b639154f93c95655ba021e09b190dc983",
+      "lines": 164,
+      "sha256": "2205e40ad850709ee92c6f6d5121f0109266a6893603a7540859e360c7b5c071",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_core"
@@ -281102,9 +281133,9 @@
       "current_file": "tests/storage_indexes/indexes/scalar_indexes/restart.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 509,
-      "sha256": "c34f4a2e11279fa16de878c7f1c770a0bc83cc5a634307a79d112f5114372cf4",
-      "test_declarations": 6,
+      "lines": 602,
+      "sha256": "fe2b6cc809a1fad4b8af86b5a9ecec70a6a497142bc10f0c708286f4c19649d6",
+      "test_declarations": 7,
       "registered_suites": [
         "storage_indexes"
       ],

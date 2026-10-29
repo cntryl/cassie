@@ -19,21 +19,17 @@ fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
-        config.limits.cte_recursion_depth = 1_000_000;
-        config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(cassie),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let mut query_socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("query connection");
@@ -41,14 +37,16 @@ fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
         let mut query_reader = BufReader::new(query_read);
         let (process_id, secret_key) =
             support::complete_startup_with_backend_key(&mut query_reader, &mut query_write).await;
+        let (_pause_guard, selected, resume) = cassie::runtime::pause_next_query_at_sleep_entry();
         query_write
-            .write_all(&support::simple_query_frame(
-                "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 1000000) SELECT MAX(n) FROM seq",
-            ))
+            .write_all(&support::simple_query_frame("SELECT pg_sleep(30)"))
             .await
-            .expect("write long query");
-        query_write.flush().await.expect("flush long query");
-        tokio::time::sleep(Duration::from_millis(25)).await;
+            .expect("write sleeping query");
+        query_write.flush().await.expect("flush sleeping query");
+        tokio::task::spawn_blocking(move || selected.recv_timeout(Duration::from_secs(5)))
+            .await
+            .expect("sleep-entry observer task")
+            .expect("query must reach the paused sleep function");
 
         // Act
         let mut cancel_socket = tokio::net::TcpStream::connect(addr)
@@ -58,7 +56,20 @@ fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
             .write_all(&support::cancel_request_frame(process_id, secret_key))
             .await
             .expect("write cancel request");
-        cancel_socket.shutdown().await.expect("close cancel request");
+        cancel_socket
+            .shutdown()
+            .await
+            .expect("close cancel request");
+        let mut cancel_response = [0; 1];
+        let cancel_response_bytes = cancel_socket
+            .read(&mut cancel_response)
+            .await
+            .expect("wait for matching cancel request to be handled");
+        assert_eq!(
+            cancel_response_bytes, 0,
+            "CancelRequest has no response body"
+        );
+        resume.send(()).expect("resume query after cancellation");
         let frames = tokio::time::timeout(
             Duration::from_secs(5),
             support::read_frames_until_ready(&mut query_reader),
@@ -101,13 +112,11 @@ fn should_ignore_a_cancel_request_given_a_stale_backend_secret() {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
-        let server = tokio::spawn(cassie::pgwire::server::run(
-            addr.to_string(),
+        let server = tokio::spawn(cassie::pgwire::server::run_with_listener(
+            listener,
             Arc::new(cassie),
             config,
         ));
-        tokio::time::sleep(Duration::from_millis(50)).await;
         let mut query_socket = tokio::net::TcpStream::connect(addr)
             .await
             .expect("query connection");

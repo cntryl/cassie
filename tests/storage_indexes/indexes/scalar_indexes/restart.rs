@@ -507,3 +507,96 @@ fn should_recover_partial_index_entries_after_committed_writes_on_restart() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_recover_expression_index_after_committed_rekey() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("expression_index_entries_restart");
+    {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        for statement in [
+            "CREATE TABLE sql_expression_index_entries_restart \
+               (id INT PRIMARY KEY, email TEXT NOT NULL)",
+            "INSERT INTO sql_expression_index_entries_restart VALUES \
+               (1, 'Alice@example.com'), (2, 'bob@example.com'), \
+               (3, 'carol@example.com')",
+            "CREATE INDEX sql_expression_index_entries_restart_lower_idx \
+               ON sql_expression_index_entries_restart ((lower(email)))",
+        ] {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .unwrap_or_else(|error| panic!("execute {statement}: {error}"));
+        }
+        for statement in [
+            "UPDATE sql_expression_index_entries_restart \
+               SET email = 'ALICE@NEW.EXAMPLE.COM' WHERE id = 1",
+            "DELETE FROM sql_expression_index_entries_restart WHERE id = 2",
+            "INSERT INTO sql_expression_index_entries_restart VALUES \
+               (4, 'alice@new.example.com')",
+        ] {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .unwrap_or_else(|error| panic!("execute {statement}: {error}"));
+        }
+    }
+
+    let restarted = Cassie::new_with_data_dir(&path).unwrap();
+    restarted.startup().unwrap();
+    let session = restarted.create_session("tester", None);
+
+    // Act
+    let indexed_rows = restarted
+        .execute_sql(
+            &session,
+            "SELECT id FROM sql_expression_index_entries_restart \
+             WHERE lower(email) = 'alice@new.example.com' ORDER BY id",
+            vec![],
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+    let explain = restarted
+        .execute_sql(
+            &session,
+            "EXPLAIN SELECT id FROM sql_expression_index_entries_restart \
+             WHERE lower(email) = 'alice@new.example.com' ORDER BY id",
+            vec![],
+        )
+        .unwrap();
+    let Value::String(plan) = &explain.rows()[0][0] else {
+        panic!("expected textual plan");
+    };
+    restarted
+        .execute_sql(
+            &session,
+            "DROP INDEX sql_expression_index_entries_restart_lower_idx",
+            vec![],
+        )
+        .unwrap();
+    let scanned_rows = restarted
+        .execute_sql(
+            &session,
+            "SELECT id FROM sql_expression_index_entries_restart \
+             WHERE lower(email) = 'alice@new.example.com' ORDER BY id",
+            vec![],
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert!(
+        plan.contains("sql_expression_index_entries_restart_lower_idx"),
+        "the hydrated expression index should serve its matching query: {plan}"
+    );
+    assert_eq!(
+        indexed_rows,
+        vec![vec![Value::Int64(1)], vec![Value::Int64(4)]]
+    );
+    assert_eq!(scanned_rows, indexed_rows);
+
+    let _ = std::fs::remove_dir_all(path);
+}

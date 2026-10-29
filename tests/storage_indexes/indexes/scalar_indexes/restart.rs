@@ -411,3 +411,99 @@ fn should_preserve_unique_null_policy_after_restart() {
         let _ = std::fs::remove_dir_all(path);
     });
 }
+
+#[test]
+fn should_recover_partial_index_entries_after_committed_writes_on_restart() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("partial_index_entries_restart");
+    {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        for statement in [
+            "CREATE TABLE sql_partial_index_entries_restart \
+               (id INT PRIMARY KEY, key_value INT, active BOOLEAN NOT NULL, payload TEXT)",
+            "INSERT INTO sql_partial_index_entries_restart VALUES \
+               (1, 30, TRUE, 'delete'), (2, 20, FALSE, 'enter'), \
+               (3, 30, TRUE, 'leave'), (4, 40, FALSE, 'inactive-40'), \
+               (5, 30, TRUE, 'key-leave'), (6, 30, TRUE, 'stay'), \
+               (7, 70, FALSE, 'inactive-70'), (8, 80, FALSE, 'inactive-80'), \
+               (9, 90, FALSE, 'inactive-90'), (10, 100, FALSE, 'inactive-100'), \
+               (11, 110, FALSE, 'inactive-110'), (12, 120, FALSE, 'inactive-120')",
+            "CREATE INDEX sql_partial_index_entries_restart_idx \
+               ON sql_partial_index_entries_restart (key_value) INCLUDE (payload) \
+               WHERE active AND key_value = 30",
+            "UPDATE sql_partial_index_entries_restart \
+               SET active = TRUE, key_value = 30, payload = 'entered' WHERE id = 2",
+            "UPDATE sql_partial_index_entries_restart \
+               SET active = FALSE, payload = 'left-predicate' WHERE id = 3",
+            "UPDATE sql_partial_index_entries_restart \
+               SET key_value = 20 WHERE id = 5",
+            "UPDATE sql_partial_index_entries_restart \
+               SET payload = 'updated' WHERE id = 6",
+            "DELETE FROM sql_partial_index_entries_restart WHERE id = 1",
+            "INSERT INTO sql_partial_index_entries_restart \
+               VALUES (13, 30, TRUE, 'inserted')",
+        ] {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .unwrap_or_else(|error| panic!("execute {statement}: {error}"));
+        }
+    }
+
+    let restarted = Cassie::new_with_data_dir(&path).unwrap();
+    restarted.startup().unwrap();
+    let session = restarted.create_session("tester", None);
+
+    // Act
+    let indexed_rows = restarted
+        .execute_sql(
+            &session,
+            "SELECT key_value, payload FROM sql_partial_index_entries_restart \
+             WHERE active AND key_value = 30 ORDER BY payload",
+            vec![],
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+    let explain = restarted
+        .execute_sql(
+            &session,
+            "EXPLAIN SELECT key_value, payload \
+             FROM sql_partial_index_entries_restart \
+             WHERE active AND key_value = 30 ORDER BY payload",
+            vec![],
+        )
+        .unwrap();
+    let Value::String(plan) = &explain.rows()[0][0] else {
+        panic!("expected textual plan");
+    };
+    restarted
+        .execute_sql(&session, "DROP INDEX sql_partial_index_entries_restart_idx", vec![])
+        .unwrap();
+    let scanned_rows = restarted
+        .execute_sql(
+            &session,
+            "SELECT key_value, payload FROM sql_partial_index_entries_restart \
+             WHERE active AND key_value = 30 ORDER BY payload",
+            vec![],
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+
+    // Assert
+    assert!(plan.contains("sql_partial_index_entries_restart_idx"));
+    assert_eq!(
+        indexed_rows,
+        vec![
+            vec![Value::Int64(30), Value::String("entered".to_owned())],
+            vec![Value::Int64(30), Value::String("inserted".to_owned())],
+            vec![Value::Int64(30), Value::String("updated".to_owned())],
+        ]
+    );
+    assert_eq!(scanned_rows, indexed_rows);
+
+    let _ = std::fs::remove_dir_all(path);
+}

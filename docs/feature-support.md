@@ -285,6 +285,18 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Projection lifecycle | Materialized projection create, refresh, checkpointed replay, version build, verification, activation, rollback by reactivation, repair, and drop on one local instance, as defined in [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). Interrupted or failed builds never become query-visible; stale or unproven projections fall back to authoritative source rows. Column-store table mode, remote replay coordination, and automatic activation are outside this surface. | Stable |
 | Verification and repair | Hashes, manifests, local repair planning and audit for materialized projections; see [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). No general (non-projection) index verification or repair exists. | Experimental |
 
+### Partial scalar-index entry recovery
+
+For the selected partial covering btree form, committed writes that add and
+remove rows from the predicate, change an included value, and delete an indexed
+row retain correct entries after local-storage restart. The eligible query
+still selects the index, and its rows match an independent scan after the index
+is dropped. The witness
+`should_recover_partial_index_entries_after_committed_writes_on_restart` is
+in [`restart.rs`](../tests/storage_indexes/indexes/scalar_indexes/restart.rs).
+This covers one persisted write-maintenance shape; broader scalar-index restart
+and index-shape qualification remains pending under [#842](https://github.com/cntryl/cassie/issues/842).
+
 ### Materialized-view rename
 
 `ALTER MATERIALIZED VIEW name RENAME TO new_local_name` renames a SQL

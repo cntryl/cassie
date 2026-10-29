@@ -18,32 +18,36 @@ for each SQL capability's current status.
 - GitHub Actions remain disabled. Local evidence is reported as local; hosted
   checks are unavailable.
 
-## Current checkpoint — 2026-10-28
+## Current checkpoint — 2026-10-29
 
-The complete default locked suite now passes on the current release-work branch
-based on main `364b801f`: **9,813 passed, 0 failed, 12 ignored** across 35
-targets. The ordered `cargo build --locked --bin cassie`, `cargo test --locked`,
-strict full pedantic Clippy, formatting check, and touched-test validation pass.
-The test count aggregates the workspace test targets. This supersedes the
+On merged main `708c0e37` plus the current #842 test-only worktree, the exact
+locked suite passes: **9,814 passed, 0 failed, 12 ignored** across 35 targets.
+The ordered `cargo build --locked --bin cassie`, `cargo test --locked`, strict
+full pedantic Clippy, formatting check, and touched-test validation pass. The
+test count aggregates all workspace test targets. This supersedes the
 2026-10-22 failure inventory and its statement that the full suite is still
 failing; those results remain as historical baseline evidence below.
 
-The new #839 regression `should_keep_unique_enforcement_after_using_type_rewrite_restart`
-reproduces a numeric UNIQUE bypass before the fix and passes after typmod-aware
-NUMERIC input canonicalization. It checks value and NULL preservation, NUMERIC
-OID/typmod after local restart, and named UNIQUE enforcement before and after
-restart. The touched-file validator reports **11/11 compliant**. The 13-case
-`foreign_key_ddl_lifecycle` group and the earlier 13-case
-`issue_839_atomic_lifecycle` compatibility group passed before this regression
-was added; the final workspace run also passes with the new case included. The
-five failures listed in the older identity delta have been superseded.
+PR #1092 merged as `708c0e377b8ccc0ae7a4285b33964faf80100333`. Its #839
+regression `should_keep_unique_enforcement_after_using_type_rewrite_restart`
+reproduces the numeric UNIQUE bypass on baseline and verifies typmod-aware
+canonicalization, values/NULL, OID/typmod and named UNIQUE enforcement before
+and after local restart. The current #842 regression
+`should_recover_partial_index_entries_after_committed_writes_on_restart`
+verifies committed partial-index entry changes survive local restart, remain
+selected by the eligible query, and return the same rows as an independent scan.
+Its touched-file validator reports **6/6 compliant**; the #839 test validator
+reported **11/11 compliant**. The 13-case `foreign_key_ddl_lifecycle` group and
+the earlier 13-case #839 baseline group passed before the new regression; the
+full suite now passes with both new cases included. The five failures in the
+older identity delta have been superseded.
 
 The nested `cpu_identity` stress harness prints `failed quality (no benchmark
 rows)` inside a passing Cargo test target. This is not benchmark qualification.
-Release readiness remains incomplete: the selected local-development/client
-workflows and release-commit browser, benchmark, and disk-backed operational
-evidence still need their own exact-head qualification. Actions remain disabled,
-so hosted checks and publication are unavailable.
+Release readiness remains incomplete: selected local-development/client
+workflows and exact-release-commit browser, benchmark, and disk-backed
+operational evidence still need their own qualification. Actions remain
+disabled, so hosted checks and publication are unavailable.
 
 ## Baseline discovery
 

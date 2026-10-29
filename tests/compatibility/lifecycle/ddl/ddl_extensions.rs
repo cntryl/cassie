@@ -6,6 +6,8 @@ mod atomic_drop;
 mod issue_839_atomic_lifecycle;
 #[path = "if_exists_notices.rs"]
 mod issue_839_if_exists_notices;
+#[path = "rebuild_swap.rs"]
+mod rebuild_swap;
 #[path = "recreate_relation.rs"]
 mod recreate_relation;
 #[path = "../sequences/sequence_identity.rs"]

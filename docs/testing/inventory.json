@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1575,
-    "rust_files": 1543,
-    "rust_test_declarations": 8352,
+    "files": 1576,
+    "rust_files": 1544,
+    "rust_test_declarations": 8353,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8480,
+    "registered_rust_instances": 8481,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -9920,6 +9920,37 @@
         "file": "tests/catalog_security/catalogs/indexes/index_property_functions.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/catalog_security/catalogs/information_schema_restart_scope.rs::should_preserve_database_scoped_information_schema_after_drop_restart",
+      "name": "should_preserve_database_scoped_information_schema_after_drop_restart",
+      "current_file": "tests/catalog_security/catalogs/information_schema_restart_scope.rs",
+      "line": 107,
+      "end_line": 190,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "catalog_security",
+          "name": "information_schema_restart_scope::should_preserve_database_scoped_information_schema_after_drop_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "catalog_security",
+        "category": "catalogs",
+        "directory": "tests/catalog_security/catalogs",
+        "file": "tests/catalog_security/catalogs/information_schema_restart_scope.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -261345,6 +261376,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/catalog_security/catalogs/information_schema_restart_scope.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 190,
+      "sha256": "d049834cfeebe6ef615615bde5656893bb1c0ccf613409f72fc38029dd0096b1",
+      "test_declarations": 1,
+      "registered_suites": [
+        "catalog_security"
+      ],
+      "destinations": [
+        "tests/catalog_security/catalogs/information_schema_restart_scope.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/catalog_security/catalogs/locations.rs",
       "role": "test_module",
       "action": "keep",
@@ -262426,8 +262472,8 @@
       "current_file": "tests/catalog_security.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 161,
-      "sha256": "c63e83c2c7c36d7f62033eb7342adee932172761a46c61776a062bedec82b99d",
+      "lines": 163,
+      "sha256": "312a5589ce102d9905009daff9b0ccd9c5dbcba57d8bcc086200b848b3213405",
       "test_declarations": 0,
       "registered_suites": [
         "catalog_security"

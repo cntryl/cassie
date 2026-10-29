@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1575 |
-| Rust files | 1543 |
-| Rust test declarations | 8352 |
+| Files under `tests/` | 1576 |
+| Rust files | 1544 |
+| Rust test declarations | 8353 |
 | Python test declarations | 21 |
-| Static Rust registration instances | 8480 |
+| Static Rust registration instances | 8481 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
@@ -31,7 +31,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [analytics](inventory/analytics.md) | 185 | 0 |
 | [backend_ci](inventory/backend_ci.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
-| [catalog_security](inventory/catalog_security.md) | 323 | 0 |
+| [catalog_security](inventory/catalog_security.md) | 324 | 0 |
 | [compatibility](inventory/compatibility.md) | 400 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |

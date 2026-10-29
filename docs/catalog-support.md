@@ -125,8 +125,10 @@ claiming PostgreSQL's pretty-print rendering.
 
 This checkpoint does not promote a catalog to Stable or complete #817. Native
 catalog-domain OIDs/codecs, ownership, pretty-printed definitions, system-object
-rows, OID/reg* lifecycle and wider DDL remain unqualified; current issue criteria
-define any active follow-up.
+rows, and broad OID/reg* lifecycle remain unqualified; current issue criteria
+define active follow-up. Selected SQL materialized-view relation identity is
+documented separately under Feature Support and does not promote this catalog
+or the broader OID/reg* surface.
 Native column names and selected values are independent pinned observations;
 logical-carrier descriptors do not establish PostgreSQL descriptor ABI parity.
 The experimental `pg_type.typarray` value links only scalar types whose array

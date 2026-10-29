@@ -60,6 +60,49 @@ fn should_preserve_materialized_identity_when_renamed_view_is_refreshed() {
 }
 
 #[test]
+fn should_preserve_catalog_oid_when_renaming_legacy_metadata_without_projection_id() {
+    // Arrange
+    let fixture = sql_fixture("mv-rename-legacy-catalog-oid", SETUP);
+    let mut metadata = fixture
+        .cassie
+        .catalog
+        .get_materialized_projection("rename_before")
+        .unwrap();
+    metadata.projection_id.clear();
+    fixture
+        .cassie
+        .midge
+        .put_projection_metadata(&metadata)
+        .unwrap();
+    fixture
+        .cassie
+        .catalog
+        .register_projection_metadata(metadata);
+    let before_oid = fixture.rows(
+        "SELECT oid::BIGINT FROM pg_catalog.pg_class \
+         WHERE relname = 'rename_before' AND relkind = 'm'",
+    );
+
+    // Act
+    fixture
+        .execute("ALTER MATERIALIZED VIEW rename_before RENAME TO rename_after")
+        .unwrap();
+    let after_oid = fixture.rows(
+        "SELECT oid::BIGINT FROM pg_catalog.pg_class \
+         WHERE relname = 'rename_after' AND relkind = 'm'",
+    );
+    let renamed_metadata = fixture
+        .cassie
+        .catalog
+        .get_materialized_projection("rename_after")
+        .unwrap();
+
+    // Assert
+    assert_eq!(before_oid, after_oid);
+    assert_eq!(renamed_metadata.projection_id, "rename_before");
+}
+
+#[test]
 fn should_preserve_unpopulated_identity_when_quoted_materialized_view_is_renamed() {
     // Arrange
     let fixture = sql_fixture(
@@ -184,6 +227,7 @@ fn should_reject_unsupported_dependent_definitions_before_materialized_rename() 
 fn should_recover_committed_materialized_rename_after_local_restart() {
     // Arrange
     let directory = crate::support_catalog_directory::CatalogDirectory::new("mv-rename-restart");
+    let before_oid;
     {
         let cassie =
             Cassie::new_with_data_dir_and_config(&directory.0, CassieRuntimeConfig::default())
@@ -193,6 +237,23 @@ fn should_recover_committed_materialized_rename_after_local_restart() {
         for sql in SETUP {
             cassie.execute_sql(&session, sql, vec![]).unwrap();
         }
+        let mut metadata = cassie
+            .catalog
+            .get_materialized_projection("rename_before")
+            .unwrap();
+        metadata.projection_id.clear();
+        cassie.midge.put_projection_metadata(&metadata).unwrap();
+        cassie.catalog.register_projection_metadata(metadata);
+        before_oid = cassie
+            .execute_sql(
+                &session,
+                "SELECT oid::BIGINT FROM pg_catalog.pg_class \
+                 WHERE relname = 'rename_before' AND relkind = 'm'",
+                vec![],
+            )
+            .unwrap()
+            .rows()[0][0]
+            .clone();
         // Act
         cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
         cassie
@@ -208,6 +269,20 @@ fn should_recover_committed_materialized_rename_after_local_restart() {
         Cassie::new_with_data_dir_and_config(&directory.0, CassieRuntimeConfig::default()).unwrap();
     cassie.startup().unwrap();
     let session = cassie.create_session("tester", None);
+    let after_oid = cassie
+        .execute_sql(
+            &session,
+            "SELECT oid::BIGINT FROM pg_catalog.pg_class \
+             WHERE relname = 'rename_after' AND relkind = 'm'",
+            vec![],
+        )
+        .unwrap()
+        .rows()[0][0]
+        .clone();
+    let renamed_metadata = cassie
+        .catalog
+        .get_materialized_projection("rename_after")
+        .unwrap();
     // Assert
     assert_eq!(
         cassie
@@ -215,6 +290,11 @@ fn should_recover_committed_materialized_rename_after_local_restart() {
             .unwrap()
             .rows(),
         vec![vec![Value::Int64(7)]]
+    );
+    assert_eq!(before_oid, after_oid);
+    assert_eq!(
+        renamed_metadata.projection_id,
+        "postgres.public.rename_before"
     );
     assert!(cassie
         .execute_sql(&session, "SELECT value FROM rename_before", vec![])

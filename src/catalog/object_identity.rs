@@ -260,6 +260,19 @@ impl<'a> ObjectScope<'a> {
                     .into_iter()
                     .find(|sequence| sequence.object_id == id)
                     .map(|sequence| sequence.name)
+            })
+            .or_else(|| {
+                self.catalog
+                    .list_projection_metadata()
+                    .into_iter()
+                    .find(|projection| {
+                        projection.kind == crate::catalog::ProjectionKind::Materialized
+                            && projection.materialized.as_ref().is_some_and(
+                                crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                            )
+                            && stable_materialized_view_oid(projection.projection_id()) == oid
+                    })
+                    .map(|projection| projection.collection)
             })?;
         let relation = crate::catalog::RelationId::parse_canonical(&name)?;
         if !relation
@@ -390,9 +403,32 @@ pub fn stored_relation_oid(catalog: &Catalog, canonical: &str) -> Option<u32> {
         normal_oid(collection.storage_id)
     } else if let Some(view) = catalog.get_view(canonical) {
         normal_oid(view.object_id)
+    } else if let Some(projection) =
+        catalog
+            .get_materialized_projection(canonical)
+            .filter(|projection| {
+                projection.materialized.as_ref().is_some_and(
+                    crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                )
+            })
+    {
+        Some(stable_materialized_view_oid(projection.projection_id()))
     } else {
         normal_oid(catalog.get_sequence(canonical)?.object_id)
     }
+}
+
+/// Stable catalog OID for a SQL materialized view, keyed by its persisted
+/// projection identity so refresh and same-schema rename keep the relation OID.
+#[must_use]
+fn stable_materialized_view_oid(projection_id: &str) -> u32 {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in "materialized-view:".bytes().chain(projection_id.bytes()) {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    let oid_range = u64::from(u32::MAX - 0x8000_0000);
+    u32::try_from(hash % oid_range).unwrap_or(0) | 0x8000_0000
 }
 
 /// The stable catalog OID used for an index relation.

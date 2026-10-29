@@ -82,6 +82,43 @@ No runtime behavior changed. This is one persisted partial-index write shape;
 the complete #842 index lifecycle remains open and the release gate is not
 qualified by this focused result.
 
+## 2026-10-29 — #826 SQL materialized-view relation identity
+
+Source checkout base: `71749182f3b755ac33d9423d1381328efc5d1fe8`; work was
+performed on an isolated `issue-826-matview-catalog-identity` branch. The new
+pgwire compatibility test first failed on that base because `pg_class` returned
+no SQL materialized-view row. A focused legacy-metadata regression also
+reproduced an OID change on rename when `projection_id` was empty. Rename now
+seeds the existing identity field from the current collection name before
+changing the name; no metadata field or storage format was added.
+
+The selected behavior exposes `relkind = 'm'` and heap access method OID 2 in
+`pg_class`, output columns in `pg_attribute`, and `regclass` conversion in both
+directions. Tests cover an unpopulated view, namespace and column identity,
+refresh, same-schema rename, drop cleanup, and local restart. Relation identity
+remains stable across refresh, rename, and restart. Jev's first semantic review
+raised a possible legacy-identity gap (0.54); the targeted empty-ID probe
+confirmed it and drove the rename repair. The final adversarial review selected
+no remaining gap (0.99); this judgment is review input, while the regression
+and source behavior provide the evidence.
+
+The ordered local gate passed on the final code/test tree:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked` — 9,816 passed, 0 failed, 12 ignored across 35 targets
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- Touched-test validation: compatibility identity 1/1, materialized rename
+  lifecycle 12/12, and restart publication 2/2 compliant
+
+`cntryl-tools validate-docs` still reports existing broken links elsewhere in
+the documentation/testing inventory and reports no errors in the files changed
+by this batch. GitHub Actions remain disabled; hosted checks are unavailable.
+This delivers one #826 catalog subcase only. The remaining #826 obligations,
+v0.3 scope freeze, selected client workflows, and exact-release-commit browser,
+benchmark, and disk-backed operational evidence remain open; this is not a
+release-readiness claim.
+
 This section records the test-only backfill and organization pass on 2026-10-15 on `feature/postgres-18-compat`, from checkpoint `00000118` (which preserved the existing dirty backfill). One branch and one worktree were used. That pass did not change runtime source, Cargo configuration, corpus expectations or CI configuration, and claimed no runtime fixes or issue closures.
 
 The user subsequently authorized runtime implementation on the same branch. The historical counts and commands below describe the backfill checkpoint, not the later working tree. Current implementation checks must name their source revision and scope; focused passes do not establish the full compatibility gate.

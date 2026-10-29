@@ -62,6 +62,26 @@ the final probe uses the exact indexed predicate. No runtime behavior changed.
 This evidence covers one write-maintenance shape; it does not complete #842 or
 qualify a release candidate.
 
+## 2026-10-29 — #842 partial-index entry recovery after restart
+
+Added `should_recover_partial_index_entries_after_committed_writes_on_restart`
+to the disk-backed scalar-index restart suite. It commits an insert, updates
+that add/remove rows from the predicate and change an INCLUDE value, and a
+delete. After local restart, the eligible query still selects the partial
+covering index; results equal an independent scan after dropping that index.
+The focused test passed 1/1 and the touched-file policy validator passed 6/6.
+The ordered full local gate also passed on this tree:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked` — 9,814 passed, 0 failed, 12 ignored across 35 targets
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f tests/storage_indexes/indexes/scalar_indexes/restart.rs` — 6/6 compliant
+
+No runtime behavior changed. This is one persisted partial-index write shape;
+the complete #842 index lifecycle remains open and the release gate is not
+qualified by this focused result.
+
 This section records the test-only backfill and organization pass on 2026-10-15 on `feature/postgres-18-compat`, from checkpoint `00000118` (which preserved the existing dirty backfill). One branch and one worktree were used. That pass did not change runtime source, Cargo configuration, corpus expectations or CI configuration, and claimed no runtime fixes or issue closures.
 
 The user subsequently authorized runtime implementation on the same branch. The historical counts and commands below describe the backfill checkpoint, not the later working tree. Current implementation checks must name their source revision and scope; focused passes do not establish the full compatibility gate.

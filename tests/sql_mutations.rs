@@ -134,6 +134,9 @@ mod integration_sql_upsert_concurrency;
 #[path = "sql_mutations/ddl/migration_ddl_sequences.rs"]
 mod migration_ddl_sequences;
 
+#[path = "sql_mutations/ddl/schema_move_sequences.rs"]
+mod schema_move_sequences;
+
 // Formerly tests/transaction_commit_boundary.rs.
 #[path = "sql_mutations/transactions/transaction_commit_boundary.rs"]
 mod transaction_commit_boundary;

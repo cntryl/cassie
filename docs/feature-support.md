@@ -285,13 +285,18 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Projection lifecycle | Materialized projection create, refresh, checkpointed replay, version build, verification, activation, rollback by reactivation, repair, and drop on one local instance, as defined in [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). Interrupted or failed builds never become query-visible; stale or unproven projections fall back to authoritative source rows. Column-store table mode, remote replay coordination, and automatic activation are outside this surface. | Stable |
 | Verification and repair | Hashes, manifests, local repair planning and audit for materialized projections; see [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). No general (non-projection) index verification or repair exists. | Experimental |
 
-### Owned sequence schema moves
+### Table schema moves
 
 `ALTER TABLE ... SET SCHEMA` moves column-owned sequences with the table,
 preserves sequence identity and position, updates the recorded owner, and rewrites
-sequence-backed defaults. Rollback leaves both the table and its sequences in the
-source schema; a committed move remains usable after local-storage restart.
-Evidence: [`should_move_explicitly_owned_sequence_with_table_schema`](../tests/sql_mutations/ddl/schema_move_sequences.rs).
+sequence-backed defaults. It also updates inbound foreign-key references to the
+moved relation. Rollback leaves the table, owned sequences, and foreign-key
+references in the source schema; committed sequence and foreign-key behavior
+remains usable after local-storage restart. Evidence:
+[`should_move_explicitly_owned_sequence_with_table_schema`](../tests/sql_mutations/ddl/schema_move_sequences.rs),
+[`should_restore_foreign_key_to_source_after_referenced_table_schema_move_rollback`](../tests/sql_mutations/constraints/foreign_keys/foreign_key_ddl_lifecycle.rs),
+and
+[`should_preserve_foreign_key_to_referenced_table_after_schema_move_restart`](../tests/sql_mutations/constraints/foreign_keys/foreign_key_ddl_lifecycle.rs).
 
 ### Partial scalar-index entry recovery
 

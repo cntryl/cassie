@@ -19,5 +19,7 @@ include!("table_forms/resources.rs");
 mod like_options;
 #[path = "table_forms/like_primary_key.rs"]
 mod like_primary_key;
+#[path = "table_forms/materialized_view_catalog_identity.rs"]
+mod materialized_view_catalog_identity;
 
 include!("table_forms/semantics.rs");

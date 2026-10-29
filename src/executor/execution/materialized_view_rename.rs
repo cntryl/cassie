@@ -55,6 +55,9 @@ pub(super) fn rename(
                 .into());
             }
             controls.check_interruption()?;
+            if metadata.projection_id.is_empty() {
+                metadata.projection_id.clone_from(&metadata.collection);
+            }
             metadata.collection.clone_from(&statement.new_name);
             if let Some(materialized) = metadata.materialized.as_mut() {
                 materialized.name.clone_from(&statement.new_name);

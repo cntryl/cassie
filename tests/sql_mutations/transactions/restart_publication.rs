@@ -84,7 +84,7 @@ fn prepare_transactional_restart_state(path: &str) {
     execute(&cassie, &session, "ROLLBACK");
 }
 
-fn prepare_materialized_view_restart_state(path: &str) {
+fn prepare_materialized_view_restart_state(path: &str) -> i64 {
     let cassie = Cassie::new_with_data_dir(path).expect("create first Cassie instance");
     cassie.startup().expect("start first Cassie instance");
     let session = cassie.create_session("tester", None);
@@ -105,6 +105,19 @@ fn prepare_materialized_view_restart_state(path: &str) {
         "CREATE MATERIALIZED VIEW public.issue826_restart_view AS \
                    SELECT id, label FROM public.issue826_restart_source",
     );
+    let relation_rows = rows(
+        &cassie,
+        &session,
+        "SELECT oid::BIGINT FROM pg_catalog.pg_class \
+         WHERE relname = 'issue826_restart_view' AND relkind = 'm'",
+    );
+    let [row] = relation_rows.as_slice() else {
+        panic!("created materialized view must have a pg_class row: {relation_rows:?}");
+    };
+    let [Value::Int64(oid)] = row.as_slice() else {
+        panic!("materialized-view OID must use the integer carrier: {row:?}");
+    };
+    *oid
 }
 
 #[test]
@@ -195,7 +208,7 @@ fn should_recover_persisted_materialized_view_after_restart() {
     let _directory = DataDirectory(path.clone());
 
     // Act
-    prepare_materialized_view_restart_state(&path);
+    let original_relation_oid = prepare_materialized_view_restart_state(&path);
     let reopened = Cassie::new_with_data_dir(&path).expect("reopen Cassie instance");
     reopened
         .startup()
@@ -212,6 +225,30 @@ fn should_recover_persisted_materialized_view_after_restart() {
         &session,
         "SELECT id, label FROM public.issue826_restart_view ORDER BY id",
     );
+    let relation_rows = rows(
+        &reopened,
+        &session,
+        "SELECT oid::BIGINT, relkind FROM pg_catalog.pg_class \
+         WHERE relname = 'issue826_restart_view'",
+    );
+    let attribute_rows = rows(
+        &reopened,
+        &session,
+        "SELECT attrelid_oid::BIGINT, attname, attnum \
+         FROM pg_catalog.pg_attribute \
+         WHERE attrelid = 'issue826_restart_view' ORDER BY attnum",
+    );
+    let regclass_oid = rows(
+        &reopened,
+        &session,
+        "SELECT to_regclass('public.issue826_restart_view')::BIGINT",
+    );
+    let regclass_label = rows(
+        &reopened,
+        &session,
+        "SELECT oid::regclass::TEXT FROM pg_catalog.pg_class \
+         WHERE relname = 'issue826_restart_view' AND relkind = 'm'",
+    );
 
     // Assert
     assert_eq!(
@@ -224,5 +261,35 @@ fn should_recover_persisted_materialized_view_after_restart() {
     assert_eq!(
         materialized_rows,
         vec![vec![Value::Int64(1), Value::String("retained".to_owned()),]]
+    );
+    assert_eq!(
+        relation_rows,
+        vec![vec![
+            Value::Int64(original_relation_oid),
+            Value::String("m".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        attribute_rows,
+        vec![
+            vec![
+                Value::Int64(original_relation_oid),
+                Value::String("id".to_owned()),
+                Value::Int64(1),
+            ],
+            vec![
+                Value::Int64(original_relation_oid),
+                Value::String("label".to_owned()),
+                Value::Int64(2),
+            ],
+        ]
+    );
+    assert_eq!(
+        regclass_oid,
+        vec![vec![Value::Int64(original_relation_oid)]]
+    );
+    assert_eq!(
+        regclass_label,
+        vec![vec![Value::String("issue826_restart_view".to_owned())]]
     );
 }

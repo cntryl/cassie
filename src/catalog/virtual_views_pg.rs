@@ -175,6 +175,21 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
     );
     rows.extend(
         catalog
+            .list_projection_metadata()
+            .into_iter()
+            .filter(|projection| {
+                projection.kind == crate::catalog::ProjectionKind::Materialized
+                    && projection.materialized.as_ref().is_some_and(
+                        crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                    )
+                    && current_database.is_none_or(|database| {
+                        relation_belongs_to_database(&projection.collection, database)
+                    })
+            })
+            .map(|projection| class_row(catalog, &projection.collection, "m", None)),
+    );
+    rows.extend(
+        catalog
             .list_sequences()
             .into_iter()
             .filter(|sequence| {
@@ -231,6 +246,31 @@ pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) ->
             rows.push(attribute_row(
                 catalog,
                 &view.name,
+                &field.name,
+                &field.data_type,
+                index,
+                None,
+            ));
+        }
+    }
+    for projection in catalog.list_projection_metadata() {
+        if projection.kind != crate::catalog::ProjectionKind::Materialized
+            || current_database.is_some_and(|database| {
+                !relation_belongs_to_database(&projection.collection, database)
+            })
+        {
+            continue;
+        }
+        let Some(materialized) = projection
+            .materialized
+            .filter(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        else {
+            continue;
+        };
+        for (index, field) in materialized.output_schema.fields.iter().enumerate() {
+            rows.push(attribute_row(
+                catalog,
+                &projection.collection,
                 &field.name,
                 &field.data_type,
                 index,
@@ -444,7 +484,7 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
 
 fn relation_access_method_oid(kind: &str, index: Option<&IndexMeta>) -> i64 {
     match kind {
-        "r" => 2,
+        "r" | "m" => 2,
         "i" => index.map_or(0, |index| match index.access_method() {
             "btree" => 403,
             "hash" => 405,

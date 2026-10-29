@@ -922,6 +922,10 @@
       "suite": "compatibility",
       "category": "lifecycle/ddl"
     },
+    "tests/compatibility/lifecycle/ddl/if_exists_notices.rs": {
+      "suite": "compatibility",
+      "category": "lifecycle/ddl"
+    },
     "tests/compatibility/lifecycle/ddl/maintenance_statistics_refresh.rs": {
       "suite": "compatibility",
       "category": "lifecycle/ddl"

@@ -4637,3 +4637,52 @@ The focused `CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target
 CARGO_BUILD_JOBS=4 cargo test --locked --test storage_indexes` run on the
 range-only branch passed 188 tests with 1 ignored and 0 failures. GitHub
 Actions remained disabled; no hosted workflow was enabled or dispatched.
+
+
+## 2026-10-29 — #839 IF EXISTS notices across pgwire protocols
+
+At merged main `3ff17dc1`, the focused raw-wire test
+`should_emit_if_exists_notice_during_extended_query_execution` first failed:
+PostgreSQL 18.6 emitted one NOTICE for absent `ALTER TABLE IF EXISTS` during
+extended-protocol Execute, while Cassie emitted none (0 observed, 1 expected).
+A local PostgreSQL 18.6 `libpq` probe using `PQprepare` and `PQexecPrepared`
+confirmed the notice timing and message.
+
+A second regression,
+`should_not_notice_when_extended_query_alters_a_relation_created_in_transaction`,
+then failed because the classifier inspected only the committed catalog and
+emitted a false NOTICE for a table created in the active transaction. A
+PostgreSQL 18.6 transaction-local `CREATE TABLE` followed by prepared
+`ALTER TABLE IF EXISTS` emitted no notices. The classifier now checks the
+active session catalog overlay, and both Simple Query and extended-protocol
+transaction regressions pass.
+
+The extended execution path reuses the Simple Query missing-relation notice
+classifier and writes the NOTICE before the command tag after successful
+execution. The raw-wire regressions cover absent and present `DROP TABLE IF
+EXISTS` and `ALTER TABLE IF EXISTS`, NoticeResponse fields, SQLSTATE, command
+tags, present-object effects, and transaction-local creation. This changes no
+public API or persistent layout and completes only this selected #839 behavior;
+the issue remains open for other lifecycle forms.
+
+Final local validation on `audit/v03-839-extended-if-exists-notice-20261029`:
+
+- `cargo build --locked --bin cassie` passed.
+- `cargo test --locked` passed: 9,840 passed, 0 failed, 12 ignored; doc-tests
+  also passed (0 tests).
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D
+  clippy::pedantic` passed.
+- `cargo fmt --all -- --check` passed.
+- `cntryl-tools validate-tests -f
+  tests/compatibility/lifecycle/ddl/if_exists_notices.rs` passed: 4/4 compliant.
+- `cntryl-tools validate-tests -f
+  tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs` passed: 10/10 compliant.
+- `cntryl-tools validate-docs` validated 126 Markdown documents.
+- `target/test-inventory-tools312/bin/python tools/test_inventory.py --check`
+  passed with 8,342 Rust test declarations and 8,470 registered instances; no
+  unregistered tests, unresolved paths, duplicate identities, shard errors, or
+  oversized files were reported.
+
+The nested `cpu_identity` harness reported no benchmark rows inside a passing
+Cargo target; this is not benchmark qualification. GitHub Actions remain
+disabled, so hosted checks are unavailable and not claimed as passed.

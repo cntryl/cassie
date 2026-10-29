@@ -31,12 +31,10 @@ impl CompatibilityServer {
             .await
             .expect("bind listener");
         let addr = listener.local_addr().expect("listener address");
-        drop(listener);
         let server = tokio::spawn(async move {
-            let _ = cassie::pgwire::server::run(addr.to_string(), Arc::new(cassie.clone()), config)
-                .await;
+            let _ =
+                cassie::pgwire::server::run_with_listener(listener, Arc::new(cassie), config).await;
         });
-        tokio::time::sleep(Duration::from_millis(50)).await;
         Self { addr, server }
     }
 
@@ -136,10 +134,25 @@ fn should_validate_sqlx_read_model_probe_when_enabled() {
             "sqlx probe failed with status {:?}\nstdout:\n{}\nstderr:\n{}",
             output.status_code, output.stdout, output.stderr
         );
-        assert!(output.stdout.contains("sqlx_catalog=compat_sqlx_probe"));
-        assert!(output.stdout.contains("sqlx_prepared=alpha"));
-        assert!(output.stdout.contains("sqlx_transaction_row_count=1"));
-        assert!(output.stdout.contains("sqlx_duplicate_sqlstate=23505"));
-        assert!(output.stdout.contains("sqlx_missing_sqlstate=42P01"));
+        let expected = [
+            "sqlx_catalog=compat_sqlx_probe",
+            "sqlx_prepared=alpha",
+            "sqlx_transaction_row_count=1",
+            "sqlx_duplicate_sqlstate=23505",
+            "sqlx_missing_sqlstate=42P01",
+            "sqlx_joined=alpha",
+            "sqlx_after_duplicate=alpha",
+            "sqlx_after_missing=alpha",
+            "sqlx_same_session=true",
+        ];
+        for marker in &expected {
+            assert!(
+                output.stdout.lines().any(|line| line == *marker),
+                "missing SQLx probe result: {marker}"
+            );
+        }
+        for marker in expected {
+            println!("{marker}");
+        }
     });
 }

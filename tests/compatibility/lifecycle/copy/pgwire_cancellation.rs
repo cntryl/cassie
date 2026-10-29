@@ -1,6 +1,6 @@
 use super::*;
 use std::time::Duration;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn assert_cancelled_copy_observations(
     copy_response_tag: u8,
@@ -9,7 +9,6 @@ fn assert_cancelled_copy_observations(
     frames: &[(u8, Vec<u8>)],
     rows: &[tokio_postgres::Row],
     recovered: &[(u8, Vec<u8>)],
-    responded_before_copy_done: bool,
 ) {
     assert_eq!(
         copy_response_tag, b'G',
@@ -24,7 +23,7 @@ fn assert_cancelled_copy_observations(
         frames
             .last()
             .map(|(tag, payload)| (*tag, payload.as_slice())),
-        Some((b'Z', b"I".as_slice()))
+        Some((b'Z', b"E".as_slice()))
     );
     assert!(rows.is_empty(), "cancelled COPY must publish no rows");
     assert_eq!(support_pgwire::error_code(recovered), None);
@@ -32,15 +31,10 @@ fn assert_cancelled_copy_observations(
         support_pgwire::data_rows(recovered),
         vec![vec![Some("1".to_owned())]]
     );
-    assert!(
-        responded_before_copy_done,
-        "PostgreSQL 18.6 returns SQLSTATE 57014 and ReadyForQuery before CopyDone; \
-         Cassie only responds after the client terminates the COPY stream: {frames:?}"
-    );
 }
 
 #[test]
-fn should_cancel_copy_from_stdin_over_pgwire_without_publishing_rows() {
+fn should_cancel_idle_copy_from_stdin_without_followup_frame_and_recover_after_late_frames() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -57,6 +51,21 @@ fn should_cancel_copy_from_stdin_over_pgwire_without_publishing_rows() {
         let (mut reader, mut writer) = socket.into_split();
         let (process_id, secret_key) =
             support_pgwire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+
+        support_pgwire::write_frames(
+            &mut writer,
+            vec![support_pgwire::simple_query_frame("BEGIN")],
+        )
+        .await;
+        let begun = support_pgwire::read_frames_until_ready_within(
+            &mut reader,
+            Duration::from_secs(5),
+        )
+        .await;
+        assert_eq!(
+            begun.last().map(|(tag, payload)| (*tag, payload.as_slice())),
+            Some((b'Z', b"T".as_slice()))
+        );
 
         support_pgwire::write_frames(
             &mut writer,
@@ -84,32 +93,41 @@ fn should_cancel_copy_from_stdin_over_pgwire_without_publishing_rows() {
             .shutdown()
             .await
             .expect("close cancellation request");
-        tokio::time::sleep(Duration::from_millis(50)).await;
-
-        support_pgwire::write_frames(&mut writer, vec![support_pgwire::copy_data_frame(b"2\n")])
-            .await;
-        let response_before_copy_done = tokio::time::timeout(
-            Duration::from_secs(1),
-            support_pgwire::read_frames_until_ready(&mut reader),
+        let mut cancel_response = [0_u8; 1];
+        let cancel_close = tokio::time::timeout(
+            Duration::from_secs(5),
+            cancel_socket.read(&mut cancel_response),
         )
         .await
-        .ok();
-        if response_before_copy_done.is_none() {
-            // Keep the Cassie session bounded and collect its delayed response
-            // after the stream's normal terminator.
-            support_pgwire::write_frames(&mut writer, vec![support_pgwire::copy_done_frame()])
-                .await;
-        }
-        let frames = match response_before_copy_done.as_ref() {
-            Some(frames) => frames.clone(),
-            None => {
-                support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
-                    .await
-            }
-        };
+        .expect("server should process CancelRequest");
+        assert_eq!(cancel_close.expect("read CancelRequest close"), 0);
+        let frames = support_pgwire::read_frames_until_ready_within(
+            &mut reader,
+            Duration::from_secs(5),
+        )
+        .await;
         let mut frames_with_copy_response = frames.clone();
         frames_with_copy_response.insert(0, (copy_response_tag, copy_response_payload.clone()));
         let error_code = support_pgwire::error_code(&frames_with_copy_response);
+        let transaction_status = frames
+            .last()
+            .map(|(tag, payload)| (*tag, payload.as_slice()));
+
+        // Send frames that were already in flight when the cancelled COPY ended.
+        support_pgwire::write_frames(
+            &mut writer,
+            vec![
+                support_pgwire::copy_data_frame(b"1\n"),
+                support_pgwire::copy_done_frame(),
+                support_pgwire::simple_query_frame("ROLLBACK"),
+            ],
+        )
+        .await;
+        let rolled_back = support_pgwire::read_frames_until_ready_within(
+            &mut reader,
+            Duration::from_secs(5),
+        )
+        .await;
         let rows = client
             .query("SELECT id FROM compat_copy_pgwire_cancel", &[])
             .await
@@ -134,7 +152,11 @@ fn should_cancel_copy_from_stdin_over_pgwire_without_publishing_rows() {
             &frames,
             &rows,
             &recovered,
-            response_before_copy_done.is_some(),
+        );
+        assert_eq!(transaction_status, Some((b'Z', b"E".as_slice())));
+        assert_eq!(
+            rolled_back.last().map(|(tag, payload)| (*tag, payload.as_slice())),
+            Some((b'Z', b"I".as_slice()))
         );
     });
 }

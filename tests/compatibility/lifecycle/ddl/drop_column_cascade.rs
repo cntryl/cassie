@@ -347,3 +347,209 @@ fn should_recover_column_cascade_dependency_removal_after_local_restart() {
     );
     orphan_insert.expect("the dropped referenced column removes its foreign key");
 }
+
+struct ColumnRestrictObservation {
+    drop_column: Result<(), tokio_postgres::Error>,
+    parent_columns: Result<Vec<tokio_postgres::Row>, tokio_postgres::Error>,
+    view_rows: Result<Vec<tokio_postgres::Row>, tokio_postgres::Error>,
+    foreign_key_count: Result<tokio_postgres::Row, tokio_postgres::Error>,
+    orphan_insert: Result<u64, tokio_postgres::Error>,
+}
+
+async fn observe_column_restrict(client: &tokio_postgres::Client) -> ColumnRestrictObservation {
+    let drop_column = client
+        .batch_execute(
+            "ALTER TABLE compat_839_restrict_parent \
+             DROP COLUMN parent_id RESTRICT",
+        )
+        .await;
+    let parent_columns = client
+        .query(
+            "SELECT column_name FROM information_schema.columns \
+             WHERE table_name = 'compat_839_restrict_parent' \
+             ORDER BY ordinal_position",
+            &[],
+        )
+        .await;
+    let view_rows = client
+        .query(
+            "SELECT parent_id FROM compat_839_restrict_parent_view ORDER BY parent_id",
+            &[],
+        )
+        .await;
+    let foreign_key_count = client
+        .query_one(
+            "SELECT count(*) FROM pg_catalog.pg_constraint \
+             WHERE conrelid = 'compat_839_restrict_child' \
+               AND contype = 'f'",
+            &[],
+        )
+        .await;
+    let orphan_insert = client
+        .execute("INSERT INTO compat_839_restrict_child VALUES (99)", &[])
+        .await;
+
+    ColumnRestrictObservation {
+        drop_column,
+        parent_columns,
+        view_rows,
+        foreign_key_count,
+        orphan_insert,
+    }
+}
+
+fn assert_column_restrict_observation(observation: ColumnRestrictObservation) {
+    let database_error = observation
+        .drop_column
+        .expect_err("RESTRICT must reject a column with dependent objects");
+    let database_error = database_error
+        .as_db_error()
+        .expect("RESTRICT dependency error details");
+    assert_eq!(database_error.code().code(), "2BP01");
+    assert!(
+        database_error
+            .detail()
+            .unwrap_or_default()
+            .contains("compat_839_restrict_child"),
+        "foreign-key dependency should be reported: {database_error:?}"
+    );
+    assert_eq!(
+        observation
+            .parent_columns
+            .expect("read parent columns after rejected RESTRICT")
+            .iter()
+            .map(|row| row.get::<_, String>(0))
+            .collect::<Vec<_>>(),
+        vec!["parent_id".to_owned(), "retained".to_owned()]
+    );
+    assert_eq!(
+        observation
+            .view_rows
+            .expect("read the dependent view after rejected RESTRICT")
+            .iter()
+            .map(|row| row.get::<_, i32>(0))
+            .collect::<Vec<_>>(),
+        vec![1]
+    );
+    assert_eq!(
+        observation
+            .foreign_key_count
+            .expect("inspect the preserved foreign key")
+            .get::<_, i64>(0),
+        1
+    );
+    assert_eq!(
+        observation
+            .orphan_insert
+            .expect_err("the preserved foreign key should reject an orphan")
+            .as_db_error()
+            .expect("foreign-key violation details")
+            .code()
+            .code(),
+        "23503"
+    );
+}
+
+#[test]
+fn should_reject_drop_column_restrict_without_mutating_dependents() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_839_drop_column_restrict").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_839_restrict_parent \
+                 (parent_id INT PRIMARY KEY, retained TEXT)",
+                "INSERT INTO compat_839_restrict_parent VALUES (1, 'kept')",
+                "CREATE TABLE compat_839_restrict_child \
+                 (parent_id INT REFERENCES compat_839_restrict_parent(parent_id))",
+                "INSERT INTO compat_839_restrict_child VALUES (1)",
+                "CREATE VIEW compat_839_restrict_parent_view \
+                 AS SELECT parent_id FROM compat_839_restrict_parent",
+            ],
+        )
+        .await
+        .expect("create parent data and dependent view and foreign key");
+
+        // Act
+        let observation = observe_column_restrict(&client).await;
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        assert_column_restrict_observation(observation);
+    });
+}
+
+#[test]
+fn should_reject_drop_column_restrict_when_a_view_depends() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("issue_839_drop_column_restrict_view").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_839_restrict_view_parent \
+                 (parent_id INT PRIMARY KEY, retained TEXT)",
+                "INSERT INTO compat_839_restrict_view_parent VALUES (1, 'kept')",
+                "CREATE VIEW compat_839_restrict_view \
+                 AS SELECT parent_id FROM compat_839_restrict_view_parent",
+            ],
+        )
+        .await
+        .expect("create parent data and a dependent view");
+
+        // Act
+        let drop_column = client
+            .batch_execute(
+                "ALTER TABLE compat_839_restrict_view_parent \
+                 DROP COLUMN parent_id RESTRICT",
+            )
+            .await;
+        let parent_columns = client
+            .query(
+                "SELECT column_name FROM information_schema.columns \
+                 WHERE table_name = 'compat_839_restrict_view_parent' \
+                 ORDER BY ordinal_position",
+                &[],
+            )
+            .await;
+        let view_rows = client
+            .query("SELECT parent_id FROM compat_839_restrict_view", &[])
+            .await;
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+        let database_error =
+            drop_column.expect_err("RESTRICT must reject a column used by a dependent view");
+        assert_eq!(
+            database_error
+                .as_db_error()
+                .expect("RESTRICT dependency error details")
+                .code()
+                .code(),
+            "2BP01"
+        );
+        assert_eq!(
+            parent_columns
+                .expect("read parent columns after rejected RESTRICT")
+                .iter()
+                .map(|row| row.get::<_, String>(0))
+                .collect::<Vec<_>>(),
+            vec!["parent_id".to_owned(), "retained".to_owned()]
+        );
+        assert_eq!(
+            view_rows
+                .expect("read the dependent view after rejected RESTRICT")
+                .iter()
+                .map(|row| row.get::<_, i32>(0))
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+    });
+}

@@ -240,8 +240,19 @@ fn should_reject_dropping_a_column_that_a_foreign_key_references() {
         let restricted_delete = run(&cassie, &session, "DELETE FROM p");
 
         // Assert
-        let error = drop_column.expect_err("referenced column drop").to_string();
-        assert!(error.contains("cfk"), "unexpected error {error}");
+        let error = drop_column.expect_err("referenced column drop");
+        assert!(
+            matches!(
+                error,
+                CassieError::Diagnostic(ref diagnostic)
+                    if diagnostic.sql_state == "2BP01"
+                        && diagnostic
+                            .detail
+                            .as_deref()
+                            .is_some_and(|detail| detail.contains("cfk"))
+            ),
+            "unexpected error {error:?}"
+        );
         assert_foreign_key_error(restricted_delete, "restricted parent delete");
         assert_eq!(
             rows(&cassie, &session, "SELECT id FROM p"),

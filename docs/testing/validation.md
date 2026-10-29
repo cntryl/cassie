@@ -23,6 +23,29 @@ table is absent and the same connection accepts a follow-up query; it passed
 profile, so no runtime behavior changed. This is one negative boundary case and
 does not complete #833 or qualify a release candidate.
 
+## 2026-10-28 — #839 numeric type rewrite uniqueness
+
+On main `364b801f`, a focused local-storage probe created an `INT UNIQUE`
+column with value `22`, rewrote it to `NUMERIC(20,2) USING amount::numeric`,
+and attempted to insert `22` again. The duplicate succeeded both before and
+after restart. The rewritten value uses NUMERIC's text storage form while an
+integer literal reached validation as a JSON number; exact JSON comparison
+therefore missed a SQL-equal value. The regression
+`should_keep_unique_enforcement_after_using_type_rewrite_restart` first failed
+on that baseline.
+
+NUMERIC values now pass through the declared numeric typmod before UNIQUE
+validation and storage. The focused regression passes and checks NULL/value
+preservation, OID 1700 and typmod across local restart, and named UNIQUE
+rejection for integer and decimal duplicates both before and after restart.
+This adds no public API or persistent layout. The ordered local gate passed on
+the final branch tree: `cargo build --locked --bin cassie`; `cargo test --locked`
+(9,813 passed, 0 failed, 12 ignored across 35 targets); strict full pedantic
+Clippy; `cargo fmt --all -- --check`; and
+`cntryl-tools validate-tests -f tests/compatibility/lifecycle/ddl/atomic_lifecycle.rs`
+(11/11 compliant). This qualifies the local #839 increment only; no
+release-readiness claim is made.
+
 ## 2026-10-28 — #842 partial scalar-index write maintenance
 
 Added `should_maintain_partial_index_entries_through_predicate_changing_writes`

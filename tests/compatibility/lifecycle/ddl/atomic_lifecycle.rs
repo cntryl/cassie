@@ -814,3 +814,123 @@ fn should_persist_renamed_alter_relation_after_restart() {
         &rows_after_restart,
     );
 }
+
+type NumericRewriteState = (
+    Vec<Vec<cassie::types::Value>>,
+    Vec<Vec<cassie::types::Value>>,
+);
+
+fn issue839_numeric_rewrite_state(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+) -> NumericRewriteState {
+    let catalog = cassie
+        .execute_sql(
+            session,
+            "SELECT a.atttypid::BIGINT, a.atttypmod::BIGINT \
+             FROM pg_catalog.pg_class AS c \
+             JOIN pg_catalog.pg_attribute AS a ON a.attrelid_oid = c.oid \
+             WHERE c.relname = 'compat_issue839_type_restart' \
+               AND a.attname = 'amount'",
+            vec![],
+        )
+        .expect("read rewritten column metadata")
+        .rows()
+        .to_vec();
+    let rows = cassie
+        .execute_sql(
+            session,
+            "SELECT id::TEXT, amount::TEXT \
+             FROM compat_issue839_type_restart ORDER BY id",
+            vec![],
+        )
+        .expect("read rewritten rows")
+        .rows()
+        .to_vec();
+    (catalog, rows)
+}
+
+fn assert_issue839_numeric_duplicate_rejected(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    sql_value: &str,
+) {
+    let statement = format!("INSERT INTO compat_issue839_type_restart VALUES (3, {sql_value})");
+    let duplicate = cassie.execute_sql(session, &statement, vec![]);
+    assert!(
+        matches!(
+            &duplicate,
+            Err(cassie::app::CassieError::UniqueViolation { constraint, .. })
+                if constraint == "compat_issue839_amount_unique"
+        ),
+        "expected the rewritten unique constraint to reject the duplicate, got {duplicate:?}"
+    );
+}
+
+fn create_issue839_numeric_rewrite_before_restart(path: &str) -> NumericRewriteState {
+    let cassie = Cassie::new_with_data_dir(path).expect("create local Cassie instance");
+    cassie.startup().expect("start local Cassie instance");
+    let session = cassie.create_session("tester", None);
+    for statement in [
+        "CREATE TABLE compat_issue839_type_restart \
+         (id INT PRIMARY KEY, amount INT, \
+          CONSTRAINT compat_issue839_amount_unique UNIQUE (amount))",
+        "INSERT INTO compat_issue839_type_restart VALUES (1, 22), (2, NULL)",
+        "ALTER TABLE compat_issue839_type_restart \
+         ALTER COLUMN amount TYPE NUMERIC(20,2) USING amount::numeric",
+    ] {
+        cassie
+            .execute_sql(&session, statement, vec![])
+            .unwrap_or_else(|error| {
+                panic!("execute type rewrite before restart ({statement}): {error}")
+            });
+    }
+    assert_issue839_numeric_duplicate_rejected(&cassie, &session, "22");
+    let state = issue839_numeric_rewrite_state(&cassie, &session);
+    drop(session);
+    drop(cassie);
+    state
+}
+
+#[test]
+fn should_keep_unique_enforcement_after_using_type_rewrite_restart() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("issue839_using_type_restart");
+    let _directory = DataDirectory(path.clone());
+    let before_restart = create_issue839_numeric_rewrite_before_restart(&path);
+
+    // Act
+    let reopened = Cassie::new_with_data_dir(&path).expect("reopen local Cassie instance");
+    reopened
+        .startup()
+        .expect("recover rewritten rows and index after restart");
+    let session = reopened.create_session("tester", None);
+    let (catalog_after_restart, rows_after_restart) =
+        issue839_numeric_rewrite_state(&reopened, &session);
+    assert_issue839_numeric_duplicate_rejected(&reopened, &session, "22.0");
+
+    // Assert
+    assert_eq!(
+        catalog_after_restart,
+        vec![vec![
+            cassie::types::Value::Int64(1700),
+            cassie::types::Value::Int64(1_310_726),
+        ]]
+    );
+    assert_eq!(catalog_after_restart, before_restart.0);
+    assert_eq!(rows_after_restart, before_restart.1);
+    assert_eq!(
+        rows_after_restart,
+        vec![
+            vec![
+                cassie::types::Value::String("1".to_owned()),
+                cassie::types::Value::String("22.00".to_owned()),
+            ],
+            vec![
+                cassie::types::Value::String("2".to_owned()),
+                cassie::types::Value::Null,
+            ],
+        ]
+    );
+}

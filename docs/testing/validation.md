@@ -4731,3 +4731,25 @@ paths, duplicate identities, or shard errors. `cntryl-tools validate-docs`
 validated 126 Markdown documents, and `git diff --check` passed. This slice
 changes test coverage and documentation only; GitHub Actions remain disabled,
 so hosted checks are unavailable and not claimed as passed.
+
+## 2026-10-29 — #839 multi-action ALTER restart
+
+`should_recover_multi_action_alter_after_restart` applies one committed
+`ALTER TABLE` that converts an existing nullable INT column to
+`NUMERIC(20,0)` and adds a TEXT column with a literal default. It captures the
+relation and attribute identity, type OID/typmod, default metadata, existing
+rows, and backfilled values, then verifies them after reopening the same local
+storage directory. The focused test passed 1/1; this is a coverage addition and
+changes no runtime behavior.
+
+The ordered local gate passed on branch
+`audit/v03-839-multiaction-restart-20261029`, based on merged main
+`c390e0f24fd76e2a3e3c1fbf946716f365523cd6`: build; full locked tests (9,843
+passed, 0 failed, 12 ignored across 35 targets; doc-tests passed with 0 tests);
+strict workspace/all-target/all-feature pedantic Clippy; formatting; and
+touched-test validation (11/11 compliant). The generated inventory check
+passed with 8,345 Rust declarations and 8,473 registered instances and no
+unregistered tests, unresolved module paths, duplicate identities, or shard
+errors. `cntryl-tools validate-docs` validated 126 Markdown documents, and
+`git diff --check` passed. GitHub Actions remain disabled, so hosted checks are
+unavailable and are not claimed as passed.

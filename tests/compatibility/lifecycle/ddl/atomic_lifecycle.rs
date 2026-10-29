@@ -115,6 +115,121 @@ fn should_apply_using_conversion_with_column_addition_in_one_alter() {
     });
 }
 
+type MultiActionRestartState = (
+    Vec<Vec<cassie::types::Value>>,
+    Vec<Vec<cassie::types::Value>>,
+);
+
+fn issue839_multi_action_restart_state(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+) -> MultiActionRestartState {
+    let catalog = cassie
+        .execute_sql(
+            session,
+            "SELECT c.oid::BIGINT, a.attname, a.atttypid::BIGINT, \
+                    a.atttypmod::BIGINT, a.atthasdef \
+             FROM pg_catalog.pg_class AS c \
+             JOIN pg_catalog.pg_attribute AS a ON a.attrelid_oid = c.oid \
+             WHERE c.relname = 'compat_issue839_multi_action_restart' \
+               AND a.attnum > 0 ORDER BY a.attnum",
+            vec![],
+        )
+        .expect("read multi-action ALTER column metadata")
+        .rows()
+        .to_vec();
+    let rows = cassie
+        .execute_sql(
+            session,
+            "SELECT id::TEXT, amount::TEXT, note \
+             FROM compat_issue839_multi_action_restart ORDER BY id",
+            vec![],
+        )
+        .expect("read multi-action ALTER rows")
+        .rows()
+        .to_vec();
+    (catalog, rows)
+}
+
+fn create_issue839_multi_action_before_restart(path: &str) -> MultiActionRestartState {
+    let cassie = Cassie::new_with_data_dir(path).expect("create local Cassie instance");
+    cassie.startup().expect("start local Cassie instance");
+    let session = cassie.create_session("tester", None);
+    for statement in [
+        "CREATE TABLE compat_issue839_multi_action_restart \
+         (id INT PRIMARY KEY, amount INT)",
+        "INSERT INTO compat_issue839_multi_action_restart VALUES (1, 22), (2, NULL)",
+        "ALTER TABLE compat_issue839_multi_action_restart \
+         ALTER COLUMN amount TYPE NUMERIC(20,0) USING amount::numeric, \
+         ADD COLUMN note TEXT DEFAULT 'added'",
+    ] {
+        cassie
+            .execute_sql(&session, statement, vec![])
+            .unwrap_or_else(|error| {
+                panic!("execute multi-action ALTER before restart ({statement}): {error}")
+            });
+    }
+    let state = issue839_multi_action_restart_state(&cassie, &session);
+    drop(session);
+    drop(cassie);
+    state
+}
+
+#[test]
+fn should_recover_multi_action_alter_after_restart() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("issue839_multi_action_type_add_restart");
+    let _directory = DataDirectory(path.clone());
+    let before_restart = create_issue839_multi_action_before_restart(&path);
+
+    // Act
+    let reopened = Cassie::new_with_data_dir(&path).expect("reopen local Cassie instance");
+    reopened
+        .startup()
+        .expect("recover multi-action ALTER after restart");
+    let session = reopened.create_session("tester", None);
+    let after_restart = issue839_multi_action_restart_state(&reopened, &session);
+
+    // Assert
+    assert_eq!(after_restart.0, before_restart.0);
+    assert_eq!(after_restart.1, before_restart.1);
+    assert_eq!(after_restart.0.len(), 3);
+    assert_eq!(
+        after_restart.0[1][1..],
+        [
+            cassie::types::Value::String("amount".to_owned()),
+            cassie::types::Value::Int64(1700),
+            cassie::types::Value::Int64(1_310_724),
+            cassie::types::Value::Bool(false),
+        ]
+    );
+    assert_eq!(
+        after_restart.0[2][1..],
+        [
+            cassie::types::Value::String("note".to_owned()),
+            cassie::types::Value::Int64(25),
+            cassie::types::Value::Int64(-1),
+            cassie::types::Value::Bool(true),
+        ]
+    );
+    assert_eq!(
+        after_restart.1,
+        vec![
+            vec![
+                cassie::types::Value::String("1".to_owned()),
+                cassie::types::Value::String("22".to_owned()),
+                cassie::types::Value::String("added".to_owned()),
+            ],
+            vec![
+                cassie::types::Value::String("2".to_owned()),
+                cassie::types::Value::Null,
+                cassie::types::Value::String("added".to_owned()),
+            ],
+        ]
+    );
+}
+
 #[test]
 fn should_rollback_multi_action_alter_after_using_failure() {
     // Arrange

@@ -10,6 +10,22 @@ relational contract or close #761.
 > current GitHub issue state, or an active full-parity product goal. PostgreSQL
 > 18.6 observations are reference evidence for selected behaviors only.
 
+## 2026-10-28 — #842 partial scalar-index write maintenance
+
+Added `should_maintain_partial_index_entries_through_predicate_changing_writes`
+to verify the selected scalar-index contract over pgwire. It exercises a
+partial covering index through rollback of a staged update and insert, a
+committed matching insert, updates that add/remove rows from its predicate and
+change indexed/INCLUDE values, and deletion,
+`EXPLAIN` confirmation that the exact predicate uses the index, and result
+comparisons against independent scans before writes, after rollback, and after
+committed changes. The focused test passed
+1/1 on the current worktree. An initial probe used a query that strengthened the
+partial predicate; Cassie correctly declined that unsafe index alternative, so
+the final probe uses the exact indexed predicate. No runtime behavior changed.
+This evidence covers one write-maintenance shape; it does not complete #842 or
+qualify a release candidate.
+
 This section records the test-only backfill and organization pass on 2026-10-15 on `feature/postgres-18-compat`, from checkpoint `00000118` (which preserved the existing dirty backfill). One branch and one worktree were used. That pass did not change runtime source, Cargo configuration, corpus expectations or CI configuration, and claimed no runtime fixes or issue closures.
 
 The user subsequently authorized runtime implementation on the same branch. The historical counts and commands below describe the backfill checkpoint, not the later working tree. Current implementation checks must name their source revision and scope; focused passes do not establish the full compatibility gate.

@@ -5,231 +5,131 @@
     "cargo_targets": [
       {
         "name": "analytics",
-        "file": "tests/analytics.rs",
-        "ci_shards": [
-          "analytics-and-catalog"
-        ]
-      },
-      {
-        "name": "backend_ci",
-        "file": "tests/backend_ci.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/analytics.rs"
       },
       {
         "name": "bench_operations",
-        "file": "tests/bench_operations.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/bench_operations.rs"
       },
       {
         "name": "catalog_security",
-        "file": "tests/catalog_security.rs",
-        "ci_shards": [
-          "analytics-and-catalog"
-        ]
+        "file": "tests/catalog_security.rs"
       },
       {
         "name": "compatibility",
-        "file": "tests/compatibility.rs",
-        "ci_shards": [
-          "analytics-and-catalog"
-        ]
+        "file": "tests/compatibility.rs"
       },
       {
         "name": "configuration_isolated",
-        "file": "tests/configuration_isolated.rs",
-        "ci_shards": [
-          "analytics-and-catalog"
-        ]
+        "file": "tests/configuration_isolated.rs"
       },
       {
         "name": "constraint_ingress",
-        "file": "tests/constraint_ingress.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/constraint_ingress.rs"
       },
       {
         "name": "domain_models",
-        "file": "tests/domain_models.rs",
-        "ci_shards": [
-          "analytics-and-catalog"
-        ]
+        "file": "tests/domain_models.rs"
       },
       {
         "name": "executor",
-        "file": "tests/executor.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/executor.rs"
       },
       {
         "name": "expression_index_upsert",
-        "file": "tests/expression_index_upsert.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/expression_index_upsert.rs"
       },
       {
         "name": "json_writes",
-        "file": "tests/json_writes.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/json_writes.rs"
       },
       {
         "name": "metrics",
-        "file": "tests/metrics.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/metrics.rs"
       },
       {
         "name": "null_safe_predicates",
-        "file": "tests/null_safe_predicates.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/null_safe_predicates.rs"
       },
       {
         "name": "parser_types",
-        "file": "tests/parser_types.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/parser_types.rs"
       },
       {
         "name": "pgwire_core",
-        "file": "tests/pgwire_core.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/pgwire_core.rs"
       },
       {
         "name": "pgwire_extended",
-        "file": "tests/pgwire_extended.rs",
-        "ci_shards": [
-          "pgwire-extended"
-        ]
+        "file": "tests/pgwire_extended.rs"
       },
       {
         "name": "planner_controls",
-        "file": "tests/planner_controls.rs",
-        "ci_shards": [
-          "core"
-        ]
+        "file": "tests/planner_controls.rs"
       },
       {
         "name": "query_scan_controls",
-        "file": "tests/query_scan_controls.rs",
-        "ci_shards": [
-          "query-surface"
-        ]
+        "file": "tests/query_scan_controls.rs"
       },
       {
         "name": "relational_qualification",
-        "file": "tests/relational_qualification.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/relational_qualification.rs"
       },
       {
         "name": "rest",
-        "file": "tests/rest.rs",
-        "ci_shards": [
-          "query-surface"
-        ]
+        "file": "tests/rest.rs"
       },
       {
         "name": "search",
-        "file": "tests/search.rs",
-        "ci_shards": [
-          "query-surface"
-        ]
+        "file": "tests/search.rs"
       },
       {
         "name": "sql_contextual_literals",
-        "file": "tests/sql_contextual_literals.rs",
-        "ci_shards": [
-          "query-surface"
-        ]
+        "file": "tests/sql_contextual_literals.rs"
       },
       {
         "name": "sql_derived_sources",
-        "file": "tests/sql_derived_sources.rs",
-        "ci_shards": [
-          "query-surface"
-        ]
+        "file": "tests/sql_derived_sources.rs"
       },
       {
         "name": "sql_exists_subqueries",
-        "file": "tests/sql_exists_subqueries.rs",
-        "ci_shards": [
-          "query-surface"
-        ]
+        "file": "tests/sql_exists_subqueries.rs"
       },
       {
         "name": "sql_mutations",
-        "file": "tests/sql_mutations.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/sql_mutations.rs"
       },
       {
         "name": "sql_queries",
-        "file": "tests/sql_queries.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/sql_queries.rs"
       },
       {
         "name": "sql_relation_identifiers",
-        "file": "tests/sql_relation_identifiers.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/sql_relation_identifiers.rs"
       },
       {
         "name": "sql_set_operations",
-        "file": "tests/sql_set_operations.rs",
-        "ci_shards": [
-          "sql-semantics"
-        ]
+        "file": "tests/sql_set_operations.rs"
       },
       {
         "name": "storage_indexes",
-        "file": "tests/storage_indexes.rs",
-        "ci_shards": [
-          "storage-and-vector"
-        ]
+        "file": "tests/storage_indexes.rs"
       },
       {
         "name": "temporal_predicate_literals",
-        "file": "tests/temporal_predicate_literals.rs",
-        "ci_shards": [
-          "storage-and-vector"
-        ]
+        "file": "tests/temporal_predicate_literals.rs"
       },
       {
         "name": "time_series_float_partitions",
-        "file": "tests/time_series_float_partitions.rs",
-        "ci_shards": [
-          "storage-and-vector"
-        ]
+        "file": "tests/time_series_float_partitions.rs"
       },
       {
         "name": "vector_embeddings",
-        "file": "tests/vector_embeddings.rs",
-        "ci_shards": [
-          "storage-and-vector"
-        ]
+        "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1577,
-    "rust_files": 1545,
+    "files": 1575,
+    "rust_files": 1543,
     "rust_test_declarations": 8363,
     "python_test_declarations": 21,
     "registered_rust_instances": 8491,
@@ -238,8 +138,6 @@
     "repeated_module_registrations": [],
     "duplicate_registered_identities": [],
     "planned_tests": 131,
-    "unsharded_targets": [],
-    "unknown_shard_targets": [],
     "oversized_files": [],
     "destination_name_conflicts": [],
     "large_projected_destinations": [
@@ -299,7 +197,7 @@
         "test_declarations": 13
       }
     ],
-    "reviewed_layout_files": 1334,
+    "reviewed_layout_files": 1333,
     "placement_status": "Reviewed physical placements are recorded in layout-decisions.json; remaining placements are proposals. No test result is inferred."
   },
   "tests": [
@@ -6033,68 +5931,6 @@
         "category": "types/arrays",
         "directory": "tests/analytics/types/arrays",
         "file": "tests/analytics/types/arrays/typed_array_extrema.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/backend_ci/contracts/semantics.rs::should_assign_every_workspace_integration_test_to_one_backend_ci_shard",
-      "name": "should_assign_every_workspace_integration_test_to_one_backend_ci_shard",
-      "current_file": "tests/backend_ci/contracts/semantics.rs",
-      "line": 2,
-      "end_line": 70,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "backend_ci",
-          "name": "should_assign_every_workspace_integration_test_to_one_backend_ci_shard"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "backend_ci",
-        "category": "contracts",
-        "directory": "tests/backend_ci/contracts",
-        "file": "tests/backend_ci/contracts/semantics.rs",
-        "basis": "reviewed_physical_layout",
-        "review": "selected",
-        "migration": "keep"
-      }
-    },
-    {
-      "id": "tests/backend_ci/contracts/semantics.rs::should_preserve_workspace_builtin_test_coverage",
-      "name": "should_preserve_workspace_builtin_test_coverage",
-      "current_file": "tests/backend_ci/contracts/semantics.rs",
-      "line": 73,
-      "end_line": 159,
-      "inline_modules": [],
-      "inline_module_lines": 0,
-      "language": "rust",
-      "registration": "registered",
-      "instances": [
-        {
-          "suite": "backend_ci",
-          "name": "should_preserve_workspace_builtin_test_coverage"
-        }
-      ],
-      "attributes": [
-        "#[test]"
-      ],
-      "ignored": false,
-      "execution_status": "not_assessed",
-      "placement": {
-        "suite": "backend_ci",
-        "category": "contracts",
-        "directory": "tests/backend_ci/contracts",
-        "file": "tests/backend_ci/contracts/semantics.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
@@ -22056,8 +21892,8 @@
       "id": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs::should_publish_rebuild_swap_to_other_pgwire_sessions_only_after_commit",
       "name": "should_publish_rebuild_swap_to_other_pgwire_sessions_only_after_commit",
       "current_file": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs",
-      "line": 14,
-      "end_line": 94,
+      "line": 275,
+      "end_line": 355,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -22066,6 +21902,37 @@
         {
           "suite": "compatibility",
           "name": "compatibility::lifecycle::ddl_extensions::rebuild_swap::should_publish_rebuild_swap_to_other_pgwire_sessions_only_after_commit"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/ddl",
+        "directory": "tests/compatibility/lifecycle/ddl",
+        "file": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs::should_publish_copy_loaded_staging_swap_atomically",
+      "name": "should_publish_copy_loaded_staging_swap_atomically",
+      "current_file": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs",
+      "line": 358,
+      "end_line": 433,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::ddl_extensions::rebuild_swap::should_publish_copy_loaded_staging_swap_atomically"
         }
       ],
       "attributes": [
@@ -187952,8 +187819,8 @@
       "id": "tests/sql_mutations/ddl/rebuild_swap_restart.rs::should_recover_swapped_rebuild_tables_after_local_restart",
       "name": "should_recover_swapped_rebuild_tables_after_local_restart",
       "current_file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
-      "line": 7,
-      "end_line": 87,
+      "line": 89,
+      "end_line": 169,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -187962,6 +187829,37 @@
         {
           "suite": "sql_mutations",
           "name": "rebuild_swap_restart::should_recover_swapped_rebuild_tables_after_local_restart"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "ddl",
+        "directory": "tests/sql_mutations/ddl",
+        "file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/ddl/rebuild_swap_restart.rs::should_recover_copy_loaded_rebuild_swap_after_local_restart",
+      "name": "should_recover_copy_loaded_rebuild_swap_after_local_restart",
+      "current_file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
+      "line": 172,
+      "end_line": 235,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "rebuild_swap_restart::should_recover_copy_loaded_rebuild_swap_after_local_restart"
         }
       ],
       "attributes": [
@@ -261246,36 +261144,6 @@
       "line_limit": 12000
     },
     {
-      "current_file": "tests/backend_ci/contracts/semantics.rs",
-      "role": "test_module",
-      "action": "keep",
-      "lines": 159,
-      "sha256": "7882885ba0dd206e4433ebefe4d6c4f985b56227aa5721626b2258052299d419",
-      "test_declarations": 2,
-      "registered_suites": [
-        "backend_ci"
-      ],
-      "destinations": [
-        "tests/backend_ci/contracts/semantics.rs"
-      ],
-      "line_limit": 1000
-    },
-    {
-      "current_file": "tests/backend_ci.rs",
-      "role": "cargo_target",
-      "action": "keep",
-      "lines": 16,
-      "sha256": "36fb1b1468d0089b50086af6112f5bf094d0a6f4541a495f0f92544db147709e",
-      "test_declarations": 0,
-      "registered_suites": [
-        "backend_ci"
-      ],
-      "destinations": [
-        "tests/backend_ci.rs"
-      ],
-      "line_limit": 12000
-    },
-    {
       "current_file": "tests/bench_operations/artifacts/ann_recall.rs",
       "role": "test_module",
       "action": "keep",
@@ -263764,9 +263632,9 @@
       "current_file": "tests/compatibility/lifecycle/ddl/rebuild_swap.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 94,
-      "sha256": "88f18bae384853e892626e84555a8e322b76b452d2ee362e9fea1d52017d8cfc",
-      "test_declarations": 1,
+      "lines": 433,
+      "sha256": "90e8fc60020177a5bf2b17f9d1ae35c43940c26587cff96709b47dd8deec62d0",
+      "test_declarations": 2,
       "registered_suites": [
         "compatibility"
       ],
@@ -278036,9 +277904,9 @@
       "current_file": "tests/sql_mutations/ddl/rebuild_swap_restart.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 87,
-      "sha256": "8dd5cdbb50da03fdcff24404c2fb168e5fbfeee8ab2708243e164fa2911de8db",
-      "test_declarations": 1,
+      "lines": 235,
+      "sha256": "36f838154bda27191b8cc5f37306a15d91b3c551a7493b8aeee7310861b6f517",
+      "test_declarations": 2,
       "registered_suites": [
         "sql_mutations"
       ],

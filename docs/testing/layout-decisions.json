@@ -154,10 +154,6 @@
       "suite": "analytics",
       "category": "types/arrays"
     },
-    "tests/backend_ci/contracts/semantics.rs": {
-      "suite": "backend_ci",
-      "category": "contracts"
-    },
     "tests/bench_operations/artifacts/ann_recall.rs": {
       "suite": "bench_operations",
       "category": "artifacts"

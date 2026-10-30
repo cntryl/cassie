@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Inventory tests/ declarations and record subsystem-owned destinations.
 
-This reads Rust syntax trees, Python ASTs, Cargo metadata and the shard manifest.
+This reads Rust syntax trees, Python ASTs and Cargo metadata.
 It does not execute tests, evaluate cfg expressions or move source files.
 """
 
@@ -182,8 +182,6 @@ DOMAINS = [
 def domain_for(hint: str, target: str) -> str:
     if target == "bench_operations":
         return "artifacts"
-    if target == "backend_ci":
-        return "shards"
     if target == "configuration_isolated":
         return "configuration"
     if target == "domain_models":
@@ -415,13 +413,6 @@ def is_test_inventory_file(path):
 def gather():
     metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], cwd=ROOT))
     targets = {t["name"]: Path(t["src_path"]) for p in metadata["packages"] for t in p["targets"] if t["test"] and "test" in t["kind"]}
-    shards = json.loads((ROOT / ".github/backend-test-shards.json").read_text())
-    sharded = defaultdict(list)
-    for shard in shards["include"]:
-        args = shard["cargo_test_args"]
-        for i, arg in enumerate(args[:-1]):
-            if arg == "--test":
-                sharded[args[i + 1]].append(shard["shard"])
     files = sorted(p for p in (ROOT / "tests").rglob("*") if is_test_inventory_file(p))
     parsed = {p.resolve(): rust_declarations(p) for p in files if p.suffix == ".rs"}
     registrations = defaultdict(list)
@@ -556,7 +547,7 @@ def gather():
             large_destinations.append({"file": destination, "test_body_lines": body_lines, "test_declarations": len(tests)})
     summary = {
         "scope": "All files under tests/, including untracked files; Rust #[test] declarations and Python should_/test_ functions. Excludes unit tests under src/ and benchmark definitions under benches/.",
-        "cargo_targets": [{"name": name, "file": relative(path), "ci_shards": sharded[name]} for name, path in sorted(targets.items())],
+        "cargo_targets": [{"name": name, "file": relative(path)} for name, path in sorted(targets.items())],
         "files": len(files), "rust_files": len(parsed),
         "rust_test_declarations": sum(t["language"] == "rust" for t in inventory),
         "python_test_declarations": sum(t["language"] == "python" for t in inventory),
@@ -566,8 +557,6 @@ def gather():
         "repeated_module_registrations": repeated_registrations,
         "duplicate_registered_identities": duplicate_identities,
         "planned_tests": len(planned),
-        "unsharded_targets": [name for name in sorted(targets) if len(sharded[name]) != 1],
-        "unknown_shard_targets": sorted(set(sharded) - set(targets)),
         "oversized_files": [f["current_file"] for f in file_records if f["line_limit"] and f["lines"] > f["line_limit"]],
         "destination_name_conflicts": conflicts,
         "large_projected_destinations": large_destinations,
@@ -598,7 +587,6 @@ def render(data):
         f"| Duplicate registered test identities | {len(summary['duplicate_registered_identities'])} |",
         f"| Repeated module registrations | {len(summary['repeated_module_registrations'])} |",
         f"| Files with a reviewed physical placement | {summary['reviewed_layout_files']} |",
-        f"| Targets absent from exactly one CI shard | {len(summary['unsharded_targets'])} |",
         f"| Existing files over their line limit | {len(summary['oversized_files'])} |",
         f"| Destination name conflicts | {len(summary['destination_name_conflicts'])} |", "",
         "Shared support tests compile into several Cargo suites, so registration instances exceed physical source declarations. `cfg` expressions are not evaluated.", "",
@@ -608,9 +596,9 @@ def render(data):
     ]
     for suite, tests in sorted(groups.items()):
         lines.append(f"| [{suite}](inventory/{suite}.md) | {len(tests)} | {sum(t['placement']['review'] == 'required' for t in tests)} |")
-    lines += ["", "## Cargo registrations", "", "Suite names and CI shard assignments are preserved during file moves.", "", "| Cargo target | Root | CI shard |", "| --- | --- | --- |"]
+    lines += ["", "## Cargo targets", "", "Each suite's Cargo target and source root are recorded here.", "", "| Cargo target | Root |", "| --- | --- |"]
     for target in summary["cargo_targets"]:
-        lines.append(f"| `{target['name']}` | `{target['file']}` | {', '.join(target['ci_shards']) or 'unassigned'} |")
+        lines.append(f"| `{target['name']}` | `{target['file']}` |")
     lines += ["", "## Files to split", "", "Root Cargo suites have a 12,000 line limit. Other Rust files have a 1,000 line limit.", ""]
     lines += [f"- `{path}`" for path in summary["oversized_files"]] or ["None."]
     lines += ["", "## Proposed groups requiring size review", "", "These groups already exceed 800 lines of test bodies, before imports and helpers. Split further if the complete file would exceed 1,000 lines.", "", "| Proposed file | Test body lines | Tests |", "| --- | ---: | ---: |"]
@@ -692,8 +680,8 @@ def main():
         print("Inventory differs: " + ", ".join(drift), file=sys.stderr)
         return 1
     summary = data["summary"]
-    print(json.dumps({k: summary[k] for k in ["files", "rust_files", "rust_test_declarations", "python_test_declarations", "registered_rust_instances", "planned_tests", "unregistered_rust_tests", "unresolved_module_paths", "repeated_module_registrations", "duplicate_registered_identities", "unsharded_targets", "unknown_shard_targets", "oversized_files", "destination_name_conflicts", "large_projected_destinations"]}, indent=2))
-    errors = [key for key in ["unregistered_rust_tests", "unresolved_module_paths", "repeated_module_registrations", "duplicate_registered_identities", "unsharded_targets", "unknown_shard_targets", "oversized_files", "destination_name_conflicts"] if summary[key]]
+    print(json.dumps({k: summary[k] for k in ["files", "rust_files", "rust_test_declarations", "python_test_declarations", "registered_rust_instances", "planned_tests", "unregistered_rust_tests", "unresolved_module_paths", "repeated_module_registrations", "duplicate_registered_identities", "oversized_files", "destination_name_conflicts", "large_projected_destinations"]}, indent=2))
+    errors = [key for key in ["unregistered_rust_tests", "unresolved_module_paths", "repeated_module_registrations", "duplicate_registered_identities", "oversized_files", "destination_name_conflicts"] if summary[key]]
     if errors:
         print("Inventory requires repair: " + ", ".join(errors), file=sys.stderr)
     return 1 if errors else 0

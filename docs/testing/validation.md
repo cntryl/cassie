@@ -4645,9 +4645,10 @@ CASSIE_RUN_DIESEL_COMPAT=1 cargo test --locked --test compatibility compatibilit
 Each passed 1/1; logs are retained under `target/batched-runtime/issue-777/`.
 The default compatibility target and the full `catalog_security` target also
 passed in the full run. Prisma and SQLAlchemy probes were not selected for this
-bounded #777 subset and were not run. #777 remains open because its complete
-catalog/session lifecycle and exact-revision acceptance record has not been
-closed out; #780 remains blocked by #777. The live dependency readback for
+bounded #777 subset and were not run. At this earlier checkpoint #777's catalog
+and session lifecycle still needed the later exact-revision closeout; PR #1136
+subsequently completed that selected acceptance and removed the #780 blocker.
+The live dependency readback for
 #842 showed its #792/#793 prerequisites closed. Its selected scalar-index
 contract focus, `CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target
 cargo test --locked --test compatibility index_contracts:: -- --nocapture`,
@@ -5042,11 +5043,11 @@ database while same-named metadata in another database remains intact. Diesel's
 missing-relation check remains message-based rather than an exact SQLSTATE
 assertion.
 
-This refresh covers the selected four-client workflow on the current main tree;
-it does not finish #777's remaining catalog/session/view/routine disposition or
-certify pgAdmin/DBeaver desktop clients. #777 remains open, and #780's broader
-wire-state matrix remains open. GitHub Actions are disabled, so hosted checks
-remain unavailable and are not claimed as passed.
+At the time of this earlier refresh, the four-client probes covered only the
+selected workflow slice; they did not yet finish #777's remaining
+catalog/session/view/routine disposition or certify pgAdmin/DBeaver desktop
+clients. PR #1136 later closed the selected #777 acceptance. GitHub Actions are
+disabled, so hosted checks remain unavailable and are not claimed as passed.
 
 ## 2026-10-29 — #777 selected v0.3 prerequisite candidate
 
@@ -5129,10 +5130,10 @@ validated 126 Markdown documents. The psql, SQLx, and Diesel pinned probes were
 rerun on this candidate and each passed 1/1; tokio-postgres named-workflow tests,
 including the new two-connection isolation probe, passed in the full suite.
 
-#777 remains open pending PR review, merge and closure readback. #780's selected
-packet/COPY/cancellation matrix remains open and stays ahead of the separately
-owned #846 idle-COPY cancellation fix. GitHub Actions remain disabled; hosted
-evidence is unavailable and is not reported as passed.
+At this earlier candidate checkpoint, #777 was awaiting PR review and #780's
+selected packet/COPY/cancellation matrix had not yet been requalified. That
+status was superseded by PR #1136 and PR #1127 below. GitHub Actions remain
+disabled; hosted evidence is unavailable and is not reported as passed.
 
 
 ## 2026-10-29 — #777 v0.3 selected prerequisite, exact post-refresh candidate
@@ -5171,4 +5172,44 @@ Secret-free per-client records and their SHA-256 values are in the isolated work
 
 These are finite local loopback client probes, not production deployment or desktop-client certification. Historical runs are superseded for these selected cases by the exact-revision results above. Trace replay was not selected and no trace corpus was provisioned. pgAdmin/DBeaver desktop, psycopg, JDBC and production-endpoint acceptance remain outside the v0.3 target; selecting any later requires a provisioned runner and a separately scoped issue. No selected local target is blocked. GitHub Actions remain disabled, so hosted checks are unavailable and are not claimed as passed.
 
-#777 remains open pending review, merge and exact closure readback. #780 remains open and follows #777; the separate #846 idle-COPY cancellation fix stays behind #780.
+#777 is closed by PR #1136, merged as
+`059805f76772583fb2f4924b376781aaac1daad3`. #780's selected v0.3 wire target
+and deferred WIRE-012 disposition are recorded below. PR #1127 already merged
+the selected #846 idle-COPY cancellation fix; hosted evidence remains blocked
+while GitHub Actions are disabled.
+
+## 2026-10-29 — #780 bounded v0.3 wire target
+
+The selected wire evidence is the finite client and projection-rebuild contract,
+not PostgreSQL-wide state-machine parity. PR #1136 closed #777 with the pinned
+psql 16.6, tokio-postgres 0.7.18, SQLx 0.8.3 and Diesel 2.2.6 workflows; its
+exact code/test candidate passed the ordered local gate and all four client
+probes. PR #1127 closed the selected table `COPY FROM STDIN` cancellation and
+frame-alignment gaps, including the cumulative 16 MiB boundary, malformed-input
+atomicity, explicit-transaction staging/recovery and same-stream query recovery.
+Its exact candidate passed build, full locked tests, strict Clippy, formatting,
+touched-test validators and documentation validation. The focused selected
+tokio-postgres workflow
+`should_preserve_named_tokio_postgres_session_through_error_recovery` was also
+rerun on merged main `059805f` and passed 1/1.
+
+The adverse WIRE-012 probe added eight prepared-join shapes to the isolated
+`audit/v03-780-join-inference-20261029` worktree at main `059805f`. The four
+unaliased qualified predicates returned `42P18`; the four alias and same-leaf
+collision controls prepared with OIDs 25 (Cassie's declared catalog TEXT) and
+23 (ordinary INT4). The selected named-client workflow exercises a single-
+source catalog predicate and an aliased ordinary-table self-join; it does not
+exercise a mixed catalog/ordinary join. The unaliased shape is a confirmed gap,
+not a passing result, but no roadmap or pinned-client acceptance requires it.
+Jev 1.14.0 recommended
+deferring it (0.95) and estimated only 0.08 that it is an explicit named-client
+requirement. The probe patch SHA-256 is
+`4777493bb477c218abb1802384643c08a37fff00bb8b137cd8d345cd898c4e72`; the
+secret-free Jev request and response are under the ignored
+`target/jev-780-scope-20261029/` in that worktree.
+
+The WIRE-001..030 inventory retained on #780 remains useful audit context, but
+its full malformed-packet mutation matrix, broader authentication/TLS modes,
+unaliased mixed-source inference and desktop-client certification are not
+selected v0.3 acceptance. They are not reported as passed. The local result is
+not hosted CI or production qualification; GitHub Actions remain disabled.

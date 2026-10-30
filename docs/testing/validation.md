@@ -5538,10 +5538,10 @@ dispatched. The latest repository Actions permission readback reports
 until the user explicitly changes that direction. CodeQL does not establish
 backend test or release qualification. Issue #959 is closed as not planned.
 
-PR #1144 remains open with no review decision. The uncommitted working-tree
-changes are not on its remote head, and the immutable v0.1.0 release-commit gate
-remains outstanding. Cassie remains a Production Candidate and is not
-Production-ready; merge, release, and publication are not claimed.
+At that earlier readback, PR #1144 remained open with no review decision; the
+local follow-up had not yet been committed or pushed. The immutable v0.1.0
+release-commit gate remained outstanding. Cassie remains a Production Candidate
+and is not Production-ready; merge, release, and publication are not claimed.
 ## 2026-10-30 — #954 current cancellation fixture status
 
 The six collection-aggregate cancellation tests now use three-row fixtures and
@@ -5557,3 +5557,97 @@ for active regex cancellation after prerequisite #799 is implemented; the
 current regex prerequisite is not active cancellation coverage. #799 remains
 open, so no regex cancellation or broader aggregate-family completion is
 claimed here.
+
+## 2026-10-30 — PR #1144 current-head CodeQL follow-up
+
+The live PR head is `e89edbc3bd377dcd88a46f40e01936ccd230121f`; the older
+`988af872` CodeQL pass above does not describe this head. GitHub reports CodeQL
+alert #522 (`rust/cleartext-logging`, high) at
+`benches/tier3_system_query.rs:667-668`. The annotation follows debug formatting
+of the column aggregate result row into the benchmark's panic message.
+
+Static triage found that the reported data path is a fixed aggregate query over
+generated benchmark documents in a UUID-named temporary database. The query
+returns count, sum, average, minimum and maximum scores; it does not read user
+or session credentials. The alert is not an actionable confidentiality issue
+for this benchmark path. The unnecessary generic `Debug` output has been
+replaced locally with value-type labels, and
+`tests/bench_diagnostics/relations/semantics.rs::should_report_column_result_types_without_logging_values`
+proves string, `Macaddr` and `Macaddr8` contents are not included. The regression
+test failed with the previous formatter and passes with the type-only
+diagnostic.
+
+Post-change local evidence:
+
+- `cargo build --locked --bin cassie` — passed.
+- `cargo test --locked` — exit 0, all unit, integration and doctest targets passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` — passed.
+- `cargo fmt --all -- --check` and `git diff --check` — passed.
+- `cntryl-tools validate-tests -f tests/bench_diagnostics/relations/semantics.rs` — 1/1 compliant.
+- The generated test inventory now records `tests/bench_diagnostics.rs` as a Cargo harness and the regression in its reviewed subsystem module. `tools/test_inventory.py --check` passes with 1,577 test files, 8,364 Rust declarations and no unregistered tests, unresolved module paths, repeated registrations, duplicate identities, or oversized files.
+- `cntryl-tools validate-docs` — 129 Markdown documents passed.
+- After the layout change, the ordered local gate was rerun on the complete current working tree: build, `cargo test --locked` (exit 0), strict workspace Clippy, formatting, touched-test validation, documentation validation and `git diff --check` all passed. The full run included the moved regression (1/1).
+- The focused `column_batch_query/100k` Tier 3 run passed at 43.12 queries/s with
+  gate trust and 0.9% RSD. The complete 12-owner Tier 3 run passed before this
+  diagnostic-only change.
+
+This follow-up is committed on the local PR branch but has not been pushed, so
+it is not on the remote PR head. CodeQL alert #522 therefore remains open on
+`e89edbc3`; do not claim the hosted alert is resolved until the updated head is
+analyzed. The latest repository setting reports Actions enabled, but the active
+no-dispatch instruction still blocks the PR update and hosted reanalysis. No
+backend or release workflow was started.
+
+## 2026-10-30 — Current Admin UI working-tree gates
+
+The current UI working tree was validated with the repository-pinned npm
+12.0.1 and the Playwright 1.64.1 lockfile. `npx --yes npm@12.0.1 ci` installed
+the locked graph; the install and the explicit production-only audit reported
+zero vulnerabilities. Generated-client freshness, TypeScript, lint, formatting,
+and the production build passed. The unit and mocked-browser suites passed
+121/121 and 26/26 cases. The build still emits the documented advisory for
+large Monaco/editor chunks.
+
+The real-Cassie production-browser spec
+`ui/tests/e2e/admin-production.spec.ts` passed on desktop Chromium and Pixel 7
+(2/2). The default test config could not start because Docker owns port 18080;
+that listener returned healthy Cassie 0.1.0 and was left untouched. The same
+spec then ran against a fresh memory-mode Cassie process with isolated REST
+18081 and pgwire 15433 ports using a temporary local config, which was removed
+after the run. This proves the current local UI/backend integration, not an
+immutable release artifact. The uncommitted Playwright patch upgrade is part
+of this local UI validation tree and remains outside PR #1144's described
+scope.
+
+## 2026-10-30 — v0.1.0 release-gate readback
+
+Read-only GitHub readback confirms PR #1144 remains open at remote head
+`e89edbc3bd377dcd88a46f40e01936ccd230121f`, assigned to the v0.1.0 milestone,
+with merge state `UNSTABLE` and no review decision. All four CodeQL language
+analyzers pass; the umbrella CodeQL check fails while alert #522 remains open
+on that remote head. The type-only diagnostic fix above is local and has not
+been analyzed by GitHub. The v0.1.0 milestone has 12 closed issues and this PR
+as its sole open item.
+
+`gh workflow list --all` has no `Operational readiness` workflow; the
+`Containers`, `Version`, `CI Backend`, `CI Frontend`, and `Publish` workflows
+are listed as `disabled_manually`. Repository Actions permission readback says
+enabled, but the active repository instruction still prohibits enabling or
+dispatching workflows. `gh run list --workflow 'Operational readiness'`
+confirms no workflow by that name. The cross-architecture runbook and capacity
+docs now mark its former automation as unavailable and retain the manual
+evidence procedure. No v0.1.0 GitHub release or `v0.1.0` tag exists.
+
+The exact release-commit gate, current-head hosted CodeQL rerun, independent
+PR review, immutable container digest, retained amd64/arm64 rehearsal bundles,
+release sign-offs, and publication therefore remain incomplete. These are
+release blockers, not local test failures.
+
+## 2026-10-30 — #827 deferred milestone reconciliation
+
+The live issue had remained in v0.2.0 despite the owner's prior direction to
+move named enums to v0.4.0. Created GitHub milestone #11, `v0.4.0 Named Enum
+Types`, with no due date and a description that defers implementation until the
+active v0.1.0, v0.2.0, and v0.3.0 releases complete. Issue #827 is now assigned
+to that milestone. The Product Roadmap, Release Milestones, and v0.1 scope map
+record that only #827 is deferred there; no runtime work was started.

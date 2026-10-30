@@ -79,21 +79,16 @@ The retained bundle must contain:
 Missing evidence keeps that architecture/profile rehearsal incomplete. A successful local test,
 single-architecture container build, or image manifest inspection does not satisfy this runbook.
 
-## Automated workflow
+## Automation status
 
-The manual `Operational readiness` workflow accepts an immutable multi-architecture image digest
-and runs the same source revision natively on `linux/amd64` and `linux/arm64`. Its default
-`shape_only=true` mode is the fast feedback gate: it validates identity, starts and restarts the
-container, checks readiness, stops the source container, creates a physical snapshot through the
-existing library contract, restores it into a new directory, and starts a fresh container from the
-restored data. The restored container must return the persisted row and catalog entry, select the
-persisted scalar index, and expose authenticated metrics. The workflow also exercises the broader
-snapshot/restore, projection-repair, and failed-restore cleanup test contracts. Those artifacts
-prove workflow and contract shape only; they are not representative-scale or endurance evidence.
+The `Operational readiness` workflow described by historical PR #226 is not present in the
+current `.github/workflows/` tree or GitHub's workflow registry. The historical `shape_only`
+mode and long scale/endurance mode are therefore not runnable from this checkout and provide no
+current release evidence. The manifest validator and its tests remain in the repository, but no
+active workflow invokes them for a release candidate.
 
-Set `shape_only=false` only after the candidate implementation and review are complete. That mode
-also runs the disk-backed Tier 5 lifecycle owner and one-hour Tier 6 mixed owner under the matching
-native Linux deployment profile. Both architecture bundles are retained for 90 days. A run is
-still incomplete if either matrix job fails, if its image digest does not belong to the recorded
-release commit, or if any required manual database-image, repair diagnostic, rollback, or
-failure-injection evidence listed above is absent.
+The manual rehearsal sequence above remains the required evidence procedure. It needs an immutable
+multi-architecture image digest before either native architecture can be qualified. The current
+repository instructions also prohibit dispatching workflows, and the missing workflow cannot be
+reintroduced without explicit authorization. A local test, a historical workflow run, or an image
+build without retained per-architecture rehearsal bundles does not satisfy this gate.

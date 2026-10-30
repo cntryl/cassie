@@ -37,6 +37,8 @@ const ANN_RECALL_FLOOR: f64 = 0.90;
 #[path = "tier3_system_query/graph.rs"]
 mod graph;
 
+#[path = "support/column_diagnostics.rs"]
+mod column_diagnostics;
 #[path = "support/fixture_dir.rs"]
 mod fixture_dir;
 #[path = "support/performance_benchmarks.rs"]
@@ -664,8 +666,8 @@ fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
             query_rows[0].as_slice()
         else {
             panic!(
-                "Tier 3 column aggregate result has unexpected types: {:?}",
-                query_rows[0]
+                "{}",
+                column_diagnostics::column_aggregate_unexpected_types(&query_rows[0])
             );
         };
         assert_eq!(*row_count, 5_000, "Tier 3 column aggregate row count");

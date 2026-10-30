@@ -154,6 +154,10 @@
       "suite": "analytics",
       "category": "types/arrays"
     },
+    "tests/bench_diagnostics/relations/semantics.rs": {
+      "suite": "bench_diagnostics",
+      "category": "relations"
+    },
     "tests/bench_operations/artifacts/ann_recall.rs": {
       "suite": "bench_operations",
       "category": "artifacts"

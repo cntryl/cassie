@@ -1,9 +1,9 @@
 # Release Milestones
 
-This page maps the live open issue backlog to the three planned feature
-releases. The [Product Roadmap](product-roadmap.md) owns release purpose and
-scope. GitHub milestone membership and native issue dependencies are the live
-delivery record.
+This page maps the live open issue backlog to three active feature releases and
+the deferred v0.4.0 named-enum milestone. The [Product Roadmap](product-roadmap.md)
+owns release purpose and scope. GitHub milestone membership and native issue
+dependencies are the live delivery record.
 
 ## v0.1.0 Projection Store
 
@@ -27,7 +27,7 @@ This release adds the finite read-side SQL and retrieval feature on top of the
 - Arrays, table functions, JSON, and collection aggregates: #807–#811.
 - Aggregate/window behavior and numeric/time functions: #805, #806, #813,
   #815.
-- Type and catalog support: #817, #818, #827, #828, #829.
+- Type and catalog support: #817, #818, #828, #829.
 - Transaction snapshots, table DDL, authorization, and schema evolution:
   #819, #826, #831, #833, #839.
 - Row-authoritative index behavior and object comments: #842, #845.
@@ -54,6 +54,17 @@ follows #1105/#1106; #1108 follows #1105–#1107; #1109 follows #1105–#1108;
 #1110 follows #1105–#1107; #1111 follows #1105/#1107; and #1112 follows
 #1105–#1108. The row-authoritative DDL issue #826 also waits on #833; schema
 evolution #839 already waits on #833.
+
+## v0.4.0 Named Enum Types (deferred)
+
+This milestone contains only #827 and remains outside the active delivery order
+until v0.1.0, v0.2.0, and v0.3.0 complete. Its acceptance scope is named ENUM
+creation, lookup, alteration and drop, plus literal, parameter, cast,
+comparison, array and result identities. Before implementation, the Type
+Contract must define logical identity, SQL/wire behavior, label ordering,
+schema/dependency ownership, restart and durable representation. The milestone
+does not imply general PostgreSQL type or catalog parity; its target date is
+TBD.
 
 ## Reworked and closed outside the release plan
 

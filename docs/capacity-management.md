@@ -82,7 +82,7 @@ misrepresents its support level:
 | Category | Meaning | Example | Enforcement |
 | --- | --- | --- | --- |
 | Advisory alert | Manual-operations starting point; not validated against repeated runs. | The disk headroom/cache/fallback values in the profile threshold matrix above. | None; tune per deployment before using as an alert. |
-| Release gate | A CI check that blocks merge/release on a missing or failing artifact, independent of the underlying number's SLA status. | PR #226's exact-digest operational evidence workflow failing closed on an incomplete manifest. | `validate_operational_evidence_manifest` and the `operational-readiness.yml` workflow. |
+| Planned release gate | An exact-digest CI check should block merge/release on a missing or failing artifact, independently of the underlying number's SLA status. The workflow described by PR #226 is absent from the current workflow tree and GitHub workflow registry, so this is not an active CI gate. | The manifest validator remains a reviewable contract; there is no current operational-readiness workflow run for this release candidate. | `validate_operational_evidence_manifest` and its tests remain available; no current workflow invokes the validator. |
 | Supported production objective | A numeric bound backed by a retained, same-profile, multi-sample bundle with recorded variance. | None currently exist for any profile in the matrix above (`Pending`/`Diagnostic only`). | `validate_threshold_evidence_bundle` defines the comparability contract a bundle must satisfy. Unlike the release-gate row above, no workflow runs it against retained artifacts yet, so it is a reviewable contract rather than an active gate. |
 
 | Signal | Advisory threshold | Response |

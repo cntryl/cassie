@@ -4,18 +4,18 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1575 |
-| Rust files | 1543 |
-| Rust test declarations | 8363 |
+| Files under `tests/` | 1577 |
+| Rust files | 1545 |
+| Rust test declarations | 8364 |
 | Python test declarations | 21 |
-| Static Rust registration instances | 8491 |
-| Cargo test targets | 31 |
+| Static Rust registration instances | 8492 |
+| Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
 | Duplicate registered test identities | 0 |
 | Repeated module registrations | 0 |
-| Files with a reviewed physical placement | 1333 |
+| Files with a reviewed physical placement | 1334 |
 | Existing files over their line limit | 0 |
 | Destination name conflicts | 0 |
 
@@ -28,6 +28,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | Owner | Source declarations | Review required |
 | --- | ---: | ---: |
 | [analytics](inventory/analytics.md) | 185 | 0 |
+| [bench_diagnostics](inventory/bench_diagnostics.md) | 1 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 324 | 0 |
 | [compatibility](inventory/compatibility.md) | 404 | 0 |
@@ -69,6 +70,7 @@ Each suite's Cargo target and source root are recorded here.
 | Cargo target | Root |
 | --- | --- |
 | `analytics` | `tests/analytics.rs` |
+| `bench_diagnostics` | `tests/bench_diagnostics.rs` |
 | `bench_operations` | `tests/bench_operations.rs` |
 | `catalog_security` | `tests/catalog_security.rs` |
 | `compatibility` | `tests/compatibility.rs` |

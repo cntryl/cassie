@@ -78,13 +78,23 @@ and test-fixture-label reconciliation. No runtime source changed.
 
 ## Workflow and Branch-Protection State
 
-GitHub readback on 2026-10-30 reports repository Actions permission `enabled: true`; `AGENTS.md` still
-prohibits enabling or dispatching workflows until the user explicitly changes that direction.
-No backend, benchmark, or release workflow was dispatched. PR #1144 at head
-`988af872565438487dbacd411d4b228f3d21be46` has five successful CodeQL checks; this security
-analysis does not establish backend test or release qualification. The 2026-10-29 branch-protection
-readback found the `Protect main branch` ruleset (`21147564`) disabled and no active `main` protection;
-these branch-protection observations have not been refreshed.
+GitHub readback on 2026-10-30 reports repository Actions permission `enabled: true`; CodeQL is
+active, while `Containers`, `Version`, `CI Backend`, `CI Frontend`, and `Publish` are manually
+disabled. No `Operational readiness` workflow is present in the current workflow tree or registry.
+`AGENTS.md` still prohibits enabling or dispatching workflows until the user explicitly changes
+that direction; no backend, benchmark, or release workflow was dispatched.
+
+PR #1144 remains open at `e89edbc3bd377dcd88a46f40e01936ccd230121f`. Its four CodeQL language
+analyzers pass, but the umbrella CodeQL check fails while alert 522 (`rust/cleartext-logging`)
+remains open at `benches/tier3_system_query.rs:667-668`. A type-only diagnostic fix and regression
+test are prepared locally but are not on the PR head. The only recorded review is a GitHub Advanced
+Security bot comment; no human review or review decision is recorded. This analysis does not
+establish backend test or release qualification.
+
+The 2026-10-30 `main` branch-protection readback returned no applicable repository rules and the
+branch-protection endpoint returned 404 (`Branch not protected`). There is no active `main` branch
+protection. These observations should be reviewed before selecting a repository-wide protection
+policy; no ruleset or protection setting was changed.
 
 Historical coverage recorded on 2026-10-12 is retained as context only: backend
 CI filtered out `ui/**`, frontend CI ran for frontend-related paths, and PRs
@@ -96,8 +106,8 @@ active branch protection.
 ## Evidence Present
 
 - The repository's locked build, full-test, pedantic Clippy, formatting, and
-  touched-test validation gates are defined. The latest uncommitted worktree result
-  is recorded in [Testing and Validation](testing/validation.md); it is not an
+  touched-test validation gates are defined. The latest local worktree result is
+  recorded in [Testing and Validation](testing/validation.md); it is not an
   exact-release-commit qualification.
 - Integration coverage across SQL, indexes, transactions, pgwire, REST, search, vector, analytics, projection lifecycle, and recovery adapters.
 - The stable named-client catalog subset is limited to the documented columns of
@@ -246,10 +256,10 @@ the roadmap's separate production-readiness boundary.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
 - The cross-architecture rehearsal record is defined in [Cross-Architecture Release Rehearsal](cross-architecture-rehearsal.md); amd64 and arm64 evidence remains pending until separate retained bundles exist.
-- The `Operational readiness` workflow definition separates a fast native amd64/arm64 shape gate
-  from its scale and endurance mode. Repository permission currently reports Actions enabled, but
-  `AGENTS.md` prohibits dispatch; the workflow is not currently running. A passing shape run validates
-  automation but does not satisfy the pending retained-evidence blocker.
+- The historical `Operational readiness` workflow from PR #226 is absent from the current
+  `.github/workflows/` tree and GitHub workflow registry. Its shape and scale/endurance modes are
+  not runnable in this checkout. The repository permission reports Actions enabled, but `AGENTS.md`
+  prohibits dispatch; the required retained native amd64/arm64 evidence remains pending.
 - Validate the support, upgrade compatibility, release rollback, and security response expectations
   in [Support, Release, and Security-Response Policy](support-policy.md) against a tagged release
   artifact and rehearsal evidence.

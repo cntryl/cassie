@@ -18,10 +18,12 @@ Store, is the initial MVP: it delivers the write and lifecycle path for
 maintaining read models. The earlier 0.2.0 package value and former v0.3
 Projection Store and v0.4 Query labels were unreleased development planning. The
 active feature releases are v0.1.0 Projection Store, v0.2.0 Query and
-Retrieval, and v0.3.0 Authoritative Columnar Tables. Production readiness is a
-separate qualification gate after the feature releases, not a fourth feature
-milestone. Each release has its own acceptance scope; completing a later
-release does not expand Cassie's permanent architectural boundaries.
+Retrieval, and v0.3.0 Authoritative Columnar Tables. Named enum support in #827
+is deferred to a new v0.4.0 milestone after those active releases; it is not
+part of the current delivery order. Production readiness is a separate
+qualification gate after the feature releases, not a feature milestone. Each
+release has its own acceptance scope; completing a later release does not
+expand Cassie's permanent architectural boundaries.
 
 The bounded extension compatibility surface is part of v0.2.0: #843 owns the
 selected `vector` and `pgcrypto` identities, including the `pgcrypto.digest`
@@ -104,8 +106,9 @@ gate does not promote broader PostgreSQL compatibility or production support.
 The [v0.1.0 scope map](v0.1-scope-map.md) records the bounded MVP contract.
 The current open issue-to-release assignment is maintained in
 [Release Milestones](release-milestones.md); every open issue must either
-belong to one of the three active feature releases or be reworked and closed
-with a recorded disposition.
+belong to an active feature release, a named deferred future milestone, or be
+reworked and closed with a recorded disposition. The only current deferred
+feature is #827 in v0.4.0.
 
 ## Feature releases
 
@@ -114,6 +117,7 @@ with a recorded disposition.
 | [v0.1.0 Projection Store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows, duplicate ledger, and checkpoint use the owning database family; today the row batch and replay-state metadata still commit in separate transactions, and replay retries reconcile a committed row batch when the replay-state commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-database transactions and full PostgreSQL parity. |
 | [v0.2.0 Query and Retrieval](https://github.com/cntryl/cassie/milestone/8) | 2027-04-09 | The finite read-side contract for read-model workloads: selected relational SQL, transaction/query semantics, types and functions, catalog/client support, role-based projector and reader access, and full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; this is not PostgreSQL-wide syntax or semantics. |
 | [v0.3.0 Authoritative Columnar Tables](https://github.com/cntryl/cassie/milestone/10) | TBD | Add an opt-in per-table column-authoritative layout alongside row-authoritative tables, with a versioned contract, durable recovery, mixed-mode queries and writes, constraints, derived indexes, and explicit conversion/image behavior. Midge remains the only storage layer. |
+| [v0.4.0 Named Enum Types](https://github.com/cntryl/cassie/milestone/11) (deferred) | TBD | After v0.1.0–v0.3.0 complete, implement only the named ENUM behavior in #827. First define logical identity, SQL/wire semantics, label ordering, schema/dependency lifecycle, restart, and durable representation in the Type Contract. This does not add general PostgreSQL type or catalog parity. |
 
 Production readiness is tracked separately in [Production Readiness](production-readiness.md) and the release checklist. It covers representative-scale resources, concurrency, recovery, operations, and release evidence; it does not create another feature milestone.
 

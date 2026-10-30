@@ -8,6 +8,10 @@
         "file": "tests/analytics.rs"
       },
       {
+        "name": "bench_diagnostics",
+        "file": "tests/bench_diagnostics.rs"
+      },
+      {
         "name": "bench_operations",
         "file": "tests/bench_operations.rs"
       },
@@ -128,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1575,
-    "rust_files": 1543,
-    "rust_test_declarations": 8363,
+    "files": 1577,
+    "rust_files": 1545,
+    "rust_test_declarations": 8364,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8491,
+    "registered_rust_instances": 8492,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -197,7 +201,7 @@
         "test_declarations": 13
       }
     ],
-    "reviewed_layout_files": 1333,
+    "reviewed_layout_files": 1334,
     "placement_status": "Reviewed physical placements are recorded in layout-decisions.json; remaining placements are proposals. No test result is inferred."
   },
   "tests": [
@@ -5931,6 +5935,37 @@
         "category": "types/arrays",
         "directory": "tests/analytics/types/arrays",
         "file": "tests/analytics/types/arrays/typed_array_extrema.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/relations/semantics.rs::should_report_column_result_types_without_logging_values",
+      "name": "should_report_column_result_types_without_logging_values",
+      "current_file": "tests/bench_diagnostics/relations/semantics.rs",
+      "line": 8,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "semantics::should_report_column_result_types_without_logging_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "relations",
+        "directory": "tests/bench_diagnostics/relations",
+        "file": "tests/bench_diagnostics/relations/semantics.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
@@ -261140,6 +261175,36 @@
       ],
       "destinations": [
         "tests/analytics.rs"
+      ],
+      "line_limit": 12000
+    },
+    {
+      "current_file": "tests/bench_diagnostics/relations/semantics.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 27,
+      "sha256": "ed940b03238dc1fb5912a4997d0e4bdd39bb594b581ac2032364a836182a1db1",
+      "test_declarations": 1,
+      "registered_suites": [
+        "bench_diagnostics"
+      ],
+      "destinations": [
+        "tests/bench_diagnostics/relations/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/bench_diagnostics.rs",
+      "role": "cargo_target",
+      "action": "keep",
+      "lines": 2,
+      "sha256": "e112d16d29f226bc352469488dd2831d51879205ac2d245d351ad58b39aab800",
+      "test_declarations": 0,
+      "registered_suites": [
+        "bench_diagnostics"
+      ],
+      "destinations": [
+        "tests/bench_diagnostics.rs"
       ],
       "line_limit": 12000
     },

@@ -134,9 +134,9 @@
     ],
     "files": 1577,
     "rust_files": 1545,
-    "rust_test_declarations": 8364,
+    "rust_test_declarations": 8365,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8492,
+    "registered_rust_instances": 8493,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -5941,8 +5941,8 @@
       }
     },
     {
-      "id": "tests/bench_diagnostics/relations/semantics.rs::should_report_column_result_types_without_logging_values",
-      "name": "should_report_column_result_types_without_logging_values",
+      "id": "tests/bench_diagnostics/relations/semantics.rs::should_return_column_aggregate_values_when_types_match",
+      "name": "should_return_column_aggregate_values_when_types_match",
       "current_file": "tests/bench_diagnostics/relations/semantics.rs",
       "line": 8,
       "end_line": 27,
@@ -5953,7 +5953,38 @@
       "instances": [
         {
           "suite": "bench_diagnostics",
-          "name": "semantics::should_report_column_result_types_without_logging_values"
+          "name": "semantics::should_return_column_aggregate_values_when_types_match"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "bench_diagnostics",
+        "category": "relations",
+        "directory": "tests/bench_diagnostics/relations",
+        "file": "tests/bench_diagnostics/relations/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/bench_diagnostics/relations/semantics.rs::should_panic_with_redacted_types_for_unexpected_column_aggregate_values",
+      "name": "should_panic_with_redacted_types_for_unexpected_column_aggregate_values",
+      "current_file": "tests/bench_diagnostics/relations/semantics.rs",
+      "line": 30,
+      "end_line": 57,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "bench_diagnostics",
+          "name": "semantics::should_panic_with_redacted_types_for_unexpected_column_aggregate_values"
         }
       ],
       "attributes": [
@@ -261182,9 +261213,9 @@
       "current_file": "tests/bench_diagnostics/relations/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 27,
-      "sha256": "ed940b03238dc1fb5912a4997d0e4bdd39bb594b581ac2032364a836182a1db1",
-      "test_declarations": 1,
+      "lines": 57,
+      "sha256": "a3532f617b6722cbd3b832e3c953e61610e3db690951511f2397d8f09671453e",
+      "test_declarations": 2,
       "registered_suites": [
         "bench_diagnostics"
       ],

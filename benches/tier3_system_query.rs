@@ -662,22 +662,18 @@ fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
             .expect("Tier 3 column representative query");
         let query_rows = result.rows();
         assert_eq!(query_rows.len(), 1, "Tier 3 column aggregate result");
-        let [Value::Int64(row_count), Value::Int64(score_sum), Value::String(score_average), Value::Int64(min_score), Value::Int64(max_score)] =
-            query_rows[0].as_slice()
-        else {
-            panic!(
-                "{}",
-                column_diagnostics::column_aggregate_unexpected_types(&query_rows[0])
-            );
-        };
-        assert_eq!(*row_count, 5_000, "Tier 3 column aggregate row count");
-        assert_eq!(*score_sum, 470_000, "Tier 3 column aggregate sum");
+        let aggregate = column_diagnostics::column_aggregate_result_or_panic(&query_rows[0]);
         assert_eq!(
-            score_average, "94.0000000000000000",
+            *aggregate.row_count, 5_000,
+            "Tier 3 column aggregate row count"
+        );
+        assert_eq!(*aggregate.score_sum, 470_000, "Tier 3 column aggregate sum");
+        assert_eq!(
+            aggregate.score_average, "94.0000000000000000",
             "AVG(integer) should preserve its numeric result"
         );
-        assert_eq!(*min_score, 90, "Tier 3 column aggregate minimum");
-        assert_eq!(*max_score, 98, "Tier 3 column aggregate maximum");
+        assert_eq!(*aggregate.min_score, 90, "Tier 3 column aggregate minimum");
+        assert_eq!(*aggregate.max_score, 98, "Tier 3 column aggregate maximum");
         result_rows += query_rows.len();
     }
     std::hint::black_box(result_rows)

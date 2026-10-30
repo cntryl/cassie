@@ -5571,11 +5571,13 @@ generated benchmark documents in a UUID-named temporary database. The query
 returns count, sum, average, minimum and maximum scores; it does not read user
 or session credentials. The alert is not an actionable confidentiality issue
 for this benchmark path. The unnecessary generic `Debug` output has been
-replaced locally with value-type labels, and
-`tests/bench_diagnostics/relations/semantics.rs::should_report_column_result_types_without_logging_values`
-proves string, `Macaddr` and `Macaddr8` contents are not included. The regression
-test failed with the previous formatter and passes with the type-only
-diagnostic.
+replaced locally with value-type labels. The initial focused test proved those
+labels omit string, `Macaddr` and `Macaddr8` contents, but an independent
+adversarial review found it did not exercise the benchmark's panic boundary.
+The shape check is now shared by the benchmark and the test. Its regression
+test deliberately failed when the panic formatted the row with `Debug`, then
+passed with the type-only diagnostic; a valid five-column aggregate control
+also passes.
 
 Post-change local evidence:
 
@@ -5583,10 +5585,11 @@ Post-change local evidence:
 - `cargo test --locked` — exit 0, all unit, integration and doctest targets passed.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` — passed.
 - `cargo fmt --all -- --check` and `git diff --check` — passed.
-- `cntryl-tools validate-tests -f tests/bench_diagnostics/relations/semantics.rs` — 1/1 compliant.
-- The generated test inventory now records `tests/bench_diagnostics.rs` as a Cargo harness and the regression in its reviewed subsystem module. `tools/test_inventory.py --check` passes with 1,577 test files, 8,364 Rust declarations and no unregistered tests, unresolved module paths, repeated registrations, duplicate identities, or oversized files.
+- `cntryl-tools validate-tests -f tests/bench_diagnostics/relations/semantics.rs` — 2/2 compliant after the call-site regression was added.
+- The generated test inventory records `tests/bench_diagnostics.rs` as a Cargo harness and both shape tests in its reviewed subsystem module. `tools/test_inventory.py --check` passes with 1,577 test files, 8,365 Rust declarations, 21 Python declarations and 8,493 registered Rust instances; no unregistered tests, unresolved module paths, repeated registrations, duplicate identities, or oversized files.
 - `cntryl-tools validate-docs` — 129 Markdown documents passed.
 - On local candidate commit `02ac6585`, the required ordered gate was rerun: `cargo build --locked --bin cassie`, `cargo test --locked` (exit 0; all unit, integration and doctest targets passed), strict workspace Clippy, and `cargo fmt --all -- --check`. The touched-test validator (1/1), test inventory check, documentation validator (129 Markdown files), and `git diff --check` also passed on the candidate content. The full test run included the regression (1/1).
+- In the follow-up, the panic-boundary test first failed against a `Debug`-formatted row containing `test-secret` and the MAC address bytes. After routing the benchmark through the tested shape helper, `cargo build --locked --bin cassie`, the focused `cargo test --locked --test bench_diagnostics` (2/2), strict Clippy, format check, and test validator (2/2) passed. The full `cargo test --locked` run on this code also passed all unit, integration, and doctest targets before rustfmt-only layout changes; the final focused run was repeated after formatting. `git diff --check` passes.
 - `cargo bench --locked --no-run` passed on the current branch content and compiled the Tier 1–6 benchmark targets.
 - The focused `column_batch_query/100k` Tier 3 run passed at 43.12 queries/s with
   gate trust and 0.9% RSD. On candidate code commit `02ac6585`,

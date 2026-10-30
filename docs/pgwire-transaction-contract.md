@@ -29,6 +29,17 @@ Table COPY and database images mixed with other Simple Query statements reject
 with `0A000` before execution and without entering copy mode. The generic SQL COPY
 guard does not replace the dedicated wire COPY handler. Preserve its 16 MiB
 buffer limit, ignored Flush/Sync during copy-in, and late-frame recovery.
+The aggregate bound covers all `CopyData` frames in one stream; exact-limit and
+one-byte-over boundary evidence is in
+[`payload_limit_tests.rs`](../src/pgwire/connection/copy/payload_limit_tests.rs).
+`CancelRequest` wakes an idle `COPY FROM STDIN` read and returns SQLSTATE `57014`
+without waiting for another frontend frame. An implicit COPY returns to ReadyForQuery
+with status `I`; cancellation inside an explicit transaction returns status `E`.
+Late `CopyData`, `CopyDone`, and `CopyFail` messages are discarded, after which an
+explicit transaction can be rolled back and the connection can continue querying.
+Cancellation interrupts while the handler waits for the next frontend tag. After
+consuming a tag, the handler finishes that frame before applying cancellation, so
+dropping a read cannot lose the rest of a partially received frame.
 COPY scalar input preserves the selected type parser's diagnostics: malformed
 integer, FLOAT8, Boolean, NUMERIC, JSON/JSONB and OID input reports `22P02`,
 and integer/FLOAT8 range errors report `22003`. CSV row-width mismatch and

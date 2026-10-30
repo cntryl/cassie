@@ -1,7 +1,7 @@
 use super::{
-    io, str, AsyncReadExt, DescribeTarget, FrontendMessage, HandshakeError, PgwireReader,
-    StartupFrame, MAX_FRONTEND_MESSAGE_BYTES, MAX_STARTUP_MESSAGE_BYTES, MIN_STARTUP_MESSAGE_BYTES,
-    PASSWORD_MESSAGE_TAG, PROTOCOL_VERSION_3, SSL_REQUEST_CODE,
+    io, str, AsyncRead, AsyncReadExt, DescribeTarget, FrontendMessage, HandshakeError,
+    PgwireReader, StartupFrame, MAX_FRONTEND_MESSAGE_BYTES, MAX_STARTUP_MESSAGE_BYTES,
+    MIN_STARTUP_MESSAGE_BYTES, PASSWORD_MESSAGE_TAG, PROTOCOL_VERSION_3, SSL_REQUEST_CODE,
 };
 use crate::pgwire::connection::CANCEL_REQUEST_CODE;
 use std::collections::HashMap;
@@ -68,7 +68,39 @@ pub(super) async fn read_simple_query_message(
 pub(super) async fn read_frontend_message(
     reader: &mut PgwireReader,
 ) -> Result<FrontendMessage, HandshakeError> {
-    let (tag, payload) = read_frontend_frame(reader).await?;
+    let tag = read_frontend_tag(reader).await?;
+    read_frontend_message_after_tag(reader, tag).await
+}
+
+/// Reads one frontend tag with the cancel-safe `read` operation.
+///
+/// COPY cancellation may select against this read; frame length and payload
+/// reads must finish after the tag has been consumed.
+pub(super) async fn read_frontend_tag(
+    reader: &mut (impl AsyncRead + Unpin),
+) -> Result<u8, HandshakeError> {
+    let mut tag = [0u8; 1];
+    let bytes_read = reader.read(&mut tag).await.map_err(|error| {
+        if error.kind() == io::ErrorKind::UnexpectedEof {
+            HandshakeError::Closed
+        } else {
+            HandshakeError::Invalid("failed to read frontend message tag".to_string())
+        }
+    })?;
+    if bytes_read == 0 {
+        return Err(HandshakeError::Closed);
+    }
+    #[cfg(test)]
+    super::copy::cancellation_tests::signal_frontend_copy_tag_read(tag[0]);
+
+    Ok(tag[0])
+}
+
+pub(super) async fn read_frontend_message_after_tag(
+    reader: &mut (impl AsyncRead + Unpin),
+    tag: u8,
+) -> Result<FrontendMessage, HandshakeError> {
+    let payload = read_frontend_payload(reader, tag).await?;
     let payload_len = payload.len();
     let (message, cursor) = decode_frontend_message(tag, payload)?;
     if cursor != payload_len {
@@ -80,16 +112,10 @@ pub(super) async fn read_frontend_message(
     Ok(message)
 }
 
-async fn read_frontend_frame(reader: &mut PgwireReader) -> Result<(u8, Vec<u8>), HandshakeError> {
-    let mut tag = [0u8; 1];
-    reader.read_exact(&mut tag).await.map_err(|error| {
-        if error.kind() == io::ErrorKind::UnexpectedEof {
-            HandshakeError::Closed
-        } else {
-            HandshakeError::Invalid("failed to read frontend message tag".to_string())
-        }
-    })?;
-
+async fn read_frontend_payload(
+    reader: &mut (impl AsyncRead + Unpin),
+    tag: u8,
+) -> Result<Vec<u8>, HandshakeError> {
     let mut length = [0u8; 4];
     reader.read_exact(&mut length).await.map_err(|error| {
         if error.kind() == io::ErrorKind::UnexpectedEof {
@@ -116,15 +142,67 @@ async fn read_frontend_frame(reader: &mut PgwireReader) -> Result<(u8, Vec<u8>),
     }
 
     let mut payload = vec![0u8; size - 4];
-    reader.read_exact(&mut payload).await.map_err(|error| {
-        if error.kind() == io::ErrorKind::UnexpectedEof {
-            HandshakeError::Closed
-        } else {
-            HandshakeError::Invalid("failed to read frontend payload".to_string())
-        }
-    })?;
+    read_frontend_payload_bytes(reader, tag, &mut payload)
+        .await
+        .map_err(|error| {
+            if error.kind() == io::ErrorKind::UnexpectedEof {
+                HandshakeError::Closed
+            } else {
+                HandshakeError::Invalid("failed to read frontend payload".to_string())
+            }
+        })?;
 
-    Ok((tag[0], payload))
+    Ok(payload)
+}
+
+async fn read_frontend_payload_bytes(
+    reader: &mut (impl AsyncRead + Unpin),
+    tag: u8,
+    payload: &mut [u8],
+) -> io::Result<()> {
+    #[cfg(test)]
+    {
+        if tag == b'd' {
+            let mut observer = FrontendPayloadReadObserver { reader, tag };
+            observer.read_exact(payload).await?;
+        } else {
+            reader.read_exact(payload).await?;
+        }
+    }
+    #[cfg(not(test))]
+    {
+        let _ = tag;
+        reader.read_exact(payload).await?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+struct FrontendPayloadReadObserver<R> {
+    reader: R,
+    tag: u8,
+}
+
+#[cfg(test)]
+impl<R: AsyncRead + Unpin> AsyncRead for FrontendPayloadReadObserver<R> {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+        buffer: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<io::Result<()>> {
+        let this = self.get_mut();
+        let filled_before = buffer.filled().len();
+        let result = std::pin::Pin::new(&mut this.reader).poll_read(context, buffer);
+        if let std::task::Poll::Ready(Ok(())) = &result {
+            let bytes_read = buffer.filled().len() - filled_before;
+            if bytes_read > 0 {
+                super::copy::cancellation_tests::signal_frontend_copy_payload_read(
+                    this.tag, bytes_read,
+                );
+            }
+        }
+        result
+    }
 }
 
 pub(super) fn decode_frontend_message(

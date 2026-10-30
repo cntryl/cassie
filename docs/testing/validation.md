@@ -4754,6 +4754,109 @@ errors. `cntryl-tools validate-docs` validated 126 Markdown documents, and
 `git diff --check` passed. GitHub Actions remain disabled, so hosted checks are
 unavailable and are not claimed as passed.
 
+## 2026-10-29 — #846 idle and partial-frame COPY cancellation
+
+`should_cancel_idle_copy_from_stdin_inside_explicit_transaction` and
+`should_cancel_idle_copy_from_stdin_inside_implicit_transaction` start
+`COPY FROM STDIN` with no following data frame, send `CancelRequest`, and verify
+that Cassie returns SQLSTATE `57014` and `ReadyForQuery` before another COPY
+frame arrives. They cover explicit status `E`, implicit status `I`, late
+`CopyData`/`CopyDone` discard, rollback, and successful query recovery. Before
+the runtime change, the idle-cancel regression failed red at the five-second
+response guard while waiting for `ReadyForQuery`.
+
+`should_preserve_frontend_alignment_when_cancelled_after_copy_tag` sends only
+the COPY frame tag, waits until the server consumes it, cancels, then completes
+the frame and verifies no rows were applied and the next query succeeds. It
+failed red on the two-second recovery guard because dropping `read_exact` after
+the tag left the stream misaligned; it now passes 1/1.
+`should_preserve_frontend_alignment_when_cancelled_after_partial_copy_body`
+waits until the raw pgwire server consumes one of two body bytes before
+cancelling. With cancellation selected around the entire frame read, it failed
+red on the same recovery guard; with the frame-boundary implementation, it
+passes 1/1 and verifies `57014`, no ingested rows, late-frame discard, and query
+recovery. `should_fail_explicit_transaction_after_partial_copy_body_cancellation`
+repeats this boundary in an explicit transaction and verifies `E`, rollback to
+`I`, and query recovery; it passed 1/1.
+
+The deterministic
+`should_finish_partially_read_copy_length_before_applying_cancellation` and
+`should_finish_partially_read_copy_body_before_applying_cancellation` probes
+confirm cancellation after the server has consumed only part of the length or
+body; both passed 2/2. The COPY handler selects cancellation only while waiting
+for a cancel-safe tag read, then consumes the whole frame and applies
+cancellation at that boundary. The ready-message priority and buffered-payload
+cancellation probes also cover races within implicit and explicit transactions.
+The source cancellation group passed **8/8**, including partial length/body,
+partial-body explicit transaction rollback, and raw pgwire recovery. The two
+idle pgwire cases passed 2/2, the cancellation waiter tests passed 2/2, and the existing
+`should_answer_next_query_after_copy_fail_with_trailing_copy_messages`
+regression passed 1/1.
+
+The 16 MiB aggregate stream cap is checked across `CopyData` chunks. The
+`should_accept_copy_payload_just_below_sixteen_mib_limit`,
+`should_accept_copy_payload_at_sixteen_mib_limit`,
+`should_reject_copy_payload_one_byte_over_sixteen_mib_limit`, and
+`should_reject_copy_payload_length_overflow` probes passed **4/4** using
+numeric lengths, without allocating a large fixture. Existing compatibility
+tests also cover
+[`should_abort_copy_from_stdin_atomically_on_malformed_input`](../../tests/compatibility/lifecycle/copy/from_stdin/errors.rs),
+[`should_stage_table_copy_until_explicit_commit`](../../tests/pgwire_extended/copy/transaction_boundaries/semantics.rs),
+and
+[`should_discard_staged_table_copy_on_explicit_rollback`](../../tests/pgwire_extended/copy/transaction_boundaries/transactions.rs).
+
+Jev's boundary review estimated a **0.32** gap and selected partial length/body
+reads, prompting the two deterministic reader probes. Its follow-up estimated
+**0.30** and selected raw pgwire partial-body recovery, prompting the failing
+then passing end-to-end test. The next review estimated **0.27** and ranked
+explicit-transaction partial-body recovery highest; that test passed 1/1. The
+follow-up estimated **0.22** and selected no additional probe, so this bounded
+slice proceeds to the local gate. The
+questions and responses are retained under ignored
+`target/jev/issue-846-copy-cancel/`.
+
+The final ordered local gate passed on this worktree:
+
+- `cargo build --locked --bin cassie` passed.
+- `cargo test --locked` passed; every unit, integration-test, and doc-test target
+  completed with exit code 0.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+  passed. Clippy had also exposed a pre-existing `large_enum_variant` in the
+  vectorized-join outcome on the base branch. The outcome now stores its result
+  separately from a small action enum, avoiding a new heap allocation; the
+  query memory reservation remains alive for the same hash-build lifetime.
+- `cargo fmt --all -- --check` passed.
+- `cntryl-tools validate-tests -f src/runtime/controls.rs` passed **8/8**;
+  `cntryl-tools validate-tests -f src/pgwire/connection/copy/cancellation_tests.rs`
+  passed **8/8**;
+  `cntryl-tools validate-tests -f src/pgwire/connection/copy/payload_limit_tests.rs`
+  passed **4/4**; and
+  `cntryl-tools validate-tests -f tests/compatibility/lifecycle/copy/pgwire_cancellation.rs`
+  passed **2/2**.
+- `cntryl-tools validate-docs` validated **126** Markdown documents.
+- `tools/test_inventory.py` and `tools/test_inventory.py --check` both passed:
+  1,544 Rust files, 8,354 Rust test declarations, no unregistered tests,
+  unresolved module paths, duplicate registrations, oversized files, or
+  destination conflicts.
+- `git diff --check` passed.
+
+A local client smoke used `psql (PostgreSQL) 18.6 (Homebrew)` over the
+PostgreSQL wire protocol to Cassie in memory mode at `127.0.0.1:15432`. It
+created `copy_release_smoke (id INT, label TEXT)`, imported CSV with a header
+and two rows (`Ada Lovelace` and the quoted value `Grace, Hopper`) using
+`\copy ... FROM STDIN WITH (FORMAT csv, HEADER true)`, reported `COPY 2`, and
+selected both rows in order. A second `\copy` sent one valid integer row
+followed by `bad`; psql reported SQLSTATE `22P02`, a count query confirmed zero
+rows were applied, and the next `SELECT 1` succeeded on the same connection.
+Cassie shut down cleanly after both client runs. This smoke covers `INT` and
+`TEXT` CSV values; it does not claim coverage for other type encodings, larger
+stream workloads, extended-query COPY, or pg_dump/pg_restore parity.
+
+This evidence qualifies the bounded cancellation and frame-recovery slice;
+broader COPY acceptance in #846 remains open. The changes add no SQL behavior,
+public API, or persistent format. GitHub Actions remain disabled, so hosted
+checks are unavailable and are not claimed as passed.
+
 ## 2026-10-29 — #826 concurrent-refresh cancellation cleanup
 
 The deterministic unit regressions cancel `REFRESH MATERIALIZED VIEW

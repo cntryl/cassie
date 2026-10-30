@@ -215,6 +215,72 @@ fn should_isolate_execution_results_given_different_search_paths() {
 }
 
 #[test]
+fn should_refresh_cached_results_after_same_session_search_path_changes() {
+    // Arrange
+    let path = data_dir("same-session-search-path");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    cassie.startup().expect("startup");
+    let setup = cassie.create_session("setup", None);
+    for sql in [
+        "CREATE SCHEMA alpha",
+        "CREATE SCHEMA beta",
+        "CREATE TABLE alpha.cache_path_rows (value TEXT)",
+        "CREATE TABLE beta.cache_path_rows (value TEXT)",
+        "INSERT INTO alpha.cache_path_rows (value) VALUES ('alpha')",
+        "INSERT INTO beta.cache_path_rows (value) VALUES ('beta')",
+    ] {
+        cassie
+            .execute_sql(&setup, sql, vec![])
+            .expect("setup schema");
+    }
+    let reader = cassie.create_session("reader", None);
+    let query = "SELECT value FROM cache_path_rows";
+    cassie
+        .execute_sql(&reader, "SET search_path TO alpha", vec![])
+        .expect("alpha path");
+    let hits_before_alpha = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .expect("cache hits");
+
+    // Act
+    let alpha_result = cassie
+        .execute_sql(&reader, query, vec![])
+        .expect("first alpha query");
+    cassie
+        .execute_sql(&reader, query, vec![])
+        .expect("warm alpha result");
+    let hits_after_alpha = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .expect("cache hits");
+    cassie
+        .execute_sql(&reader, "SET search_path TO beta", vec![])
+        .expect("beta path");
+    let beta_result = cassie
+        .execute_sql(&reader, query, vec![])
+        .expect("first beta query");
+    let hits_after_beta = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .expect("cache hits");
+    cassie
+        .execute_sql(&reader, query, vec![])
+        .expect("warm beta result");
+    let hits_after_beta_warm = cassie.metrics()["execution_result_cache"]["hits"]
+        .as_u64()
+        .expect("cache hits");
+
+    // Assert
+    assert_eq!(
+        alpha_result.rows(),
+        vec![vec![Value::String("alpha".into())]]
+    );
+    assert_eq!(beta_result.rows(), vec![vec![Value::String("beta".into())]]);
+    assert_eq!(hits_after_alpha, hits_before_alpha + 1);
+    assert_eq!(hits_after_beta, hits_after_alpha);
+    assert_eq!(hits_after_beta_warm, hits_after_beta + 1);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_isolate_execution_results_given_different_session_settings() {
     // Arrange
     let path = data_dir("session-settings");

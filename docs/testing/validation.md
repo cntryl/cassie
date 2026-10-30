@@ -4919,3 +4919,45 @@ unregistered tests, unresolved module paths, duplicate identities, or shard
 errors. `cntryl-tools validate-docs` validated 126 Markdown documents, and
 `git diff --check` passed. GitHub Actions remain disabled, so hosted checks are
 unavailable and are not claimed as passed.
+
+## 2026-10-29 — #777 selected clients refreshed on merged main
+
+The four bounded read-model workflows were rerun on merged main
+`904776fe713be79310022bd709d518eade872119`, tree
+`081af16f109815675b645e32429e2d6e5228b1b2`. The tree is identical to the
+locally qualified #1127 head; this entry records fresh named-client results at
+the merged commit. The clients were tokio-postgres 0.7.18, SQLx 0.8.3, Diesel
+2.2.6, and psql 16.6 using image digest
+`sha256:557fea37a744d5f4c8faab304b0a90858b53ab119735a88c131fd19dab802f36`.
+The psql runner used a local wrapper to route the fixture's loopback connection
+through Docker Desktop's `host.docker.internal` address.
+
+The secret-free result manifest and wrapper are retained under the ignored
+`target/issue-777-current-clients-20261029/` directory. The manifest SHA-256 is
+`e1d44160e4a032f7b82e7d43a66b6bd9de8777676077ac515febd8c46ea0c40c`; the
+wrapper SHA-256 is
+`63953b34186dbc3f133286bdc4eef3ac03abbdcb4046a8d82cd8efd625d88bfd`.
+
+~~~sh
+CASSIE_RUN_PSQL_COMPAT=1 CASSIE_PSQL_BIN=/tmp/cassie-psql16 CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target cargo test --locked --test compatibility compatibility_matrix::should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_SQLX_COMPAT=1 CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target cargo test --locked --test compatibility compatibility_sqlx::should_validate_sqlx_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_DIESEL_COMPAT=1 CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target cargo test --locked --test compatibility compatibility_diesel::should_validate_diesel_read_model_probe_when_enabled -- --ignored --nocapture
+CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target cargo test --locked --test compatibility should_preserve_named_tokio_postgres_session_through_error_recovery -- --nocapture
+CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target cargo test --locked --test compatibility should_infer_virtual_catalog_parameter_types_without_inventing_names -- --nocapture
+CARGO_TARGET_DIR=/Users/jrepanich/Code/cntryl/cassie/target cargo test --locked --test catalog_security should_preserve_database_scoped_information_schema_after_drop_restart -- --nocapture
+~~~
+
+All six probes passed 1/1. Each named client emitted its expected catalog,
+write/read, transaction, duplicate/missing-relation recovery, and same-session
+markers. The virtual-catalog test confirmed inferred TEXT and INT4 parameters,
+name-collision handling, and the expected `42703`/`42P01` diagnostics. The
+catalog restart test confirmed a dropped relation stays absent in its owning
+database while same-named metadata in another database remains intact. Diesel's
+missing-relation check remains message-based rather than an exact SQLSTATE
+assertion.
+
+This refresh covers the selected four-client workflow on the current main tree;
+it does not finish #777's remaining catalog/session/view/routine disposition or
+certify pgAdmin/DBeaver desktop clients. #777 remains open, and #780's broader
+wire-state matrix remains open. GitHub Actions are disabled, so hosted checks
+remain unavailable and are not claimed as passed.

@@ -20,15 +20,15 @@ for each SQL capability's current status.
 
 ## Latest merged v0.3 checkpoint — 2026-10-30
 
-Current main is `7b9d29f4e0f8e8760130a674ce35689122ed7310`. The four named
+Current main is `c9ef4073da4cf90a257c1038cafd98948deb5783`. The four named
 clients passed six focused probes and selected catalog/TypeInfo behavior passed
-12 focused tests on its parent `f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`;
-the intervening PR #1140 changed only tests and documentation. The four
-selected COPY groups passed 136/136 on `d299317`. PR #1140 adds COPY-loaded
+12 focused tests on its parent `f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`.
+PR #1140 changed tests and documentation; PR #1141 changed documentation only.
+The four selected COPY groups passed 136/136 on `d299317`. PR #1140 adds COPY-loaded
 staging-swap and local-restart witnesses, and its validated head tree is
-identical to merged main (`50ad9312`). The full ordered local gate passed on
-that exact tree: build, all Cargo tests with zero failures, strict
-workspace/all-target/all-feature pedantic Clippy, formatting, touched-test
+identical to merged main `7b9d29f4` (`50ad9312` tree). The full ordered local
+gate passed on that exact code/test tree: build, all Cargo tests with zero
+failures, strict workspace/all-target/all-feature pedantic Clippy, formatting, touched-test
 validation and documentation validation.
 
 The selected v0.3 client/session, catalog/TypeInfo, COPY ingress, table/rebuild,
@@ -36,6 +36,10 @@ ordinary table, materialized-view and scalar-index lifecycle criteria are
 complete. The broad issues #846, #821, #817, #826 and #842 remain open without
 the v0.3 milestone for future named workflows. GitHub's current milestone
 membership contains 12 issues, all closed, and no open members.
+
+PR #1141's documentation tree matches current main (`5f0dbeb5`) and passed
+`cntryl-tools validate-docs` over 126 Markdown documents. The code and test
+files remain the exact tree validated by PR #1140.
 
 These are local candidate results, not hosted CI, desktop certification,
 production qualification or a complete PostgreSQL wire state/packet matrix.

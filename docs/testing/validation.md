@@ -5353,3 +5353,13 @@ After that wording correction, Jev's final focused review assigned 0.26 to a
 selected-scope overclaim and 0.03 to a final/hosted-gate overclaim. The live
 issue checks, exact-tree gate and named witnesses above were independently
 read back against the remaining claims.
+
+## 2026-10-30 — v0.3 scope record merged to main
+
+PR #1141 merged as `c9ef4073da4cf90a257c1038cafd98948deb5783`; its tree
+`5f0dbeb5b6ef105bb001fd7e6e2f69b0ee0a8018` matches the validated PR head.
+It changes documentation only. `cntryl-tools validate-docs` passed for 126
+Markdown documents and `git diff --check` passed. The full ordered local gate
+passed on the code/test tree validated in PR #1140 at `7b9d29f4`; PR #1141
+separately validated the documentation tree. Hosted checks remain unavailable,
+and the immutable release commit still requires the full gate.

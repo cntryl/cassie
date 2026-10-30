@@ -10,6 +10,29 @@ relational contract or close #761.
 > current GitHub issue state, or an active full-parity product goal. PostgreSQL
 > 18.6 observations are reference evidence for selected behaviors only.
 
+## 2026-10-30 — #777 CAT-002 unavailable virtual relation
+
+On the tree based at `8c29f720`, the pgwire regression
+`should_recover_after_undefined_pg_catalog_view_lookup`. A Simple Query for
+`pg_catalog.pg_issue_777_missing_virtual_view` returns SQLSTATE `42P01`, then
+`ReadyForQuery` with idle status. The same connection successfully executes
+`SELECT 7::INT` afterward, confirming the error does not strand the session.
+The focused test passed 1/1. The ordered local gate passed:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked` (exit 0)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f tests/pgwire_extended/catalogs/unavailable_virtual_view.rs` (1/1 compliant)
+
+The generated test inventory was refreshed and its check passed. No runtime
+behavior changed.
+
+This is direct evidence for one unavailable `pg_catalog` relation and its
+connection-recovery path. It does not complete CAT-002's virtual-column type
+coverage, the rest of #777, or release qualification. GitHub Actions remain
+disabled, so hosted checks are unavailable.
+
 ## 2026-10-28 — #833 standalone DDL preflight
 
 A focused pgwire probe sent `CREATE TABLE` followed by `INSERT` in one

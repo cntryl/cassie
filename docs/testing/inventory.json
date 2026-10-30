@@ -228,11 +228,11 @@
         ]
       }
     ],
-    "files": 1576,
-    "rust_files": 1544,
-    "rust_test_declarations": 8355,
+    "files": 1577,
+    "rust_files": 1545,
+    "rust_test_declarations": 8356,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8483,
+    "registered_rust_instances": 8484,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -76002,6 +76002,37 @@
         "category": "catalogs",
         "directory": "tests/pgwire_extended/catalogs",
         "file": "tests/pgwire_extended/catalogs/scalar_signatures.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/catalogs/unavailable_virtual_view.rs::should_recover_after_undefined_pg_catalog_view_lookup",
+      "name": "should_recover_after_undefined_pg_catalog_view_lookup",
+      "current_file": "tests/pgwire_extended/catalogs/unavailable_virtual_view.rs",
+      "line": 7,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "catalog_unavailable_virtual_view::should_recover_after_undefined_pg_catalog_view_lookup"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "catalogs",
+        "directory": "tests/pgwire_extended/catalogs",
+        "file": "tests/pgwire_extended/catalogs/unavailable_virtual_view.rs",
         "basis": "canonical_domain_path",
         "review": "recommended",
         "migration": "keep"
@@ -269077,6 +269108,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/catalogs/unavailable_virtual_view.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 36,
+      "sha256": "248a9b414ab168d1de5e5a830cdbaf7d8062e55ba1e8a663722073a3233518b5",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/catalogs/unavailable_virtual_view.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/comparisons/null_safe/null_safe_predicates.rs",
       "role": "test_module",
       "action": "keep",
@@ -275673,8 +275719,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 662,
-      "sha256": "6dc6c977c951e88f831c0b042c672bd4b85ea5fbd09411ff6d235196fee3188b",
+      "lines": 665,
+      "sha256": "d82337a49030908e32e41e6a06e74550e111bbbf9de8ebd729000725edbc4036",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

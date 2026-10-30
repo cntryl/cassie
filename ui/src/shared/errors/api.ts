@@ -1,4 +1,4 @@
-import type { FailureResult, HttpResult, SuccessResult } from "@askrjs/fetch";
+import type { FetchResult } from "@askrjs/fetch";
 
 export type AppApiErrorCode =
   | "badRequest"
@@ -37,7 +37,7 @@ function errorCodeForStatus(status: number): AppApiErrorCode {
   return "unknown";
 }
 
-type ApiResult<T> = SuccessResult<T> | HttpResult<unknown> | FailureResult;
+type ApiResult<T> = FetchResult<T>;
 
 function errorMessage(error: unknown, fallbackMessage: string) {
   if (error instanceof Error) {

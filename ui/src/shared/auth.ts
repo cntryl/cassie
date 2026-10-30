@@ -1,4 +1,4 @@
-import type { AuthContext } from "@askrjs/askr/router";
+import type { AuthContext } from "@askrjs/auth";
 
 import { apiv1 } from "@/adapters";
 import { unwrapResponse } from "@/shared/errors/api";

@@ -5363,3 +5363,26 @@ Markdown documents and `git diff --check` passed. The full ordered local gate
 passed on the code/test tree validated in PR #1140 at `7b9d29f4`; PR #1141
 separately validated the documentation tree. Hosted checks remain unavailable,
 and the immutable release commit still requires the full gate.
+
+## 2026-10-30 — Askr 0.5.0 UI dependency refresh
+
+The UI's pinned Askr packages moved from 0.4.x to 0.5.0, which removed several
+consumer-facing type aliases. The UI now imports `AuthContext` from
+`@askrjs/auth`, handles fetch outcomes through the exported `FetchResult`,
+derives Monaco callback types from `MonacoEditorProps`, and uses Askr's
+`JSXElement` type. No runtime behavior or public Cassie API changed.
+
+The UI validation passed on the pre-rebase candidate before the follow-up
+`ui/package-lock.json` refresh:
+
+- Locked install and production dependency audit: 0 vulnerabilities.
+- 121 unit tests and 26 mocked-browser tests passed.
+- Type-check, lint, formatting, generated-client freshness, and production
+  build passed; the build retained advisory large Monaco/editor chunk warnings.
+- Two real-Cassie browser cases passed on desktop Chromium and Pixel 7.
+- `CARGO_INCREMENTAL=0 cargo test --locked --quiet` passed 9,844 tests, with
+  0 failures and 12 ignored; strict pedantic Clippy and Rust formatting passed.
+
+These are historical local results for that candidate. The follow-up UI lockfile
+refresh and the rebased branch still need current validation. GitHub Actions
+remain disabled, so hosted checks and publication are unavailable.

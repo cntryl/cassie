@@ -9,10 +9,10 @@ export function SidebarPortalProvider({ children }: { children?: JSXElement }): 
   return <SidebarPortalScope value={portal()}>{children}</SidebarPortalScope>;
 }
 
-export function SidebarPortalContent({ children }: { children?: JSXElement }): JSX.Element | null {
-  return readScope(SidebarPortalScope).render({ children }) as JSX.Element | null;
+export function SidebarPortalContent({ children }: { children?: JSXElement }): JSXElement | null {
+  return readScope(SidebarPortalScope).render({ children }) as JSXElement | null;
 }
 
-export function SidebarPortalHost(): JSX.Element | null {
-  return readScope(SidebarPortalScope)() as JSX.Element | null;
+export function SidebarPortalHost(): JSXElement | null {
+  return readScope(SidebarPortalScope)() as JSXElement | null;
 }

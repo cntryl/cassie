@@ -5272,8 +5272,12 @@ runtime behavior or the selected v0.3 acceptance.
 
 ## 2026-10-30 — #821/#817 selected client and catalog requalification
 
-The exact current main candidate is `f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`.
-The four pinned named clients passed six focused probes on this candidate:
+The client and catalog probes below ran on candidate
+`f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`, immediately before PR #1140.
+PR #1140 changes tests and documentation only; its validated head and merged
+main have identical tree `50ad93121110a73387f345c53674dfc85444261b` at commit
+`7b9d29f4e0f8e8760130a674ce35689122ed7310`. The four pinned named clients
+passed six focused probes on that runtime candidate:
 
 - psql 16.6, `CASSIE_PSQL_BIN=/tmp/cassie-psql16` — 1/1 selected discovery,
   join, commit/rollback, duplicate/missing-relation recovery and named-schema
@@ -5310,15 +5314,42 @@ next runtime slice, Jev first selected #826's COPY-loaded staging-table/rebuild
 path ahead of #842 (0.77 probability, 0.69 confidence). A follow-up choice
 compared that gap directly with ordinary table DDL, remaining materialized-view
 lifecycle and #842, and selected the COPY-loaded swap with 1.0 probability and
-1.0 confidence. This matches #826's explicit criterion: the three existing
-swap witnesses load with INSERT, and no focused witness composes the selected
-COPY input with swap visibility, rollback and local restart. The action is to
-mark only the candidate-scoped #821/#817 checks complete, remove those broader
-issues from v0.3, and implement the bounded COPY-loaded #826 rebuild witness
-while preserving the separate local #842 worktree.
+1.0 confidence. The issue named the gap: earlier swap witnesses loaded staging
+rows with INSERT, and none composed selected COPY ingress with swap visibility,
+rollback and local restart. PR #1140 implemented that bounded test/documentation
+slice. Live issue readback marks the selected #826 table/rebuild/materialized-
+view criteria and #842 scalar-index lifecycle complete; both broader issues
+remain open without a v0.3 milestone. The milestone membership query returns
+12 issues, all closed, and no open members.
 
-PR #1136's exact client/catalog candidate passed the ordered full local gate.
-The current-main reruns above are focused; the full locked suite was not rerun
-on `f7c7ef6`. The final immutable release commit still needs the full ordered
-gate, and GitHub Actions remain disabled. No hosted or final release claim is
-made.
+PR #1140 passed the full ordered local gate on its exact tree, identical to
+merged main `7b9d29f4`:
+
+```sh
+cargo build --locked --bin cassie
+cargo test --locked --quiet
+cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
+cargo fmt --all -- --check
+cntryl-tools validate-tests -f tests/compatibility/lifecycle/ddl/rebuild_swap.rs
+cntryl-tools validate-tests -f tests/sql_mutations/ddl/rebuild_swap_restart.rs
+cntryl-tools validate-docs
+```
+
+All Cargo targets passed with zero failures. Each new focused regression passed
+1/1; both touched-file validators passed 2/2, and documentation validation
+covered 126 Markdown documents. GitHub Actions remain disabled, so hosted checks
+are unavailable. The final immutable release commit still needs the roadmap's
+full ordered gate; no hosted or production qualification claim is made.
+
+Jev reviewed this scope closeout. Its first factual-risk Noul was 0.44; a
+focused follow-up selected the stale roadmap sentence that still said the
+scope-freeze gate was open (0.66 probability, 0.57 confidence). I replaced it
+with wording aligned to the live 12-closed, zero-open membership and current
+scope table. Jev assigned 0.20 to a possible #826 evidence gap, 0.06 to a #842
+evidence gap and 0.07 to a milestone-membership mismatch; source, live issue
+readback and named tests support the documented selected scopes and membership.
+Its separate Noul for claiming final/hosted release evidence passed was 0.03.
+After that wording correction, Jev's final focused review assigned 0.26 to a
+selected-scope overclaim and 0.03 to a final/hosted-gate overclaim. The live
+issue checks, exact-tree gate and named witnesses above were independently
+read back against the remaining claims.

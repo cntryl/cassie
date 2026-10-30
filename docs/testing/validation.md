@@ -5386,3 +5386,39 @@ The UI validation passed on the pre-rebase candidate before the follow-up
 These are historical local results for that candidate. The follow-up UI lockfile
 refresh and the rebased branch still need current validation. GitHub Actions
 remain disabled, so hosted checks and publication are unavailable.
+
+## 2026-10-30 — Match the locked Midge 0.5.1 format
+
+`Cargo.toml` and `Cargo.lock` resolve `cntryl-midge` 0.5.1. Midge 0.5.0
+introduced database FORMAT 9 and SST V5; 0.5.1 retains them. Its source sets
+FORMAT 9 as both current and minimum supported, rejecting FORMAT 8. The
+Midge migration guide requires logical export/import from 0.4.x into a fresh
+store; there is no in-place upgrade. Cassie's prior release-specific witness
+and current README still asserted the 0.4.1 FORMAT 8 contract.
+
+The witness is now `midge_release_051`: it requires FORMAT 9 on a fresh store,
+rejects a preserved FORMAT 8 marker without changing it or a sentinel file,
+and exercises SQL restart recovery and post-recovery writes on FORMAT 9. The
+README and storage qualification now describe the current format boundary,
+fresh-store cutover, rollback boundary and absence of a Cassie migration
+utility. Cassie's separate logical layout marker is unchanged.
+
+Jev was asked which compatibility disposition the supplied Midge and Cassie
+evidence supports. It selected `match_current_format_and_explicitly_reject_old_stores`
+at probability 1.0. I confirmed the judgment against the locked Midge source,
+changelog and migration guide, then updated Cassie's FORMAT 9 behavior witness
+and operator boundary without introducing an in-place migration.
+
+The required local validation passed in order:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked`
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f tests/storage_indexes/storage/midge_release_051.rs` — 4/4 compliant.
+
+`target/test-inventory-tools312/bin/python tools/test_inventory.py --check`
+passed with no unregistered tests, unresolved modules, duplicate registrations
+or inventory drift. `cntryl-tools validate-docs` passed for 125 Markdown
+documents, and `git diff --check` passed. GitHub Actions remain disabled, so
+hosted checks and deployment migration qualification are unavailable.

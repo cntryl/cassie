@@ -254160,9 +254160,9 @@
       }
     },
     {
-      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_create_format_eight_given_a_fresh_store_when_cassie_starts",
-      "name": "should_create_format_eight_given_a_fresh_store_when_cassie_starts",
-      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "id": "tests/storage_indexes/storage/midge_release_051.rs::should_create_format_nine_given_a_fresh_store_when_cassie_starts",
+      "name": "should_create_format_nine_given_a_fresh_store_when_cassie_starts",
+      "current_file": "tests/storage_indexes/storage/midge_release_051.rs",
       "line": 24,
       "end_line": 33,
       "inline_modules": [],
@@ -254172,7 +254172,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "midge_release_041::should_create_format_eight_given_a_fresh_store_when_cassie_starts"
+          "name": "midge_release_051::should_create_format_nine_given_a_fresh_store_when_cassie_starts"
         }
       ],
       "attributes": [
@@ -254184,16 +254184,16 @@
         "suite": "storage_indexes",
         "category": "storage",
         "directory": "tests/storage_indexes/storage",
-        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "file": "tests/storage_indexes/storage/midge_release_051.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
-      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_reject_old_format_given_a_preserved_marker_when_cassie_opens",
-      "name": "should_reject_old_format_given_a_preserved_marker_when_cassie_opens",
-      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "id": "tests/storage_indexes/storage/midge_release_051.rs::should_reject_format_eight_given_a_preserved_marker_when_cassie_opens",
+      "name": "should_reject_format_eight_given_a_preserved_marker_when_cassie_opens",
+      "current_file": "tests/storage_indexes/storage/midge_release_051.rs",
       "line": 36,
       "end_line": 57,
       "inline_modules": [],
@@ -254203,7 +254203,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "midge_release_041::should_reject_old_format_given_a_preserved_marker_when_cassie_opens"
+          "name": "midge_release_051::should_reject_format_eight_given_a_preserved_marker_when_cassie_opens"
         }
       ],
       "attributes": [
@@ -254215,16 +254215,16 @@
         "suite": "storage_indexes",
         "category": "storage",
         "directory": "tests/storage_indexes/storage",
-        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "file": "tests/storage_indexes/storage/midge_release_051.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
-      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_recover_sql_state_given_a_fresh_store_when_cassie_restarts",
+      "id": "tests/storage_indexes/storage/midge_release_051.rs::should_recover_sql_state_given_a_fresh_store_when_cassie_restarts",
       "name": "should_recover_sql_state_given_a_fresh_store_when_cassie_restarts",
-      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "current_file": "tests/storage_indexes/storage/midge_release_051.rs",
       "line": 60,
       "end_line": 125,
       "inline_modules": [],
@@ -254234,7 +254234,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "midge_release_041::should_recover_sql_state_given_a_fresh_store_when_cassie_restarts"
+          "name": "midge_release_051::should_recover_sql_state_given_a_fresh_store_when_cassie_restarts"
         }
       ],
       "attributes": [
@@ -254246,16 +254246,16 @@
         "suite": "storage_indexes",
         "category": "storage",
         "directory": "tests/storage_indexes/storage",
-        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "file": "tests/storage_indexes/storage/midge_release_051.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
-      "id": "tests/storage_indexes/storage/midge_release_041.rs::should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again",
+      "id": "tests/storage_indexes/storage/midge_release_051.rs::should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again",
       "name": "should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again",
-      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "current_file": "tests/storage_indexes/storage/midge_release_051.rs",
       "line": 128,
       "end_line": 183,
       "inline_modules": [],
@@ -254265,7 +254265,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "midge_release_041::should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again"
+          "name": "midge_release_051::should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again"
         }
       ],
       "attributes": [
@@ -254277,7 +254277,7 @@
         "suite": "storage_indexes",
         "category": "storage",
         "directory": "tests/storage_indexes/storage",
-        "file": "tests/storage_indexes/storage/midge_release_041.rs",
+        "file": "tests/storage_indexes/storage/midge_release_051.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -281993,17 +281993,17 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/storage_indexes/storage/midge_release_041.rs",
+      "current_file": "tests/storage_indexes/storage/midge_release_051.rs",
       "role": "test_module",
       "action": "keep",
       "lines": 183,
-      "sha256": "b20b23b57f6d0e48441a7e11fddaa45abf5ef5e101d5a0f20ae5566bac8e2368",
+      "sha256": "918d895c485d03afbe760bb4186d311731f3efd442006ca16efbc237a38add13",
       "test_declarations": 4,
       "registered_suites": [
         "storage_indexes"
       ],
       "destinations": [
-        "tests/storage_indexes/storage/midge_release_041.rs"
+        "tests/storage_indexes/storage/midge_release_051.rs"
       ],
       "line_limit": 1000
     },
@@ -282027,7 +282027,7 @@
       "role": "cargo_target",
       "action": "keep",
       "lines": 129,
-      "sha256": "228b19c35d3e34587b7a7eed423a9a903b06f30e47d8a1d3dae95e8e0470812a",
+      "sha256": "0c63dd0531e957403135581a63eae2288c63c7c6fceae97abe530f29e79bf6c2",
       "test_declarations": 0,
       "registered_suites": [
         "storage_indexes"

@@ -19,8 +19,9 @@ Cassie uses `cntryl-midge` directly as its only storage layer. Midge provides pe
 - [Product scope and roadmap](docs/product-roadmap.md)
 - [POC quickstart](docs/poc-quickstart.md)
 
-Midge 0.4.1 requires a fresh FORMAT 8 store. Existing pre-0.4 stores require
-logical export/import into a new store; see the [storage compatibility boundary](docs/storage-recovery-qualification.md#midge-041-fresh-store-boundary-2026-10-17).
+The locked `cntryl-midge` 0.5.1 dependency uses database FORMAT 9 and SST V5.
+Midge 0.4.x stores require logical export/import into a fresh store; there is
+no in-place upgrade. See the [storage compatibility boundary](docs/storage-recovery-qualification.md#midge-051-fresh-store-boundary-2026-10-30).
 
 ## Local Development
 

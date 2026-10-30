@@ -21,22 +21,22 @@ impl Drop for Store {
 }
 
 #[test]
-fn should_create_format_eight_given_a_fresh_store_when_cassie_starts() {
+fn should_create_format_nine_given_a_fresh_store_when_cassie_starts() {
     // Arrange
-    let store = Store::new("midge041-fresh");
+    let store = Store::new("midge051-fresh");
     // Act
     let cassie = Cassie::new_with_data_dir(&store.0).expect("fresh Midge store");
     cassie.startup().expect("startup");
     let marker = std::fs::read(store.0.join("FORMAT")).expect("format marker");
     // Assert
-    assert_eq!(marker, b"midge-format-version=8\n");
+    assert_eq!(marker, b"midge-format-version=9\n");
 }
 
 #[test]
-fn should_reject_old_format_given_a_preserved_marker_when_cassie_opens() {
+fn should_reject_format_eight_given_a_preserved_marker_when_cassie_opens() {
     // Arrange
-    let store = Store::new("midge041-old-format");
-    let marker = b"midge-format-version=4\n";
+    let store = Store::new("midge051-format-eight");
+    let marker = b"midge-format-version=8\n";
     std::fs::write(store.0.join("FORMAT"), marker).expect("old format fixture");
     std::fs::write(store.0.join("operator-backup"), b"preserve").expect("sentinel");
     // Act
@@ -44,7 +44,7 @@ fn should_reject_old_format_given_a_preserved_marker_when_cassie_opens() {
     // Assert
     let error = result
         .err()
-        .expect("pre-0.4 stores require logical migration");
+        .expect("FORMAT 8 stores require logical migration");
     assert!(error.to_string().contains("format"), "{error}");
     assert_eq!(
         std::fs::read(store.0.join("FORMAT")).expect("marker"),
@@ -59,7 +59,7 @@ fn should_reject_old_format_given_a_preserved_marker_when_cassie_opens() {
 #[test]
 fn should_recover_sql_state_given_a_fresh_store_when_cassie_restarts() {
     // Arrange
-    let store = Store::new("midge041-sql-restart");
+    let store = Store::new("midge051-sql-restart");
     let sql = "SELECT id,body,amount FROM persisted_view ORDER BY id";
     let before = {
         let cassie = Cassie::new_with_data_dir(&store.0).expect("fresh store");
@@ -88,7 +88,7 @@ fn should_recover_sql_state_given_a_fresh_store_when_cassie_restarts() {
         result
     };
     // Act
-    let restarted = Cassie::new_with_data_dir(&store.0).expect("reopen FORMAT 8");
+    let restarted = Cassie::new_with_data_dir(&store.0).expect("reopen FORMAT 9");
     restarted.startup().expect("rehydrate metadata");
     let session = restarted.create_session("tester", None);
     let after = restarted
@@ -127,7 +127,7 @@ fn should_recover_sql_state_given_a_fresh_store_when_cassie_restarts() {
 #[test]
 fn should_persist_post_recovery_writes_given_a_fresh_store_when_cassie_restarts_again() {
     // Arrange
-    let store = Store::new("midge041-recovery-write");
+    let store = Store::new("midge051-recovery-write");
     {
         let cassie = Cassie::new_with_data_dir(&store.0).expect("fresh store");
         cassie.startup().expect("startup");

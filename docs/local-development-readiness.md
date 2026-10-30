@@ -44,6 +44,38 @@ options/formats and general dump/restore workflows are outside v0.3. The earlier
 branch-specific failure map below is not the current main failure state; the
 selected wire/COPY items were later requalified by #1127, #1136 and #1137.
 
+## Current candidate checkpoint — 2026-10-29, #826 COPY-loaded rebuild
+
+Candidate branch `audit/v03-826-copy-loaded-rebuild-20261029` is based on
+`f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`. This tests-and-documentation slice
+adds a Simple Query `COPY FROM STDIN` staging-table rebuild witness over
+pgwire and a matching local-storage restart witness. Both verify row and
+catalog identities, owner/observer visibility, rollback, retry and commit.
+There are no runtime behavior changes. The selected #826 rebuild acceptance
+now has focused evidence; selected ordinary table lifecycle and remaining
+materialized-view lifecycle criteria remain open.
+
+The new focused pgwire and restart tests passed 1/1 each, including the final
+pgwire test name `should_publish_copy_loaded_staging_swap_atomically`. The full
+`cargo test --locked --quiet` suite passed across all targets with zero
+failures. The exact local gate passed in order using the shared Cargo target
+directory and `CARGO_INCREMENTAL=0`:
+
+```sh
+cargo build --locked --bin cassie
+cargo test --locked --quiet
+cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
+cargo fmt --all -- --check
+cntryl-tools validate-tests -f tests/compatibility/lifecycle/ddl/rebuild_swap.rs
+cntryl-tools validate-tests -f tests/sql_mutations/ddl/rebuild_swap_restart.rs
+cntryl-tools validate-docs
+```
+
+Documentation validation covered 126 Markdown documents. GitHub Actions remain
+disabled, so hosted checks are unavailable and are not claimed as passed. This
+evidence covers the selected rebuild slice and is not a full v0.3 release or
+production qualification.
+
 ## Historical checkpoint — 2026-10-29, pre-merge candidate
 
 The current candidate branch is `audit/v03-826-cancel-refresh-20261029`, based on merged main `a4e5ec52566b4032c0a1e617e0b95d09c77107af` (PR #1121).

@@ -18,63 +18,46 @@ for each SQL capability's current status.
 - GitHub Actions remain disabled. Local evidence is reported as local; hosted
   checks are unavailable.
 
-## Latest selected v0.3 checkpoint — 2026-10-29
+## Latest merged v0.3 checkpoint — 2026-10-30
 
-Main `d2993177204179fce3b54c7880744aca4a5f8017` contains the selected #777
-client/catalog acceptance, the selected #846 COPY ingress and the #780 bounded
-wire closeout. PR #1136's exact code/test candidate passed the ordered local
-gate, including the full locked Cargo suite and all four pinned client
-workflows. PR #1127 independently passed the same local build, test, strict
-Clippy, formatting and focused-validator gate for selected COPY cancellation,
-bounds and recovery. On current main, four focused COPY groups passed 136/136
-tests across the library, compatibility, extended pgwire and core pgwire
-targets. The merged client workflow
-`should_preserve_named_tokio_postgres_session_through_error_recovery` passed
-1/1 on current main. The full locked suite was not rerun on `d299317`. These are
-local selected-workflow results, not hosted CI, desktop certification,
+Current main is `7b9d29f4e0f8e8760130a674ce35689122ed7310`. The four named
+clients passed six focused probes and selected catalog/TypeInfo behavior passed
+12 focused tests on its parent `f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`;
+the intervening PR #1140 changed only tests and documentation. The four
+selected COPY groups passed 136/136 on `d299317`. PR #1140 adds COPY-loaded
+staging-swap and local-restart witnesses, and its validated head tree is
+identical to merged main (`50ad9312`). The full ordered local gate passed on
+that exact tree: build, all Cargo tests with zero failures, strict
+workspace/all-target/all-feature pedantic Clippy, formatting, touched-test
+validation and documentation validation.
+
+The selected v0.3 client/session, catalog/TypeInfo, COPY ingress, table/rebuild,
+ordinary table, materialized-view and scalar-index lifecycle criteria are
+complete. The broad issues #846, #821, #817, #826 and #842 remain open without
+the v0.3 milestone for future named workflows. GitHub's current milestone
+membership contains 12 issues, all closed, and no open members.
+
+These are local candidate results, not hosted CI, desktop certification,
 production qualification or a complete PostgreSQL wire state/packet matrix.
+GitHub Actions remain disabled. The full ordered gate remains required on the
+immutable release commit.
 
 The unaliased WIRE-012 mixed catalog/ordinary prepared-join shape remains a
 confirmed `42P18` gap, but the pinned workflow uses aliases and no named v0.3
 client acceptance requires the unaliased form. It is recorded as deferred under
 #780, which PR #1137 closed for its bounded selected scope. #846's selected
-rebuild ingress is complete under PR #1127. Existing limited table/query
-`COPY TO` support remains as documented in Feature Support; additional export
-options/formats and general dump/restore workflows are outside v0.3. The earlier
-branch-specific failure map below is not the current main failure state; the
-selected wire/COPY items were later requalified by #1127, #1136 and #1137.
+rebuild ingress is complete under PR #1127. #821's named-client/session subset
+and #817's selected catalog/TypeInfo subset are complete on `f7c7ef6`; their
+broader conditional session and catalog work is outside v0.3. Existing limited
+table/query `COPY TO` support remains as documented in Feature Support;
+additional export options/formats and general dump/restore workflows are
+outside v0.3. The earlier branch-specific failure map below is not the current
+main failure state; selected client, catalog, wire and COPY evidence is recorded
+in PRs #1127, #1136, #1137, #1138, #1139, and the current validation entry.
 
-## Current candidate checkpoint — 2026-10-29, #826 COPY-loaded rebuild
-
-Candidate branch `audit/v03-826-copy-loaded-rebuild-20261029` is based on
-`f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`. This tests-and-documentation slice
-adds a Simple Query `COPY FROM STDIN` staging-table rebuild witness over
-pgwire and a matching local-storage restart witness. Both verify row and
-catalog identities, owner/observer visibility, rollback, retry and commit.
-There are no runtime behavior changes. The selected #826 rebuild acceptance
-now has focused evidence; selected ordinary table lifecycle and remaining
-materialized-view lifecycle criteria remain open.
-
-The new focused pgwire and restart tests passed 1/1 each, including the final
-pgwire test name `should_publish_copy_loaded_staging_swap_atomically`. The full
-`cargo test --locked --quiet` suite passed across all targets with zero
-failures. The exact local gate passed in order using the shared Cargo target
-directory and `CARGO_INCREMENTAL=0`:
-
-```sh
-cargo build --locked --bin cassie
-cargo test --locked --quiet
-cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
-cargo fmt --all -- --check
-cntryl-tools validate-tests -f tests/compatibility/lifecycle/ddl/rebuild_swap.rs
-cntryl-tools validate-tests -f tests/sql_mutations/ddl/rebuild_swap_restart.rs
-cntryl-tools validate-docs
-```
-
-Documentation validation covered 126 Markdown documents. GitHub Actions remain
-disabled, so hosted checks are unavailable and are not claimed as passed. This
-evidence covers the selected rebuild slice and is not a full v0.3 release or
-production qualification.
+PR #1140's new focused pgwire and local-storage restart tests passed 1/1 each.
+The validated head and merged main have identical trees (`50ad9312`). Its
+exact-head local gate is recorded in [validation](testing/validation.md).
 
 ## Historical checkpoint — 2026-10-29, pre-merge candidate
 

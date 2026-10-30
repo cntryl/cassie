@@ -5269,3 +5269,87 @@ now defer only additional export options/formats and generic dump/restore or
 migration workflows. Jev selected this supported-versus-additional distinction
 with probability 1.0; the action was to correct the wording without changing
 runtime behavior or the selected v0.3 acceptance.
+
+## 2026-10-30 — #821/#817 selected client and catalog requalification
+
+The client and catalog probes below ran on candidate
+`f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`, immediately before PR #1140.
+PR #1140 changes tests and documentation only; its validated head and merged
+main have identical tree `50ad93121110a73387f345c53674dfc85444261b` at commit
+`7b9d29f4e0f8e8760130a674ce35689122ed7310`. The four pinned named clients
+passed six focused probes on that runtime candidate:
+
+- psql 16.6, `CASSIE_PSQL_BIN=/tmp/cassie-psql16` — 1/1 selected discovery,
+  join, commit/rollback, duplicate/missing-relation recovery and named-schema
+  shadow/restoration.
+- SQLx 0.8.3 — 1/1 prepared writes, discovery, join, transaction, error
+  recovery and named-schema restoration.
+- Diesel 2.2.6 — 1/1 bound writes, discovery, join, transaction, error recovery
+  and named-schema restoration.
+- tokio-postgres 0.7.18 — 1/1 named-schema workflow, 1/1 same-backend recovery
+  after duplicate/missing-relation errors, and 1/1 distinct-session
+  `search_path` isolation (`alpha`, `beta`, `alpha`).
+
+Selected #817 catalog/TypeInfo behavior passed 12 focused tests on the same
+candidate:
+
+- `cargo test --locked --test catalog_security information_schema -- --nocapture`
+  — 7/7, including connected-database scope and column visibility after restart.
+- `cargo test --locked --test catalog_security should_reflect_table_rename_drop_lifecycle_after_restart -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test catalog_security should_list_supported_types_through_pg_catalog_type_view -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test compatibility should_decode_pg_type_kind_as_internal_char -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test compatibility should_import_binary_copy_null_empty_array_payloads -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test pgwire_extended should_recover_after_undefined_pg_catalog_view_lookup -- --nocapture`
+  — 1/1.
+
+Jev selected recording the #821 named-client/session subset complete and
+deferring broader conditional settings/cursor/reset work (0.98 probability,
+0.97 confidence). It selected the #817 catalog/TypeInfo subset complete and
+deferring broad introspection (0.93 probability, 0.91 confidence). For the
+next runtime slice, Jev first selected #826's COPY-loaded staging-table/rebuild
+path ahead of #842 (0.77 probability, 0.69 confidence). A follow-up choice
+compared that gap directly with ordinary table DDL, remaining materialized-view
+lifecycle and #842, and selected the COPY-loaded swap with 1.0 probability and
+1.0 confidence. The issue named the gap: earlier swap witnesses loaded staging
+rows with INSERT, and none composed selected COPY ingress with swap visibility,
+rollback and local restart. PR #1140 implemented that bounded test/documentation
+slice. Live issue readback marks the selected #826 table/rebuild/materialized-
+view criteria and #842 scalar-index lifecycle complete; both broader issues
+remain open without a v0.3 milestone. The milestone membership query returns
+12 issues, all closed, and no open members.
+
+PR #1140 passed the full ordered local gate on its exact tree, identical to
+merged main `7b9d29f4`:
+
+```sh
+cargo build --locked --bin cassie
+cargo test --locked --quiet
+cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
+cargo fmt --all -- --check
+cntryl-tools validate-tests -f tests/compatibility/lifecycle/ddl/rebuild_swap.rs
+cntryl-tools validate-tests -f tests/sql_mutations/ddl/rebuild_swap_restart.rs
+cntryl-tools validate-docs
+```
+
+All Cargo targets passed with zero failures. Each new focused regression passed
+1/1; both touched-file validators passed 2/2, and documentation validation
+covered 126 Markdown documents. GitHub Actions remain disabled, so hosted checks
+are unavailable. The final immutable release commit still needs the roadmap's
+full ordered gate; no hosted or production qualification claim is made.
+
+Jev reviewed this scope closeout. Its first factual-risk Noul was 0.44; a
+focused follow-up selected the stale roadmap sentence that still said the
+scope-freeze gate was open (0.66 probability, 0.57 confidence). I replaced it
+with wording aligned to the live 12-closed, zero-open membership and current
+scope table. Jev assigned 0.20 to a possible #826 evidence gap, 0.06 to a #842
+evidence gap and 0.07 to a milestone-membership mismatch; source, live issue
+readback and named tests support the documented selected scopes and membership.
+Its separate Noul for claiming final/hosted release evidence passed was 0.03.
+After that wording correction, Jev's final focused review assigned 0.26 to a
+selected-scope overclaim and 0.03 to a final/hosted-gate overclaim. The live
+issue checks, exact-tree gate and named witnesses above were independently
+read back against the remaining claims.

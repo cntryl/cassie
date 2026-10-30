@@ -3,9 +3,10 @@
 This record defines the finite single-node Cassie obligations selected by
 [#771](https://github.com/cntryl/cassie/issues/771), after prerequisite #751.
 The qualification baseline is `3b03dd4db34ac88f533501d0484ecdc3cf223a2e`.
-The current Cassie layout marker is `cassie-midge-layout-v4`; each database's
-catalog records now share its row family. This unreleased layout does not need
-an in-place migration. Image framing, journals and the direct Midge API remain
+The 0.1.0 Cassie layout marker is `cassie-midge-layout-v1-0.1.0`; each database's
+catalog records share its row family. Earlier unreleased Cassie layouts are
+rejected and require a fresh data directory; there is no in-place migration.
+Image framing, journals and the direct Midge API remain
 authoritative at their documented boundaries.
 Named witnesses qualify their exercised boundaries, rather than every possible
 interleaving or deployment profile. Full ordered validation and exact-head hosted
@@ -54,7 +55,33 @@ promoted by this finite local record. Failed-cleanup retry retention is a source
 law; successful prefix cleanup and repeated abort have executable witnesses,
 but no fabricated runtime fault-injection proof is claimed.
 
-## Midge 0.4.1 fresh-store boundary (2026-10-17)
+## Midge 0.5.1 fresh-store boundary (2026-10-30)
+
+The locked `cntryl-midge` dependency is 0.5.1. Midge 0.5.0 introduced
+database FORMAT 9 and SST V5; 0.5.1 retains those formats. Its cloud layout
+uses metadata layout v2, WAL publication catalog v3, lease v4 and
+initialization sentinel v3. Midge rejects older local formats without
+mutation and provides no in-place upgrade from 0.4.x. Cassie's logical layout
+marker is now `cassie-midge-layout-v1-0.1.0`; the 0.1.0 epoch does not make an older
+Midge store compatible.
+
+Use a new empty `CASSIE_STORAGE_PATH` or cloud prefix for a current deployment.
+To carry forward an existing 0.4.x deployment, stop writes, shut down with the
+matching old binary, and retain a verified copy of the full old directory or
+prefix. Export logical data with the old binary, then recreate the schema and
+import into a fresh store with the current binary; applications may instead
+rebuild projections from their authoritative event stream. Never copy old
+FORMAT, WAL, SST, lease, catalog or metadata files into the new store or edit
+the FORMAT marker. Verify application contents, reads, writes and restart
+recovery before cutover. Binary rollback against the new store is unsupported:
+restore the preserved store with its matching old binary and reconcile writes
+accepted after cutover separately.
+
+Cassie does not provide a migration utility or claim a qualified deployment
+migration or cloud-provider profile. This record selects fresh stores and
+documents the operator boundary only.
+
+## Historical Midge 0.4.1 checkpoint (2026-10-17)
 
 Cassie selects the published `cntryl-midge` 0.4.1 release for fresh stores.
 Midge requires database FORMAT 8, SST V4, cloud WAL catalog v3 and cloud lease

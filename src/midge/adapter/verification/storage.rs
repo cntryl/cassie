@@ -1,6 +1,6 @@
 use super::{CassieError, Midge, RangeHashRecord, RootHashRecord, RowHashRecord};
 
-const PROJECTION_OUTPUT_FLUSH_INTERVAL_BATCHES: usize = 1;
+const PROJECTION_OUTPUT_FLUSH_INTERVAL_BATCHES: usize = 32;
 
 pub(crate) fn write_ranges(
     item_count: usize,
@@ -9,6 +9,26 @@ pub(crate) fn write_ranges(
     (0..item_count)
         .step_by(batch_size)
         .map(move |start| start..start.saturating_add(batch_size).min(item_count))
+}
+
+pub(super) fn retry_storage_write(
+    mut write: impl FnMut() -> Result<(), CassieError>,
+) -> Result<(), CassieError> {
+    let mut attempts = 1_u8;
+    loop {
+        match write() {
+            Ok(()) => return Ok(()),
+            Err(error) => {
+                let Some(delay) =
+                    super::super::documents::document_write_retry_delay(&error, attempts)
+                else {
+                    return Err(error);
+                };
+                attempts = attempts.saturating_add(1);
+                std::thread::sleep(delay);
+            }
+        }
+    }
 }
 
 pub(crate) fn should_flush_projection_output_batch(

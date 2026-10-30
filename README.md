@@ -8,6 +8,10 @@ Cassie is a single-node read-model database for CQRS and event-sourced systems. 
 
 Cassie uses `cntryl-midge` directly as its only storage layer. Midge provides persistence, durability, and recovery mechanics. Cassie provides SQL semantics, planning, execution, logical query layouts, indexes, search, analytics, resource controls, and query-visible errors.
 
+Cassie has never been released. The package is reset to the 0.1.0 starting
+baseline; Cassie-owned persistent formats start at version 1. See the
+[release baseline](docs/release-baseline.md) for format and data compatibility.
+
 ## Start Here
 
 - [Documentation map](docs/README.md)
@@ -17,10 +21,12 @@ Cassie uses `cntryl-midge` directly as its only storage layer. Midge provides pe
 - [Performance contracts](docs/performance-contracts.md)
 - [Production-readiness evidence](docs/production-readiness.md)
 - [Product scope and roadmap](docs/product-roadmap.md)
+- [0.1.0 release baseline](docs/release-baseline.md)
 - [POC quickstart](docs/poc-quickstart.md)
 
-Midge 0.4.1 requires a fresh FORMAT 8 store. Existing pre-0.4 stores require
-logical export/import into a new store; see the [storage compatibility boundary](docs/storage-recovery-qualification.md#midge-041-fresh-store-boundary-2026-10-17).
+The locked `cntryl-midge` 0.5.1 dependency uses database FORMAT 9 and SST V5.
+Midge 0.4.x stores require logical export/import into a fresh store; there is
+no in-place upgrade. See the [storage compatibility boundary](docs/storage-recovery-qualification.md#midge-051-fresh-store-boundary-2026-10-30).
 
 ## Local Development
 

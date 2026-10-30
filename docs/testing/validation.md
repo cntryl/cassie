@@ -5363,3 +5363,323 @@ Markdown documents and `git diff --check` passed. The full ordered local gate
 passed on the code/test tree validated in PR #1140 at `7b9d29f4`; PR #1141
 separately validated the documentation tree. Hosted checks remain unavailable,
 and the immutable release commit still requires the full gate.
+
+## 2026-10-30 — Askr 0.5.0 UI dependency refresh
+
+The UI's pinned Askr packages moved from 0.4.x to 0.5.0, which removed several
+consumer-facing type aliases. The UI now imports `AuthContext` from
+`@askrjs/auth`, handles fetch outcomes through the exported `FetchResult`,
+derives Monaco callback types from `MonacoEditorProps`, and uses Askr's
+`JSXElement` type. No runtime behavior or public Cassie API changed.
+
+The UI validation passed on the pre-rebase candidate before the follow-up
+`ui/package-lock.json` refresh:
+
+- Locked install and production dependency audit: 0 vulnerabilities.
+- 121 unit tests and 26 mocked-browser tests passed.
+- Type-check, lint, formatting, generated-client freshness, and production
+  build passed; the build retained advisory large Monaco/editor chunk warnings.
+- Two real-Cassie browser cases passed on desktop Chromium and Pixel 7.
+- `CARGO_INCREMENTAL=0 cargo test --locked --quiet` passed 9,844 tests, with
+  0 failures and 12 ignored; strict pedantic Clippy and Rust formatting passed.
+
+These are historical local results for that candidate. The follow-up UI lockfile
+refresh and the rebased branch still need current validation. GitHub Actions
+remain disabled, so hosted checks and publication are unavailable.
+
+## 2026-10-30 — Match the locked Midge 0.5.1 format
+
+`Cargo.toml` and `Cargo.lock` resolve `cntryl-midge` 0.5.1. Midge 0.5.0
+introduced database FORMAT 9 and SST V5; 0.5.1 retains them. Its source sets
+FORMAT 9 as both current and minimum supported, rejecting FORMAT 8. The
+Midge migration guide requires logical export/import from 0.4.x into a fresh
+store; there is no in-place upgrade. Cassie's prior release-specific witness
+and current README still asserted the 0.4.1 FORMAT 8 contract.
+
+The witness is now `midge_release_051`: it requires FORMAT 9 on a fresh store,
+rejects a preserved FORMAT 8 marker without changing it or a sentinel file,
+and exercises SQL restart recovery and post-recovery writes on FORMAT 9. The
+README and storage qualification now describe the current format boundary,
+fresh-store cutover, rollback boundary and absence of a Cassie migration
+utility. Cassie's separate logical layout marker is unchanged.
+
+Jev was asked which compatibility disposition the supplied Midge and Cassie
+evidence supports. It selected `match_current_format_and_explicitly_reject_old_stores`
+at probability 1.0. I confirmed the judgment against the locked Midge source,
+changelog and migration guide, then updated Cassie's FORMAT 9 behavior witness
+and operator boundary without introducing an in-place migration.
+
+The required local validation passed in order:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked`
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f tests/storage_indexes/storage/midge_release_051.rs` — 4/4 compliant.
+
+`target/test-inventory-tools312/bin/python tools/test_inventory.py --check`
+passed with no unregistered tests, unresolved modules, duplicate registrations
+or inventory drift. `cntryl-tools validate-docs` passed for 125 Markdown
+documents, and `git diff --check` passed. That record predates the latest
+repository permission readback (`enabled: true`); the active no-dispatch
+instruction still blocks hosted and deployment migration qualification.
+
+## 2026-10-30 — v0.1.0 baseline local qualification (uncommitted)
+
+The run used `audit/v03-842-composite-index-restart-20261029` at base
+`988af872565438487dbacd411d4b228f3d21be46`, which is also the open PR #1144
+remote head. At the time of full Rust/UI validation, the checkout contained 17
+uncommitted paths across Rust, benchmarks, documentation and UI package metadata,
+including new `src/midge/adapter/verification/encoding.rs`. Eight further
+documentation files were reconciled afterward; the final pre-commit audit found
+26 uncommitted paths. The test and benchmark results qualify the original dirty
+working tree only; the later docs were separately validated below. Neither state
+qualifies the remote PR head, an immutable release commit, or a published artifact.
+
+The ordered Rust gate passed:
+
+- `cargo build --locked --bin cassie` — passed.
+- `cargo test --locked` — exit 0; 1,407 unit tests passed and every integration
+  target and doctest completed without failure.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` — passed.
+- `cargo fmt --all -- --check` — passed.
+- Touched test validators passed: `src/midge/adapter/verification_tests.rs`
+  (6/6), `src/midge/adapter/scalar_indexes.rs` (4/4), and
+  `src/midge/adapter/documents/commit.rs` (5/5).
+- `cntryl-tools validate-docs` — 128 Markdown documents passed.
+- `tools/test_inventory.py --check` — 8,363 Rust declarations and 8,491
+  registered instances; no unregistered, unresolved, duplicate, or oversized
+  entries.
+- `cargo bench --locked --no-run` — all Tier 1–6 benchmark targets compiled.
+- `cargo bench --locked --bench tier3_system_query -- --test` — all 12 Tier 3
+  owners completed their correctness and resource assertions. The run exposed
+  a measurement-shape diagnostic for `graph_expand_query/100k`, which recorded
+  one query per sample.
+- After changing only the graph batch to two checked queries per sample,
+  `cargo bench --locked --bench tier3_system_query -- --workload graph_expand_query --samples 5 --warmup-samples 1` passed with gate-quality
+  trust, 0.5178 queries/s, 0.5% RSD, and 76,104,955 bytes peak query memory; the
+  shape diagnostic cleared.
+
+The retry and flush changes have direct red/green witnesses. On a clean PR-head
+worktree with only the regression test and updated cadence assertion, the retry
+case failed with three injected stalls still unconsumed (`left: 3`, `right: 0`),
+and the cadence case observed `[1, 2, ..., 70]` instead of `[32, 64, 70]`. On the
+patched worktree, `cargo test --locked projection_output -- --nocapture` passed
+four unit tests and two matching analytics integration tests.
+
+The selected external-client and catalog probes were rerun on this working tree:
+
+- psql 16.6 using pinned image digest
+  `sha256:557fea37a744d5f4c8faab304b0a90858b53ab119735a88c131fd19dab802f36` — 1/1.
+- SQLx 0.8.3 — 1/1; Diesel 2.2.6 — 1/1.
+- tokio-postgres 0.7.18 named-schema/error-recovery workflow — 1/1; distinct-session
+  `search_path` isolation — 1/1.
+- Virtual-catalog parameter inference — 1/1; database-scoped information-schema
+  drop/restart witness — 1/1.
+
+All commands used `CARGO_TARGET_DIR=/private/tmp/cassie-1144-validation-20261030/target`:
+
+~~~sh
+CASSIE_RUN_PSQL_COMPAT=1 CASSIE_PSQL_BIN=/tmp/cassie-psql16 cargo test --locked --test compatibility compatibility_matrix::should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_SQLX_COMPAT=1 cargo test --locked --test compatibility compatibility_sqlx::should_validate_sqlx_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_DIESEL_COMPAT=1 cargo test --locked --test compatibility compatibility_diesel::should_validate_diesel_read_model_probe_when_enabled -- --ignored --nocapture
+cargo test --locked --test compatibility should_preserve_named_tokio_postgres_session_through_error_recovery -- --nocapture
+cargo test --locked --test compatibility should_isolate_search_path_across_tokio_postgres_sessions -- --nocapture
+cargo test --locked --test compatibility should_infer_virtual_catalog_parameter_types_without_inventing_names -- --nocapture
+cargo test --locked --test catalog_security should_preserve_database_scoped_information_schema_after_drop_restart -- --nocapture
+~~~
+
+The current UI worktree passed locked dependency installation, production audit
+(zero vulnerabilities), type-check, lint, formatting, generated-client freshness,
+build, 121 unit tests, and 26 mocked-browser tests. The real-Cassie browser
+workflow passed on desktop Chromium and Pixel 7 (2/2). The production build
+still reports advisory large Monaco/editor chunks. This checkout's
+`ui/package.json` does not define an `npm run check` script; the individual
+gates above were run directly.
+
+Tier 5 projection-rebuild release-profile samples passed at all three sizes:
+
+| Rows | Median throughput | RSD | Accounted query memory |
+| ---: | ---: | ---: | ---: |
+| 10k | 17,086.19 rows/s | 5.1% | 4,076,255 bytes |
+| 100k | 21,315.59 rows/s | 2.1% | 35,434,883 bytes |
+| 250k | 21,155.95 rows/s | 4.0% | 87,975,035 bytes |
+
+The 250k sample is below the 104,857,600-byte (100 MiB) query-memory cap.
+Artifacts are under the ignored `target/stress/diagnostic/tier5_scaling_lifecycle/`
+directory. These local curves do not establish production capacity.
+
+A `psql` 18.6 smoke used a fresh local-mode directory across three clean server
+starts. The first start created a table and inserted row 1; after restart the
+server recovered row 1 and accepted row 2; after a second restart it returned
+both expected rows and count 2. All three instances shut down cleanly. This is
+disk-backed restart evidence, not representative-scale or production evidence.
+
+A local snapshot/restore rehearsal used the two-row disk-backed smoke store.
+The ignored operational-snapshot test created and restored the v1 snapshot; a
+fresh Cassie process started from the restored directory and `psql` read both
+rows, count 2, and `release_smoke_check_pkey`. The exact operational test command
+was `cargo test --locked --test storage_indexes should_restore_operational_snapshot_selected_by_environment -- --ignored --nocapture`, with `CASSIE_OPERATIONAL_SNAPSHOT_SOURCE=/private/tmp/cassie-release-smoke-988af.tpuKcc`, `CASSIE_OPERATIONAL_SNAPSHOT_BUNDLE=/private/tmp/cassie-release-smoke-snapshot-988af`, and `CASSIE_OPERATIONAL_RESTORE_TARGET=/private/tmp/cassie-release-smoke-restore-988af`. The focused partial-snapshot and partial-restore cleanup tests also passed (2/2) with `cargo test --locked --test storage_indexes should_remove_partial -- --nocapture`. Snapshot, bundle, and restored data remain under `/private/tmp/cassie-release-smoke-*`. This is a single-host macOS arm64 rehearsal, not the required native amd64/arm64 container evidence.
+
+Jev reviewed the local retry and flush changes. For the question whether bounded
+typed retries preserve transaction outcomes and avoid duplicate or partial output,
+it selected `safe_as_written` (0.70 probability, 0.60 confidence); the probability
+for adding a deterministic fresh-output conflict probe was 0.28. For the changed
+flush cadence and its resource bound, it selected `bounded_qualified` (0.79
+probability, 0.72 confidence). The supplied test/source and scale evidence were
+checked; the 0.28 probe lead is below the repository's 0.30 focused-probe
+threshold, so no additional probe was triggered. Request and response artifacts
+are in the isolated review worktree under `target/jev-review/`.
+
+On the remote PR #1144 head `988af872565438487dbacd411d4b228f3d21be46`, all
+five CodeQL checks passed. No backend, benchmark, or release workflow was
+dispatched. The latest repository Actions permission readback reports
+`enabled: true`, but `AGENTS.md` still prohibits enabling or dispatching workflows
+until the user explicitly changes that direction. CodeQL does not establish
+backend test or release qualification. Issue #959 is closed as not planned.
+
+At that earlier readback, PR #1144 remained open with no review decision; the
+local follow-up had not yet been committed or pushed. The immutable v0.1.0
+release-commit gate remained outstanding. Cassie remains a Production Candidate
+and is not Production-ready; merge, release, and publication are not claimed.
+## 2026-10-30 — #954 current cancellation fixture status
+
+The six collection-aggregate cancellation tests now use three-row fixtures and
+the request-scoped pause after aggregate input retention. They send a real
+pgwire `CancelRequest` and assert SQLSTATE 57014, no partial rows and same-session
+recovery. The exact candidate full suite passed, and the focused aggregate run
+passed 18/18. The prior #954 record describing these six cases as unsupported
+and timing out before the pause is historical.
+
+The vector and persisted full-text scoring cancellation cases also pass with
+small fixtures and their scoring-boundary synchronization. #954 remains open
+for active regex cancellation after prerequisite #799 is implemented; the
+current regex prerequisite is not active cancellation coverage. #799 remains
+open, so no regex cancellation or broader aggregate-family completion is
+claimed here.
+
+## 2026-10-30 — PR #1144 current-head CodeQL follow-up
+
+The earlier PR head `e89edbc3bd377dcd88a46f40e01936ccd230121f` triggered
+CodeQL alert #522 (`rust/cleartext-logging`, high) at
+`benches/tier3_system_query.rs:667-668`. The annotation followed debug
+formatting of the column aggregate result row into the benchmark's panic
+message. The older `988af872` CodeQL pass above does not describe either of
+those later heads.
+
+Static triage found that the reported data path is a fixed aggregate query over
+generated benchmark documents in a UUID-named temporary database. The query
+returns count, sum, average, minimum and maximum scores; it does not read user
+or session credentials. The alert is not an actionable confidentiality issue
+for this benchmark path. The unnecessary generic `Debug` output has been
+replaced locally with value-type labels. The initial focused test proved those
+labels omit string, `Macaddr` and `Macaddr8` contents, but an independent
+adversarial review found it did not exercise the benchmark's panic boundary.
+The shape check is now shared by the benchmark and the test. Its regression
+test deliberately failed when the panic formatted the row with `Debug`, then
+passed with the type-only diagnostic; a valid five-column aggregate control
+also passes.
+
+Commit `92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba` now contains the fix and is
+the exact remote PR head. Its regression routes the benchmark through the
+tested shape helper; the panic test failed against a `Debug`-formatted row
+containing `test-secret` and MAC address bytes, then passed with the type-only
+diagnostic. A valid five-column aggregate control also passes.
+
+Local validation on the source and test content now present at `92bf7c77`:
+
+- `cargo build --locked --bin cassie` — passed.
+- `cargo test --locked` — exit 0, all unit, integration and doctest targets passed; this run completed immediately before the commit containing the same source and test files.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` — passed.
+- `cargo fmt --all -- --check` and `git diff --check` — passed.
+- `cntryl-tools validate-tests -f tests/bench_diagnostics/relations/semantics.rs` — 2/2 compliant.
+- `tools/test_inventory.py --check` — passed: 1,577 test files, 8,365 Rust declarations, 21 Python declarations, and 8,493 registered Rust instances; no unregistered tests, unresolved module paths, repeated registrations, duplicate identities, or oversized files.
+- `cntryl-tools validate-docs` — 129 Markdown documents passed.
+- `cargo bench --locked --no-run` — all Tier 1–6 targets compiled.
+- `cargo bench --locked --bench tier3_system_query -- --test` on exact PR head `92bf7c77` — all 12 correctness/resource owners passed. The graph expansion and two shorter time-series timing samples were noisy and remain diagnostic; this run makes no performance promotion or latency claim.
+- The focused `column_batch_query/100k` run passed at 42.86 queries/s with 3.0% RSD. Tier 3 startup and mixed-load measurements remain recorded above for candidate `02ac6585`; they are not release performance claims.
+
+GitHub run `41117159326` completed successfully on the exact PR head. The
+Python, Actions, JavaScript/TypeScript, and Rust analyzers passed, as did the
+umbrella CodeQL check. An open-alert query scoped to
+`refs/pull/1144/head` returned no alerts after this run. No backend, benchmark,
+or release workflow was dispatched.
+
+## 2026-10-30 — local ARM64 container candidate smoke
+
+A clean context exported with `git archive` from local branch head `8ccd6913`
+excluded the uncommitted UI package changes. `docker build --platform linux/arm64`
+completed from that context. The local image has OCI manifest digest
+`sha256:964e2f7ba7c9c4b27662fd0c6c91c6f938839f9044c8b3841446a4a71f24ade6`;
+it was not pushed. Its `npm ci` step installed 242 packages with zero reported
+vulnerabilities, the Admin UI build completed, and the final Cassie 0.1.0
+release binary built successfully. `cargo-chef cook` emitted Cargo 1.99
+deprecation warnings for generated per-target edition fields, matching the
+warning class in upstream [cargo-chef issue #350](https://github.com/LukeMathWalker/cargo-chef/issues/350)
+(reported there for edition 2024 and nightly Cargo). The source `Cargo.toml`
+sets only the package edition, and the final release build completed. No warning
+suppression or workaround was added.
+
+The ARM64 image started with an isolated Docker volume on loopback ports 18081
+and 15433. `/readyz` returned `ready: true` and version `0.1.0`. A psql session
+created a table, inserted and read a row, then the container restarted; readiness
+returned successfully and the same row remained readable. The smoke container
+was stopped after the run.
+
+This is local ARM64 image and restart evidence only. It is not an immutable
+published release artifact, does not cover amd64, and does not replace the
+retained exact-release-commit architecture bundles in the cross-architecture
+runbook.
+
+## 2026-10-30 — Current Admin UI working-tree gates
+
+The current UI working tree was validated with the repository-pinned npm
+12.0.1 and the Playwright 1.64.1 lockfile. `npx --yes npm@12.0.1 ci` installed
+the locked graph; the install and the explicit production-only audit reported
+zero vulnerabilities. Generated-client freshness, TypeScript, lint, formatting,
+and the production build passed. The unit and mocked-browser suites passed
+121/121 and 26/26 cases. The build still emits the documented advisory for
+large Monaco/editor chunks.
+
+The real-Cassie production-browser spec
+`ui/tests/e2e/admin-production.spec.ts` passed on desktop Chromium and Pixel 7
+(2/2). The default test config could not start because Docker owns port 18080;
+that listener returned healthy Cassie 0.1.0 and was left untouched. The same
+spec then ran against a fresh memory-mode Cassie process with isolated REST
+18081 and pgwire 15433 ports using a temporary local config, which was removed
+after the run. This proves the current local UI/backend integration, not an
+immutable release artifact. The uncommitted Playwright patch upgrade is part
+of this local UI validation tree and remains outside PR #1144's described
+scope.
+
+## 2026-10-30 — v0.1.0 release-gate readback
+
+Read-only GitHub readback confirms PR #1144 remains open at remote head
+`92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba`, assigned to the v0.1.0 milestone,
+with merge state `CLEAN` and no review decision. All four analyzer jobs and the
+umbrella CodeQL check passed; the open-alert query for the PR ref returned no
+alerts. No human review is recorded. The v0.1.0 milestone has no open issue,
+and this PR is its sole open item.
+
+`gh workflow list --all` has no `Operational readiness` workflow; the
+`Containers`, `Version`, `CI Backend`, `CI Frontend`, and `Publish` workflows
+are listed as `disabled_manually`. Repository Actions permission readback says
+enabled, but the active repository instruction still prohibits enabling or
+dispatching workflows. `gh run list --workflow 'Operational readiness'`
+confirms no workflow by that name. The cross-architecture runbook and capacity
+docs now mark its former automation as unavailable and retain the manual
+evidence procedure. No v0.1.0 GitHub release or `v0.1.0` tag exists.
+
+The exact release-commit gate, independent PR review, immutable container
+digest, retained amd64/arm64 rehearsal bundles, release sign-offs, and
+publication therefore remain incomplete. These are release blockers, not
+local test failures.
+
+## 2026-10-30 — #827 deferred milestone reconciliation
+
+The live issue had remained in v0.2.0 despite the owner's prior direction to
+move named enums to v0.4.0. Created GitHub milestone #11, `v0.4.0 Named Enum
+Types`, with no due date and a description that defers implementation until the
+active v0.1.0, v0.2.0, and v0.3.0 releases complete. Issue #827 is now assigned
+to that milestone. The Product Roadmap, Release Milestones, and v0.1 scope map
+record that only #827 is deferred there; no runtime work was started.

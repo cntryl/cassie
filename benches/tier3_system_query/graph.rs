@@ -10,6 +10,7 @@ use super::{
 
 const GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
 const EXPECTED_GRAPH_NODES: [&str; 4] = ["node-1", "node-2", "node-3", "node-4"];
+const GRAPH_QUERIES_PER_BATCH: u64 = 2;
 const GRAPH_CANDIDATE_BOUND: u64 = 8;
 const GRAPH_READ_BOUND: u64 = 4 * (5 * (FIXTURE_ROWS_U64 - 1) + 1) + GRAPH_CANDIDATE_BOUND;
 
@@ -67,7 +68,12 @@ fn bench_graph_representative(
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || execute_graph_evidence(context));
+    runner.measure_batch(case, GRAPH_QUERIES_PER_BATCH, || {
+        for _ in 0..GRAPH_QUERIES_PER_BATCH {
+            execute_graph_evidence(context);
+        }
+        EXPECTED_GRAPH_NODES.len()
+    });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "graph", "traversals");
     let operations = metric_delta(&before, &after, "graph", "traversals");

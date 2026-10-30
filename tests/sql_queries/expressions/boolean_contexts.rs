@@ -500,7 +500,7 @@ fn storage_fixture(label: &str, column_store: bool, column_index: bool) -> SqlFi
     if column_index {
         fixture.execute(
             "CREATE INDEX bool_paths_idx ON bool_paths USING column (row_key, lhs, rhs, n, txt) WITH (segment_size = 2)"
-        ).expect("build covering CBM2 index");
+        ).expect("build covering CBM1 index");
     }
     fixture
 }

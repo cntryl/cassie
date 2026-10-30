@@ -591,7 +591,7 @@ pub(super) fn rename_collection_column_batch_metadata(
     )?;
     for (key, value) in entries {
         let Ok(mut metadata) =
-            crate::midge::adapter::column_batch_format_v2::decode_manifest(&value)
+            crate::midge::adapter::column_batch_format_v1::decode_manifest(&value)
         else {
             continue;
         };
@@ -601,7 +601,7 @@ pub(super) fn rename_collection_column_batch_metadata(
         metadata.index_name.clone_from(&next_index_name);
         tx.put(
             key,
-            crate::midge::adapter::column_batch_format_v2::encode_manifest(&metadata)?,
+            crate::midge::adapter::column_batch_format_v1::encode_manifest(&metadata)?,
             None,
         )
         .map_err(CassieError::from)?;

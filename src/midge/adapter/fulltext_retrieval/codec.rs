@@ -396,6 +396,59 @@ mod tests {
     use super::*;
 
     #[test]
+    fn should_encode_version_one_fulltext_metadata() {
+        // Arrange
+        let metadata = FulltextIndexMetadata {
+            version: 1,
+            built_generation: 2,
+            total_documents: 1,
+            documents_with_text: 1,
+            average_document_length: 3.0,
+            analyzer: crate::search::analyzer::AnalyzerConfig::default(),
+        };
+
+        // Act
+        let encoded_metadata = encode_metadata(&metadata);
+
+        // Assert
+        assert_eq!(&encoded_metadata[..4], b"FTM1");
+        assert_eq!(
+            decode_metadata(&encoded_metadata)
+                .expect("decode fulltext metadata")
+                .version,
+            1
+        );
+    }
+
+    #[test]
+    fn should_encode_version_one_fulltext_manifest() {
+        // Arrange
+        let manifest = FulltextManifest {
+            version: 1,
+            built_generation: 2,
+            total_documents: 1,
+            posting_terms: 0,
+            document_count: 1,
+            terms: BTreeMap::new(),
+        };
+
+        // Act
+        let encoded_manifest = encode_manifest(&manifest);
+
+        // Assert
+        assert_eq!(&encoded_manifest[..4], b"FTG1");
+        assert_eq!(
+            decode_manifest(&encoded_manifest)
+                .expect("decode fulltext manifest")
+                .version,
+            1
+        );
+        let mut pre_0_1_manifest = encoded_manifest;
+        pre_0_1_manifest[4] = 2;
+        assert!(decode_manifest(&pre_0_1_manifest).is_err());
+    }
+
+    #[test]
     fn should_roundtrip_prefix_compressed_postings() {
         // Arrange
         let postings = vec![

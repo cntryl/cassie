@@ -8,8 +8,8 @@ mod encoding;
 
 use self::encoding::encode_value;
 
-const MAGIC: &[u8; 4] = b"CRB3";
-const FORMAT_VERSION: u8 = 3;
+const MAGIC: &[u8; 4] = b"CRB1";
+const FORMAT_VERSION: u8 = 1;
 const TYPE_NULL: u8 = 0x00;
 const TYPE_BOOL: u8 = 0x01;
 const TYPE_I64: u8 = 0x02;
@@ -812,7 +812,7 @@ fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieErro
             }
             TYPE_ARRAY => {
                 return Err(CassieError::Parse(
-                    "nested array element is invalid in CRB3 row blob".to_string(),
+                    "nested array element is invalid in CRB1 row blob".to_string(),
                 ))
             }
             TYPE_EXTENDED => decode_array_extended(cursor)?,

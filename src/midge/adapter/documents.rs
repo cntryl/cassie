@@ -18,6 +18,7 @@ mod read;
 mod report;
 #[path = "documents/unique_reservations.rs"]
 mod unique_reservations;
+pub(super) use commit::document_write_retry_delay;
 pub(crate) use options::DocumentWriteBatchOptions;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
 pub(crate) use report::DocumentWriteBatchReport;

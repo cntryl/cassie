@@ -53,7 +53,7 @@ pub(super) fn try_execute(
     let Some((fields, _field_memory)) = scan_fields(plan, &schema, controls)? else {
         return Ok(None);
     };
-    // CBC2 retains its pruning, bounded reads and all-or-nothing fallback boundary.
+    // CBC1 retains its pruning, bounded reads and all-or-nothing fallback boundary.
     if (plan.filter.is_some() || plan.limit_value().is_some() || plan.offset_value().is_some())
         && scan::has_covering_column_index(cassie, collection, &fields)
     {

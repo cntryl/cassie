@@ -2,8 +2,11 @@ import { state } from "@askrjs/askr";
 import { raf } from "@askrjs/askr/fx";
 import { on, task } from "@askrjs/askr/resources";
 
-import { MonacoEditor, type MonacoEditorInstance, type MonacoNamespace } from "@askrjs/monaco";
+import { MonacoEditor, type MonacoEditorProps } from "@askrjs/monaco";
 import { observeEditorLayout, type EditorLayoutObserver } from "@/shared/editor-resize-observer";
+
+type MonacoEditorInstance = Parameters<NonNullable<MonacoEditorProps["onMount"]>>[0];
+type MonacoNamespace = Parameters<NonNullable<MonacoEditorProps["beforeMount"]>>[0];
 
 export interface MonacoCompletionItem {
   label: string;

@@ -37,9 +37,9 @@ mod column_batch_encoded_aggregates;
 #[path = "analytics/column_store/column_batch_encoded_scans.rs"]
 mod column_batch_encoded_scans;
 
-// Formerly tests/column_batch_format_v2.rs.
-#[path = "analytics/column_store/column_batch_format_v2.rs"]
-mod column_batch_format_v2;
+// Formerly tests/column_batch_format_v1.rs.
+#[path = "analytics/column_store/column_batch_format_v1.rs"]
+mod column_batch_format_v1;
 
 // Formerly tests/column_batch_incremental_maintenance.rs.
 #[path = "analytics/column_store/column_batch_incremental_maintenance.rs"]

@@ -43,7 +43,7 @@ acceptance requires probed dispositions for all six, adversarial review, complet
 repository validation and exact final revision evidence. #758 stays open while
 any selected obligation or validation gate remains pending.
 
-The selected native encoded handoff decodes numeric CBC2 Plain, Constant, RLE,
+The selected native encoded handoff decodes numeric CBC1 Plain, Constant, RLE,
 Dictionary, integer FOR and floating ALP into admitted primitive nullable owners.
 It reuses the existing frame/validity/bitpacking/scaling rules and compares the
 expected segment domain before allocating decoded lanes. Numeric aggregate cells
@@ -75,10 +75,10 @@ not promote it. SELECT DISTINCT aggregate output uses the existing scalar phase.
 | EXEC-08 | Exact integer cells and translated ordered prefix ranges are implemented. Every typed batch/two-way partial split probes MAX,1,-1 and MIN,-1,1 overflow and globally legal -MAX,MAX,MAX. Production worker overflow releases owners without success publication; beyond2^53 encoded predicate results retain exact SUM=1. |
 | EXEC-09 | FLOAT SUM and every AVG explicitly use the serial fold. `should_preserve_float_fold_semantics_across_typed_splits` compares exact outcomes at every split; `should_preserve_float_fold_semantics_through_encoded_numeric_owners` compares row and encoded cancellation values at worker settings1/4; numeric-codec witnesses compare errors and row-order results without tolerances. |
 | VEX-12 | COUNT, integer SUM and numeric extrema merge bounded width states in contiguous partition order under admitted workers. `should_publish_only_completed_bounded_typed_aggregation` exercises worker settings1/2/4 over multiple waves. Ordered partial, overflow, cancellation-after-completed-wave and transport-floor probes establish lawful merges, complete cleanup and success-only diagnostics. Floating reassociation is excluded. |
-| VEX-17 | Native numeric CBC2 Plain/Constant/RLE/Dictionary/FOR/ALP handoff, validity and selection are implemented. Primitive decoder goldens and `should_match_row_aggregate_semantics_through_every_selected_numeric_codec` establish exact row/encoded results, errors and actual encoded COUNT/extrema worker execution. The scan parent-drop probe asserts zero JSON numeric lanes with retained source ownership; filtered public SQL asserts zero materialization. FSST strings and other nonnumeric combinations keep existing controlled boundaries, exercised by the string-predicate fallback. |
+| VEX-17 | Native numeric CBC1 Plain/Constant/RLE/Dictionary/FOR/ALP handoff, validity and selection are implemented. Primitive decoder goldens and `should_match_row_aggregate_semantics_through_every_selected_numeric_codec` establish exact row/encoded results, errors and actual encoded COUNT/extrema worker execution. The scan parent-drop probe asserts zero JSON numeric lanes with retained source ownership; filtered public SQL asserts zero materialization. FSST strings and other nonnumeric combinations keep existing controlled boundaries, exercised by the string-predicate fallback. |
 
 Tests live in `src/executor/execution/aggregate_exec/typed/{tests,encoded_tests}.rs`,
-`src/midge/adapter/column_batch_format_v2/numeric_tests.rs` and the retained encoded
+`src/midge/adapter/column_batch_format_v1/numeric_tests.rs` and the retained encoded
 scan witness in `src/executor/scan/typed.rs`. The ignored target evidence records
 exact failing and passing commands and immutable source hashes. These are focused
 local checks; the coordinator must still run build, locked full tests, full

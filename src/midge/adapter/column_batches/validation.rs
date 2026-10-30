@@ -457,7 +457,7 @@ impl Midge {
 }
 
 fn decode_latest_column_batch_metadata(raw: &[u8]) -> ValidationResult<ColumnBatchMetadata> {
-    if !crate::midge::adapter::column_batch_format_v2::has_current_header(raw) {
+    if !crate::midge::adapter::column_batch_format_v1::has_current_header(raw) {
         return Err(ColumnBatchScanFallbackReason::MetadataFormatMismatch);
     }
     let summary_version = raw
@@ -468,7 +468,7 @@ fn decode_latest_column_batch_metadata(raw: &[u8]) -> ValidationResult<ColumnBat
     if summary_version != current_summary_version {
         return Err(ColumnBatchScanFallbackReason::SummaryFormatMismatch);
     }
-    crate::midge::adapter::column_batch_format_v2::decode_manifest(raw)
+    crate::midge::adapter::column_batch_format_v1::decode_manifest(raw)
         .map_err(|_| ColumnBatchScanFallbackReason::InvalidMetadata)
 }
 

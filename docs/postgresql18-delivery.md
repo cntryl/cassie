@@ -8,12 +8,12 @@
 
 Cassie's scope is the read-model database in the
 [Product Roadmap](product-roadmap.md#product-goal-and-scope),
-delivered through the v0.3 Projection store, v0.4 Query and retrieval and v1.0
-Production release milestones. The stage table and owner records below are
-historical planning for the former full-parity target (#791 and milestone 6,
-both closed). These owners were closed as out of scope: #824, #830, #832,
-#834–#837, #840 and #909–#916. Use the milestones, not these stages, to order
-work.
+with the actual first planned release reset to v0.1.0 on 2026-10-30, followed
+by v0.2 Query and retrieval and v1.0 Production release. The stage table and
+owner records below are historical planning for the former full-parity target
+(#791 and milestone 6, both closed). These owners were closed as out of scope:
+#824, #830, #832, #834–#837, #840 and #909–#916. Use the current milestones,
+not these stages, to order work.
 
 This was the dependency-ordered delivery record for
 [#791](https://github.com/cntryl/cassie/issues/791). The baseline is

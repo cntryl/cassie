@@ -9,7 +9,7 @@ scan/filter/projection execution remain Planned under
 runtime support or satisfy their future implementation probes.
 
 This specification selects private in-memory representations only. Midge remains
-the direct storage layer. Existing CBM2/row encodings, type tags, PostgreSQL OIDs,
+the direct storage layer. Existing CBM1/row encodings, type tags, PostgreSQL OIDs,
 input/output codecs and public interfaces retain their existing authorities.
 No public batch API, durable format, migration or native temporal ABI follows
 from a buffer choice.
@@ -248,13 +248,13 @@ or support promotion.
 
 The private [typed aggregate contract](typed-aggregate-contract.md) selects
 streamed ungrouped numeric aggregates, lawful bounded worker merges and primitive
-CBC2 numeric predicate/aggregate handoffs under #758. Grouped, DISTINCT output,
+CBC1 numeric predicate/aggregate handoffs under #758. Grouped, DISTINCT output,
 expression and other excluded combinations retain their documented existing
 boundaries. The contract records each assigned invariant and its focused probes.
 
 Common encoded transport reuses existing metadata/generation, row-ID and complete
 field-frame validators and retains immutable source bytes with admitted metadata.
-Numeric CBC2 fields now expose primitive nullable decoded owners through the
+Numeric CBC1 fields now expose primitive nullable decoded owners through the
 common accessor; other fields keep the prior admitted decode-cache conversion.
 This is decoded primitive execution. Selected numeric aggregate predicates use
 admitted logical selection; other filtered or bounded reads keep existing encoded

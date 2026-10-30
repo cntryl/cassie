@@ -13,10 +13,10 @@ PL/pgSQL parity.
 
 ## Active product profile
 
-- **v0.3 Projection Store:** selected projector writes, read-model types and
+- **v0.1.0 Projection Store:** selected projector writes, read-model types and
   schema lifecycle, rebuild operations, and the driver/ORM/migration workflows
   named by the live milestone issues.
-- **v0.4 Query and retrieval:** selected relational query, type, function,
+- **v0.2 Query and retrieval:** selected relational query, type, function,
   full-text, vector, and hybrid behavior named by the roadmap and live milestone
   issues.
 - **v1.0 Production:** correctness, resource, restart/recovery, client, and

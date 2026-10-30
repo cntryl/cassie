@@ -121,9 +121,9 @@ fn should_preserve_alp_chunk_lifecycle_through_rename_drop() {
             .expect("scan column-batch artifacts")
             .into_iter()
             .filter(|(_, value)| {
-                value.starts_with(b"CBM2")
-                    || value.starts_with(b"CBR2")
-                    || value.starts_with(b"CBC2")
+                value.starts_with(b"CBM1")
+                    || value.starts_with(b"CBR1")
+                    || value.starts_with(b"CBC1")
             })
             .count()
     };
@@ -214,9 +214,9 @@ fn should_preserve_fsst_chunk_lifecycle_through_rename_drop() {
             .expect("scan column-batch artifacts")
             .into_iter()
             .filter(|(_, value)| {
-                value.starts_with(b"CBM2")
-                    || value.starts_with(b"CBR2")
-                    || value.starts_with(b"CBC2")
+                value.starts_with(b"CBM1")
+                    || value.starts_with(b"CBR1")
+                    || value.starts_with(b"CBC1")
             })
             .count()
     };

@@ -7,9 +7,11 @@ variant. Midge remains the direct storage layer and pgwire remains primary.
 
 The public Rust registry adds `FunctionId::NullIf`, `FunctionId::Greatest`,
 `FunctionId::Least` and `FunctionReturnType::FirstComparedArgument`. Downstream
-exhaustive matches on these enums must handle the added variants. The crate and
-GitVersion next-version are aligned to the approved 0.2.0 compatibility boundary;
-this change does not create a release tag or publish a crate.
+exhaustive matches on these enums must handle the added variants. The crate
+package version in `Cargo.toml` is the release version authority and is reset
+to the unreleased 0.1.0 starting point. The version workflow derives branch
+prerelease suffixes from that package metadata. This baseline change does not
+create a release tag or publish a crate.
 
 ## Selected behavior
 

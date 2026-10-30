@@ -387,7 +387,12 @@ pub fn lifecycle_disk_context_with_temp_budget(
         BenchmarkStorageMode::Disk,
         |config| {
             config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
-            config.limits.query_timeout_ms = 0;
+            config.limits.query_timeout_ms = if dataset_rows > 100_000 {
+                LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS
+            } else {
+                0
+            };
+            config.limits.max_result_rows = dataset_rows.max(111_111);
         },
     ))
 }

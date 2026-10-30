@@ -1,5 +1,9 @@
 # Selected column codec qualification
 
+> Historical evidence for the pre-0.1.0 CBC2 layout. Cassie 0.1.0 starts with
+> CBC1 under the renamed current module. The exact historical results below do
+> not qualify the CBC1 baseline.
+
 This record freezes a finite test and evidence slice of
 [#768](https://github.com/cntryl/cassie/issues/768) at
 `4b75413be837f2f9ecc41dba970bc76cf0c5034a`. Its native prerequisites,

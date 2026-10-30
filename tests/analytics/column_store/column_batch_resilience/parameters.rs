@@ -31,7 +31,7 @@ fn should_recover_from_truncated_or_unknown_version_alp_chunks() {
         .raw_scan_prefix(StorageFamily::Data, b"")
         .expect("scan ALP chunks")
         .into_iter()
-        .find(|(_, value)| value.starts_with(b"CBC2"))
+        .find(|(_, value)| value.starts_with(b"CBC1"))
         .expect("persisted ALP chunk");
     let mut truncated = chunk_bytes.clone();
     truncated.pop().expect("non-empty ALP chunk");

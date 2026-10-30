@@ -107,9 +107,9 @@ fn should_reject_impossible_stored_array_count_before_allocating() {
             .raw_scan_prefix(StorageFamily::Data, b"")
             .expect("read raw rows")
             .into_iter()
-            .find(|(_, value)| value.starts_with(b"CRB3"))
+            .find(|(_, value)| value.starts_with(b"CRB1"))
             .expect("row blob");
-        assert_eq!(&blob[..4], b"CRB3");
+        assert_eq!(&blob[..4], b"CRB1");
         // One field: 23 header/bitmap bytes, 13 directory bytes, then payload.
         let payload_offset = 36;
         blob.truncate(payload_offset);

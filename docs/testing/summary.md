@@ -6,9 +6,9 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | --- | ---: |
 | Files under `tests/` | 1577 |
 | Rust files | 1545 |
-| Rust test declarations | 8363 |
+| Rust test declarations | 8365 |
 | Python test declarations | 21 |
-| Static Rust registration instances | 8491 |
+| Static Rust registration instances | 8493 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
@@ -16,7 +16,6 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | Duplicate registered test identities | 0 |
 | Repeated module registrations | 0 |
 | Files with a reviewed physical placement | 1334 |
-| Targets absent from exactly one CI shard | 0 |
 | Existing files over their line limit | 0 |
 | Destination name conflicts | 0 |
 
@@ -29,10 +28,10 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | Owner | Source declarations | Review required |
 | --- | ---: | ---: |
 | [analytics](inventory/analytics.md) | 185 | 0 |
-| [backend_ci](inventory/backend_ci.md) | 2 | 0 |
+| [bench_diagnostics](inventory/bench_diagnostics.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 324 | 0 |
-| [compatibility](inventory/compatibility.md) | 403 | 0 |
+| [compatibility](inventory/compatibility.md) | 404 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |
@@ -53,7 +52,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 4 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 391 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 392 | 0 |
 | [sql_queries](inventory/sql_queries.md) | 1739 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
@@ -64,44 +63,44 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |
 | [vector_embeddings](inventory/vector_embeddings.md) | 169 | 0 |
 
-## Cargo registrations
+## Cargo targets
 
-Suite names and CI shard assignments are preserved during file moves.
+Each suite's Cargo target and source root are recorded here.
 
-| Cargo target | Root | CI shard |
-| --- | --- | --- |
-| `analytics` | `tests/analytics.rs` | analytics-and-catalog |
-| `backend_ci` | `tests/backend_ci.rs` | core |
-| `bench_operations` | `tests/bench_operations.rs` | core |
-| `catalog_security` | `tests/catalog_security.rs` | analytics-and-catalog |
-| `compatibility` | `tests/compatibility.rs` | analytics-and-catalog |
-| `configuration_isolated` | `tests/configuration_isolated.rs` | analytics-and-catalog |
-| `constraint_ingress` | `tests/constraint_ingress.rs` | sql-semantics |
-| `domain_models` | `tests/domain_models.rs` | analytics-and-catalog |
-| `executor` | `tests/executor.rs` | core |
-| `expression_index_upsert` | `tests/expression_index_upsert.rs` | sql-semantics |
-| `json_writes` | `tests/json_writes.rs` | core |
-| `metrics` | `tests/metrics.rs` | core |
-| `null_safe_predicates` | `tests/null_safe_predicates.rs` | sql-semantics |
-| `parser_types` | `tests/parser_types.rs` | core |
-| `pgwire_core` | `tests/pgwire_core.rs` | core |
-| `pgwire_extended` | `tests/pgwire_extended.rs` | pgwire-extended |
-| `planner_controls` | `tests/planner_controls.rs` | core |
-| `query_scan_controls` | `tests/query_scan_controls.rs` | query-surface |
-| `relational_qualification` | `tests/relational_qualification.rs` | sql-semantics |
-| `rest` | `tests/rest.rs` | query-surface |
-| `search` | `tests/search.rs` | query-surface |
-| `sql_contextual_literals` | `tests/sql_contextual_literals.rs` | query-surface |
-| `sql_derived_sources` | `tests/sql_derived_sources.rs` | query-surface |
-| `sql_exists_subqueries` | `tests/sql_exists_subqueries.rs` | query-surface |
-| `sql_mutations` | `tests/sql_mutations.rs` | sql-semantics |
-| `sql_queries` | `tests/sql_queries.rs` | sql-semantics |
-| `sql_relation_identifiers` | `tests/sql_relation_identifiers.rs` | sql-semantics |
-| `sql_set_operations` | `tests/sql_set_operations.rs` | sql-semantics |
-| `storage_indexes` | `tests/storage_indexes.rs` | storage-and-vector |
-| `temporal_predicate_literals` | `tests/temporal_predicate_literals.rs` | storage-and-vector |
-| `time_series_float_partitions` | `tests/time_series_float_partitions.rs` | storage-and-vector |
-| `vector_embeddings` | `tests/vector_embeddings.rs` | storage-and-vector |
+| Cargo target | Root |
+| --- | --- |
+| `analytics` | `tests/analytics.rs` |
+| `bench_diagnostics` | `tests/bench_diagnostics.rs` |
+| `bench_operations` | `tests/bench_operations.rs` |
+| `catalog_security` | `tests/catalog_security.rs` |
+| `compatibility` | `tests/compatibility.rs` |
+| `configuration_isolated` | `tests/configuration_isolated.rs` |
+| `constraint_ingress` | `tests/constraint_ingress.rs` |
+| `domain_models` | `tests/domain_models.rs` |
+| `executor` | `tests/executor.rs` |
+| `expression_index_upsert` | `tests/expression_index_upsert.rs` |
+| `json_writes` | `tests/json_writes.rs` |
+| `metrics` | `tests/metrics.rs` |
+| `null_safe_predicates` | `tests/null_safe_predicates.rs` |
+| `parser_types` | `tests/parser_types.rs` |
+| `pgwire_core` | `tests/pgwire_core.rs` |
+| `pgwire_extended` | `tests/pgwire_extended.rs` |
+| `planner_controls` | `tests/planner_controls.rs` |
+| `query_scan_controls` | `tests/query_scan_controls.rs` |
+| `relational_qualification` | `tests/relational_qualification.rs` |
+| `rest` | `tests/rest.rs` |
+| `search` | `tests/search.rs` |
+| `sql_contextual_literals` | `tests/sql_contextual_literals.rs` |
+| `sql_derived_sources` | `tests/sql_derived_sources.rs` |
+| `sql_exists_subqueries` | `tests/sql_exists_subqueries.rs` |
+| `sql_mutations` | `tests/sql_mutations.rs` |
+| `sql_queries` | `tests/sql_queries.rs` |
+| `sql_relation_identifiers` | `tests/sql_relation_identifiers.rs` |
+| `sql_set_operations` | `tests/sql_set_operations.rs` |
+| `storage_indexes` | `tests/storage_indexes.rs` |
+| `temporal_predicate_literals` | `tests/temporal_predicate_literals.rs` |
+| `time_series_float_partitions` | `tests/time_series_float_partitions.rs` |
+| `vector_embeddings` | `tests/vector_embeddings.rs` |
 
 ## Files to split
 

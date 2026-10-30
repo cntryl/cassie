@@ -60,7 +60,7 @@ fn should_emit_platform_independent_little_endian_plain_integer_bytes() {
     assert_eq!(
         encoded,
         vec![
-            b'C', b'B', b'C', b'2', 2, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 16, 0, 0,
+            b'C', b'B', b'C', b'1', 1, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 16, 0, 0,
             0, 16, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0, 0, 0, 0, 0, 0, 254, 255, 255, 255, 255, 255,
             255, 255,
         ]
@@ -235,8 +235,8 @@ fn should_emit_cross_architecture_stable_fsst_bytes() {
     assert_eq!(
         digest.as_slice(),
         &[
-            144, 68, 146, 75, 138, 24, 186, 104, 129, 246, 235, 224, 195, 215, 30, 252, 161, 175,
-            54, 88, 35, 231, 182, 186, 109, 20, 158, 220, 150, 8, 238, 8,
+            130, 73, 146, 31, 239, 92, 148, 170, 170, 57, 26, 167, 220, 142, 5, 156, 93, 130, 76,
+            23, 50, 91, 205, 167, 195, 39, 41, 137, 242, 13, 6, 248,
         ]
     );
     assert_eq!(encoded.len(), 15_193);
@@ -284,8 +284,8 @@ fn should_emit_cross_architecture_stable_alp_bytes() {
     assert_eq!(
         digest.as_slice(),
         &[
-            99, 236, 191, 80, 179, 191, 107, 201, 32, 176, 222, 156, 136, 205, 95, 28, 201, 167,
-            50, 93, 24, 158, 174, 188, 125, 40, 169, 95, 148, 53, 152, 41,
+            56, 198, 97, 234, 119, 208, 132, 51, 250, 32, 125, 61, 168, 122, 108, 33, 3, 238, 31,
+            197, 9, 91, 137, 171, 123, 185, 129, 87, 57, 66, 242, 26,
         ]
     );
     assert_eq!(encoded.len(), 608);
@@ -458,7 +458,7 @@ fn should_validate_bounded_row_id_chunk_roundtrips() {
     let decoded = decode_row_id_chunk_for_test(&encoded).expect("decode row IDs");
 
     // Assert
-    assert_eq!(&encoded[..4], b"CBR2");
+    assert_eq!(&encoded[..4], b"CBR1");
     assert_eq!(decoded, row_ids);
     for boundary in 0..encoded.len() {
         assert!(
@@ -472,8 +472,8 @@ fn should_validate_bounded_row_id_chunk_roundtrips() {
 fn should_validate_manifest_roundtrips_against_truncation_or_checksum_failure() {
     // Arrange
     let metadata = ColumnBatchMetadata {
-        metadata_format_version: 2,
-        summary_format_version: 2,
+        metadata_format_version: 1,
+        summary_format_version: 1,
         manifest_revision: 9,
         next_segment_id: 0,
         collection: "postgres.public.events".to_string(),
@@ -494,7 +494,7 @@ fn should_validate_manifest_roundtrips_against_truncation_or_checksum_failure() 
 
     // Assert
     assert_eq!(decoded, metadata);
-    assert!(encoded.starts_with(b"CBM2"));
+    assert!(encoded.starts_with(b"CBM1"));
     for boundary in 0..encoded.len() {
         assert!(
             decode_column_batch_manifest_for_test(&encoded[..boundary]).is_err(),

@@ -14,7 +14,7 @@
       "suite": "analytics",
       "category": "column_store"
     },
-    "tests/analytics/column_store/column_batch_format_v2.rs": {
+    "tests/analytics/column_store/column_batch_format_v1.rs": {
       "suite": "analytics",
       "category": "column_store"
     },
@@ -154,9 +154,9 @@
       "suite": "analytics",
       "category": "types/arrays"
     },
-    "tests/backend_ci/contracts/semantics.rs": {
-      "suite": "backend_ci",
-      "category": "contracts"
+    "tests/bench_diagnostics/relations/semantics.rs": {
+      "suite": "bench_diagnostics",
+      "category": "relations"
     },
     "tests/bench_operations/artifacts/ann_recall.rs": {
       "suite": "bench_operations",

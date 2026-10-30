@@ -40,7 +40,7 @@ remains open for staged owner records and actual acceptance.
    uninterpreted non-ASCII bytes, not forcibly decoded as UTF-8. Wire typlen is catalog typlen, not payload
    length. NULL parameter length -1 carries no payload. Infer unknown parameters
    through the PostgreSQL resolver, never the first bound value.
-4. **Durability.** Approved CRB3 framing/versioned codec tags, immutable enclosing
+4. **Durability.** Approved CRB1 framing/versioned codec tags, immutable enclosing
    descriptors and separate-store export/recreate/reimport. Wire receive can
    accept a noncanonical input that PostgreSQL normalizes; persist the selected
    send result after validation, rather than rejecting a legal wire input merely

@@ -159,10 +159,10 @@ The user selected PostgreSQL array dimensions and lower bounds for #807. Array
 values must retain row-major elements, every dimension length, and each lower
 bound across SQL execution, pgwire codecs, and persisted rows. An empty array
 has zero dimensions; a SQL NULL array, an empty array, and NULL elements remain
-distinct. PostgreSQL's rectangularity and subscript semantics apply. The CRB2
-row encoding had no shape fields; CRB3 stores dimensions, lower bounds, and
-row-major elements under `cassie-midge-layout-v4`. Existing pre-release data
-must be recreated, with no migration utility or legacy row reader. Runtime work follows
+distinct. PostgreSQL's rectangularity and subscript semantics apply. The
+0.1.0 CRB1 row encoding stores dimensions, lower bounds, and row-major elements
+under `cassie-midge-layout-v1-0.1.0`. Existing pre-release data must be
+recreated, with no migration utility or legacy row reader. Runtime work follows
 the documented #796 and #762 prerequisites in #807.
 
 PostgreSQL 18.6 text-array probes return `{01:02:03.1,NULL}` for TIME

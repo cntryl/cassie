@@ -44,7 +44,7 @@ tests/
   pg18_parity/                   Python harness and its tests
 ```
 
-Nested modules stay inside the existing suite. They do not become additional Cargo targets. The current target names and CI shard assignments are listed in the summary.
+Nested modules stay inside the existing suite. They do not become additional Cargo targets. The current target names and source roots are listed in the summary.
 
 ## Ownership rules
 
@@ -83,7 +83,7 @@ For example, scalar-subquery row values belong under `sql_queries/subqueries/`; 
 
 ## Preserve these boundaries during cleanup
 
-1. Preserve Cargo target names and shard membership. Register new leaves in an existing suite and verify `backend_ci`.
+1. Prefer an existing subsystem-owned Cargo target for new behavior tests. Register new leaves under that suite and verify the static module inventory.
 2. Preserve fully qualified existing test names and exact-name subprocess callers. File moves can use a module alias via `#[path]` when needed to retain an established namespace; ordinary nested modules can use Rust's default file resolution.
 3. Preserve test attributes, assertions, fixture scope, storage-mode selection and process isolation. Do not change expected results as part of a file move.
 4. Keep external-client Cargo projects, Python runtime boundaries and corpus paths intact until their callers and manifests are updated together.
@@ -101,7 +101,7 @@ Use one working branch and checkout. Give agents exclusive file sets; the integr
 | Transactions, lifecycle and qualification | `compatibility/`, process-isolated cases and qualification fixtures | Group by object/session contract; preserve subprocess, client and restart boundaries |
 | Integrator | `tests/*.rs`, shared support registrations, inventory tooling and manifests | Check names/counts, register leaves, serialize Cargo validation and review |
 
-The organization pass extracted tests from every Cargo root and moved existing leaves into their behavior directories. All 32 Cargo target names and CI shard assignments are unchanged. The compiled binaries list exactly the same 5,542 test instances as the current static registration graph.
+The organization pass extracted tests from every Cargo root and moved existing leaves into their behavior directories. At that historical checkpoint, all 32 Cargo target names and CI shard assignments were unchanged, and the compiled binaries listed the same 5,542 test instances as the static registration graph. The backend workflow now runs the full workspace suite; current inventory records Cargo target roots without shard metadata.
 
 ## What this pass changed
 
@@ -115,7 +115,7 @@ Authored coverage, an observed failing test and complete feature qualification a
 
 ## Regenerate or check the inventory
 
-The generator uses Rust syntax trees, Python ASTs, Cargo metadata and the backend shard manifest. It follows `mod`, `#[path]` and literal `include!` registrations. It includes `#[ignore]` declarations, does not evaluate `cfg`, and does not execute tests or infer their results. Macro-generated test cases and runtime-discovered counts need their owning runner's listing.
+The generator uses Rust syntax trees, Python ASTs and Cargo metadata. It follows `mod`, `#[path]` and literal `include!` registrations. It includes `#[ignore]` declarations, does not evaluate `cfg`, and does not execute tests or infer their results. Macro-generated test cases and runtime-discovered counts need their owning runner's listing.
 
 ```sh
 python3.12 -m venv target/test-inventory-tools312

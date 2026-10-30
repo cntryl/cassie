@@ -4,27 +4,34 @@ This document is the canonical owner for beta and Production-ready evidence. Fea
 
 ## Current Classification
 
-The Cassie query-engine baseline is a **Production Candidate** for the documented pre-release
-support envelope. Stable capabilities are supported; Experimental capabilities are available for
-evaluation under their documented limits and may change before 1.0.
+The Cassie query-engine baseline is a **Production Candidate** for the documented
+unreleased 0.1.0 support envelope. Stable capabilities are supported;
+Experimental capabilities are available for evaluation under their documented
+limits and may change before 1.0.
 
 Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient to catch correctness and gross resource-bound regressions, but it is not representative-scale evidence for production latency, capacity, cancellation latency, recovery time, or sustained concurrency.
 
 ## Product release boundary
 
-The [Product Roadmap](product-roadmap.md) defines v0.3 Projection Store as the
-initial shippable release, v0.4 as the query and retrieval release, and v1.0 as
-the production release. This document defines only the evidence required for
-production readiness; it does not expand the SQL or server compatibility scope.
+The [Product Roadmap](product-roadmap.md) defines v0.1.0 Projection Store,
+v0.2.0 Query and Retrieval, and v0.3.0 Authoritative Columnar Tables as the
+three feature releases. Production readiness is a separate qualification gate;
+this document defines its evidence without creating another feature milestone
+or expanding SQL and server compatibility scope.
 
 PostgreSQL 18.6 comparisons qualify selected behaviors named by current
 roadmap milestones and issue criteria. The former complete-core-SQL/full-PLpgSQL
 program (#791–#793) was closed as superseded. Neither that program nor the size
-of its retained test corpus is a v1.0 parity gate. Current v1.0 acceptance is
-owned by the live milestone, the [release checklist](release-checklist.md), and
-the production evidence below.
+of its retained test corpus is a production-readiness gate. Qualification is
+owned by the [release checklist](release-checklist.md) and the production
+evidence below; GitHub feature milestones remain limited to the three releases
+in the roadmap.
 
-## Current Local Check Snapshot
+## Prior Local Check Snapshot — 2026-10-29
+
+This candidate-tree result predates the 2026-10-30 0.1.0 format reset. It does
+not qualify the current baseline; repeat the ordered gate on the exact release
+commit.
 
 On 2026-10-29 the ordered local gate passed on the documentation scope
 worktree `audit/v03-mvp-scope-20261029`, based on main
@@ -71,11 +78,23 @@ and test-fixture-label reconciliation. No runtime source changed.
 
 ## Workflow and Branch-Protection State
 
-GitHub readback on 2026-10-29 confirmed repository Actions permission is
-disabled (`enabled: false`), the `Protect main branch` ruleset (`21147564`) is
-disabled, and the `main` branch has no active protection. No hosted result is
-available; local gates and historical check runs do not supply one. No workflow
-was enabled or dispatched during this audit.
+GitHub readback on 2026-10-30 reports repository Actions permission `enabled: true`; CodeQL is
+active, while `Containers`, `Version`, `CI Backend`, `CI Frontend`, and `Publish` are manually
+disabled. No `Operational readiness` workflow is present in the current workflow tree or registry.
+`AGENTS.md` still prohibits enabling or dispatching workflows until the user explicitly changes
+that direction; no backend, benchmark, or release workflow was dispatched.
+
+PR #1144 remains open at `92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba`. CodeQL run
+`41117159326` completed successfully on this exact head: all four language analyzers and the
+umbrella check passed. The head includes the type-only diagnostic and regression for alert 522
+(`rust/cleartext-logging`); an open-alert query scoped to `refs/pull/1144/head` returned no alerts.
+The only recorded review is a GitHub Advanced Security bot comment; no human review or review
+decision is recorded. This analysis does not establish backend test or release qualification.
+
+The 2026-10-30 `main` branch-protection readback returned no applicable repository rules and the
+branch-protection endpoint returned 404 (`Branch not protected`). There is no active `main` branch
+protection. These observations should be reviewed before selecting a repository-wide protection
+policy; no ruleset or protection setting was changed.
 
 Historical coverage recorded on 2026-10-12 is retained as context only: backend
 CI filtered out `ui/**`, frontend CI ran for frontend-related paths, and PRs
@@ -87,8 +106,9 @@ active branch protection.
 ## Evidence Present
 
 - The repository's locked build, full-test, pedantic Clippy, formatting, and
-  touched-test validation gates are defined; the current local results are
-  recorded above.
+  touched-test validation gates are defined. The latest local worktree result is
+  recorded in [Testing and Validation](testing/validation.md); it is not an
+  exact-release-commit qualification.
 - Integration coverage across SQL, indexes, transactions, pgwire, REST, search, vector, analytics, projection lifecycle, and recovery adapters.
 - The stable named-client catalog subset is limited to the documented columns of
   `information_schema.tables` and `information_schema.columns`, with lifecycle tests plus retained
@@ -118,7 +138,11 @@ active branch protection.
 - Security-boundary coverage for constant-cost authentication failures, bounded login state, atomic REST session quotas, explicit external HTTPS attributes, bounded provider responses, streaming transport deadlines, parser complexity budgets, and live database-access revocation.
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
 - Retained container and supply-chain evidence for supported targets from
-  earlier runs; no new hosted evidence is available while Actions are disabled.
+  earlier runs. The 2026-10-30 local ARM64 image and restart smoke is recorded in
+  [Testing and Validation](testing/validation.md); its digest is local-only and it
+  does not satisfy exact-release-commit or amd64 evidence. No backend, benchmark,
+  or release workflow has been dispatched under the current no-dispatch
+  instruction; those required hosted results remain blocked.
 - Named evidence boundaries are defined in [Deployment Profiles](deployment-profiles.md); the
   native-Linux profile remains an explicit evidence requirement rather than an implied claim.
 - The release support, upgrade, rollback, and security-response envelope is defined in
@@ -155,7 +179,7 @@ active branch protection.
   quality; replay throughput was noisy on hosted runners and is diagnostic only, not a replay
   latency or capacity objective. Column-store table mode, retained 250k capacity rows, and
   deployment-profile alert thresholds (#8) remain outside this promotion.
-- Canonical v2 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary and FSST decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates. ALP codec version 1 has the retained `should_emit_cross_architecture_stable_alp_bytes` golden fixture, sparse-null and exact-result fallback/rebuild coverage, unknown-version fail-closed coverage, and paired `perf.column.alp_selective_scan.2k` / `perf.column.alp_plain_scan_baseline.2k` owners enforcing at least 75% chunk-byte savings and no more than 5% p95 query regression. FSST codec version 1 has the retained `should_emit_cross_architecture_stable_fsst_bytes` full-CBC2 golden fixture plus sparse-null selected decoding, corrupt-unselected-value rejection, fallback/restart rebuild, and rename/drop lifecycle coverage. Its paired `perf.column.fsst_selective_scan.2k` / `perf.column.fsst_plain_scan_baseline.2k` owners require every candidate chunk to save at least 25% and the selective-query p95 to remain within 5% of forced plain. Each of the four candidate/baseline pairs owns an independent sampling group and alternates within each invocation so unrelated pairs cannot create sustained drift or bias the comparison.
+- Canonical v1 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary and FSST decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates. ALP codec version 1 has the retained `should_emit_cross_architecture_stable_alp_bytes` golden fixture, sparse-null and exact-result fallback/rebuild coverage, unknown-version fail-closed coverage, and paired `perf.column.alp_selective_scan.2k` / `perf.column.alp_plain_scan_baseline.2k` owners enforcing at least 75% chunk-byte savings and no more than 5% p95 query regression. FSST codec version 1 has the retained `should_emit_cross_architecture_stable_fsst_bytes` full-CBC1 golden fixture plus sparse-null selected decoding, corrupt-unselected-value rejection, fallback/restart rebuild, and rename/drop lifecycle coverage. Its paired `perf.column.fsst_selective_scan.2k` / `perf.column.fsst_plain_scan_baseline.2k` owners require every candidate chunk to save at least 25% and the selective-query p95 to remain within 5% of forced plain. Each of the four candidate/baseline pairs owns an independent sampling group and alternates within each invocation so unrelated pairs cannot create sustained drift or bias the comparison.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
 - Monaco sanitizer resolution is controlled by the scoped override in
   [`ui/package.json`](../ui/package.json). Release qualification requires a fresh
@@ -221,7 +245,7 @@ projection lifecycle remain outside this contract.
 Tracking owners #8, #29, and #781 were closed as `NOT_PLANNED` on 2026-10-28.
 Their closure comments say this did not complete the acceptance criteria or
 resolve the outstanding evidence gaps. The blockers below remain active under
-the roadmap's v1.0 production-readiness boundary.
+the roadmap's separate production-readiness boundary.
 
 - Database-image checksums detect content changes but do not authenticate who produced an image.
   Operators must follow the detached-signature and trusted-identity procedure in
@@ -235,10 +259,10 @@ the roadmap's v1.0 production-readiness boundary.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
 - The cross-architecture rehearsal record is defined in [Cross-Architecture Release Rehearsal](cross-architecture-rehearsal.md); amd64 and arm64 evidence remains pending until separate retained bundles exist.
-- The `Operational readiness` workflow definition separates a fast native amd64/arm64 shape gate
-  from its scale and endurance mode. GitHub Actions are disabled, so it is not currently running;
-  a passing shape run validates the automation but does not satisfy the pending retained-evidence
-  blocker.
+- The historical `Operational readiness` workflow from PR #226 is absent from the current
+  `.github/workflows/` tree and GitHub workflow registry. Its shape and scale/endurance modes are
+  not runnable in this checkout. The repository permission reports Actions enabled, but `AGENTS.md`
+  prohibits dispatch; the required retained native amd64/arm64 evidence remains pending.
 - Validate the support, upgrade compatibility, release rollback, and security response expectations
   in [Support, Release, and Security-Response Policy](support-policy.md) against a tagged release
   artifact and rehearsal evidence.
@@ -252,7 +276,7 @@ Midge evidence owns persistence, durability, and recovery mechanics. Cassie read
 ## Query Engine Target 1 Promotion Boundary
 
 [Query Engine Target 1](query-engine-target.md) separates the finite PostgreSQL
-wire/dialect/client, physical ColumnStore, CBM2 acceleration, typed relational
+wire/dialect/client, physical ColumnStore, CBM1 acceleration, typed relational
 execution and embedding-vector retrieval axes. The
 [invariant ownership ledger](query-engine-invariant-ownership.md) maps all baseline
 obligations to child acceptance and existing operational owners.

@@ -158,7 +158,7 @@ fn metadata_entry(fixture: &AmountFixture) -> (Vec<u8>, ColumnBatchMetadata) {
         .expect("scan data")
         .into_iter()
         .find_map(|(key, raw)| {
-            raw.starts_with(b"CBM2")
+            raw.starts_with(b"CBM1")
                 .then(|| decode_column_batch_manifest_for_test(&raw).ok())
                 .flatten()
                 .map(|metadata| (key, metadata))

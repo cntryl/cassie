@@ -544,7 +544,7 @@ fn should_store_ivfflat_membership_outside_training_manifest() {
         .expect("ivfflat manifest");
 
     // Assert
-    assert_eq!(state.first(), Some(&3));
+    assert_eq!(state.first(), Some(&1));
     assert_ne!(state.first(), Some(&0x7b));
     assert!(training.assignments.is_empty());
     assert_eq!(membership_count, 2);

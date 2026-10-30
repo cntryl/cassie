@@ -139,7 +139,7 @@ fn should_preserve_rollup_output_after_non_finite_refresh_failure() {
 }
 
 #[test]
-fn should_fail_closed_for_legacy_rollup_definition_version() {
+fn should_fail_closed_for_pre_0_1_rollup_definition_version() {
     // Arrange
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
 
@@ -154,11 +154,11 @@ fn should_fail_closed_for_legacy_rollup_definition_version() {
             .catalog
             .get_rollup(&rollup_name)
             .expect("rollup metadata");
-        metadata.version = 1;
+        metadata.version = 2;
         cassie
             .midge
             .put_rollup(&metadata)
-            .expect("persist old format");
+            .expect("persist pre-0.1.0 format");
         cassie.catalog.register_rollup(metadata);
 
         // Act

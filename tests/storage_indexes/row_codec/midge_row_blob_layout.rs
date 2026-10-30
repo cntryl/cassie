@@ -199,7 +199,7 @@ fn should_reduce_fixed_query_hot_row_fixture_by_at_least_twenty_five_percent() {
             .raw_scan_prefix(StorageFamily::Data, b"")
             .unwrap()
             .into_iter()
-            .find(|(_, value)| value.starts_with(b"CRB3"))
+            .find(|(_, value)| value.starts_with(b"CRB1"))
             .expect("binary row record");
         let baseline_key_bytes =
             b"cassie\0lexkey\0v5\0row\0".len() + collection.len() + id.len() + 2;
@@ -208,7 +208,7 @@ fn should_reduce_fixed_query_hot_row_fixture_by_at_least_twenty_five_percent() {
         let compact_bytes = key.len() + value.len();
 
         // Assert
-        assert!(value.starts_with(b"CRB3"));
+        assert!(value.starts_with(b"CRB1"));
         assert!(!key
             .windows(collection.len())
             .any(|window| window == collection.as_bytes()));

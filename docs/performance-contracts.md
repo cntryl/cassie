@@ -207,7 +207,7 @@ query budgets bound retained state, and page boundaries check cancellation and
 deadlines. No persistent format, generation-only certificate cache or shared
 statement snapshot is introduced by this selection. This successor contract is
 selected for implementation; existing behavior is not yet qualified against it.
-- Column-batch execution uses typed vectors, validity and selection vectors, segment summaries, and streaming aggregates. Its canonical derived layout is a little-endian `CBM2` manifest plus separate `CBR2` row-ID and `CBC2` field chunks. Manifest publication is atomic, segment IDs are immutable, revisions fence chunk generations, and row ranges are stable and half-open. SHA-256 protects every required chunk. Codec tag 5 identifies ALP and tag 6 identifies FSST; both manifest codec versions are 1. Unknown codec tags or versions fail closed instead of entering a compatibility reader. A missing, corrupt, stale, unsupported, or over-limit required chunk aborts the complete accelerated attempt and selects authoritative rows; partial accelerated results are never returned.
+- Column-batch execution uses typed vectors, validity and selection vectors, segment summaries, and streaming aggregates. Its canonical derived layout is a little-endian `CBM1` manifest plus separate `CBR1` row-ID and `CBC1` field chunks. Manifest publication is atomic, segment IDs are immutable, revisions fence chunk generations, and row ranges are stable and half-open. SHA-256 protects every required chunk. Codec tag 5 identifies ALP and tag 6 identifies FSST; both manifest codec versions are 1. Unknown codec tags or versions fail closed instead of entering a compatibility reader. A missing, corrupt, stale, unsupported, or over-limit required chunk aborts the complete accelerated attempt and selects authoritative rows; partial accelerated results are never returned.
 - Column scans follow summary pruning, predicate-chunk reads, a selection bitmap, requested projection-chunk reads, and selected-value materialization. Dictionary projection chunks validate their complete framing, dictionary, and index stream while allocating scalar values only for selected positions. Supported encoded predicates are conjunctions of equality, range, `IS NULL`, and `IS NOT NULL`, with executor rechecking for exact SQL semantics. Unrequested chunks receive no reads or decodes. Transaction overlays, grouped aggregates, joins, unsupported expressions, and semantics without an exact proof use the row path.
 - Codec selection is deterministic and automatic. Plain fixed-width or bounded variable-width encoding is the baseline. Boolean and null bitmaps, constant values, typed RLE, sorted dictionaries with bit-packed indices, checked 128-value frame-of-reference blocks, FSST UTF-8 symbol streams, and ALP decimal-scaled float blocks are eligible. FSST uses at most 256 deterministic symbols and a bounded 64 KiB UTF-8 symbol table. Its selective decoder validates the complete table, value framing, symbol indices, decoded sizes, and UTF-8 stream while allocating strings only for selected positions. ALP considers finite values at deterministic decimal scales, requires exact IEEE-754 bit reconstruction, and falls back to plain for non-finite values, signed zero, overflow, or non-exact representations. A codec must save at least `max(32 bytes, 5% of the complete plain representation)` and ties prefer lower decode complexity. Constant chunks require identical encoded scalar bytes, preserving signed zero in float and complex values. Recreate a column index built with the earlier semantic-equality constant selector to recover altered signed zeros from authoritative row values; existing chunks are not rewritten by this selection fix. Temporal values remain string-backed and complex values remain bounded plain. Cassie does not layer LZ4 or Zstd over Midge compression.
 - Accelerated aggregates validate maintenance state, source generation, manifest and summary versions, field coverage, source counts, and every required segment before publishing success metrics. Summary-only aggregation remains valid for eligible unfiltered queries. Filtered ungrouped `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX` may execute over encoded numeric streams and a selection bitmap only when exact row-path semantics are proven. Reasons including `maintenance_pending`, `generation_mismatch`, `metadata_format_mismatch`, `summary_format_mismatch`, `summary_missing`, `summary_checksum_mismatch`, `numeric_summary_requires_rows`, and `typed_summary_requires_rows` select the exact row aggregate.
@@ -217,7 +217,7 @@ Time-series index records, graph adjacency records, and column metadata and summ
 
 ## Storage Layout and Amplification
 
-Query-hot Cassie records use the `cassie-midge-layout-v4` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
+Query-hot Cassie records use the `cassie-midge-layout-v1-0.1.0` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
 
 Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 1,000 rows, independent of the 256-row integrity range-segment size. The owning database family is flushed after every committed row batch so large rebuilds cannot accumulate write pressure behind the fixed storage response deadline. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
 
@@ -281,7 +281,7 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 
 | Tier | Measures | Cassie ownership |
 | --- | --- | --- |
-| 1 - Hot path | One production kernel | Binary `cassie-midge-layout-v1` row codec and `cassie-midge-layout-v4` key/layout baseline, canonical column scalar codec encode/decode, key encoding, predicate and value operations, tokenization and BM25 kernels, vector distances, top-k maintenance, and row serialization. Runtime, storage, async work, the SQL pipeline, synthetic stand-ins, `lexkey-v2`, and JSON row or key wrappers are excluded. Parameter binding and HNSW candidate search belong to Tier 2. |
+| 1 - Hot path | One production kernel | Binary `cassie-midge-layout-v1` row codec and `cassie-midge-layout-v1-0.1.0` key/layout baseline, canonical column scalar codec encode/decode, key encoding, predicate and value operations, tokenization and BM25 kernels, vector distances, top-k maintenance, and row serialization. Runtime, storage, async work, the SQL pipeline, synthetic stand-ins, `lexkey-v2`, and JSON row or key wrappers are excluded. Parameter binding and HNSW candidate search belong to Tier 2. |
 | 2 - Subsystem | One subsystem operation | Parser, binder, planner, caches, physical operators, selective encoded column scans, posting merge, ANN candidate or probe selection, hybrid fusion, protocol codecs, and one projection write or replay batch over at most 2,048 rows. Full listeners, concurrency, and scale loops are excluded. |
 | 3 - System | Embedded end-to-end behavior | Fixed-duration execution of one representative 100k case for each access-path family: relational/index, join, column analytics, full-text, exact/HNSW/IVF vector, hybrid, graph, time-series, lifecycle/startup, and short mixed load. Additional sizes and saturation loops belong to Tier 5. |
 | 4 - Integration | A real external boundary | Authenticated loopback pgwire and HTTP servers with real clients, normally sharing a reusable 10k fixture. This tier owns persistent-connection simple and extended queries, portals, cancellation, HTTP operations, and protocol comparison. Client sweeps and sustained connection churn belong to Tier 5. |
@@ -337,7 +337,7 @@ Filtering happens before setup. Fixture construction is lazy, one fixture is reu
 
 Runtime evidence records an explicit `storage_read_unit`. Bucket-native time-series queries report logical `time_series_bucket` reads from the access-path counter. Other embedded paths report `runtime_storage_read`; storage reads, candidate counts, peak query memory, result-cache hits, and fallback counts are per-sample scalar observations because cache and duration-batch completion can legitimately vary. The complete-manifest validator uses each observation's worst-case maximum and continues to accept legacy invariant metadata. Setup must not warm a timed query to hide cold-versus-cached behavior.
 
-Duration-based batches record their actual completed logical-operation count and normalize cumulative storage-read, candidate, result-cache, and fallback counters to one operation. Each Tier 3 time-series representative executes two unchanged partition-and-time-bounded queries per measured closure, declares `query` as its logical unit, and reports the exact 512-row cardinality of one query rather than the summed batch cardinality. The registered 15-minute, 1-hour, and 1-day owners use independent copies of the same deterministic 100k source fixture and create the selected bucket index outside the measurement boundary, preventing cross-width derived-state contamination. This batching changes only measurement shape; its fixture, setup boundary, path and fallback proofs, sampling, thresholds, and trust policy remain unchanged.
+Duration-based batches record their actual completed logical-operation count and normalize cumulative storage-read, candidate, result-cache, and fallback counters to one operation. Each Tier 3 time-series representative executes two unchanged partition-and-time-bounded queries per measured closure, declares `query` as its logical unit, and reports the exact 512-row cardinality of one query rather than the summed batch cardinality. The authoritative graph representative likewise executes two checked expansions per measured closure, declares `query` as its logical unit, and reports the four-row cardinality of one query. The registered 15-minute, 1-hour, and 1-day owners use independent copies of the same deterministic 100k source fixture and create the selected bucket index outside the measurement boundary, preventing cross-width derived-state contamination. This batching changes only measurement shape; its fixture, setup boundary, path and fallback proofs, sampling, thresholds, and trust policy remain unchanged.
 
 Full-index representative and scale fixtures load source documents in bounded batches of at most 5,000 rows before creating full-text and scalar indexes. This produces the final full-text artifact once after source loading instead of repeatedly rebuilding the growing whole-index state inside each untimed document batch.
 
@@ -350,7 +350,7 @@ staged payload and sidecar transactions are bounded separately, while validated 
 and their applied marker share one atomic data transaction. This does not establish a bounded
 memory or large-scale backfill performance guarantee.
 Prepared scalar-index publication and cleanup use transactions of at most 5,000 entries and flush
-the owning database family after every four committed batches and after the final partial interval.
+the owning database family after every eight committed batches and after the final partial interval.
 This bounds encoded index-key memtable accumulation without forcing an L0 flush after every
 transaction, while publication metadata remains hidden until every bounded index batch is durable.
 
@@ -451,7 +451,9 @@ Tier 5 has explicit query, retrieval, lifecycle, and transport owners. Its requi
 Every applicable owner emits evidence for every value on its declared axis. These are manual, environment-labelled scale curves, not production capacity claims.
 
 The projection lifecycle owner measures replay and refresh/rebuild at 10k, 100k, and 250k source
-rows. Full verification and row-hash repair use the representative 100k fixture. Repair setup
+rows. Its rebuild fixture projects the numeric `score` column so the 250k source-row curve remains
+within the documented 100 MiB query-memory ceiling. Full verification and row-hash repair use the
+representative 100k fixture. Repair setup
 marks one output row hash stale and persists the failed verification report before timing; the
 measured operation contains only `REPAIR PROJECTION ... SCOPE row`, its mandatory post-repair full
 verification, and audit publication. Exact completed/verified state, runtime resource bounds, and
@@ -509,8 +511,9 @@ cargo bench --locked --bench '*'
 
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
-> **Current operations constraint:** GitHub Actions are disabled by user direction. Do not
-> enable or dispatch this archived workflow until the user explicitly changes that direction.
+> **Current operations constraint:** The GitHub Actions permission readback reports
+> `enabled: true` (2026-10-30), but `AGENTS.md` prohibits enabling or dispatching workflows
+> until the user explicitly changes that direction. Do not dispatch this archived workflow.
 > The topology below is historical and describes the prior evidence pipeline.
 
 The archived [Bench workflow at the frozen baseline](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/.github/workflows/bench.yml) records the CI topology below. Its scheduled lane exercises Tiers 1-4 and retains its
@@ -581,7 +584,7 @@ Benchmark source and test files remain under 1,000 lines. Cassie's suite does no
 
 The [finite query-engine target](query-engine-target.md) separates Midge column
 families (database namespaces), experimental ColumnStore field-key tables, Stable
-CBM2 derived acceleration, and the Planned common typed-column relational
+CBM1 derived acceleration, and the Planned common typed-column relational
 pipeline. Existing typed buffers and selected encoded kernels in this document
 describe specialized acceleration; they do not claim that every relational
 operator currently carries one common column-batch representation.

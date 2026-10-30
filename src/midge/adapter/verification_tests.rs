@@ -3,7 +3,9 @@ use std::thread;
 use std::time::Duration;
 
 use super::{
-    set_projection_output_failure_point, FieldSchema, Midge, ProjectionOutputFailurePoint, Schema,
+    document_write_storage_failures_remaining, set_document_write_storage_failures,
+    set_projection_output_failure_point, DocumentWriteStorageFailure, FieldSchema, Midge,
+    ProjectionOutputFailurePoint, Schema,
 };
 
 #[test]
@@ -26,7 +28,7 @@ fn should_bound_fresh_projection_output_write_batches() {
 #[test]
 fn should_flush_fresh_projection_output_at_bounded_batch_intervals() {
     // Arrange
-    let batch_count = 10;
+    let batch_count = 70;
 
     // Act
     let flushes = (1..=batch_count)
@@ -36,7 +38,7 @@ fn should_flush_fresh_projection_output_at_bounded_batch_intervals() {
         .collect::<Vec<_>>();
 
     // Assert
-    assert_eq!(flushes, (1..=batch_count).collect::<Vec<_>>());
+    assert_eq!(flushes, vec![32, 64, 70]);
 }
 
 #[test]
@@ -163,6 +165,60 @@ fn should_publish_complete_fresh_projection_output_across_bounded_batches() {
 
     drop(midge);
     let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_retry_fresh_projection_output_after_a_transient_write_stall() {
+    // Arrange
+    let midge = Midge::new_in_memory("postgres").expect("create in-memory Midge");
+    midge
+        .create_collection(
+            "projection_output_write_stall",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: crate::types::DataType::Text,
+                    nullable: false,
+                }],
+            },
+        )
+        .expect("create projection output collection");
+    let rows = (0..1_001)
+        .map(|index| {
+            (
+                format!("row-{index:04}"),
+                serde_json::json!({"value": format!("value-{index:04}")}),
+            )
+        })
+        .collect::<Vec<_>>();
+    set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 3);
+
+    // Act
+    let result = midge.write_fresh_projection_output_rows("projection_output_write_stall", rows);
+
+    // Assert
+    let (report, root) = result.expect("retry the transient projection output write stall");
+    let first = midge
+        .get_document("projection_output_write_stall", "row-0000")
+        .expect("read first output row")
+        .expect("first output row");
+    let last = midge
+        .get_document("projection_output_write_stall", "row-1000")
+        .expect("read last output row")
+        .expect("last output row");
+    assert_eq!(document_write_storage_failures_remaining(), 0);
+    assert_eq!(report.stats.row_puts, 1_001);
+    assert_eq!(report.stats.batch_flushes, 3);
+    assert_eq!(root.row_count, 1_001);
+    assert_eq!(first.payload["value"], "value-0000");
+    assert_eq!(last.payload["value"], "value-1000");
+    assert_eq!(
+        midge
+            .list_row_hashes("projection_output_write_stall")
+            .expect("list output row hashes")
+            .len(),
+        1_001
+    );
 }
 
 #[test]

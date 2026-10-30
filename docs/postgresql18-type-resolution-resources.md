@@ -125,7 +125,7 @@ inside a binary frame. The private ACL durable codec does not fill its missing
 public binary ABI. Named wire payloads use current stable OIDs where PostgreSQL
 includes them; durable payloads use the retained enclosing descriptor instead.
 
-CRB3's directory contains exactly one entry per present non-NULL field, sorted
+CRB1's directory contains exactly one entry per present non-NULL field, sorted
 by field_id, and no entries for absent or SQL NULL fields. Presence and NULL
 bitmaps are authoritative for those two states; every NULL bit requires a
 presence bit. `bitmap_len = ceil(max_field_id/8)`, unused high bits are zero,

@@ -13,7 +13,7 @@ mod codec;
 #[path = "fulltext_retrieval/controlled.rs"]
 mod controlled;
 
-const STATE_VERSION: u32 = 2;
+const STATE_VERSION: u32 = 1;
 const FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
 
 fn fulltext_build_ranges(item_count: usize) -> impl Iterator<Item = std::ops::Range<usize>> {

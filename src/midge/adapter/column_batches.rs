@@ -14,7 +14,7 @@ mod direct_aggregate;
 mod filters;
 mod incremental;
 mod output;
-mod storage_v2;
+mod storage_v1;
 mod summary;
 mod typed_source;
 mod validation;
@@ -25,10 +25,10 @@ pub(crate) use typed_source::{EncodedSource, EncodedSourceDecision, ValidatedEnc
 
 use self::direct_aggregate::DirectAggregateAccumulator;
 use self::output::project_column_batch_document;
-use self::storage_v2::{load_segment, scan_aggregate_segment, scan_segment, LoadedSegment};
+use self::storage_v1::{load_segment, scan_aggregate_segment, scan_segment, LoadedSegment};
 use self::summary::{column_batch_summaries, column_values, compare_summary_to_json};
 pub(crate) use self::validation::ControlledColumnBatchSummaryDecision;
-use crate::midge::adapter::column_batch_format_v2::{
+use crate::midge::adapter::column_batch_format_v1::{
     decode_manifest, encode_manifest, summary_checksum, MANIFEST_FORMAT_VERSION,
     MANIFEST_SUMMARY_VERSION,
 };
@@ -366,7 +366,7 @@ impl Midge {
         for (position, chunk) in documents.chunks(segment_size).enumerate() {
             let segment_id = u64::try_from(position)
                 .map_err(|_| CassieError::ResourceLimit("too many column segments".to_string()))?;
-            let rows = storage_v2::rows_for_segment(chunk, fields.as_slice());
+            let rows = storage_v1::rows_for_segment(chunk, fields.as_slice());
             let next_position = position
                 .checked_add(1)
                 .and_then(|position| position.checked_mul(segment_size))
@@ -377,7 +377,7 @@ impl Midge {
                 .get(next_position)
                 .map(|document| document.id.clone());
             let encoded = if force_plain {
-                storage_v2::encode_plain_segment_for_benchmark(
+                storage_v1::encode_plain_segment_for_benchmark(
                     segment_id,
                     1,
                     rows.as_slice(),
@@ -386,7 +386,7 @@ impl Midge {
                     row_id_end,
                 )?
             } else {
-                storage_v2::encode_segment(
+                storage_v1::encode_segment(
                     segment_id,
                     1,
                     rows.as_slice(),
@@ -426,7 +426,7 @@ impl Midge {
             Self::column_batch_index_prefix(relation_id, index_id),
         )?;
         for segment in &encoded_segments {
-            storage_v2::write_segment(&mut data_tx, relation_id, index_id, segment)?;
+            storage_v1::write_segment(&mut data_tx, relation_id, index_id, segment)?;
         }
         data_tx
             .put(
@@ -749,7 +749,7 @@ impl Midge {
 
     fn record_column_batch_build(
         &self,
-        segments: &[storage_v2::EncodedSegment],
+        segments: &[storage_v1::EncodedSegment],
         full_rebuild: bool,
         splits: usize,
         source_rows: usize,
@@ -863,7 +863,7 @@ fn load_column_batch_segment(
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
 ) -> Result<Result<LoadedSegment, ColumnBatchScanFallbackReason>, CassieError> {
-    let wanted = storage_v2::all_segment_fields(segment);
+    let wanted = storage_v1::all_segment_fields(segment);
     load_segment(data_tx, index, segment, &wanted)
 }
 

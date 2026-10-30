@@ -11,9 +11,8 @@ mod scan;
 #[path = "graphs/verification.rs"]
 mod verification;
 
-/// Version 2 folds the anchor node type to lowercase in adjacency keys, so
-/// version 1 sidecars fall back to the row scan until reconcile rebuilds them.
-pub(crate) const GRAPH_ADJACENCY_FORMAT_VERSION: u32 = 3;
+/// The 0.1.0 adjacency format folds anchor node types to lowercase.
+pub(crate) const GRAPH_ADJACENCY_FORMAT_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct GraphAdjacencyManifest {
@@ -479,6 +478,7 @@ mod tests {
             serde_json::from_slice::<GraphAdjacencyManifest>(&raw).expect("decode graph manifest");
 
         // Assert
+        assert_eq!(manifest.format_version, 1);
         assert_eq!(
             manifest,
             GraphAdjacencyManifest {

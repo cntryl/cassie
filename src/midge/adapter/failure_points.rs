@@ -12,7 +12,7 @@ thread_local! {
         const { Cell::new(DocumentWriteStorageFailure::WriteConflict) };
 }
 
-/// Storage error injected before a document write batch commits.
+/// Storage error injected before a write batch commits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[doc(hidden)]
 pub enum DocumentWriteStorageFailure {
@@ -109,7 +109,7 @@ pub fn set_document_write_conflicts_remaining(remaining: u8) {
     set_document_write_storage_failures(DocumentWriteStorageFailure::WriteConflict, remaining);
 }
 
-/// Injects `remaining` storage failures of one kind into this thread's next document write batch commits.
+/// Injects `remaining` storage failures of one kind into this thread's next write-batch commits.
 #[doc(hidden)]
 pub fn set_document_write_storage_failures(failure: DocumentWriteStorageFailure, remaining: u8) {
     DOCUMENT_WRITE_STORAGE_FAILURE.with(|kind| kind.set(failure));
@@ -123,7 +123,7 @@ pub fn document_write_storage_failures_remaining() -> u8 {
     DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(Cell::get)
 }
 
-pub(crate) fn check_document_write_conflict_injection() -> Result<(), CassieError> {
+pub(crate) fn check_document_write_storage_failure_injection() -> Result<(), CassieError> {
     let injected = DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(|counter| {
         let remaining = counter.get();
         if remaining == 0 {

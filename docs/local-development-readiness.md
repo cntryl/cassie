@@ -15,10 +15,11 @@ for each SQL capability's current status.
   target.
 - Correctness fixtures use Midge memory mode. Persistence, restart, and recovery
   cases use isolated local storage.
-- GitHub Actions remain disabled. Local evidence is reported as local; hosted
-  checks are unavailable.
+- The latest repository permission readback (2026-10-30) reports Actions enabled,
+  but `AGENTS.md` prohibits workflow dispatch until the user changes that direction.
+  Keep local evidence separate and report unrun hosted checks as blocked.
 
-## Latest merged v0.3 checkpoint — 2026-10-30
+## 0.1.0 MVP scope checkpoint — 2026-10-30
 
 Main includes the scope record from PR #1141 and the checkpoint correction from
 PR #1142. The four named clients passed six focused probes and selected
@@ -32,10 +33,14 @@ gate passed on that exact code/test tree: build, all Cargo tests with zero
 failures, strict workspace/all-target/all-feature pedantic Clippy, formatting, touched-test
 validation and documentation validation.
 
-The selected v0.3 client/session, catalog/TypeInfo, COPY ingress, table/rebuild,
+That gate predates the 2026-10-30 package and Cassie-owned format reset. It is
+historical candidate evidence and does not validate the 0.1.0 baseline. Run the
+ordered gate on the exact release commit before claiming release qualification.
+
+The selected 0.1.0 client/session, catalog/TypeInfo, COPY ingress, table/rebuild,
 ordinary table, materialized-view and scalar-index lifecycle criteria are
 complete. The broad issues #846, #821, #817, #826 and #842 remain open without
-the v0.3 milestone for future named workflows. GitHub's current milestone
+the projection-store milestone for future named workflows. GitHub's current milestone
 membership contains 12 issues, all closed, and no open members.
 
 PR #1141's validated documentation tree was `5f0dbeb5`. PR #1142's validation
@@ -44,20 +49,21 @@ over 126 Markdown documents. The code and test files remain the exact tree
 validated by PR #1140.
 
 These are local candidate results, not hosted CI, desktop certification,
-production qualification or a complete PostgreSQL wire state/packet matrix.
-GitHub Actions remain disabled. The full ordered gate remains required on the
-immutable release commit.
+production qualification or a complete PostgreSQL wire state/packet matrix. The
+latest uncommitted local qualification is recorded in [Validation](testing/validation.md).
+Actions permission reports enabled, but the no-dispatch instruction remains active.
+The full ordered gate remains required on the immutable release commit.
 
 The unaliased WIRE-012 mixed catalog/ordinary prepared-join shape remains a
-confirmed `42P18` gap, but the pinned workflow uses aliases and no named v0.3
+confirmed `42P18` gap, but the pinned workflow uses aliases and no named 0.1.0
 client acceptance requires the unaliased form. It is recorded as deferred under
 #780, which PR #1137 closed for its bounded selected scope. #846's selected
 rebuild ingress is complete under PR #1127. #821's named-client/session subset
 and #817's selected catalog/TypeInfo subset are complete on `f7c7ef6`; their
-broader conditional session and catalog work is outside v0.3. Existing limited
+broader conditional session and catalog work is outside 0.1.0. Existing limited
 table/query `COPY TO` support remains as documented in Feature Support;
 additional export options/formats and general dump/restore workflows are
-outside v0.3. The earlier branch-specific failure map below is not the current
+outside 0.1.0. The earlier branch-specific failure map below is not the current
 main failure state; selected client, catalog, wire and COPY evidence is recorded
 in PRs #1127, #1136, #1137, #1138, #1139, and the current validation entry.
 
@@ -173,10 +179,15 @@ rows)` inside a passing Cargo test target. This is not benchmark qualification.
 The full suite initially hit a timeout in the pre-existing matching-backend
 cancellation test; the test now retains its bound listener and synchronizes at
 the `pg_sleep` entry boundary before sending CancelRequest. Both cancellation
-tests and the subsequent full suite pass. Release readiness remains incomplete:
-selected local-development/client workflows and exact-release-commit browser,
-benchmark, and disk-backed operational evidence still need resolution. Actions
-remain disabled, so hosted checks and publication are unavailable.
+tests and the subsequent full suite pass.
+
+The current uncommitted worktree now passes the ordered Rust gate, selected psql,
+tokio-postgres, SQLx and Diesel workflows, real-Cassie desktop/mobile browser
+checks, Tier 5 rebuild curves, a three-start local-storage restart smoke, and
+snapshot/restore with partial-copy cleanup; see [Validation](testing/validation.md). Release readiness remains incomplete because
+these results are not on an immutable release commit. Repeat the complete required
+gate there. Repository Actions permission reports enabled, but the active
+no-dispatch instruction leaves backend hosted checks and publication unavailable.
 
 ## Baseline discovery
 
@@ -451,7 +462,7 @@ strict workspace/all-target/all-feature pedantic Clippy, formatting check, and
 touched-test policy validation. Review substantial diffs with Jev and source
 inspection; turn confirmed findings into regression tests. Deliver one
 substantial PR at a time. Do not change or dispatch CI/release workflows under
-the current Actions-disabled direction.
+the current no-dispatch direction.
 
 ## Starting Evidence
 

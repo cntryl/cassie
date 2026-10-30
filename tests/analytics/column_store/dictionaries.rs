@@ -1,4 +1,4 @@
-//! Finite CBC2 dictionary corruption witnesses using the current decoder format.
+//! Finite CBC1 dictionary corruption witnesses using the current decoder format.
 use cassie::app::CassieError;
 use cassie::midge::adapter::{
     column_chunk_codec_for_test, decode_column_chunk_for_test,
@@ -10,8 +10,8 @@ type DecodedViews = [(&'static str, Result<Vec<Value>, CassieError>); 3];
 
 fn dictionary_twin() -> Vec<u8> {
     let mut bytes = Vec::with_capacity(68);
-    bytes.extend_from_slice(b"CBC2");
-    bytes.extend_from_slice(&2_u16.to_le_bytes()); // Current format version.
+    bytes.extend_from_slice(b"CBC1");
+    bytes.extend_from_slice(&1_u16.to_le_bytes()); // Current format version.
     bytes.extend_from_slice(&[4, 3]); // UTF-8 logical type, dictionary codec.
     bytes.extend_from_slice(&0_u16.to_le_bytes()); // Flags.
     for value in [2_u32, 0, 1, 33] {

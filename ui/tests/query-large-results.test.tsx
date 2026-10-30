@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import { createDataRuntime } from "@askrjs/askr/data";
+import type { JSXElement } from "@askrjs/askr/jsx-runtime";
 
 import { QueryResultJson } from "@/components/query/query-result-json";
 import { QueryResultTable } from "@/components/query/query-result-table";
@@ -15,7 +16,7 @@ function largeResult(count: number): QueryExecutionResult {
   };
 }
 
-async function mount(component: () => JSX.Element) {
+async function mount(component: () => JSXElement) {
   cleanupApp("app");
   document.body.innerHTML = '<div id="app"></div>';
   const root = document.getElementById("app");

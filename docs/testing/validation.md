@@ -5245,10 +5245,11 @@ Jev's initial low-confidence review flagged a possible remaining selected item
 (additional-gap probability 0.65, confidence 0.48), so the four focused current
 main groups were run. On that evidence Jev selected `none` for remaining
 selected acceptance (0.70) and recommended removing the broader #846 work from
-v0.3 (0.93). The selected checkboxes are therefore complete; query/table COPY
-TO, additional encodings and options, and general dump/restore I/O remain open
-future work without a v0.3 milestone until a named workflow selects them. The
-closed #780 dependency was completed via PR #1137. GitHub Actions remain
+v0.3 (0.93). The selected checkboxes are therefore complete. The limited
+table/query COPY TO forms already documented in Feature Support remain
+supported; additional export options/formats and general dump/restore I/O stay
+open future work without a v0.3 milestone until a named workflow selects them.
+The closed #780 dependency was completed via PR #1137. GitHub Actions remain
 disabled, so hosted checks are unavailable and are not claimed as passed.
 
 A final Jev review weakly selected `wording_correction` (0.45 probability,
@@ -5257,3 +5258,14 @@ candidate complete while keeping the immutable-release full gate separate
 (0.88 probability, 0.84 confidence). The issue wording follows that distinction:
 the candidate-scoped COPY acceptance is complete, and final release
 qualification remains pending.
+
+## 2026-10-29 — #846 existing COPY TO support boundary
+
+Review against [Feature Support](../feature-support.md) found that limited
+table/query `COPY TO` forms and binary scalar export are already documented as
+supported. They are not the selected v0.3 rebuild workflow, but the scope record
+must preserve their existing support status. The #846 issue and readiness docs
+now defer only additional export options/formats and generic dump/restore or
+migration workflows. Jev selected this supported-versus-additional distinction
+with probability 1.0; the action was to correct the wording without changing
+runtime behavior or the selected v0.3 acceptance.

@@ -37,11 +37,12 @@ production qualification or a complete PostgreSQL wire state/packet matrix.
 The unaliased WIRE-012 mixed catalog/ordinary prepared-join shape remains a
 confirmed `42P18` gap, but the pinned workflow uses aliases and no named v0.3
 client acceptance requires the unaliased form. It is recorded as deferred under
-#780, which PR #1137 closed for its bounded selected scope. #846's broader
-export/dump/restore forms are removed from v0.3; its selected rebuild ingress
-is complete under PR #1127. The earlier branch-specific failure map below is
-not the current main failure state; the selected wire/COPY items were later
-requalified by #1127, #1136 and #1137.
+#780, which PR #1137 closed for its bounded selected scope. #846's selected
+rebuild ingress is complete under PR #1127. Existing limited table/query
+`COPY TO` support remains as documented in Feature Support; additional export
+options/formats and general dump/restore workflows are outside v0.3. The earlier
+branch-specific failure map below is not the current main failure state; the
+selected wire/COPY items were later requalified by #1127, #1136 and #1137.
 
 ## Historical checkpoint — 2026-10-29, pre-merge candidate
 

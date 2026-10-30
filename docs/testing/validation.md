@@ -5599,11 +5599,11 @@ Local validation on the source and test content now present at `92bf7c77`:
 - `cargo bench --locked --bench tier3_system_query -- --test` on exact PR head `92bf7c77` — all 12 correctness/resource owners passed. The graph expansion and two shorter time-series timing samples were noisy and remain diagnostic; this run makes no performance promotion or latency claim.
 - The focused `column_batch_query/100k` run passed at 42.86 queries/s with 3.0% RSD. Tier 3 startup and mixed-load measurements remain recorded above for candidate `02ac6585`; they are not release performance claims.
 
-GitHub run `41117159326` is analyzing the exact PR head. At the latest readback,
-the Python, Actions, and JavaScript/TypeScript analyzers had passed, the Rust
-analyzer was still running, and the umbrella CodeQL check was skipped. The
-hosted result for alert #522 is therefore pending. No backend, benchmark, or
-release workflow was dispatched.
+GitHub run `41117159326` completed successfully on the exact PR head. The
+Python, Actions, JavaScript/TypeScript, and Rust analyzers passed, as did the
+umbrella CodeQL check. An open-alert query scoped to
+`refs/pull/1144/head` returned no alerts after this run. No backend, benchmark,
+or release workflow was dispatched.
 
 ## 2026-10-30 — local ARM64 container candidate smoke
 
@@ -5656,9 +5656,10 @@ scope.
 
 Read-only GitHub readback confirms PR #1144 remains open at remote head
 `92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba`, assigned to the v0.1.0 milestone,
-with merge state `UNSTABLE` and no review decision. The current CodeQL run is
-still analyzing Rust; no human review is recorded. The v0.1.0 milestone has no
-open issue, and this PR is its sole open item.
+with merge state `CLEAN` and no review decision. All four analyzer jobs and the
+umbrella CodeQL check passed; the open-alert query for the PR ref returned no
+alerts. No human review is recorded. The v0.1.0 milestone has no open issue,
+and this PR is its sole open item.
 
 `gh workflow list --all` has no `Operational readiness` workflow; the
 `Containers`, `Version`, `CI Backend`, `CI Frontend`, and `Publish` workflows
@@ -5669,10 +5670,10 @@ confirms no workflow by that name. The cross-architecture runbook and capacity
 docs now mark its former automation as unavailable and retain the manual
 evidence procedure. No v0.1.0 GitHub release or `v0.1.0` tag exists.
 
-The exact release-commit gate, completion of the current hosted CodeQL run,
-independent PR review, immutable container digest, retained amd64/arm64
-rehearsal bundles, release sign-offs, and publication therefore remain
-incomplete. These are release blockers, not local test failures.
+The exact release-commit gate, independent PR review, immutable container
+digest, retained amd64/arm64 rehearsal bundles, release sign-offs, and
+publication therefore remain incomplete. These are release blockers, not
+local test failures.
 
 ## 2026-10-30 — #827 deferred milestone reconciliation
 

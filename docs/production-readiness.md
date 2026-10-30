@@ -85,12 +85,11 @@ disabled. No `Operational readiness` workflow is present in the current workflow
 that direction; no backend, benchmark, or release workflow was dispatched.
 
 PR #1144 remains open at `92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba`. CodeQL run
-`41117159326` is analyzing this exact head: the Python, Actions, and JavaScript/TypeScript
-analyzers passed, Rust was still running at the latest readback, and the umbrella CodeQL check was
-skipped. This head includes the type-only diagnostic and regression for alert 522
-(`rust/cleartext-logging`); its hosted result is pending completion of the Rust analysis. The only
-recorded review is a GitHub Advanced Security bot comment; no human review or review decision is
-recorded. This analysis does not establish backend test or release qualification.
+`41117159326` completed successfully on this exact head: all four language analyzers and the
+umbrella check passed. The head includes the type-only diagnostic and regression for alert 522
+(`rust/cleartext-logging`); an open-alert query scoped to `refs/pull/1144/head` returned no alerts.
+The only recorded review is a GitHub Advanced Security bot comment; no human review or review
+decision is recorded. This analysis does not establish backend test or release qualification.
 
 The 2026-10-30 `main` branch-protection readback returned no applicable repository rules and the
 branch-protection endpoint returned 404 (`Branch not protected`). There is no active `main` branch

@@ -1,7 +1,7 @@
 # Materialized Projection Lifecycle
 
 This document defines Cassie's supported local lifecycle for analytical materialized projections.
-It does not change the separate Stable CBM2 column-batch contract. Projection creation, rebuild,
+It does not change the separate Stable CBM1 column-batch contract. Projection creation, rebuild,
 verification, activation, fallback, and repair operate on one Cassie instance and its Midge data
 directory; replication, remote coordination, and traffic movement remain external.
 

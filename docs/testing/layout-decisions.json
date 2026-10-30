@@ -14,7 +14,7 @@
       "suite": "analytics",
       "category": "column_store"
     },
-    "tests/analytics/column_store/column_batch_format_v2.rs": {
+    "tests/analytics/column_store/column_batch_format_v1.rs": {
       "suite": "analytics",
       "category": "column_store"
     },

@@ -1,9 +1,9 @@
 //! Primitive numeric handoff uses existing metadata, keys and checksum authority.
-use super::super::storage_v2;
+use super::super::storage_v1;
 use super::super::CURRENT_COLUMN_BATCH_CODEC_VERSION;
 use crate::app::CassieError;
 use crate::catalog::{ColumnBatchChunkMeta, ColumnBatchSegmentMeta};
-use crate::midge::adapter::column_batch_format_v2::{decode_numeric_column_chunk, NumericValues};
+use crate::midge::adapter::column_batch_format_v1::{decode_numeric_column_chunk, NumericValues};
 use crate::midge::adapter::{ColumnBatchScanFallbackReason, Midge};
 
 pub(super) struct Loaded {
@@ -21,7 +21,7 @@ pub(super) fn load(
 ) -> Result<Result<Loaded, ColumnBatchScanFallbackReason>, CassieError> {
     if !matches!(meta.logical_type.as_str(), "int64" | "float64") {
         return Ok(
-            storage_v2::load_field_chunk(tx, relation_id, index_id, segment, field, meta)?.map(
+            storage_v1::load_field_chunk(tx, relation_id, index_id, segment, field, meta)?.map(
                 |loaded| Loaded {
                     raw: loaded.raw,
                     values: loaded.values,
@@ -45,7 +45,7 @@ pub(super) fn load(
     else {
         return Ok(Err(ColumnBatchScanFallbackReason::SegmentMissing));
     };
-    if !storage_v2::valid_chunk_bytes(&raw, meta) {
+    if !storage_v1::valid_chunk_bytes(&raw, meta) {
         return Ok(Err(ColumnBatchScanFallbackReason::SegmentChecksumMismatch));
     }
     let Ok(decoded) = decode_numeric_column_chunk(&raw, segment.row_count) else {

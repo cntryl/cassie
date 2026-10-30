@@ -10,6 +10,7 @@ The canonical documents have non-overlapping ownership:
 - `performance-contracts.md` owns performance contracts, access paths, resource accounting, and benchmark evidence requirements.
 - `production-readiness.md` owns readiness evidence and remaining Production-ready blockers.
 - `product-roadmap.md` owns Cassie's product scope, release order, exclusions, and future work.
+- `release-baseline.md` records the unreleased 0.1.0 starting point and Cassie-owned format boundary.
 
 Other documents may explain subsystem design or operator workflows. They must defer status, compatibility, performance, and readiness claims to the canonical owner above.
 
@@ -31,6 +32,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [Production Readiness](production-readiness.md)
 - [Support, Release, and Security-Response Policy](support-policy.md)
 - [Product Roadmap](product-roadmap.md)
+- [0.1.0 Release Baseline](release-baseline.md)
 - [Indexes and Constraints](indexes-and-constraints.md)
 - [Recoverable Vector Index Publication](vector-index-publication.md)
 - [Architecture Diagrams](architecture-diagrams.md)

@@ -1,5 +1,10 @@
 # Query Engine Invariant Ownership
 
+> This ledger preserves a historical audit baseline and its pinned source
+> paths. Cassie 0.1.0 uses CBC1/CBM1 and the `storage_v1` module; references to
+> the former CBC2/CBM2 and `storage_v2` paths below identify that older audit
+> revision only.
+
 This Target 1 ledger maps the audit baseline to current child ownership. It does
 not promote support or turn source/test mappings into executed acceptance.
 Audit baseline: `5f9bfd807d4e647401fbb8a587429c48425af61e`. Live issue/dependency snapshot: 2026-10-05T15:03:57.780Z;

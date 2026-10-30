@@ -1,6 +1,6 @@
 # Product Roadmap
 
-This document owns Cassie's product goal, scope, exclusions, release order, and future work. Current behavior and status live in [Feature Support](feature-support.md); production evidence and blockers live in [Production Readiness](production-readiness.md). The finite local schema/query/pgwire gate is defined in [Local Development Readiness](local-development-readiness.md).
+This document owns Cassie's product goal, scope, exclusions, release order, and future work. The unreleased 0.1.0 starting point is recorded in [Release Baseline](release-baseline.md). Current behavior and status live in [Feature Support](feature-support.md); production evidence and blockers live in [Production Readiness](production-readiness.md). The finite local schema/query/pgwire gate is defined in [Local Development Readiness](local-development-readiness.md).
 
 Work is dependency-ordered. A later item does not begin while an earlier correctness or format dependency remains open.
 
@@ -13,13 +13,15 @@ contract; applications query those read models through standard drivers, ORMs,
 psql and pgAdmin. PostgreSQL 18.6 is a semantic oracle for selected in-scope
 behavior. Cassie does not target complete PostgreSQL server or SQL parity.
 
-The first shippable release, v0.3 Projection Store, is the initial product
-milestone: it delivers the write and lifecycle path for maintaining read models.
-v0.4 adds the query and retrieval surface. v1.0 qualifies the documented product
-for production. Each milestone has its own acceptance scope; completing a later
-milestone does not expand Cassie's permanent architectural boundaries.
+Cassie has never been released. The first planned release, v0.1.0 Projection
+Store, is the initial MVP: it delivers the write and lifecycle path for
+maintaining read models. The earlier 0.2.0 package value and v0.3/v0.4 roadmap
+labels were unreleased development planning. v0.2 adds the query and retrieval
+surface. v1.0 qualifies the documented product for production. Each milestone
+has its own acceptance scope; completing a later milestone does not expand
+Cassie's permanent architectural boundaries.
 
-The bounded extension compatibility surface is part of v0.4: #843 owns the
+The bounded extension compatibility surface is part of v0.2: #843 owns the
 selected `vector` and `pgcrypto` identities, including the `pgcrypto.digest`
 SHA-256 path and extension catalog/lifecycle behavior. #844 owns vector SQL and
 retrieval semantics. These are finite SQL compatibility shims, not extension
@@ -80,13 +82,13 @@ explicitly when a gate slips.
 | Target date | Gate | Exit condition | Status |
 | --- | --- | --- | --- |
 | 2026-10-23 | Replay contract | Prove that the owning database-family row batch can commit before the replay-state transaction, that ledger and checkpoint commit together, and that same-batch retry handles both an aborted replay-state commit and an error response after a successful replay-state commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
-| 2026-10-30 | v0.3 scope freeze | Map every issue assigned to v0.3 to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Complete; live milestone membership has 12 issues, all closed. #777/#780 selected client and wire scopes are complete via PRs #1136/#1137; #846 COPY ingress via #1127; #821/#817 selected client/session and catalog/TypeInfo subsets are verified; and #826 rebuild/table lifecycle plus #842 scalar-index lifecycle are complete on merged main `7b9d29f4` (PR #1140). Broader #846/#821/#817/#826/#842 work and #819/#823 remain outside v0.3. Selected runtime acceptance is complete; final immutable-release validation remains a separate gate. GitHub Actions remain disabled. |
+| 2026-10-30 | Initial MVP scope freeze (then internally labeled v0.3) | Map every issue assigned to the projection-store milestone to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Complete; GraphQL readback shows the milestone's 12 issues closed and no open members. #777/#780 selected client and wire scopes are complete via PRs #1136/#1137; #846 COPY ingress via #1127; #821/#817 selected client/session and catalog/TypeInfo subsets are verified; and #826 rebuild/table lifecycle plus #842 scalar-index lifecycle are complete on merged main `7b9d29f4` (PR #1140). Broader #846/#821/#817/#826/#842 work and #819/#823 remain outside the 0.1.0 MVP. Selected runtime acceptance is complete; final immutable-release validation remains a separate gate. GitHub Actions remain disabled. |
 
 The replay recovery proof is complete locally; this does not establish a hosted
-pass. If later changes invalidate the proof, keep the v0.3 target visibly at risk
-and reforecast at the next Friday review; do not silently weaken the contract.
-v0.3 is the MVP qualification target, not approval to replace a production hosted
-PostgreSQL service. Production replacement depends on the v1.0 qualification and
+pass. If later changes invalidate the proof, keep the v0.1.0 target visibly at
+risk and reforecast at the next Friday review; do not silently weaken the
+contract. v0.1.0 is the MVP qualification target, not approval to replace a
+production hosted PostgreSQL service. Production replacement depends on the v1.0 qualification and
 workload-specific migration evidence.
 
 The local-development release gate is tracked separately from production
@@ -95,24 +97,25 @@ query combinations, and pgwire/client workflows in
 [Local Development Readiness](local-development-readiness.md). Passing this
 gate does not promote broader PostgreSQL compatibility or production support.
 
-The v0.3 scope map records live membership and the bounded MVP contract. The
-2026-10-30 scope-freeze gate is complete: all issues assigned to v0.3 have
-written exits, no open issue remains in the milestone, and selected client
-owners and dependencies are reconciled. New local-development work must close a
-named v0.3 acceptance or resolve a confirmed blocker, with its owner and
-prerequisite path explicitly bounded.
+The [v0.1.0 scope map](v0.1-scope-map.md) records live membership and the
+bounded MVP contract. The 2026-10-30 scope-freeze gate is complete: all issues
+assigned to the projection-store milestone have written exits, no open issue
+remains in the milestone, and selected client owners and dependencies are
+reconciled. New local-development work must close a named v0.1.0 acceptance or
+resolve a confirmed blocker, with its owner and prerequisite path explicitly
+bounded.
 
 | Milestone | Target date | Ships |
 | --- | --- | --- |
-| [v0.3 Projection store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows, duplicate ledger, and checkpoint use the owning database family; today the row batch and replay-state metadata still commit in separate transactions, and replay retries reconcile a committed row batch when the replay-state commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-database transactions and full PostgreSQL parity. |
-| [v0.4 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | 2027-04-09 | The documented read-side contract for read-model workloads: selected relational SQL, type and function families, bounded extension compatibility in #843, plus full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; “complete SELECT” means the documented Cassie profile, not PostgreSQL-wide syntax or semantics. |
+| [v0.1.0 Projection store](https://github.com/cntryl/cassie/milestone/7) | 2026-12-11 | MVP: a projector maintains durable read models on one Cassie node through the selected PostgreSQL-wire write contract. Projection rows, duplicate ledger, and checkpoint use the owning database family; today the row batch and replay-state metadata still commit in separate transactions, and replay retries reconcile a committed row batch when the replay-state commit did not complete. The release also covers schema/object lifecycle, rebuild operations, and named driver/ORM/psql workflows. It excludes cross-database transactions and full PostgreSQL parity. |
+| [v0.2 Query and retrieval](https://github.com/cntryl/cassie/milestone/8) | 2027-04-09 | The documented read-side contract for read-model workloads: selected relational SQL, type and function families, bounded extension compatibility in #843, plus full-text, vector and hybrid retrieval. Each capability is bounded by Feature Support and its live issue criteria; “complete SELECT” means the documented Cassie profile, not PostgreSQL-wide syntax or semantics. |
 | [v1.0 Production release](https://github.com/cntryl/cassie/milestone/9) | 2027-08-27 | Production qualification of the projection store and documented query surface: representative single-node resource and concurrency evidence, cross-path invariants, restart/recovery and rebuild, operational thresholds and one release ledger. Qualification does not expand product scope. |
 
 Requests for additional type families enter a release milestone only after the
 current Type Contract selects their logical identity, SQL and wire semantics,
 and durable representation where required. Already implemented native
 families are part of the current type inventory; unselected requests such as
-range, XML, geometric and money types remain proposals outside v0.4 until
+range, XML, geometric and money types remain proposals outside v0.2 until
 selected for a documented read-model use case.
 
 Failing tests are the implementation backlog: implement the behavior; never
@@ -132,7 +135,7 @@ removed, not implemented.
 The finite [Query Engine Target 1](query-engine-target.md) and complete
 [ownership ledger](query-engine-invariant-ownership.md) define the milestone gates,
 exact child blockers, semantic oracles and promotion boundaries. Existing Stable
-CBM2 codecs and selected column acceleration do not establish a common typed
+CBM1 codecs and selected column acceleration do not establish a common typed
 relational pipeline; that pipeline remains Planned.
 
 1. Contracts and correctness: retain the merged [#748](https://github.com/cntryl/cassie/issues/748)/[#749](https://github.com/cntryl/cassie/issues/749)/[#750](https://github.com/cntryl/cassie/issues/750) repairs, [#432](https://github.com/cntryl/cassie/issues/432) Boolean contract and [#751](https://github.com/cntryl/cassie/issues/751)/[#754](https://github.com/cntryl/cassie/issues/754) foundation;

@@ -10,9 +10,9 @@ all possible interleavings or later relational kernels.
 ## Runtime boundaries
 
 The controlled row cursor produces admitted typed columns directly. Unfiltered
-covered CBC2 projections retain validated immutable encoded bytes and metadata
-alongside their decoded typed accessor. CBC2 decoding remains a storage
-conversion; it is not zero-copy native decoding. Filtered CBC2 execution retains
+covered CBC1 projections retain validated immutable encoded bytes and metadata
+alongside their decoded typed accessor. CBC1 decoding remains a storage
+conversion; it is not zero-copy native decoding. Filtered CBC1 execution retains
 its existing pruning, complete framing and late selected decode path.
 
 Typed selection survives filter and projection. Numeric comparisons, Boolean
@@ -40,7 +40,7 @@ EXISTS early-stop behavior without retrying a partially read source or weakening
 memory admission. `should_select_typed_transport_at_the_available_carrier_budget_boundary`
 exercises the shared-owner threshold and release behavior.
 
-CBC2 projections with filters, LIMIT or OFFSET retain the existing bounded
+CBC1 projections with filters, LIMIT or OFFSET retain the existing bounded
 reader. Unbounded encoded transport checks metadata and total retained source
 memory before opening field data; insufficient transport capacity selects the
 existing reader. Field-read and subsequent operator admission failures remain
@@ -55,7 +55,7 @@ under a one MiB budget and verify that retained query memory is released.
 | PIPE-02 | `should_retain_validated_encoded_backing_after_advancing_the_scan`: encoded bytes and admitted metadata survive a derived slice and are released by its final drop; read counters remain observable. |
 | PIPE-03 | `should_match_scalar_bag_across_selected_batch_boundaries`: scalar comparison at 0, 1, 7, 64, 1023, 1024 and 1025; `should_preserve_filtered_projection_across_multiple_batches`. |
 | PIPE-04 | `should_apply_selection_once_through_filtered_projection`, `should_keep_selected_text_backing_admitted_until_the_last_alias_drops`; existing owned row projection remains a fallback. |
-| PIPE-07 | Existing `should_apply_encoded_conjunctions_with_null_predicates_exactly`; filtered ALP/CBC2 retains the established selected-decode boundary. |
+| PIPE-07 | Existing `should_apply_encoded_conjunctions_with_null_predicates_exactly`; filtered ALP/CBC1 retains the established selected-decode boundary. |
 | COL-03 | `should_roundtrip_sparse_validity_with_signed_extremes` and typed sparse/repeated BIGINT selection. |
 | COL-04 | `should_validate_bounded_row_id_chunk_roundtrips`; encoded source reuses the existing row-ID loader and validators. |
 | COL-05 | `should_return_declared_id_when_column_index_covers_only_other_fields`; internal identity references use the controlled row cursor. |
@@ -71,7 +71,7 @@ under a one MiB budget and verify that retained query memory is released.
 | VEX-07 | Private `capability::expression` selects the native subset or bounded scalar expression boundary; unsupported source shapes retain existing execution. |
 | VEX-08 | `should_match_scalar_dispatch_for_supported_predicates`; shared binder contextual typing precedes execution. |
 | VEX-09 | `should_preserve_typed_transport_identity_through_repeated_projection`, parameter type inference and alias-copy admission. Views/CTEs retain existing execution. |
-| VEX-16 | Direct projected historical row decode plus existing filtered CBC2 selected decode; streaming LIMIT/EXISTS/result-cap tests verify visit bounds. |
+| VEX-16 | Direct projected historical row decode plus existing filtered CBC1 selected decode; streaming LIMIT/EXISTS/result-cap tests verify visit bounds. |
 | VEX-18 | Scalar bag equivalence across empty and preferred batch boundaries, with sparse NULLs and repeated aliased projection. Ordering remains outside this unordered slice. |
 | VEX-23 | Direct Midge-to-typed scan and typed filter/projection witnesses; explicit admitted output conversion. Later relational operators keep their named fallback boundaries. |
 | VEX-24 | Typed staged portal witness plus existing mutation/RETURNING tests; staged cursor owns the immutable overlay and mutations retain existing statement atomicity. |

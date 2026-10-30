@@ -1,6 +1,7 @@
 # Snapshot And Restore
 
-Cassie snapshot manifest v2 defines local single-node recovery artifacts.
+Cassie snapshot manifest v1 defines local single-node recovery artifacts for
+the 0.1.0 baseline.
 They complement replay and rebuild; they do not provide remote backup orchestration, replication, quorum recovery, or distributed failover.
 
 ## Format
@@ -15,7 +16,7 @@ A snapshot directory contains:
 The copied Midge directory includes `cf0`, `cf1`, and every opaque per-database
 `db-*` family registered in the source catalog. The manifest records:
 
-- snapshot manifest format version (currently 2)
+- snapshot manifest format version (currently 1)
 - Cassie version
 - generated timestamp in milliseconds
 - schema and data epochs
@@ -28,14 +29,14 @@ Projection hash metadata includes algorithm, digest length, canonical encoder ve
 
 ## Workflow
 
-Create snapshots from a local data directory with `Cassie::create_snapshot_from_data_dir`. The v2
+Create snapshots from a local data directory with `Cassie::create_snapshot_from_data_dir`. The v1
 manifest records schema/data epochs and every collection generation before copying, then verifies
 the same values after the copy. If the source changed during the copy, Cassie removes the partial
 payload and returns an error so the caller can retry.
 Restore snapshots into an empty local data directory with `Cassie::restore_snapshot`, then start a Cassie instance against that restored directory.
 
 Restore validates the manifest before copying data and validates the copied Midge state before accepting the target.
-It rejects v1 and every other non-v2 snapshot manifest; Cassie does not provide a legacy snapshot reader or migration path. Restore also rejects incompatible Cassie versions, non-compatible status, unsupported Midge data paths, invalid projection hash metadata, epoch or collection-generation mismatches, projection-state mismatches, and malformed recovery journal/debt records.
+It rejects version 2 and every other non-v1 snapshot manifest; Cassie does not provide a pre-release snapshot reader or migration path. Restore also rejects incompatible Cassie versions, non-compatible status, unsupported Midge data paths, invalid projection hash metadata, epoch or collection-generation mismatches, projection-state mismatches, and malformed recovery journal/debt records.
 
 ## Safety Boundary
 

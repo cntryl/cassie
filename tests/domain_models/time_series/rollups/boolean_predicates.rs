@@ -1,4 +1,4 @@
-//! Reuses the current version-2 parseable-SQL rollup definition format.
+//! Reuses the current version-1 parseable-SQL rollup definition format.
 
 use super::support_sql_fixture::{sql_fixture, SqlFixture};
 use cassie::app::CassieError;
@@ -89,6 +89,7 @@ fn should_use_canonical_false_rollup_filters_during_refresh() {
         .get_rollup(&name)
         .expect("created rollup");
     assert_eq!(metadata.version, RollupMeta::CURRENT_VERSION);
+    assert_eq!(metadata.version, 1);
     assert_eq!(metadata.state, RollupState::Ready);
     let filter_sql = metadata.filter_expr.as_deref().expect("stored SQL filter");
     let parsed = cassie::sql::parser::parse_statement(&format!("SELECT 1 WHERE {filter_sql}"))

@@ -11,8 +11,8 @@ use super::bitpack;
 mod constant;
 use constant::constant_eligible;
 
-pub(super) const MAGIC: &[u8; 4] = b"CBC2";
-pub(super) const FORMAT_VERSION: u16 = 2;
+pub(super) const MAGIC: &[u8; 4] = b"CBC1";
+pub(super) const FORMAT_VERSION: u16 = 1;
 const HEADER_LEN: usize = 34;
 pub(super) const BLOCK_LEN: usize = 128;
 pub(super) const MAX_VALUE_COUNT: usize = 1_048_576;

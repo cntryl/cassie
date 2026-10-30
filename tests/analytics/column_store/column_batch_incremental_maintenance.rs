@@ -145,9 +145,9 @@ fn should_rewrite_only_the_touched_segment_for_single_row_dml() {
             .expect("scan persisted column chunks")
             .into_iter()
             .filter(|(_, value)| {
-                value.starts_with(b"CBM2")
-                    || value.starts_with(b"CBR2")
-                    || value.starts_with(b"CBC2")
+                value.starts_with(b"CBM1")
+                    || value.starts_with(b"CBR1")
+                    || value.starts_with(b"CBC1")
             })
             .count();
 

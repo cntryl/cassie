@@ -4,16 +4,17 @@ This document is the canonical owner for beta and Production-ready evidence. Fea
 
 ## Current Classification
 
-The Cassie query-engine baseline is a **Production Candidate** for the documented pre-release
-support envelope. Stable capabilities are supported; Experimental capabilities are available for
-evaluation under their documented limits and may change before 1.0.
+The Cassie query-engine baseline is a **Production Candidate** for the documented
+unreleased 0.1.0 support envelope. Stable capabilities are supported;
+Experimental capabilities are available for evaluation under their documented
+limits and may change before 1.0.
 
 Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient to catch correctness and gross resource-bound regressions, but it is not representative-scale evidence for production latency, capacity, cancellation latency, recovery time, or sustained concurrency.
 
 ## Product release boundary
 
-The [Product Roadmap](product-roadmap.md) defines v0.3 Projection Store as the
-initial shippable release, v0.4 as the query and retrieval release, and v1.0 as
+The [Product Roadmap](product-roadmap.md) defines v0.1.0 Projection Store as the
+initial planned release, v0.2 as the query and retrieval release, and v1.0 as
 the production release. This document defines only the evidence required for
 production readiness; it does not expand the SQL or server compatibility scope.
 
@@ -24,7 +25,11 @@ of its retained test corpus is a v1.0 parity gate. Current v1.0 acceptance is
 owned by the live milestone, the [release checklist](release-checklist.md), and
 the production evidence below.
 
-## Current Local Check Snapshot
+## Prior Local Check Snapshot — 2026-10-29
+
+This candidate-tree result predates the 2026-10-30 0.1.0 format reset. It does
+not qualify the current baseline; repeat the ordered gate on the exact release
+commit.
 
 On 2026-10-29 the ordered local gate passed on the documentation scope
 worktree `audit/v03-mvp-scope-20261029`, based on main
@@ -155,7 +160,7 @@ active branch protection.
   quality; replay throughput was noisy on hosted runners and is diagnostic only, not a replay
   latency or capacity objective. Column-store table mode, retained 250k capacity rows, and
   deployment-profile alert thresholds (#8) remain outside this promotion.
-- Canonical v2 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary and FSST decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates. ALP codec version 1 has the retained `should_emit_cross_architecture_stable_alp_bytes` golden fixture, sparse-null and exact-result fallback/rebuild coverage, unknown-version fail-closed coverage, and paired `perf.column.alp_selective_scan.2k` / `perf.column.alp_plain_scan_baseline.2k` owners enforcing at least 75% chunk-byte savings and no more than 5% p95 query regression. FSST codec version 1 has the retained `should_emit_cross_architecture_stable_fsst_bytes` full-CBC2 golden fixture plus sparse-null selected decoding, corrupt-unselected-value rejection, fallback/restart rebuild, and rename/drop lifecycle coverage. Its paired `perf.column.fsst_selective_scan.2k` / `perf.column.fsst_plain_scan_baseline.2k` owners require every candidate chunk to save at least 25% and the selective-query p95 to remain within 5% of forced plain. Each of the four candidate/baseline pairs owns an independent sampling group and alternates within each invocation so unrelated pairs cannot create sustained drift or bias the comparison.
+- Canonical v1 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary and FSST decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates. ALP codec version 1 has the retained `should_emit_cross_architecture_stable_alp_bytes` golden fixture, sparse-null and exact-result fallback/rebuild coverage, unknown-version fail-closed coverage, and paired `perf.column.alp_selective_scan.2k` / `perf.column.alp_plain_scan_baseline.2k` owners enforcing at least 75% chunk-byte savings and no more than 5% p95 query regression. FSST codec version 1 has the retained `should_emit_cross_architecture_stable_fsst_bytes` full-CBC1 golden fixture plus sparse-null selected decoding, corrupt-unselected-value rejection, fallback/restart rebuild, and rename/drop lifecycle coverage. Its paired `perf.column.fsst_selective_scan.2k` / `perf.column.fsst_plain_scan_baseline.2k` owners require every candidate chunk to save at least 25% and the selective-query p95 to remain within 5% of forced plain. Each of the four candidate/baseline pairs owns an independent sampling group and alternates within each invocation so unrelated pairs cannot create sustained drift or bias the comparison.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
 - Monaco sanitizer resolution is controlled by the scoped override in
   [`ui/package.json`](../ui/package.json). Release qualification requires a fresh
@@ -252,7 +257,7 @@ Midge evidence owns persistence, durability, and recovery mechanics. Cassie read
 ## Query Engine Target 1 Promotion Boundary
 
 [Query Engine Target 1](query-engine-target.md) separates the finite PostgreSQL
-wire/dialect/client, physical ColumnStore, CBM2 acceleration, typed relational
+wire/dialect/client, physical ColumnStore, CBM1 acceleration, typed relational
 execution and embedding-vector retrieval axes. The
 [invariant ownership ledger](query-engine-invariant-ownership.md) maps all baseline
 obligations to child acceptance and existing operational owners.

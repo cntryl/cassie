@@ -3,9 +3,10 @@
 This record defines the finite single-node Cassie obligations selected by
 [#771](https://github.com/cntryl/cassie/issues/771), after prerequisite #751.
 The qualification baseline is `3b03dd4db34ac88f533501d0484ecdc3cf223a2e`.
-The current Cassie layout marker is `cassie-midge-layout-v4`; each database's
-catalog records now share its row family. This unreleased layout does not need
-an in-place migration. Image framing, journals and the direct Midge API remain
+The 0.1.0 Cassie layout marker is `cassie-midge-layout-v1-0.1.0`; each database's
+catalog records share its row family. Earlier unreleased Cassie layouts are
+rejected and require a fresh data directory; there is no in-place migration.
+Image framing, journals and the direct Midge API remain
 authoritative at their documented boundaries.
 Named witnesses qualify their exercised boundaries, rather than every possible
 interleaving or deployment profile. Full ordered validation and exact-head hosted
@@ -61,7 +62,7 @@ database FORMAT 9 and SST V5; 0.5.1 retains those formats. Its cloud layout
 uses metadata layout v2, WAL publication catalog v3, lease v4 and
 initialization sentinel v3. Midge rejects older local formats without
 mutation and provides no in-place upgrade from 0.4.x. Cassie's logical layout
-marker remains `cassie-midge-layout-v4`; that marker does not make an older
+marker is now `cassie-midge-layout-v1-0.1.0`; the 0.1.0 epoch does not make an older
 Midge store compatible.
 
 Use a new empty `CASSIE_STORAGE_PATH` or cloud prefix for a current deployment.

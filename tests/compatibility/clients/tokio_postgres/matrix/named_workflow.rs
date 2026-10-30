@@ -1,4 +1,4 @@
-//! Named tokio-postgres read-model workflow for the v0.3 client contract.
+//! Named tokio-postgres read-model workflow for the v0.1.0 client contract.
 
 use super::{db_error, CompatibilityServer};
 

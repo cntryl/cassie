@@ -117,25 +117,18 @@ fn should_roundtrip_binary_temporal_uuid_array_fields() {
                 .to_storage_json(),
         })
     );
-    assert_eq!(&encoded[0..4], b"CRB3");
+    assert_eq!(&encoded[0..4], b"CRB1");
 }
 
 #[test]
-fn should_persist_array_bounds_shape_and_distinct_null_values() {
+fn should_preserve_array_dimensions_when_rows_are_encoded() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
-        fields: vec![
-            FieldSchema {
-                name: "matrix".to_string(),
-                data_type: DataType::Array(Box::new(DataType::Int)),
-                nullable: true,
-            },
-            FieldSchema {
-                name: "documents".to_string(),
-                data_type: DataType::Array(Box::new(DataType::Jsonb)),
-                nullable: true,
-            },
-        ],
+        fields: vec![FieldSchema {
+            name: "matrix".to_string(),
+            data_type: DataType::Array(Box::new(DataType::Int)),
+            nullable: true,
+        }],
     });
     let matrix = SqlArray::new(
         vec![
@@ -156,23 +149,39 @@ fn should_persist_array_bounds_shape_and_distinct_null_values() {
         ],
     )
     .unwrap();
-    let documents =
-        SqlArray::from_elements(vec![Value::Null, Value::Json(serde_json::Value::Null)]).unwrap();
-    let payload = serde_json::json!({
-        "matrix": matrix.to_storage_json(),
-        "documents": documents.to_storage_json(),
-    });
+    let payload = serde_json::json!({"matrix": matrix.to_storage_json()});
 
     // Act
     let encoded = encode_row(&schema, &payload).unwrap();
     let decoded = decode_row(&schema, &encoded).unwrap();
     let restored_matrix = SqlArray::from_storage_json(&decoded["matrix"]).unwrap();
-    let restored_documents = SqlArray::from_storage_json(&decoded["documents"]).unwrap();
 
     // Assert
     assert_eq!(restored_matrix, matrix);
     assert_eq!(restored_matrix.dimensions()[0].lower_bound, -1);
     assert_eq!(restored_matrix.dimensions()[1].lower_bound, 4);
+}
+
+#[test]
+fn should_distinguish_sql_null_from_json_null_in_array() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "documents".to_string(),
+            data_type: DataType::Array(Box::new(DataType::Jsonb)),
+            nullable: true,
+        }],
+    });
+    let documents =
+        SqlArray::from_elements(vec![Value::Null, Value::Json(serde_json::Value::Null)]).unwrap();
+    let payload = serde_json::json!({"documents": documents.to_storage_json()});
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+    let restored_documents = SqlArray::from_storage_json(&decoded["documents"]).unwrap();
+
+    // Assert
     assert_eq!(
         restored_documents.elements(),
         &[Value::Null, Value::Json(serde_json::Value::Null)]
@@ -180,7 +189,7 @@ fn should_persist_array_bounds_shape_and_distinct_null_values() {
 }
 
 #[test]
-fn should_roundtrip_crb3_text_arrays_with_nulls_in_every_position() {
+fn should_roundtrip_crb1_text_arrays_with_nulls_in_every_position() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
         fields: vec![
@@ -229,7 +238,7 @@ fn should_roundtrip_crb3_text_arrays_with_nulls_in_every_position() {
 }
 
 #[test]
-fn should_roundtrip_crb3_fixed_width_arrays_with_null_elements() {
+fn should_roundtrip_crb1_fixed_width_arrays_with_null_elements() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
         fields: vec![
@@ -266,7 +275,7 @@ fn should_roundtrip_crb3_fixed_width_arrays_with_null_elements() {
 }
 
 #[test]
-fn should_roundtrip_crb3_multidimensional_arrays_with_null_elements() {
+fn should_roundtrip_crb1_multidimensional_arrays_with_null_elements() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
         fields: vec![FieldSchema {
@@ -293,7 +302,7 @@ fn should_roundtrip_crb3_multidimensional_arrays_with_null_elements() {
 }
 
 #[test]
-fn should_reject_crb3_array_null_with_nonzero_payload_length() {
+fn should_reject_crb1_array_null_with_nonzero_payload_length() {
     // Arrange
     let encoded_array = [2, TYPE_NULL, 1, 0xff, TYPE_STRING, 1, b'a'];
     let mut cursor = Cursor::new(&encoded_array);

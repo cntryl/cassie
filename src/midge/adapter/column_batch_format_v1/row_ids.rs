@@ -2,8 +2,8 @@ use crate::app::CassieError;
 
 use super::binary::{invalid, write_bytes, write_u16, write_u32, write_u64, Reader};
 
-const MAGIC: &[u8; 4] = b"CBR2";
-const FORMAT_VERSION: u16 = 2;
+const MAGIC: &[u8; 4] = b"CBR1";
+const FORMAT_VERSION: u16 = 1;
 const MAX_ROW_IDS: usize = 1_048_576;
 const MAX_ROW_ID_BYTES: usize = 1024 * 1024;
 const MAX_CHUNK_BYTES: usize = 64 * 1024 * 1024;

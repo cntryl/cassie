@@ -8,7 +8,7 @@ use super::{
     ColumnBatchScanOp, ColumnBatchSegmentMeta, IndexMeta, Midge,
     CURRENT_COLUMN_BATCH_CODEC_VERSION,
 };
-use crate::midge::adapter::column_batch_format_v2::{
+use crate::midge::adapter::column_batch_format_v1::{
     checksum_hex, decode_column_chunk, decode_row_ids, decode_selected_column_chunk,
     encode_column_chunk, encode_plain_column_chunk, encode_row_ids, summary_checksum, LogicalType,
 };
@@ -214,7 +214,7 @@ fn encode_segment_with_policy(
             row_id_end,
             row_count: rows.len(),
             null_bitmap_available: true,
-            encoding_version: 2,
+            encoding_version: 1,
             row_ids: row_ids_meta,
             field_chunks,
             summary_checksum,

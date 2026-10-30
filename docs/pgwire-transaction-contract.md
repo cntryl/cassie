@@ -90,9 +90,9 @@ under #819 and its named downstream owners. Focused executable evidence is in
 [`transaction_errors.rs`](../tests/sql_mutations/transactions/transaction_errors.rs)
 and the completing PR; the implementation does not complete #819.
 
-## Projector concurrency boundary for v0.3
+## Projector concurrency boundary for v0.1.0
 
-The MVP retains the wait behavior described above. No selected v0.3 workflow
+The MVP retains the wait behavior described above. No selected v0.1.0 workflow
 requires overlapping conflicting writes on the unqualified key shapes or paths
 listed above. The qualified wait applies only where both the owning write and
 the competing write meet the documented slice. Otherwise, coordinate all writers
@@ -109,7 +109,7 @@ fail at commit.
 This operating boundary does not assert that unsupported concurrent cases are
 rejected or that their final results are qualified. Scalar-index lifecycle
 coverage does not establish concurrent conflict-wait semantics. Wider waits
-and snapshot isolation remain open under #819, outside the v0.3 milestone.
+and snapshot isolation remain open under #819, outside the v0.1.0 milestone.
 Representative concurrency qualification remains a v1.0 obligation.
 
 ## Selected local-development contract expansion

@@ -207,7 +207,7 @@ fn inspect_hnsw_layout(cassie: &Cassie, collection: &str) -> HnswLayoutInspectio
         .expect("vector state manifest");
     let node_count = entries
         .iter()
-        .filter(|(_, raw)| raw.first() == Some(&2))
+        .filter(|(_, raw)| raw.first() == Some(&1))
         .count();
     let monolithic_graph_count = entries
         .iter()

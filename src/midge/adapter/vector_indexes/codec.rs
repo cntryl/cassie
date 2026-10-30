@@ -4,8 +4,8 @@ use crate::app::CassieError;
 use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
 
 const FORMAT_VERSION: u8 = 1;
-const HNSW_FORMAT: u8 = 2;
-const STATE_FORMAT: u8 = 3;
+const HNSW_FORMAT: u8 = 1;
+const STATE_FORMAT: u8 = 1;
 
 #[derive(Debug)]
 pub(super) struct PersistedHnswManifest {
@@ -481,6 +481,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn should_encode_vector_index_state_with_version_one() {
+        // Arrange
+        let state = PersistedVectorIndexState {
+            built_generation: 4,
+            hnsw_graph: None,
+            ivfflat_training: None,
+        };
+
+        // Act
+        let encoded = encode_vector_index_state(&state).expect("encode vector index state");
+        let decoded = decode_vector_index_state(&encoded).expect("decode vector index state");
+
+        // Assert
+        assert_eq!(encoded[0], 1);
+        assert_eq!(decoded.built_generation, state.built_generation);
+        let mut old_format = encoded;
+        old_format[0] = 3;
+        assert!(decode_vector_index_state(&old_format).is_err());
+    }
+
+    #[test]
     fn should_roundtrip_compact_normalized_vector_without_identity_fields() {
         // Arrange
         let record = NormalizedVectorRecord {
@@ -526,6 +547,7 @@ mod tests {
 
         // Assert
         assert_eq!(decoded, node);
+        assert_eq!(encoded[0], 1);
         assert!(!encoded
             .windows(node.id.len())
             .any(|window| window == node.id.as_bytes()));

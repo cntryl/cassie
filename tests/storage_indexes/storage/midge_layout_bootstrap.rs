@@ -150,7 +150,7 @@ fn should_route_schema_data_temp_across_families() {
         );
         assert!(schema_entries
             .iter()
-            .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v4"));
+            .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v1-0.1.0"));
         assert!(
             temp_entries.is_empty(),
             "temp family should start empty in bootstrap state"
@@ -240,7 +240,7 @@ fn should_reject_v1_data_prefix_after_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible cassie-midge-layout-v4 storage layout"),
+                .contains("incompatible cassie-midge-layout-v1-0.1.0 storage layout"),
             "unexpected error: {error}"
         );
 
@@ -260,7 +260,9 @@ fn should_reject_older_layout_marker() {
             .raw_scan_prefix(StorageFamily::Schema, b"")
             .unwrap()
             .into_iter()
-            .find_map(|(key, value)| (value.as_slice() == b"cassie-midge-layout-v4").then_some(key))
+            .find_map(|(key, value)| {
+                (value.as_slice() == b"cassie-midge-layout-v1-0.1.0").then_some(key)
+            })
             .expect("baseline layout marker key");
         let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
         tx.put(marker_key, b"cassie-midge-lexkey-v4".to_vec(), None)
@@ -281,7 +283,7 @@ fn should_reject_older_layout_marker() {
         "unexpected error: {diagnostic}"
     );
     assert!(
-        diagnostic.contains("expected baseline marker 'cassie-midge-layout-v4'"),
+        diagnostic.contains("expected baseline marker 'cassie-midge-layout-v1-0.1.0'"),
         "unexpected error: {diagnostic}"
     );
 

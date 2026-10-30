@@ -26,7 +26,7 @@ fn should_store_hnsw_manifest_as_binary_record() {
     let (_, _, state_value, _, _) = inspect_hnsw_layout(&cassie, collection);
 
     // Assert
-    assert_eq!(state_value.first(), Some(&3));
+    assert_eq!(state_value.first(), Some(&1));
     assert_ne!(state_value.first(), Some(&0x7b));
 
     let _ = std::fs::remove_dir_all(path);

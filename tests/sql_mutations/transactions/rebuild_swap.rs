@@ -1,4 +1,4 @@
-//! Transactional staging-table replacement for the v0.3 rebuild workflow.
+//! Transactional staging-table replacement for the v0.1.0 rebuild workflow.
 
 use super::super::support_sql_fixture::sql_fixture;
 use cassie::app::{Cassie, CassieSession};

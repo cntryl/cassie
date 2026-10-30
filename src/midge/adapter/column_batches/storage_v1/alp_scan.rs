@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use super::{find_field_chunk, valid_chunk_bytes};
-use crate::midge::adapter::column_batch_format_v2::{
+use crate::midge::adapter::column_batch_format_v1::{
     alp_scaled_to_f64, decode_alp_scaled, scale_alp_value, Codec, LogicalType,
 };
 use crate::midge::adapter::column_batches::{

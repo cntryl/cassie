@@ -15,9 +15,9 @@ use super::binary::{
 };
 use super::chunk::{Codec, LogicalType};
 
-const MAGIC: &[u8; 4] = b"CBM2";
-pub(crate) const FORMAT_VERSION: u16 = 2;
-pub(crate) const SUMMARY_VERSION: u16 = 2;
+const MAGIC: &[u8; 4] = b"CBM1";
+pub(crate) const FORMAT_VERSION: u16 = 1;
+pub(crate) const SUMMARY_VERSION: u16 = 1;
 const CHECKSUM_LEN: usize = 32;
 const MAX_MANIFEST_BYTES: usize = 64 * 1024 * 1024;
 const MAX_STRING_BYTES: usize = 1024 * 1024;

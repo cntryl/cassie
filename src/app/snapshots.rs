@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{current_time_millis, Cassie, CassieError, Midge};
 
-const SNAPSHOT_FORMAT_VERSION: u16 = 2;
+const SNAPSHOT_FORMAT_VERSION: u16 = 1;
 const SNAPSHOT_MANIFEST_FILE: &str = "cassie-snapshot-manifest.json";
 const SNAPSHOT_MIDGE_DIR: &str = "midge";
 const SNAPSHOT_COMPATIBLE: &str = "compatible";

@@ -79,7 +79,7 @@ fn should_create_snapshot_manifest_with_projection_checkpoint_hash_metadata() {
 
     // Assert
     assert_eq!(manifest, manifest_file);
-    assert_eq!(manifest.format_version, 2);
+    assert_eq!(manifest.format_version, 1);
     assert_eq!(manifest.cassie_version, env!("CARGO_PKG_VERSION"));
     assert_eq!(manifest.generated_ms, 1_234);
     assert_eq!(manifest.compatibility_status, "compatible");
@@ -236,7 +236,7 @@ fn should_restore_operational_snapshot_selected_by_environment() {
 }
 
 #[test]
-fn should_reject_v1_snapshot_manifest_with_expected_v2_before_restore() {
+fn should_reject_v2_snapshot_manifest_after_v1_rebaseline() {
     // Arrange
     use_local_storage();
     let source = data_dir("snapshot_incompatible_source");
@@ -254,7 +254,7 @@ fn should_reject_v1_snapshot_manifest_with_expected_v2_before_restore() {
     let manifest_path = std::path::Path::new(&snapshot).join("cassie-snapshot-manifest.json");
     let mut manifest: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
-    manifest["format_version"] = serde_json::json!(1);
+    manifest["format_version"] = serde_json::json!(2);
     std::fs::write(
         &manifest_path,
         serde_json::to_vec_pretty(&manifest).unwrap(),
@@ -267,7 +267,7 @@ fn should_reject_v1_snapshot_manifest_with_expected_v2_before_restore() {
     // Assert
     assert!(error
         .to_string()
-        .contains("snapshot manifest version 1 is unsupported; expected 2"));
+        .contains("snapshot manifest version 2 is unsupported; expected 1"));
     assert!(!std::path::Path::new(&restored).exists());
 
     let _ = std::fs::remove_dir_all(source);

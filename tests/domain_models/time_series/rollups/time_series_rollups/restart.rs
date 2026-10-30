@@ -94,7 +94,7 @@ fn should_recover_expression_rollup_after_restart() {
                 recovery.metrics()["rollups"]["rewrite_hits"].as_u64(),
                 Some(1)
             );
-            assert_eq!(metadata.version, 2);
+            assert_eq!(metadata.version, 1);
             assert_eq!(metadata.aggregates[0].expression, "max((\"amount\" * 10))");
 
             let _ = std::fs::remove_dir_all(path);

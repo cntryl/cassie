@@ -11,7 +11,7 @@ concrete proposal. The exact approved bytes are
 [retained verbatim](../tests/corpus/postgresql18/v3-catalog-export-approved-proposal.txt),
 SHA256 `c2bd35c33658e5bdccc46809226a4c46d2b6bb89999fa219124ad9ca49b8b625`.
 The user's subsequent “proceeds” selects these remaining details; the archive's
-historical proposal wording is superseded by this approval record. CRB3 framing,
+historical proposal wording is superseded by this approval record. CRB1 framing,
 durable/wire identity separation, codec tags 1–9 and lossless
 export/recreate/reimport were already approved separately. This record selects
 the remaining metadata bytes and export envelope for #793; it does not claim
@@ -192,7 +192,7 @@ Each type body additionally contains:
 A field descriptor is `{field_id, name, type_id, descriptor_revision, typmod,
 collation_id, nullable, dropped}`. `field_id` is positive u32, typmod is i32,
 collation is an ID or null, and booleans are strict. Composite field list order
-is its positional SQL order; CRB3 directory order is ascending field_id. A
+is its positional SQL order; CRB1 directory order is ascending field_id. A
 dropped field retains its historical identity/descriptor. Descriptor changes
 allocate a new immutable revision. Named enum rename preserves member identity;
 addition publishes a new ordered member list. A domain's NULL constraint is
@@ -218,7 +218,7 @@ PostgreSQL requires it. Runtime owners specify and qualify those semantics.
 | namespace | `database_id` |
 | role | `attributes`, `password_verifier` (secret or null), `memberships`, `settings`; verifiers never enter logs and export only through authorized roles |
 | collation | `provider`, `locale`, `deterministic`, `provider_version`, `provider_data_sha256`; version mismatch blocks use/rebuild until owner qualification |
-| relation | `relation_kind`, `schema_revision` (u32 CRB3 version), ordered `fields`, `constraints`, `partition`, `inheritance`, `storage_mode`, `derived_objects`; physical Midge CF handles are recreated, not portable IDs |
+| relation | `relation_kind`, `schema_revision` (u32 CRB1 version), ordered `fields`, `constraints`, `partition`, `inheritance`, `storage_mode`, `derived_objects`; physical Midge CF handles are recreated, not portable IDs |
 | sequence | `data_type_id`, signed-string `start`, `increment`, `minimum`, `maximum`, `last_value`, booleans `cycle`, `is_called`, u64-string `cache`, `owned_by` (field reference or null); export includes the actual durable reservation boundary |
 | routine | `routine_kind`, `language`, `arguments`, `return_type_id`, `return_revision`, `returns_set`, `volatility`, `strict`, `parallel`, `security_definer`, `definition`, `configuration` |
 | constraint | `constraint_kind`, `relation_id`, `field_ids`, `definition`, `deferrable`, `initially_deferred`, `validated`, `referenced_relation_id`, `referenced_field_ids`; irrelevant fields are explicitly null/empty |
@@ -260,7 +260,7 @@ Record kinds are:
    dependencies before dependents where acyclic; mutually referring nominal
    descriptors use a declared identity pass followed by complete definitions.
 2. `row`: `{kind, relation_id, schema_revision, row_identity, fields}`.
-   `schema_revision` is the u32 CRB3 schema version, distinct from u64 catalog
+   `schema_revision` is the u32 CRB1 schema version, distinct from u64 catalog
    object/descriptor revision. `row_identity` preserves the source's logical document/row key; physical CF
    names and sidecars do not define portable identity. `fields` is an ordered
    list of `{field_id,present,datum}`. Absent has present=false, datum=null;

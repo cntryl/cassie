@@ -142,7 +142,7 @@ fn should_rebuild_truncated_fsst_chunk_after_restart() {
         .raw_scan_prefix(StorageFamily::Data, b"")
         .expect("scan FSST chunks")
         .into_iter()
-        .find(|(_, value)| value.starts_with(b"CBC2"))
+        .find(|(_, value)| value.starts_with(b"CBC1"))
         .expect("persisted FSST chunk");
     chunk_bytes.pop().expect("non-empty FSST chunk");
 
@@ -247,9 +247,9 @@ fn should_reconcile_invalid_summary_formats_after_restart() {
     let repaired_rows = sum_amount_as(&repaired, "column_batch_summary_recovery", "repaired_total")
         .expect("old format rebuilt");
     let (key, _) = metadata_entry(&repaired);
-    let mut malformed = b"CBM2".to_vec();
-    malformed.extend_from_slice(&2_u16.to_le_bytes());
-    malformed.extend_from_slice(&2_u16.to_le_bytes());
+    let mut malformed = b"CBM1".to_vec();
+    malformed.extend_from_slice(&1_u16.to_le_bytes());
+    malformed.extend_from_slice(&1_u16.to_le_bytes());
     malformed.extend_from_slice(&[0_u8; 8]);
     malformed.extend_from_slice(Sha256::digest(malformed.as_slice()).as_slice());
     write_raw_value(&repaired, key, malformed);
@@ -351,7 +351,7 @@ fn should_fallback_when_any_segment_is_missing_and_rebuild_after_restart() {
         .raw_scan_prefix(StorageFamily::Data, b"")
         .expect("scan column segments")
         .into_iter()
-        .find_map(|(key, value)| value.starts_with(b"CBR2").then_some(key))
+        .find_map(|(key, value)| value.starts_with(b"CBR1").then_some(key))
         .expect("persisted segment");
     fixture
         .cassie

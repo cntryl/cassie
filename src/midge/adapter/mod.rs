@@ -24,8 +24,8 @@ use crate::midge::row_blob::{
 use crate::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;
 
-mod column_batch_format_v2;
-pub(crate) use column_batch_format_v2::NumericValues;
+mod column_batch_format_v1;
+pub(crate) use column_batch_format_v1::NumericValues;
 mod core;
 pub mod fulltext_retrieval;
 mod raw_ops;
@@ -33,7 +33,7 @@ mod transactions;
 pub(crate) use transactions::{AdapterTransaction, StorageOverlay};
 
 #[doc(hidden)]
-pub use column_batch_format_v2::{
+pub use column_batch_format_v1::{
     column_chunk_codec_for_test, decode_column_batch_manifest_for_test,
     decode_column_chunk_for_test, decode_row_id_chunk_for_test,
     decode_selected_column_chunk_for_test, encode_column_batch_manifest_for_test,

@@ -539,7 +539,7 @@ fn should_reject_legacy_projection_metadata_on_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible cassie-midge-layout-v4 storage layout"),
+                .contains("incompatible cassie-midge-layout-v1-0.1.0 storage layout"),
             "unexpected error: {error}"
         );
 

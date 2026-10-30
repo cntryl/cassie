@@ -152,7 +152,7 @@ fn should_fallback_before_top_k_publishes_a_dangling_candidate() {
         .raw_scan_prefix(StorageFamily::Data, b"")
         .expect("data records")
         .into_iter()
-        .find(|(_, value)| value.starts_with(b"CRB3"))
+        .find(|(_, value)| value.starts_with(b"CRB1"))
         .map(|(key, _)| key)
         .expect("source row");
     delete_data_key(&cassie, source_key);
@@ -203,7 +203,7 @@ fn should_rebuild_old_fulltext_metadata_during_startup() {
         .into_iter()
         .next()
         .expect("fulltext metadata");
-    metadata[4] = 1;
+    metadata[4] = 2;
     replace_artifact(&cassie, *b"FTM1", metadata);
     drop(cassie);
 
@@ -217,7 +217,7 @@ fn should_rebuild_old_fulltext_metadata_during_startup() {
         .expect("upgraded fulltext metadata");
 
     // Assert
-    assert_eq!(metadata[4], 2, "startup must publish only v2 metadata");
+    assert_eq!(metadata[4], 1, "startup must publish only v1 metadata");
     assert!(restarted
         .midge
         .get_persisted_fulltext_index_state(COLLECTION, INDEX)

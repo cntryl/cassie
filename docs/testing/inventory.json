@@ -636,9 +636,9 @@
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_preserve_signed_zero_bits_in_constant_codec_candidates",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_preserve_signed_zero_bits_in_constant_codec_candidates",
       "name": "should_preserve_signed_zero_bits_in_constant_codec_candidates",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 15,
       "end_line": 49,
       "inline_modules": [],
@@ -648,7 +648,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_preserve_signed_zero_bits_in_constant_codec_candidates"
+          "name": "column_batch_format_v1::should_preserve_signed_zero_bits_in_constant_codec_candidates"
         }
       ],
       "attributes": [
@@ -660,16 +660,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_emit_platform_independent_little_endian_plain_integer_bytes",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_emit_platform_independent_little_endian_plain_integer_bytes",
       "name": "should_emit_platform_independent_little_endian_plain_integer_bytes",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 52,
       "end_line": 68,
       "inline_modules": [],
@@ -679,7 +679,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_emit_platform_independent_little_endian_plain_integer_bytes"
+          "name": "column_batch_format_v1::should_emit_platform_independent_little_endian_plain_integer_bytes"
         }
       ],
       "attributes": [
@@ -691,16 +691,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_roundtrip_sparse_validity_with_signed_extremes",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_roundtrip_sparse_validity_with_signed_extremes",
       "name": "should_roundtrip_sparse_validity_with_signed_extremes",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 71,
       "end_line": 87,
       "inline_modules": [],
@@ -710,7 +710,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_roundtrip_sparse_validity_with_signed_extremes"
+          "name": "column_batch_format_v1::should_roundtrip_sparse_validity_with_signed_extremes"
         }
       ],
       "attributes": [
@@ -722,16 +722,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_select_each_typed_codec_deterministically",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_select_each_typed_codec_deterministically",
       "name": "should_select_each_typed_codec_deterministically",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 90,
       "end_line": 117,
       "inline_modules": [],
@@ -741,7 +741,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_select_each_typed_codec_deterministically"
+          "name": "column_batch_format_v1::should_select_each_typed_codec_deterministically"
         }
       ],
       "attributes": [
@@ -753,16 +753,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_roundtrip_zero_width_frame_of_reference_blocks",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_roundtrip_zero_width_frame_of_reference_blocks",
       "name": "should_roundtrip_zero_width_frame_of_reference_blocks",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 120,
       "end_line": 131,
       "inline_modules": [],
@@ -772,7 +772,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_roundtrip_zero_width_frame_of_reference_blocks"
+          "name": "column_batch_format_v1::should_roundtrip_zero_width_frame_of_reference_blocks"
         }
       ],
       "attributes": [
@@ -784,16 +784,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_limit_float_codec_selection_to_supported_encodings",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_limit_float_codec_selection_to_supported_encodings",
       "name": "should_limit_float_codec_selection_to_supported_encodings",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 134,
       "end_line": 148,
       "inline_modules": [],
@@ -803,7 +803,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_limit_float_codec_selection_to_supported_encodings"
+          "name": "column_batch_format_v1::should_limit_float_codec_selection_to_supported_encodings"
         }
       ],
       "attributes": [
@@ -815,16 +815,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_roundtrip_repeated_utf8_with_fsst",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_roundtrip_repeated_utf8_with_fsst",
       "name": "should_roundtrip_repeated_utf8_with_fsst",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 151,
       "end_line": 172,
       "inline_modules": [],
@@ -834,7 +834,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_roundtrip_repeated_utf8_with_fsst"
+          "name": "column_batch_format_v1::should_roundtrip_repeated_utf8_with_fsst"
         }
       ],
       "attributes": [
@@ -846,16 +846,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_decode_only_selected_fsst_positions",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_decode_only_selected_fsst_positions",
       "name": "should_decode_only_selected_fsst_positions",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 175,
       "end_line": 211,
       "inline_modules": [],
@@ -865,7 +865,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_decode_only_selected_fsst_positions"
+          "name": "column_batch_format_v1::should_decode_only_selected_fsst_positions"
         }
       ],
       "attributes": [
@@ -877,16 +877,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_emit_cross_architecture_stable_fsst_bytes",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_emit_cross_architecture_stable_fsst_bytes",
       "name": "should_emit_cross_architecture_stable_fsst_bytes",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 214,
       "end_line": 243,
       "inline_modules": [],
@@ -896,7 +896,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_emit_cross_architecture_stable_fsst_bytes"
+          "name": "column_batch_format_v1::should_emit_cross_architecture_stable_fsst_bytes"
         }
       ],
       "attributes": [
@@ -908,16 +908,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_roundtrip_alp_finite_values_bit_exactly",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_roundtrip_alp_finite_values_bit_exactly",
       "name": "should_roundtrip_alp_finite_values_bit_exactly",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 246,
       "end_line": 266,
       "inline_modules": [],
@@ -927,7 +927,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_roundtrip_alp_finite_values_bit_exactly"
+          "name": "column_batch_format_v1::should_roundtrip_alp_finite_values_bit_exactly"
         }
       ],
       "attributes": [
@@ -939,16 +939,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_emit_cross_architecture_stable_alp_bytes",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_emit_cross_architecture_stable_alp_bytes",
       "name": "should_emit_cross_architecture_stable_alp_bytes",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 269,
       "end_line": 292,
       "inline_modules": [],
@@ -958,7 +958,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_emit_cross_architecture_stable_alp_bytes"
+          "name": "column_batch_format_v1::should_emit_cross_architecture_stable_alp_bytes"
         }
       ],
       "attributes": [
@@ -970,16 +970,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_reject_alp_values_reconstructed_outside_i64",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_reject_alp_values_reconstructed_outside_i64",
       "name": "should_reject_alp_values_reconstructed_outside_i64",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 295,
       "end_line": 316,
       "inline_modules": [],
@@ -989,7 +989,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_reject_alp_values_reconstructed_outside_i64"
+          "name": "column_batch_format_v1::should_reject_alp_values_reconstructed_outside_i64"
         }
       ],
       "attributes": [
@@ -1001,16 +1001,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_keep_signed_zero_out_of_alp",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_keep_signed_zero_out_of_alp",
       "name": "should_keep_signed_zero_out_of_alp",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 319,
       "end_line": 338,
       "inline_modules": [],
@@ -1020,7 +1020,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_keep_signed_zero_out_of_alp"
+          "name": "column_batch_format_v1::should_keep_signed_zero_out_of_alp"
         }
       ],
       "attributes": [
@@ -1032,16 +1032,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_fall_back_to_plain_when_savings_do_not_clear_the_threshold",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_fall_back_to_plain_when_savings_do_not_clear_the_threshold",
       "name": "should_fall_back_to_plain_when_savings_do_not_clear_the_threshold",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 341,
       "end_line": 353,
       "inline_modules": [],
@@ -1051,7 +1051,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_fall_back_to_plain_when_savings_do_not_clear_the_threshold"
+          "name": "column_batch_format_v1::should_fall_back_to_plain_when_savings_do_not_clear_the_threshold"
         }
       ],
       "attributes": [
@@ -1063,16 +1063,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_reduce_representative_compressible_bytes_by_at_least_twenty_five_percent",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_reduce_representative_compressible_bytes_by_at_least_twenty_five_percent",
       "name": "should_reduce_representative_compressible_bytes_by_at_least_twenty_five_percent",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 356,
       "end_line": 374,
       "inline_modules": [],
@@ -1082,7 +1082,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_reduce_representative_compressible_bytes_by_at_least_twenty_five_percent"
+          "name": "column_batch_format_v1::should_reduce_representative_compressible_bytes_by_at_least_twenty_five_percent"
         }
       ],
       "attributes": [
@@ -1094,16 +1094,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_validate_selected_dictionary_payload_before_partial_decode",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_validate_selected_dictionary_payload_before_partial_decode",
       "name": "should_validate_selected_dictionary_payload_before_partial_decode",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 377,
       "end_line": 406,
       "inline_modules": [],
@@ -1113,7 +1113,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_validate_selected_dictionary_payload_before_partial_decode"
+          "name": "column_batch_format_v1::should_validate_selected_dictionary_payload_before_partial_decode"
         }
       ],
       "attributes": [
@@ -1125,16 +1125,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_reject_every_truncated_column_chunk_boundary",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_reject_every_truncated_column_chunk_boundary",
       "name": "should_reject_every_truncated_column_chunk_boundary",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 409,
       "end_line": 427,
       "inline_modules": [],
@@ -1144,7 +1144,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_reject_every_truncated_column_chunk_boundary"
+          "name": "column_batch_format_v1::should_reject_every_truncated_column_chunk_boundary"
         }
       ],
       "attributes": [
@@ -1156,16 +1156,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_reject_unsupported_or_oversized_column_chunks",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_reject_unsupported_or_oversized_column_chunks",
       "name": "should_reject_unsupported_or_oversized_column_chunks",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 430,
       "end_line": 445,
       "inline_modules": [],
@@ -1175,7 +1175,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_reject_unsupported_or_oversized_column_chunks"
+          "name": "column_batch_format_v1::should_reject_unsupported_or_oversized_column_chunks"
         }
       ],
       "attributes": [
@@ -1187,16 +1187,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_validate_bounded_row_id_chunk_roundtrips",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_validate_bounded_row_id_chunk_roundtrips",
       "name": "should_validate_bounded_row_id_chunk_roundtrips",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 448,
       "end_line": 469,
       "inline_modules": [],
@@ -1206,7 +1206,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_validate_bounded_row_id_chunk_roundtrips"
+          "name": "column_batch_format_v1::should_validate_bounded_row_id_chunk_roundtrips"
         }
       ],
       "attributes": [
@@ -1218,16 +1218,16 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
       }
     },
     {
-      "id": "tests/analytics/column_store/column_batch_format_v2.rs::should_validate_manifest_roundtrips_against_truncation_or_checksum_failure",
+      "id": "tests/analytics/column_store/column_batch_format_v1.rs::should_validate_manifest_roundtrips_against_truncation_or_checksum_failure",
       "name": "should_validate_manifest_roundtrips_against_truncation_or_checksum_failure",
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "line": 472,
       "end_line": 515,
       "inline_modules": [],
@@ -1237,7 +1237,7 @@
       "instances": [
         {
           "suite": "analytics",
-          "name": "column_batch_format_v2::should_validate_manifest_roundtrips_against_truncation_or_checksum_failure"
+          "name": "column_batch_format_v1::should_validate_manifest_roundtrips_against_truncation_or_checksum_failure"
         }
       ],
       "attributes": [
@@ -1249,7 +1249,7 @@
         "suite": "analytics",
         "category": "column_store",
         "directory": "tests/analytics/column_store",
-        "file": "tests/analytics/column_store/column_batch_format_v2.rs",
+        "file": "tests/analytics/column_store/column_batch_format_v1.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
@@ -31847,7 +31847,7 @@
       "name": "should_use_canonical_false_rollup_filters_during_refresh",
       "current_file": "tests/domain_models/time_series/rollups/boolean_predicates.rs",
       "line": 74,
-      "end_line": 120,
+      "end_line": 121,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -32060,8 +32060,8 @@
       }
     },
     {
-      "id": "tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs::should_fail_closed_for_legacy_rollup_definition_version",
-      "name": "should_fail_closed_for_legacy_rollup_definition_version",
+      "id": "tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs::should_fail_closed_for_pre_0_1_rollup_definition_version",
+      "name": "should_fail_closed_for_pre_0_1_rollup_definition_version",
       "current_file": "tests/domain_models/time_series/rollups/time_series_rollups/semantics.rs",
       "line": 142,
       "end_line": 191,
@@ -32072,7 +32072,7 @@
       "instances": [
         {
           "suite": "domain_models",
-          "name": "time_series_rollups::should_fail_closed_for_legacy_rollup_definition_version"
+          "name": "time_series_rollups::should_fail_closed_for_pre_0_1_rollup_definition_version"
         }
       ],
       "attributes": [
@@ -252638,8 +252638,8 @@
       }
     },
     {
-      "id": "tests/storage_indexes/snapshots/snapshot_restore.rs::should_reject_v1_snapshot_manifest_with_expected_v2_before_restore",
-      "name": "should_reject_v1_snapshot_manifest_with_expected_v2_before_restore",
+      "id": "tests/storage_indexes/snapshots/snapshot_restore.rs::should_reject_v2_snapshot_manifest_after_v1_rebaseline",
+      "name": "should_reject_v2_snapshot_manifest_after_v1_rebaseline",
       "current_file": "tests/storage_indexes/snapshots/snapshot_restore.rs",
       "line": 239,
       "end_line": 275,
@@ -252650,7 +252650,7 @@
       "instances": [
         {
           "suite": "storage_indexes",
-          "name": "snapshot_restore::should_reject_v1_snapshot_manifest_with_expected_v2_before_restore"
+          "name": "snapshot_restore::should_reject_v2_snapshot_manifest_after_v1_rebaseline"
         }
       ],
       "attributes": [
@@ -253451,7 +253451,7 @@
       "name": "should_reject_older_layout_marker",
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
       "line": 252,
-      "end_line": 289,
+      "end_line": 291,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253481,8 +253481,8 @@
       "id": "tests/storage_indexes/storage/midge_layout_bootstrap.rs::should_bootstrap_via_startup_path",
       "name": "should_bootstrap_via_startup_path",
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
-      "line": 292,
-      "end_line": 314,
+      "line": 294,
+      "end_line": 316,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253512,8 +253512,8 @@
       "id": "tests/storage_indexes/storage/midge_layout_bootstrap.rs::should_preserve_temp_family_during_startup",
       "name": "should_preserve_temp_family_during_startup",
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
-      "line": 317,
-      "end_line": 348,
+      "line": 319,
+      "end_line": 350,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253543,8 +253543,8 @@
       "id": "tests/storage_indexes/storage/midge_layout_bootstrap.rs::should_keep_cassie_metadata_off_default_family",
       "name": "should_keep_cassie_metadata_off_default_family",
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
-      "line": 351,
-      "end_line": 405,
+      "line": 353,
+      "end_line": 407,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253574,8 +253574,8 @@
       "id": "tests/storage_indexes/storage/midge_layout_bootstrap.rs::should_make_startup_idempotent_when_reinvoked",
       "name": "should_make_startup_idempotent_when_reinvoked",
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
-      "line": 408,
-      "end_line": 442,
+      "line": 410,
+      "end_line": 444,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -253605,8 +253605,8 @@
       "id": "tests/storage_indexes/storage/midge_layout_bootstrap.rs::should_fail_startup_when_data_dir_is_not_writable_directory",
       "name": "should_fail_startup_when_data_dir_is_not_writable_directory",
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
-      "line": 445,
-      "end_line": 460,
+      "line": 447,
+      "end_line": 462,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -260548,7 +260548,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 397,
-      "sha256": "b3e4322761032edd50fcc4709d837085533b4bf677f49eebac3096a60920fe5c",
+      "sha256": "42f220b4a86607351a7fc77552a7419398074776614dff4526e86c6d6614e25a",
       "test_declarations": 4,
       "registered_suites": [
         "analytics"
@@ -260559,17 +260559,17 @@
       "line_limit": 1000
     },
     {
-      "current_file": "tests/analytics/column_store/column_batch_format_v2.rs",
+      "current_file": "tests/analytics/column_store/column_batch_format_v1.rs",
       "role": "test_module",
       "action": "keep",
       "lines": 515,
-      "sha256": "d679bd7a15a2d820850aaa02209576e3db69575552a9144fd0f159f0e82b1dd9",
+      "sha256": "2a705f1fb725b0a48f1b2c8d9cf23af4801a40943cedea4b7875d4e1ce3f46c4",
       "test_declarations": 20,
       "registered_suites": [
         "analytics"
       ],
       "destinations": [
-        "tests/analytics/column_store/column_batch_format_v2.rs"
+        "tests/analytics/column_store/column_batch_format_v1.rs"
       ],
       "line_limit": 1000
     },
@@ -260578,7 +260578,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 540,
-      "sha256": "fd5134f95e2818a4e03af7b460ebaf0e6db1ba9733df9aff077f6a347bad3417",
+      "sha256": "0090c8ce973c3c6711a21dafb211048b98a94c68148744348b199a80999d539e",
       "test_declarations": 5,
       "registered_suites": [
         "analytics"
@@ -260608,7 +260608,7 @@
       "role": "module_registration",
       "action": "keep",
       "lines": 272,
-      "sha256": "b68193aa5846fcf9238a2b6775ff31c5e8e5e213fc0e1a743f790ee200d4d563",
+      "sha256": "b40fdd35045c56d24ff12901cdd50cc94021be812a8c7761776d7297a6864184",
       "test_declarations": 0,
       "registered_suites": [
         "analytics"
@@ -260638,7 +260638,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 95,
-      "sha256": "121fd29c314de46368e65b9a0f1612d42b1a69f4aab6279cba5f66ad8acd2482",
+      "sha256": "6c8cded8dba32a2868b320e4f30f151cc0abf4ef0bc9a63c40a8667f9ed38aea",
       "test_declarations": 1,
       "registered_suites": [
         "analytics"
@@ -260653,7 +260653,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 383,
-      "sha256": "2efa19ae5beca85f57d6c52a022fb90f0376fb6ec7450f53b53d6f4e77c451ac",
+      "sha256": "e2f7a2332526927e6eba7ca3a6c6f1e67909e89562ab29407dfbd3eeefb90cfc",
       "test_declarations": 7,
       "registered_suites": [
         "analytics"
@@ -260668,7 +260668,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 521,
-      "sha256": "1f7ec6da245d1001bea336a9bb36712ffc651d7b13b772c739f5a36b386a5fbb",
+      "sha256": "e00b3c23bf57e26c27b156adb87a8e60f049debb84459256ae4068647a0f6d55",
       "test_declarations": 8,
       "registered_suites": [
         "analytics"
@@ -260683,7 +260683,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 631,
-      "sha256": "749e952bd4b54cb8161bd26af6d19207eac52560bedbf2e0d1fd87e5ae7eb95f",
+      "sha256": "95370e3e0d11b5fb4db679b6a6b11ae4eafb99600a99eff201f125bafac320cd",
       "test_declarations": 9,
       "registered_suites": [
         "analytics"
@@ -260698,7 +260698,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 163,
-      "sha256": "79306c2b8524b5cf83ceca5fb1defee4fad01c86b01d9b9d75dafacf41836de9",
+      "sha256": "b940e04f6905f6f80edfafca9bc78d86334cb9e404d623a792abc8d007f29a22",
       "test_declarations": 3,
       "registered_suites": [
         "analytics"
@@ -261133,7 +261133,7 @@
       "role": "cargo_target",
       "action": "keep",
       "lines": 121,
-      "sha256": "e8c0a46f03a550e4876e05ea8116dbc635e4e88997934eb51e74f956bd0223b1",
+      "sha256": "b37c29995c89afe482673abce155ddaec90b5d4ceadfaf0ae37b80997a6ddb66",
       "test_declarations": 0,
       "registered_suites": [
         "analytics"
@@ -262801,7 +262801,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 450,
-      "sha256": "ef62dc4f4d8f36e5444fa541ac679bb95394c2205560202449c380ae64fcab1d",
+      "sha256": "f36bb7f322bded9375a24496d1b48723648b2fcce33d3a67cf7555595406db27",
       "test_declarations": 4,
       "registered_suites": [
         "compatibility"
@@ -265326,7 +265326,7 @@
       "role": "oracle_data",
       "action": "keep",
       "lines": 10076,
-      "sha256": "0d1e4616531125a83c4343b4153829e06b8f274d40e72ce448b8a89c5bb0857b",
+      "sha256": "5ee1ac628b61f7589a5a52ad764d080c5b2c53630a412b6a0890c48904636ca2",
       "test_declarations": 0,
       "registered_suites": [],
       "destinations": [
@@ -265682,8 +265682,8 @@
       "current_file": "tests/domain_models/time_series/rollups/boolean_predicates.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 120,
-      "sha256": "f066f2e3161f9779e1241c8537f174716144482f467ffe88f181bc75fd9ad8a4",
+      "lines": 121,
+      "sha256": "e2773d85af33212ba900555a36f6fefa9d3a91ec56e4d9284df2e0ecd76d7598",
       "test_declarations": 2,
       "registered_suites": [
         "domain_models"
@@ -265728,7 +265728,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 150,
-      "sha256": "1236c3593902038ac6a21111670185f691177e38f290d4c03e98cb722e271582",
+      "sha256": "06db58624c93b69090a77a4a9a0fe7e3b3e96bb803e657495dc13996c8ae6d89",
       "test_declarations": 2,
       "registered_suites": [
         "domain_models"
@@ -265743,7 +265743,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 645,
-      "sha256": "e59ea9ffbf3fc58142e118b808c38062d96e6787261764950b1315cee18e5bc1",
+      "sha256": "53e2017f091a51cbc8d3558a6039fe9e730a4a75a50bcb4b35a7ec6e2b2b7a2d",
       "test_declarations": 11,
       "registered_suites": [
         "domain_models"
@@ -277005,7 +277005,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 227,
-      "sha256": "2dab13c8dfab0e3d18c61f1e540a845e38882dad2c6a12be2e0dfdcd0b5a12e0",
+      "sha256": "69f8d9b0f5a5040bc9946be6e10167df67778ec4da7b214f513aa14e41099010",
       "test_declarations": 5,
       "registered_suites": [
         "search"
@@ -278235,7 +278235,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 121,
-      "sha256": "c03eeefa2d7f037b6b85d831be12ac4857870ce8cea797cc700f30900802153a",
+      "sha256": "83425c582224309a006139e26965cce46956cadd7be306b22d7c29efcc9d0460",
       "test_declarations": 1,
       "registered_suites": [
         "sql_mutations"
@@ -279944,7 +279944,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 901,
-      "sha256": "9082912b4b4e0b9c853075469469db4e12abe6be3a2b340f00101464dcca6b1e",
+      "sha256": "6715d633fb1886bf7d61d8d110d189a55182847e5b0df403ecbcdca4b370d50a",
       "test_declarations": 23,
       "registered_suites": [
         "sql_queries"
@@ -281622,7 +281622,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 135,
-      "sha256": "e014f1ec5d3cb629052eab40bfdf10e8fa79af10225a1a43bce3df0bd3848564",
+      "sha256": "9a1460e8f952d3a0ef0eb4973ba8e682e38b29881fe434346328d86999450280",
       "test_declarations": 2,
       "registered_suites": [
         "storage_indexes"
@@ -281832,7 +281832,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 476,
-      "sha256": "1431696cd0341548f947943d814fd60570013b0e8eb1696a6e84a62c92c7a600",
+      "sha256": "6c57ccae95043aa88bdef76fc876fe9831362d1bf03b657b3ed385ad161fa7f7",
       "test_declarations": 7,
       "registered_suites": [
         "storage_indexes"
@@ -281847,7 +281847,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 433,
-      "sha256": "152e06f7ccb48625d6585a793f551421dabb58e86f6f54d25b28134a1cb48a29",
+      "sha256": "9375a7f5764a4d277a75c8a17ef791fa7397845acaa5b702cc27f32e5548bc78",
       "test_declarations": 10,
       "registered_suites": [
         "storage_indexes"
@@ -281892,7 +281892,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 157,
-      "sha256": "46d940d8b5a4dcc099ef95b822763a42c742849daf5536fcd5c34b1fb8b1a6b4",
+      "sha256": "2adf8ff9b547ee429a4cd075eb42f1cefd179e6b435eb0056eca14e3971cfc36",
       "test_declarations": 4,
       "registered_suites": [
         "storage_indexes"
@@ -281936,8 +281936,8 @@
       "current_file": "tests/storage_indexes/storage/midge_layout_bootstrap.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 460,
-      "sha256": "4373a95a91520d5f23bf8fe44c98a35067238a649e31ce12e05189b3b9791dc5",
+      "lines": 462,
+      "sha256": "14e81f0f783d7c31ae9ce631af2de59ca4247a5e5c4299131a24ebd17f35a2b4",
       "test_declarations": 10,
       "registered_suites": [
         "storage_indexes"
@@ -281952,7 +281952,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 105,
-      "sha256": "2bfa8f13ba0e36965c1e6e08348c9e71bbdd80f8775bb9cdec82a7b1868267ee",
+      "sha256": "6237d435869959a2dca07f847872621533fe6776c83e042a98ea6032fa19bfeb",
       "test_declarations": 3,
       "registered_suites": [
         "storage_indexes"
@@ -281967,7 +281967,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 612,
-      "sha256": "83c81eba8fd5319fa4c0de947cc70e89441a5bf6bda8dd55ffbaba6db556f9e9",
+      "sha256": "83f1f373a4ef2618a179dd56e147247df2fc42af9f084bfff9b8a56be47a9493",
       "test_declarations": 9,
       "registered_suites": [
         "storage_indexes"
@@ -281982,7 +281982,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 252,
-      "sha256": "0d234d007fbefb49b37e6841f22b9e71065e318ec2da265b5c6a3a16dc1d291c",
+      "sha256": "2dc677ddb67687d2d5cba73ea78fd80594c9bdfdf342f40c8b3661e16e794494",
       "test_declarations": 5,
       "registered_suites": [
         "storage_indexes"
@@ -283659,7 +283659,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 33,
-      "sha256": "a65ae0ad69e47fcc677c3d1883016fe11e602610dfe7439e033737334258c2de",
+      "sha256": "0192bbaefde6a98a56be4236d58f44540076a0cd453e65cc98090860ee289711",
       "test_declarations": 2,
       "registered_suites": [
         "vector_embeddings"
@@ -283689,7 +283689,7 @@
       "role": "module_registration",
       "action": "keep",
       "lines": 225,
-      "sha256": "b0010c47eeeb6e8d13a7c47387800cbb1bbac3acd856946a947e4b48ff492bfe",
+      "sha256": "f968ea45bbf2830a0bb74a71b0ce58c3e85694ad5fb96dd90af70029571f9f22",
       "test_declarations": 0,
       "registered_suites": [
         "vector_embeddings"
@@ -283779,7 +283779,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 755,
-      "sha256": "adec3ba68ad24ad204fe7250922a3c6440a1b858742389c98399521f40eab9bb",
+      "sha256": "4f65eecf0d47d8c437495f2e3d034e047d3499316b0649c3b4879fe00719ea36",
       "test_declarations": 13,
       "registered_suites": [
         "vector_embeddings"

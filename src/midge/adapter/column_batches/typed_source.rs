@@ -1,4 +1,4 @@
-//! Private immutable CBC2 input owners. Existing validators decide eligibility and framing.
+//! Private immutable CBC1 input owners. Existing validators decide eligibility and framing.
 mod numeric;
 
 use std::collections::BTreeSet;
@@ -153,7 +153,7 @@ impl Midge {
                 )?,
             )?)?;
             let row_ids =
-                match super::storage_v2::load_row_ids(&tx, relation_id, index_id, segment)? {
+                match super::storage_v1::load_row_ids(&tx, relation_id, index_id, segment)? {
                     Ok(row_ids) => row_ids,
                     Err(reason) => return Ok(EncodedSourceDecision::Fallback(reason)),
                 };

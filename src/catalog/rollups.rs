@@ -57,8 +57,8 @@ pub struct RollupRefreshCursor {
 }
 
 impl RollupMeta {
-    /// Current durable rollup definition format. Version 2 stores parseable SQL expressions.
-    pub const CURRENT_VERSION: u64 = 2;
+    /// Current durable rollup definition format. Version 1 stores parseable SQL expressions.
+    pub const CURRENT_VERSION: u64 = 1;
 
     #[must_use]
     pub fn new(definition: RollupDefinition) -> Self {

@@ -57,7 +57,7 @@ fn corrupted_isolation_fixture() -> EncodedScanFixture {
     let (ignored_key, mut ignored_chunk) = entries
         .into_iter()
         .find(|(_, value)| {
-            value.starts_with(b"CBC2")
+            value.starts_with(b"CBC1")
                 && decode_column_chunk_for_test(value).is_ok_and(|values| {
                     values.iter().all(|value| {
                         value

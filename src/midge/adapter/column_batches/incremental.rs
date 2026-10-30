@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    column_values, encode_manifest, storage_v2, CassieError, ColumnBatchMetadata, ColumnBatchRow,
+    column_values, encode_manifest, storage_v1, CassieError, ColumnBatchMetadata, ColumnBatchRow,
     ColumnBatchSegmentMeta, IndexKind, IndexMeta, Midge,
     CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION, CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
 };
@@ -88,7 +88,7 @@ impl Midge {
         let mut segments = Vec::with_capacity(metadata.segments.len());
         for (position, segment) in metadata.segments.iter().enumerate() {
             let rows = if changes_by_segment.contains_key(&position) {
-                let Ok(loaded) = storage_v2::load_segment(&tx, index, segment, &all_fields)? else {
+                let Ok(loaded) = storage_v1::load_segment(&tx, index, segment, &all_fields)? else {
                     return Ok(false);
                 };
                 Some(loaded.rows)
@@ -220,8 +220,8 @@ impl Midge {
                 .ok_or_else(|| {
                     CassieError::ResourceLimit("column compaction range overflow".to_string())
                 })?;
-            let rows = storage_v2::rows_for_segment(chunk, metadata.fields.as_slice());
-            encoded.push(storage_v2::encode_segment(
+            let rows = storage_v1::rows_for_segment(chunk, metadata.fields.as_slice());
+            encoded.push(storage_v1::encode_segment(
                 next_segment_id,
                 1,
                 rows.as_slice(),
@@ -250,7 +250,7 @@ impl Midge {
         tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
         fence_generation(&mut tx, &index.collection, metadata.built_generation)?;
         for segment in &encoded {
-            storage_v2::write_segment(&mut tx, relation_id, index_id, segment)?;
+            storage_v1::write_segment(&mut tx, relation_id, index_id, segment)?;
         }
         tx.put(
             Self::column_batch_metadata_key(relation_id, index_id),
@@ -340,7 +340,7 @@ fn publish_incremental_segments(
                     CassieError::ResourceLimit("column segment revision overflow".to_string())
                 })?
             };
-            let encoded_segment = storage_v2::encode_segment(
+            let encoded_segment = storage_v1::encode_segment(
                 segment.metadata.segment_id,
                 revision,
                 rows.as_slice(),
@@ -378,7 +378,7 @@ fn publish_incremental_segments(
     tx.set_conflict_policy(cntryl_midge::ConflictPolicy::AbortOnWriteConflict);
     fence_generation(&mut tx, &index.collection, target_generation)?;
     for segment in &encoded {
-        storage_v2::write_segment(&mut tx, relation_id, index_id, segment)?;
+        storage_v1::write_segment(&mut tx, relation_id, index_id, segment)?;
     }
     tx.put(
         Midge::column_batch_metadata_key(relation_id, index_id),

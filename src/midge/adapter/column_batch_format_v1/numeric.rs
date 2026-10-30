@@ -1,4 +1,4 @@
-//! Primitive CBC2 numeric decode. Framing and validity share the existing parser.
+//! Primitive CBC1 numeric decode. Framing and validity share the existing parser.
 use super::binary::{invalid, Reader};
 use super::chunk::{
     bit_is_set, checked_count, decode_for_blocks, parse_chunk, Codec, LogicalType, BLOCK_LEN,

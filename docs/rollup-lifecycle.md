@@ -4,11 +4,11 @@ Cassie rollups are local, Midge-backed derived tables. The source table remains 
 
 ## Durable definition format
 
-`RollupMeta.version = 2` identifies the current definition format. Each `aggregates[].expression` stores canonical, parseable SQL for the aggregate expression, such as `max(("amount" * 10))`. It is source text, not a matching key. Canonical output uses lowercase function names, double-quoted identifiers with doubled embedded quotes, single-quoted strings with doubled apostrophes, spaces around operators, and explicit parentheses for composite expressions. The stored `function`, `alias`, and `data_type` fields continue to describe the aggregate output.
+`RollupMeta.version = 1` identifies the 0.1.0 definition format. Each `aggregates[].expression` stores canonical, parseable SQL for the aggregate expression, such as `max(("amount" * 10))`. It is source text, not a matching key. Canonical output uses lowercase function names, double-quoted identifiers with doubled embedded quotes, single-quoted strings with doubled apostrophes, spaces around operators, and explicit parentheses for composite expressions. The stored `function`, `alias`, and `data_type` fields continue to describe the aggregate output.
 
 Rollup matching reparses each stored expression and derives the same transient aggregate signature used for the query plan. The signature is never persisted as the expression. Refresh and restart recovery also parse the stored SQL, so an aggregate such as `MAX(amount * 10)` is rebuilt from the original expression tree rather than from a lossy name assembled from its operators.
 
-Version 1 metadata stores aggregate signatures in `expression`; those strings cannot always recover the original expression tree. Cassie does not infer or migrate those definitions. Version 1 rollups are excluded from query substitution and cannot be refreshed. Drop and recreate them to use the version 2 format. An unparsable version 2 expression also fails closed: it cannot be substituted, and `REFRESH ROLLUP` returns an error while source reads remain available.
+An earlier unreleased version-2 definition stored aggregate signatures in `expression`; those strings cannot always recover the original expression tree. Cassie does not infer or migrate that pre-release state. A pre-0.1.0 store must be recreated under the new layout epoch. An unparsable version-1 expression fails closed: it cannot be substituted, and `REFRESH ROLLUP` returns an error while source reads remain available.
 
 ## Build, publication, and recovery
 

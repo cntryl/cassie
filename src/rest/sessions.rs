@@ -2,6 +2,7 @@ use std::fmt::Write as _;
 use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use argon2::PasswordHash;
 use cntryl_midge::{ConflictPolicy, Query, TransactionMode};
 use getrandom::fill;
 use serde::{Deserialize, Serialize};
@@ -217,13 +218,24 @@ fn credential_fingerprint(cassie: &Cassie, role: &RoleMeta) -> Result<String, Ca
     };
     let credential = role_password_hash
         .or(bootstrap_password_hash)
+        .map(|credential| {
+            PasswordHash::new(credential)
+                .map_err(|error| {
+                    CassieError::Execution(format!("invalid role password hash: {error}"))
+                })?
+                .salt
+                .map(|salt| salt.to_string())
+                .ok_or_else(|| {
+                    CassieError::Execution(
+                        "invalid role password hash: missing password salt".to_string(),
+                    )
+                })
+        })
+        .transpose()?
         .unwrap_or_default();
-    Ok(digest(
-        format!(
-            "{}\0{}\0{}\0{}",
-            role.name, role.can_login, role.is_admin, credential
-        )
-        .as_bytes(),
+    Ok(format!(
+        "{}\0{}\0{}\0{credential}",
+        role.name, role.can_login, role.is_admin
     ))
 }
 
@@ -284,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn should_not_hash_bootstrap_password_directly_when_role_hash_is_missing() {
+    fn should_store_only_public_password_salt_in_bootstrap_session_fingerprint() {
         // Arrange
         let password = "bootstrap-session-password-canary";
         let cassie = cassie_with_config(
@@ -295,9 +307,6 @@ mod tests {
             },
         );
         let role = RoleMeta::bootstrap_admin("root", None);
-        let fast_password_fingerprint =
-            super::digest(format!("root\0true\0true\0{password}").as_bytes());
-
         // Act
         let token = issue(&cassie, &role).expect("issue session");
         let record_bytes = cassie
@@ -311,20 +320,20 @@ mod tests {
             .initialize_bootstrap_password_hash()
             .expect("bootstrap password hash")
             .expect("configured bootstrap password hash");
-        let argon_password_fingerprint = super::digest(
-            format!(
-                "{}\0{}\0{}\0{}",
-                role.name, role.can_login, role.is_admin, bootstrap_hash
-            )
-            .as_bytes(),
+        let salt = argon2::PasswordHash::new(bootstrap_hash)
+            .expect("parse bootstrap password hash")
+            .salt
+            .expect("password hash salt")
+            .to_string();
+        let salt_fingerprint = format!(
+            "{}\0{}\0{}\0{salt}",
+            role.name, role.can_login, role.is_admin
         );
 
         // Assert
-        assert_ne!(
-            record.credential_fingerprint, fast_password_fingerprint,
-            "the session record must not contain a fast hash derived from the bootstrap password"
-        );
-        assert_eq!(record.credential_fingerprint, argon_password_fingerprint);
+        assert_eq!(record.credential_fingerprint, salt_fingerprint);
+        assert!(!record.credential_fingerprint.contains(password));
+        assert!(!record.credential_fingerprint.contains(bootstrap_hash));
         assert_eq!(authenticated.role.name, role.name);
     }
 

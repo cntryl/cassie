@@ -84,12 +84,13 @@ disabled. No `Operational readiness` workflow is present in the current workflow
 `AGENTS.md` still prohibits enabling or dispatching workflows until the user explicitly changes
 that direction; no backend, benchmark, or release workflow was dispatched.
 
-PR #1144 remains open at `e89edbc3bd377dcd88a46f40e01936ccd230121f`. Its four CodeQL language
-analyzers pass, but the umbrella CodeQL check fails while alert 522 (`rust/cleartext-logging`)
-remains open at `benches/tier3_system_query.rs:667-668`. A type-only diagnostic fix and regression
-test are prepared locally but are not on the PR head. The only recorded review is a GitHub Advanced
-Security bot comment; no human review or review decision is recorded. This analysis does not
-establish backend test or release qualification.
+PR #1144 remains open at `92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba`. CodeQL run
+`41117159326` is analyzing this exact head: the Python, Actions, and JavaScript/TypeScript
+analyzers passed, Rust was still running at the latest readback, and the umbrella CodeQL check was
+skipped. This head includes the type-only diagnostic and regression for alert 522
+(`rust/cleartext-logging`); its hosted result is pending completion of the Rust analysis. The only
+recorded review is a GitHub Advanced Security bot comment; no human review or review decision is
+recorded. This analysis does not establish backend test or release qualification.
 
 The 2026-10-30 `main` branch-protection readback returned no applicable repository rules and the
 branch-protection endpoint returned 404 (`Branch not protected`). There is no active `main` branch

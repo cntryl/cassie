@@ -5560,11 +5560,12 @@ claimed here.
 
 ## 2026-10-30 — PR #1144 current-head CodeQL follow-up
 
-The live PR head is `e89edbc3bd377dcd88a46f40e01936ccd230121f`; the older
-`988af872` CodeQL pass above does not describe this head. GitHub reports CodeQL
-alert #522 (`rust/cleartext-logging`, high) at
-`benches/tier3_system_query.rs:667-668`. The annotation follows debug formatting
-of the column aggregate result row into the benchmark's panic message.
+The earlier PR head `e89edbc3bd377dcd88a46f40e01936ccd230121f` triggered
+CodeQL alert #522 (`rust/cleartext-logging`, high) at
+`benches/tier3_system_query.rs:667-668`. The annotation followed debug
+formatting of the column aggregate result row into the benchmark's panic
+message. The older `988af872` CodeQL pass above does not describe either of
+those later heads.
 
 Static triage found that the reported data path is a fixed aggregate query over
 generated benchmark documents in a UUID-named temporary database. The query
@@ -5579,37 +5580,30 @@ test deliberately failed when the panic formatted the row with `Debug`, then
 passed with the type-only diagnostic; a valid five-column aggregate control
 also passes.
 
-Post-change local evidence:
+Commit `92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba` now contains the fix and is
+the exact remote PR head. Its regression routes the benchmark through the
+tested shape helper; the panic test failed against a `Debug`-formatted row
+containing `test-secret` and MAC address bytes, then passed with the type-only
+diagnostic. A valid five-column aggregate control also passes.
+
+Local validation on the source and test content now present at `92bf7c77`:
 
 - `cargo build --locked --bin cassie` — passed.
-- `cargo test --locked` — exit 0, all unit, integration and doctest targets passed.
+- `cargo test --locked` — exit 0, all unit, integration and doctest targets passed; this run completed immediately before the commit containing the same source and test files.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` — passed.
 - `cargo fmt --all -- --check` and `git diff --check` — passed.
-- `cntryl-tools validate-tests -f tests/bench_diagnostics/relations/semantics.rs` — 2/2 compliant after the call-site regression was added.
-- The generated test inventory records `tests/bench_diagnostics.rs` as a Cargo harness and both shape tests in its reviewed subsystem module. `tools/test_inventory.py --check` passes with 1,577 test files, 8,365 Rust declarations, 21 Python declarations and 8,493 registered Rust instances; no unregistered tests, unresolved module paths, repeated registrations, duplicate identities, or oversized files.
+- `cntryl-tools validate-tests -f tests/bench_diagnostics/relations/semantics.rs` — 2/2 compliant.
+- `tools/test_inventory.py --check` — passed: 1,577 test files, 8,365 Rust declarations, 21 Python declarations, and 8,493 registered Rust instances; no unregistered tests, unresolved module paths, repeated registrations, duplicate identities, or oversized files.
 - `cntryl-tools validate-docs` — 129 Markdown documents passed.
-- On local candidate commit `02ac6585`, the required ordered gate was rerun: `cargo build --locked --bin cassie`, `cargo test --locked` (exit 0; all unit, integration and doctest targets passed), strict workspace Clippy, and `cargo fmt --all -- --check`. The touched-test validator (1/1), test inventory check, documentation validator (129 Markdown files), and `git diff --check` also passed on the candidate content. The full test run included the regression (1/1).
-- In the follow-up, the panic-boundary test first failed against a `Debug`-formatted row containing `test-secret` and the MAC address bytes. After routing the benchmark through the tested shape helper, `cargo build --locked --bin cassie`, the focused `cargo test --locked --test bench_diagnostics` (2/2), strict Clippy, format check, and test validator (2/2) passed. The full `cargo test --locked` run on this code also passed all unit, integration, and doctest targets before rustfmt-only layout changes; the final focused run was repeated after formatting. `git diff --check` passes.
-- `cargo bench --locked --no-run` passed on the current branch content and compiled the Tier 1–6 benchmark targets.
-- The focused `column_batch_query/100k` Tier 3 run passed at 43.12 queries/s with
-  gate trust and 0.9% RSD. On candidate code commit `02ac6585`,
-  `cargo bench --locked --bench tier3_system_query -- --test` completed all 12
-  Tier 3 correctness/resource owners with `result: passed`. Several timing
-  samples were diagnostic/noisy, so this rerun does not establish performance
-  promotion or latency claims.
-- The Tier 3 startup and mixed-load owners also completed on this candidate:
-  `startup_reopen/100k` passed at 1.6416 startups/s (0.8% RSD), and
-  `mixed_query_ingest_retrieval/100k` passed at 3.2087 operations/s (1.0% RSD).
-  Startup emitted a measurement-shape diagnostic because each sample records
-  one startup. Treat these as local correctness/resource evidence, not
-  performance promotion or latency claims.
+- `cargo bench --locked --no-run` — all Tier 1–6 targets compiled.
+- `cargo bench --locked --bench tier3_system_query -- --test` on exact PR head `92bf7c77` — all 12 correctness/resource owners passed. The graph expansion and two shorter time-series timing samples were noisy and remain diagnostic; this run makes no performance promotion or latency claim.
+- The focused `column_batch_query/100k` run passed at 42.86 queries/s with 3.0% RSD. Tier 3 startup and mixed-load measurements remain recorded above for candidate `02ac6585`; they are not release performance claims.
 
-This follow-up is committed on the local PR branch but has not been pushed, so
-it is not on the remote PR head. CodeQL alert #522 therefore remains open on
-`e89edbc3`; do not claim the hosted alert is resolved until the updated head is
-analyzed. The latest repository setting reports Actions enabled, but the active
-no-dispatch instruction still blocks the PR update and hosted reanalysis. No
-backend or release workflow was started.
+GitHub run `41117159326` is analyzing the exact PR head. At the latest readback,
+the Python, Actions, and JavaScript/TypeScript analyzers had passed, the Rust
+analyzer was still running, and the umbrella CodeQL check was skipped. The
+hosted result for alert #522 is therefore pending. No backend, benchmark, or
+release workflow was dispatched.
 
 ## 2026-10-30 — local ARM64 container candidate smoke
 
@@ -5661,12 +5655,10 @@ scope.
 ## 2026-10-30 — v0.1.0 release-gate readback
 
 Read-only GitHub readback confirms PR #1144 remains open at remote head
-`e89edbc3bd377dcd88a46f40e01936ccd230121f`, assigned to the v0.1.0 milestone,
-with merge state `UNSTABLE` and no review decision. All four CodeQL language
-analyzers pass; the umbrella CodeQL check fails while alert #522 remains open
-on that remote head. The type-only diagnostic fix above is local and has not
-been analyzed by GitHub. The v0.1.0 milestone has 12 closed issues and this PR
-as its sole open item.
+`92bf7c77babd5c24c08fdf7dafb861d8b0eb3fba`, assigned to the v0.1.0 milestone,
+with merge state `UNSTABLE` and no review decision. The current CodeQL run is
+still analyzing Rust; no human review is recorded. The v0.1.0 milestone has no
+open issue, and this PR is its sole open item.
 
 `gh workflow list --all` has no `Operational readiness` workflow; the
 `Containers`, `Version`, `CI Backend`, `CI Frontend`, and `Publish` workflows
@@ -5677,10 +5669,10 @@ confirms no workflow by that name. The cross-architecture runbook and capacity
 docs now mark its former automation as unavailable and retain the manual
 evidence procedure. No v0.1.0 GitHub release or `v0.1.0` tag exists.
 
-The exact release-commit gate, current-head hosted CodeQL rerun, independent
-PR review, immutable container digest, retained amd64/arm64 rehearsal bundles,
-release sign-offs, and publication therefore remain incomplete. These are
-release blockers, not local test failures.
+The exact release-commit gate, completion of the current hosted CodeQL run,
+independent PR review, immutable container digest, retained amd64/arm64
+rehearsal bundles, release sign-offs, and publication therefore remain
+incomplete. These are release blockers, not local test failures.
 
 ## 2026-10-30 — #827 deferred milestone reconciliation
 

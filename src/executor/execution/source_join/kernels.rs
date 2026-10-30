@@ -5,6 +5,7 @@ use super::{
     SourceExecutionEnv, VectorizedJoinOutcome, VectorizedJoinSelection, VectorizedJoinSpec,
 };
 use crate::executor::semantic::SemanticKey;
+use crate::runtime::QueryMemoryReservation;
 
 pub(super) fn execute_nested_loop_join(
     env: &SourceExecutionEnv<'_>,
@@ -87,9 +88,11 @@ pub(super) fn execute_vectorized_join(
     let batch_size =
         match vectorized_join_selection(env, spec.kind, spec.left_rows, spec.right_rows)? {
             VectorizedJoinSelection::Execute(batch_size) => batch_size,
-            VectorizedJoinSelection::Fallback => return Ok(VectorizedJoinOutcome::Fallback),
+            VectorizedJoinSelection::Fallback => {
+                return Ok(VectorizedJoinOutcome::fallback());
+            }
             VectorizedJoinSelection::SwitchToMerge(state) => {
-                return Ok(VectorizedJoinOutcome::SwitchToMerge(state));
+                return Ok(VectorizedJoinOutcome::switch_to_merge(state));
             }
         };
     let output_budget = spec.row_budget.unwrap_or(usize::MAX);
@@ -98,15 +101,9 @@ pub(super) fn execute_vectorized_join(
         return Ok(empty_vectorized_join(joined, batch_size));
     }
     if let Some(joined) = super::typed::try_execute(env, spec, retention, batch_size)? {
-        return Ok(VectorizedJoinOutcome::Executed(joined));
+        return Ok(VectorizedJoinOutcome::executed(joined));
     }
-    let _build_memory = env
-        .controls
-        .reserve_query_memory(accounting::hash_build_bytes::<&BatchRow>(
-            spec.right_rows,
-            &spec.keys.right,
-            spec.keys.domain,
-        )?)?;
+    let _build_memory = reserve_hash_build_memory(env, &spec)?;
     let mut build = std::collections::HashMap::<SemanticKey, Vec<&BatchRow>>::new();
     build
         .try_reserve(accounting::hash_build_capacity(
@@ -175,7 +172,7 @@ pub(super) fn execute_vectorized_join(
             }
         }
     }
-    Ok(VectorizedJoinOutcome::Executed(JoinResult::new(
+    Ok(VectorizedJoinOutcome::executed(JoinResult::new(
         joined,
         PendingJoinDiagnostic::Vectorized {
             probe_rows,
@@ -188,7 +185,7 @@ pub(super) fn execute_vectorized_join(
 }
 
 fn empty_vectorized_join(joined: JoinRows, batch_size: usize) -> VectorizedJoinOutcome {
-    VectorizedJoinOutcome::Executed(JoinResult::new(
+    VectorizedJoinOutcome::executed(JoinResult::new(
         joined,
         PendingJoinDiagnostic::Vectorized {
             probe_rows: 0,
@@ -198,4 +195,17 @@ fn empty_vectorized_join(joined: JoinRows, batch_size: usize) -> VectorizedJoinO
             batches: 0,
         },
     ))
+}
+
+fn reserve_hash_build_memory(
+    env: &SourceExecutionEnv<'_>,
+    spec: &VectorizedJoinSpec<'_>,
+) -> Result<QueryMemoryReservation, QueryError> {
+    Ok(env
+        .controls
+        .reserve_query_memory(accounting::hash_build_bytes::<&BatchRow>(
+            spec.right_rows,
+            &spec.keys.right,
+            spec.keys.domain,
+        )?)?)
 }

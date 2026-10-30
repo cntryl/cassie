@@ -9,15 +9,18 @@ pub struct QueryCancellationHandle(
     Arc<AtomicBool>,
     Option<Arc<crate::midge::adapter::QueryScanControlScope>>,
     Option<Arc<super::QueryTestPause>>,
+    tokio::sync::watch::Sender<bool>,
 );
 
 impl Default for QueryCancellationHandle {
     fn default() -> Self {
+        let (cancellation_signal, _) = tokio::sync::watch::channel(false);
         Self(
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
             super::aggregate_test_pause::take_next_query_pause()
                 .or_else(super::sleep_test_pause::take_next_query_pause),
+            cancellation_signal,
         )
     }
 }
@@ -47,11 +50,21 @@ impl QueryCancellationHandle {
 
     pub fn cancel(&self) {
         self.0.store(true, Ordering::Release);
+        self.3.send_replace(true);
     }
 
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::Acquire)
+    }
+
+    pub(crate) async fn wait_cancelled(&self) {
+        let mut signal = self.3.subscribe();
+        while !*signal.borrow_and_update() {
+            if signal.changed().await.is_err() {
+                return;
+            }
+        }
     }
 
     pub(crate) fn is_same_request(&self, other: &Self) -> bool {
@@ -385,9 +398,10 @@ fn memory_limit_error(budget: usize, requested: usize) -> CassieError {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use std::time::Instant;
 
-    use super::QueryExecutionControls;
+    use super::{QueryCancellationHandle, QueryExecutionControls};
     use crate::config::CassieRuntimeLimits;
 
     fn controls_with_budget(bytes: usize) -> QueryExecutionControls {
@@ -441,6 +455,55 @@ mod tests {
         // Assert
         assert!(overflow.is_err());
         assert_eq!(reservation.bytes(), 1);
+    }
+
+    #[test]
+    fn should_observe_cancellation_that_precedes_wait_registration() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cancellation = QueryCancellationHandle::new();
+        cancellation.cancel();
+
+        // Act
+        runtime.block_on(async {
+            tokio::time::timeout(Duration::from_secs(1), cancellation.wait_cancelled())
+                .await
+                .expect("preexisting cancellation signal should wake the waiter");
+        });
+
+        // Assert
+        assert!(cancellation.is_cancelled());
+    }
+
+    #[test]
+    fn should_wake_registered_waiter_when_cancellation_arrives() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cancellation = QueryCancellationHandle::new();
+
+        // Act
+        runtime.block_on(async {
+            let waiting = cancellation.clone();
+            let mut wait = Box::pin(waiting.wait_cancelled());
+            tokio::select! {
+                biased;
+                () = wait.as_mut() => panic!("uncancelled waiter must remain pending"),
+                () = tokio::task::yield_now() => {}
+            }
+            cancellation.cancel();
+            tokio::time::timeout(Duration::from_secs(1), wait.as_mut())
+                .await
+                .expect("registered cancellation waiter should wake");
+        });
+
+        // Assert
+        assert!(cancellation.is_cancelled());
     }
 
     #[test]

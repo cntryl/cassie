@@ -199,7 +199,7 @@ fn execute_loaded_join_with_context(
         .filter(|_| !matches!(spec.kind, JoinKind::Cross))
     {
         Some(keys) => {
-            match execute_vectorized_join(
+            let VectorizedJoinOutcome { action, joined } = execute_vectorized_join(
                 env,
                 VectorizedJoinSpec {
                     kind: spec.kind,
@@ -211,12 +211,17 @@ fn execute_loaded_join_with_context(
                     row_budget: spec.row_budget,
                 },
                 retention,
-            )? {
-                VectorizedJoinOutcome::Executed(rows) => rows,
-                VectorizedJoinOutcome::Fallback => {
+            )?;
+            match action {
+                VectorizedJoinAction::Executed => {
+                    joined.expect("executed vectorized join carries its result")
+                }
+                VectorizedJoinAction::Fallback => {
+                    debug_assert!(joined.is_none());
                     merge::execute_merge_join_with_context(env, &keys, spec, || {}, retention)?
                 }
-                VectorizedJoinOutcome::SwitchToMerge(state) => {
+                VectorizedJoinAction::SwitchToMerge(state) => {
+                    debug_assert!(joined.is_none());
                     match merge::execute_merge_join_with_context(
                         env,
                         &keys,
@@ -429,10 +434,38 @@ struct VectorizedJoinSpec<'a> {
     row_budget: Option<usize>,
 }
 
-enum VectorizedJoinOutcome {
-    Executed(JoinResult),
+enum VectorizedJoinAction {
+    Executed,
     Fallback,
     SwitchToMerge(String),
+}
+
+struct VectorizedJoinOutcome {
+    action: VectorizedJoinAction,
+    joined: Option<JoinResult>,
+}
+
+impl VectorizedJoinOutcome {
+    fn executed(joined: JoinResult) -> Self {
+        Self {
+            action: VectorizedJoinAction::Executed,
+            joined: Some(joined),
+        }
+    }
+
+    fn fallback() -> Self {
+        Self {
+            action: VectorizedJoinAction::Fallback,
+            joined: None,
+        }
+    }
+
+    fn switch_to_merge(state: String) -> Self {
+        Self {
+            action: VectorizedJoinAction::SwitchToMerge(state),
+            joined: None,
+        }
+    }
 }
 
 enum VectorizedJoinSelection {

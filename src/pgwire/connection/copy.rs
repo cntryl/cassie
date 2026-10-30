@@ -1,13 +1,15 @@
 use super::state::SessionState;
 use super::writers::write_command_complete;
 use super::{
-    cassie_pg_error, read_frontend_message, run_pgwire_blocking, write_copy_data, write_copy_done,
-    write_copy_in_response, write_copy_out_response, write_error_response, write_notice_response,
-    write_ready_for_query, Arc, AsyncWrite, Cassie, CassieError, CassieSession, FrontendMessage,
+    cassie_pg_error, read_frontend_message, read_frontend_message_after_tag, read_frontend_tag,
+    run_pgwire_blocking, write_copy_data, write_copy_done, write_copy_in_response,
+    write_copy_out_response, write_error_response, write_notice_response, write_ready_for_query,
+    Arc, AsyncRead, AsyncWrite, Cassie, CassieError, CassieSession, FrontendMessage,
     HandshakeError, PgWireError, PgWireSeverity, PgwireReader, MAX_FRONTEND_MESSAGE_BYTES,
 };
 use crate::sql::ast::CopyStatement;
 use std::collections::HashMap;
+use std::future::Future;
 
 #[path = "copy/filter.rs"]
 mod filter;
@@ -17,6 +19,14 @@ mod input;
 mod output;
 #[path = "copy/request.rs"]
 mod request;
+
+#[cfg(test)]
+#[path = "copy/cancellation_tests.rs"]
+pub(super) mod cancellation_tests;
+
+#[cfg(test)]
+#[path = "copy/payload_limit_tests.rs"]
+mod payload_limit_tests;
 
 use request::{
     CopyDirection, CopyHeader, CopyLogVerbosity, CopyOnError, CopyRequest, CopyWireFormat,
@@ -674,6 +684,10 @@ fn copy_response_column_count(cassie: &Cassie, statement: &CopyStatement) -> usi
         .map_or(0, |schema| schema.fields.len())
 }
 
+fn copy_payload_exceeds_limit(current_bytes: usize, next_bytes: usize, limit: usize) -> bool {
+    current_bytes.saturating_add(next_bytes) > limit
+}
+
 /// Buffers one `COPY ... FROM STDIN` stream and ingests it at `CopyDone`.
 ///
 /// The whole stream is applied as one atomic batch, so the buffered payload
@@ -692,7 +706,17 @@ async fn handle_simple_copy_from_stdin(
     let mut payload = Vec::new();
 
     let error = loop {
-        match read_frontend_message(reader).await {
+        let message = if let Some(cancellation) = cancellation.as_ref() {
+            match read_copy_frontend_message(cancellation, reader).await {
+                CopyReadOutcome::Cancelled => {
+                    break cassie_pg_error(&CassieError::QueryCancelled);
+                }
+                CopyReadOutcome::Message(message) => message,
+            }
+        } else {
+            read_frontend_message(reader).await
+        };
+        match message {
             Ok(FrontendMessage::CopyData(chunk)) => {
                 if cancellation
                     .as_ref()
@@ -700,12 +724,18 @@ async fn handle_simple_copy_from_stdin(
                 {
                     break cassie_pg_error(&CassieError::QueryCancelled);
                 }
-                if payload.len().saturating_add(chunk.len()) > MAX_FRONTEND_MESSAGE_BYTES {
+                if copy_payload_exceeds_limit(
+                    payload.len(),
+                    chunk.len(),
+                    MAX_FRONTEND_MESSAGE_BYTES,
+                ) {
                     break cassie_pg_error(&CassieError::ResourceLimit(format!(
                         "COPY FROM STDIN payload exceeds {MAX_FRONTEND_MESSAGE_BYTES} bytes"
                     )));
                 }
                 payload.extend_from_slice(&chunk);
+                #[cfg(test)]
+                cancellation_tests::signal_copy_payload_buffered();
             }
             // The protocol ignores Flush and Sync while in copy-in mode.
             Ok(FrontendMessage::Flush | FrontendMessage::Sync) => {}
@@ -742,6 +772,44 @@ async fn handle_simple_copy_from_stdin(
         write_copy_error(write_half, &session, &error).await,
         SimpleCopyOutcome::Handled
     )
+}
+
+enum CopyReadOutcome<T> {
+    Cancelled,
+    Message(T),
+}
+
+async fn read_copy_frontend_message(
+    cancellation: &crate::runtime::QueryCancellationHandle,
+    reader: &mut (impl AsyncRead + Unpin),
+) -> CopyReadOutcome<Result<FrontendMessage, HandshakeError>> {
+    let tag = match select_copy_read(cancellation, read_frontend_tag(reader)).await {
+        CopyReadOutcome::Cancelled => return CopyReadOutcome::Cancelled,
+        CopyReadOutcome::Message(Err(error)) => {
+            return CopyReadOutcome::Message(Err(error));
+        }
+        CopyReadOutcome::Message(Ok(tag)) => tag,
+    };
+
+    // Once a tag is consumed, finish that frame so cancellation cannot lose
+    // bytes from the middle of a frontend message and desynchronize the stream.
+    let message = read_frontend_message_after_tag(reader, tag).await;
+    if cancellation.is_cancelled() {
+        CopyReadOutcome::Cancelled
+    } else {
+        CopyReadOutcome::Message(message)
+    }
+}
+
+async fn select_copy_read<T>(
+    cancellation: &crate::runtime::QueryCancellationHandle,
+    message: impl Future<Output = T>,
+) -> CopyReadOutcome<T> {
+    tokio::select! {
+        biased;
+        () = cancellation.wait_cancelled() => CopyReadOutcome::Cancelled,
+        message = message => CopyReadOutcome::Message(message),
+    }
 }
 
 async fn finish_simple_copy(

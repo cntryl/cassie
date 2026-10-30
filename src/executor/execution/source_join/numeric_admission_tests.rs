@@ -4,8 +4,8 @@ use std::time::Instant;
 
 use super::{
     accounting, execute_vectorized_join, BatchRow, EquiJoinKeys, JoinKind, JoinRetentionContext,
-    JoinRetentionPhase, NumericComparisonDomain, SourceExecutionEnv, VectorizedJoinOutcome,
-    VectorizedJoinSpec,
+    JoinRetentionPhase, NumericComparisonDomain, SourceExecutionEnv, VectorizedJoinAction,
+    VectorizedJoinOutcome, VectorizedJoinSpec,
 };
 use crate::app::{Cassie, CassieError};
 use crate::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled, OperatorSwitchingEnabled};
@@ -70,7 +70,10 @@ fn run_build(
     .map_err(CassieError::from);
     let mut denied = false;
     let output_rows = match result {
-        Ok(VectorizedJoinOutcome::Executed(joined)) => Some(joined.rows.len()),
+        Ok(VectorizedJoinOutcome {
+            action: VectorizedJoinAction::Executed,
+            joined: Some(joined),
+        }) => Some(joined.rows.len()),
         Ok(_) => None,
         Err(error) => {
             denied = matches!(error, CassieError::ResourceLimit(_));

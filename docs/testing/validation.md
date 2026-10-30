@@ -5420,5 +5420,140 @@ The required local validation passed in order:
 `target/test-inventory-tools312/bin/python tools/test_inventory.py --check`
 passed with no unregistered tests, unresolved modules, duplicate registrations
 or inventory drift. `cntryl-tools validate-docs` passed for 125 Markdown
-documents, and `git diff --check` passed. GitHub Actions remain disabled, so
-hosted checks and deployment migration qualification are unavailable.
+documents, and `git diff --check` passed. That record predates the latest
+repository permission readback (`enabled: true`); the active no-dispatch
+instruction still blocks hosted and deployment migration qualification.
+
+## 2026-10-30 — v0.1.0 baseline local qualification (uncommitted)
+
+The run used `audit/v03-842-composite-index-restart-20261029` at base
+`988af872565438487dbacd411d4b228f3d21be46`, which is also the open PR #1144
+remote head. At the time of full Rust/UI validation, the checkout contained 17
+uncommitted paths across Rust, benchmarks, documentation and UI package metadata,
+including new `src/midge/adapter/verification/encoding.rs`. Eight further
+documentation files were reconciled afterward; the final pre-commit audit found
+26 uncommitted paths. The test and benchmark results qualify the original dirty
+working tree only; the later docs were separately validated below. Neither state
+qualifies the remote PR head, an immutable release commit, or a published artifact.
+
+The ordered Rust gate passed:
+
+- `cargo build --locked --bin cassie` — passed.
+- `cargo test --locked` — exit 0; 1,407 unit tests passed and every integration
+  target and doctest completed without failure.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` — passed.
+- `cargo fmt --all -- --check` — passed.
+- Touched test validators passed: `src/midge/adapter/verification_tests.rs`
+  (6/6), `src/midge/adapter/scalar_indexes.rs` (4/4), and
+  `src/midge/adapter/documents/commit.rs` (5/5).
+- `cntryl-tools validate-docs` — 128 Markdown documents passed.
+- `tools/test_inventory.py --check` — 8,363 Rust declarations and 8,491
+  registered instances; no unregistered, unresolved, duplicate, or oversized
+  entries.
+- `cargo bench --locked --no-run` — all Tier 1–6 benchmark targets compiled.
+- `cargo bench --locked --bench tier3_system_query -- --test` — all 12 Tier 3
+  owners completed their correctness and resource assertions. The run exposed
+  a measurement-shape diagnostic for `graph_expand_query/100k`, which recorded
+  one query per sample.
+- After changing only the graph batch to two checked queries per sample,
+  `cargo bench --locked --bench tier3_system_query -- --workload graph_expand_query --samples 5 --warmup-samples 1` passed with gate-quality
+  trust, 0.5178 queries/s, 0.5% RSD, and 76,104,955 bytes peak query memory; the
+  shape diagnostic cleared.
+
+The retry and flush changes have direct red/green witnesses. On a clean PR-head
+worktree with only the regression test and updated cadence assertion, the retry
+case failed with three injected stalls still unconsumed (`left: 3`, `right: 0`),
+and the cadence case observed `[1, 2, ..., 70]` instead of `[32, 64, 70]`. On the
+patched worktree, `cargo test --locked projection_output -- --nocapture` passed
+four unit tests and two matching analytics integration tests.
+
+The selected external-client and catalog probes were rerun on this working tree:
+
+- psql 16.6 using pinned image digest
+  `sha256:557fea37a744d5f4c8faab304b0a90858b53ab119735a88c131fd19dab802f36` — 1/1.
+- SQLx 0.8.3 — 1/1; Diesel 2.2.6 — 1/1.
+- tokio-postgres 0.7.18 named-schema/error-recovery workflow — 1/1; distinct-session
+  `search_path` isolation — 1/1.
+- Virtual-catalog parameter inference — 1/1; database-scoped information-schema
+  drop/restart witness — 1/1.
+
+All commands used `CARGO_TARGET_DIR=/private/tmp/cassie-1144-validation-20261030/target`:
+
+~~~sh
+CASSIE_RUN_PSQL_COMPAT=1 CASSIE_PSQL_BIN=/tmp/cassie-psql16 cargo test --locked --test compatibility compatibility_matrix::should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_SQLX_COMPAT=1 cargo test --locked --test compatibility compatibility_sqlx::should_validate_sqlx_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_DIESEL_COMPAT=1 cargo test --locked --test compatibility compatibility_diesel::should_validate_diesel_read_model_probe_when_enabled -- --ignored --nocapture
+cargo test --locked --test compatibility should_preserve_named_tokio_postgres_session_through_error_recovery -- --nocapture
+cargo test --locked --test compatibility should_isolate_search_path_across_tokio_postgres_sessions -- --nocapture
+cargo test --locked --test compatibility should_infer_virtual_catalog_parameter_types_without_inventing_names -- --nocapture
+cargo test --locked --test catalog_security should_preserve_database_scoped_information_schema_after_drop_restart -- --nocapture
+~~~
+
+The current UI worktree passed locked dependency installation, production audit
+(zero vulnerabilities), type-check, lint, formatting, generated-client freshness,
+build, 121 unit tests, and 26 mocked-browser tests. The real-Cassie browser
+workflow passed on desktop Chromium and Pixel 7 (2/2). The production build
+still reports advisory large Monaco/editor chunks. This checkout's
+`ui/package.json` does not define an `npm run check` script; the individual
+gates above were run directly.
+
+Tier 5 projection-rebuild release-profile samples passed at all three sizes:
+
+| Rows | Median throughput | RSD | Accounted query memory |
+| ---: | ---: | ---: | ---: |
+| 10k | 17,086.19 rows/s | 5.1% | 4,076,255 bytes |
+| 100k | 21,315.59 rows/s | 2.1% | 35,434,883 bytes |
+| 250k | 21,155.95 rows/s | 4.0% | 87,975,035 bytes |
+
+The 250k sample is below the 104,857,600-byte (100 MiB) query-memory cap.
+Artifacts are under the ignored `target/stress/diagnostic/tier5_scaling_lifecycle/`
+directory. These local curves do not establish production capacity.
+
+A `psql` 18.6 smoke used a fresh local-mode directory across three clean server
+starts. The first start created a table and inserted row 1; after restart the
+server recovered row 1 and accepted row 2; after a second restart it returned
+both expected rows and count 2. All three instances shut down cleanly. This is
+disk-backed restart evidence, not representative-scale or production evidence.
+
+A local snapshot/restore rehearsal used the two-row disk-backed smoke store.
+The ignored operational-snapshot test created and restored the v1 snapshot; a
+fresh Cassie process started from the restored directory and `psql` read both
+rows, count 2, and `release_smoke_check_pkey`. The exact operational test command
+was `cargo test --locked --test storage_indexes should_restore_operational_snapshot_selected_by_environment -- --ignored --nocapture`, with `CASSIE_OPERATIONAL_SNAPSHOT_SOURCE=/private/tmp/cassie-release-smoke-988af.tpuKcc`, `CASSIE_OPERATIONAL_SNAPSHOT_BUNDLE=/private/tmp/cassie-release-smoke-snapshot-988af`, and `CASSIE_OPERATIONAL_RESTORE_TARGET=/private/tmp/cassie-release-smoke-restore-988af`. The focused partial-snapshot and partial-restore cleanup tests also passed (2/2) with `cargo test --locked --test storage_indexes should_remove_partial -- --nocapture`. Snapshot, bundle, and restored data remain under `/private/tmp/cassie-release-smoke-*`. This is a single-host macOS arm64 rehearsal, not the required native amd64/arm64 container evidence.
+
+Jev reviewed the local retry and flush changes. For the question whether bounded
+typed retries preserve transaction outcomes and avoid duplicate or partial output,
+it selected `safe_as_written` (0.70 probability, 0.60 confidence); the probability
+for adding a deterministic fresh-output conflict probe was 0.28. For the changed
+flush cadence and its resource bound, it selected `bounded_qualified` (0.79
+probability, 0.72 confidence). The supplied test/source and scale evidence were
+checked; the 0.28 probe lead is below the repository's 0.30 focused-probe
+threshold, so no additional probe was triggered. Request and response artifacts
+are in the isolated review worktree under `target/jev-review/`.
+
+On the remote PR #1144 head `988af872565438487dbacd411d4b228f3d21be46`, all
+five CodeQL checks passed. No backend, benchmark, or release workflow was
+dispatched. The latest repository Actions permission readback reports
+`enabled: true`, but `AGENTS.md` still prohibits enabling or dispatching workflows
+until the user explicitly changes that direction. CodeQL does not establish
+backend test or release qualification. Issue #959 is closed as not planned.
+
+PR #1144 remains open with no review decision. The uncommitted working-tree
+changes are not on its remote head, and the immutable v0.1.0 release-commit gate
+remains outstanding. Cassie remains a Production Candidate and is not
+Production-ready; merge, release, and publication are not claimed.
+## 2026-10-30 — #954 current cancellation fixture status
+
+The six collection-aggregate cancellation tests now use three-row fixtures and
+the request-scoped pause after aggregate input retention. They send a real
+pgwire `CancelRequest` and assert SQLSTATE 57014, no partial rows and same-session
+recovery. The exact candidate full suite passed, and the focused aggregate run
+passed 18/18. The prior #954 record describing these six cases as unsupported
+and timing out before the pause is historical.
+
+The vector and persisted full-text scoring cancellation cases also pass with
+small fixtures and their scoring-boundary synchronization. #954 remains open
+for active regex cancellation after prerequisite #799 is implemented; the
+current regex prerequisite is not active cancellation coverage. #799 remains
+open, so no regex cancellation or broader aggregate-family completion is
+claimed here.

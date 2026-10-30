@@ -12,7 +12,9 @@ use super::document_batches::bench_document_write_batch_ranges;
 use super::join_context::{
     DENSE_STREAM_BENCHMARK_BATCH_SIZE, DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES,
 };
-use super::scaling::assert_scaling_resource_bounds;
+use super::scaling::{
+    assert_scaling_resource_bounds, assert_scaling_resource_bounds_with_memory_limit,
+};
 
 pub const SIMPLE_SCALING_SQL: &str = "SELECT id, title FROM bench_documents WHERE id = $1";
 pub const MIXED_DIRECTION_SCALING_SQL: &str =
@@ -312,7 +314,7 @@ pub fn prepare_projection_lifecycle(context: &BenchContext) {
         .cassie
         .execute_sql(
             &context.session,
-            "CREATE MATERIALIZED PROJECTION IF NOT EXISTS bench_projection AS SELECT title, score, status FROM bench_documents",
+            "CREATE MATERIALIZED PROJECTION IF NOT EXISTS bench_projection AS SELECT score FROM bench_documents",
             vec![],
         )
         .expect("prepare scaling projection");
@@ -477,7 +479,10 @@ pub fn prepare_time_series_lifecycle_context(
     time_series
 }
 
-pub fn projection_refresh_existing(context: &BenchContext) -> Ready<usize> {
+pub fn projection_refresh_existing(
+    context: &BenchContext,
+    query_memory_budget_bytes: usize,
+) -> Ready<usize> {
     let before = context.cassie.metrics();
     let result = context
         .cassie
@@ -492,7 +497,7 @@ pub fn projection_refresh_existing(context: &BenchContext) -> Ready<usize> {
         metric_delta(&before, &after, "projections", "materialized_refreshes") > 0,
         "scaling projection refresh must record a refresh"
     );
-    assert_scaling_resource_bounds(context);
+    assert_scaling_resource_bounds_with_memory_limit(context, query_memory_budget_bytes);
     assert!(
         !result.command().is_empty(),
         "projection refresh command report"

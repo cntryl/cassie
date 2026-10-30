@@ -337,7 +337,7 @@ Filtering happens before setup. Fixture construction is lazy, one fixture is reu
 
 Runtime evidence records an explicit `storage_read_unit`. Bucket-native time-series queries report logical `time_series_bucket` reads from the access-path counter. Other embedded paths report `runtime_storage_read`; storage reads, candidate counts, peak query memory, result-cache hits, and fallback counts are per-sample scalar observations because cache and duration-batch completion can legitimately vary. The complete-manifest validator uses each observation's worst-case maximum and continues to accept legacy invariant metadata. Setup must not warm a timed query to hide cold-versus-cached behavior.
 
-Duration-based batches record their actual completed logical-operation count and normalize cumulative storage-read, candidate, result-cache, and fallback counters to one operation. Each Tier 3 time-series representative executes two unchanged partition-and-time-bounded queries per measured closure, declares `query` as its logical unit, and reports the exact 512-row cardinality of one query rather than the summed batch cardinality. The registered 15-minute, 1-hour, and 1-day owners use independent copies of the same deterministic 100k source fixture and create the selected bucket index outside the measurement boundary, preventing cross-width derived-state contamination. This batching changes only measurement shape; its fixture, setup boundary, path and fallback proofs, sampling, thresholds, and trust policy remain unchanged.
+Duration-based batches record their actual completed logical-operation count and normalize cumulative storage-read, candidate, result-cache, and fallback counters to one operation. Each Tier 3 time-series representative executes two unchanged partition-and-time-bounded queries per measured closure, declares `query` as its logical unit, and reports the exact 512-row cardinality of one query rather than the summed batch cardinality. The authoritative graph representative likewise executes two checked expansions per measured closure, declares `query` as its logical unit, and reports the four-row cardinality of one query. The registered 15-minute, 1-hour, and 1-day owners use independent copies of the same deterministic 100k source fixture and create the selected bucket index outside the measurement boundary, preventing cross-width derived-state contamination. This batching changes only measurement shape; its fixture, setup boundary, path and fallback proofs, sampling, thresholds, and trust policy remain unchanged.
 
 Full-index representative and scale fixtures load source documents in bounded batches of at most 5,000 rows before creating full-text and scalar indexes. This produces the final full-text artifact once after source loading instead of repeatedly rebuilding the growing whole-index state inside each untimed document batch.
 
@@ -350,7 +350,7 @@ staged payload and sidecar transactions are bounded separately, while validated 
 and their applied marker share one atomic data transaction. This does not establish a bounded
 memory or large-scale backfill performance guarantee.
 Prepared scalar-index publication and cleanup use transactions of at most 5,000 entries and flush
-the owning database family after every four committed batches and after the final partial interval.
+the owning database family after every eight committed batches and after the final partial interval.
 This bounds encoded index-key memtable accumulation without forcing an L0 flush after every
 transaction, while publication metadata remains hidden until every bounded index batch is durable.
 
@@ -451,7 +451,9 @@ Tier 5 has explicit query, retrieval, lifecycle, and transport owners. Its requi
 Every applicable owner emits evidence for every value on its declared axis. These are manual, environment-labelled scale curves, not production capacity claims.
 
 The projection lifecycle owner measures replay and refresh/rebuild at 10k, 100k, and 250k source
-rows. Full verification and row-hash repair use the representative 100k fixture. Repair setup
+rows. Its rebuild fixture projects the numeric `score` column so the 250k source-row curve remains
+within the documented 100 MiB query-memory ceiling. Full verification and row-hash repair use the
+representative 100k fixture. Repair setup
 marks one output row hash stale and persists the failed verification report before timing; the
 measured operation contains only `REPAIR PROJECTION ... SCOPE row`, its mandatory post-repair full
 verification, and audit publication. Exact completed/verified state, runtime resource bounds, and
@@ -509,8 +511,9 @@ cargo bench --locked --bench '*'
 
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
-> **Current operations constraint:** GitHub Actions are disabled by user direction. Do not
-> enable or dispatch this archived workflow until the user explicitly changes that direction.
+> **Current operations constraint:** The GitHub Actions permission readback reports
+> `enabled: true` (2026-10-30), but `AGENTS.md` prohibits enabling or dispatching workflows
+> until the user explicitly changes that direction. Do not dispatch this archived workflow.
 > The topology below is historical and describes the prior evidence pipeline.
 
 The archived [Bench workflow at the frozen baseline](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/.github/workflows/bench.yml) records the CI topology below. Its scheduled lane exercises Tiers 1-4 and retains its

@@ -78,11 +78,13 @@ and test-fixture-label reconciliation. No runtime source changed.
 
 ## Workflow and Branch-Protection State
 
-GitHub readback on 2026-10-29 confirmed repository Actions permission is
-disabled (`enabled: false`), the `Protect main branch` ruleset (`21147564`) is
-disabled, and the `main` branch has no active protection. No hosted result is
-available; local gates and historical check runs do not supply one. No workflow
-was enabled or dispatched during this audit.
+GitHub readback on 2026-10-30 reports repository Actions permission `enabled: true`; `AGENTS.md` still
+prohibits enabling or dispatching workflows until the user explicitly changes that direction.
+No backend, benchmark, or release workflow was dispatched. PR #1144 at head
+`988af872565438487dbacd411d4b228f3d21be46` has five successful CodeQL checks; this security
+analysis does not establish backend test or release qualification. The 2026-10-29 branch-protection
+readback found the `Protect main branch` ruleset (`21147564`) disabled and no active `main` protection;
+these branch-protection observations have not been refreshed.
 
 Historical coverage recorded on 2026-10-12 is retained as context only: backend
 CI filtered out `ui/**`, frontend CI ran for frontend-related paths, and PRs
@@ -94,8 +96,9 @@ active branch protection.
 ## Evidence Present
 
 - The repository's locked build, full-test, pedantic Clippy, formatting, and
-  touched-test validation gates are defined; the current local results are
-  recorded above.
+  touched-test validation gates are defined. The latest uncommitted worktree result
+  is recorded in [Testing and Validation](testing/validation.md); it is not an
+  exact-release-commit qualification.
 - Integration coverage across SQL, indexes, transactions, pgwire, REST, search, vector, analytics, projection lifecycle, and recovery adapters.
 - The stable named-client catalog subset is limited to the documented columns of
   `information_schema.tables` and `information_schema.columns`, with lifecycle tests plus retained
@@ -125,7 +128,8 @@ active branch protection.
 - Security-boundary coverage for constant-cost authentication failures, bounded login state, atomic REST session quotas, explicit external HTTPS attributes, bounded provider responses, streaming transport deadlines, parser complexity budgets, and live database-access revocation.
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
 - Retained container and supply-chain evidence for supported targets from
-  earlier runs; no new hosted evidence is available while Actions are disabled.
+  earlier runs. No backend, benchmark, or release workflow has been dispatched under
+  the current no-dispatch instruction; those required hosted results remain blocked.
 - Named evidence boundaries are defined in [Deployment Profiles](deployment-profiles.md); the
   native-Linux profile remains an explicit evidence requirement rather than an implied claim.
 - The release support, upgrade, rollback, and security-response envelope is defined in
@@ -243,9 +247,9 @@ the roadmap's separate production-readiness boundary.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
 - The cross-architecture rehearsal record is defined in [Cross-Architecture Release Rehearsal](cross-architecture-rehearsal.md); amd64 and arm64 evidence remains pending until separate retained bundles exist.
 - The `Operational readiness` workflow definition separates a fast native amd64/arm64 shape gate
-  from its scale and endurance mode. GitHub Actions are disabled, so it is not currently running;
-  a passing shape run validates the automation but does not satisfy the pending retained-evidence
-  blocker.
+  from its scale and endurance mode. Repository permission currently reports Actions enabled, but
+  `AGENTS.md` prohibits dispatch; the workflow is not currently running. A passing shape run validates
+  automation but does not satisfy the pending retained-evidence blocker.
 - Validate the support, upgrade compatibility, release rollback, and security response expectations
   in [Support, Release, and Security-Response Policy](support-policy.md) against a tagged release
   artifact and rehearsal evidence.

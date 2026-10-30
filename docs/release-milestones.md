@@ -12,8 +12,9 @@ single-node projection writes, replay recovery, schema/object lifecycle,
 rebuild, and the selected PostgreSQL-wire and named-client workflows. The
 former v0.2.0 package value and the former v0.3 Projection Store/v0.4 Query
 planning labels are not prior releases or compatibility commitments. The exact
-v0.1.0 release commit still requires its own local gate; Actions remain
-disabled. The active baseline/recovery PR
+v0.1.0 release commit still requires its own local gate. Actions permission
+reports enabled as of 2026-10-30, but the active repository instruction prohibits
+workflow dispatch until the user explicitly changes that direction. The active baseline/recovery PR
 [#1144](https://github.com/cntryl/cassie/pull/1144) is assigned to this
 milestone.
 
@@ -73,7 +74,7 @@ acceptance contract justify it.
 | #906 | XML values and SQL/XML functions have no selected read-model use case or active type contract. |
 | #907 | Geometric types and functions have no selected read-model use case or active type contract. |
 | #908 | Money values and arithmetic have no selected read-model use case or active type contract. |
-| #959 | CI deadline tuning requires workflow changes while Actions are disabled; no workflow change is authorized by the current release scope. |
+| #959 | Closed as not planned on 2026-10-30. CI deadline tuning requires a workflow change, which is not authorized by the current repository direction. |
 
 ## Production qualification
 

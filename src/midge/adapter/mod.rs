@@ -347,7 +347,7 @@ pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
 mod failure_points;
 pub(crate) use failure_points::{
-    check_document_write_conflict_injection, check_document_write_failure_point,
+    check_document_write_failure_point, check_document_write_storage_failure_injection,
 };
 #[doc(hidden)]
 pub use failure_points::{

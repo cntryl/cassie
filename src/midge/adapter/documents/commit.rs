@@ -68,7 +68,7 @@ impl Midge {
             tx.put(key.clone(), value.clone(), None)
                 .map_err(CassieError::from)?;
         }
-        if let Err(error) = super::super::check_document_write_conflict_injection() {
+        if let Err(error) = super::super::check_document_write_storage_failure_injection() {
             tx.rollback().map_err(CassieError::from)?;
             return Err(error);
         }
@@ -121,7 +121,10 @@ const WRITE_STALL_BACKOFF_STEP: Duration = Duration::from_millis(2);
 /// writer now owns the lease epoch, and retrying in-process cannot regain it and
 /// risks acting as a stale leader. Unknown commit outcomes are terminal and
 /// require reconciliation after recovery before the caller considers a retry.
-pub(super) fn document_write_retry_delay(error: &CassieError, attempts: u8) -> Option<Duration> {
+pub(in crate::midge::adapter) fn document_write_retry_delay(
+    error: &CassieError,
+    attempts: u8,
+) -> Option<Duration> {
     if attempts >= DOCUMENT_WRITE_BATCH_ATTEMPTS {
         return None;
     }

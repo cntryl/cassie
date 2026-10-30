@@ -15,13 +15,6 @@ const VECTOR_SQL: &str = "SELECT _id, vector_distance(embedding, $1) AS distance
 const HYBRID_SQL: &str = "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
 const JOIN_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
 const TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE tenant = $1 AND event_at >= $2 AND event_at < $3 ORDER BY event_at LIMIT 512";
-const EXPECTED_COLUMN_ROW: [Value; 5] = [
-    Value::Int64(5_000),
-    Value::Int64(470_000),
-    Value::Float64(94.0),
-    Value::Int64(90),
-    Value::Int64(98),
-];
 const TIME_SERIES_EXPECTED_ROWS: usize = 512;
 const COLUMN_SEGMENTS: u64 = 391;
 const COLUMN_QUERIES_PER_BATCH: u64 = 32;
@@ -665,12 +658,25 @@ fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
             .cassie
             .execute_sql(&context.session, COLUMN_SQL, vec![])
             .expect("Tier 3 column representative query");
+        let query_rows = result.rows();
+        assert_eq!(query_rows.len(), 1, "Tier 3 column aggregate result");
+        let [Value::Int64(row_count), Value::Int64(score_sum), Value::String(score_average), Value::Int64(min_score), Value::Int64(max_score)] =
+            query_rows[0].as_slice()
+        else {
+            panic!(
+                "Tier 3 column aggregate result has unexpected types: {:?}",
+                query_rows[0]
+            );
+        };
+        assert_eq!(*row_count, 5_000, "Tier 3 column aggregate row count");
+        assert_eq!(*score_sum, 470_000, "Tier 3 column aggregate sum");
         assert_eq!(
-            result.rows(),
-            vec![EXPECTED_COLUMN_ROW.to_vec()],
-            "Tier 3 column aggregate result"
+            score_average, "94.0000000000000000",
+            "AVG(integer) should preserve its numeric result"
         );
-        result_rows += result.rows().len();
+        assert_eq!(*min_score, 90, "Tier 3 column aggregate minimum");
+        assert_eq!(*max_score, 98, "Tier 3 column aggregate maximum");
+        result_rows += query_rows.len();
     }
     std::hint::black_box(result_rows)
 }

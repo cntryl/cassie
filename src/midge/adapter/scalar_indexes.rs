@@ -38,7 +38,7 @@ pub(crate) struct ScalarIndexScanHit {
 
 type ScalarIndexEntry = (Vec<u8>, Vec<u8>);
 const SCALAR_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
-const SCALAR_INDEX_FLUSH_INTERVAL_BATCHES: usize = 4;
+const SCALAR_INDEX_FLUSH_INTERVAL_BATCHES: usize = 8;
 
 fn scalar_index_build_ranges(item_count: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
     (0..item_count)
@@ -641,8 +641,8 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Assert
-        assert_eq!(exact_interval_flushes, vec![4, 8, 12, 16, 20]);
-        assert_eq!(partial_interval_flushes, vec![4, 8, 10]);
+        assert_eq!(exact_interval_flushes, vec![8, 16, 20]);
+        assert_eq!(partial_interval_flushes, vec![8, 10]);
     }
 
     #[test]

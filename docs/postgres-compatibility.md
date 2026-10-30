@@ -1,7 +1,8 @@
 # PostgreSQL Compatibility
 
-> **Current operations constraint:** GitHub Actions are disabled by user direction. Do not
-> enable or dispatch archived client workflows until the user explicitly changes that direction.
+> **Current operations constraint:** The GitHub Actions permission readback reports
+> `enabled: true` (2026-10-30), but `AGENTS.md` prohibits enabling or dispatching workflows
+> until the user explicitly changes that direction. Do not dispatch archived client workflows.
 > The workflow descriptions below record historical interfaces; they do not authorize a live run
 > or establish current certification.
 

@@ -2,18 +2,19 @@
 
 Use this checklist before approving a Cassie release.
 
-> **Current operations constraint:** GitHub Actions are disabled in repository
-> settings by user direction. Do not enable or dispatch workflows until the user
-> explicitly changes that direction. The Publish and Containers steps below are
-> blocked while Actions is disabled; do not treat absent hosted evidence as a
-> pass.
+> **Current operations constraint:** The latest repository permission readback
+> (2026-10-30) reports `enabled: true`, but `AGENTS.md` still prohibits enabling
+> or dispatching workflows until the user explicitly changes that direction. Do
+> not dispatch workflows. Required backend and release workflow evidence remains
+> unavailable; do not treat it as a pass.
 
 ## Build and Test
 
 1. Required local unit, integration, compatibility, browser, and benchmark suites completed
    against the exact release commit.
-2. Hosted checks are required when Actions are enabled. While Actions remain disabled, record
-   hosted evidence as blocked and do not claim a release-ready hosted result.
+2. Read back required hosted checks on the exact release commit. Although the repository
+   permission currently reports enabled, the active no-dispatch instruction remains in force;
+   record unrun backend and release workflows as blocked and do not claim a hosted release pass.
 3. No unresolved critical or high-severity regressions remain.
 
 ## Documentation
@@ -38,8 +39,9 @@ Use this checklist before approving a Cassie release.
 
 ## Publish
 
-These steps are blocked while GitHub Actions are disabled. Use them only after the user
-explicitly reauthorizes workflow execution and the repository settings show Actions enabled.
+These steps remain blocked until the user explicitly authorizes workflow execution. The current
+repository permission readback reports Actions enabled, but that setting does not override the
+no-dispatch instruction.
 
 1. Dispatch the `Publish` workflow from `main` only. Its called `Containers` workflow uses
    `version.yml` to calculate the release SemVer and refuses to continue if the corresponding

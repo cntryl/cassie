@@ -118,13 +118,7 @@ fn measure_scale(
     }
 
     let setup_started = Instant::now();
-    let context = runtime
-        .block_on(workloads::lifecycle_disk_context_with_temp_budget(
-            &format!("tier5-lifecycle-{scale}"),
-            rows,
-            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
-        ))
-        .expect("lifecycle scaling fixture");
+    let (context, query_memory_budget_bytes) = lifecycle_context(runtime, scale, rows);
     // Removes the fixture even when a later assertion panics.
     let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     let replay_context = cases
@@ -164,7 +158,12 @@ fn measure_scale(
         runner.measure_batch(
             evidenced(case, &setup_time_ns, context.cassie.clone()),
             source_rows,
-            || runtime.block_on(workloads::projection_refresh_existing(&context)),
+            || {
+                runtime.block_on(workloads::projection_refresh_existing(
+                    &context,
+                    query_memory_budget_bytes,
+                ))
+            },
         );
     }
     if let Some(case) = cases.verify {
@@ -200,7 +199,10 @@ fn measure_scale(
                 .expect("prepared time-series lifecycle context"),
         );
     }
-    workloads::assert_scaling_resource_bounds(&context);
+    workloads::assert_scaling_resource_bounds_with_memory_limit(
+        &context,
+        query_memory_budget_bytes,
+    );
     drop(time_series_context);
     drop(replay_context);
     let fixture = workloads::StartupFixture::from_context(context, rows);
@@ -208,6 +210,26 @@ fn measure_scale(
         runner.measure_batch(base_evidence(case, &setup_time_ns), 1, || fixture.reopen());
     }
     Some(fixture)
+}
+
+fn lifecycle_context(
+    runtime: &tokio::runtime::Runtime,
+    scale: &str,
+    rows: usize,
+) -> (workloads::BenchContext, usize) {
+    let query_memory_budget_bytes = if rows > 100_000 {
+        workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    } else {
+        workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    };
+    let context = runtime
+        .block_on(workloads::lifecycle_disk_context_with_temp_budget(
+            &format!("tier5-lifecycle-{scale}"),
+            rows,
+            query_memory_budget_bytes,
+        ))
+        .expect("lifecycle scaling fixture");
+    (context, query_memory_budget_bytes)
 }
 
 fn measure_isolated_time_series(
@@ -352,6 +374,27 @@ fn selected_case(
         ),
         operation_unit,
     );
+    let case = if workload == "startup_reopen" {
+        case.metadata(
+            "query_memory_budget_bytes",
+            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES.to_string(),
+        )
+    } else if rows > 100_000 {
+        case.metadata(
+            "query_memory_budget_bytes",
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES.to_string(),
+        )
+        .metadata(
+            "query_timeout_ms",
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS.to_string(),
+        )
+    } else {
+        case.metadata(
+            "query_memory_budget_bytes",
+            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES.to_string(),
+        )
+        .metadata("query_timeout_ms", "0")
+    };
     runner.is_enabled(&case).then_some(case)
 }
 
@@ -380,8 +423,4 @@ fn evidenced(
 fn base_evidence(case: stress::StressCase, setup_time_ns: &str) -> stress::StressCase {
     case.metadata("setup_time_ns", setup_time_ns)
         .metadata("execution_result_cache_hits", "0")
-        .metadata(
-            "query_memory_budget_bytes",
-            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES.to_string(),
-        )
 }

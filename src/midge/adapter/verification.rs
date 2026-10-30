@@ -2,15 +2,19 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{
-    check_projection_output_failure_point, encode_row, CassieError, Midge, ProjectionMeta,
-    ProjectionOutputFailurePoint, RowSchema,
+    check_document_write_storage_failure_injection, check_projection_output_failure_point,
+    encode_row, CassieError, Midge, ProjectionMeta, ProjectionOutputFailurePoint, RowSchema,
 };
 
+#[path = "verification/encoding.rs"]
+mod encoding;
 #[path = "verification/storage.rs"]
 pub(super) mod storage;
+use encoding::{digest_hex, write_json_canonical, write_option_str, write_str, write_u64};
 use storage::{
-    delete_keys_from_tx, should_flush_projection_output_batch, write_range_hash_record_to_tx,
-    write_ranges, write_root_hash_record_to_tx, write_row_hash_record_to_tx,
+    delete_keys_from_tx, retry_storage_write, should_flush_projection_output_batch,
+    write_range_hash_record_to_tx, write_ranges, write_root_hash_record_to_tx,
+    write_row_hash_record_to_tx,
 };
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
@@ -348,19 +352,25 @@ impl Midge {
         for (batch_index, range) in
             write_ranges(encoded_rows.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE).enumerate()
         {
-            let mut tx = self.begin_data_rw_tx_for(&collection)?;
-            for index in range {
-                let (id, row_blob) = &encoded_rows[index];
-                tx.put(
-                    Self::row_key(row_schema.relation_id, id),
-                    row_blob.clone(),
-                    None,
-                )
-                .map_err(CassieError::from)?;
-                write_row_hash_record_to_tx(&mut tx, &records[index])?;
-            }
-            tx.commit(self.write_options_sync())
-                .map_err(CassieError::from)?;
+            retry_storage_write(|| {
+                let mut tx = self.begin_data_rw_tx_for(&collection)?;
+                for index in range.clone() {
+                    let (id, row_blob) = &encoded_rows[index];
+                    tx.put(
+                        Self::row_key(row_schema.relation_id, id),
+                        row_blob.clone(),
+                        None,
+                    )
+                    .map_err(CassieError::from)?;
+                    write_row_hash_record_to_tx(&mut tx, &records[index])?;
+                }
+                if let Err(error) = check_document_write_storage_failure_injection() {
+                    tx.rollback().map_err(CassieError::from)?;
+                    return Err(error);
+                }
+                tx.commit(self.write_options_sync())
+                    .map_err(CassieError::from)
+            })?;
             report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
             if should_flush_projection_output_batch(batch_index + 1, batch_count) {
                 self.flush_data_family_for_collection(&collection)?;
@@ -380,13 +390,19 @@ impl Midge {
             &ranges,
         );
 
-        let mut tx = self.begin_data_rw_tx_for(&collection)?;
-        for record in &ranges {
-            write_range_hash_record_to_tx(&mut tx, record)?;
-        }
-        write_root_hash_record_to_tx(&mut tx, &root)?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
+        retry_storage_write(|| {
+            let mut tx = self.begin_data_rw_tx_for(&collection)?;
+            for record in &ranges {
+                write_range_hash_record_to_tx(&mut tx, record)?;
+            }
+            write_root_hash_record_to_tx(&mut tx, &root)?;
+            if let Err(error) = check_document_write_storage_failure_injection() {
+                tx.rollback().map_err(CassieError::from)?;
+                return Err(error);
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)
+        })?;
         report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
 
         self.update_projection_hash_metadata(&collection, &records, &ranges, &root)?;
@@ -921,72 +937,6 @@ fn build_root_hash_record(
         },
         computed_ms: now_ms(),
     }
-}
-
-fn write_json_canonical(value: &serde_json::Value, out: &mut Vec<u8>) {
-    match value {
-        serde_json::Value::Null => out.push(b'0'),
-        serde_json::Value::Bool(value) => {
-            out.push(b'b');
-            out.push(u8::from(*value));
-        }
-        serde_json::Value::Number(value) => {
-            out.push(b'n');
-            write_str(&value.to_string(), out);
-        }
-        serde_json::Value::String(value) => {
-            out.push(b's');
-            write_str(value, out);
-        }
-        serde_json::Value::Array(values) => {
-            out.push(b'a');
-            write_u64(values.len() as u64, out);
-            for value in values {
-                write_json_canonical(value, out);
-            }
-        }
-        serde_json::Value::Object(values) => {
-            out.push(b'o');
-            write_u64(values.len() as u64, out);
-            let mut entries = values.iter().collect::<Vec<_>>();
-            entries.sort_by_key(|(key, _)| *key);
-            for (key, value) in entries {
-                write_str(key, out);
-                write_json_canonical(value, out);
-            }
-        }
-    }
-}
-
-fn digest_hex(input: &[u8]) -> String {
-    let mut left = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d_u128;
-    let mut right = 0x0000_0000_0100_0000_0000_0000_0000_013b_u128;
-    for byte in input {
-        left ^= u128::from(*byte);
-        left = left.wrapping_mul(0x0000_0000_0100_0000_0000_0000_0000_013b_u128);
-        right ^= u128::from(byte.rotate_left(1));
-        right = right.wrapping_mul(0x0000_0000_0100_0000_0000_0000_0000_0159_u128);
-    }
-    format!("{:032x}", left ^ right.rotate_left(17))
-}
-
-fn write_str(value: &str, out: &mut Vec<u8>) {
-    write_u64(value.len() as u64, out);
-    out.extend_from_slice(value.as_bytes());
-}
-
-fn write_option_str(value: Option<&str>, out: &mut Vec<u8>) {
-    match value {
-        Some(value) => {
-            out.push(1);
-            write_str(value, out);
-        }
-        None => out.push(0),
-    }
-}
-
-fn write_u64(value: u64, out: &mut Vec<u8>) {
-    out.extend_from_slice(&value.to_be_bytes());
 }
 
 fn now_ms() -> u64 {

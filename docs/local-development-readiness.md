@@ -15,8 +15,9 @@ for each SQL capability's current status.
   target.
 - Correctness fixtures use Midge memory mode. Persistence, restart, and recovery
   cases use isolated local storage.
-- GitHub Actions remain disabled. Local evidence is reported as local; hosted
-  checks are unavailable.
+- The latest repository permission readback (2026-10-30) reports Actions enabled,
+  but `AGENTS.md` prohibits workflow dispatch until the user changes that direction.
+  Keep local evidence separate and report unrun hosted checks as blocked.
 
 ## 0.1.0 MVP scope checkpoint — 2026-10-30
 
@@ -48,9 +49,10 @@ over 126 Markdown documents. The code and test files remain the exact tree
 validated by PR #1140.
 
 These are local candidate results, not hosted CI, desktop certification,
-production qualification or a complete PostgreSQL wire state/packet matrix.
-GitHub Actions remain disabled. The full ordered gate remains required on the
-immutable release commit.
+production qualification or a complete PostgreSQL wire state/packet matrix. The
+latest uncommitted local qualification is recorded in [Validation](testing/validation.md).
+Actions permission reports enabled, but the no-dispatch instruction remains active.
+The full ordered gate remains required on the immutable release commit.
 
 The unaliased WIRE-012 mixed catalog/ordinary prepared-join shape remains a
 confirmed `42P18` gap, but the pinned workflow uses aliases and no named 0.1.0
@@ -177,10 +179,15 @@ rows)` inside a passing Cargo test target. This is not benchmark qualification.
 The full suite initially hit a timeout in the pre-existing matching-backend
 cancellation test; the test now retains its bound listener and synchronizes at
 the `pg_sleep` entry boundary before sending CancelRequest. Both cancellation
-tests and the subsequent full suite pass. Release readiness remains incomplete:
-selected local-development/client workflows and exact-release-commit browser,
-benchmark, and disk-backed operational evidence still need resolution. Actions
-remain disabled, so hosted checks and publication are unavailable.
+tests and the subsequent full suite pass.
+
+The current uncommitted worktree now passes the ordered Rust gate, selected psql,
+tokio-postgres, SQLx and Diesel workflows, real-Cassie desktop/mobile browser
+checks, Tier 5 rebuild curves, a three-start local-storage restart smoke, and
+snapshot/restore with partial-copy cleanup; see [Validation](testing/validation.md). Release readiness remains incomplete because
+these results are not on an immutable release commit. Repeat the complete required
+gate there. Repository Actions permission reports enabled, but the active
+no-dispatch instruction leaves backend hosted checks and publication unavailable.
 
 ## Baseline discovery
 
@@ -455,7 +462,7 @@ strict workspace/all-target/all-feature pedantic Clippy, formatting check, and
 touched-test policy validation. Review substantial diffs with Jev and source
 inspection; turn confirmed findings into regression tests. Deliver one
 substantial PR at a time. Do not change or dispatch CI/release workflows under
-the current Actions-disabled direction.
+the current no-dispatch direction.
 
 ## Starting Evidence
 

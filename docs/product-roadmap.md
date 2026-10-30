@@ -72,9 +72,10 @@ a future product decision adds them to the roadmap.
 ## Planning gates
 
 Each feature milestone is a shippable release. Complete the required local
-validation on the exact release commit. GitHub Actions are disabled by user
-direction, so hosted evidence is blocked; do not enable or dispatch workflows
-or claim a hosted pass.
+validation on the exact release commit. The repository Actions permission readback
+reports `enabled: true` as of 2026-10-30, but `AGENTS.md` still prohibits enabling
+or dispatching workflows until the user explicitly changes that direction. Do not
+dispatch; report required backend and release workflow evidence as blocked.
 
 The dates below are planning targets set on 2026-10-20, not capacity-backed
 forecasts. They assume one serial delivery lane and the written exit criteria
@@ -85,7 +86,7 @@ explicitly when a gate slips.
 | Target date | Gate | Exit condition | Status |
 | --- | --- | --- | --- |
 | 2026-10-23 | Replay contract | Prove that the owning database-family row batch can commit before the replay-state transaction, that ledger and checkpoint commit together, and that same-batch retry handles both an aborted replay-state commit and an error response after a successful replay-state commit without losing or double-applying projection state. | Complete locally on 2026-10-20; see [focused evidence](testing/validation.md). Hosted evidence remains blocked while Actions are disabled. |
-| 2026-10-30 | Initial MVP scope freeze (pre-release planning label) | Map every issue assigned to the projection-store milestone to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Complete; the selected client and wire scopes (#777/#780), COPY ingress (#846), catalog/TypeInfo work (#817), table/rebuild lifecycle (#826), and scalar-index lifecycle (#842) are recorded against their merged evidence. The selected MVP is the v0.1.0 starting point; broader query/client behavior is assigned to v0.2.0 where it supports a named read-model workflow. The exact release commit still needs its own gate. GitHub Actions remain disabled. |
+| 2026-10-30 | Initial MVP scope freeze (pre-release planning label) | Map every issue assigned to the projection-store milestone to a written exit criterion; move unrelated compatibility and production-qualification work out of the milestone. Add no new work unless it closes a written exit criterion or resolves a confirmed MVP blocker. | Complete; the selected client and wire scopes (#777/#780), COPY ingress (#846), catalog/TypeInfo work (#817), table/rebuild lifecycle (#826), and scalar-index lifecycle (#842) are recorded against their merged evidence. The selected MVP is the v0.1.0 starting point; broader query/client behavior is assigned to v0.2.0 where it supports a named read-model workflow. The exact release commit still needs its own gate. Actions permission reports enabled, but the no-dispatch instruction remains active; no backend workflow result is claimed. |
 
 The replay recovery proof is complete locally; this does not establish a hosted
 pass. If later changes invalidate the proof, keep the v0.1.0 target visibly at

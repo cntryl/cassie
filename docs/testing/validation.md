@@ -13,7 +13,7 @@ relational contract or close #761.
 ## 2026-10-30 — #777 CAT-002 unavailable virtual relation
 
 On the tree based at `8c29f720`, the pgwire regression
-`should_recover_after_undefined_pg_catalog_view_lookup`. A Simple Query for
+`should_recover_after_undefined_pg_catalog_view_lookup` verifies that a Simple Query for
 `pg_catalog.pg_issue_777_missing_virtual_view` returns SQLSTATE `42P01`, then
 `ReadyForQuery` with idle status. The same connection successfully executes
 `SELECT 7::INT` afterward, confirming the error does not strand the session.
@@ -32,6 +32,28 @@ This is direct evidence for one unavailable `pg_catalog` relation and its
 connection-recovery path. It does not complete CAT-002's virtual-column type
 coverage, the rest of #777, or release qualification. GitHub Actions remain
 disabled, so hosted checks are unavailable.
+
+## 2026-10-30 — #777 CAT-003 same-session search_path cache
+
+On the tree based at `d3069745`,
+`should_refresh_cached_results_after_same_session_search_path_changes` warms
+the same unqualified query under `alpha`, switches that session to `beta`, and
+checks that the result changes with the resolved relation. It also confirms a
+result-cache hit after each schema-specific result and a miss immediately after
+the path changes. The focused test passed 1/1. The ordered local gate passed:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked` (exit 0)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f tests/planner_controls/planning/execution_result_cache.rs` (18/18 compliant)
+- `python tools/test_inventory.py --check` (no unregistered tests, duplicate registrations, or oversized files)
+- `cntryl-tools validate-docs`
+
+No runtime behavior changed. This verifies one same-session path mutation
+against the result cache. It does not complete CAT-003 or the remaining #777
+acceptance criteria. GitHub Actions remain disabled, so hosted checks are
+unavailable.
 
 ## 2026-10-28 — #833 standalone DDL preflight
 

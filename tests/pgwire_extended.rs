@@ -362,6 +362,9 @@ mod catalog_empty_registries_a;
 #[path = "pgwire_extended/catalogs/empty_registries_b.rs"]
 mod catalog_empty_registries_b;
 
+#[path = "pgwire_extended/catalogs/unavailable_virtual_view.rs"]
+mod catalog_unavailable_virtual_view;
+
 #[path = "support/catalog_read_model_wire.rs"]
 mod support_catalog_read_model_wire;
 

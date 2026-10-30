@@ -8,6 +8,7 @@ use tokio::sync::Notify;
 use uuid::Uuid;
 
 use super::support_sql as support;
+use super::support_tls::client_trusting_test_certificate;
 use support::*;
 
 fn temp_path(label: &str) -> PathBuf {
@@ -165,8 +166,9 @@ fn should_complete_rest_https_handshake() {
     std::fs::create_dir_all(&tls_dir).expect("create TLS directory");
     let certificate = tls_dir.join("cert.pem");
     let key = tls_dir.join("key.pem");
-    let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
-        .expect("certificate identity");
+    let identity =
+        rcgen::generate_simple_self_signed(vec!["localhost".to_string(), "127.0.0.1".to_string()])
+            .expect("certificate identity");
     std::fs::write(&certificate, identity.cert.pem()).expect("certificate fixture");
     std::fs::write(&key, identity.signing_key.serialize_pem()).expect("key fixture");
     let config = CassieRuntimeConfig {
@@ -184,10 +186,7 @@ fn should_complete_rest_https_handshake() {
 
         // Act
         let (base_url, shutdown, server) = spawn_tls_rest_server(cassie).await;
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .expect("TLS client");
+        let client = client_trusting_test_certificate(&certificate);
         let response = client
             .get(format!("{base_url}/health"))
             .send()

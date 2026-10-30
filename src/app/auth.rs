@@ -240,7 +240,7 @@ impl Cassie {
         Ok(())
     }
 
-    pub(super) fn initialize_bootstrap_password_hash(&self) -> Result<Option<&str>, CassieError> {
+    pub(crate) fn initialize_bootstrap_password_hash(&self) -> Result<Option<&str>, CassieError> {
         if self.auth_password.is_empty() {
             return Ok(None);
         }

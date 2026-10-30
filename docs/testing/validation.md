@@ -5047,3 +5047,89 @@ it does not finish #777's remaining catalog/session/view/routine disposition or
 certify pgAdmin/DBeaver desktop clients. #777 remains open, and #780's broader
 wire-state matrix remains open. GitHub Actions are disabled, so hosted checks
 remain unavailable and are not claimed as passed.
+
+## 2026-10-29 — #777 selected v0.3 prerequisite candidate
+
+The candidate is based on merged main `b476f4964e0f60cdc0d6aacca64569cabc4118a3`;
+runtime source is unchanged, and this slice adds a wire-level test plus scope and
+validation records. The four finite v0.3 client workflows passed 1/1 each on the
+candidate: psql 16.6, SQLx 0.8.3, Diesel 2.2.6, and tokio-postgres 0.7.18. The
+psql, SQLx, and Diesel probes were rerun after the test addition; the tokio-postgres
+named-schema/recovery and new two-session tests ran in the full candidate suite.
+The workflows cover
+catalog discovery, parameterized writes, joined reads, commit/rollback,
+duplicate/missing-relation recovery, and named-schema shadowing/restoration.
+The psql runner used `/tmp/cassie-psql16`, pinned to image digest
+`sha256:557fea37a744d5f4c8faab304b0a90858b53ab119735a88c131fd19dab802f36`.
+
+The selected catalog/session and ordinary-view witnesses also passed on the
+base main tree: `catalog_security information_schema` (7/7); two-session search-path
+and setting isolation; same-session search_path result-cache invalidation;
+session mutations through direct and nested views; invalid-setting rejection;
+ordinary-view create/select/drop, restart hydration, catalog listing, view
+definition rendering and search-path resolution, plus pgwire output-column
+Describe; unavailable virtual-view
+42P01 recovery; binary boolean catalog output; empty binary `pg_index` Describe;
+and nullable `pg_index.indpred` in text and binary results (2/2). The individual
+commands were:
+
+~~~sh
+CASSIE_RUN_PSQL_COMPAT=1 CASSIE_PSQL_BIN=/tmp/cassie-psql16 cargo test --locked --test compatibility compatibility_matrix::should_validate_psql_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_SQLX_COMPAT=1 cargo test --locked --test compatibility compatibility_sqlx::should_validate_sqlx_read_model_probe_when_enabled -- --ignored --nocapture
+CASSIE_RUN_DIESEL_COMPAT=1 cargo test --locked --test compatibility compatibility_diesel::should_validate_diesel_read_model_probe_when_enabled -- --ignored --nocapture
+cargo test --locked --test compatibility should_resolve_named_schema_before_public_on_one_backend -- --nocapture
+cargo test --locked --test compatibility should_preserve_named_tokio_postgres_session_through_error_recovery -- --nocapture
+cargo test --locked --test catalog_security information_schema -- --nocapture
+cargo test --locked --test planner_controls should_isolate_execution_results_given_different_search_paths -- --nocapture
+cargo test --locked --test planner_controls should_isolate_execution_results_given_different_session_settings -- --nocapture
+cargo test --locked --test planner_controls should_refresh_cached_results_after_same_session_search_path_changes -- --nocapture
+cargo test --locked --test planner_controls should_execute_session_mutations_for_each_matching_session -- --nocapture
+cargo test --locked --test catalog_security should_reject_invalid_settings_with_22023 -- --nocapture
+cargo test --locked --test sql_queries should_reject_text_true_for_transaction_local_set_config -- --nocapture
+cargo test --locked --test catalog_security should_create_select_drop_user_defined_view -- --nocapture
+cargo test --locked --test catalog_security should_hydrate_user_defined_views_after_restart -- --nocapture
+cargo test --locked --test catalog_security should_render_a_created_view_definition -- --nocapture
+cargo test --locked --test catalog_security should_resolve_view_definition_through_the_session_search_path -- --nocapture
+cargo test --locked --test catalog_security should_list_created_views_in_pg_views -- --nocapture
+cargo test --locked --test pgwire_extended should_describe_view_columns_without_phantom_id_given_wildcard_over_view -- --nocapture
+cargo test --locked --test pgwire_extended should_preserve_nullable_index_predicate -- --nocapture
+cargo test --locked --test pgwire_extended should_describe_pg_index_columns_given_empty_binary_result -- --nocapture
+cargo test --locked --test pgwire_extended should_encode_catalog_bool_columns_as_declared_binary_bool -- --nocapture
+cargo test --locked --test pgwire_extended should_recover_after_undefined_pg_catalog_view_lookup -- --nocapture
+cargo test --locked --test compatibility should_isolate_search_path_across_tokio_postgres_sessions -- --nocapture
+~~~
+
+Jev 1.14.0 reviewed the selected scope. It assigned 0.96 probability to keeping
+ordinary-view lifecycle in v0.3 while deferring user-defined routine/procedure,
+volatility, and broad `CALL` qualification; the roadmap includes views in
+read-model lifecycle and the scope map excludes stored programs. It assigned
+0.27 to stored-view setting side effects being a required release blocker; the
+existing direct/nested-view mutation witness nevertheless passed. It assigned
+0.04 to adding desktop, psycopg, or JDBC lanes as v0.3 prerequisites. For the
+remaining CAT-003 ambiguity, Jev's material-gap probability was 0.34, above the
+0.30 focused-probe threshold. The resulting two-connection tokio-postgres
+pgwire test, `should_isolate_search_path_across_tokio_postgres_sessions`,
+passed 1/1 and proves distinct backend identities and stable `alpha`, `beta`,
+`alpha` results for the same unqualified query. This adds test coverage only;
+runtime behavior did not change. Jev is advisory; the product roadmap, scope
+map, source tests, and executed results determine acceptance. Secret-free Jev
+request/response artifacts are under the ignored
+`target/jev-mvp-scope-20261029/` directory.
+
+This scope keeps the selected information-schema/catalog, session, ordinary-view,
+and four named-client contracts under #777. It defers user-defined stored
+programs and additional desktop/client certification; those are not selected
+v0.3 workflows. The required local gate passed on the candidate source/test
+tree: `cargo build --locked --bin cassie`, `cargo test --locked` (exit 0 across
+all targets), strict workspace/all-target/all-feature pedantic Clippy, formatting,
+and `cntryl-tools validate-tests` on the touched tokio-postgres test file (4/4).
+`tools/test_inventory.py --check` reported 8,361 Rust declarations and 8,489
+registered instances with no inventory errors; `cntryl-tools validate-docs`
+validated 126 Markdown documents. The psql, SQLx, and Diesel pinned probes were
+rerun on this candidate and each passed 1/1; tokio-postgres named-workflow tests,
+including the new two-connection isolation probe, passed in the full suite.
+
+#777 remains open pending PR review, merge and closure readback. #780's selected
+packet/COPY/cancellation matrix remains open and stays ahead of the separately
+owned #846 idle-COPY cancellation fix. GitHub Actions remain disabled; hosted
+evidence is unavailable and is not reported as passed.

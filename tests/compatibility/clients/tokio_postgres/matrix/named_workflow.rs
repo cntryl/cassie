@@ -357,3 +357,94 @@ fn should_resolve_named_schema_before_public_on_one_backend() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_isolate_search_path_across_tokio_postgres_sessions() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build current-thread runtime");
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("session_search_path_isolation").await;
+        let (setup_client, setup_connection) = server.connect().await;
+        for sql in [
+            "CREATE SCHEMA session_alpha",
+            "CREATE SCHEMA session_beta",
+            "CREATE TABLE session_alpha.session_scope_rows (value TEXT NOT NULL)",
+            "CREATE TABLE session_beta.session_scope_rows (value TEXT NOT NULL)",
+            "INSERT INTO session_alpha.session_scope_rows VALUES ('alpha')",
+            "INSERT INTO session_beta.session_scope_rows VALUES ('beta')",
+        ] {
+            setup_client
+                .batch_execute(sql)
+                .await
+                .expect("create session scope fixtures");
+        }
+        let (alpha_client, alpha_connection) = server.connect().await;
+        let (beta_client, beta_connection) = server.connect().await;
+        alpha_client
+            .batch_execute("SET search_path TO session_alpha")
+            .await
+            .expect("set alpha session path");
+        beta_client
+            .batch_execute("SET search_path TO session_beta")
+            .await
+            .expect("set beta session path");
+
+        // Act
+        let alpha_backend: i32 = alpha_client
+            .query_one("SELECT pg_backend_pid()", &[])
+            .await
+            .expect("read alpha backend identity")
+            .get(0);
+        let beta_backend: i32 = beta_client
+            .query_one("SELECT pg_backend_pid()", &[])
+            .await
+            .expect("read beta backend identity")
+            .get(0);
+        let alpha_schema: String = alpha_client
+            .query_one("SELECT current_schema()::TEXT", &[])
+            .await
+            .expect("read alpha session schema")
+            .get(0);
+        let beta_schema: String = beta_client
+            .query_one("SELECT current_schema()::TEXT", &[])
+            .await
+            .expect("read beta session schema")
+            .get(0);
+        let alpha_value: String = alpha_client
+            .query_one("SELECT value FROM session_scope_rows", &[])
+            .await
+            .expect("read through alpha session path")
+            .get(0);
+        let beta_value: String = beta_client
+            .query_one("SELECT value FROM session_scope_rows", &[])
+            .await
+            .expect("read through beta session path")
+            .get(0);
+        let alpha_value_after_beta: String = alpha_client
+            .query_one("SELECT value FROM session_scope_rows", &[])
+            .await
+            .expect("read alpha path after beta query")
+            .get(0);
+
+        // Assert
+        assert_ne!(alpha_backend, beta_backend);
+        assert_eq!(alpha_schema, "session_alpha");
+        assert_eq!(beta_schema, "session_beta");
+        assert_eq!(alpha_value, "alpha");
+        assert_eq!(beta_value, "beta");
+        assert_eq!(alpha_value_after_beta, "alpha");
+        println!("tokio_postgres_session_search_path=alpha:beta:alpha");
+
+        drop(alpha_client);
+        alpha_connection.abort();
+        let _ = alpha_connection.await;
+        drop(beta_client);
+        beta_connection.abort();
+        let _ = beta_connection.await;
+        drop(setup_client);
+        server.shutdown(setup_connection).await;
+    });
+}

@@ -6,6 +6,7 @@ use super::support_pgwire as support;
 
 const ANSWER_LIMIT: Duration = Duration::from_secs(10);
 const OID_BOOL: i32 = 16;
+const OID_NAME: i32 = 19;
 const OID_TEXT: i32 = 25;
 
 const INDEX_PREDICATE_SETUP: &[&str] = &[
@@ -627,6 +628,59 @@ fn should_describe_pg_index_columns_given_empty_binary_result() {
     );
     assert!(!frames.iter().any(|frame| frame.0 == b'D'));
     assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+}
+
+#[test]
+fn should_preserve_null_catalog_columns_given_text_result_format() {
+    // Arrange
+    let sql = "SELECT tableowner, tablespace FROM pg_catalog.pg_tables WHERE tablename = 'catalog_nullable_fields'";
+    let (text_cassie, text_path) = configured_cassie(
+        "catalog-null-text",
+        &["CREATE TABLE catalog_nullable_fields (id INT)"],
+    );
+
+    // Act
+    let text_frames = extended_text_round_trip(text_cassie, text_path, sql);
+
+    // Assert
+    let text_description = text_frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("text RowDescription");
+    assert!(text_description
+        .iter()
+        .all(|field| { field.type_oid == OID_NAME && field.format_code == 0 }));
+    assert_eq!(support::data_rows(&text_frames), vec![vec![None, None]]);
+}
+
+#[test]
+fn should_preserve_null_catalog_columns_given_binary_result_format() {
+    // Arrange
+    let sql = "SELECT tableowner, tablespace FROM pg_catalog.pg_tables WHERE tablename = 'catalog_nullable_fields'";
+    let (binary_cassie, binary_path) = configured_cassie(
+        "catalog-null-binary",
+        &["CREATE TABLE catalog_nullable_fields (id INT)"],
+    );
+
+    // Act
+    let binary_frames = binary_round_trip(binary_cassie, binary_path, sql);
+
+    // Assert
+    let binary_description = binary_frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("binary RowDescription");
+    assert!(binary_description
+        .iter()
+        .all(|field| { field.type_oid == OID_NAME && field.format_code == 1 }));
+    let binary_rows = binary_frames
+        .iter()
+        .filter(|frame| frame.0 == b'D')
+        .map(|frame| data_row_field_lengths(&frame.1))
+        .collect::<Vec<_>>();
+    assert_eq!(binary_rows, vec![vec![-1, -1]]);
 }
 
 #[test]

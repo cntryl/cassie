@@ -31,11 +31,11 @@ case. The ordered local gate passed:
 The generated test inventory was refreshed and its check passed. No runtime
 behavior changed.
 
-This is direct evidence for one unavailable `pg_catalog` relation and selected
-empty, binary-boolean, and constraint descriptor shapes. It does not establish
-every virtual-column type or a NULL-valued catalog row; the rest of #777 and
-release qualification remain open. GitHub Actions remain disabled, so hosted
-checks are unavailable.
+At that recorded tree, this is direct evidence for one unavailable
+`pg_catalog` relation and selected empty, binary-boolean, and constraint
+descriptor shapes. It did not establish every virtual-column type or a
+NULL-valued catalog row; the rest of #777 and release qualification remained
+open. GitHub Actions remain disabled, so hosted checks are unavailable.
 
 ## 2026-10-30 — #777 CAT-001 information-schema lifecycle
 
@@ -46,6 +46,33 @@ after restart, connected-database isolation after drop/restart, and selected
 column type/identity descriptors. This is focused local evidence for the stable
 information-schema subset. It does not cover every lifecycle form or close
 CAT-001, #777, or the release gate. No runtime behavior changed.
+
+## 2026-10-30 — #777 CAT-002 NULL-valued catalog row
+
+On the tree based at `b476f496`, two focused pgwire tests query the non-empty
+`pg_catalog.pg_tables` result for a user table whose owner and tablespace values
+are `NULL`. Text-format `RowDescription` declares both columns as `name` (OID
+19), and the `DataRow` carries two NULL fields. Binary-format `RowDescription`
+declares the same OIDs with binary format, and the `DataRow` carries the
+PostgreSQL NULL length `-1` for each field. The focused command passed 2/2:
+
+`cargo test --locked --test pgwire_extended should_preserve_null_catalog_columns_given -- --nocapture`
+
+The final ordered local gates also passed:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked` (exit 0)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f tests/pgwire_extended/results/result_framing.rs` (14/14 compliant)
+- `python tools/test_inventory.py --check` (8,362 Rust declarations and 8,490 registrations; no unregistered tests, unresolved paths, duplicate registrations, unsharded targets, or oversized files)
+- `cntryl-tools validate-docs` (126 Markdown documents)
+- `git diff --check`
+
+This directly covers NULL encoding for one catalog row shape. It does not
+qualify every virtual-column type, every populated catalog, or the rest of
+#777. No runtime behavior changed; GitHub Actions remain disabled, so hosted
+checks are unavailable.
 
 ## 2026-10-30 — #777 CAT-003 same-session search_path cache
 

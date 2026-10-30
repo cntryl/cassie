@@ -53,8 +53,13 @@ gates and exact-revision live artifacts remain open.
 The selected psql 16.6 and tokio-postgres 0.7.18 read-model workflows cover
 named table discovery, a join, commit and rollback, and a successful query on
 the same backend after duplicate-key and missing-relation errors in
-idle/autocommit mode. They do not qualify failed explicit transactions,
-savepoints, the remaining client matrix, or full PostgreSQL wire parity.
+idle/autocommit mode. The named-schema case creates a schema and same-named
+tables in that schema and `public`, sets `search_path` with the named schema
+first, checks schema-filtered discovery and unqualified resolution, then
+restores `public` and checks resolution again on the same backend. This is a
+finite workflow check; it does not qualify failed explicit transactions,
+savepoints, session-setting cache behavior, the remaining client matrix, or
+full PostgreSQL wire parity.
 
 ## sqlx workflow
 
@@ -64,6 +69,10 @@ parameters, a committed parameterized write, a parameterized join, rollback visi
 and deterministic `23505` and `42P01` SQLSTATE mapping. It checks a successful read
 on the same backend session after each error in idle/autocommit mode. It does not
 qualify recovery inside a failed explicit transaction or after rollback to a savepoint.
+It also creates a named schema with a same-named `public` relation, switches the
+held connection to `search_path = compat_sqlx_named, public`, verifies scoped
+discovery and named-schema resolution, then restores `public` and verifies the
+public relation and backend identity.
 The retained manifest records the requested Cassie
 revision and the exact `rustc` toolchain; it contains no connection URL or credentials.
 
@@ -79,6 +88,10 @@ queries, a committed write, a parameterized join, rollback visibility, unique-vi
 mapping, and deterministic missing-relation behavior. It checks a successful read on
 the same backend session after each error in idle/autocommit mode. It does not
 qualify recovery inside a failed explicit transaction or after rollback to a savepoint.
+It also creates a named schema with a same-named `public` relation, switches the
+same connection to a named-first search path, checks schema-filtered discovery
+and unqualified resolution, then restores `public` and checks both resolution
+and backend identity.
 The retained manifest records the requested Cassie
 revision, exact `rustc` toolchain, Diesel version, profile, protocol mode, and outcome without
 credentials.

@@ -144,6 +144,12 @@ fn should_validate_diesel_read_model_probe_when_enabled() {
             "diesel_missing_error=relation_missing",
             "diesel_after_missing=alpha",
             "diesel_same_session=true",
+            "diesel_named_schema=compat_diesel_namespace",
+            "diesel_named_discovery=compat_diesel_namespace",
+            "diesel_named_shadow=named",
+            "diesel_public_shadow=public",
+            "diesel_restored_schema=public",
+            "diesel_schema_same_session=true",
         ];
         for expected in &expected_lines {
             assert!(

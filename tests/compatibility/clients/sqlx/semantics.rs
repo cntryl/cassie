@@ -144,6 +144,11 @@ fn should_validate_sqlx_read_model_probe_when_enabled() {
             "sqlx_after_duplicate=alpha",
             "sqlx_after_missing=alpha",
             "sqlx_same_session=true",
+            "sqlx_current_schema=compat_sqlx_named",
+            "sqlx_named_catalog=compat_sqlx_named",
+            "sqlx_named_shadow=alpha",
+            "sqlx_public_shadow=public-shadow",
+            "sqlx_restored_schema=public",
         ];
         for marker in &expected {
             assert!(

@@ -41,6 +41,33 @@ fn psql_probe_command(psql_bin: &str, connection: &str) -> Command {
         "-c",
         "SELECT 'psql_after_rollback', COUNT(*) FROM compat_psql_probe",
         "-c",
+        "CREATE SCHEMA compat_psql_scoped",
+        "-c",
+        "CREATE TABLE public.compat_psql_shadow (label TEXT NOT NULL)",
+        "-c",
+        "CREATE TABLE compat_psql_scoped.compat_psql_shadow (label TEXT NOT NULL)",
+        "-c",
+        "INSERT INTO public.compat_psql_shadow VALUES ('public-value')",
+        "-c",
+        "INSERT INTO compat_psql_scoped.compat_psql_shadow VALUES ('named-value')",
+        "-c",
+        "SET search_path TO compat_psql_scoped, public",
+        "-c",
+        "SELECT 'psql_schema_named', current_schema()::TEXT",
+        "-c",
+        "SELECT 'psql_shadow_named', label FROM compat_psql_shadow",
+        "-c",
+        "SELECT 'psql_discovery_named', table_schema FROM information_schema.tables \
+         WHERE table_name = 'compat_psql_shadow' AND table_schema = 'compat_psql_scoped'",
+        "-c",
+        "SELECT 'psql_pid_schema', pg_backend_pid()",
+        "-c",
+        "SET search_path TO public",
+        "-c",
+        "SELECT 'psql_schema_public', current_schema()::TEXT",
+        "-c",
+        "SELECT 'psql_shadow_public', label FROM compat_psql_shadow",
+        "-c",
         "SELECT 'psql_pid_before', pg_backend_pid()",
         "-c",
         "\\set ON_ERROR_STOP off",
@@ -85,6 +112,11 @@ fn assert_psql_probe(output: &ProbeOutput) {
         "psql_after_rollback|1",
         "psql_after_duplicate|alpha",
         "psql_after_missing|alpha",
+        "psql_schema_named|compat_psql_scoped",
+        "psql_shadow_named|named-value",
+        "psql_discovery_named|compat_psql_scoped",
+        "psql_schema_public|public",
+        "psql_shadow_public|public-value",
     ] {
         assert!(
             output.stdout.lines().any(|line| line.trim() == expected),
@@ -103,6 +135,7 @@ fn assert_psql_probe(output: &ProbeOutput) {
             .unwrap_or_else(|| panic!("missing nonzero psql backend PID: {prefix}"))
     };
     let initial_pid = pid("psql_pid_before|");
+    assert_eq!(pid("psql_pid_schema|"), initial_pid);
     assert_eq!(pid("psql_pid_after_duplicate|"), initial_pid);
     assert_eq!(pid("psql_pid_after_missing|"), initial_pid);
     let errors: Vec<_> = output
@@ -122,6 +155,12 @@ fn assert_psql_probe(output: &ProbeOutput) {
         "psql_error_duplicate|23505",
         "psql_error_missing|42P01",
         "psql_same_session|true",
+        "psql_schema_named|compat_psql_scoped",
+        "psql_shadow_named|named-value",
+        "psql_discovery_named|compat_psql_scoped",
+        "psql_schema_public|public",
+        "psql_shadow_public|public-value",
+        "psql_schema_same_session|true",
     ] {
         println!("{marker}");
     }

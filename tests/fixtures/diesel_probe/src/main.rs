@@ -1,31 +1,58 @@
+use diesel::deserialize::{self, QueryableByName};
+use diesel::pg::Pg;
 use diesel::prelude::*;
 use diesel::result::{DatabaseErrorKind, Error};
+use diesel::row::NamedRow;
 use diesel::sql_types::{BigInt, Integer, Text};
 
-#[derive(QueryableByName)]
 struct TextRow {
-    #[diesel(sql_type = Text)]
     value: String,
 }
 
-#[derive(QueryableByName)]
 struct CountRow {
-    #[diesel(sql_type = BigInt)]
     value: i64,
 }
 
-#[derive(QueryableByName)]
 struct IntegerRow {
-    #[diesel(sql_type = Integer)]
     value: i32,
 }
 
-#[derive(QueryableByName)]
 struct JoinedRow {
-    #[diesel(sql_type = Text)]
     title: String,
-    #[diesel(sql_type = Text)]
     status: String,
+}
+
+impl QueryableByName<Pg> for TextRow {
+    fn build<'a>(row: &impl NamedRow<'a, Pg>) -> deserialize::Result<Self> {
+        Ok(Self {
+            value: NamedRow::get::<Text, String>(row, "value")?,
+        })
+    }
+}
+
+impl QueryableByName<Pg> for CountRow {
+    fn build<'a>(row: &impl NamedRow<'a, Pg>) -> deserialize::Result<Self> {
+        Ok(Self {
+            value: NamedRow::get::<BigInt, i64>(row, "value")?,
+        })
+    }
+}
+
+impl QueryableByName<Pg> for IntegerRow {
+    fn build<'a>(row: &impl NamedRow<'a, Pg>) -> deserialize::Result<Self> {
+        Ok(Self {
+            value: NamedRow::get::<Integer, i32>(row, "value")?,
+        })
+    }
+}
+
+impl QueryableByName<Pg> for JoinedRow {
+    fn build<'a>(row: &impl NamedRow<'a, Pg>) -> deserialize::Result<Self> {
+        Ok(Self {
+            title: NamedRow::get::<Text, String>(row, "title")?,
+            status: NamedRow::get::<Text, String>(row, "status")?,
+        })
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -34,26 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("expected PostgreSQL connection URL")?;
     let connection = &mut PgConnection::establish(&url)?;
 
-    diesel::sql_query(
-        "CREATE TABLE compat_diesel_probe (id INT PRIMARY KEY, title TEXT NOT NULL UNIQUE)",
-    )
-    .execute(connection)?;
-    diesel::sql_query(
-        "CREATE TABLE compat_diesel_status (id INT PRIMARY KEY, status TEXT NOT NULL)",
-    )
-    .execute(connection)?;
-
-    connection.transaction::<_, Error, _>(|connection| {
-        diesel::sql_query("INSERT INTO compat_diesel_probe (id, title) VALUES ($1, $2)")
-            .bind::<Integer, _>(1_i32)
-            .bind::<Text, _>("alpha")
-            .execute(connection)?;
-        diesel::sql_query("INSERT INTO compat_diesel_status (id, status) VALUES ($1, $2)")
-            .bind::<Integer, _>(1_i32)
-            .bind::<Text, _>("active")
-            .execute(connection)?;
-        Ok(())
-    })?;
+    create_probe_data(connection)?;
 
     let catalog = diesel::sql_query(
         "SELECT table_name AS value FROM information_schema.tables WHERE table_name = $1",
@@ -127,6 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         original_pid,
         "session after missing relation"
     );
+    qualify_named_schema(connection, original_pid)?;
 
     println!("diesel_catalog={catalog}");
     println!("diesel_prepared={prepared}");
@@ -140,10 +149,102 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn create_probe_data(connection: &mut PgConnection) -> Result<(), Error> {
+    diesel::sql_query(
+        "CREATE TABLE compat_diesel_probe (id INT PRIMARY KEY, title TEXT NOT NULL UNIQUE)",
+    )
+    .execute(connection)?;
+    diesel::sql_query(
+        "CREATE TABLE compat_diesel_status (id INT PRIMARY KEY, status TEXT NOT NULL)",
+    )
+    .execute(connection)?;
+
+    connection.transaction::<_, Error, _>(|connection| {
+        diesel::sql_query("INSERT INTO compat_diesel_probe (id, title) VALUES ($1, $2)")
+            .bind::<Integer, _>(1_i32)
+            .bind::<Text, _>("alpha")
+            .execute(connection)?;
+        diesel::sql_query("INSERT INTO compat_diesel_status (id, status) VALUES ($1, $2)")
+            .bind::<Integer, _>(1_i32)
+            .bind::<Text, _>("active")
+            .execute(connection)?;
+        Ok(())
+    })
+}
+
 fn backend_pid(connection: &mut PgConnection) -> Result<i32, Error> {
     Ok(diesel::sql_query("SELECT pg_backend_pid() AS value")
         .get_result::<IntegerRow>(connection)?
         .value)
+}
+
+fn qualify_named_schema(connection: &mut PgConnection, original_pid: i32) -> Result<(), Error> {
+    for sql in [
+        "CREATE SCHEMA compat_diesel_namespace",
+        "CREATE TABLE public.compat_diesel_shadow (id INT PRIMARY KEY, title TEXT NOT NULL)",
+        "CREATE TABLE compat_diesel_namespace.compat_diesel_shadow \
+         (id INT PRIMARY KEY, title TEXT NOT NULL)",
+    ] {
+        diesel::sql_query(sql).execute(connection)?;
+    }
+    for (sql, title) in [
+        (
+            "INSERT INTO public.compat_diesel_shadow VALUES ($1, $2)",
+            "public",
+        ),
+        (
+            "INSERT INTO compat_diesel_namespace.compat_diesel_shadow VALUES ($1, $2)",
+            "named",
+        ),
+    ] {
+        diesel::sql_query(sql)
+            .bind::<Integer, _>(1_i32)
+            .bind::<Text, _>(title)
+            .execute(connection)?;
+    }
+    diesel::sql_query("SET search_path = compat_diesel_namespace, public").execute(connection)?;
+    let named_schema = diesel::sql_query("SELECT current_schema() AS value")
+        .get_result::<TextRow>(connection)?
+        .value;
+    let named_discovery = diesel::sql_query(
+        "SELECT table_schema AS value FROM information_schema.tables \
+         WHERE table_schema = $1 AND table_name = $2",
+    )
+    .bind::<Text, _>("compat_diesel_namespace")
+    .bind::<Text, _>("compat_diesel_shadow")
+    .get_result::<TextRow>(connection)?
+    .value;
+    let named_shadow =
+        diesel::sql_query("SELECT title AS value FROM compat_diesel_shadow WHERE id = $1")
+            .bind::<Integer, _>(1_i32)
+            .get_result::<TextRow>(connection)?
+            .value;
+    diesel::sql_query("SET search_path = public").execute(connection)?;
+    let restored_schema = diesel::sql_query("SELECT current_schema() AS value")
+        .get_result::<TextRow>(connection)?
+        .value;
+    let public_shadow =
+        diesel::sql_query("SELECT title AS value FROM compat_diesel_shadow WHERE id = $1")
+            .bind::<Integer, _>(1_i32)
+            .get_result::<TextRow>(connection)?
+            .value;
+    assert_eq!(named_schema, "compat_diesel_namespace");
+    assert_eq!(named_discovery, "compat_diesel_namespace");
+    assert_eq!(named_shadow, "named");
+    assert_eq!(public_shadow, "public");
+    assert_eq!(restored_schema, "public");
+    assert_eq!(
+        backend_pid(connection)?,
+        original_pid,
+        "schema workflow changed session"
+    );
+    println!("diesel_named_schema={named_schema}");
+    println!("diesel_named_discovery={named_discovery}");
+    println!("diesel_named_shadow={named_shadow}");
+    println!("diesel_public_shadow={public_shadow}");
+    println!("diesel_restored_schema={restored_schema}");
+    println!("diesel_schema_same_session=true");
+    Ok(())
 }
 
 fn assert_unique_violation(error: &Error) {

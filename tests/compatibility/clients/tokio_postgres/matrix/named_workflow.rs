@@ -263,3 +263,97 @@ fn should_preserve_named_tokio_postgres_session_through_error_recovery() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_resolve_named_schema_before_public_on_one_backend() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build current-thread runtime");
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("named_schema_workflow").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE SCHEMA named_tokio_scope")
+            .await
+            .expect("create the named schema");
+        for sql in [
+            "CREATE TABLE public.named_tokio_shadow (label TEXT NOT NULL)",
+            "CREATE TABLE named_tokio_scope.named_tokio_shadow (label TEXT NOT NULL)",
+            "INSERT INTO public.named_tokio_shadow VALUES ('public-value')",
+            "INSERT INTO named_tokio_scope.named_tokio_shadow VALUES ('named-value')",
+        ] {
+            client
+                .batch_execute(sql)
+                .await
+                .expect("create shadow fixture");
+        }
+        let initial_pid: i64 = client
+            .query_one("SELECT pg_backend_pid()::BIGINT", &[])
+            .await
+            .expect("read initial backend identity")
+            .get(0);
+
+        // Act
+        client
+            .batch_execute("SET search_path TO named_tokio_scope, public")
+            .await
+            .expect("select the named schema");
+        let named_schema: String = client
+            .query_one("SELECT current_schema()::TEXT", &[])
+            .await
+            .expect("read named current schema")
+            .get(0);
+        let named_value: String = client
+            .query_one("SELECT label FROM named_tokio_shadow", &[])
+            .await
+            .expect("read the shadow from the named schema")
+            .get(0);
+        let discovered_schema: String = client
+            .query_one(
+                "SELECT table_schema FROM information_schema.tables \
+                 WHERE table_name = $1 AND table_schema = $2",
+                &[&"named_tokio_shadow", &"named_tokio_scope"],
+            )
+            .await
+            .expect("discover the named schema table")
+            .get(0);
+        client
+            .batch_execute("SET search_path TO public")
+            .await
+            .expect("restore public search path");
+        let public_schema: String = client
+            .query_one("SELECT current_schema()::TEXT", &[])
+            .await
+            .expect("read public current schema")
+            .get(0);
+        let public_value: String = client
+            .query_one("SELECT label FROM named_tokio_shadow", &[])
+            .await
+            .expect("read the public shadow")
+            .get(0);
+        let final_pid: i64 = client
+            .query_one("SELECT pg_backend_pid()::BIGINT", &[])
+            .await
+            .expect("read final backend identity")
+            .get(0);
+
+        // Assert
+        assert_eq!(named_schema, "named_tokio_scope");
+        assert_eq!(named_value, "named-value");
+        assert_eq!(discovered_schema, "named_tokio_scope");
+        assert_eq!(public_schema, "public");
+        assert_eq!(public_value, "public-value");
+        assert!(initial_pid > 0);
+        assert_eq!(initial_pid, final_pid);
+        println!("tokio_postgres_named_schema=named_tokio_scope");
+        println!("tokio_postgres_named_shadow=named-value");
+        println!("tokio_postgres_named_discovery=named_tokio_scope");
+        println!("tokio_postgres_public_schema=public");
+        println!("tokio_postgres_public_shadow=public-value");
+        println!("tokio_postgres_schema_same_session=true");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

@@ -230,9 +230,9 @@
     ],
     "files": 1577,
     "rust_files": 1545,
-    "rust_test_declarations": 8362,
+    "rust_test_declarations": 8363,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8490,
+    "registered_rust_instances": 8491,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -17196,6 +17196,37 @@
         {
           "suite": "compatibility",
           "name": "compatibility_matrix::named_workflow::should_resolve_named_schema_before_public_on_one_backend"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "clients",
+        "directory": "tests/compatibility/clients",
+        "file": "tests/compatibility/clients/named_workflow.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/clients/tokio_postgres/matrix/named_workflow.rs::should_isolate_search_path_across_tokio_postgres_sessions",
+      "name": "should_isolate_search_path_across_tokio_postgres_sessions",
+      "current_file": "tests/compatibility/clients/tokio_postgres/matrix/named_workflow.rs",
+      "line": 362,
+      "end_line": 450,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility_matrix::named_workflow::should_isolate_search_path_across_tokio_postgres_sessions"
         }
       ],
       "attributes": [
@@ -262901,9 +262932,9 @@
       "current_file": "tests/compatibility/clients/tokio_postgres/matrix/named_workflow.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 359,
-      "sha256": "ce50e8e3995151e89c54cc603c756b241b2cfaa128c80753f2924018acec2020",
-      "test_declarations": 3,
+      "lines": 450,
+      "sha256": "ef62dc4f4d8f36e5444fa541ac679bb95394c2205560202449c380ae64fcab1d",
+      "test_declarations": 4,
       "registered_suites": [
         "compatibility"
       ],

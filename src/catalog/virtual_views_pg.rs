@@ -323,7 +323,13 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 string("indoption", index_options(&index)),
                 bool_value("indisvalid", true),
                 bool_value("indisready", true),
-                string("indpred", index.predicate.clone().unwrap_or_default()),
+                (
+                    "indpred".to_string(),
+                    index
+                        .predicate
+                        .as_ref()
+                        .map_or(Value::Null, |predicate| Value::String(predicate.clone())),
+                ),
                 string(
                     "indexprs",
                     index

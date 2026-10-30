@@ -123,6 +123,16 @@ not implied by this helper. `pg_my_temp_schema()` returns OID 0 and
 `pg_is_other_temp_schema(oid)` returns false because Cassie does not create
 temporary schemas.
 
+For scalar indexes, `pg_index.indpred` retains Cassie's experimental TEXT
+(OID 25) descriptor. It returns SQL NULL when an index has no partial
+predicate and the stored predicate text for a partial index. This qualifies
+NULL/value semantics only; it does not expose PostgreSQL's `pg_node_tree`
+representation or claim catalog ABI parity. Text and binary predicate values,
+binary boolean values, and empty-result descriptors are covered by
+[`result_framing.rs`](../tests/pgwire_extended/results/result_framing.rs).
+An unavailable virtual catalog relation returns `42P01`, covered by
+[`should_recover_after_undefined_pg_catalog_view_lookup`](../tests/pgwire_extended/catalogs/unavailable_virtual_view.rs).
+
 Sequence probes use the implemented SERIAL/BIGSERIAL column defaults and
 omitted-field INSERT path. Standalone nextval() and CREATE SEQUENCE AS are not
 implemented; exploratory native probes confirm their required state/bounds law,

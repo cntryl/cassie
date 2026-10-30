@@ -6,6 +6,18 @@ use super::support_pgwire as support;
 
 const ANSWER_LIMIT: Duration = Duration::from_secs(10);
 const OID_BOOL: i32 = 16;
+const OID_TEXT: i32 = 25;
+
+const INDEX_PREDICATE_SETUP: &[&str] = &[
+    "CREATE TABLE mvp_catalog_rows (id INT PRIMARY KEY, payload TEXT NOT NULL)",
+    "CREATE INDEX mvp_catalog_rows_payload_idx ON mvp_catalog_rows (payload)",
+    "CREATE INDEX mvp_catalog_rows_partial_idx ON mvp_catalog_rows (payload) WHERE payload <> ''",
+];
+
+const INDEX_PREDICATE_QUERY: &str = "SELECT indexrelid, indisunique, indisprimary, indpred \
+    FROM pg_catalog.pg_index \
+    WHERE indrelid = 'mvp_catalog_rows' \
+    ORDER BY indexrelid";
 
 type Frames = Vec<(u8, Vec<u8>)>;
 
@@ -271,6 +283,30 @@ fn data_row_field_lengths(payload: &[u8]) -> Vec<i32> {
     lengths
 }
 
+fn data_row_fields(payload: &[u8]) -> Vec<Option<Vec<u8>>> {
+    let count = usize::try_from(i16::from_be_bytes([payload[0], payload[1]]))
+        .expect("non-negative field count");
+    let mut cursor = 2_usize;
+    let mut fields = Vec::with_capacity(count);
+    for _ in 0..count {
+        let length = i32::from_be_bytes(
+            payload[cursor..cursor + 4]
+                .try_into()
+                .expect("field length"),
+        );
+        cursor += 4;
+        if length < 0 {
+            fields.push(None);
+            continue;
+        }
+        let end = cursor + usize::try_from(length).expect("non-negative length");
+        fields.push(Some(payload[cursor..end].to_vec()));
+        cursor = end;
+    }
+    assert_eq!(cursor, payload.len(), "DataRow body must be fully consumed");
+    fields
+}
+
 #[test]
 fn should_answer_with_error_given_binary_row_wider_than_row_description() {
     // Arrange
@@ -448,6 +484,149 @@ fn should_encode_catalog_bool_columns_as_declared_binary_bool() {
         .collect::<Vec<_>>();
     assert_ne!(rows, [] as [std::vec::Vec<i32>; 0]);
     assert!(rows.iter().flatten().all(|length| *length == 1));
+}
+
+#[test]
+fn should_preserve_nullable_index_predicate_given_pg_index_text_results() {
+    // Arrange
+    let (cassie, path) = configured_cassie("pg-index-predicate-text", INDEX_PREDICATE_SETUP);
+
+    // Act
+    let frames = simple_round_trip(cassie, path, INDEX_PREDICATE_QUERY);
+
+    // Assert
+    assert_eq!(support::error_code(&frames), None);
+    let description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("RowDescription");
+    assert_eq!(
+        description
+            .iter()
+            .map(|field| (field.name.as_str(), field.type_oid))
+            .collect::<Vec<_>>(),
+        vec![
+            ("indexrelid", OID_TEXT),
+            ("indisunique", OID_BOOL),
+            ("indisprimary", OID_BOOL),
+            ("indpred", OID_TEXT),
+        ]
+    );
+    let rows = support::data_rows(&frames);
+    assert_eq!(rows.len(), 3);
+    let primary = rows
+        .iter()
+        .find(|row| row[0].as_deref() == Some("mvp_catalog_rows_pkey"))
+        .expect("primary index row");
+    assert_eq!(primary[1].as_deref(), Some("t"));
+    assert_eq!(primary[2].as_deref(), Some("t"));
+    assert_eq!(primary[3], None);
+    let ordinary = rows
+        .iter()
+        .find(|row| row[0].as_deref() == Some("mvp_catalog_rows_payload_idx"))
+        .expect("ordinary index row");
+    assert_eq!(ordinary[1].as_deref(), Some("f"));
+    assert_eq!(ordinary[2].as_deref(), Some("f"));
+    assert_eq!(ordinary[3], None);
+    let partial = rows
+        .iter()
+        .find(|row| row[0].as_deref() == Some("mvp_catalog_rows_partial_idx"))
+        .expect("partial index row");
+    assert_eq!(partial[1].as_deref(), Some("f"));
+    assert_eq!(partial[2].as_deref(), Some("f"));
+    assert!(partial[3]
+        .as_ref()
+        .is_some_and(|predicate| !predicate.is_empty()));
+}
+
+#[test]
+fn should_preserve_nullable_index_predicate_given_pg_index_binary_results() {
+    // Arrange
+    let (cassie, path) = configured_cassie("pg-index-predicate-binary", INDEX_PREDICATE_SETUP);
+
+    // Act
+    let frames = binary_round_trip(cassie, path, INDEX_PREDICATE_QUERY);
+
+    // Assert
+    assert_eq!(support::error_code(&frames), None);
+    let description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("RowDescription");
+    assert_eq!(
+        description
+            .iter()
+            .map(|field| (field.type_oid, field.format_code))
+            .collect::<Vec<_>>(),
+        vec![(OID_TEXT, 1), (OID_BOOL, 1), (OID_BOOL, 1), (OID_TEXT, 1)]
+    );
+    let rows = frames
+        .iter()
+        .filter(|frame| frame.0 == b'D')
+        .map(|frame| data_row_fields(&frame.1))
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 3);
+    let primary = rows
+        .iter()
+        .find(|row| row[0].as_deref() == Some(b"mvp_catalog_rows_pkey"))
+        .expect("primary index row");
+    assert_eq!(primary[1], Some(vec![1]));
+    assert_eq!(primary[2], Some(vec![1]));
+    assert_eq!(primary[3], None);
+    let ordinary = rows
+        .iter()
+        .find(|row| row[0].as_deref() == Some(b"mvp_catalog_rows_payload_idx"))
+        .expect("ordinary index row");
+    assert_eq!(ordinary[1], Some(vec![0]));
+    assert_eq!(ordinary[2], Some(vec![0]));
+    assert_eq!(ordinary[3], None);
+    let partial = rows
+        .iter()
+        .find(|row| row[0].as_deref() == Some(b"mvp_catalog_rows_partial_idx"))
+        .expect("partial index row");
+    assert_eq!(partial[1], Some(vec![0]));
+    assert_eq!(partial[2], Some(vec![0]));
+    assert!(partial[3]
+        .as_ref()
+        .is_some_and(|predicate| !predicate.is_empty()));
+}
+
+#[test]
+fn should_describe_pg_index_columns_given_empty_binary_result() {
+    // Arrange
+    let (cassie, path) = configured_cassie("pg-index-empty-binary", &[]);
+
+    // Act
+    let frames = binary_round_trip(
+        cassie,
+        path,
+        "SELECT indexrelid, indisunique, indisprimary, indpred \
+         FROM pg_catalog.pg_index WHERE false",
+    );
+
+    // Assert
+    assert_eq!(support::error_code(&frames), None);
+    let description = frames
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .map(|frame| support::parse_row_description(&frame.1))
+        .expect("RowDescription");
+    assert_eq!(
+        description
+            .iter()
+            .map(|field| (field.name.as_str(), field.type_oid, field.format_code))
+            .collect::<Vec<_>>(),
+        vec![
+            ("indexrelid", OID_TEXT, 1),
+            ("indisunique", OID_BOOL, 1),
+            ("indisprimary", OID_BOOL, 1),
+            ("indpred", OID_TEXT, 1),
+        ]
+    );
+    assert!(!frames.iter().any(|frame| frame.0 == b'D'));
+    assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
 }
 
 #[test]

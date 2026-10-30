@@ -5594,6 +5594,12 @@ Post-change local evidence:
   Tier 3 correctness/resource owners with `result: passed`. Several timing
   samples were diagnostic/noisy, so this rerun does not establish performance
   promotion or latency claims.
+- The Tier 3 startup and mixed-load owners also completed on this candidate:
+  `startup_reopen/100k` passed at 1.6416 startups/s (0.8% RSD), and
+  `mixed_query_ingest_retrieval/100k` passed at 3.2087 operations/s (1.0% RSD).
+  Startup emitted a measurement-shape diagnostic because each sample records
+  one startup. Treat these as local correctness/resource evidence, not
+  performance promotion or latency claims.
 
 This follow-up is committed on the local PR branch but has not been pushed, so
 it is not on the remote PR head. CodeQL alert #522 therefore remains open on

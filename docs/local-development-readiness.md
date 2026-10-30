@@ -18,31 +18,39 @@ for each SQL capability's current status.
 - GitHub Actions remain disabled. Local evidence is reported as local; hosted
   checks are unavailable.
 
-## Latest selected v0.3 checkpoint — 2026-10-29
+## Latest selected v0.3 checkpoint — 2026-10-30
 
-Main `d2993177204179fce3b54c7880744aca4a5f8017` contains the selected #777
-client/catalog acceptance, the selected #846 COPY ingress and the #780 bounded
+Main `f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6` contains the selected #777
+client/catalog acceptance, selected #846 COPY ingress and the #780 bounded
 wire closeout. PR #1136's exact code/test candidate passed the ordered local
 gate, including the full locked Cargo suite and all four pinned client
 workflows. PR #1127 independently passed the same local build, test, strict
 Clippy, formatting and focused-validator gate for selected COPY cancellation,
-bounds and recovery. On current main, four focused COPY groups passed 136/136
-tests across the library, compatibility, extended pgwire and core pgwire
-targets. The merged client workflow
-`should_preserve_named_tokio_postgres_session_through_error_recovery` passed
-1/1 on current main. The full locked suite was not rerun on `d299317`. These are
-local selected-workflow results, not hosted CI, desktop certification,
-production qualification or a complete PostgreSQL wire state/packet matrix.
+bounds and recovery.
+
+On exact current main, the four named clients passed six focused probes: psql
+16.6, SQLx 0.8.3, Diesel 2.2.6, and three tokio-postgres 0.7.18 workflow/session
+probes. Selected catalog/type acceptance passed 12 focused tests covering
+information_schema lifecycle, connected-database scope, `pg_type` metadata,
+binary INT4[] TypeInfo/input, and deterministic unavailable-catalog recovery.
+The four focused COPY groups passed 136/136 on `d299317`; the later #1138/#1139
+merges changed documentation only. The full locked suite was not rerun on
+`f7c7ef6`. These are local selected-workflow results, not hosted CI, desktop
+certification, production qualification or a complete PostgreSQL wire
+state/packet matrix.
 
 The unaliased WIRE-012 mixed catalog/ordinary prepared-join shape remains a
 confirmed `42P18` gap, but the pinned workflow uses aliases and no named v0.3
 client acceptance requires the unaliased form. It is recorded as deferred under
 #780, which PR #1137 closed for its bounded selected scope. #846's selected
-rebuild ingress is complete under PR #1127. Existing limited table/query
-`COPY TO` support remains as documented in Feature Support; additional export
-options/formats and general dump/restore workflows are outside v0.3. The earlier
-branch-specific failure map below is not the current main failure state; the
-selected wire/COPY items were later requalified by #1127, #1136 and #1137.
+rebuild ingress is complete under PR #1127. #821's named-client/session subset
+and #817's selected catalog/TypeInfo subset are complete on `f7c7ef6`; their
+broader conditional session and catalog work is outside v0.3. Existing limited
+table/query `COPY TO` support remains as documented in Feature Support;
+additional export options/formats and general dump/restore workflows are
+outside v0.3. The earlier branch-specific failure map below is not the current
+main failure state; selected client, catalog, wire and COPY evidence is recorded
+in PRs #1127, #1136, #1137, #1138, #1139, and the current validation entry.
 
 ## Current candidate checkpoint — 2026-10-29, #826 COPY-loaded rebuild
 

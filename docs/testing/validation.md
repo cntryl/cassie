@@ -5269,3 +5269,56 @@ now defer only additional export options/formats and generic dump/restore or
 migration workflows. Jev selected this supported-versus-additional distinction
 with probability 1.0; the action was to correct the wording without changing
 runtime behavior or the selected v0.3 acceptance.
+
+## 2026-10-30 — #821/#817 selected client and catalog requalification
+
+The exact current main candidate is `f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`.
+The four pinned named clients passed six focused probes on this candidate:
+
+- psql 16.6, `CASSIE_PSQL_BIN=/tmp/cassie-psql16` — 1/1 selected discovery,
+  join, commit/rollback, duplicate/missing-relation recovery and named-schema
+  shadow/restoration.
+- SQLx 0.8.3 — 1/1 prepared writes, discovery, join, transaction, error
+  recovery and named-schema restoration.
+- Diesel 2.2.6 — 1/1 bound writes, discovery, join, transaction, error recovery
+  and named-schema restoration.
+- tokio-postgres 0.7.18 — 1/1 named-schema workflow, 1/1 same-backend recovery
+  after duplicate/missing-relation errors, and 1/1 distinct-session
+  `search_path` isolation (`alpha`, `beta`, `alpha`).
+
+Selected #817 catalog/TypeInfo behavior passed 12 focused tests on the same
+candidate:
+
+- `cargo test --locked --test catalog_security information_schema -- --nocapture`
+  — 7/7, including connected-database scope and column visibility after restart.
+- `cargo test --locked --test catalog_security should_reflect_table_rename_drop_lifecycle_after_restart -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test catalog_security should_list_supported_types_through_pg_catalog_type_view -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test compatibility should_decode_pg_type_kind_as_internal_char -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test compatibility should_import_binary_copy_null_empty_array_payloads -- --nocapture`
+  — 1/1.
+- `cargo test --locked --test pgwire_extended should_recover_after_undefined_pg_catalog_view_lookup -- --nocapture`
+  — 1/1.
+
+Jev selected recording the #821 named-client/session subset complete and
+deferring broader conditional settings/cursor/reset work (0.98 probability,
+0.97 confidence). It selected the #817 catalog/TypeInfo subset complete and
+deferring broad introspection (0.93 probability, 0.91 confidence). For the
+next runtime slice, Jev first selected #826's COPY-loaded staging-table/rebuild
+path ahead of #842 (0.77 probability, 0.69 confidence). A follow-up choice
+compared that gap directly with ordinary table DDL, remaining materialized-view
+lifecycle and #842, and selected the COPY-loaded swap with 1.0 probability and
+1.0 confidence. This matches #826's explicit criterion: the three existing
+swap witnesses load with INSERT, and no focused witness composes the selected
+COPY input with swap visibility, rollback and local restart. The action is to
+mark only the candidate-scoped #821/#817 checks complete, remove those broader
+issues from v0.3, and implement the bounded COPY-loaded #826 rebuild witness
+while preserving the separate local #842 worktree.
+
+PR #1136's exact client/catalog candidate passed the ordered full local gate.
+The current-main reruns above are focused; the full locked suite was not rerun
+on `f7c7ef6`. The final immutable release commit still needs the full ordered
+gate, and GitHub Actions remain disabled. No hosted or final release claim is
+made.

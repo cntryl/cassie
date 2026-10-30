@@ -20,23 +20,28 @@ for each SQL capability's current status.
 
 ## Latest selected v0.3 checkpoint — 2026-10-29
 
-Main `059805f76772583fb2f4924b376781aaac1daad3` contains the selected #777
-client/catalog acceptance and the #846 COPY cancellation fix. PR #1136's exact
-code/test candidate passed the ordered local gate, including the full locked
-Cargo suite and all four pinned client workflows. PR #1127 independently passed
-the same local build, test, strict Clippy, formatting and focused-validator
-gate for selected COPY cancellation, bounds and recovery. The merged client
-workflow `should_preserve_named_tokio_postgres_session_through_error_recovery`
-passed 1/1 on current main. These are local selected-workflow results, not
-hosted CI, desktop certification, production qualification or a complete
-PostgreSQL wire state/packet matrix.
+Main `d2993177204179fce3b54c7880744aca4a5f8017` contains the selected #777
+client/catalog acceptance, the selected #846 COPY ingress and the #780 bounded
+wire closeout. PR #1136's exact code/test candidate passed the ordered local
+gate, including the full locked Cargo suite and all four pinned client
+workflows. PR #1127 independently passed the same local build, test, strict
+Clippy, formatting and focused-validator gate for selected COPY cancellation,
+bounds and recovery. On current main, four focused COPY groups passed 136/136
+tests across the library, compatibility, extended pgwire and core pgwire
+targets. The merged client workflow
+`should_preserve_named_tokio_postgres_session_through_error_recovery` passed
+1/1 on current main. The full locked suite was not rerun on `d299317`. These are
+local selected-workflow results, not hosted CI, desktop certification,
+production qualification or a complete PostgreSQL wire state/packet matrix.
 
 The unaliased WIRE-012 mixed catalog/ordinary prepared-join shape remains a
 confirmed `42P18` gap, but the pinned workflow uses aliases and no named v0.3
 client acceptance requires the unaliased form. It is recorded as deferred under
-#780. The earlier branch-specific failure map below is not the current main
-failure state; its selected wire/COPY items were later requalified by #1127 and
-#1136.
+#780, which PR #1137 closed for its bounded selected scope. #846's broader
+export/dump/restore forms are removed from v0.3; its selected rebuild ingress
+is complete under PR #1127. The earlier branch-specific failure map below is
+not the current main failure state; the selected wire/COPY items were later
+requalified by #1127, #1136 and #1137.
 
 ## Historical checkpoint — 2026-10-29, pre-merge candidate
 

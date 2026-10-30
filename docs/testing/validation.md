@@ -5213,3 +5213,47 @@ its full malformed-packet mutation matrix, broader authentication/TLS modes,
 unaliased mixed-source inference and desktop-client certification are not
 selected v0.3 acceptance. They are not reported as passed. The local result is
 not hosted CI or production qualification; GitHub Actions remain disabled.
+
+## 2026-10-29 — #846 selected v0.3 COPY ingress closeout
+
+The exact current main candidate is `d2993177204179fce3b54c7880744aca4a5f8017`.
+Four focused COPY test groups passed on this revision:
+
+- `cargo test --locked --lib copy -- --nocapture` — 56 passed, 0 failed.
+- `cargo test --locked --test compatibility copy -- --nocapture` — 57 passed,
+  0 failed.
+- `cargo test --locked --test pgwire_extended copy -- --nocapture` — 7 passed,
+  0 failed.
+- `cargo test --locked --test pgwire_core copy -- --nocapture` — 16 passed,
+  0 failed.
+
+Together these are 136 focused tests. They cover the selected Simple Query table
+`COPY FROM STDIN` path, idle cancellation and frame recovery, supported CSV and
+text inputs, binary `INT4[]` NULL/empty-array behavior, malformed-input
+atomicity, explicit-transaction commit/rollback staging, the aggregate 16 MiB
+boundary, and deterministic rejection of mixed/extended COPY forms. The exact
+`d299317` candidate has not had a full locked-suite rerun. PR #1127's exact
+pre-merge candidate passed the ordered local build, full locked tests, strict
+Clippy, formatting, and touched-file/document validation; its psql 18.6 smoke
+used `(id INT, label TEXT)`, returned `COPY 2`, preserved a quoted comma, then
+verified malformed integer rejection (`22P02`), zero applied rows and a
+successful same-connection `SELECT 1`. PR #1137 completed #780's selected
+bounded wire prerequisite. Final full-gate execution on the immutable release
+commit remains required by the roadmap.
+
+Jev's initial low-confidence review flagged a possible remaining selected item
+(additional-gap probability 0.65, confidence 0.48), so the four focused current
+main groups were run. On that evidence Jev selected `none` for remaining
+selected acceptance (0.70) and recommended removing the broader #846 work from
+v0.3 (0.93). The selected checkboxes are therefore complete; query/table COPY
+TO, additional encodings and options, and general dump/restore I/O remain open
+future work without a v0.3 milestone until a named workflow selects them. The
+closed #780 dependency was completed via PR #1137. GitHub Actions remain
+disabled, so hosted checks are unavailable and are not claimed as passed.
+
+A final Jev review weakly selected `wording_correction` (0.45 probability,
+0.27 confidence). Its focused follow-up selected marking the exact current-main
+candidate complete while keeping the immutable-release full gate separate
+(0.88 probability, 0.84 confidence). The issue wording follows that distinction:
+the candidate-scoped COPY acceptance is complete, and final release
+qualification remains pending.

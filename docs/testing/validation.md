@@ -17,7 +17,10 @@ On the tree based at `8c29f720`, the pgwire regression
 `pg_catalog.pg_issue_777_missing_virtual_view` returns SQLSTATE `42P01`, then
 `ReadyForQuery` with idle status. The same connection successfully executes
 `SELECT 7::INT` afterward, confirming the error does not strand the session.
-The focused test passed 1/1. The ordered local gate passed:
+The focused test passed 1/1. On the tree based at `beed1edd`, the selected
+shape probes also passed: 26/26 empty virtual-catalog Describe/DataRow cases,
+1/1 binary-boolean catalog result, and 1/1 `pg_constraint` type-descriptor
+case. The ordered local gate passed:
 
 - `cargo build --locked --bin cassie`
 - `cargo test --locked` (exit 0)
@@ -28,10 +31,21 @@ The focused test passed 1/1. The ordered local gate passed:
 The generated test inventory was refreshed and its check passed. No runtime
 behavior changed.
 
-This is direct evidence for one unavailable `pg_catalog` relation and its
-connection-recovery path. It does not complete CAT-002's virtual-column type
-coverage, the rest of #777, or release qualification. GitHub Actions remain
-disabled, so hosted checks are unavailable.
+This is direct evidence for one unavailable `pg_catalog` relation and selected
+empty, binary-boolean, and constraint descriptor shapes. It does not establish
+every virtual-column type or a NULL-valued catalog row; the rest of #777 and
+release qualification remain open. GitHub Actions remain disabled, so hosted
+checks are unavailable.
+
+## 2026-10-30 — #777 CAT-001 information-schema lifecycle
+
+On the tree based at `beed1edd`,
+`cargo test --locked --test catalog_security information_schema -- --nocapture`
+passed 7/7. The cases cover user-table and constraint discovery, column metadata
+after restart, connected-database isolation after drop/restart, and selected
+column type/identity descriptors. This is focused local evidence for the stable
+information-schema subset. It does not cover every lifecycle form or close
+CAT-001, #777, or the release gate. No runtime behavior changed.
 
 ## 2026-10-30 — #777 CAT-003 same-session search_path cache
 

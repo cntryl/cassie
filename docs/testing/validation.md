@@ -5586,10 +5586,14 @@ Post-change local evidence:
 - `cntryl-tools validate-tests -f tests/bench_diagnostics/relations/semantics.rs` — 1/1 compliant.
 - The generated test inventory now records `tests/bench_diagnostics.rs` as a Cargo harness and the regression in its reviewed subsystem module. `tools/test_inventory.py --check` passes with 1,577 test files, 8,364 Rust declarations and no unregistered tests, unresolved module paths, repeated registrations, duplicate identities, or oversized files.
 - `cntryl-tools validate-docs` — 129 Markdown documents passed.
-- After the layout change, the ordered local gate was rerun on the complete current working tree: build, `cargo test --locked` (exit 0), strict workspace Clippy, formatting, touched-test validation, documentation validation and `git diff --check` all passed. The full run included the moved regression (1/1).
+- On local candidate commit `02ac6585`, the required ordered gate was rerun: `cargo build --locked --bin cassie`, `cargo test --locked` (exit 0; all unit, integration and doctest targets passed), strict workspace Clippy, and `cargo fmt --all -- --check`. The touched-test validator (1/1), test inventory check, documentation validator (129 Markdown files), and `git diff --check` also passed on the candidate content. The full test run included the regression (1/1).
+- `cargo bench --locked --no-run` passed on the current branch content and compiled the Tier 1–6 benchmark targets.
 - The focused `column_batch_query/100k` Tier 3 run passed at 43.12 queries/s with
-  gate trust and 0.9% RSD. The complete 12-owner Tier 3 run passed before this
-  diagnostic-only change.
+  gate trust and 0.9% RSD. On candidate code commit `02ac6585`,
+  `cargo bench --locked --bench tier3_system_query -- --test` completed all 12
+  Tier 3 correctness/resource owners with `result: passed`. Several timing
+  samples were diagnostic/noisy, so this rerun does not establish performance
+  promotion or latency claims.
 
 This follow-up is committed on the local PR branch but has not been pushed, so
 it is not on the remote PR head. CodeQL alert #522 therefore remains open on
@@ -5597,6 +5601,32 @@ it is not on the remote PR head. CodeQL alert #522 therefore remains open on
 analyzed. The latest repository setting reports Actions enabled, but the active
 no-dispatch instruction still blocks the PR update and hosted reanalysis. No
 backend or release workflow was started.
+
+## 2026-10-30 — local ARM64 container candidate smoke
+
+A clean context exported with `git archive` from local branch head `8ccd6913`
+excluded the uncommitted UI package changes. `docker build --platform linux/arm64`
+completed from that context. The local image has OCI manifest digest
+`sha256:964e2f7ba7c9c4b27662fd0c6c91c6f938839f9044c8b3841446a4a71f24ade6`;
+it was not pushed. Its `npm ci` step installed 242 packages with zero reported
+vulnerabilities, the Admin UI build completed, and the final Cassie 0.1.0
+release binary built successfully. `cargo-chef cook` emitted Cargo 1.99
+deprecation warnings for generated per-target edition fields, matching the
+warning class in upstream [cargo-chef issue #350](https://github.com/LukeMathWalker/cargo-chef/issues/350)
+(reported there for edition 2024 and nightly Cargo). The source `Cargo.toml`
+sets only the package edition, and the final release build completed. No warning
+suppression or workaround was added.
+
+The ARM64 image started with an isolated Docker volume on loopback ports 18081
+and 15433. `/readyz` returned `ready: true` and version `0.1.0`. A psql session
+created a table, inserted and read a row, then the container restarted; readiness
+returned successfully and the same row remained readable. The smoke container
+was stopped after the run.
+
+This is local ARM64 image and restart evidence only. It is not an immutable
+published release artifact, does not cover amd64, and does not replace the
+retained exact-release-commit architecture bundles in the cross-architecture
+runbook.
 
 ## 2026-10-30 — Current Admin UI working-tree gates
 

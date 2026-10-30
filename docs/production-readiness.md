@@ -138,8 +138,11 @@ active branch protection.
 - Security-boundary coverage for constant-cost authentication failures, bounded login state, atomic REST session quotas, explicit external HTTPS attributes, bounded provider responses, streaming transport deadlines, parser complexity budgets, and live database-access revocation.
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
 - Retained container and supply-chain evidence for supported targets from
-  earlier runs. No backend, benchmark, or release workflow has been dispatched under
-  the current no-dispatch instruction; those required hosted results remain blocked.
+  earlier runs. The 2026-10-30 local ARM64 image and restart smoke is recorded in
+  [Testing and Validation](testing/validation.md); its digest is local-only and it
+  does not satisfy exact-release-commit or amd64 evidence. No backend, benchmark,
+  or release workflow has been dispatched under the current no-dispatch
+  instruction; those required hosted results remain blocked.
 - Named evidence boundaries are defined in [Deployment Profiles](deployment-profiles.md); the
   native-Linux profile remains an explicit evidence requirement rather than an implied claim.
 - The release support, upgrade, rollback, and security-response envelope is defined in

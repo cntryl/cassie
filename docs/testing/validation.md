@@ -5133,3 +5133,42 @@ including the new two-connection isolation probe, passed in the full suite.
 packet/COPY/cancellation matrix remains open and stays ahead of the separately
 owned #846 idle-COPY cancellation fix. GitHub Actions remain disabled; hosted
 evidence is unavailable and is not reported as passed.
+
+
+## 2026-10-29 — #777 v0.3 selected prerequisite, exact post-refresh candidate
+
+The validated code/test candidate is commit `2cd342cc2bb02c4d4cdb59026eb1cbce41f04ba1`, tree `c09dcd97cb5edac5f2ef734033fe3e652cfa8a9f`, based on merged main `ef19eace6eb1933dfdda0561755e3052becbfb3b` (#1135). It adds one two-connection tokio-postgres search-path isolation test, narrows the selected v0.3 scope map, and refreshes generated inventory/evidence. Runtime behavior is unchanged.
+
+All four selected client workflows passed against that code/test revision:
+
+- psql 16.6, pinned image `sha256:557fea37a744d5f4c8faab304b0a90858b53ab119735a88c131fd19dab802f36`: selected discovery, join, commit/rollback, duplicate/missing-relation recovery, and named-schema shadow/restoration passed 1/1.
+- tokio-postgres 0.7.18: same-backend recovery, named-schema shadow/restoration, and distinct-session search-path isolation passed 1/1 each. The new two-session test observed distinct backend PIDs and `alpha`, `beta`, `alpha` results for the same unqualified query.
+- SQLx 0.8.3: prepared writes, discovery, join, transaction, duplicate/missing-relation recovery, and named-schema shadow/restoration passed 1/1.
+- Diesel 2.2.6: bound writes, discovery, join, transaction, duplicate/missing-relation recovery, and named-schema shadow/restoration passed 1/1.
+
+The selected catalog/session/view cases also passed on this exact candidate: information_schema lifecycle (7/7); populated `pg_tables` NULL fields in text and binary (2/2); nullable `pg_index.indpred` in text and binary (2/2); unavailable virtual view `42P01` recovery (1/1); binary catalog boolean (1/1); empty binary `pg_index` Describe (1/1); four cache/session-isolation cases; invalid-setting and unsupported transaction-local `set_config(..., true)` rejection; and ordinary-view create/drop, restart hydration, definition, catalog, search-path, and output Describe (6/6). `SET LOCAL` remains supported by the documented transaction contract; only transaction-local `set_config` requests are excluded.
+
+The ordered local gate passed on the exact code/test candidate:
+
+- `cargo build --locked --bin cassie`
+- `cargo test --locked` (exit 0 across all targets)
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic`
+- `cargo fmt --all -- --check`
+- `cntryl-tools validate-tests -f tests/compatibility/clients/tokio_postgres/matrix/named_workflow.rs` (4/4 compliant)
+- `target/test-inventory-tools312/bin/python tools/test_inventory.py --check` (8,363 Rust declarations; 21 Python declarations; 8,491 Rust registration instances; no inventory errors)
+- `cntryl-tools validate-docs` (126 Markdown documents)
+- `git diff --check`
+
+The full Cargo suite's benchmark smoke test printed `cpu_identity: failed quality (no benchmark rows)` for its smoke artifact; its Rust test passed and the full Cargo process exited 0. This is not benchmark qualification.
+
+Secret-free per-client records and their SHA-256 values are in the isolated worktree's ignored `target/jev-mvp-scope-20261029/current-candidate/` directory:
+
+- psql: `452a5e9169b8fe3c77dc7ca00201dc6e93b313a21a56b79c70b63d85fe5bc4ae`
+- tokio-postgres: `b919144ab47ec19177b8d4dfe5daf4f17fcf9ddce01173eaa2a431ed0ec6fbd5`
+- SQLx: `9774aa14c2811e475095c350f9c0a5371c05d2869e757a37d36bcdfd412e2c02`
+- Diesel: `7a2ad159cf3ebdac0a5f24d4f60fc8d105e03c4346fb617cd0c25d752ccca355`
+- combined manifest: `e2bd6fa53c662772c3a3083ad3c6433d56294bf2fc049e5a94e6246317d6547e`
+
+These are finite local loopback client probes, not production deployment or desktop-client certification. Historical runs are superseded for these selected cases by the exact-revision results above. Trace replay was not selected and no trace corpus was provisioned. pgAdmin/DBeaver desktop, psycopg, JDBC and production-endpoint acceptance remain outside the v0.3 target; selecting any later requires a provisioned runner and a separately scoped issue. No selected local target is blocked. GitHub Actions remain disabled, so hosted checks are unavailable and are not claimed as passed.
+
+#777 remains open pending review, merge and exact closure readback. #780 remains open and follows #777; the separate #846 idle-COPY cancellation fix stays behind #780.

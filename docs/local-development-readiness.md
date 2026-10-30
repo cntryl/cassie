@@ -20,10 +20,11 @@ for each SQL capability's current status.
 
 ## Latest merged v0.3 checkpoint — 2026-10-30
 
-Current main is `c9ef4073da4cf90a257c1038cafd98948deb5783`. The four named
-clients passed six focused probes and selected catalog/TypeInfo behavior passed
-12 focused tests on its parent `f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`.
-PR #1140 changed tests and documentation; PR #1141 changed documentation only.
+Main includes the scope record from PR #1141 and the checkpoint correction from
+PR #1142. The four named clients passed six focused probes and selected
+catalog/TypeInfo behavior passed 12 focused tests on the parent candidate
+`f7c7ef61c6c10c17a5b9f5d91af21fe207bea1d6`. PR #1140 changed tests and
+documentation; PRs #1141 and #1142 changed documentation only.
 The four selected COPY groups passed 136/136 on `d299317`. PR #1140 adds COPY-loaded
 staging-swap and local-restart witnesses, and its validated head tree is
 identical to merged main `7b9d29f4` (`50ad9312` tree). The full ordered local
@@ -37,9 +38,10 @@ complete. The broad issues #846, #821, #817, #826 and #842 remain open without
 the v0.3 milestone for future named workflows. GitHub's current milestone
 membership contains 12 issues, all closed, and no open members.
 
-PR #1141's documentation tree matches current main (`5f0dbeb5`) and passed
-`cntryl-tools validate-docs` over 126 Markdown documents. The code and test
-files remain the exact tree validated by PR #1140.
+PR #1141's validated documentation tree was `5f0dbeb5`. PR #1142's validation
+tree (`7f521b30`) matched main at merge and passed `cntryl-tools validate-docs`
+over 126 Markdown documents. The code and test files remain the exact tree
+validated by PR #1140.
 
 These are local candidate results, not hosted CI, desktop certification,
 production qualification or a complete PostgreSQL wire state/packet matrix.

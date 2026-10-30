@@ -13,17 +13,19 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 
 ## Product release boundary
 
-The [Product Roadmap](product-roadmap.md) defines v0.1.0 Projection Store as the
-initial planned release, v0.2 as the query and retrieval release, and v1.0 as
-the production release. This document defines only the evidence required for
-production readiness; it does not expand the SQL or server compatibility scope.
+The [Product Roadmap](product-roadmap.md) defines v0.1.0 Projection Store,
+v0.2.0 Query and Retrieval, and v0.3.0 Authoritative Columnar Tables as the
+three feature releases. Production readiness is a separate qualification gate;
+this document defines its evidence without creating another feature milestone
+or expanding SQL and server compatibility scope.
 
 PostgreSQL 18.6 comparisons qualify selected behaviors named by current
 roadmap milestones and issue criteria. The former complete-core-SQL/full-PLpgSQL
 program (#791–#793) was closed as superseded. Neither that program nor the size
-of its retained test corpus is a v1.0 parity gate. Current v1.0 acceptance is
-owned by the live milestone, the [release checklist](release-checklist.md), and
-the production evidence below.
+of its retained test corpus is a production-readiness gate. Qualification is
+owned by the [release checklist](release-checklist.md) and the production
+evidence below; GitHub feature milestones remain limited to the three releases
+in the roadmap.
 
 ## Prior Local Check Snapshot — 2026-10-29
 
@@ -226,7 +228,7 @@ projection lifecycle remain outside this contract.
 Tracking owners #8, #29, and #781 were closed as `NOT_PLANNED` on 2026-10-28.
 Their closure comments say this did not complete the acceptance criteria or
 resolve the outstanding evidence gaps. The blockers below remain active under
-the roadmap's v1.0 production-readiness boundary.
+the roadmap's separate production-readiness boundary.
 
 - Database-image checksums detect content changes but do not authenticate who produced an image.
   Operators must follow the detached-signature and trusted-identity procedure in

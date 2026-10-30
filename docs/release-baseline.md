@@ -1,10 +1,10 @@
 # Cassie 0.1.0 Release Baseline
 
 Cassie has never been released. The package version in `Cargo.toml` is reset to
-`0.1.0`; the earlier `0.2.0` value and the former v0.3/v0.4 roadmap labels were
-unreleased development planning. Cassie 0.1.0 is the actual starting baseline
-for the selected MVP. It is a planned release baseline, not evidence that a
-release has already been published or qualified.
+`0.1.0`; the earlier `0.2.0` value and the former v0.3 Projection Store/v0.4
+Query roadmap labels were unreleased development planning. Cassie 0.1.0 is the
+actual starting baseline for the selected MVP. It is a planned release
+baseline, not evidence that a release has already been published or qualified.
 The repository had no local/remote tags or GitHub releases on 2026-10-30.
 
 Local qualification recorded before this reset applies to its recorded
@@ -12,9 +12,10 @@ candidate tree only. It does not qualify the new 0.1.0 package and format
 identifiers; the exact release commit still needs its own ordered gate.
 
 The [Product Roadmap](product-roadmap.md) owns the MVP scope and release order.
-The package version remains the release version authority. The next planned
-scope is v0.2 Query and retrieval; v1.0 remains the production qualification
-target.
+The package version remains the release version authority. The next feature
+releases are v0.2.0 Query and Retrieval and v0.3.0 Authoritative Columnar
+Tables. Production readiness remains a separate qualification gate, not a
+feature milestone.
 
 ## Cassie-owned persistent formats
 

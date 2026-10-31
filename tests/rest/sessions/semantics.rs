@@ -330,10 +330,10 @@ fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
 fn should_secure_external_https_login_logout_cookies() {
     // Arrange
     let data_dir = data_dir("external-https");
-    let config = CassieRuntimeConfig {
+    let config = crate::support_sql::with_test_root_password(CassieRuntimeConfig {
         rest_external_https: true,
         ..CassieRuntimeConfig::default()
-    };
+    });
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -384,11 +384,11 @@ fn should_secure_external_https_login_logout_cookies() {
 fn should_refund_success_before_throttling_excess_rest_logins() {
     // Arrange
     let data_dir = data_dir("login-throttle");
-    let config = CassieRuntimeConfig {
+    let config = crate::support_sql::with_test_root_password(CassieRuntimeConfig {
         auth_user_attempts_per_minute: 1,
         auth_ip_attempts_per_minute: 10,
         ..CassieRuntimeConfig::default()
-    };
+    });
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

@@ -248,7 +248,11 @@ fn should_preserve_collection_name_matching_source_database_through_pgwire_resto
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        if config.password.is_empty() {
+            config.password = crate::support_sql::TEST_ROOT_PASSWORD.to_owned();
+        }
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
         cassie.startup().expect("startup");
         seed_database_image_fixture(&cassie);
 
@@ -271,15 +275,12 @@ fn should_preserve_collection_name_matching_source_database_through_pgwire_resto
                 .expect("connect restored database");
             let (restored_read, mut restored_write) = restored_socket.split();
             let mut restored_reader = tokio::io::BufReader::new(restored_read);
-            let root_password = CassieRuntimeConfig::from_env()
-                .expect("runtime config")
-                .password;
             support::complete_startup_as(
                 &mut restored_reader,
                 &mut restored_write,
                 "root",
                 "restored",
-                &root_password,
+                &config.password,
             )
             .await;
             restored_write

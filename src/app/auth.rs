@@ -381,10 +381,14 @@ mod tests {
     fn should_hash_fresh_bootstrap_credentials_once_during_startup() {
         // Arrange
         let path = test_path("startup-hash");
+        let config = crate::config::CassieRuntimeConfig {
+            password: TEST_PASSWORD.to_string(),
+            ..crate::config::CassieRuntimeConfig::default()
+        };
         reset_password_hash_generation_count();
 
         // Act
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
         cassie.startup().expect("startup");
         let generated_hashes = password_hash_generation_count();
         drop(cassie);
@@ -398,24 +402,22 @@ mod tests {
     fn should_reuse_persisted_bootstrap_hash_during_restart_authentication() {
         // Arrange
         let path = test_path("restart-hash");
-        let initial = Cassie::new_with_data_dir_and_config(
-            &path,
-            crate::config::CassieRuntimeConfig::default(),
-        )
-        .expect("initial Cassie");
+        let config = crate::config::CassieRuntimeConfig {
+            password: TEST_PASSWORD.to_string(),
+            ..crate::config::CassieRuntimeConfig::default()
+        };
+        let initial =
+            Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("initial Cassie");
         initial.startup().expect("initial startup");
         drop(initial);
         reset_password_hash_generation_count();
 
         // Act
-        let restarted = Cassie::new_with_data_dir_and_config(
-            &path,
-            crate::config::CassieRuntimeConfig::default(),
-        )
-        .expect("restarted Cassie");
+        let restarted =
+            Cassie::new_with_data_dir_and_config(&path, config).expect("restarted Cassie");
         restarted.startup().expect("restart");
         let generated_during_restart = password_hash_generation_count();
-        let authentication = restarted.authenticate_principal("root", Some("postgres"), None);
+        let authentication = restarted.authenticate_principal("root", Some(TEST_PASSWORD), None);
         let generated_after_authentication = password_hash_generation_count();
         drop(restarted);
         let _ = std::fs::remove_dir_all(path);
@@ -472,7 +474,11 @@ mod tests {
     fn should_share_lazy_authentication_hashes_across_cassie_clones() {
         // Arrange
         let path = test_path("shared-hashes");
-        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        let config = crate::config::CassieRuntimeConfig {
+            password: TEST_PASSWORD.to_string(),
+            ..crate::config::CassieRuntimeConfig::default()
+        };
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("Cassie");
         let cloned = cassie.clone();
         reset_password_hash_generation_count();
 

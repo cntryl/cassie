@@ -211,7 +211,7 @@ fn should_clear_ready_state_after_shutdown() {
 }
 
 #[test]
-fn should_startup_respects_runtime_config_defaults() {
+fn should_leave_network_password_unconfigured_by_default() {
     // Arrange
     let keys = [
         "CASSIE_PGWIRE_LISTEN",
@@ -228,8 +228,7 @@ fn should_startup_respects_runtime_config_defaults() {
     // Assert
     assert_eq!(config.pgwire_listen, "127.0.0.1:5432");
     assert_eq!(config.rest_listen, "127.0.0.1:8080");
-    assert_eq!(config.password, "postgres");
-    assert_eq!(config.password, "postgres");
+    assert_eq!(config.password, "");
     assert!(matches!(
         config.embeddings,
         EmbeddingsRuntimeConfig::Disabled

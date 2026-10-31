@@ -10,7 +10,9 @@ use cassie::config::CassieRuntimeConfig;
 #[test]
 fn should_reject_parse_metadata_before_publication_when_shared_budget_is_exceeded() {
     // Arrange
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     let budget_bytes = 8_192;
     config.limits.query_memory_budget_bytes = budget_bytes;
     let fixture = sql_fixture_with_config("parse-metadata-budget", &[], config.clone());

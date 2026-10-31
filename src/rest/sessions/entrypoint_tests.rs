@@ -13,6 +13,8 @@ use crate::midge::StorageFamily;
 use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 
+const TEST_ROOT_PASSWORD: &str = "entrypoint-root-password";
+
 #[derive(Clone, Copy)]
 enum Transition {
     Revoke,
@@ -49,9 +51,11 @@ impl Fixture {
         ));
         std::fs::create_dir_all(&path).expect("fixture directory");
         let directory = Directory(path);
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&directory.0, CassieRuntimeConfig::default())
-                .expect("Cassie");
+        let config = CassieRuntimeConfig {
+            password: TEST_ROOT_PASSWORD.to_string(),
+            ..CassieRuntimeConfig::default()
+        };
+        let cassie = Cassie::new_with_data_dir_and_config(&directory.0, config).expect("Cassie");
         cassie.startup().expect("startup");
         Self {
             cassie,
@@ -81,7 +85,7 @@ struct Observations {
 
 fn setup(cassie: &Cassie) -> (CassieSession, String) {
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(TEST_ROOT_PASSWORD), None)
         .expect("root role");
     for sql in [
         "CREATE ROLE entry_reader LOGIN PASSWORD 'entry-reader-password'",
@@ -180,7 +184,7 @@ async fn observe_transition(
         .expect("read old token after denied HTTP request")
         .is_none();
     let root = cassie
-        .authenticate_principal("root", Some("postgres"), None)
+        .authenticate_principal("root", Some(TEST_ROOT_PASSWORD), None)
         .expect("fresh root principal");
     let fresh = issue_with_limits(cassie, &root.role, MAX_SESSIONS, SESSION_TTL_SECONDS)
         .expect("fresh root token");

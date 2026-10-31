@@ -71,6 +71,8 @@ See the [Release Checklist](docs/release-checklist.md).
 
 `compose.yml` expects REST TLS to terminate at a trusted reverse proxy or load balancer. It binds the published ports to host loopback, sets `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` for the private container hop, and requires a non-default `CASSIE_ROOT_PASSWORD` for the fixed `root` login. Do not publish that plaintext hop directly to an untrusted network.
 
+The Cassie server binary also requires `CASSIE_ROOT_PASSWORD` when run directly; it does not provide a built-in root password. Set it from a secret before starting the server.
+
 The provider-specific development profiles use the Sqrzl storage emulator. Copy
 `.env.example` to `.env`, set `CASSIE_ROOT_PASSWORD`, and start one profile:
 

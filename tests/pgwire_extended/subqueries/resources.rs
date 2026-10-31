@@ -90,7 +90,9 @@ fn assert_scalar_result_limit_contract(
 #[test]
 fn should_project_scalar_subqueries_within_the_configured_result_row_limit() {
     // Arrange
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.max_result_rows = 2;
     let storage = sql_fixture_with_config("issue-762-scalar-result-limit", &[], config.clone());
     storage

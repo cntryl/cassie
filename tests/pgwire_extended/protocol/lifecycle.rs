@@ -95,7 +95,9 @@ fn seed_close_cascade_collection(cassie: &Cassie) {
 }
 
 async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
-    let config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -214,7 +216,9 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);
@@ -252,7 +256,9 @@ fn run_close_batch(label: &str, batch: &[Vec<u8>]) -> (Vec<WireFrame>, Option<u6
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);
@@ -340,7 +346,9 @@ fn should_close_transaction_portals_at_transaction_end() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);

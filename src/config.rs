@@ -19,13 +19,16 @@ pub use switches::{ExecutionResultCacheEnabled, OperatorSwitchingEnabled};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieRuntimeConfigError {
+    #[error("{key} must be set before starting Cassie servers")]
+    PasswordEnvironmentMissing { key: &'static str },
+
     #[error("{key} is set but is empty after trimming whitespace")]
     PasswordEnvironmentEmpty { key: &'static str },
 
     #[error("CASSIE_EMBEDDINGS_PROVIDER='{provider}' is not available; use disabled, fallback, openai, openai_compatible, tei, ollama, voyage, cohere, or local")]
     UnsupportedEmbeddingProvider { provider: String },
 
-    #[error("default bootstrap password is unsafe for non-loopback listener '{listener}'")]
+    #[error("known default bootstrap password is unsafe for non-loopback listener '{listener}'")]
     UnsafeDefaultPassword { listener: String },
 
     #[error("bootstrap password is empty for network listener '{listener}'")]
@@ -193,7 +196,7 @@ impl Default for CassieRuntimeConfig {
             allow_insecure_non_loopback_listen: false,
             admin_ui_dir: "./ui/dist".to_string(),
             database: "postgres".to_string(),
-            password: "postgres".to_string(),
+            password: String::new(),
             auth_user_attempts_per_minute: 10,
             auth_ip_attempts_per_minute: 60,
             auth_rate_limit_max_entries: 4_096,
@@ -261,9 +264,33 @@ impl Default for OpenAiRuntimeConfig {
 impl CassieRuntimeConfig {
     /// # Errors
     ///
-    /// Returns an error when validation, storage, or execution fails.
+    /// Returns an error when an environment-provided setting is invalid.
     pub fn from_env() -> Result<Self, CassieRuntimeConfigError> {
         Self::from_env_reader(|key| env::var(key).ok())
+    }
+
+    /// Loads configuration for the Cassie server binary and requires a root password.
+    ///
+    /// Embedded callers may use [`Self::from_env`] without configuring network authentication.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the root password or other server configuration is invalid.
+    pub fn from_server_env() -> Result<Self, CassieRuntimeConfigError> {
+        Self::from_server_env_reader(|key| env::var(key).ok())
+    }
+
+    fn from_server_env_reader(
+        env_reader: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self, CassieRuntimeConfigError> {
+        let config = Self::from_env_reader(&env_reader)?;
+        if config.password.is_empty() {
+            return Err(CassieRuntimeConfigError::PasswordEnvironmentMissing {
+                key: "CASSIE_ROOT_PASSWORD",
+            });
+        }
+        validate_bootstrap_password(&config)?;
+        Ok(config)
     }
 
     fn from_env_reader(
@@ -294,7 +321,7 @@ impl CassieRuntimeConfig {
             config.database = v;
         }
 
-        config.password = password_from_env(&env_reader, &config.password)?;
+        config.password = password_from_env(&env_reader)?;
         config.auth_user_attempts_per_minute = parse_usize_min_from(
             &env_reader,
             "CASSIE_AUTH_USER_ATTEMPTS_PER_MINUTE",
@@ -334,7 +361,6 @@ impl CassieRuntimeConfig {
         };
         config.limits = limits_from_env(&env_reader, &config.limits);
 
-        validate_bootstrap_password(&config)?;
         validate_transport_tls_policy(&config)?;
 
         Ok(config)
@@ -518,6 +544,37 @@ mod tests {
     }
 
     #[test]
+    fn should_not_supply_a_default_root_password_for_embedded_configuration() {
+        // Arrange
+        let values = HashMap::new();
+
+        // Act
+        let config = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
+            .expect("embedded configuration without network credentials");
+
+        // Assert
+        assert_eq!(config.password, "");
+    }
+
+    #[test]
+    fn should_require_root_password_for_server_configuration() {
+        // Arrange
+        let values = HashMap::new();
+
+        // Act
+        let error = CassieRuntimeConfig::from_server_env_reader(env_reader_owned(values))
+            .expect_err("server configuration must require a root password");
+
+        // Assert
+        assert!(matches!(
+            error,
+            CassieRuntimeConfigError::PasswordEnvironmentMissing {
+                key: "CASSIE_ROOT_PASSWORD"
+            }
+        ));
+    }
+
+    #[test]
     fn should_accept_explicit_embedding_providers_with_runtime_variants() {
         // Arrange
         let providers = ["voyage", "cohere", "local"];
@@ -571,13 +628,17 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_default_password_on_non_loopback_listener() {
+    fn should_reject_explicit_default_password_on_non_loopback_listener() {
         // Arrange
-        let values = HashMap::from([("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432")]);
+        let values = HashMap::from([
+            ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
+            ("CASSIE_ROOT_PASSWORD", "postgres"),
+            ("CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN", "1"),
+        ]);
 
         // Act
-        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
-            .expect_err("default password must not expose a non-loopback listener");
+        let error = CassieRuntimeConfig::from_server_env_reader(env_reader(values))
+            .expect_err("the known default password must not expose a non-loopback listener");
 
         // Assert
         assert!(error.to_string().contains("unsafe"));
@@ -595,7 +656,7 @@ mod tests {
         ]);
 
         // Act
-        let config = CassieRuntimeConfig::from_env_reader(env_reader(values))
+        let config = CassieRuntimeConfig::from_server_env_reader(env_reader(values))
             .expect("explicit password should permit non-loopback listener");
 
         // Assert

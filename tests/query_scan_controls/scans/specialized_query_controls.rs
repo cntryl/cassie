@@ -88,7 +88,9 @@ struct FallbackEvidence {
 
 impl Fixture {
     fn new(family: AnalyticalFamily, memory_budget: usize) -> Self {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.query_memory_budget_bytes = memory_budget;
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         config.limits.parallel_scan_workers = 1;

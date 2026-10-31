@@ -9,6 +9,7 @@ fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password = crate::support_sql::TEST_ROOT_PASSWORD.to_owned();
         config.limits.query_timeout_ms = 1;
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().expect("startup");

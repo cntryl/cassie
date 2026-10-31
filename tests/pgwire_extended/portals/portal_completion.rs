@@ -8,7 +8,9 @@ type Frames = Vec<(u8, Vec<u8>)>;
 type PortalPages = (Vec<String>, Vec<String>);
 
 fn seeded_cassie(table: &str, count: usize) -> Cassie {
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");

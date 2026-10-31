@@ -3,10 +3,11 @@ use cassie::sql::ast::QueryStatement;
 use cassie::types::Value;
 
 fn cassie(_label: &str) -> Cassie {
-    let cassie = Cassie::new_in_memory_with_config(
-        cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
-    )
-    .expect("cassie");
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+    if config.password.is_empty() {
+        config.password = "postgres".to_string();
+    }
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     cassie
 }

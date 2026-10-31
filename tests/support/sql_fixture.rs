@@ -46,11 +46,11 @@ impl Drop for FixtureDirectory {
 ///
 /// Panics when the instance cannot be created or a setup statement fails.
 pub fn sql_fixture(label: &str, setup: &[&str]) -> SqlFixture {
-    sql_fixture_with_config(
-        label,
-        setup,
-        cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
-    )
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+    if config.password.is_empty() {
+        config.password = crate::support_sql::TEST_ROOT_PASSWORD.to_string();
+    }
+    sql_fixture_with_config(label, setup, config)
 }
 
 /// Opens a fresh instance with explicit query controls and seeds it by SQL.

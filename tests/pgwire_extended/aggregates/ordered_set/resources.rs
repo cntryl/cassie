@@ -115,7 +115,9 @@ fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_m
 ) {
     // Arrange
     let runtime = current_thread_runtime();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 128 * 1_024;
 
@@ -211,7 +213,9 @@ fn should_reject_retained_state_growth_given_an_ordered_set_aggregate_when_its_m
 fn should_reject_percentile_disc_array_output_when_its_memory_budget_is_exceeded() {
     // Arrange
     let runtime = current_thread_runtime();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 40 * 1_024;
 
@@ -285,7 +289,9 @@ fn should_reject_percentile_disc_array_output_when_its_memory_budget_is_exceeded
 fn should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel_request_arrives() {
     // Arrange
     let runtime = current_thread_runtime();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.query_timeout_ms = 0;
     // Act
     let (control, baseline_running_queries, active_queries, cancelled, recovery) = runtime

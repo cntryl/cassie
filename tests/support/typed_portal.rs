@@ -27,7 +27,9 @@ pub fn resume_after_change(staged: bool, mutation: &str) -> Pages {
         .build()
         .expect("runtime");
     let pages = runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("configuration");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("configuration"),
+        );
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
         cassie.startup().expect("startup");

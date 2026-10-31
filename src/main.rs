@@ -5,7 +5,7 @@ use tokio::sync::Notify;
 fn main() -> Result<(), CassieError> {
     tracing_subscriber::fmt().with_env_filter("info").init();
 
-    let config = CassieRuntimeConfig::from_env()?;
+    let config = CassieRuntimeConfig::from_server_env()?;
     let cassie = Arc::new(Cassie::new()?);
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()

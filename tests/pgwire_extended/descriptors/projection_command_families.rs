@@ -377,7 +377,9 @@ fn run_cycles_with_setup(
         .build()
         .expect("runtime");
     runtime.block_on(async {
-        let config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let cassie = Cassie::new_in_memory_with_config(config)
             .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));
         cassie.startup().expect("startup before table creation");

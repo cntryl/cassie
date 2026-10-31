@@ -17,7 +17,9 @@ fn should_stop_portal_scan_after_requested_page_is_buffered() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
@@ -101,7 +103,9 @@ fn should_cancel_suspended_portal_before_resume() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
@@ -206,7 +210,9 @@ fn should_resume_portal_from_original_snapshot_after_concurrent_insert() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
@@ -517,7 +523,9 @@ fn should_page_portal_from_one_result_when_delete_commits_during_staged_transact
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         config.limits.parallel_scan_workers = 1;
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();

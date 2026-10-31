@@ -8,7 +8,9 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.query_timeout_ms = 1;
         let cassie =
             Cassie::new_in_memory_with_config(config).expect("cassie with config");
@@ -80,7 +82,9 @@ fn should_acknowledge_admin_query_cancellation_before_returning() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.cte_recursion_depth = 1_000_000;
         config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
         let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");

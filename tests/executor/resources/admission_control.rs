@@ -6,6 +6,8 @@ use pgwire::{complete_startup, parse_error_fields, read_wire_frame};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
+use super::support_tls::client_trusting_test_certificate;
+
 fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::sweep_stale_once();
     let mut path = std::env::temp_dir();
@@ -27,8 +29,9 @@ fn tls_identity(label: &str) -> (std::path::PathBuf, std::path::PathBuf, std::pa
     std::fs::create_dir_all(&directory).expect("create TLS directory");
     let certificate = directory.join("cert.pem");
     let key = directory.join("key.pem");
-    let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
-        .expect("certificate identity");
+    let identity =
+        rcgen::generate_simple_self_signed(vec!["localhost".to_string(), "127.0.0.1".to_string()])
+            .expect("certificate identity");
     std::fs::write(&certificate, identity.cert.pem()).expect("certificate fixture");
     std::fs::write(&key, identity.signing_key.serialize_pem()).expect("key fixture");
     (directory, certificate, key)
@@ -265,20 +268,14 @@ fn should_return_rest_admission_503_over_tls() {
         drop(listener);
         let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie));
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let held_client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .expect("held TLS client");
+        let held_client = client_trusting_test_certificate(&certificate);
         let held = held_client
             .get(format!("https://{addr}/health"))
             .send()
             .await
             .expect("held TLS request");
         assert!(held.status().is_success());
-        let overflow_client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .expect("overflow TLS client");
+        let overflow_client = client_trusting_test_certificate(&certificate);
 
         // Act
         let overflow = overflow_client

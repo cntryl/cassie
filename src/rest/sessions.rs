@@ -2,6 +2,7 @@ use std::fmt::Write as _;
 use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use argon2::PasswordHash;
 use cntryl_midge::{ConflictPolicy, Query, TransactionMode};
 use getrandom::fill;
 use serde::{Deserialize, Serialize};
@@ -139,7 +140,7 @@ fn issue_transaction(
         user: normalized_user,
         database: None,
         expires_at: now.saturating_add(ttl_seconds),
-        credential_fingerprint: credential_fingerprint(cassie, role),
+        credential_fingerprint: credential_fingerprint(cassie, role)?,
     };
     let value = serde_json::to_vec(&record)
         .map_err(|error| CassieError::Execution(format!("encode REST session: {error}")))?;
@@ -197,31 +198,45 @@ fn current_role(cassie: &Cassie, record: &PersistedSession) -> Result<RoleMeta, 
     let Some(role) = role else {
         return Err(CassieError::Unauthorized);
     };
-    if !role.can_login || credential_fingerprint(cassie, &role) != record.credential_fingerprint {
+    if !role.can_login || credential_fingerprint(cassie, &role)? != record.credential_fingerprint {
         return Err(CassieError::Unauthorized);
     }
     Ok(role)
 }
 
-fn credential_fingerprint(cassie: &Cassie, role: &RoleMeta) -> String {
-    let credential = role
+fn credential_fingerprint(cassie: &Cassie, role: &RoleMeta) -> Result<String, CassieError> {
+    let role_password_hash = role
         .password_hash
         .as_deref()
-        .filter(|_| !role.password_hash.as_deref().unwrap_or_default().is_empty())
-        .unwrap_or_else(|| {
-            if normalize_role_name(&role.name) == normalize_role_name(&cassie.auth_user) {
-                cassie.auth_password.as_str()
-            } else {
-                ""
-            }
-        });
-    digest(
-        format!(
-            "{}\0{}\0{}\0{}",
-            role.name, role.can_login, role.is_admin, credential
-        )
-        .as_bytes(),
-    )
+        .filter(|hash| !hash.is_empty());
+    let bootstrap_password_hash = if role_password_hash.is_none()
+        && normalize_role_name(&role.name) == normalize_role_name(&cassie.auth_user)
+    {
+        cassie.initialize_bootstrap_password_hash()?
+    } else {
+        None
+    };
+    let credential = role_password_hash
+        .or(bootstrap_password_hash)
+        .map(|credential| {
+            PasswordHash::new(credential)
+                .map_err(|error| {
+                    CassieError::Execution(format!("invalid role password hash: {error}"))
+                })?
+                .salt
+                .map(|salt| salt.to_string())
+                .ok_or_else(|| {
+                    CassieError::Execution(
+                        "invalid role password hash: missing password salt".to_string(),
+                    )
+                })
+        })
+        .transpose()?
+        .unwrap_or_default();
+    Ok(format!(
+        "{}\0{}\0{}\0{credential}",
+        role.name, role.can_login, role.is_admin
+    ))
 }
 
 fn decode_record(value: &[u8]) -> Option<PersistedSession> {
@@ -265,6 +280,7 @@ mod tests {
 
     use super::{authenticate, issue, issue_with_limits, revoke, session_key, SESSION_TTL_SECONDS};
     use crate::app::{Cassie, CassieError};
+    use crate::catalog::RoleMeta;
     use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 
     fn cassie(label: &str) -> Cassie {
@@ -277,6 +293,48 @@ mod tests {
             uuid::Uuid::new_v4()
         ));
         Cassie::new_with_data_dir_and_config(path, config).expect("cassie")
+    }
+
+    #[test]
+    fn should_store_only_public_password_salt_in_bootstrap_session_fingerprint() {
+        // Arrange
+        let password = "bootstrap-session-password-canary";
+        let cassie = cassie_with_config(
+            "bootstrap-password-fingerprint",
+            CassieRuntimeConfig {
+                password: password.to_string(),
+                ..CassieRuntimeConfig::default()
+            },
+        );
+        let role = RoleMeta::bootstrap_admin("root", None);
+        // Act
+        let token = issue(&cassie, &role).expect("issue session");
+        let record_bytes = cassie
+            .midge
+            .raw_get(crate::midge::StorageFamily::Schema, &session_key(&token))
+            .expect("session lookup")
+            .expect("persisted session record");
+        let record = super::decode_record(&record_bytes).expect("decode session record");
+        let authenticated = authenticate(&cassie, &token).expect("authenticate session");
+        let bootstrap_hash = cassie
+            .initialize_bootstrap_password_hash()
+            .expect("bootstrap password hash")
+            .expect("configured bootstrap password hash");
+        let salt = argon2::PasswordHash::new(bootstrap_hash)
+            .expect("parse bootstrap password hash")
+            .salt
+            .expect("password hash salt")
+            .to_string();
+        let salt_fingerprint = format!(
+            "{}\0{}\0{}\0{salt}",
+            role.name, role.can_login, role.is_admin
+        );
+
+        // Assert
+        assert_eq!(record.credential_fingerprint, salt_fingerprint);
+        assert!(!record.credential_fingerprint.contains(password));
+        assert!(!record.credential_fingerprint.contains(bootstrap_hash));
+        assert_eq!(authenticated.role.name, role.name);
     }
 
     #[test]

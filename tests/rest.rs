@@ -21,6 +21,8 @@ mod support_pgwire;
 mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
+#[path = "support/tls.rs"]
+mod support_tls;
 
 // Formerly tests/network_listener_authentication.rs.
 #[path = "rest/authentication/network_listener_authentication.rs"]

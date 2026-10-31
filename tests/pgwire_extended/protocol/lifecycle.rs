@@ -29,18 +29,6 @@ fn close_frame(target: u8, name: &str) -> Vec<u8> {
     }
 }
 
-fn frontend_frame(tag: u8, payload: &[u8]) -> Vec<u8> {
-    let mut frame = Vec::new();
-    frame.push(tag);
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("frontend payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(payload);
-    frame
-}
-
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
         .get(*cursor..)
@@ -120,9 +108,12 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
     let auth = read_wire_frame(reader).await;
     assert_eq!(auth.0, b'R', "startup should return an auth response");
     if auth.1 == 3_i32.to_be_bytes() {
-        tokio::io::AsyncWriteExt::write_all(writer, &frontend_frame(b'p', b"postgres\0"))
-            .await
-            .expect("write password");
+        tokio::io::AsyncWriteExt::write_all(
+            writer,
+            &pgwire_support::password_message(crate::support_sql::test_root_password()),
+        )
+        .await
+        .expect("write password");
         tokio::io::AsyncWriteExt::flush(writer)
             .await
             .expect("flush password");

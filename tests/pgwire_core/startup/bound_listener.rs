@@ -17,7 +17,7 @@ fn runtime() -> tokio::runtime::Runtime {
 
 fn authenticated_config() -> CassieRuntimeConfig {
     CassieRuntimeConfig {
-        password: crate::support_sql::TEST_ROOT_PASSWORD.to_owned(),
+        password: crate::support_sql::test_root_password().to_owned(),
         ..CassieRuntimeConfig::default()
     }
 }

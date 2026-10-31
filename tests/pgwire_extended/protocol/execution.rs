@@ -102,7 +102,7 @@ fn seed_incompatible_parameter_collection(cassie: &Cassie) {
 
 async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -129,9 +129,12 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
         3,
         "startup should request a cleartext password"
     );
-    tokio::io::AsyncWriteExt::write_all(writer, &password_frame("postgres"))
-        .await
-        .expect("write password");
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &password_frame(crate::support_sql::test_root_password()),
+    )
+    .await
+    .expect("write password");
     tokio::io::AsyncWriteExt::flush(writer)
         .await
         .expect("flush password");
@@ -274,7 +277,7 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_extended_query_collection(&cassie);

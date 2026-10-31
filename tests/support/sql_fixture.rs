@@ -48,7 +48,7 @@ impl Drop for FixtureDirectory {
 pub fn sql_fixture(label: &str, setup: &[&str]) -> SqlFixture {
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     if config.password.is_empty() {
-        config.password = crate::support_sql::TEST_ROOT_PASSWORD.to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
     }
     sql_fixture_with_config(label, setup, config)
 }

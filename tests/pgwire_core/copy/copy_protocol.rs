@@ -95,7 +95,11 @@ fn run<F>(cassie: Cassie, scenario: F)
 where
     F: for<'a, 'b> AsyncFnOnce(&'b mut Reader<'a>, &'b mut WriteHalf<'a>),
 {
-    run_as(cassie, ("root", "postgres"), scenario);
+    run_as(
+        cassie,
+        ("root", crate::support_sql::test_root_password()),
+        scenario,
+    );
 }
 
 #[test]
@@ -162,7 +166,7 @@ fn should_abort_open_transaction_given_database_copy_privilege_denial() {
     // Arrange
     let (cassie, path) = configured_cassie("database-copy-denial-transaction");
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin");
     for sql in [
         "CREATE ROLE copy_reader LOGIN PASSWORD 'reader-secret'",

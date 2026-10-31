@@ -22,7 +22,7 @@ pub fn run_script_with_config(
     mut config: cassie::config::CassieRuntimeConfig,
 ) -> Vec<Frames> {
     if config.password.is_empty() {
-        crate::support_sql::TEST_ROOT_PASSWORD.clone_into(&mut config.password);
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
     }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -76,7 +76,7 @@ pub struct Transcript {
 
 fn seed(cassie: &Cassie) -> (CassieSession, String) {
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("authenticated administrator");
     let password = uuid::Uuid::new_v4().to_string();
     for sql in [
@@ -153,7 +153,12 @@ async fn observe(fixture: &SqlFixture, scenario: Scenario) -> Transcript {
     let (admin, password) = seed(&fixture.cassie);
     let server = wire::spawn_server(fixture.cassie.clone()).await;
     let mut owner = Client::connect(server.addr, "boundary_reader", &password).await;
-    let mut control = Client::connect(server.addr, "root", "postgres").await;
+    let mut control = Client::connect(
+        server.addr,
+        "root",
+        crate::support_sql::test_root_password(),
+    )
+    .await;
     let first = first_page(&fixture.cassie, &mut owner, scenario).await;
     fixture
         .cassie
@@ -214,7 +219,7 @@ async fn observe(fixture: &SqlFixture, scenario: Scenario) -> Transcript {
 
 pub fn collect(scenario: Scenario) -> Transcript {
     let mut config = CassieRuntimeConfig::from_env().expect("configuration");
-    "postgres".clone_into(&mut config.password);
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     let fixture = sql_fixture_with_config("portal-current-authorization", &[], config);
     fixture.cassie.startup().expect("startup");

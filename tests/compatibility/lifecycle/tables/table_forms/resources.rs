@@ -5,7 +5,7 @@ fn should_skip_missing_table_drop_in_fresh_memory_storage() {
     runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env()
             .expect("read runtime config for memory-backed fixture");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let engine = Cassie::new_in_memory_with_config(config.clone())
             .expect("construct memory-backed Cassie fixture");
         engine
@@ -30,7 +30,7 @@ fn should_skip_missing_table_drop_in_fresh_memory_storage() {
             .host("127.0.0.1")
             .port(address.port())
             .user("root")
-            .password("postgres")
+            .password(crate::support_sql::test_root_password())
             .dbname("postgres");
         let (client, connection) = pgwire
             .connect(tokio_postgres::NoTls)

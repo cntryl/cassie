@@ -82,7 +82,7 @@ pub fn fixture_with_vectorized_joins(enabled: bool) -> Fixture {
 
 pub fn fixture_with_join_batch_size(enabled: bool, batch_size: usize) -> Fixture {
     let mut config = CassieRuntimeConfig {
-        password: String::from("postgres"),
+        password: crate::support_sql::test_root_password().to_owned(),
         ..CassieRuntimeConfig::default()
     };
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();

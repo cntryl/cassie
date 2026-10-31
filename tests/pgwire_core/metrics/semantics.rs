@@ -119,9 +119,12 @@ async fn run_pgwire_metrics_query(addr: SocketAddr) -> Vec<WireFrame> {
         3,
         "startup should request a cleartext password"
     );
-    tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
-        .await
-        .expect("password write");
+    tokio::io::AsyncWriteExt::write_all(
+        &mut write_half,
+        &password_frame(crate::support_sql::test_root_password()),
+    )
+    .await
+    .expect("password write");
     tokio::io::AsyncWriteExt::flush(&mut write_half)
         .await
         .expect("flush password");
@@ -197,7 +200,7 @@ fn should_record_pgwire_connection_metrics() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         seed_pgwire_metrics_collection(&cassie);

@@ -250,7 +250,7 @@ fn should_preserve_collection_name_matching_source_database_through_pgwire_resto
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         if config.password.is_empty() {
-            config.password = crate::support_sql::TEST_ROOT_PASSWORD.to_owned();
+            crate::support_sql::test_root_password().clone_into(&mut config.password);
         }
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
         cassie.startup().expect("startup");

@@ -23,7 +23,7 @@ fn data_dir(label: &str) -> String {
 
 fn new_cassie(_path: &str) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     Cassie::new_in_memory_with_config(config).expect("cassie")
 }
 
@@ -72,7 +72,7 @@ fn password_frame(password: &str) -> Vec<u8> {
 
 async fn spawn_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -129,9 +129,12 @@ async fn start_session(
         ),
         3
     );
-    tokio::io::AsyncWriteExt::write_all(writer, &password_frame("postgres"))
-        .await
-        .expect("write password");
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &password_frame(crate::support_sql::test_root_password()),
+    )
+    .await
+    .expect("write password");
     tokio::io::AsyncWriteExt::flush(writer)
         .await
         .expect("flush password");

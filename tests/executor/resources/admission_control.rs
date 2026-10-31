@@ -17,7 +17,7 @@ fn data_dir(label: &str) -> String {
 
 fn runtime_config_with_limits(pgwire_max: usize, rest_max: usize) -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     config.limits.pgwire_max_connections = pgwire_max;
     config.limits.rest_max_connections = rest_max;
     config

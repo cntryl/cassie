@@ -51,7 +51,7 @@ pub async fn observe_owner_wait<T>(
 
 pub async fn start() -> Fixture {
     let mut server_config = CassieRuntimeConfig::from_env().expect("runtime config");
-    server_config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut server_config.password);
     let cassie = Cassie::new_in_memory_with_config(server_config.clone())
         .expect("create in-memory instrumented Cassie instance");
     cassie
@@ -72,7 +72,7 @@ pub async fn start() -> Fixture {
         .host("127.0.0.1")
         .port(addr.port())
         .user("root")
-        .password("postgres")
+        .password(crate::support_sql::test_root_password())
         .dbname("postgres");
     let (owner, owner_connection) = connection_config
         .connect(NoTls)

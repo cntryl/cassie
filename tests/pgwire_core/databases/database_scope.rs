@@ -20,7 +20,7 @@ fn should_report_3d000_for_missing_startup_database() {
 
     runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -57,9 +57,12 @@ fn should_report_3d000_for_missing_startup_database() {
             ),
             3
         );
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
-            .await
-            .expect("write password");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &password_frame(crate::support_sql::test_root_password()),
+        )
+        .await
+        .expect("write password");
         let (tag, payload) = read_wire_frame(&mut reader).await;
         let fields = parse_error_fields(&payload);
 

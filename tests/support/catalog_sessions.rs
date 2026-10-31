@@ -24,7 +24,7 @@ pub async fn start(_label: &str) -> Fixture {
 }
 
 pub async fn connect(fixture: &Fixture) -> Session {
-    let password = std::env::var("CASSIE_ROOT_PASSWORD").unwrap_or_else(|_| "postgres".to_owned());
+    let password = std::env::var("CASSIE_ROOT_PASSWORD").unwrap_or_else(|_| crate::support_sql::test_root_password().to_owned());
     let mut config = tokio_postgres::Config::new();
     config
         .host("127.0.0.1")

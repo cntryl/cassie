@@ -179,7 +179,8 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_transport_boundary_docs(&cassie);
         let (addr, server) = spawn_pgwire_boundary_server(&cassie).await;
@@ -206,7 +207,8 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

@@ -6,7 +6,7 @@ use cassie::midge::adapter::{
 use cassie::runtime::QueryCancellationHandle;
 fn configured_cassie() -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");

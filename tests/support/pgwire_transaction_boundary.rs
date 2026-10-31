@@ -217,7 +217,7 @@ pub fn copy_access_fixture() -> (Cassie, cassie::app::CassieSession, String) {
     let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin");
     let password = uuid::Uuid::new_v4().to_string();
     for sql in [

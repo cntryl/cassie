@@ -6,7 +6,7 @@ fn database_copy_error(sql: &str) -> Vec<(char, String)> {
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin");
     cassie
         .execute_sql(

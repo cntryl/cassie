@@ -447,7 +447,7 @@ fn should_not_return_unsupported_window_frame_sqlstate() {
         config.port(server.addr.port());
         config.user("root");
         config.dbname("postgres");
-        config.password("postgres");
+        config.password(crate::support_sql::test_root_password());
         let (client, connection) = config.connect(NoTls).await.expect("connect pgwire");
         let connection = tokio::spawn(async move {
             let _ = connection.await;

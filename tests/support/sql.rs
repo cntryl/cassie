@@ -5,14 +5,18 @@ use cassie::embeddings::NormalizedVectorRecord;
 use cassie::embeddings::{openai::OpenAiConfig, DEFAULT_EMBEDDING_MODEL};
 use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
+use std::sync::OnceLock;
 use uuid::Uuid;
 
-pub const TEST_ROOT_PASSWORD: &str = "postgres";
+pub fn test_root_password() -> &'static str {
+    static TEST_ROOT_PASSWORD: OnceLock<String> = OnceLock::new();
+    TEST_ROOT_PASSWORD
+        .get_or_init(|| Uuid::new_v4().to_string())
+        .as_str()
+}
 
 pub fn with_test_root_password(mut config: CassieRuntimeConfig) -> CassieRuntimeConfig {
-    if config.password.is_empty() {
-        config.password = TEST_ROOT_PASSWORD.to_string();
-    }
+    test_root_password().clone_into(&mut config.password);
     config
 }
 

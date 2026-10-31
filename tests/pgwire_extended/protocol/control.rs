@@ -100,7 +100,7 @@ fn seed_recovery_collection(cassie: &Cassie) {
 
 async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -124,9 +124,12 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
     assert_eq!(auth.0, b'R', "startup should return an auth response");
     let mut cursor = 0;
     assert_eq!(read_i32(&auth.1, &mut cursor), 3);
-    tokio::io::AsyncWriteExt::write_all(writer, &password_frame("postgres"))
-        .await
-        .expect("write password");
+    tokio::io::AsyncWriteExt::write_all(
+        writer,
+        &password_frame(crate::support_sql::test_root_password()),
+    )
+    .await
+    .expect("write password");
     tokio::io::AsyncWriteExt::flush(writer)
         .await
         .expect("flush password");
@@ -323,7 +326,7 @@ fn should_silently_drop_copy_data_message_outside_copy_mode() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -388,7 +391,7 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_recovery_collection(&cassie);
@@ -430,7 +433,7 @@ fn should_return_unsupported_error_for_copy_statement() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

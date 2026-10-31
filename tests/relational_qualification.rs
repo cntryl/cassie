@@ -4,6 +4,8 @@
 mod support_pgwire;
 #[path = "support/relational_qualification.rs"]
 mod support_relational_qualification;
+#[path = "support/sql.rs"]
+mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 

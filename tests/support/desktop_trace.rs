@@ -301,7 +301,7 @@ struct TraceServer {
 impl TraceServer {
     async fn start(_label: &str) -> Result<Self, String> {
         let config = CassieRuntimeConfig {
-            password: "postgres".to_string(),
+            password: crate::support_sql::test_root_password().to_owned(),
             ..CassieRuntimeConfig::default()
         };
         let cassie = Cassie::new_in_memory_with_config(config.clone())
@@ -347,7 +347,7 @@ async fn connect(address: SocketAddr) -> Result<(Client, tokio::task::JoinHandle
             .host("127.0.0.1")
             .port(address.port())
             .user("root")
-            .password("postgres")
+            .password(crate::support_sql::test_root_password())
             .dbname("postgres");
         match config.connect(NoTls).await {
             Ok((client, connection)) => {

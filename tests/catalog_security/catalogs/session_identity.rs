@@ -18,7 +18,7 @@ impl Drop for FixtureDirectory {
 
 fn run_queries(label: &str, queries: Vec<String>) -> Vec<Frames> {
     let config = CassieRuntimeConfig {
-        password: "postgres".to_string(),
+        password: crate::support_sql::test_root_password().to_owned(),
         ..CassieRuntimeConfig::default()
     };
     run_queries_with_config(label, queries, config)
@@ -69,7 +69,7 @@ fn should_report_the_active_query_given_a_running_statement_when_current_query_i
         "issue-817-current-query",
         vec![sql.to_owned()],
         CassieRuntimeConfig {
-            password: "postgres".to_string(),
+            password: crate::support_sql::test_root_password().to_owned(),
             ..CassieRuntimeConfig::default()
         },
     );

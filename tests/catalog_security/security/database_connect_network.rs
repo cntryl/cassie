@@ -8,14 +8,13 @@ use tokio::sync::Notify;
 use tokio_postgres::NoTls;
 
 fn fixture(_label: &str) -> (Cassie, CassieSession) {
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    if config.password.is_empty() {
-        config.password = "postgres".to_string();
-    }
+    let config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin");
     for sql in [
         "CREATE DATABASE analytics",

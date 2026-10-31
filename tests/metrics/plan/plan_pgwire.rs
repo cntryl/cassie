@@ -125,7 +125,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
 
     runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let before_protocol_errors = cassie.metrics()["pgwire"]["protocol_errors_total"]
@@ -170,9 +170,12 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
             auth_code, 3,
             "configured listener should request a password"
         );
-        tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
-            .await
-            .expect("password write");
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &password_frame(crate::support_sql::test_root_password()),
+        )
+        .await
+        .expect("password write");
         tokio::io::AsyncWriteExt::flush(&mut write_half)
             .await
             .expect("password flush");

@@ -22,7 +22,7 @@ async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
             "username": "root",
-            "password": "postgres"
+            "password": crate::support_sql::test_root_password()
         }))
         .send()
         .await
@@ -206,7 +206,7 @@ fn should_complete_rest_https_handshake() {
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await
@@ -709,7 +709,7 @@ fn should_reject_cross_origin_rest_state_changes() {
             .header("origin", "https://evil.example")
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await

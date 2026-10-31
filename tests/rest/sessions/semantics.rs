@@ -105,7 +105,7 @@ fn should_revoke_cookie_session_after_logout() {
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await
@@ -163,7 +163,7 @@ fn should_revoke_a_non_admin_rest_session_on_logout() {
     let data_dir = data_dir("non-admin-session-lifecycle");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let root = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("root session");
     cassie
         .execute_sql(
@@ -307,7 +307,7 @@ fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
             .header("x-forwarded-proto", "https")
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await
@@ -347,7 +347,7 @@ fn should_secure_external_https_login_logout_cookies() {
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await
@@ -403,7 +403,7 @@ fn should_refund_success_before_throttling_excess_rest_logins() {
                 .post(format!("{base_url}/api/v1/auth/login"))
                 .json(&serde_json::json!({
                     "username": "root",
-                    "password": "postgres"
+                    "password": crate::support_sql::test_root_password()
                 }))
                 .send()
         };
@@ -464,7 +464,7 @@ fn should_map_oversized_rest_sql_to_bad_request() {
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await

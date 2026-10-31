@@ -16,7 +16,7 @@ pub fn run_cycles(label: &str, setup: &[(&str, Vec<Value>)], cycles: Vec<Cycle>)
     let batches = runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
         if config.password.is_empty() {
-            config.password = crate::support_sql::TEST_ROOT_PASSWORD.to_string();
+            crate::support_sql::test_root_password().clone_into(&mut config.password);
         }
         let cassie = Cassie::new_in_memory_with_config(config)
             .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));

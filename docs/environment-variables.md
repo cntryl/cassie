@@ -38,7 +38,7 @@ Cassie TLS or `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=true` explicitly
 declares a trusted private hop. The Cassie server binary also requires an
 explicit `CASSIE_ROOT_PASSWORD`; it has no built-in root password. Embedded
 callers may construct a configuration without network authentication, but
-network listeners reject an empty root password before binding.
+network listeners reject an empty root password before accepting connections.
 
 ## Bootstrap Identity and Authentication Limits
 

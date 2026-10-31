@@ -6,8 +6,6 @@ use cassie::config::CassieRuntimeConfig;
 
 use super::support_pgwire as pgwire;
 
-const TEST_PASSWORD: &str = "cassie-network-test-password";
-
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -134,13 +132,14 @@ fn should_rotate_persisted_passwordless_role_before_pgwire_listener_startup() {
         cassie.startup().expect("passwordless startup");
         cassie.shutdown();
     }
-    let config = password_config(TEST_PASSWORD);
+    let config = password_config(crate::support_sql::test_root_password());
     let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
     cassie.startup().expect("startup");
 
     runtime().block_on(async {
         // Act
-        let authenticated = cassie.authenticate_role("root", Some(TEST_PASSWORD), None);
+        let authenticated =
+            cassie.authenticate_role("root", Some(crate::support_sql::test_root_password()), None);
 
         // Assert
         assert!(authenticated.is_ok());
@@ -174,13 +173,14 @@ fn should_rotate_persisted_passwordless_role_before_rest_listener_startup() {
         cassie.startup().expect("passwordless startup");
         cassie.shutdown();
     }
-    let config = password_config(TEST_PASSWORD);
+    let config = password_config(crate::support_sql::test_root_password());
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
     cassie.startup().expect("startup");
 
     runtime().block_on(async {
         // Act
-        let authenticated = cassie.authenticate_role("root", Some(TEST_PASSWORD), None);
+        let authenticated =
+            cassie.authenticate_role("root", Some(crate::support_sql::test_root_password()), None);
 
         // Assert
         assert!(authenticated.is_ok());
@@ -222,7 +222,7 @@ fn should_reject_unconfigured_root_password_for_network_listener() {
 fn should_require_tls_for_actual_non_loopback_pgwire_listener() {
     // Arrange
     let path = pgwire::data_dir("non-loopback-tls");
-    let config = password_config(TEST_PASSWORD);
+    let config = password_config(crate::support_sql::test_root_password());
     let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");
     cassie.startup().expect("startup");
 
@@ -242,7 +242,7 @@ fn should_require_tls_for_actual_non_loopback_pgwire_listener() {
 fn should_authenticate_non_empty_password_on_loopback_pgwire_listener() {
     // Arrange
     let path = pgwire::data_dir("loopback-authenticated");
-    let config = password_config(TEST_PASSWORD);
+    let config = password_config(crate::support_sql::test_root_password());
     let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");
     cassie.startup().expect("startup");
 
@@ -265,7 +265,12 @@ fn should_authenticate_non_empty_password_on_loopback_pgwire_listener() {
         let (mut reader, mut writer) = tokio::io::split(socket);
 
         // Act
-        pgwire::complete_startup_with_password(&mut reader, &mut writer, TEST_PASSWORD).await;
+        pgwire::complete_startup_with_password(
+            &mut reader,
+            &mut writer,
+            crate::support_sql::test_root_password(),
+        )
+        .await;
 
         // Assert
         assert!(!server.is_finished());
@@ -281,7 +286,7 @@ fn should_keep_pgwire_authentication_envelope_generic_when_throttled() {
     // Arrange
     let path = pgwire::data_dir("pgwire-auth-throttle");
     let config = CassieRuntimeConfig {
-        password: TEST_PASSWORD.to_string(),
+        password: crate::support_sql::test_root_password().to_owned(),
         auth_user_attempts_per_minute: 1,
         auth_ip_attempts_per_minute: 10,
         ..CassieRuntimeConfig::default()

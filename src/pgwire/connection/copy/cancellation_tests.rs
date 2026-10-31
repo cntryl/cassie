@@ -3,6 +3,7 @@ use std::future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::OnceLock;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -264,7 +265,9 @@ async fn complete_startup(
     let (auth_tag, auth_body) = read_backend_frame(reader).await;
     assert_eq!(auth_tag, b'R');
     assert_eq!(auth_body, 3_i32.to_be_bytes());
-    write_frontend_frames(writer, vec![frontend_frame(b'p', b"postgres\0")]).await;
+    let mut password = test_root_password().as_bytes().to_vec();
+    password.push(0);
+    write_frontend_frames(writer, vec![frontend_frame(b'p', &password)]).await;
 
     let mut backend_key = None;
     loop {
@@ -279,6 +282,13 @@ async fn complete_startup(
             return backend_key.expect("backend key data before ReadyForQuery");
         }
     }
+}
+
+fn test_root_password() -> &'static str {
+    static PASSWORD: OnceLock<String> = OnceLock::new();
+    PASSWORD
+        .get_or_init(|| uuid::Uuid::new_v4().to_string())
+        .as_str()
 }
 
 async fn cancel_backend(server_addr: std::net::SocketAddr, process_id: i32, secret_key: i32) {
@@ -352,7 +362,7 @@ struct PgwireCopyCancelHarness {
 impl PgwireCopyCancelHarness {
     async fn start(table: &'static str, explicit_transaction: bool) -> Self {
         let config = CassieRuntimeConfig {
-            password: "postgres".to_string(),
+            password: test_root_password().to_owned(),
             ..CassieRuntimeConfig::default()
         };
         let cassie = std::sync::Arc::new(

@@ -135,6 +135,11 @@ impl Cassie {
         }
 
         let password_hash = match (login, password) {
+            (true, Some(password)) if password.is_empty() => {
+                return Err(CassieError::Planner(
+                    "login roles require a password".into(),
+                ));
+            }
             (true, Some(password)) => Some(hash_password(&password)?),
             (true, None) => {
                 return Err(CassieError::Planner(
@@ -183,6 +188,12 @@ impl Cassie {
                     "cannot disable the bootstrap admin role".into(),
                 ));
             }
+        }
+
+        if password.as_deref().is_some_and(str::is_empty) {
+            return Err(CassieError::Planner(
+                "login roles require a password".into(),
+            ));
         }
 
         if let Some(login) = login {
@@ -300,5 +311,76 @@ impl Cassie {
         self.catalog.unregister_role(&normalized);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cassie() -> Cassie {
+        Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default())
+            .expect("in-memory Cassie")
+    }
+
+    fn cassie_with_password(password: &str) -> Cassie {
+        let config = crate::config::CassieRuntimeConfig {
+            password: password.to_string(),
+            ..crate::config::CassieRuntimeConfig::default()
+        };
+        let cassie = Cassie::new_in_memory_with_config(config).expect("in-memory Cassie");
+        cassie.startup().expect("Cassie startup");
+        cassie
+    }
+
+    #[test]
+    fn should_reject_empty_password_given_login_role_creation() {
+        // Arrange
+        let cassie = cassie();
+
+        // Act
+        let result = cassie.create_role_in_database(
+            "empty_password",
+            true,
+            Some(String::new()),
+            false,
+            "postgres",
+        );
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::Planner(_))));
+    }
+
+    #[test]
+    fn should_preserve_existing_password_given_empty_role_password_change() {
+        // Arrange
+        let cassie = cassie();
+        let password = uuid::Uuid::new_v4().to_string();
+        cassie
+            .create_role_in_database("reader", true, Some(password.clone()), false, "postgres")
+            .expect("create reader role");
+
+        // Act
+        let result = cassie.alter_role("reader", None, Some(String::new()));
+        let authentication = cassie.authenticate_principal("reader", Some(&password), None);
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::Planner(_))));
+        assert!(authentication.is_ok());
+    }
+
+    #[test]
+    fn should_preserve_bootstrap_password_given_empty_password_change() {
+        // Arrange
+        let password = uuid::Uuid::new_v4().to_string();
+        let cassie = cassie_with_password(&password);
+
+        // Act
+        let result = cassie.alter_role("root", None, Some(String::new()));
+        let authentication = cassie.authenticate_role("root", Some(&password), None);
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::Planner(_))));
+        assert!(authentication.is_ok());
     }
 }

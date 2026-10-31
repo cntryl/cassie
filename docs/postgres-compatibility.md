@@ -17,6 +17,7 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 - Pgwire is the primary query interface and defaults to `127.0.0.1:5432`.
 - Startup negotiates protocol version, user, database, and supported parameters.
 - Password authentication uses Cassie roles and stored password hashes.
+- Login roles require a non-empty password; `CREATE ROLE` and `ALTER ROLE` reject an empty password.
 - Invalid known and unknown users follow the same password-verification path. Process-local normalized-user and peer-IP token buckets bound authentication attempts; pgwire intentionally returns the same generic authentication failure when a limit is exhausted.
 - Each authenticated connection is bound to one existing database.
 - Passwordless bootstrap is limited to embedded use without a network listener. Pgwire and REST listener startup reject an empty bootstrap password or a persisted passwordless bootstrap role.

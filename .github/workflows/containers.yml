@@ -14,6 +14,8 @@ on:
         description: SemVer calculated for the workflow
         value: ${{ jobs.version.outputs.semver }}
 
+permissions: {}
+
 concurrency:
   group: containers
   cancel-in-progress: false
@@ -25,6 +27,8 @@ env:
 jobs:
   version:
     uses: ./.github/workflows/version.yml
+    permissions:
+      contents: read
 
   validate:
     name: Validate publish request

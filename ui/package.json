@@ -35,7 +35,7 @@
   "devDependencies": {
     "@askrjs/cli": "0.5.0",
     "@axe-core/playwright": "4.13.0",
-    "@playwright/test": "1.64.0",
+    "@playwright/test": "1.64.1",
     "@types/node": "^26.6.5",
     "autoprefixer": "^10.6.1",
     "jsdom": "^30.1.2",

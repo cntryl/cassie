@@ -96,7 +96,7 @@ fn should_copy_csv_from_stdin_rows() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_copy_collection(&cassie);
@@ -135,7 +135,7 @@ fn should_copy_csv_from_stdin_with_legacy_unparenthesized_options() {
     // Arrange
     let path = data_dir("copy_legacy_csv_stdin");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     seed_copy_collection(&cassie);

@@ -62,7 +62,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_simple_query_collection(&cassie);

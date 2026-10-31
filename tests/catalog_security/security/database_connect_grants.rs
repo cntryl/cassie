@@ -3,17 +3,17 @@ use cassie::sql::ast::QueryStatement;
 use cassie::types::Value;
 
 fn cassie(_label: &str) -> Cassie {
-    let cassie = Cassie::new_in_memory_with_config(
+    let config = crate::support_sql::with_test_root_password(
         cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
-    )
-    .expect("cassie");
+    );
+    let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     cassie
 }
 
 fn setup_reader(cassie: &Cassie) -> cassie::app::CassieSession {
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin");
     cassie
         .execute_sql(&admin, "CREATE DATABASE analytics", Vec::new())
@@ -33,13 +33,17 @@ fn should_grant_connect_on_the_creating_sessions_database() {
     // Arrange
     let cassie = cassie("create-role-session-database");
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin");
     cassie
         .execute_sql(&admin, "CREATE DATABASE tenant_b", Vec::new())
         .expect("database");
     let tenant_admin = cassie
-        .authenticate_role("root", Some("postgres"), Some("tenant_b".to_string()))
+        .authenticate_role(
+            "root",
+            Some(crate::support_sql::test_root_password()),
+            Some("tenant_b".to_string()),
+        )
         .expect("tenant admin");
 
     // Act
@@ -161,7 +165,11 @@ impl PgShdependGrantFixture {
     fn new() -> Self {
         let cassie = cassie("pg-shdepend-connect-grant");
         let admin = cassie
-            .authenticate_role("root", Some("postgres"), Some("postgres".to_owned()))
+            .authenticate_role(
+                "root",
+                Some(crate::support_sql::test_root_password()),
+                Some("postgres".to_owned()),
+            )
             .expect("admin");
         cassie
             .execute_sql(&admin, "CREATE DATABASE shdepend_analytics", Vec::new())

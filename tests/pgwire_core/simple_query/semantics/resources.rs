@@ -49,7 +49,7 @@ fn should_recover_pgwire_after_oversized_sql_resource_limit() {
 
     runtime.block_on(async {
         let config = CassieRuntimeConfig {
-            password: "postgres".to_string(),
+            password: crate::support_sql::test_root_password().to_owned(),
             ..CassieRuntimeConfig::default()
         };
         let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("cassie");

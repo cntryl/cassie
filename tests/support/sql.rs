@@ -5,7 +5,20 @@ use cassie::embeddings::NormalizedVectorRecord;
 use cassie::embeddings::{openai::OpenAiConfig, DEFAULT_EMBEDDING_MODEL};
 use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
+use std::sync::OnceLock;
 use uuid::Uuid;
+
+pub fn test_root_password() -> &'static str {
+    static TEST_ROOT_PASSWORD: OnceLock<String> = OnceLock::new();
+    TEST_ROOT_PASSWORD
+        .get_or_init(|| Uuid::new_v4().to_string())
+        .as_str()
+}
+
+pub fn with_test_root_password(mut config: CassieRuntimeConfig) -> CassieRuntimeConfig {
+    test_root_password().clone_into(&mut config.password);
+    config
+}
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct TimeSeriesSidecarRecord {
@@ -24,7 +37,7 @@ pub fn use_local_storage() {
 }
 
 pub fn new_in_memory_cassie() -> Result<Cassie, cassie::app::CassieError> {
-    let config = CassieRuntimeConfig::from_env()?;
+    let config = with_test_root_password(CassieRuntimeConfig::from_env()?);
     Cassie::new_in_memory_with_config(config)
 }
 

@@ -23,7 +23,7 @@ struct CompatibilityServer {
 impl CompatibilityServer {
     async fn start() -> Self {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).expect("construct Cassie");
         cassie.startup().expect("start Cassie");
 

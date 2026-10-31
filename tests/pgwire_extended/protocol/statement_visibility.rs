@@ -15,7 +15,9 @@ async fn round_trip(
     wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await
 }
 fn fixture() -> Cassie {
-    let mut config = CassieRuntimeConfig::from_env().expect("config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("config"),
+    );
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
     cassie.startup().expect("startup");

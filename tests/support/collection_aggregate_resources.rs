@@ -105,7 +105,9 @@ pub fn run_memory_budget_case_with_setup_at_budget(
     budget_bytes: usize,
 ) -> ResourceCase {
     let runtime = current_thread_runtime();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = budget_bytes;
 
@@ -161,7 +163,9 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
     candidate_sql: &str,
 ) -> CancellationCase {
     let runtime = current_thread_runtime();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 512 * 1024 * 1024;
 

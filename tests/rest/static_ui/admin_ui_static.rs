@@ -22,7 +22,7 @@ async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
             "username": "root",
-            "password": "postgres"
+            "password": crate::support_sql::test_root_password()
         }))
         .send()
         .await
@@ -171,11 +171,11 @@ fn should_complete_rest_https_handshake() {
             .expect("certificate identity");
     std::fs::write(&certificate, identity.cert.pem()).expect("certificate fixture");
     std::fs::write(&key, identity.signing_key.serialize_pem()).expect("key fixture");
-    let config = CassieRuntimeConfig {
+    let config = crate::support_sql::with_test_root_password(CassieRuntimeConfig {
         rest_tls_cert_file: Some(certificate.to_string_lossy().to_string()),
         rest_tls_key_file: Some(key.to_string_lossy().to_string()),
         ..CassieRuntimeConfig::default()
-    };
+    });
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -206,7 +206,7 @@ fn should_complete_rest_https_handshake() {
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await
@@ -532,7 +532,8 @@ fn should_drain_declared_oversized_body_before_returning_reusable_413() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default(),
+            let cassie = Cassie::new_in_memory_with_config(
+                crate::support_sql::with_test_root_password(CassieRuntimeConfig::default()),
             )
             .expect("cassie");
             let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
@@ -615,7 +616,8 @@ fn should_reject_chunked_oversized_body_at_the_http_wire_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-            let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default(),
+            let cassie = Cassie::new_in_memory_with_config(
+                crate::support_sql::with_test_root_password(CassieRuntimeConfig::default()),
             )
             .expect("cassie");
             let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
@@ -707,7 +709,7 @@ fn should_reject_cross_origin_rest_state_changes() {
             .header("origin", "https://evil.example")
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await

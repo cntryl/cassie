@@ -3,7 +3,7 @@ fn should_copy_default_text_from_stdin_with_null_values_tab_escapes() {
     // Arrange
     let path = data_dir("copy_text_stdin");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     let cassie = Cassie::new_in_memory_with_config(config).expect("cassie");
     cassie.startup().expect("startup");
     seed_copy_collection(&cassie);
@@ -172,7 +172,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 

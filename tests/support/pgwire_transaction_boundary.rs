@@ -28,7 +28,9 @@ fn fixture(prefix: Prefix) -> Cassie {
     let parent_conflict = matches!(prefix, Prefix::ImplicitParentConflict);
     let output_error = matches!(prefix, Prefix::ExplicitOutputError);
     let cassie = if output_error {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.query_memory_budget_bytes = 512 * 1024 * 1024;
         Cassie::new_in_memory_with_config(config).expect("Cassie with output probe budget")
     } else {
@@ -215,7 +217,7 @@ pub fn copy_access_fixture() -> (Cassie, cassie::app::CassieSession, String) {
     let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin");
     let password = uuid::Uuid::new_v4().to_string();
     for sql in [

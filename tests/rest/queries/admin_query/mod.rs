@@ -54,7 +54,7 @@ async fn stop_rest_server(
 
 fn seed_query_catalog(cassie: &Cassie) {
     let session = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("admin session");
     cassie
         .execute_sql(
@@ -173,7 +173,7 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
             "username": "root",
-            "password": "postgres"
+            "password": crate::support_sql::test_root_password()
         }))
         .send()
         .await

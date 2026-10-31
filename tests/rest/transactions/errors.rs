@@ -32,7 +32,7 @@ async fn spawn_rest_server(
 async fn login_cookie(client: &Client, base_url: &str) -> String {
     client
         .post(format!("{base_url}/api/v1/auth/login"))
-        .json(&serde_json::json!({ "username": "root", "password": "postgres" }))
+        .json(&serde_json::json!({ "username": "root", "password": crate::support_sql::test_root_password() }))
         .send()
         .await
         .expect("login request")

@@ -6,7 +6,7 @@ async fn login_cookie(client: &reqwest::Client, addr: std::net::SocketAddr) -> S
         .post(format!("http://{addr}/api/v1/auth/login"))
         .json(&serde_json::json!({
             "username": "root",
-            "password": "postgres"
+            "password": crate::support_sql::test_root_password()
         }))
         .send()
         .await

@@ -29,18 +29,6 @@ fn close_frame(target: u8, name: &str) -> Vec<u8> {
     }
 }
 
-fn frontend_frame(tag: u8, payload: &[u8]) -> Vec<u8> {
-    let mut frame = Vec::new();
-    frame.push(tag);
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("frontend payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(payload);
-    frame
-}
-
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
         .get(*cursor..)
@@ -95,7 +83,9 @@ fn seed_close_cascade_collection(cassie: &Cassie) {
 }
 
 async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
-    let config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -118,9 +108,12 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
     let auth = read_wire_frame(reader).await;
     assert_eq!(auth.0, b'R', "startup should return an auth response");
     if auth.1 == 3_i32.to_be_bytes() {
-        tokio::io::AsyncWriteExt::write_all(writer, &frontend_frame(b'p', b"postgres\0"))
-            .await
-            .expect("write password");
+        tokio::io::AsyncWriteExt::write_all(
+            writer,
+            &pgwire_support::password_message(crate::support_sql::test_root_password()),
+        )
+        .await
+        .expect("write password");
         tokio::io::AsyncWriteExt::flush(writer)
             .await
             .expect("flush password");
@@ -214,7 +207,9 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);
@@ -252,7 +247,9 @@ fn run_close_batch(label: &str, batch: &[Vec<u8>]) -> (Vec<WireFrame>, Option<u6
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);
@@ -340,7 +337,9 @@ fn should_close_transaction_portals_at_transaction_end() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);

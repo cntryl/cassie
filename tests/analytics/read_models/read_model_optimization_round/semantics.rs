@@ -250,7 +250,7 @@ fn should_lock_pgwire_prepared_read_hot_path_metrics() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
@@ -295,7 +295,7 @@ fn should_lock_pgwire_prepared_read_hot_path_metrics() {
         client_config.host("127.0.0.1");
         client_config.port(addr.port());
         client_config.user("root");
-        client_config.password("postgres");
+        client_config.password(crate::support_sql::test_root_password());
         client_config.dbname("postgres");
         let (client, connection) = client_config
             .connect(NoTls)

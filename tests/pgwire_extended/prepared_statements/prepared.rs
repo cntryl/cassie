@@ -104,7 +104,7 @@ async fn spawn_pgwire_server(
     tokio::task::JoinHandle<Result<(), cassie::CassieError>>,
 ) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -141,9 +141,12 @@ async fn connect_authenticated_pgwire(
         3,
         "startup should request a cleartext password"
     );
-    tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
-        .await
-        .expect("write password");
+    tokio::io::AsyncWriteExt::write_all(
+        &mut write_half,
+        &password_frame(crate::support_sql::test_root_password()),
+    )
+    .await
+    .expect("write password");
     tokio::io::AsyncWriteExt::flush(&mut write_half)
         .await
         .expect("flush password");
@@ -230,7 +233,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_numbers");
@@ -271,7 +274,7 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_parse_once");

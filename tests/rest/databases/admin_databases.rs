@@ -82,7 +82,13 @@ fn should_create_admin_database_through_dedicated_rest_endpoint() {
     runtime.block_on(async {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let cookie = login_cookie(&client, &base_url, "root", "postgres").await;
+        let cookie = login_cookie(
+            &client,
+            &base_url,
+            "root",
+            crate::support_sql::test_root_password(),
+        )
+        .await;
 
         // Act
         let response = client
@@ -136,7 +142,13 @@ fn should_reject_duplicate_admin_database_names() {
     runtime.block_on(async {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let cookie = login_cookie(&client, &base_url, "root", "postgres").await;
+        let cookie = login_cookie(
+            &client,
+            &base_url,
+            "root",
+            crate::support_sql::test_root_password(),
+        )
+        .await;
         let first = client
             .post(format!("{base_url}/api/v1/admin/databases"))
             .header("cookie", &cookie)
@@ -184,7 +196,13 @@ fn should_return_conflict_when_rest_collection_already_exists() {
     runtime.block_on(async {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let cookie = login_cookie(&client, &base_url, "root", "postgres").await;
+        let cookie = login_cookie(
+            &client,
+            &base_url,
+            "root",
+            crate::support_sql::test_root_password(),
+        )
+        .await;
         let body = serde_json::json!({
             "name": "rest_route_duplicate",
             "fields": [{"name": "value", "type": "text"}]
@@ -236,7 +254,13 @@ fn should_reject_malformed_admin_database_names() {
     runtime.block_on(async {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let cookie = login_cookie(&client, &base_url, "root", "postgres").await;
+        let cookie = login_cookie(
+            &client,
+            &base_url,
+            "root",
+            crate::support_sql::test_root_password(),
+        )
+        .await;
 
         // Act
         let mut statuses = Vec::new();
@@ -268,7 +292,7 @@ fn should_require_admin_authorization_to_create_database() {
     let path = data_dir("authorization");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     let root = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("root session");
     cassie
         .execute_sql(
@@ -319,7 +343,7 @@ fn should_scope_admin_database_listing_to_granted_databases() {
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let root = cassie
-        .authenticate_role("root", Some("postgres"), None)
+        .authenticate_role("root", Some(crate::support_sql::test_root_password()), None)
         .expect("root session");
     for statement in [
         "CREATE DATABASE analytics",

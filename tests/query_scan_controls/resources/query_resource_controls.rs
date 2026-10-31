@@ -8,7 +8,9 @@ use cassie::midge::adapter::{
 use cassie::types::Value;
 
 fn configured_cassie(memory_budget: usize) -> Cassie {
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.query_memory_budget_bytes = memory_budget;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.parallel_scan_workers = 1;
@@ -308,7 +310,9 @@ fn should_report_join_budget_failure_with_program_limit_sqlstate() {
     // Arrange
     const FIXTURE_BUDGET_BYTES: usize = 256 * 1_024;
     let _hook_guard = query_scan_control_test_guard();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     // Qualified retained inputs fit; the 256-row joined output exceeds the shared cap.
     config.limits.query_memory_budget_bytes = FIXTURE_BUDGET_BYTES;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();

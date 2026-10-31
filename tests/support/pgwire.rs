@@ -270,7 +270,12 @@ pub async fn complete_startup_with_backend_key(
     reader: &mut (impl AsyncRead + Unpin),
     writer: &mut (impl AsyncWrite + Unpin),
 ) -> (i32, i32) {
-    complete_startup_with_password_and_backend_key(reader, writer, "postgres").await
+    complete_startup_with_password_and_backend_key(
+        reader,
+        writer,
+        crate::support_sql::test_root_password(),
+    )
+    .await
 }
 
 async fn complete_startup_with_password_and_backend_key(

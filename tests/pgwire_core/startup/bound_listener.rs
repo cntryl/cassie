@@ -15,11 +15,18 @@ fn runtime() -> tokio::runtime::Runtime {
         .expect("current-thread runtime")
 }
 
+fn authenticated_config() -> CassieRuntimeConfig {
+    CassieRuntimeConfig {
+        password: crate::support_sql::test_root_password().to_owned(),
+        ..CassieRuntimeConfig::default()
+    }
+}
+
 #[test]
 fn should_serve_authenticated_queries_given_an_owned_listener_when_clients_connect_immediately() {
     // Arrange
     let path = wire::data_dir("bound-listener-startup");
-    let config = CassieRuntimeConfig::default();
+    let config = authenticated_config();
     let cassie = Arc::new(Cassie::new_in_memory_with_config(config.clone()).expect("Cassie"));
     cassie.startup().expect("startup");
     runtime().block_on(async {
@@ -91,11 +98,9 @@ fn should_reject_insecure_transport_given_a_wildcard_listener_when_serving_is_re
 fn should_reject_invalid_tls_identity_given_an_owned_listener_when_serving_is_requested() {
     // Arrange
     let path = wire::data_dir("bound-listener-invalid-tls");
-    let config = CassieRuntimeConfig {
-        pgwire_tls_cert_file: Some(format!("{path}/missing-cert.pem")),
-        pgwire_tls_key_file: Some(format!("{path}/missing-key.pem")),
-        ..CassieRuntimeConfig::default()
-    };
+    let mut config = authenticated_config();
+    config.pgwire_tls_cert_file = Some(format!("{path}/missing-cert.pem"));
+    config.pgwire_tls_key_file = Some(format!("{path}/missing-key.pem"));
     let cassie = Arc::new(Cassie::new_in_memory_with_config(config.clone()).expect("Cassie"));
     let error = runtime().block_on(async {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

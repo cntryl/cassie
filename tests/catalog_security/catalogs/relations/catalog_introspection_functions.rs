@@ -19,13 +19,12 @@ async fn start_pgwire_fixture(
     cassie.startup().expect("start Cassie instance");
     let server = support_pgwire::spawn_server(cassie).await;
 
-    let password = std::env::var("CASSIE_ROOT_PASSWORD").unwrap_or_else(|_| "postgres".to_owned());
     let mut config = tokio_postgres::Config::new();
     config
         .host("127.0.0.1")
         .port(server.addr.port())
         .user("root")
-        .password(&password)
+        .password(crate::support_sql::test_root_password())
         .dbname("postgres");
     let (client, connection) = config
         .connect(NoTls)

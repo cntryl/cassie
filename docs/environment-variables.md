@@ -35,8 +35,10 @@ non-loopback listeners are explicitly allowed.
 
 Non-loopback listeners fail closed unless their transport is protected by
 Cassie TLS or `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=true` explicitly
-declares a trusted private hop. The default `postgres` bootstrap password is
-also rejected on non-loopback listeners.
+declares a trusted private hop. The Cassie server binary also requires an
+explicit `CASSIE_ROOT_PASSWORD`; it has no built-in root password. Embedded
+callers may construct a configuration without network authentication, but
+network listeners reject an empty root password before accepting connections.
 
 ## Bootstrap Identity and Authentication Limits
 
@@ -44,7 +46,7 @@ also rejected on non-loopback listeners.
 | --- | --- | --- | --- |
 | Root login username | `root` | `root` | Fixed administrative identity; it is not configurable. |
 | `CASSIE_DEFAULT_DATABASE` | Non-empty database name | `postgres` | Database selected during bootstrap and by default connections. |
-| `CASSIE_ROOT_PASSWORD` | Non-empty secret | `postgres` | Password accepted only for the fixed `root` administrative identity. Set this from a secret in deployed environments; an explicitly empty value fails startup. |
+| `CASSIE_ROOT_PASSWORD` | Non-empty secret | Required by the server | Password accepted only for the fixed `root` administrative identity. The server binary fails startup when the variable is missing or empty. |
 | `CASSIE_AUTH_USER_ATTEMPTS_PER_MINUTE` | Integer, minimum `1` | `10` | Process-local login token-bucket capacity per normalized user. |
 | `CASSIE_AUTH_IP_ATTEMPTS_PER_MINUTE` | Integer, minimum `1` | `60` | Process-local login token-bucket capacity per peer IP. |
 | `CASSIE_AUTH_RATE_LIMIT_MAX_ENTRIES` | Integer, minimum `1` | `4096` | Maximum tracked user/IP rate-limit entries before bounded overflow buckets are used. |

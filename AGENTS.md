@@ -97,7 +97,7 @@ All config via `CASSIE_*` env vars (see `src/config.rs`):
 | `CASSIE_STORAGE_MODE` | `local` | `memory`, `local`, or `cloud` |
 | `CASSIE_STORAGE_PATH` | `./.cassie` | Persistent path used in local mode |
 | `CASSIE_STORAGE_PROVIDER` | — | Cloud provider; valid values are documented in `docs/environment-variables.md` |
-| `CASSIE_ROOT_PASSWORD` | `postgres` | Password for the fixed `root` administrative identity |
+| `CASSIE_ROOT_PASSWORD` | Required for server startup | Password for the fixed `root` administrative identity |
 | `CASSIE_EMBEDDINGS_PROVIDER` | `disabled` | `openai`, `ollama`, `tei`, `openai_compatible`, `voyage`, `cohere`, `local` |
 | `CASSIE_QUERY_TIMEOUT_MS` | `30000` | `0` = no deadline |
 

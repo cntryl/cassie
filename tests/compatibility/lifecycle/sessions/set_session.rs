@@ -311,7 +311,7 @@ fn should_apply_statement_timeout_from_pgwire_startup_options() {
             .host("127.0.0.1")
             .port(server.addr.port())
             .user("root")
-            .password("postgres")
+            .password(crate::support_sql::test_root_password())
             .dbname("postgres")
             .options("-c statement_timeout=1234ms");
         let (client, connection) = config
@@ -510,7 +510,7 @@ fn should_restore_connection_startup_value_given_setting_override_when_reset_or_
             .host("127.0.0.1")
             .port(server.addr.port())
             .user("root")
-            .password("postgres")
+            .password(crate::support_sql::test_root_password())
             .dbname("postgres")
             .application_name("startup-reset-witness");
         let (client, connection) = config

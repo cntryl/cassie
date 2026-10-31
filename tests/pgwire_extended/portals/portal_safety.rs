@@ -24,7 +24,9 @@ fn configured_cassie_with_memory(
     query_memory_budget_bytes: usize,
 ) -> (Cassie, CassieRuntimeConfig, String) {
     let path = support::data_dir(label);
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.max_result_rows = max_result_rows;
     config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();

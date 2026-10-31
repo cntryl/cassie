@@ -86,7 +86,9 @@ async fn wait_for_running_query(cassie: &Cassie, baseline: u64) -> u64 {
 fn should_cancel_boolean_aggregate_query_without_publishing_partial_output() {
     // Arrange
     let runtime = current_thread_runtime();
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.query_timeout_ms = 30_000;
 
     // Act

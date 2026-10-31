@@ -17,7 +17,11 @@ impl Drop for FixtureDirectory {
 }
 
 fn run_queries(label: &str, queries: Vec<String>) -> Vec<Frames> {
-    run_queries_with_config(label, queries, CassieRuntimeConfig::default())
+    let config = CassieRuntimeConfig {
+        password: crate::support_sql::test_root_password().to_owned(),
+        ..CassieRuntimeConfig::default()
+    };
+    run_queries_with_config(label, queries, config)
 }
 
 fn run_queries_with_config(
@@ -64,7 +68,10 @@ fn should_report_the_active_query_given_a_running_statement_when_current_query_i
     let batches = run_queries_with_config(
         "issue-817-current-query",
         vec![sql.to_owned()],
-        CassieRuntimeConfig::default(),
+        CassieRuntimeConfig {
+            password: crate::support_sql::test_root_password().to_owned(),
+            ..CassieRuntimeConfig::default()
+        },
     );
 
     // Assert

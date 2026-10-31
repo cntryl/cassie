@@ -138,7 +138,7 @@ async fn spawn_pgwire_server_with_config(
     cassie: &Cassie,
     mut config: CassieRuntimeConfig,
 ) -> (SocketAddr, PgwireServer) {
-    config.password = "postgres".to_string();
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -164,9 +164,12 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
     match auth_status {
         0 => {}
         3 => {
-            tokio::io::AsyncWriteExt::write_all(writer, &password_message("postgres"))
-                .await
-                .expect("write password");
+            tokio::io::AsyncWriteExt::write_all(
+                writer,
+                &password_message(crate::support_sql::test_root_password()),
+            )
+            .await
+            .expect("write password");
             tokio::io::AsyncWriteExt::flush(writer)
                 .await
                 .expect("flush password");

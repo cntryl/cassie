@@ -35,9 +35,10 @@ async fn query_sqlstate(
 
 async fn sqlstates_for(label: &str, setup: &[&str], statements: &[&str]) -> Vec<Option<String>> {
     let path = data_dir(label);
-    let cassie =
-        Cassie::new_in_memory_with_config(CassieRuntimeConfig::from_env().expect("runtime config"))
-            .expect("create Cassie");
+    let config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
+    let cassie = Cassie::new_in_memory_with_config(config).expect("create Cassie");
     cassie.startup().expect("startup");
     let server = spawn_server(cassie).await;
     let mut socket = tokio::net::TcpStream::connect(server.addr)

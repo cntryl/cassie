@@ -23,7 +23,7 @@ impl CompatibilityServer {
     async fn start(label: &str) -> Self {
         let data_dir = data_dir(label);
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password = "postgres".to_string();
+        crate::support_sql::test_root_password().clone_into(&mut config.password);
         let cassie = Cassie::new_in_memory_with_config(config.clone()).unwrap();
         cassie.startup().unwrap();
 
@@ -51,7 +51,7 @@ impl CompatibilityServer {
         config.host("127.0.0.1");
         config.port(self.addr.port());
         config.user("root");
-        config.password("postgres");
+        config.password(crate::support_sql::test_root_password());
         config.dbname("postgres");
 
         let (client, connection) = config.connect(NoTls).await.expect("connect tokio-postgres");

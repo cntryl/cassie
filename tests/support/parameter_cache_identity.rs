@@ -29,7 +29,7 @@ pub fn run(cases: &[Case], result_cache: bool) -> Vec<Evidence> {
         .build()
         .expect("parameter cache runtime");
     runtime.block_on(async {
-        let config = CassieRuntimeConfig {
+        let config = crate::support_sql::with_test_root_password(CassieRuntimeConfig {
             limits: CassieRuntimeLimits {
                 execution_result_cache_enabled: if result_cache {
                     ExecutionResultCacheEnabled::enabled()
@@ -39,7 +39,7 @@ pub fn run(cases: &[Case], result_cache: bool) -> Vec<Evidence> {
                 ..CassieRuntimeLimits::default()
             },
             ..CassieRuntimeConfig::default()
-        };
+        });
         let cassie = Cassie::new_in_memory_with_config(config).expect("ephemeral cache fixture");
         cassie.startup().expect("cache fixture startup");
         let server = wire::spawn_server(cassie.clone()).await;

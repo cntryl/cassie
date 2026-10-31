@@ -58,7 +58,7 @@ fn seed_transport_boundary_docs(cassie: &Cassie) {
 
 async fn spawn_pgwire_boundary_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password = "postgres".to_string();
+    config.password = std::env::var("CASSIE_ROOT_PASSWORD").expect("root password");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -80,8 +80,7 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
         .expect("startup write");
     let auth_frame = read_auth_frame(reader).await;
     if auth_request_code(&auth_frame.1) == Some(3) {
-        let password =
-            std::env::var("CASSIE_ROOT_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
+        let password = std::env::var("CASSIE_ROOT_PASSWORD").expect("root password");
         tokio::io::AsyncWriteExt::write_all(writer, &password_message(&password))
             .await
             .expect("password write");
@@ -180,7 +179,8 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
         seed_transport_boundary_docs(&cassie);
         let (addr, server) = spawn_pgwire_boundary_server(&cassie).await;
@@ -207,7 +207,8 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let cassie = Cassie::new_in_memory_with_config(config).unwrap();
         cassie.startup().unwrap();
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

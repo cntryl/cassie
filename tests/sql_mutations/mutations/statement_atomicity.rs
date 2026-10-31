@@ -32,7 +32,9 @@ impl PgwireFixture {
         let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
         cassie.startup().expect("start Cassie");
 
-        let config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         let password = config.password.clone();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await

@@ -62,7 +62,7 @@ fn should_apply_the_same_parser_complexity_limit_given_rest_pgwire_and_direct_sq
             .post(format!("http://{rest_addr}/api/v1/auth/login"))
             .json(&serde_json::json!({
                 "username": "root",
-                "password": "postgres"
+                "password": crate::support_sql::test_root_password()
             }))
             .send()
             .await

@@ -7,10 +7,9 @@ const DEFAULT_BOOTSTRAP_PASSWORD: &str = "postgres";
 
 pub(super) fn password_from_env(
     env_reader: &impl Fn(&str) -> Option<String>,
-    fallback: &str,
 ) -> Result<String, CassieRuntimeConfigError> {
     let Some(password) = env_reader(PASSWORD_ENV) else {
-        return Ok(fallback.to_string());
+        return Ok(String::new());
     };
     if password.trim().is_empty() {
         return Err(CassieRuntimeConfigError::PasswordEnvironmentEmpty { key: PASSWORD_ENV });
@@ -64,10 +63,10 @@ mod tests {
 
         // Act
         let errors = values.map(|value| {
-            password_from_env(
-                &env_reader(HashMap::from([(PASSWORD_ENV, value.to_string())])),
-                DEFAULT_BOOTSTRAP_PASSWORD,
-            )
+            password_from_env(&env_reader(HashMap::from([(
+                PASSWORD_ENV,
+                value.to_string(),
+            )])))
             .expect_err("empty environment password should fail")
         });
 

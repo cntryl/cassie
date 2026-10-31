@@ -283,8 +283,21 @@ mod tests {
     use crate::catalog::RoleMeta;
     use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 
+    fn test_root_password() -> &'static str {
+        static TEST_ROOT_PASSWORD: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        TEST_ROOT_PASSWORD
+            .get_or_init(|| uuid::Uuid::new_v4().to_string())
+            .as_str()
+    }
+
     fn cassie(label: &str) -> Cassie {
-        cassie_with_config(label, CassieRuntimeConfig::default())
+        cassie_with_config(
+            label,
+            CassieRuntimeConfig {
+                password: test_root_password().to_owned(),
+                ..CassieRuntimeConfig::default()
+            },
+        )
     }
 
     fn cassie_with_config(label: &str, config: CassieRuntimeConfig) -> Cassie {
@@ -342,7 +355,7 @@ mod tests {
         // Arrange
         let cassie = cassie("opaque");
         let role = cassie
-            .authenticate_principal("root", Some("postgres"), None)
+            .authenticate_principal("root", Some(test_root_password()), None)
             .expect("bootstrap role")
             .role;
 
@@ -365,7 +378,7 @@ mod tests {
         // Arrange
         let cassie = cassie("revoke");
         let role = cassie
-            .authenticate_principal("root", Some("postgres"), None)
+            .authenticate_principal("root", Some(test_root_password()), None)
             .expect("bootstrap role")
             .role;
         let token = issue(&cassie, &role).expect("issue session");
@@ -440,7 +453,7 @@ mod tests {
         // Arrange
         let cassie = cassie("expiry");
         let role = cassie
-            .authenticate_principal("root", Some("postgres"), None)
+            .authenticate_principal("root", Some(test_root_password()), None)
             .expect("bootstrap role")
             .role;
         let token = super::issue_with_limits(&cassie, &role, 1, 0).expect("issue expired session");
@@ -462,7 +475,7 @@ mod tests {
         // Arrange
         let cassie = cassie("cap");
         let role = cassie
-            .authenticate_principal("root", Some("postgres"), None)
+            .authenticate_principal("root", Some(test_root_password()), None)
             .expect("bootstrap role")
             .role;
         issue_with_limits(&cassie, &role, 1, SESSION_TTL_SECONDS).expect("first session");
@@ -482,7 +495,7 @@ mod tests {
         // Arrange
         let cassie = Arc::new(cassie("concurrent-global-cap"));
         let role = cassie
-            .authenticate_principal("root", Some("postgres"), None)
+            .authenticate_principal("root", Some(test_root_password()), None)
             .expect("bootstrap role")
             .role;
         let barrier = Arc::new(Barrier::new(8));
@@ -516,6 +529,7 @@ mod tests {
                 rest_max_sessions_per_user: 1,
                 ..CassieRuntimeLimits::default()
             },
+            password: test_root_password().to_owned(),
             ..CassieRuntimeConfig::default()
         };
         let cassie = cassie_with_config("per-user-cap", config);
@@ -523,7 +537,7 @@ mod tests {
             .create_role("reader", true, Some("reader-password".to_string()), false)
             .expect("reader role");
         let admin = cassie
-            .authenticate_principal("root", Some("postgres"), None)
+            .authenticate_principal("root", Some(test_root_password()), None)
             .expect("admin role")
             .role;
         let reader = cassie
@@ -552,7 +566,7 @@ mod tests {
         // Arrange
         let cassie = cassie("atomic-expiry");
         let role = cassie
-            .authenticate_principal("root", Some("postgres"), None)
+            .authenticate_principal("root", Some(test_root_password()), None)
             .expect("bootstrap role")
             .role;
         let expired = issue_with_limits(&cassie, &role, 1, 0).expect("expired session fixture");

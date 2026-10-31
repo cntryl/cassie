@@ -25,7 +25,9 @@ pub struct Fixture {
 
 impl Fixture {
     pub fn new(label: &str, budget: Option<usize>) -> Self {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.max_result_rows = 1_000;
         if let Some(budget) = budget {
             config.limits.query_memory_budget_bytes = budget;

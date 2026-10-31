@@ -76,7 +76,9 @@ fn assert_result_limit_recovery(
 #[test]
 fn should_release_resources_given_an_over_budget_subquery_when_execution_is_rejected() {
     // Arrange
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    let mut config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     config.limits.max_result_rows = 2;
     let fixture = sql_fixture_with_config(
         "scalar-subquery-result-limit-recovery",

@@ -199,7 +199,7 @@ fn should_rotate_persisted_passwordless_role_before_rest_listener_startup() {
 }
 
 #[test]
-fn should_keep_default_postgres_password_loopback_only_for_runtime_address() {
+fn should_reject_unconfigured_root_password_for_network_listener() {
     // Arrange
     let path = pgwire::data_dir("default-password-non-loopback");
     let config = CassieRuntimeConfig::default();
@@ -211,9 +211,7 @@ fn should_keep_default_postgres_password_loopback_only_for_runtime_address() {
         let error = listener_startup_error("0.0.0.0:0", cassie, config).await;
 
         // Assert
-        assert!(error
-            .to_string()
-            .contains("default bootstrap password is unsafe"));
+        assert!(error.to_string().contains("bootstrap password is empty"));
         assert!(error.to_string().contains("0.0.0.0:0"));
     });
 

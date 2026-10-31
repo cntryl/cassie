@@ -175203,11 +175203,11 @@
       }
     },
     {
-      "id": "tests/rest/authentication/network_listener_authentication.rs::should_keep_default_postgres_password_loopback_only_for_runtime_address",
-      "name": "should_keep_default_postgres_password_loopback_only_for_runtime_address",
+      "id": "tests/rest/authentication/network_listener_authentication.rs::should_reject_unconfigured_root_password_for_network_listener",
+      "name": "should_reject_unconfigured_root_password_for_network_listener",
       "current_file": "tests/rest/authentication/network_listener_authentication.rs",
       "line": 202,
-      "end_line": 221,
+      "end_line": 219,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -175215,7 +175215,7 @@
       "instances": [
         {
           "suite": "rest",
-          "name": "network_listener_authentication::should_keep_default_postgres_password_loopback_only_for_runtime_address"
+          "name": "network_listener_authentication::should_reject_unconfigured_root_password_for_network_listener"
         }
       ],
       "attributes": [

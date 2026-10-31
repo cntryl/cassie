@@ -19,8 +19,11 @@ pub fn run_script(label: &str, steps: Vec<Step>) -> Vec<Frames> {
 pub fn run_script_with_config(
     label: &str,
     steps: Vec<Step>,
-    config: cassie::config::CassieRuntimeConfig,
+    mut config: cassie::config::CassieRuntimeConfig,
 ) -> Vec<Frames> {
+    if config.password.is_empty() {
+        crate::support_sql::TEST_ROOT_PASSWORD.clone_into(&mut config.password);
+    }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

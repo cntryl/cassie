@@ -2355,8 +2355,8 @@ error/cancellation cleanup, final-result-owner release and public analyzed EXPLA
 
 All 24 initial wire witnesses failed before runtime edits with an unknown-function
 error. The original current-query fixture also used an empty password, rejected
-by the existing listener policy before SQL execution. Its setup now uses the
-valid default password; its original descriptor/value assertions remain intact.
+by the existing listener policy before SQL execution. Its setup now supplies an
+explicit test password; its original descriptor/value assertions remain intact.
 The separate trust-identity test remains pending without changing its assertions.
 
 Jev triage rated an introspection gap at 0.83; its implementation review rated

@@ -2,6 +2,7 @@
 
 use crate::support_pgwire as wire;
 use cassie::app::Cassie;
+use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 use tokio::io::AsyncWriteExt;
 
@@ -106,6 +107,9 @@ pub fn run_cycles_across_restart(
 ) -> Vec<Vec<Frames>> {
     wire::use_local_storage();
     let path = wire::data_dir(label);
+    let config = crate::support_sql::with_test_root_password(
+        CassieRuntimeConfig::from_env().expect("runtime config"),
+    );
     let mut results = Vec::new();
     for (index, cycles) in stages.into_iter().enumerate() {
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -113,8 +117,8 @@ pub fn run_cycles_across_restart(
             .build()
             .expect("runtime for restart stage");
         let frames = runtime.block_on(async {
-            let cassie =
-                Cassie::new_with_data_dir(&path).expect("Cassie at selected restart stage");
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone())
+                .expect("Cassie at selected restart stage");
             cassie.startup().expect("startup at selected restart stage");
             if index == 0 {
                 let session = cassie.create_session("tester", None);

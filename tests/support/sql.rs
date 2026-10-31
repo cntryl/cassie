@@ -7,6 +7,15 @@ use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
 use uuid::Uuid;
 
+pub const TEST_ROOT_PASSWORD: &str = "postgres";
+
+pub fn with_test_root_password(mut config: CassieRuntimeConfig) -> CassieRuntimeConfig {
+    if config.password.is_empty() {
+        config.password = TEST_ROOT_PASSWORD.to_string();
+    }
+    config
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct TimeSeriesSidecarRecord {
     pub collection: String,
@@ -24,7 +33,7 @@ pub fn use_local_storage() {
 }
 
 pub fn new_in_memory_cassie() -> Result<Cassie, cassie::app::CassieError> {
-    let config = CassieRuntimeConfig::from_env()?;
+    let config = with_test_root_password(CassieRuntimeConfig::from_env()?);
     Cassie::new_in_memory_with_config(config)
 }
 

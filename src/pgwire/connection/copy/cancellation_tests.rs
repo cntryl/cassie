@@ -351,9 +351,12 @@ struct PgwireCopyCancelHarness {
 
 impl PgwireCopyCancelHarness {
     async fn start(table: &'static str, explicit_transaction: bool) -> Self {
+        let config = CassieRuntimeConfig {
+            password: "postgres".to_string(),
+            ..CassieRuntimeConfig::default()
+        };
         let cassie = std::sync::Arc::new(
-            Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
-                .expect("create in-memory Cassie"),
+            Cassie::new_in_memory_with_config(config.clone()).expect("create in-memory Cassie"),
         );
         cassie.startup().expect("start Cassie");
         let setup = cassie.create_session("root", None);
@@ -368,7 +371,7 @@ impl PgwireCopyCancelHarness {
         let server = tokio::spawn(crate::pgwire::server::run_with_listener(
             listener,
             std::sync::Arc::clone(&cassie),
-            CassieRuntimeConfig::default(),
+            config,
         ));
         let socket = tokio::net::TcpStream::connect(server_addr)
             .await

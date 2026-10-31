@@ -28,7 +28,9 @@ fn fixture(prefix: Prefix) -> Cassie {
     let parent_conflict = matches!(prefix, Prefix::ImplicitParentConflict);
     let output_error = matches!(prefix, Prefix::ExplicitOutputError);
     let cassie = if output_error {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = crate::support_sql::with_test_root_password(
+            cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
         config.limits.query_memory_budget_bytes = 512 * 1024 * 1024;
         Cassie::new_in_memory_with_config(config).expect("Cassie with output probe budget")
     } else {

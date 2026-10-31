@@ -2,6 +2,7 @@ use super::{
     normalize_role_name, Arc, Argon2, Cassie, CassieError, CassieSession, Mutex, PasswordHash,
     PasswordHasher, PasswordVerifier, RoleMeta,
 };
+use std::borrow::Cow;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::OnceLock;
 
@@ -38,6 +39,13 @@ pub(super) fn verify_password(hash: &str, password: &str) -> Result<bool, Cassie
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok())
+}
+
+fn password_candidate(password: Option<&str>) -> Cow<'_, str> {
+    match password.filter(|candidate| !candidate.is_empty()) {
+        Some(candidate) => Cow::Borrowed(candidate),
+        None => Cow::Owned(uuid::Uuid::new_v4().to_string()),
+    }
 }
 
 #[derive(Default)]
@@ -144,7 +152,8 @@ impl Cassie {
         let hashes = self.prepare_authentication_hashes()?;
         let normalized = normalize_role_name(user);
         if normalized.is_empty() {
-            let _ = verify_password(hashes.dummy, password.unwrap_or(""));
+            let candidate = password_candidate(password);
+            let _ = verify_password(hashes.dummy, &candidate);
             return Err(CassieError::Unauthorized);
         }
 
@@ -194,20 +203,29 @@ impl Cassie {
     ) -> Result<AuthenticatedPrincipal, CassieError> {
         let bootstrap_user = normalize_role_name(&self.auth_user);
         if normalized_user != bootstrap_user {
-            let _ = verify_password(hashes.dummy, password.unwrap_or(""));
+            let candidate = password_candidate(password);
+            let _ = verify_password(hashes.dummy, &candidate);
             return Err(CassieError::Unauthorized);
         }
 
         if self.auth_password.is_empty() {
-            let _ = verify_password(hashes.dummy, password.unwrap_or(""));
+            let candidate = password_candidate(password);
+            let _ = verify_password(hashes.dummy, &candidate);
             if !allow_passwordless || password.is_some_and(|value| !value.is_empty()) {
                 return Err(CassieError::Unauthorized);
             }
-        } else if !hashes
-            .bootstrap
-            .is_some_and(|hash| verify_password(hash, password.unwrap_or("")).unwrap_or(false))
-        {
-            return Err(CassieError::Unauthorized);
+        } else {
+            let candidate = password_candidate(password);
+            let verified = hashes.bootstrap.map_or_else(
+                || {
+                    let _ = verify_password(hashes.dummy, &candidate);
+                    false
+                },
+                |hash| verify_password(hash, &candidate).unwrap_or(false),
+            );
+            if !verified {
+                return Err(CassieError::Unauthorized);
+            }
         }
 
         let role = RoleMeta::bootstrap_admin(&self.auth_user, None);
@@ -223,17 +241,24 @@ impl Cassie {
         allow_passwordless: bool,
         dummy_password_hash: &str,
     ) -> Result<(), CassieError> {
+        let supplied_password = password.filter(|candidate| !candidate.is_empty());
+        let candidate = password_candidate(password);
         let hash = role
             .can_login
             .then_some(role.password_hash.as_deref())
             .flatten()
             .unwrap_or(dummy_password_hash);
-        let verified = verify_password(hash, password.unwrap_or("")).unwrap_or(false);
+        let verified = verify_password(hash, &candidate).unwrap_or(false);
         let passwordless_allowed = allow_passwordless
             && role.can_login
             && role.password_hash.is_none()
             && password.is_none_or(str::is_empty);
-        if !passwordless_allowed && (!role.can_login || role.password_hash.is_none() || !verified) {
+        if !passwordless_allowed
+            && (!role.can_login
+                || role.password_hash.is_none()
+                || supplied_password.is_none()
+                || !verified)
+        {
             return Err(CassieError::Unauthorized);
         }
 
@@ -521,5 +546,49 @@ mod tests {
         assert_eq!(unknown_count, 1);
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_missing_or_empty_password_for_role_with_empty_password_hash() {
+        // Arrange
+        let empty_password = String::new();
+        let empty_password_hash = hash_password(&empty_password).expect("empty password hash");
+        let role = RoleMeta::login("legacy_empty_password", empty_password_hash.clone());
+        let dummy_password_hash =
+            hash_password(&uuid::Uuid::new_v4().to_string()).expect("dummy password hash");
+        let valid_password = uuid::Uuid::new_v4().to_string();
+        let valid_password_hash = hash_password(&valid_password).expect("valid password hash");
+        let valid_role = RoleMeta::login("non_empty_password", valid_password_hash);
+        let root_role = RoleMeta::bootstrap_admin("root", Some(empty_password_hash));
+
+        // Act
+        let missing = Cassie::validate_role_credentials(&role, None, false, &dummy_password_hash);
+        let empty = Cassie::validate_role_credentials(
+            &role,
+            Some(&empty_password),
+            false,
+            &dummy_password_hash,
+        );
+        let valid = Cassie::validate_role_credentials(
+            &valid_role,
+            Some(&valid_password),
+            false,
+            &dummy_password_hash,
+        );
+        let root_missing =
+            Cassie::validate_role_credentials(&root_role, None, false, &dummy_password_hash);
+        let root_empty = Cassie::validate_role_credentials(
+            &root_role,
+            Some(&empty_password),
+            false,
+            &dummy_password_hash,
+        );
+
+        // Assert
+        assert!(matches!(missing, Err(CassieError::Unauthorized)));
+        assert!(matches!(empty, Err(CassieError::Unauthorized)));
+        assert!(matches!(root_missing, Err(CassieError::Unauthorized)));
+        assert!(matches!(root_empty, Err(CassieError::Unauthorized)));
+        assert!(valid.is_ok());
     }
 }

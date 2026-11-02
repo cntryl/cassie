@@ -83,7 +83,7 @@ export function NewQueryDialog({
             <Field>
               <Label for="new-query-database">Database</Label>
               <Select value={database()} onValueChange={setDatabase} disabled={loading}>
-                <SelectTrigger id="new-query-database" aria-label="Database">
+                <SelectTrigger id="new-query-database">
                   <SelectValue placeholder="Select a database" />
                 </SelectTrigger>
                 <SelectPortal>

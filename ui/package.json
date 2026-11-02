@@ -33,7 +33,7 @@
     "@askrjs/vite": "0.5.0"
   },
   "devDependencies": {
-    "@askrjs/cli": "0.5.0",
+    "@askrjs/cli": "0.5.1",
     "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1",
     "@types/node": "^26.6.6",

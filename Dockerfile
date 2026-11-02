@@ -8,7 +8,7 @@ RUN apt-get update \
 	pkg-config \
 	&& rm -rf /var/lib/apt/lists/*
 
-RUN cargo install --locked cargo-chef
+RUN cargo install --locked --version 0.1.78 cargo-chef
 
 WORKDIR /usr/src/cassie
 
@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM node:24-bookworm-slim AS ui-builder
 
-RUN npm install --global npm@11.16.0
+RUN npm install --global npm@12.2.1
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends ca-certificates \

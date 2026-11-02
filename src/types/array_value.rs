@@ -672,7 +672,7 @@ mod tests {
     use serde_json::Value as JsonValue;
 
     #[test]
-    fn should_preserve_dimensions_and_lower_bounds_in_storage_envelope() {
+    fn should_preserve_array_shape_in_storage_envelope() {
         // Arrange
         let array = SqlArray::new(
             vec![

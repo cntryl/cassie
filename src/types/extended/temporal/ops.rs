@@ -408,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn should_add_calendar_months_and_days_like_postgresql() {
+    fn should_add_calendar_interval_components_like_postgresql() {
         // Arrange
         let session = session();
         let date = typed(TypedValue::Date(

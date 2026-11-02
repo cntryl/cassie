@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_binary_and_hexadecimal_bit_input() {
+    fn should_parse_supported_bit_input_forms() {
         // Arrange
         let inputs = ["10101", "x1F", "Xa0", "b011", ""];
 
@@ -457,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn should_coerce_and_check_length_modifiers() {
+    fn should_validate_bit_string_length_modifiers() {
         // Arrange
         let value = bits("1011");
 

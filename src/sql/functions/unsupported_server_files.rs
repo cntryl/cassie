@@ -31,7 +31,7 @@ mod tests {
     use super::is_server_file_helper;
 
     #[test]
-    fn should_recognize_catalog_qualified_and_unqualified_file_helpers() {
+    fn should_recognize_postgresql_file_helper_names() {
         // Arrange
         let qualified = "pg_catalog.pg_read_file";
         let unqualified = "PG_LS_LOGDIR";

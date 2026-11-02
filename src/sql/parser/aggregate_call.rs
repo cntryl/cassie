@@ -392,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_hypothetical_calls_with_different_direct_and_ordering_arities() {
+    fn should_reject_hypothetical_calls_with_mismatched_arities() {
         // Arrange
         let sql = "rank(2, 'gamma') WITHIN GROUP (ORDER BY score)";
 

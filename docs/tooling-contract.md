@@ -8,11 +8,11 @@ request to publish or install an unpinned branch build.
 
 ## Pinned Source
 
-CI and benchmark workflows install the tool with:
+The backend CI workflow installs the tool with:
 
 ```sh
 cargo install --git https://github.com/cntryl/tools \
-  --rev 0cb0d0c8be5951753580a6f8a527f3e47d293466 \
+  --rev bc2d07782cf6873e1a4962fe8fe91396daa81a24 \
   --locked cntryl-tools
 ```
 

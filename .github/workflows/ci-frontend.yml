@@ -39,6 +39,9 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
+      - name: Set up npm
+        run: npm install --global npm@12.2.1
+
       - name: Setup Vite+
         uses: voidzero-dev/setup-vp@v1
 

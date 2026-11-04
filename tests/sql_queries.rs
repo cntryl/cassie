@@ -299,3 +299,6 @@ mod bytea_functions;
 
 #[path = "sql_queries/ordering/jsonb_semantic_keys.rs"]
 mod jsonb_semantic_keys;
+
+#[path = "sql_queries/types/numeric/jsonb_numeric_boundaries.rs"]
+mod jsonb_numeric_boundaries;

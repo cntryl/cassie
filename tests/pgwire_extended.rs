@@ -670,3 +670,6 @@ mod review_diagnostics;
 
 #[path = "pgwire_extended/types/json/semantic_keys.rs"]
 mod jsonb_semantic_keys;
+
+#[path = "pgwire_extended/types/json/numeric_weight_boundaries.rs"]
+mod jsonb_numeric_boundaries;

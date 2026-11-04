@@ -76,9 +76,9 @@ analysis have passed; these checks do not execute the regressions.
 
 ## Remaining acceptance cells
 
-This increment does not close #809. Existing generic numeric input can reject
-`0.01e131073` in its dense-expansion preflight although PostgreSQL accepts its
-131072-digit value; this producer boundary is separate from key normalization.
+This increment does not close #809. The generic numeric input and JSONB output
+bound correction for `0.01e131073` is now a separate
+[source candidate awaiting execution](jsonb-numeric-producer-qualification.md).
 Recursive SEARCH/CYCLE lineage still uses its established untyped record keys;
 JSONB-valued lineage needs an explicit type-aware follow-up before claiming that
 cell. Persisted JSONB index comparison is outside this private runtime-key change

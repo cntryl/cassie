@@ -6,7 +6,7 @@ use num_bigint::BigInt;
 
 use crate::app::CassieError;
 use crate::runtime::QueryExecutionControls;
-use crate::types::extended::numeric::{NumericKey, MAX_DSCALE, MAX_INTEGER_DIGITS};
+use crate::types::extended::numeric::{decimal, NumericKey};
 use crate::types::extended::TypeInputError;
 
 #[derive(Debug, Clone)]
@@ -23,31 +23,20 @@ impl Number {
         text: &str,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Self, CassieError> {
-        let negative = text.starts_with('-');
-        let body = text.strip_prefix('-').unwrap_or(text);
-        let (coefficient, exponent) = body
-            .split_once(['e', 'E'])
-            .map_or((body, 0), |(digits, exponent)| {
-                (digits, exponent.parse::<i64>().unwrap_or(i64::MAX))
-            });
-        if exponent.unsigned_abs() > i64::from(i32::MAX / 2).unsigned_abs() {
-            return Err(overflow());
-        }
-        let fractional = coefficient
-            .split_once('.')
-            .map_or(0, |(_, fraction)| fraction.len());
-        let scale = i64::try_from(fractional).map_err(|_| overflow())? - exponent;
-        if scale > i64::from(MAX_DSCALE) {
-            return Err(overflow());
-        }
-        let mut digits = String::with_capacity(coefficient.len());
-        for (index, byte) in coefficient.bytes().enumerate() {
+        let parts = decimal::json_parts(text)?;
+        let negative = parts.negative;
+        let scale = parts.shape.scale;
+        let mut digits = String::with_capacity(parts.integer.len() + parts.fraction.len());
+        for (index, byte) in parts
+            .integer
+            .bytes()
+            .chain(parts.fraction.bytes())
+            .enumerate()
+        {
             if index % 256 == 0 {
                 check(controls)?;
             }
-            if byte != b'.' {
-                digits.push(char::from(byte));
-            }
+            digits.push(char::from(byte));
         }
         let first = digits.bytes().position(|byte| byte != b'0');
         let Some(first) = first else {
@@ -67,9 +56,6 @@ impl Number {
         digits.drain(end..);
         digits.drain(..first);
         let weight = i64::try_from(digits.len()).map_err(|_| overflow())? + canonical_exponent;
-        if weight > i64::try_from(MAX_INTEGER_DIGITS).map_err(|_| overflow())? {
-            return Err(overflow());
-        }
         let magnitude = coefficient_integer(&digits, controls)?;
         let mantissa = if negative { -magnitude } else { magnitude };
         Ok(Self {

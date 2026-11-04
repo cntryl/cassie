@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1595,
-    "rust_files": 1559,
-    "rust_test_declarations": 8445,
+    "files": 1599,
+    "rust_files": 1563,
+    "rust_test_declarations": 8464,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8573,
+    "registered_rust_instances": 8592,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -143339,7 +143339,7 @@
       "name": "should_apply_the_statement_timezone_before_character_width_conversion",
       "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
       "line": 301,
-      "end_line": 324,
+      "end_line": 327,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143369,8 +143369,8 @@
       "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_retain_explicit_array_modifiers_without_inheriting_them_from_function_arguments",
       "name": "should_retain_explicit_array_modifiers_without_inheriting_them_from_function_arguments",
       "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
-      "line": 327,
-      "end_line": 367,
+      "line": 330,
+      "end_line": 370,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143397,11 +143397,538 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/types/arrays/character_conditionals.rs::should_describe_untyped_null_coalesce_arrays_without_element_modifiers",
+      "name": "should_describe_untyped_null_coalesce_arrays_without_element_modifiers",
+      "current_file": "tests/pgwire_extended/types/arrays/character_conditionals.rs",
+      "line": 6,
+      "end_line": 39,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_conditionals::should_describe_untyped_null_coalesce_arrays_without_element_modifiers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_conditionals.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_conditionals.rs::should_preserve_coalesce_array_modifiers_for_matching_typed_nulls",
+      "name": "should_preserve_coalesce_array_modifiers_for_matching_typed_nulls",
+      "current_file": "tests/pgwire_extended/types/arrays/character_conditionals.rs",
+      "line": 42,
+      "end_line": 79,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_conditionals::should_preserve_coalesce_array_modifiers_for_matching_typed_nulls"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_conditionals.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_logical_values.rs::should_publish_stored_character_array_padding_in_both_wire_formats",
+      "name": "should_publish_stored_character_array_padding_in_both_wire_formats",
+      "current_file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+      "line": 19,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_logical_values::should_publish_stored_character_array_padding_in_both_wire_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_logical_values.rs::should_preserve_logical_character_padding_after_array_function_modifiers_are_removed",
+      "name": "should_preserve_logical_character_padding_after_array_function_modifiers_are_removed",
+      "current_file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+      "line": 51,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_logical_values::should_preserve_logical_character_padding_after_array_function_modifiers_are_removed"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_logical_values.rs::should_return_padded_stored_character_elements_from_unnest",
+      "name": "should_return_padded_stored_character_elements_from_unnest",
+      "current_file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+      "line": 73,
+      "end_line": 91,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_logical_values::should_return_padded_stored_character_elements_from_unnest"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_logical_values.rs::should_hydrate_stored_character_arrays_before_returning_projection",
+      "name": "should_hydrate_stored_character_arrays_before_returning_projection",
+      "current_file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+      "line": 94,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_logical_values::should_hydrate_stored_character_arrays_before_returning_projection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_logical_values.rs::should_preserve_character_padding_on_ordered_array_reads",
+      "name": "should_preserve_character_padding_on_ordered_array_reads",
+      "current_file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+      "line": 115,
+      "end_line": 133,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_logical_values::should_preserve_character_padding_on_ordered_array_reads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_row_images.rs::should_preserve_character_array_images_for_joined_update_returning",
+      "name": "should_preserve_character_array_images_for_joined_update_returning",
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "line": 19,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_row_images::should_preserve_character_array_images_for_joined_update_returning"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_row_images.rs::should_publish_binary_character_array_old_images_with_lower_bounds",
+      "name": "should_publish_binary_character_array_old_images_with_lower_bounds",
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "line": 39,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_row_images::should_publish_binary_character_array_old_images_with_lower_bounds"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_row_images.rs::should_distinguish_absent_character_array_row_images_from_null_elements",
+      "name": "should_distinguish_absent_character_array_row_images_from_null_elements",
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "line": 63,
+      "end_line": 82,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_row_images::should_distinguish_absent_character_array_row_images_from_null_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_row_images.rs::should_preserve_character_array_images_for_merge_returning",
+      "name": "should_preserve_character_array_images_for_merge_returning",
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "line": 85,
+      "end_line": 102,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_row_images::should_preserve_character_array_images_for_merge_returning"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_row_images.rs::should_reconstruct_character_arrays_for_conflict_old_new_images",
+      "name": "should_reconstruct_character_arrays_for_conflict_old_new_images",
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "line": 105,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_row_images::should_reconstruct_character_arrays_for_conflict_old_new_images"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_row_images.rs::should_prepare_character_array_images_before_exists_returning_projection",
+      "name": "should_prepare_character_array_images_before_exists_returning_projection",
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "line": 125,
+      "end_line": 142,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_row_images::should_prepare_character_array_images_before_exists_returning_projection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_row_images.rs::should_align_character_image_metadata_across_merge_actions",
+      "name": "should_align_character_image_metadata_across_merge_actions",
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "line": 145,
+      "end_line": 182,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_row_images::should_align_character_image_metadata_across_merge_actions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_using.rs::should_evaluate_numeric_using_from_logical_character_array_elements",
+      "name": "should_evaluate_numeric_using_from_logical_character_array_elements",
+      "current_file": "tests/pgwire_extended/types/arrays/character_using.rs",
+      "line": 29,
+      "end_line": 45,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_using::should_evaluate_numeric_using_from_logical_character_array_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_using.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_using.rs::should_reapply_character_array_widths_inside_numeric_using",
+      "name": "should_reapply_character_array_widths_inside_numeric_using",
+      "current_file": "tests/pgwire_extended/types/arrays/character_using.rs",
+      "line": 48,
+      "end_line": 63,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_using::should_reapply_character_array_widths_inside_numeric_using"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_using.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_using.rs::should_preserve_character_source_identity_for_using_text_array_casts",
+      "name": "should_preserve_character_source_identity_for_using_text_array_casts",
+      "current_file": "tests/pgwire_extended/types/arrays/character_using.rs",
+      "line": 66,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "character_using::should_preserve_character_source_identity_for_using_text_array_casts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_using.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_native_array_identity_for_multidimensional_constructors",
       "name": "should_preserve_native_array_identity_for_multidimensional_constructors",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 16,
-      "end_line": 36,
+      "line": 18,
+      "end_line": 38,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143431,8 +143958,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_native_array_fill_shape_semantics",
       "name": "should_preserve_native_array_fill_shape_semantics",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 39,
-      "end_line": 58,
+      "line": 41,
+      "end_line": 60,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143462,8 +143989,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_native_temporal_array_elements_across_wire_formats",
       "name": "should_preserve_native_temporal_array_elements_across_wire_formats",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 61,
-      "end_line": 105,
+      "line": 63,
+      "end_line": 107,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143493,8 +144020,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_reject_nonrectangular_array_constructors_without_partial_output",
       "name": "should_reject_nonrectangular_array_constructors_without_partial_output",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 108,
-      "end_line": 132,
+      "line": 110,
+      "end_line": 134,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143524,8 +144051,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_keep_array_constructor_subarrays_distinct_from_scalar_null_elements",
       "name": "should_keep_array_constructor_subarrays_distinct_from_scalar_null_elements",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 135,
-      "end_line": 153,
+      "line": 137,
+      "end_line": 155,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143555,8 +144082,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_bound_native_array_constructor_dimensions_at_the_selected_six",
       "name": "should_bound_native_array_constructor_dimensions_at_the_selected_six",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 156,
-      "end_line": 186,
+      "line": 158,
+      "end_line": 188,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143586,8 +144113,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_format_native_temporal_arrays_under_the_connection_timezone",
       "name": "should_format_native_temporal_arrays_under_the_connection_timezone",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 189,
-      "end_line": 220,
+      "line": 191,
+      "end_line": 222,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143617,8 +144144,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_resolve_unknown_array_elements_without_coercing_concrete_text_parameters",
       "name": "should_resolve_unknown_array_elements_without_coercing_concrete_text_parameters",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 223,
-      "end_line": 261,
+      "line": 225,
+      "end_line": 263,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143648,8 +144175,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_canonical_jsonb_array_elements_across_wire_formats",
       "name": "should_preserve_canonical_jsonb_array_elements_across_wire_formats",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 264,
-      "end_line": 304,
+      "line": 266,
+      "end_line": 306,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143679,8 +144206,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_accumulate_native_array_subqueries_with_matching_declared_bounds",
       "name": "should_accumulate_native_array_subqueries_with_matching_declared_bounds",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 307,
-      "end_line": 322,
+      "line": 309,
+      "end_line": 324,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143710,8 +144237,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_use_visible_array_subquery_aliases_when_physical_names_collide",
       "name": "should_use_visible_array_subquery_aliases_when_physical_names_collide",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 325,
-      "end_line": 344,
+      "line": 327,
+      "end_line": 346,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -143741,8 +144268,8 @@
       "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_enforce_native_array_subquery_input_shape_requirements",
       "name": "should_enforce_native_array_subquery_input_shape_requirements",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
-      "line": 347,
-      "end_line": 380,
+      "line": 349,
+      "end_line": 382,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -195016,7 +195543,7 @@
       "name": "should_reject_copy_scalar_array_input_before_publication",
       "current_file": "tests/sql_mutations/types/arrays/array_input_copy.rs",
       "line": 8,
-      "end_line": 79,
+      "end_line": 84,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -197071,6 +197598,68 @@
         {
           "suite": "sql_queries",
           "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_keep_json_calendar_spelling_independent_of_datestyle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_jsonb_document_identity_in_aggregate_operator_composition",
+      "name": "should_preserve_jsonb_document_identity_in_aggregate_operator_composition",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 295,
+      "end_line": 311,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_jsonb_document_identity_in_aggregate_operator_composition"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_json_timestamp_offset_policy_across_collection_conversion",
+      "name": "should_preserve_json_timestamp_offset_policy_across_collection_conversion",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 314,
+      "end_line": 361,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_json_timestamp_offset_policy_across_collection_conversion"
         }
       ],
       "attributes": [
@@ -233611,7 +234200,7 @@
       "name": "should_bound_computed_character_array_projection_memory_until_result_release",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
       "line": 96,
-      "end_line": 134,
+      "end_line": 143,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233641,8 +234230,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
       "name": "should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 137,
-      "end_line": 158,
+      "line": 146,
+      "end_line": 167,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233672,8 +234261,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
       "name": "should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 161,
-      "end_line": 198,
+      "line": 170,
+      "end_line": 207,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233703,8 +234292,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
       "name": "should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 201,
-      "end_line": 212,
+      "line": 210,
+      "end_line": 221,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233734,8 +234323,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
       "name": "should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 215,
-      "end_line": 283,
+      "line": 224,
+      "end_line": 292,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -271075,7 +271664,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 123,
-      "sha256": "8d383c58932df05c7d52dfeeb067f17276b98fd7ecd64ec92c02f501ccd03b79",
+      "sha256": "09668a10f6a25a823b1e2b7d9f915f366603364fd7da8b6d418edf5be14b21d7",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
@@ -275344,7 +275933,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 211,
-      "sha256": "1f85ee23090be56664998dfa99cd989688b9c00ae06fed4d576ebeffbc4958af",
+      "sha256": "cf10b486c5043277904f5182893050d89de50e32d09fb59d054a9838b69613f1",
       "test_declarations": 5,
       "registered_suites": [
         "pgwire_extended"
@@ -276235,8 +276824,8 @@
       "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 367,
-      "sha256": "f04116e597e438b3595a7f70362486f2b946ad57b6c5b7ac717788f9f9a47e27",
+      "lines": 370,
+      "sha256": "30b07ab00cd094501310dadc8fb04ecbc4be84c3430505e5509f5c94483fc93e",
       "test_declarations": 9,
       "registered_suites": [
         "pgwire_extended"
@@ -276247,11 +276836,71 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/types/arrays/character_conditionals.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 79,
+      "sha256": "16d0f12d7e6af6824ccf9370d17e2e98dd1343f2da48d160e12573a31480ade5",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/arrays/character_conditionals.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/arrays/character_logical_values.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 133,
+      "sha256": "c77f0ddafa64672a82e428089e4c04b8f36dc46e7701e3d45a7b33641b075226",
+      "test_declarations": 5,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/arrays/character_logical_values.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/arrays/character_row_images.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 182,
+      "sha256": "986f376b43aaf395847c888cc4aa7886b26f58d9e81130cad0f144ac29936b88",
+      "test_declarations": 7,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/arrays/character_row_images.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/arrays/character_using.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 81,
+      "sha256": "5a76fc4fd50a0f10d9c1cd6be599ca8313a1e721f1504e01422ad1ea4ef5207d",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/arrays/character_using.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 380,
-      "sha256": "08e5f72ba40930e18d00a3bdb1de08f320b6a46b7a23fc75d5a7bd5710d49a3b",
+      "lines": 382,
+      "sha256": "618893146110f3e36532fc09ffdf4269daeb06655e17bf053fe34d0229fc1b93",
       "test_declarations": 12,
       "registered_suites": [
         "pgwire_extended"
@@ -276590,7 +277239,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 289,
-      "sha256": "711b3c40c4335c31573a0d6b806801024c8beb86cb2fee26394505734081d2ba",
+      "sha256": "e4cb147d94c709f0bb6ec9c83d24a4e4dcdbcb1387f82dd291efe9b64def12b5",
       "test_declarations": 6,
       "registered_suites": [
         "pgwire_extended"
@@ -278552,8 +279201,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 671,
-      "sha256": "36f10fcfc1804346086c17ac738f8e5faaa85c32ca67e76422329817bd505f9b",
+      "lines": 679,
+      "sha256": "1d2f002c76ad8adcfa4fd97095af27e9c0c4ef23acaa2a4633150e092ab00656",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -281252,8 +281901,8 @@
       "current_file": "tests/sql_mutations/types/arrays/array_input_copy.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 79,
-      "sha256": "112b767f2b8c8ac12629bb7eae5096b6255f90835232950637cc034a55802422",
+      "lines": 84,
+      "sha256": "249c74af48e7f43f6e2668d917438ed78f187cf11369f221c8e4e25bc7caab84",
       "test_declarations": 1,
       "registered_suites": [
         "sql_mutations"
@@ -281655,9 +282304,9 @@
       "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 292,
-      "sha256": "bf668c2f96ac92b2b84caa686aeb782f0fa0964eb1f65f6c52022bb80fe69416",
-      "test_declarations": 11,
+      "lines": 361,
+      "sha256": "3a6c6c3e58dd61e0b23dff237e2e8504e5dd37e92d665926edf5fc22caeb548f",
+      "test_declarations": 13,
       "registered_suites": [
         "sql_queries"
       ],
@@ -283533,8 +284182,8 @@
       "current_file": "tests/sql_queries/relations/values_admission.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 283,
-      "sha256": "12a51224628e166bd6350746dfed85056b01fc9d3a2635a374d4905162c5c90d",
+      "lines": 292,
+      "sha256": "9fd0432253244638b7311e42578f05215e05ab11119d083cb27390cad13c24ea",
       "test_declarations": 7,
       "registered_suites": [
         "sql_queries"
@@ -285075,8 +285724,8 @@
       "current_file": "tests/support/collection_aggregate_resources.rs",
       "role": "shared_support",
       "action": "keep",
-      "lines": 352,
-      "sha256": "025839203fe86c8edb281854b9d1ffa9454164b1663b29c527919ad19e6f1c08",
+      "lines": 356,
+      "sha256": "2b690b3ad03b11a720363b4b3590ac6ec88e03b9d7dea1c531d4f78d6acb3533",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -286122,7 +286771,7 @@
       "role": "shared_support",
       "action": "keep",
       "lines": 238,
-      "sha256": "92a20bb28bbee02fdca41e3174a9b127aca1742f976b8959dcfe09b66a076285",
+      "sha256": "15772ea714c9347a110337c5110eb1a88e2646cb95989e5eca63450ed5a12ee4",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

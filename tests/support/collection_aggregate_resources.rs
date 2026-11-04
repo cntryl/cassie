@@ -272,9 +272,13 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
 
 pub fn assert_cancelled_without_retained_resources(case: &CancellationCase) {
     assert_eq!(case.during_pause["running_queries"].as_u64(), Some(1));
-    assert!(case.during_pause["query"]["current_accounted_memory_bytes"]
-        .as_u64()
-        .is_some_and(|bytes| bytes > 0));
+    assert!(
+        case.during_pause["query"]["current_accounted_memory_bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0),
+        "paused aggregate must expose retained accounting: {}",
+        case.during_pause,
+    );
     assert_rejected_without_partial_rows(&case.cancelled, "57014");
     assert_eq!(
         case.cancelled.last().map(|frame| frame.1.as_slice()),

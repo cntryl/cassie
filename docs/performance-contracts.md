@@ -56,9 +56,11 @@ ownership and release acceptance is complete; #849 retains its wider final
 resource/restart qualification.
 
 `query.current_accounted_memory_bytes` observes the latest recorded query's
-tracker through a weak reference. It can remain positive after execution while
-its result or cache owners are live, and follows their actual release. It is not
-a sum of concurrent or previously recorded queries. The cumulative
+tracker through a weak reference. SQL execution registers the tracker at entry
+and completion, making retained work observable while a query is running. It
+can remain positive afterward while result or cache owners are live, and follows
+their actual release. It is not a sum of concurrent or previously recorded
+queries. The cumulative
 `query.peak_accounted_memory_bytes` keeps the largest observed individual-query
 peak, including later frontend buffer growth observed through that tracker.
 

@@ -87,6 +87,7 @@ impl Cassie {
             cancellation.clone(),
         );
         session.apply_statement_timeout(&mut controls, query_started);
+        self.runtime.record_query_memory(&controls);
         let result = execute(&controls);
         let elapsed = query_started.elapsed();
         self.runtime.record_query_memory(&controls);

@@ -249,6 +249,8 @@ conversion failure and cancellation release their actual owners exactly once.
 `query.current_accounted_memory_bytes` observes the live tracker of the latest
 recorded query through a weak reference. It follows later owner retirement rather
 than copying a completion-time value, and does not retain the tracker or request.
+SQL execution records the tracker at entry and completion so active retained
+work is observable before the query finishes.
 It is not a sum across concurrent queries or all cached producer payloads. A zero
 latest-requester value can coexist with an older cache producer's live physical
 allocation. `query.peak_accounted_memory_bytes` retains the maximum observed

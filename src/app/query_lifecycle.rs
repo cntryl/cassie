@@ -56,6 +56,7 @@ impl Cassie {
         let mut controls =
             QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
         session.apply_statement_timeout(&mut controls, started);
+        self.runtime.record_query_memory(&controls);
         let mut rows = 0;
         let result = self
             .execute_sql_core(session, sql, params, execution.0, &controls)
@@ -89,6 +90,7 @@ impl Cassie {
             cancellation.clone(),
         );
         session.apply_statement_timeout(&mut controls, started);
+        self.runtime.record_query_memory(&controls);
         let mut rows = 0;
         let result = self
             .explain_sql_core(session, sql, params, &controls)

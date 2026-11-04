@@ -24,6 +24,11 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
+    let controls = context.controls.or_else(|| {
+        context
+            .session
+            .and_then(crate::app::CassieSession::statement_execution_controls)
+    });
     if *op == BinaryOp::Concat {
         if let Some(result) = super::array_operators::concatenate_operand(
             &left_value,
@@ -79,11 +84,6 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         } else {
             right_value
         };
-        let controls = context.controls.or_else(|| {
-            context
-                .session
-                .and_then(crate::app::CassieSession::statement_execution_controls)
-        });
         return json_containment::evaluate_with_controls(op, &left_value, &right_value, controls);
     }
     if *op == BinaryOp::Concat {
@@ -110,7 +110,7 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     {
         return Ok(result);
     }
-    binary_scalar(&left_value, op, &right_value)
+    super::binary::binary_scalar_with_controls(&left_value, op, &right_value, controls)
 }
 
 fn array_comparison<R: RowAccess + ?Sized>(

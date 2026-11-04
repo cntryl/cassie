@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1584,
-    "rust_files": 1548,
-    "rust_test_declarations": 8372,
+    "files": 1585,
+    "rust_files": 1549,
+    "rust_test_declarations": 8376,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8500,
+    "registered_rust_instances": 8504,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -76496,6 +76496,130 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/concurrent_table_creation.rs::should_create_one_table_for_concurrent_simple_startup_sessions",
+      "name": "should_create_one_table_for_concurrent_simple_startup_sessions",
+      "current_file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+      "line": 89,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_concurrent_table_creation::should_create_one_table_for_concurrent_simple_startup_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl",
+        "directory": "tests/pgwire_extended/ddl",
+        "file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/concurrent_table_creation.rs::should_preserve_existing_table_for_concurrent_simple_startup_sessions",
+      "name": "should_preserve_existing_table_for_concurrent_simple_startup_sessions",
+      "current_file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+      "line": 100,
+      "end_line": 108,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_concurrent_table_creation::should_preserve_existing_table_for_concurrent_simple_startup_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl",
+        "directory": "tests/pgwire_extended/ddl",
+        "file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/concurrent_table_creation.rs::should_create_one_table_for_concurrent_extended_startup_sessions",
+      "name": "should_create_one_table_for_concurrent_extended_startup_sessions",
+      "current_file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+      "line": 111,
+      "end_line": 119,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_concurrent_table_creation::should_create_one_table_for_concurrent_extended_startup_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl",
+        "directory": "tests/pgwire_extended/ddl",
+        "file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/concurrent_table_creation.rs::should_preserve_existing_table_for_concurrent_extended_startup_sessions",
+      "name": "should_preserve_existing_table_for_concurrent_extended_startup_sessions",
+      "current_file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+      "line": 122,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_concurrent_table_creation::should_preserve_existing_table_for_concurrent_extended_startup_sessions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl",
+        "directory": "tests/pgwire_extended/ddl",
+        "file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -269738,6 +269862,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 130,
+      "sha256": "7aa446f45217240f6df0a4926fb52bea25ca4b662917f9b3eb34a9be7fde32c8",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/ddl/concurrent_table_creation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/ddl/transaction_boundaries/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -271845,8 +271984,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 189,
-      "sha256": "7251baf5f48b9b021ee0ef3ee9d8431599d4b0164ff883da9f03c76c5f1fa35b",
+      "lines": 191,
+      "sha256": "291fc9490442c6435b41e83ca3281b3594776aa8feced36f4ccc36515eb1d6c0",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

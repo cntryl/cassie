@@ -160,6 +160,7 @@ pub(crate) use transaction_unique_waits::{
     TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
 };
 mod transaction_semantics;
+mod transaction_snapshot;
 pub use transaction_error::TransactionErrorKind;
 pub(crate) use transaction_semantics::implicit_ddl_supported;
 mod vector_helpers;

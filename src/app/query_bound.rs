@@ -98,6 +98,7 @@ impl Cassie {
             );
         }
 
+        self.prepare_transaction_read_view(session, &parsed, controls)?;
         let _publication_read = self.catalog_publication.read();
         let transaction_active = session.is_transaction_active();
         let catalog_statement =

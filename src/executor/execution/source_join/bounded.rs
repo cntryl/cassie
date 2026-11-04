@@ -122,6 +122,13 @@ fn try_execute_indexed_bounded_inner_join_with_context(
         return Ok(None);
     };
 
+    if env
+        .session
+        .is_some_and(|session| !session.transaction_index_visible(&plan.index))
+    {
+        return Ok(None);
+    }
+
     execute_indexed_bounded_inner_join(
         env,
         &IndexedJoinSpec {

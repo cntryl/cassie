@@ -45,6 +45,9 @@ impl CassieSession {
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
+        if let Some(owner) = self.repeatable_statement_read(midge, database)? {
+            return Ok(owner);
+        }
         let transaction = self.transaction.lock();
         let node = 11 * (size_of::<String>() + size_of::<Arc<CollectionChanges>>())
             + 16 * size_of::<usize>();
@@ -85,7 +88,18 @@ impl CassieSession {
         });
         // Keep the session state lock through capture; staged-map changes
         // cannot interleave between the borrowed estimate and the Data owner.
-        StatementDataRead::capture_with_overlay(midge, database, controls, Some(overlay))
+        if !transaction.implicit
+            && transaction.isolation == Some(crate::sql::ast::TransactionIsolation::RepeatableRead)
+        {
+            StatementDataRead::capture_repeatable_read_with_overlay(
+                midge,
+                database,
+                controls,
+                Some(overlay),
+            )
+        } else {
+            StatementDataRead::capture_with_overlay(midge, database, controls, Some(overlay))
+        }
     }
 
     pub(crate) fn read_transaction_is_active(&self) -> bool {

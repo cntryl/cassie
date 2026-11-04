@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1599,
-    "rust_files": 1563,
-    "rust_test_declarations": 8464,
+    "files": 1601,
+    "rust_files": 1565,
+    "rust_test_declarations": 8471,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8592,
+    "registered_rust_instances": 8599,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -55787,6 +55787,37 @@
         "file": "tests/pgwire_extended/aggregates/json_agg/resources.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/json_array_conversion.rs::should_preserve_json_array_conversion_across_native_parameter_formats",
+      "name": "should_preserve_json_array_conversion_across_native_parameter_formats",
+      "current_file": "tests/pgwire_extended/aggregates/json_array_conversion.rs",
+      "line": 6,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::aggregates_json_array_conversion::should_preserve_json_array_conversion_across_native_parameter_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates",
+        "directory": "tests/pgwire_extended/aggregates",
+        "file": "tests/pgwire_extended/aggregates/json_array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -197244,6 +197275,192 @@
       }
     },
     {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_preserve_exact_numeric_array_elements_in_json_construction",
+      "name": "should_preserve_exact_numeric_array_elements_in_json_construction",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 6,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_preserve_exact_numeric_array_elements_in_json_construction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_format_nonfinite_native_array_numbers_as_json_strings",
+      "name": "should_format_nonfinite_native_array_numbers_as_json_strings",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 30,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_format_nonfinite_native_array_numbers_as_json_strings"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_preserve_document_identity_inside_native_json_arrays",
+      "name": "should_preserve_document_identity_inside_native_json_arrays",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 57,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_preserve_document_identity_inside_native_json_arrays"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_preserve_native_array_shape_when_rendering_json",
+      "name": "should_preserve_native_array_shape_when_rendering_json",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 81,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_preserve_native_array_shape_when_rendering_json"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_use_statement_temporal_settings_for_native_json_array_elements",
+      "name": "should_use_statement_temporal_settings_for_native_json_array_elements",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 109,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_use_statement_temporal_settings_for_native_json_array_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_use_logical_padding_for_bounded_stored_character_json_arrays",
+      "name": "should_use_logical_padding_for_bounded_stored_character_json_arrays",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 146,
+      "end_line": 182,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_use_logical_padding_for_bounded_stored_character_json_arrays"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/aggregates/json/ordered_json_aggregate_modifiers/semantics.rs::should_preserve_distinct_filter_order_for_json_aggregates",
       "name": "should_preserve_distinct_filter_order_for_json_aggregates",
       "current_file": "tests/sql_queries/aggregates/json/ordered_json_aggregate_modifiers/semantics.rs",
@@ -271645,6 +271862,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/aggregates/json_array_conversion.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 90,
+      "sha256": "744c1da72f466c9c8ee9c168e9930d3933003a636f1d238e8333077206b24033",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/aggregates/json_array_conversion.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
@@ -274757,8 +274989,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 204,
-      "sha256": "24bc3fb006ee69e7b87a5001950012e09de29096b07329ea54e1429a01cfdaae",
+      "lines": 206,
+      "sha256": "c231416edecb5fc32a6d9daa80ed7b0bd61af9f0387903650d2b61eb565444a9",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -282004,8 +282236,8 @@
       "current_file": "tests/sql_queries/aggregates/aggregate_query_contracts.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 79,
-      "sha256": "79179269a0ab45a01eca55e340cfaa3773e3aef299437954ea00cbc5684adfab",
+      "lines": 81,
+      "sha256": "ed404ebafeba27e875c60e482ed708e6e7ca985c9ca807fa73930361f1d66e4d",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -282286,6 +282518,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 182,
+      "sha256": "49c0e3cb1ed34e3913953788d187ff8d65e5e26fdc2abe0f985da9016b790929",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/json/array_conversion.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/aggregates/json/ordered_json_aggregate_modifiers/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -282305,7 +282552,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 361,
-      "sha256": "3a6c6c3e58dd61e0b23dff237e2e8504e5dd37e92d665926edf5fc22caeb548f",
+      "sha256": "94b6e5f7b6d4d3a6a7241015b10fed995ba073b48c8283d1038d9b7838f3a5b7",
       "test_declarations": 13,
       "registered_suites": [
         "sql_queries"
@@ -284438,7 +284685,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 136,
-      "sha256": "c17205e954b713e523f444bfea43b2f2aa8991045ea8d4ec18b2ff28034808b8",
+      "sha256": "56161762a5bcfb6b2c838d8fd2b77c0be61289fdf5818c55b86e1c3834f65b8b",
       "test_declarations": 6,
       "registered_suites": [
         "sql_queries"

@@ -188,3 +188,15 @@ required probes for the next complete frozen gate. These corrections have
 source, semantic-oracle and Jev review evidence; their native build, tests and
 strict Clippy results remain pending. Neither #807 nor #808 is closed by this
 checkpoint.
+
+The next complete gate at `ba05e9fd` built successfully and executed all 35
+groups: **10,095 passed, 2 failed, 12 ignored**. Every one of the previous 67
+failing identities was observed passing. The two new failures measured a JSON
+envelope's original capacities before executing a potentially smaller clone,
+and compared a historical zone against PostgreSQL backzone data rather than
+the selected bundled provider. The correction measures the actual executed
+carrier at N-1/N and uses a historical seconds-offset witness shared by both
+providers. Values, no-decode-before-admission and cleanup assertions remain.
+Strict Clippy found one missing documentation backtick; formatting, all 74
+touched policies, global policy and inventory passed. The corrected source and
+the separate native-array JSON conversion increment await a fresh complete gate.

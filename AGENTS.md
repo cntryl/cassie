@@ -108,7 +108,7 @@ The administrative username is always `root`; set its password with `CASSIE_ROOT
 - **Midge** is the only storage layer. No second abstraction.
 - **PostgreSQL wire protocol** is the primary query interface. REST is secondary and administrative.
 - `cntryl-midge` is an external dependency published on crates.io.
-- Midge engine changes and `cntryl-midge` dependency-version changes are off the table for the current milestone work. Use only the current published API through Cassie-side adapters. Include this constraint in Jev decisions; record an exact blocker if the API cannot satisfy a requirement instead of inventing a capability or weakening the contract.
+- Midge engine source changes remain off the table. The user explicitly authorized updating the published `cntryl-midge` dependency to the latest release, verified as 0.5.2 on 2026-11-04, while closing the three existing PRs. Use its published API through Cassie-side adapters; do not edit upstream engine source or introduce another storage layer. Include this boundary in Jev decisions and record exact API blockers instead of inventing capabilities or weakening contracts.
 
 ## Benchmarks
 

@@ -109,6 +109,142 @@ fn should_apply_case_insensitive_posix_regex_operator_spellings() {
 }
 
 #[test]
+fn should_match_newlines_with_the_default_regular_expression_mode() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-default-newlines", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT 'a\nb' ~ 'a.b', 'a\nb' ~* 'A.B', 'a\nb' !~ 'a.b', regexp_like('a\nb', 'a.b'), regexp_like('a\nb', 'a.b', ''), regexp_count('a\nb', '.'), regexp_replace('a\nb', '.', 'x', 'g')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("default regex mode includes newline characters").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Int64(3),
+            Value::String("xxx".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_exclude_newlines_from_negated_classes_in_sensitive_regex_modes() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-negated-class-newlines", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_like('\n', '[^x]'), regexp_like('\n', '[^x]', 'n'), regexp_like('\n', '[^x]', 'm'), regexp_like('\n', '[^x]', 'p'), regexp_like('\n', '[^x]', 'w'), regexp_like('\n', '[^x]', 's'), regexp_like('猫', '[^x]', 'n'), regexp_count('a\nb', '[^x]', 1, 'n'), regexp_replace('a\nb', '[^x]', 'X', 1, 0, 'p')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("newline-sensitive negated classes").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Int64(2),
+            Value::String("X\nX".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_regex_class_quoting_while_excluding_newlines() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-negated-class-quoting", &[]);
+
+    // Act
+    let result = fixture.execute(
+        r"SELECT regexp_like('a', '[^]]', 'n'), regexp_like(']', '[^]]', 'n'), regexp_like('[^x]', '\[\^x\]', 'n'), regexp_like('[^x]', '[^x]', 'q'), regexp_like('猫', '[^犬]', 'n')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("quoted and Unicode negated-class boundaries").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_incompatible_modes_for_quoted_regex_patterns() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-quoted-newline-modes", &[]);
+    let flags = ["qn", "nq", "qp", "qw", "qx"];
+
+    // Act
+    let results = flags.map(|flags| {
+        fixture.execute(&format!("SELECT regexp_like('[^x]', '[^x]', '{flags}')"))
+    });
+
+    // Assert
+    for (flags, result) in flags.into_iter().zip(results) {
+        assert!(
+            matches!(result, Err(CassieError::Diagnostic(ref diagnostic)) if diagnostic.sql_state == "2201B"),
+            "quoted regex with {flags} must reject incompatible newline semantics: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn should_treat_regex_directors_as_literal_text_in_quoted_mode() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-quoted-regex-directors", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_like('***=a.b', '***=a.b', 'q'), regexp_like('a.b', '***=a.b', 'q'), regexp_like('***:^a$', '***:^a$', 'q'), regexp_like('a b', '***=a b', 'x'), regexp_like('ab', '***=a b', 'x'), regexp_like('aaa', '***:^a+$', 'b')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("quoted syntax keeps director prefixes literal").rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(false),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
+fn should_accept_quoted_regex_modes_after_conflicting_flags_are_reset() {
+    // Arrange
+    let fixture = sql_fixture("issue-799-regex-quoted-mode-reset", &[]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT regexp_like('\n', '\n', 'qs'), regexp_like('\n', '\n', 'qns'), regexp_like('a b', 'a b', 'qxt')",
+    );
+
+    // Assert
+    assert_eq!(
+        result.expect("last mode flag restores compatible quoted syntax").rows(),
+        &[vec![Value::Bool(true), Value::Bool(true), Value::Bool(true)]]
+    );
+}
+
+#[test]
 fn should_match_postgres_are_option_director_forms() {
     // Arrange
     let fixture = sql_fixture("issue-799-are-options-directors", &[]);

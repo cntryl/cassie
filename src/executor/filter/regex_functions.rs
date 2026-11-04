@@ -13,6 +13,9 @@ use crate::types::Value;
 
 use super::QueryError;
 
+#[path = "regex_newline_classes.rs"]
+mod newline_classes;
+
 pub(super) fn evaluate(
     function: FunctionId,
     arguments: &[Value],
@@ -40,6 +43,7 @@ fn regexp_like(
     let regex = compile(pattern, flags)?;
     check_interruption(controls)?;
     let matched = regex.is_match(input);
+    regex_search_completed(controls, matched)?;
     check_interruption(controls)?;
     Ok(Value::Bool(matched))
 }
@@ -210,21 +214,37 @@ fn compile_with_options(
     options: RegexOptions,
     match_kind: Option<MatchKind>,
 ) -> Result<Regex, QueryError> {
-    let pattern = if let Some(literal) = pattern.strip_prefix("***=") {
-        escape(literal)
+    let (pattern, quoted) = if matches!(options.syntax, PatternSyntax::Quoted) {
+        (escape(pattern), true)
+    } else if let Some(literal) = pattern.strip_prefix("***=") {
+        (escape(literal), true)
+    } else if let Some(advanced) = pattern.strip_prefix("***:") {
+        (advanced.to_owned(), false)
     } else {
-        let pattern = pattern.strip_prefix("***:").unwrap_or(pattern);
-        match options.syntax {
-            PatternSyntax::Quoted => escape(pattern),
+        let pattern = match options.syntax {
             PatternSyntax::Basic => basic_to_extended(pattern),
-            PatternSyntax::Extended => pattern.to_owned(),
-        }
+            PatternSyntax::Extended | PatternSyntax::Quoted => pattern.to_owned(),
+        };
+        (pattern, false)
     };
-    let syntax = syntax::Config::new()
+    let expanded = !quoted && matches!(options.whitespace, WhitespaceMode::Expanded);
+    let corrected_classes = !quoted && options.newlines.excludes_class_newline();
+    let pattern = if corrected_classes {
+        newline_classes::exclude_newlines(&pattern, expanded)?
+    } else {
+        pattern
+    };
+    let mut syntax = syntax::Config::new()
         .case_insensitive(matches!(options.case, CaseMode::Insensitive))
         .multi_line(options.newlines.multi_line())
         .dot_matches_new_line(options.newlines.dot_matches_new_line())
-        .ignore_whitespace(matches!(options.whitespace, WhitespaceMode::Expanded));
+        .ignore_whitespace(expanded);
+    if corrected_classes {
+        // The original AST already passed the default nesting limit. Each
+        // negated class adds one bracket node and one intersection node to
+        // the same path, which the backend's nesting visitor counts separately.
+        syntax = syntax.nest_limit(syntax.get_nest_limit().saturating_mul(3));
+    }
     let mut builder = Regex::builder();
     builder.syntax(syntax);
     if let Some(match_kind) = match_kind {
@@ -534,6 +554,16 @@ fn check_interruption(controls: Option<&QueryExecutionControls>) -> Result<(), Q
     Ok(())
 }
 
+fn regex_search_completed(
+    controls: Option<&QueryExecutionControls>,
+    matched: bool,
+) -> Result<(), QueryError> {
+    if let Some(controls) = controls {
+        controls.regex_search_completed(matched)?;
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy)]
 struct RegexOptions {
     case: CaseMode,
@@ -573,6 +603,15 @@ impl RegexOptions {
                 }
             }
         }
+        if matches!(options.syntax, PatternSyntax::Quoted)
+            && (options.newlines.multi_line()
+                || options.newlines.excludes_class_newline()
+                || matches!(options.whitespace, WhitespaceMode::Expanded))
+        {
+            return Err(invalid_regular_expression(
+                "invalid argument to regex function",
+            ));
+        }
         Ok(options)
     }
 }
@@ -610,8 +649,12 @@ impl NewlineMode {
     const fn dot_matches_new_line(self) -> bool {
         matches!(
             self,
-            Self::InversePartialNewlineSensitive | Self::NonNewlineSensitive
+            Self::Default | Self::InversePartialNewlineSensitive | Self::NonNewlineSensitive
         )
+    }
+
+    const fn excludes_class_newline(self) -> bool {
+        matches!(self, Self::NewlineSensitive | Self::PartialNewlineSensitive)
     }
 }
 
@@ -708,6 +751,39 @@ mod tests {
     }
 
     #[test]
+    fn should_preserve_regex_input_nesting_admission_after_class_rewrite() {
+        // Arrange
+        let depths = [140, 249, 250, 251];
+
+        // Act
+        let observations = depths.map(|depth| {
+            let pattern = format!("{}a{}", "[^".repeat(depth), "]".repeat(depth));
+            (
+                compile(&pattern, "w").map(|regex| regex.is_match("b")),
+                compile(&pattern, "n").map(|regex| regex.is_match("b")),
+            )
+        });
+
+        // Assert
+        for (depth, (ordinary, corrected)) in depths.into_iter().zip(observations) {
+            if depth <= 250 {
+                assert_eq!(
+                    corrected.expect("generated wrappers preserve admitted nesting"),
+                    ordinary.expect("original pattern fits the backend nesting limit"),
+                    "depth {depth}"
+                );
+            } else {
+                for result in [ordinary, corrected] {
+                    assert!(
+                        matches!(result, Err(QueryError::Cassie(CassieError::Diagnostic(ref error))) if error.sql_state == "2201B"),
+                        "original input beyond the backend nesting limit remains rejected: {result:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn should_report_22003_when_regexp_count_would_exceed_int4() {
         // Arrange
         let mut count = i32::MAX - 1;
@@ -742,6 +818,41 @@ mod tests {
             panic!("cancellation should remain a Cassie query error");
         };
         assert_eq!(error.descriptor().sql_state, "57014");
+    }
+
+    #[test]
+    fn should_report_the_completed_regex_match_before_active_cancellation() {
+        // Arrange
+        let cases = [("b", true), ("z", false)];
+
+        for (pattern, expected) in cases {
+            let (guard, selected, resume) = crate::runtime::pause_next_query_after_regex_search();
+            let (controls, cancellation) = cancelled_controls();
+            drop(guard);
+            let arguments = [
+                Value::String("abc".to_owned()),
+                Value::String(pattern.to_owned()),
+            ];
+            let worker = std::thread::spawn(move || regexp_like(&arguments, Some(&controls)));
+
+            // Act
+            let matched = selected
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("target regex finishes its search");
+            cancellation.cancel();
+            resume.send(()).expect("resume after completed match");
+            let error = worker
+                .join()
+                .expect("regex worker")
+                .expect_err("active cancellation precedes publication");
+
+            // Assert
+            assert_eq!(matched, expected, "pattern {pattern}");
+            let QueryError::Cassie(error) = error else {
+                panic!("active cancellation should retain its typed error");
+            };
+            assert_eq!(error.descriptor().sql_state, "57014");
+        }
     }
 
     #[test]

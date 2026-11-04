@@ -239,6 +239,7 @@ dependencies = [
  "parking_lot 0.13.0",
  "rcgen",
  "regex-automata",
+ "regex-syntax",
  "reqwest",
  "rustls",
  "serde",

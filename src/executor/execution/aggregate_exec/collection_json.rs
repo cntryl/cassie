@@ -374,11 +374,20 @@ fn output_bound(
     for (first, second) in values {
         json::check(context.controls)?;
         if object {
-            bytes = add(bytes, mul(json::bound(first, None, false)?, 6)?)?;
+            let mut key_bytes = json::bound_controlled(first, None, false, context.controls)?;
+            if let Value::Array(array) = first {
+                // Object keys use SQL array text, whose nondefault bound prefixes
+                // do not occur in the JSON array value's punctuation bound.
+                key_bytes = add(key_bytes, add(1, mul(array.dimensions().len(), 25)?)?)?;
+            }
+            bytes = add(bytes, mul(key_bytes, 6)?)?;
         }
         let value = if object { second.as_ref() } else { Some(first) };
         if let Some(value) = value {
-            bytes = add(bytes, json::bound(value, context.value_type, binary)?)?;
+            bytes = add(
+                bytes,
+                json::bound_controlled(value, context.value_type, binary, context.controls)?,
+            )?;
         }
         bytes = add(bytes, 8)?;
     }
@@ -453,3 +462,7 @@ fn render(
     document.push(if object { '}' } else { ']' });
     Ok(document)
 }
+
+#[cfg(test)]
+#[path = "collection_json_key_bound_tests.rs"]
+mod key_bound_tests;

@@ -13,6 +13,8 @@ mod modifiers;
 
 #[path = "collection_json_tests.rs"]
 mod collection_json;
+#[path = "collection_json_arrays_tests.rs"]
+mod collection_json_arrays;
 
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;

@@ -17,6 +17,10 @@ use super::Catalog;
 
 mod heap;
 use heap::HeapBytes;
+mod delta;
+mod exact_eq;
+use delta::{clone_delta_map, delta_map_bytes, is_transaction_map};
+use exact_eq::ExactMetadataEq;
 
 // Exhaustive destructuring makes an added owned metadata field a compilation
 // error until its retained backing is explicitly included in the admission.
@@ -36,6 +40,19 @@ macro_rules! metadata_heap {
                 Ok(bytes)
             }
         }
+        impl crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq for $kind {
+            fn exact_eq(
+                &self,
+                other: &Self,
+                controls: &crate::runtime::QueryExecutionControls,
+            ) -> Result<bool, crate::app::CassieError> {
+                controls.check_interruption()?;
+                $(if !crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq::exact_eq(
+                    &self.$field, &other.$field, controls,
+                )? { return Ok(false); })*
+                Ok(true)
+            }
+        }
     };
 }
 
@@ -48,6 +65,16 @@ macro_rules! unit_enum_heap {
             ) -> Result<usize, crate::app::CassieError> {
                 controls.check_interruption()?;
                 match self { $(Self::$variant)|* => Ok(0) }
+            }
+        }
+        impl crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq for $kind {
+            fn exact_eq(
+                &self,
+                other: &Self,
+                controls: &crate::runtime::QueryExecutionControls,
+            ) -> Result<bool, crate::app::CassieError> {
+                controls.check_interruption()?;
+                Ok(std::mem::discriminant(self) == std::mem::discriminant(other))
             }
         }
     };
@@ -71,6 +98,10 @@ pub(crate) struct ControlledCatalogSnapshot {
 impl ControlledCatalogSnapshot {
     pub(crate) const fn catalog(&self) -> &Catalog {
         &self.catalog
+    }
+
+    pub(crate) const fn accounted_bytes(&self) -> usize {
+        self._memory.bytes()
     }
 }
 
@@ -227,6 +258,59 @@ macro_rules! catalog_maps {
                     version: Arc::new(AtomicU64::new(version)),
                 })
             }
+
+            fn delta_retained_bytes(
+                &self,
+                base: &Self,
+                staged: &Self,
+                controls: &QueryExecutionControls,
+            ) -> Result<usize, CassieError> {
+                let mut bytes = add(
+                    arc_bytes::<ControlledCatalogSnapshot>()?,
+                    arc_bytes::<AtomicU64>()?,
+                )?;
+                $(
+                    bytes = add(bytes, arc_bytes::<RwLock<HashMap<String, $value>>>()?)?;
+                    bytes = add(bytes, if is_transaction_map(stringify!($field)) {
+                        delta_map_bytes(&self.$field, &base.$field, &staged.$field, controls)?
+                    } else {
+                        self.$field.heap_bytes(controls)?
+                    })?;
+                )*
+                Ok(bytes)
+            }
+
+            fn clone_catalog_delta(
+                &self,
+                base: &Self,
+                staged: &Self,
+                version: u64,
+                controls: &QueryExecutionControls,
+                observer: &mut impl FnMut(CaptureBoundary),
+            ) -> Result<Catalog, CassieError> {
+                Ok(Catalog {
+                    $($field: if is_transaction_map(stringify!($field)) {
+                        clone_delta_map(&self.$field, &base.$field, &staged.$field, controls, observer)?
+                    } else {
+                        clone_map(&self.$field, controls, observer)?
+                    }),*,
+                    version: Arc::new(AtomicU64::new(version)),
+                })
+            }
+
+            fn matches_transaction_maps(
+                &self,
+                other: &Self,
+                controls: &QueryExecutionControls,
+            ) -> Result<bool, CassieError> {
+                $(
+                    if is_transaction_map(stringify!($field))
+                        && !self.$field.exact_eq(&other.$field, controls)?
+                    { return Ok(false); }
+                )*
+                controls.check_interruption()?;
+                Ok(true)
+            }
         }
     };
 }
@@ -258,3 +342,6 @@ catalog_maps! {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod delta_tests;

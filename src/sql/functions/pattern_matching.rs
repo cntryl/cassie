@@ -2,6 +2,8 @@
 
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 
+pub(crate) const QUANTIFIED_PATTERN_FUNCTION: &str = "__cassie_quantified_pattern";
+
 const fn scalar(
     id: FunctionId,
     name: &'static str,
@@ -19,6 +21,12 @@ const fn scalar(
 }
 
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
+    scalar(
+        FunctionId::QuantifiedPattern,
+        QUANTIFIED_PATTERN_FUNCTION,
+        FunctionArity::Exact(5),
+        FunctionReturnType::Boolean,
+    ),
     scalar(
         FunctionId::SimilarToEscape,
         "similar_to_escape",

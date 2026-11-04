@@ -120,3 +120,54 @@ pinned twelve-case bracket/escape corpus, and direct SQL plus wire NULL/error
 controls. Test APIs were checked against current public source; all of these
 new or affected executable probes await the frozen bundle gate. Ownership and
 parameter-identity judgments were 0.19 and 0.18. No model judgment is a test pass.
+
+The subsequent source batch adds the finite native word/anchor adapter,
+quantified pattern matrix and private argument/prepared-text owners. Seventeen
+pinned PostgreSQL controls specify advanced/BRE/ERE/quoted word/escape behavior;
+ordered ANY/SOME/ALL controls specify negation, NULL/empty identities and the
+malformed-later-element short-circuit. New SQL and wire tests are authored for
+those behaviors and descriptors. An owned nested-helper test performs a native
+match while its argument/text leases remain held, then checks release on drop.
+Prepared-text tests cover old/new backing overlap and rejection before growth.
+
+The native compiler preflight currently derives conservative bounds from locked source:
+517 immutable Unicode range tables have a largest table of 894 ranges; all Age
+ranges total 1,735, and the simple-fold table has 2,938 keys. The conservative
+symbolic-class allowance also covers complements and set-operation temporaries.
+A forward compiler cache has 10,000 lazy headers; its transition-key clones
+correspond to NFA transition backing. A separate header/prefix allowance includes
+old/new version-rollover directories. Analysis and native construction have
+separate pre-admission lifetimes; the supplied native nesting limit, including
+generated class wrappers, is preserved. Simple tight literals keep the smaller
+literal envelope.
+
+Jev selected private quantifier calls, private text/argument owners and the
+finite assertion adapter; its AST-context choice favored parsed spans at 0.98.
+The compiler preflight selection retained a Unicode expansion gap judgment of
+0.60. Its response requires the authored property/Age/fold/negation/set/byte-mode/
+repetition corpus and independent native allocation calibration in the frozen
+bundle's test phase. The calibration uses the actual private survey source with
+standalone control stubs and measures native allocation peaks independently;
+it has not run. Version-rollover stress remains separate from small correctness
+fixtures. None of these deferred checks is represented as passed. Backreference
+and lookaround obligations remain open under #799 while their exact contract is
+resolved against the current backend and product scope.
+
+The subsequent focused source review retained advisory gaps of 0.35 for nested
+output lifetime, 0.38 for assertion comment/quote contexts, 0.53 for generated
+nesting, 0.69 for quantified NULL/negation semantics, and 0.49 for Unicode corpus
+coverage. The actions are the authored nested-helper live-owner match test,
+seven additional pinned comment/bracket/director/BRE/ERE controls, the existing
+140/249/250/251 original-depth regression, an eight-row pinned NULL truth table
+replayed across all four modes and both quantifiers/negations, and the native
+workspace calibration corpus. These executable replays remain deferred. Source
+review also added a zero-budget cancellation control before argument directory
+allocation. Lower-probability directory, late-compilation, private-call, workspace
+lifetime and supplied-nesting questions remain in the retained review record;
+they do not replace the required executable gate.
+
+Independent source inspection found that a case-sensitive private-name guard
+could disagree with the registry's case-insensitive lookup. Raw helper calls now
+reject the resolved FunctionId, and mixed-case controls are authored. The earlier
+advisory private-call probability was 0.07; it did not establish correctness or
+prevent this source-confirmed repair. Its executable controls remain deferred.

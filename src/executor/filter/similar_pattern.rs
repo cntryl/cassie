@@ -6,14 +6,25 @@ use crate::{
     types::Value,
 };
 
-use super::{check_interruption, reserve_output, resource_limit, text_argument, QueryError};
+use super::pattern_memory::PatternText;
+use super::{check_interruption, resource_limit, text_argument, QueryError};
 
 pub(super) fn evaluate(
     arguments: &[Value],
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
+    evaluate_owned(arguments, controls).map(|text| match text {
+        Some(text) => Value::String(text.into_parts().0),
+        None => Value::Null,
+    })
+}
+
+pub(super) fn evaluate_owned(
+    arguments: &[Value],
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Option<PatternText>, QueryError> {
     if arguments.iter().any(|value| matches!(value, Value::Null)) {
-        return Ok(Value::Null);
+        return Ok(None);
     }
     let pattern = text_argument("similar_to_escape", arguments, 0)?;
     let escape = if arguments.len() == 1 {
@@ -33,18 +44,10 @@ pub(super) fn evaluate(
             .ok_or_else(|| resource_limit("SIMILAR pattern output size overflow"))?;
         Ok(())
     })?;
-    check_interruption(controls)?;
-    let _memory = reserve_output(controls, length)?;
-    check_interruption(controls)?;
-    let mut output = String::new();
-    output
-        .try_reserve_exact(length)
-        .map_err(|error| resource_limit(&format!("unable to allocate SIMILAR pattern: {error}")))?;
-    translate(pattern, escape, controls, |text| {
-        output.push_str(text);
-        Ok(())
-    })?;
-    Ok(Value::String(output))
+    PatternText::build(length, controls, |writer| {
+        translate(pattern, escape, controls, |text| writer.push_str(text))
+    })
+    .map(Some)
 }
 
 fn translate(

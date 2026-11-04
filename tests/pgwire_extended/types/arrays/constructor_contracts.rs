@@ -322,6 +322,28 @@ fn should_accumulate_native_array_subqueries_with_matching_bounds_and_native_ide
 }
 
 #[test]
+fn should_use_visible_array_subquery_aliases_when_physical_names_collide() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT ARRAY(SELECT column2 FROM (VALUES (ARRAY[1], 'x')) s(column2,column1))",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-807-array-subquery-alias-collision", &[], vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    fixture::assert_single_column_descriptors(&batches[0], (1007, -1, -1), 0, true);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("{{1}}".to_owned())]]
+    );
+}
+
+#[test]
 fn should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs() {
     // Arrange
     let cases = [

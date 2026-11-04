@@ -125,6 +125,18 @@ fn validate(
         ..
     } = expression
     {
+        if matches!(
+            data_type,
+            DataType::Array(element)
+                if matches!(
+                    element.as_ref(),
+                    DataType::Char { length: Some(_) } | DataType::Varchar { length: Some(_) }
+                )
+        ) {
+            return Err(CassieError::Unsupported(
+                "VALUES casts to character arrays with element length modifiers are not yet supported".into(),
+            ));
+        }
         crate::sql::literal_inputs::validate_with_controls(expr, data_type, *identity, controls)?;
     }
     match expression {

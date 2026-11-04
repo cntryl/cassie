@@ -165,6 +165,28 @@ successful ReadyForQuery. Commit failure emits an error and resolves implicit
 ownership to idle or explicit ownership to failed; never emit successful ready
 with an unresolved commit. Socket loss cannot undo an already completed commit.
 
+### Selected standalone table publication correction (2026-11-04)
+
+[#1157](https://github.com/cntryl/cassie/issues/1157) selects a bounded correction
+for ordinary standalone `CREATE TABLE`, including `IF NOT EXISTS`. Its implicit
+catalog snapshot, staging and commit share the existing exclusive catalog
+publication guard, with interruption checks while waiting. The guard stays on
+the synchronous execution worker and does not cross a network await. Commit
+precedes this standalone statement's `CommandComplete` in both Simple Query and
+extended execution. `CREATE TABLE AS` keeps its separate existing execution path.
+This ownership decision is made at the top-level wire entry. CTAS's internal
+table creation and other nested bound operations retain their enclosing owner.
+CTAS's `SELECT n` completion retains the affected-row count supplied by the
+operator; ordinary result sets and portal pages report their returned-row count.
+
+An unchanged catalog snapshot with no staged storage metadata does not publish,
+advance the schema epoch or conflict merely because another session published
+unrelated metadata. Genuine explicit transactional DDL retains its version
+conflict check; Cassie does not replay explicit user transactions. The concurrent
+cold/warm, no-op, conflict, cancellation and nested CTAS probes belong to the
+coherent bundle's executable gate; executed results are recorded in its PR.
+This contract selection alone does not claim container publication.
+
 ## Simple Query transitions
 
 | Start/event | Action and final state |
@@ -328,3 +350,13 @@ Bound retained resources/wait graph, release on commit/rollback/disconnect/cance
 report 40P01 for detected wait cycles and 57014 for cancellation. Existing transaction
 error and ReadyForQuery carriers remain authoritative. No persistent format change is
 needed for isolation itself.
+
+### Explicit nullable columns
+
+`CREATE TABLE` and `ALTER TABLE ADD COLUMN` accept explicit `NULL` column syntax,
+including repeated or named NULL clauses. The clause is equivalent to omitted
+nullability; it creates no persistent constraint identity. Conflicting NULL and
+NOT NULL, inline PRIMARY KEY, SERIAL or IDENTITY declarations return SQLSTATE
+`42601` before publication. A table-level primary key may supply NOT NULL after
+an explicit nullable column, matching PostgreSQL. A later ALTER may also add
+NOT NULL to the originally nullable column.

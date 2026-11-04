@@ -116,6 +116,22 @@ impl Cassie {
     }
 
     pub(crate) fn commit_transaction(&self, session: &CassieSession) -> Result<(), CassieError> {
+        self.commit_transaction_using_catalog_guard(session, None)
+    }
+
+    pub(super) fn commit_transaction_holding_catalog<'a>(
+        &'a self,
+        session: &CassieSession,
+        publication: parking_lot::RwLockWriteGuard<'a, ()>,
+    ) -> Result<(), CassieError> {
+        self.commit_transaction_using_catalog_guard(session, Some(publication))
+    }
+
+    fn commit_transaction_using_catalog_guard<'a>(
+        &'a self,
+        session: &CassieSession,
+        held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+    ) -> Result<(), CassieError> {
         if session.is_transaction_failed() {
             return Err(CassieError::failed_transaction());
         }
@@ -124,15 +140,23 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
-        let catalog_overlay = session.transaction_catalog_overlay();
         let storage_overlay = session.transaction_storage_overlay_snapshot();
+        let catalog_overlay = session.transaction_catalog_overlay().filter(|catalog| {
+            // A detached but untouched catalog is read authority, not a write.
+            // Publishing it would overwrite unrelated newer metadata and make
+            // repeated IF NOT EXISTS commands advance the global schema epoch.
+            session.transaction_catalog_base_version() != Some(catalog.version())
+                || !storage_overlay.changes.is_empty()
+        });
         let database = session
             .current_database()
             .unwrap_or(&self.default_database)
             .to_owned();
-        let catalog_publication = catalog_overlay
-            .as_ref()
-            .map(|_| self.catalog_publication.write());
+        let catalog_publication = held_publication.or_else(|| {
+            catalog_overlay
+                .as_ref()
+                .map(|_| self.catalog_publication.write())
+        });
         if catalog_overlay.is_some()
             && session.transaction_catalog_base_version() != Some(self.catalog.version())
         {

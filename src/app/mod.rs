@@ -139,6 +139,7 @@ mod query_ctas;
 mod query_describe;
 mod query_explain;
 mod query_feedback;
+mod query_implicit_ddl;
 mod query_lifecycle;
 mod query_wire;
 pub(crate) use query_feedback::USER_SEARCH_PATH_ENTRY;

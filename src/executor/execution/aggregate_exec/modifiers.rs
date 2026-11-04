@@ -183,6 +183,7 @@ fn prepare_input(
                     | SemanticValue::SqlArray { .. }
                     | SemanticValue::Jsonb(_)
                     | SemanticValue::JsonbArray(_)
+                    | SemanticValue::Record(_)
             )
         });
     Ok(PreparedInput {

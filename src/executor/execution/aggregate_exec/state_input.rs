@@ -248,6 +248,7 @@ impl AggregateAccumulator {
                             | SemanticValue::SqlArray { .. }
                             | SemanticValue::Jsonb(_)
                             | SemanticValue::JsonbArray(_)
+                            | SemanticValue::Record(_)
                     )
                 })
         } else {

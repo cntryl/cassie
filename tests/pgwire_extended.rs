@@ -673,3 +673,6 @@ mod jsonb_semantic_keys;
 
 #[path = "pgwire_extended/types/json/numeric_weight_boundaries.rs"]
 mod jsonb_numeric_boundaries;
+
+#[path = "pgwire_extended/types/json/search_cycle_lineage.rs"]
+mod jsonb_search_cycle_lineage;

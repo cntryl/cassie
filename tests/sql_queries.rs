@@ -302,3 +302,6 @@ mod jsonb_semantic_keys;
 
 #[path = "sql_queries/types/numeric/jsonb_numeric_boundaries.rs"]
 mod jsonb_numeric_boundaries;
+
+#[path = "sql_queries/ctes/jsonb_search_cycle.rs"]
+mod jsonb_search_cycle;

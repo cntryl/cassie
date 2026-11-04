@@ -2,6 +2,8 @@ pub mod aggregate;
 mod array_order;
 pub mod batch;
 mod execution;
+mod lineage_keys;
+mod search_lineage;
 pub(crate) use execution::native_result_text_bound;
 pub(crate) use execution::plan_needs_statement_data;
 pub(crate) use execution::refresh_materialized_view_concurrently_external;

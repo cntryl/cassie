@@ -5,8 +5,10 @@ use crate::types::Value;
 
 mod jsonb;
 mod jsonb_array;
+mod record;
 pub(crate) use jsonb::JsonbKey;
 pub(crate) use jsonb_array::JsonbArrayKey;
+pub(crate) use record::RecordKey;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SemanticNumber(SemanticNumberRepr);
@@ -97,6 +99,7 @@ pub(crate) enum SemanticValue {
     Json(String),
     Jsonb(JsonbKey),
     JsonbArray(JsonbArrayKey),
+    Record(RecordKey),
     Array(Vec<Self>),
     SqlArray {
         dimensions: Vec<(i32, i32)>,
@@ -180,7 +183,8 @@ impl SemanticValue {
             | Self::Number(_)
             | Self::Typed(_)
             | Self::Jsonb(_)
-            | Self::JsonbArray(_) => 0,
+            | Self::JsonbArray(_)
+            | Self::Record(_) => 0,
         }
     }
 
@@ -194,6 +198,7 @@ impl SemanticValue {
             Self::Json(_) => 5,
             Self::Jsonb(_) => 8,
             Self::JsonbArray(_) => 9,
+            Self::Record(_) => 10,
             Self::Array(_) | Self::SqlArray { .. } => 6,
             Self::Typed(_) => 7,
         }
@@ -218,6 +223,7 @@ impl Ord for SemanticValue {
             (Self::Vector(left), Self::Vector(right)) => left.cmp(right),
             (Self::Jsonb(left), Self::Jsonb(right)) => left.cmp(right),
             (Self::JsonbArray(left), Self::JsonbArray(right)) => left.cmp(right),
+            (Self::Record(left), Self::Record(right)) => left.cmp(right),
             (Self::Typed(left), Self::Typed(right)) => left.cmp(right),
             (Self::Number(number), Self::Typed(crate::types::typed::TypedKey::Numeric(key))) => {
                 compare_number_numeric(number, key)
@@ -328,7 +334,8 @@ impl SemanticKey {
                 | SemanticValue::Number(_)
                 | SemanticValue::Typed(_)
                 | SemanticValue::Jsonb(_)
-                | SemanticValue::JsonbArray(_) => 0,
+                | SemanticValue::JsonbArray(_)
+                | SemanticValue::Record(_) => 0,
             }
         }
         self.0.capacity() * std::mem::size_of::<SemanticValue>()

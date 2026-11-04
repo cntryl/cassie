@@ -42,7 +42,7 @@ pub(crate) fn jsonb_type(data_type: &DataType) -> bool {
     }
 }
 
-fn jsonb_array(
+pub(super) fn jsonb_array(
     value: &Value,
     controls: Option<&QueryExecutionControls>,
 ) -> Result<SemanticValue, CassieError> {

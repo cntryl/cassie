@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{check_timeout, retention, QueryError, QueryExecutionControls, RetainedRows};
-use crate::executor::semantic::SemanticValue;
+use crate::executor::lineage_keys::{self, KeyType};
 use crate::sql::ast::{
     CteCycle, CteSearch, CteSearchOrder, Expr, ParsedStatement, QueryStatement, SelectItem,
 };
@@ -10,6 +10,10 @@ use crate::types::{DataType, FieldSchema, Schema, Value};
 #[cfg(test)]
 #[path = "search_cycle_tests.rs"]
 mod tests;
+
+#[path = "lineage_types.rs"]
+mod lineage_types;
+use lineage_types::LineageTypes;
 
 const LINEAGE_COLUMN_PREFIX: &str = "\0cassie_cte_lineage:";
 
@@ -22,6 +26,10 @@ struct Lineage {
     search_column: Option<String>,
     #[serde(default)]
     search_order: Option<CteSearchOrder>,
+    #[serde(default)]
+    search_key_types: Vec<KeyType>,
+    #[serde(default)]
+    cycle_key_types: Vec<KeyType>,
 }
 
 fn lineage_column_name(cte_name: &str) -> String {
@@ -78,12 +86,15 @@ pub(super) fn append_base_metadata(
     cte_name: &str,
     search: Option<&CteSearch>,
     cycle: Option<&CteCycle>,
+    fields: &[FieldSchema],
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     if search.is_none() && cycle.is_none() {
         return Ok(());
     }
-    reserve_expansion(rows, search, cycle)?;
+    check_timeout(controls)?;
+    let types = LineageTypes::new(fields, search, cycle, controls)?;
+    reserve_expansion(rows, cte_name, search, cycle, types.count(), controls)?;
     let default_value = cycle
         .map(cycle_values)
         .transpose()?
@@ -91,7 +102,11 @@ pub(super) fn append_base_metadata(
     let added_columns = usize::from(search.is_some()) + 2 * usize::from(cycle.is_some()) + 1;
     for row in &mut rows.rows {
         check_timeout(controls)?;
-        let mut lineage = Lineage::default();
+        let mut lineage = Lineage {
+            search_key_types: types.search.clone(),
+            cycle_key_types: types.cycle.clone(),
+            ..Lineage::default()
+        };
         if let Some(search) = search {
             lineage.search_column = Some(search.sequence_column.clone());
             lineage.search_order = Some(search.order);
@@ -130,12 +145,15 @@ pub(super) fn append_recursive_metadata(
     cte_name: &str,
     search: Option<&CteSearch>,
     cycle: Option<&CteCycle>,
+    fields: &[FieldSchema],
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     if search.is_none() && cycle.is_none() {
         return Ok(());
     }
-    reserve_expansion(rows, search, cycle)?;
+    check_timeout(controls)?;
+    let types = LineageTypes::new(fields, search, cycle, controls)?;
+    reserve_expansion(rows, cte_name, search, cycle, types.count(), controls)?;
     let values = cycle.map(cycle_values).transpose()?;
     let mark_value = values.as_ref().map(|(mark, _)| mark);
     let default_value = values.as_ref().map(|(_, default)| default);
@@ -153,6 +171,8 @@ pub(super) fn append_recursive_metadata(
             ));
         };
         let mut lineage = decode_lineage(&lineage_json)?;
+        lineage.search_key_types.clone_from(&types.search);
+        lineage.cycle_key_types.clone_from(&types.cycle);
         let search_keys = search
             .map(|search| key_values(row, &search.by))
             .transpose()?;
@@ -172,10 +192,13 @@ pub(super) fn append_recursive_metadata(
         }
         if let Some(cycle) = cycle {
             let keys = key_values(row, &cycle.by)?;
-            lineage.cycle = lineage
-                .cycle_path
-                .iter()
-                .any(|previous| same_key(previous, &keys));
+            lineage.cycle = false;
+            for previous in &lineage.cycle_path {
+                if same_key(previous, &keys, &lineage.cycle_key_types, controls)? {
+                    lineage.cycle = true;
+                    break;
+                }
+            }
             lineage.cycle_path.push(keys);
             row.push((
                 cycle.mark_column.clone(),
@@ -278,18 +301,55 @@ pub(super) fn remove_lineage(
 
 fn reserve_expansion(
     rows: &mut RetainedRows,
+    cte_name: &str,
     search: Option<&CteSearch>,
     cycle: Option<&CteCycle>,
+    key_count: usize,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    let names = search
+        .map_or(0, |search| search.sequence_column.len())
+        .checked_add(cycle.map_or(0, |cycle| {
+            cycle
+                .mark_column
+                .len()
+                .saturating_add(cycle.path_column.len())
+        }))
+        .and_then(|bytes| bytes.checked_add(cte_name.len()))
+        .ok_or_else(allocation_overflow)?;
+    // Generated names may appear as row names, cloned lineage text, and escaped JSON.
+    let name_bytes = names.checked_mul(16).ok_or_else(allocation_overflow)?;
     let mut extra = 0usize;
     for row in &rows.rows {
+        check_timeout(controls)?;
         let row_bytes = retention::row_bytes(row)?;
         let field_bytes = (usize::from(search.is_some()) + 3)
             .checked_mul(128)
             .ok_or_else(allocation_overflow)?;
+        // New type directories and encoded marker fields coexist with decoded input lineage.
+        let type_bytes = key_count
+            .checked_mul(64)
+            .and_then(|bytes| bytes.checked_add(512))
+            .ok_or_else(allocation_overflow)?;
+        let decode_bytes = row
+            .iter()
+            .filter(|(name, _)| name.starts_with(LINEAGE_COLUMN_PREFIX))
+            .try_fold(0usize, |bytes, (_, value)| {
+                let Value::String(json) = value else {
+                    return Ok::<_, QueryError>(bytes);
+                };
+                Ok(bytes
+                    .checked_add(crate::runtime::accounted::json::serialized_decode_bytes(
+                        json.len(),
+                    )?)
+                    .ok_or_else(allocation_overflow)?)
+            })?;
         let allowance = row_bytes
             .checked_mul(if cycle.is_some() { 5 } else { 4 })
             .and_then(|bytes| bytes.checked_add(field_bytes))
+            .and_then(|bytes| bytes.checked_add(type_bytes))
+            .and_then(|bytes| bytes.checked_add(name_bytes))
+            .and_then(|bytes| bytes.checked_add(decode_bytes))
             .ok_or_else(allocation_overflow)?;
         extra = extra
             .checked_add(allowance)
@@ -324,11 +384,37 @@ fn key_values(row: &[(String, Value)], names: &[String]) -> Result<Vec<Value>, Q
         .collect()
 }
 
-fn same_key(left: &[Value], right: &[Value]) -> bool {
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            SemanticValue::from_value(left) == SemanticValue::from_value(right)
-        })
+fn same_key(
+    left: &[Value],
+    right: &[Value],
+    types: &[KeyType],
+    controls: &QueryExecutionControls,
+) -> Result<bool, QueryError> {
+    same_key_observing(left, right, types, controls, || {})
+}
+
+fn same_key_observing(
+    left: &[Value],
+    right: &[Value],
+    types: &[KeyType],
+    controls: &QueryExecutionControls,
+    mut after_compare: impl FnMut(),
+) -> Result<bool, QueryError> {
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    lineage_keys::validate_width(types, left.len())?;
+    for (index, (left, right)) in left.iter().zip(right).enumerate() {
+        check_timeout(controls)?;
+        let kind = lineage_keys::key_type(types, index);
+        let equal = kind.key(left, Some(controls))? == kind.key(right, Some(controls))?;
+        after_compare();
+        check_timeout(controls)?;
+        if !equal {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn search_value(search: &CteSearch, lineage: &Lineage, keys: &[Value]) -> String {
@@ -550,3 +636,7 @@ fn coerce_cycle_value(value: Value, data_type: &DataType) -> Result<Value, Query
         ))),
     }
 }
+
+#[cfg(test)]
+#[path = "jsonb_lineage_tests.rs"]
+mod jsonb_tests;

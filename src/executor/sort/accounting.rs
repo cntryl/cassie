@@ -98,23 +98,6 @@ pub(crate) fn conversion_bytes(
     add(scalar, retained)
 }
 
-pub(crate) fn order_conversion_bytes<R: RowAccess>(
-    row: &R,
-    expr: &Expr,
-    value: &Value,
-    data_type: Option<&DataType>,
-) -> Result<usize, CassieError> {
-    let bytes = conversion_bytes(value, data_type)?;
-    let Some(lineage_bytes) = crate::executor::array_order::search_order_metadata_bytes(row, expr)
-    else {
-        return Ok(bytes);
-    };
-    // SEARCH sort keys decode the retained typed lineage and build nested
-    // semantic arrays. Bound the decoded metadata and semantic key together.
-    let scratch = json::serialized_decode_bytes(lineage_bytes)?;
-    add(bytes, mul(scratch.max(256), 3)?)
-}
-
 fn ordinary_bytes(value: &Value) -> Result<usize, CassieError> {
     match value {
         Value::String(text) => Ok(text.len().max(27)),
@@ -184,7 +167,8 @@ pub(crate) fn semantic_heap(value: &SemanticValue) -> Result<usize, CassieError>
         | SemanticValue::Number(_)
         | SemanticValue::Typed(_)
         | SemanticValue::Jsonb(_)
-        | SemanticValue::JsonbArray(_) => Ok(0),
+        | SemanticValue::JsonbArray(_)
+        | SemanticValue::Record(_) => Ok(0),
     }
 }
 

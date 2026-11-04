@@ -35,8 +35,14 @@ fn should_stop_recursive_search_cycle_metadata_when_cancelled() {
     cancellation.cancel();
 
     // Act
-    let result =
-        append_recursive_metadata(&mut rows, "walk", Some(&search), Some(&cycle), &controls);
+    let result = append_recursive_metadata(
+        &mut rows,
+        "walk",
+        Some(&search),
+        Some(&cycle),
+        &[],
+        &controls,
+    );
 
     // Assert
     assert!(matches!(

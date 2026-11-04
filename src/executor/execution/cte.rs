@@ -210,6 +210,7 @@ fn execute_recursive_cte(
         &cte_name,
         cte.search.as_ref(),
         cte.cycle.as_ref(),
+        fields,
         environment.controls,
     )?;
 
@@ -276,6 +277,7 @@ fn execute_recursive_cte_steps(
             &cte.name.to_ascii_lowercase(),
             cte.search.as_ref(),
             cte.cycle.as_ref(),
+            working_fields,
             environment.controls,
         )?;
 

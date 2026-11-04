@@ -35,14 +35,14 @@ pub fn run_script(
             cassie.execute_sql(&session, sql, Vec::new()).expect("seed");
         }
         let server = wire::spawn_server(cassie).await;
-        let mut reader = tokio::net::TcpStream::connect(server.addr)
+        let reader = tokio::net::TcpStream::connect(server.addr)
             .await
             .expect("reader");
-        let mut writer = tokio::net::TcpStream::connect(server.addr)
+        let writer = tokio::net::TcpStream::connect(server.addr)
             .await
             .expect("writer");
-        let (mut reader_read, mut reader_write) = tokio::io::split(&mut reader);
-        let (mut writer_read, mut writer_write) = tokio::io::split(&mut writer);
+        let (mut reader_read, mut reader_write) = reader.into_split();
+        let (mut writer_read, mut writer_write) = writer.into_split();
         wire::complete_startup(&mut reader_read, &mut reader_write).await;
         wire::complete_startup(&mut writer_read, &mut writer_write).await;
         for frames in before_begin.into_iter().filter(|frames| !frames.is_empty()) {
@@ -83,14 +83,7 @@ pub fn run_script(
             )],
         )
         .await;
-        drop((
-            reader_read,
-            reader_write,
-            writer_read,
-            writer_write,
-            reader,
-            writer,
-        ));
+        drop((reader_read, reader_write, writer_read, writer_write));
         server.stop().await;
         (retained, fresh)
     })
@@ -125,10 +118,10 @@ pub fn disconnect_retained_view() -> (u64, u64) {
         cassie.startup().expect("startup");
         let observer = cassie.clone();
         let server = wire::spawn_server(cassie).await;
-        let mut socket = tokio::net::TcpStream::connect(server.addr)
+        let socket = tokio::net::TcpStream::connect(server.addr)
             .await
             .expect("reader");
-        let (mut reader, mut writer) = tokio::io::split(&mut socket);
+        let (mut reader, mut writer) = socket.into_split();
         wire::complete_startup(&mut reader, &mut writer).await;
         exchange(
             &mut reader,
@@ -155,7 +148,7 @@ pub fn disconnect_retained_view() -> (u64, u64) {
         let released = observer.metrics()["query"]["current_accounted_memory_bytes"]
             .as_u64()
             .expect("released charge");
-        drop((reader, writer, socket));
+        drop((reader, writer));
         server.stop().await;
         (retained, released)
     })

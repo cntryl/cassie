@@ -60,7 +60,7 @@ fn should_leave_repeatable_read_uncaptured_at_describe() {
 }
 
 #[test]
-fn should_leave_repeatable_read_uncaptured_at_show_and_savepoint() {
+fn should_leave_repeatable_read_uncaptured_at_nonsnapshot_controls() {
     // Arrange
     let boundary = vec![wire::simple_query_frame(
         "SHOW transaction_isolation; SAVEPOINT before_view",

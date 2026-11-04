@@ -5799,3 +5799,14 @@ latches quarantine and future fresh operations reject. These advisory results
 do not replace the substantial integrated build/full-test/strict-clippy/fmt/test
 policy gate. Parent REST route/worker/health source `06437d45` is the next planned
 integration; its authored tests are not included in any passing count.
+
+The first frozen RO gate at `67d0f1a1843f36c16d8be76d6331034a01b87e60`
+passed `cargo build --locked` (158.17 s). `cargo test --locked` then stopped in
+integration-test compilation (438.93 s) with three `E0505` errors in the new
+wire fixture: one drop tuple moved borrowed parent sockets together with their
+split halves. No test pass is claimed for that run; clippy, formatting and policy
+stages were not reached. The coherent test-only correction uses owned
+`TcpStream::into_split` halves and drops those halves directly. Seven test names
+were also rewritten around their single invariant after the parallel scalar
+lane's analyzer identified `_and_` action-name false positives; assertions and
+fixtures remain intact. The corrected exact head requires the ordered gate.

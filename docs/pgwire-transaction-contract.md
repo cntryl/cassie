@@ -176,14 +176,16 @@ precedes this standalone statement's `CommandComplete` in both Simple Query and
 extended execution. `CREATE TABLE AS` keeps its separate existing execution path.
 This ownership decision is made at the top-level wire entry. CTAS's internal
 table creation and other nested bound operations retain their enclosing owner.
+CTAS's `SELECT n` completion retains the affected-row count supplied by the
+operator; ordinary result sets and portal pages report their returned-row count.
 
 An unchanged catalog snapshot with no staged storage metadata does not publish,
 advance the schema epoch or conflict merely because another session published
 unrelated metadata. Genuine explicit transactional DDL retains its version
-conflict check; Cassie does not replay explicit user transactions. The new
-concurrent cold/warm, no-op, conflict and cancellation probes remain pending the
-coherent transaction bundle's executable gate. This selected correction is not
-a claim that a refreshed container has been published or qualified.
+conflict check; Cassie does not replay explicit user transactions. The concurrent
+cold/warm, no-op, conflict, cancellation and nested CTAS probes belong to the
+coherent bundle's executable gate; executed results are recorded in its PR.
+This contract selection alone does not claim container publication.
 
 ## Simple Query transitions
 

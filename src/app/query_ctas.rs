@@ -63,7 +63,7 @@ impl Cassie {
         match result {
             Ok(result) => {
                 if owns_transaction {
-                    if let Err(error) = scoped.commit_transaction(session) {
+                    if let Err(error) = scoped.commit_transaction_with_controls(session, controls) {
                         session.rollback_transaction();
                         return Err(error);
                     }

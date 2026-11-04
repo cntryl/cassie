@@ -5963,3 +5963,40 @@ all new tests remain unexecuted under the user's batching instruction. Direct
 Rust formatting/parser and diff checks are interim source checks only. RW still
 rejects until final commit/catalog/lifecycle integration and the full required
 ordered gate; this increment claims no passing runtime behavior.
+
+
+### Pending RW controlled commit window (2026-11-04)
+
+COMMIT now carries its current request controls through a stable current-catalog
+guard, controlled referential/collection gates, the continuous database
+publication window, retained native row assertions and fresh normal publication.
+Entered RW COMMIT failures retire to Idle; READ COMMITTED's existing output
+admission behavior remains covered. Authored controls distinguish retired
+capture cancellation from current COMMIT cancellation, input/output denial,
+same-payload FCW, and cancellation after actual confirmed user publication.
+The last observer is private `cfg(test)` state with scoped restoration.
+
+Source review found a real correction to the old-empty fence: fresh document
+Put replaces a current row with the same physical identity. A fresh same-family
+presence check now rejects a late direct writer with40001 before user
+publication, while preserving the six pinned current-empty insert/delete
+controls. Row/column fixtures derive the actual staged physical ID to exercise
+this path. RR never takes the RC conflict-intent retry; authored late-arbiter
+and nonarbiter cases check40001 versus23505 without changing the winner.
+
+New gate fixtures synchronize at actual collection/referential waits, preserve
+both REST and SQL cancellation, and test exact directory admission. One
+explicitly local native-lifetime fixture retains an escaped writer after Midge
+drop and requires native fencing to block reopen until it retires. Other new
+fixtures use memory storage; the preexisting output-admission fixture was moved
+to memory because it asserts no persistence or recovery behavior.
+
+Jev locking/resource leads were0.25/0.27. Its failure0.78 lead led to the current,
+retired-origin, failure-retirement and confirmed-publication controls; narrowed
+failure candidates were each below0.30. Retry0.38 led to late native-winner and
+nonarbiter controls; its own-target follow-up0.38 led to the concrete same-ID
+upsert audit and fresh-presence correction (selected1.00, error contract0.98).
+All execution remains deferred under the user's batching direction; direct
+Rust parser/formatting and diff checks are interim source checks. Runtime RW
+remains rejected pending own-DDL catalog composition, final integration and the
+full required ordered gate. No new passing support claim is made here.

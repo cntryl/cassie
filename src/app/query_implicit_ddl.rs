@@ -31,7 +31,7 @@ impl Cassie {
         )?;
         // The scoped execution has retired its thread-local staging scope.
         // Committing within that scope would stage the publication itself.
-        self.commit_transaction_holding_catalog(session, publication)?;
+        self.commit_transaction_holding_catalog(session, publication, controls)?;
         Ok(result)
     }
 }

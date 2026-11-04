@@ -85,9 +85,14 @@ impl Cassie {
         };
         let reports = match initial {
             Ok(reports) => reports,
-            Err(CassieError::UniqueViolation { .. })
+            Err(error @ CassieError::UniqueViolation { .. })
                 if !staging.transaction_conflict_intents().is_empty() =>
             {
+                if staging.is_repeatable_read_write() {
+                    return Err(crate::executor::repeatable_conflict_failure(
+                        self, staging, error, controls,
+                    ));
+                }
                 crate::executor::resolve_transaction_conflict_intents(self, staging, controls)
                     .map_err(CassieError::from)?;
                 writes = transaction_write_batches(staging);

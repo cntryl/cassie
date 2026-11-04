@@ -26,6 +26,7 @@ use crate::vector::normalize as normalize_vector;
 
 mod column_batch_format_v1;
 pub(crate) use column_batch_format_v1::NumericValues;
+mod collection_gates;
 mod core;
 pub mod fulltext_retrieval;
 mod publication;

@@ -187,3 +187,59 @@ fn should_preserve_tracked_admission_after_a_failed_native_factory() {
     assert!(missing.is_err());
     assert!(tracked.is_ok());
 }
+
+#[test]
+fn should_fence_local_reopen_until_returned_native_handles_retire() {
+    // Arrange
+    let directory = std::env::temp_dir().join(format!(
+        "cassie-native-interop-recovery-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let midge =
+        Midge::new_strict_with_data_dir(&directory).expect("explicit local lifetime fixture");
+    midge.ensure_families_ready().expect("local families");
+    let issued = midge
+        .data_tx(TransactionMode::ReadWrite)
+        .expect("owned native capability");
+    drop(midge);
+
+    // Act
+    let blocked = Midge::new_strict_with_data_dir(&directory);
+    issued
+        .rollback()
+        .expect("retire the final old runtime transaction guard");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let reopened = loop {
+        match Midge::new_strict_with_data_dir(&directory) {
+            Ok(midge) => break midge,
+            Err(error) => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "native fencing resources did not retire: {error}"
+                );
+                std::thread::yield_now();
+            }
+        }
+    };
+    reopened
+        .ensure_families_ready()
+        .expect("recovered families");
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let tracked = reopened.capture_repeatable_row_history("postgres", &controls);
+
+    // Assert
+    assert!(
+        blocked.is_err(),
+        "a new authority cannot coexist with an escaped old writer"
+    );
+    assert!(
+        tracked.is_ok(),
+        "recovered instance can select tracked mode after old capabilities retire"
+    );
+    drop(tracked);
+    drop(reopened);
+    std::fs::remove_dir_all(directory).expect("retire isolated local lifetime fixture");
+}

@@ -243,11 +243,22 @@ Declared one-dimensional ARRAY columns compare elementwise in ordered predicates
 unequal element determines order; an equal prefix sorts before a longer array.
 NULL elements sort after non-NULL elements, independently of top-level SQL NULL
 ordering. Integer elements retain exact comparisons. JSON columns retain their
-existing JSON comparison behavior, even when their values are arrays. Current
-stored array values use the existing JSON representation. The selected #807
-array contract preserves PostgreSQL dimensions and lower bounds in execution
-and persisted rows; its new row encoding, literals, constructors, subscripts,
-slices, and additional operators remain pending after #796 and #762.
+existing JSON comparison behavior, even when their values are arrays. The
+selected native dimension and lower-bound representation is recorded in the
+[Type Contract](type-contract.md#selected-postgresql-array-shape-contract-2026-10-26).
+Broader array SQL acceptance remains under #807, following its #796 and #762
+prerequisites.
+
+Array-producing functions retain their native element-array identity, including
+`array_prepend` and `array_fill`; explicit casts to TEXT use PostgreSQL array
+literal syntax. Prepending preserves the source lower bound. Array concatenation
+accepts scalar elements in either operand position, keeps typed TEXT elements
+distinct from unknown array literals, and preserves typed NULL element versus
+NULL array behavior. Parameter descriptions retain supplied scalar and array
+OIDs; an unspecified operand beside an array infers the corresponding array OID.
+Focused [array expression and wire regressions](../tests/pgwire_extended/types/arrays/array_boundaries.rs)
+cover these boundaries. These remain Experimental and do not complete #807 or
+select additional array element families.
 
 ### Reserved Identity Column
 

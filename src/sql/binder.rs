@@ -1,3 +1,4 @@
+mod array_outputs;
 #[path = "binder/database_commands.rs"]
 mod database_commands;
 use database_commands::{bind_create_database_statement, bind_drop_database_statement};

@@ -6,15 +6,15 @@ use crate::types::{ArrayDimension, SqlArray, Value};
 pub(super) fn concatenate_operand(
     left: &ScalarValue,
     right: &ScalarValue,
-    left_null_type: (bool, bool),
-    right_null_type: (bool, bool),
+    left_type: (bool, bool),
+    right_type: (bool, bool),
 ) -> Option<Result<ScalarValue, QueryError>> {
-    let (left_typed_array_null, left_typed_scalar_null) = left_null_type;
-    let (right_typed_array_null, right_typed_scalar_null) = right_null_type;
+    let (left_typed_array, left_typed_scalar) = left_type;
+    let (right_typed_array, right_typed_scalar) = right_type;
     let is_array = matches!(left, ScalarValue::Array(_))
         || matches!(right, ScalarValue::Array(_))
-        || left_typed_array_null
-        || right_typed_array_null;
+        || left_typed_array
+        || right_typed_array;
     if !is_array {
         return None;
     }
@@ -22,31 +22,35 @@ pub(super) fn concatenate_operand(
         (ScalarValue::Array(array), ScalarValue::Array(other)) => {
             concatenate(array, other).map(ScalarValue::Array)
         }
-        (ScalarValue::Array(array), ScalarValue::Null) if right_typed_scalar_null => {
+        (ScalarValue::Array(array), ScalarValue::Null) if right_typed_scalar => {
             extend_scalar(array, Value::Null, false).map(ScalarValue::Array)
         }
-        (ScalarValue::Null, ScalarValue::Null)
-            if left_typed_array_null && right_typed_scalar_null =>
-        {
+        (ScalarValue::Null, ScalarValue::Null) if left_typed_array && right_typed_scalar => {
             one_element(Value::Null).map(ScalarValue::Array)
         }
-        (ScalarValue::Null, ScalarValue::Array(array)) if left_typed_scalar_null => {
+        (ScalarValue::Null, ScalarValue::Array(array)) if left_typed_scalar => {
             extend_scalar(array, Value::Null, true).map(ScalarValue::Array)
         }
         (ScalarValue::Array(array), ScalarValue::Null)
         | (ScalarValue::Null, ScalarValue::Array(array)) => Ok(ScalarValue::Array(array.clone())),
+        (ScalarValue::Array(array), ScalarValue::Str(text)) if right_typed_scalar => {
+            extend_scalar(array, Value::String(text.clone()), false).map(ScalarValue::Array)
+        }
+        (ScalarValue::Str(text), ScalarValue::Array(array)) if left_typed_scalar => {
+            extend_scalar(array, Value::String(text.clone()), true).map(ScalarValue::Array)
+        }
         (ScalarValue::Array(array), ScalarValue::Str(text)) => parse_array_text(text, array)
             .and_then(|other| concatenate(array, &other))
             .map(ScalarValue::Array),
         (ScalarValue::Str(text), ScalarValue::Array(array)) => parse_array_text(text, array)
             .and_then(|other| concatenate(&other, array))
             .map(ScalarValue::Array),
-        (ScalarValue::Null, ScalarValue::Null) if left_typed_array_null => Ok(ScalarValue::Null),
-        (ScalarValue::Null, ScalarValue::Null) if right_typed_array_null => Ok(ScalarValue::Null),
-        (ScalarValue::Null, scalar) if left_typed_array_null => {
+        (ScalarValue::Null, ScalarValue::Null) if left_typed_array => Ok(ScalarValue::Null),
+        (ScalarValue::Null, ScalarValue::Null) if right_typed_array => Ok(ScalarValue::Null),
+        (ScalarValue::Null, scalar) if left_typed_array => {
             one_element(scalar.to_value()).map(ScalarValue::Array)
         }
-        (scalar, ScalarValue::Null) if right_typed_array_null => {
+        (scalar, ScalarValue::Null) if right_typed_array => {
             one_element(scalar.to_value()).map(ScalarValue::Array)
         }
         (ScalarValue::Array(array), scalar) => {

@@ -7,3 +7,5 @@ include!("semantics/regex_modes_and_counts.rs");
 include!("semantics/regex_functions.rs");
 
 include!("semantics/named_arguments.rs");
+
+include!("semantics/similar_dynamic.rs");

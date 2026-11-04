@@ -115,7 +115,7 @@ fn should_reject_invalid_series_sources_without_partial_rows() {
     let batches = fixture::run_cycles("issue-808-series-error-recovery", &[], cycles);
 
     // Assert
-    for ((sql, state), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((sql, state), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0.iter()) {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some(state), "{sql}");
         assert_eq!(
             pair[0]

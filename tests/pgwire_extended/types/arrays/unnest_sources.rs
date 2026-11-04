@@ -66,8 +66,8 @@ fn should_emit_native_unnest_rows_from_bound_array_parameters() {
             vec![Some("3".to_owned()), Some("3".to_owned())],
         ]
     );
-    assert!(wire::data_rows(&batches[1]).is_empty());
-    assert!(wire::data_rows(&batches[2]).is_empty());
+    assert_eq!(wire::data_rows(&batches[1]), [] as [Vec<Option<String>>; 0]);
+    assert_eq!(wire::data_rows(&batches[2]), [] as [Vec<Option<String>>; 0]);
 }
 
 fn native_int4_array() -> Vec<u8> {
@@ -145,7 +145,7 @@ fn should_terminate_invalid_unnest_requests_at_their_native_diagnostic() {
     let batches = fixture::run_cycles("issue-808-unnest-error-recovery", &[], cycles);
 
     // Assert
-    for ((_, state), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((_, state), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0.iter()) {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some(state));
         assert_eq!(
             pair[0]

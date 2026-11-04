@@ -5,7 +5,9 @@ use crate::support_type_metadata_contract as fixture;
 fn hexadecimal(value: &str) -> Vec<u8> {
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             u8::from_str_radix(std::str::from_utf8(pair).expect("ASCII hex"), 16).expect("hex byte")
         })
@@ -91,7 +93,7 @@ fn should_preserve_native_temporal_array_elements_across_wire_formats() {
     let batches = fixture::run_cycles("issue-807-native-temporal-arrays", &[], cycles);
 
     // Assert
-    for ((_, oid, text, binary), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((_, oid, text, binary), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0.iter()) {
         for (format, frames) in [0, 1].into_iter().zip(pair) {
             fixture::assert_success(frames);
             fixture::assert_single_column_descriptors(frames, (oid, -1, -1), format, true);
@@ -368,7 +370,7 @@ fn should_enforce_native_array_subquery_input_shape_requirements() {
     let batches = fixture::run_cycles("issue-807-array-subquery-errors", &[], cycles);
 
     // Assert
-    for ((sql, state), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((sql, state), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0.iter()) {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some(state), "{sql}");
         assert!(
             !pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')),

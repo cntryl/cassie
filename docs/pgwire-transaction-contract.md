@@ -467,20 +467,31 @@ its owners to Idle, matching PostgreSQL 18.6 `AbortCurrentTransaction`'s
 the bounded snapshot/fence for savepoint recovery. Existing READ COMMITTED
 behavior is not changed by this investigation.
 
-The supported SQL/projector/document mutation APIs must all be covered. Raw byte
-writes and returned native Midge transactions are low-level escape paths that can
-bypass SQL row/index/catalog invariants; direct concurrent mutation of Cassie's
-internal authoritative keys through those escapes is outside the selected SQL
-snapshot contract. This boundary does not exclude a production SQL/REST caller:
-the source inventory found Data raw writes in corruption fixtures, Schema raw
-deletes for REST session tokens, native REST session issuance, Temp query-cache
-writes, and native orphaned vector staging/marker cleanup. All in-repository
-production write callers now use the private guarded adapter transaction; public
-raw-byte writes also use its outcome guard. Fresh public native transaction opens
-check recovery admission without changing their signatures. A native transaction
-already returned to external code remains the explicit low-level escape. Any
-additional authoritative production writer must join the gate before RW is
-enabled.
+The supported SQL/projector/document mutation APIs and public raw point writes
+must all be covered by the private observed adapter path. A returned native
+read-write transaction cannot be observed at its later commit. The selected
+interop boundary is therefore mutually exclusive for each Midge instance: once
+any public native writable transaction has been returned, new read-write RR
+capture fails with `0A000` until that instance is closed; once tracked read-write
+RR has been admitted, subsequent public native writable transaction factories
+fail with `0A000` for the rest of that instance's lifetime. One private admission
+lock protects both transitions. No public reset knob is added. Read-only RR,
+READ COMMITTED, read-only native transactions and ordinary private SQL/REST
+writers remain available, subject to normal recovery admission. Jev selected
+this source-compatible fail-closed policy at 0.71.
+
+The exact public native factories are `schema_tx`, `data_tx`, `database_tx`,
+`temp_tx`, `default_tx` and `begin_families_tx`. `Midge.engine` is private to the
+adapter; Midge exposes no native Engine Arc/reference or dereference. Public
+`database_family`, `storage_layout`, `bootstrap_families` and
+`ensure_families_ready` return native column-family handles whose published
+0.5.1 API is only `new`, `id` and `name`; they cannot create a writer. A native
+read-only transaction rejects `put`, `insert`, `delete` and `delete_range`, and
+has no mode-changing API. The internal AdapterTransaction mutable dereference
+must be removed so every authoritative mutation uses an explicit observed
+wrapper. Internal initialization, SQL/REST, cache and cleanup writers use private
+factories and must not latch native-escape mode. New native handle APIs require
+the same capability audit before they can participate in this profile.
 
 Common obligations remain: per-command own-write overlays over one retained
 committed view, own catalog changes over the original catalog snapshot, precise
@@ -588,3 +599,79 @@ its live own-write behavior; a global rebound thread-local scope would wrongly
 hide a parent inserted earlier in the same command from a foreign-key check.
 Jev selected these existing read boundaries at 1.00 after source inspection;
 no global session-identity check is weakened.
+
+### Selected row-fence integration
+
+The new RW owner retains a separately admitted private boxed read-write native
+transaction, using its old start sequence and `LastWriteWins` only for the
+assertion-only validation step. It is captured with the immutable Data view
+under the same Cassie database publication gate. The fence owns its engine Arc
+and narrow memory lease; it retains no request cancellation/deadline token.
+
+For each final changed row, validate the modern row key, the column-store row
+marker, and the legacy document key against that retained native start. The
+current/own-DDL catalog supplies the relation identity without cloning a large
+encoding descriptor. If any representation existed in the retained view, all
+three are asserted, including the other absent slots; a marker rewritten with
+the same value still conflicts through the published start-sequence check. If
+all three were absent, fresh uniqueness and normal atomic publication protect
+the new row. PostgreSQL 18.6 permits a new insertion after another transaction's
+completed insert/delete against an originally empty view; an old missing-key
+assertion would incorrectly reject that case. The six pinned PK/UNIQUE controls
+supersede the earlier blanket-absence design judgment; Jev selected this
+correction at 1.00. Do not assert the shared data epoch or unrelated rows.
+
+Cassie admits its boxed owner and constructed key/value input buffers against
+the current commit request; the native assertion pool remains independently
+bounded by Midge (selected at 1.00). Borrow final staged identifiers rather than
+cloning their JSON payloads. Acquire existing referential/collection gates before
+the database publication window, then keep that window through assertion-only
+validation and fresh normal atomic publication. Every new RW COMMIT attempt
+failure retires the block to Idle and returns its original error; earlier
+statement errors keep the snapshot/fence for savepoint recovery (selected at
+1.00). This is an implementation contract; RW support remains unselected at
+runtime until the complete accepted behavior and executable gate pass.
+
+
+### Selected early conflict authority
+
+Pinned PostgreSQL 18.6 rejects an actual current PK/UNIQUE conflict target
+changed after the retained view with `40001` at INSERT, before RETURNING or
+DO UPDATE filter evaluation. The 24-case oracle includes same-payload UPDATE,
+changed UPDATE, delete/reinsert, target absent from the older view, DO NOTHING
+and DO UPDATE WHERE FALSE. A final changed-row fence alone cannot cover these
+no-write actions or the required error phase. The six current-empty controls
+allow a new INSERT after another transaction's completed insert/delete, so the
+check applies to the resolved current target, not every formerly absent key.
+
+The selected Cassie-only supplement is bounded process-local authoritative-key
+mutation history (Jev 0.93), with no persisted format or Midge change. Under the
+complete database publication gate, a RW snapshot registers the current checked
+local publication sequence. Every private adapter point put/delete records
+modern row, column-store row-marker and legacy document keys even before any RR
+owner exists, because a writer can stage before capture and commit afterwards.
+Same-value puts count as mutations. Deferred overlays publish no history until
+the actual native transaction publishes them.
+
+Before native publication, admit all history growth. Install confirmed mutation
+sequences infallibly after native success and before releasing the same gate;
+known failures install nothing, and unknown outcomes quarantine the instance.
+A resolved conflict target whose key changed after the retained sequence fails
+before either conflict action/filter/RETURNING, with an exemption for the
+transaction's own staged row. Keep the old-present native final written-row
+fence as a separate first-committer-wins authority. RR conflict-intent resolution
+must not take READ COMMITTED's fresh-target retry path.
+
+A dedicated bounded budget per physical database family, derived from the
+existing configured query-memory allowance, owns stage-key logs, history keys,
+container backing, active registrations and publication preparation overlap
+(Jev 0.86). It retains no request cancellation/deadline. Exhaustion returns
+`54000` before staging/publication; no required live history is evicted. Sequence
+exhaustion also fails before publication. Registration/drop and pruning use the
+same family owner and lock ordering; release history after the last relevant
+snapshot. New physical families/restores establish a new baseline, while renames
+preserve stable modern relation identity and log any legacy-key rewrites.
+
+This amendment selects implementation work, not support qualification. RW stays
+rejected until early-phase/ABA/no-write, disjoint writer, native-interop,
+resource, savepoint/portal and recovery obligations pass the frozen full gate.

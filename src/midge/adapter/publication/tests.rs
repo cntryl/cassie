@@ -8,6 +8,19 @@ use super::*;
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryCancellationHandle;
 
+thread_local! {
+    static NEXT_PUBLICATION: std::cell::RefCell<Option<Box<dyn FnOnce(PublicationBoundary)>>> = const {
+        std::cell::RefCell::new(None)
+    };
+}
+
+pub(super) fn observe_publication(boundary: PublicationBoundary) {
+    let callback = NEXT_PUBLICATION.with(|slot| slot.borrow_mut().take());
+    if let Some(callback) = callback {
+        callback(boundary);
+    }
+}
+
 fn controls(cancellation: QueryCancellationHandle) -> QueryExecutionControls {
     QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
@@ -287,4 +300,108 @@ fn should_preserve_rest_cancellation_for_an_explicit_snapshot_window() {
     // Assert
     assert!(matches!(blocked, Err(CassieError::QueryCancelled)));
     assert!(!submitted.get());
+}
+
+#[test]
+fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
+    // Arrange
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE fenced_rows (value INT)",
+        "CREATE TABLE competing_rows (value INT)",
+    ] {
+        cassie
+            .execute_sql(&session, sql, Vec::new())
+            .expect("table");
+    }
+    cassie
+        .midge
+        .put_document(
+            "fenced_rows",
+            Some("one".to_owned()),
+            serde_json::json!({"value": 1}),
+        )
+        .expect("seed");
+    let identity = cassie
+        .catalog
+        .collection_storage_id("fenced_rows")
+        .expect("relation identity");
+    let origin = controls(QueryCancellationHandle::new());
+    let fence =
+        crate::midge::adapter::RetainedRowFence::capture(&cassie.midge, "postgres", &origin)
+            .expect("old row fence");
+    let request = controls(QueryCancellationHandle::new());
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (waiting_tx, waiting_rx) = mpsc::channel();
+    let other = Arc::clone(&cassie.midge);
+    let other_events = Arc::clone(&events);
+
+    // Act
+    let worker = cassie
+        .midge
+        .with_database_publication("postgres", &request, || {
+            let worker = std::thread::spawn(move || {
+                NEXT_PUBLICATION.with(|slot| {
+                    *slot.borrow_mut() = Some(Box::new(move |boundary| {
+                        assert!(boundary == PublicationBoundary::WaitingForGate);
+                        waiting_tx.send(()).expect("native commit is waiting");
+                    }))
+                });
+                let current = controls(QueryCancellationHandle::new());
+                let _scope = PublicationControlScope::enter(Some(&current));
+                other
+                    .put_document(
+                        "competing_rows",
+                        Some("two".to_owned()),
+                        serde_json::json!({"value": 2}),
+                    )
+                    .expect("competing document publication");
+                other_events.lock().expect("events").push("competing");
+            });
+            waiting_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("actual competing commit reached held database gate");
+            fence.validate_rows([Ok(("fenced_rows", identity, "one"))], &request)?;
+            events.lock().expect("events").push("validated");
+            cassie.midge.put_document(
+                "fenced_rows",
+                Some("one".to_owned()),
+                serde_json::json!({"value": 3}),
+            )?;
+            events.lock().expect("events").push("published");
+            Ok(worker)
+        })
+        .expect("complete protected publication window");
+    worker.join().expect("competing publisher");
+
+    // Assert
+    assert_eq!(
+        *events.lock().expect("events"),
+        ["validated", "published", "competing"]
+    );
+    assert_eq!(
+        cassie
+            .midge
+            .get_document("fenced_rows", "one")
+            .expect("own row")
+            .expect("row")
+            .payload["value"],
+        3
+    );
+    assert_eq!(
+        cassie
+            .midge
+            .get_document("competing_rows", "two")
+            .expect("other row")
+            .expect("row")
+            .payload["value"],
+        2
+    );
+    assert_eq!(origin.current_query_memory_bytes(), 0);
+    assert_eq!(request.current_query_memory_bytes(), 0);
 }

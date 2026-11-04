@@ -5,10 +5,11 @@ use std::mem::size_of;
 use super::{Arc, CassieError, CassieSession, SessionTransactionStatus, TransactionIsolation};
 use crate::app::TransactionErrorKind;
 use crate::catalog::ControlledCatalogSnapshot;
-use crate::midge::adapter::{Midge, StatementDataRead};
+use crate::midge::adapter::{Midge, RetainedRowFence, StatementDataRead};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 pub(super) struct TransactionReadSnapshot {
+    fence: parking_lot::Mutex<Option<Box<RetainedRowFence>>>,
     data: Arc<StatementDataRead>,
     catalog: Arc<ControlledCatalogSnapshot>,
     _memory: QueryMemoryReservation,
@@ -25,6 +26,12 @@ impl std::fmt::Debug for TransactionReadSnapshot {
 }
 
 impl CassieSession {
+    pub(crate) fn is_repeatable_read_write(&self) -> bool {
+        let transaction = self.transaction.lock();
+        transaction.isolation == Some(TransactionIsolation::RepeatableRead)
+            && transaction.modes.read_only == Some(false)
+    }
+
     pub(crate) fn repeatable_read_capture_generation(&self) -> Option<u64> {
         let transaction = self.transaction.lock();
         (transaction.status == SessionTransactionStatus::InTransaction
@@ -39,12 +46,14 @@ impl CassieSession {
         generation: u64,
         data: Arc<StatementDataRead>,
         catalog: Arc<ControlledCatalogSnapshot>,
+        fence: Option<Box<RetainedRowFence>>,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         controls.check_interruption()?;
         let memory = controls
             .reserve_query_memory(size_of::<TransactionReadSnapshot>() + 2 * size_of::<usize>())?;
         let owner = Arc::new(TransactionReadSnapshot {
+            fence: parking_lot::Mutex::new(fence),
             data,
             catalog,
             _memory: memory,
@@ -65,6 +74,37 @@ impl CassieSession {
             transaction.has_query = true;
         }
         Ok(())
+    }
+
+    pub(crate) fn take_repeatable_row_fence(&self) -> Option<Box<RetainedRowFence>> {
+        let transaction = self.transaction.lock();
+        let owner = transaction.repeatable_read.as_ref()?;
+        let fence = owner.fence.lock().take();
+        fence
+    }
+
+    pub(crate) fn validate_repeatable_row_writes(
+        &self,
+        fence: Box<RetainedRowFence>,
+        catalog: &crate::catalog::Catalog,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let transaction = self.transaction.lock();
+        let rows = transaction.writes.iter().flat_map(|(collection, changes)| {
+            let relation_id = catalog.collection_storage_id(collection);
+            changes.keys().map(move |id| {
+                relation_id
+                    .filter(|identity| *identity != 0)
+                    .map(|identity| (collection.as_str(), identity, id.as_str()))
+                    .ok_or_else(|| {
+                        CassieError::Unsupported(
+                            "REPEATABLE READ row validation requires a persisted relation identity"
+                                .to_owned(),
+                        )
+                    })
+            })
+        });
+        fence.validate_rows(rows, controls)
     }
 
     pub(crate) fn repeatable_statement_read(

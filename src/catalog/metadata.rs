@@ -191,6 +191,19 @@ impl Catalog {
         })
     }
 
+    pub(crate) fn collection_storage_id(&self, name: &str) -> Option<u64> {
+        let collections = self.collections.read();
+        collections
+            .get(name)
+            .or_else(|| {
+                collections
+                    .iter()
+                    .find(|(stored, _)| name_matches(stored, name))
+                    .map(|(_, metadata)| metadata)
+            })
+            .map(|metadata| metadata.storage_id)
+    }
+
     #[must_use]
     pub fn collection_storage_mode(&self, name: &str) -> Option<CollectionStorageMode> {
         let base = self.get_collection(name)?.storage_mode;

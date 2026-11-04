@@ -5921,3 +5921,20 @@ head does not trigger another 9,933-test run by itself. Its source/test
 qualification remains pending; the next complete ordered gate will cover the
 substantial combined owner/fence/RW integration. The exact sixth-head runtime
 receipt remains authoritative for that earlier head only.
+
+
+### Pending RW row-fence source increment (2026-11-04)
+
+The private retained assertion owner now has authored modern/column/legacy
+same-payload conflict, disjoint-row, old-empty insert/delete, final-row
+cancellation, and one-/two-row input-admission probes. A synchronized native
+publisher probe covers the gate window. The old-empty correction follows six
+pinned PostgreSQL18.6 successful current-empty insertion controls; it supersedes
+the earlier blanket missing-key assertion design. Existing native internals are
+unchanged. RW mode remains rejected.
+
+This is source-only evidence. Direct Rust formatting/parser and diff checks
+passed; no build or test was run for this increment under the user's batching
+direction. Execute these probes and the full required ordered gate only after
+the substantive RW/history/admission bundle is frozen. The prior RO v6 runtime
+pass does not qualify this newer source.

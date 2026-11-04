@@ -15,6 +15,10 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
+#[path = "transactions/row_fence/mod.rs"]
+mod row_fence;
+pub(crate) use row_fence::RetainedRowFence;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct StorageOverlay {
     pub(crate) changes: BTreeMap<Vec<u8>, StorageMutation>,
@@ -203,6 +207,14 @@ impl AdapterTransaction {
         self.inner_mut().set_conflict_policy(policy);
     }
 
+    pub(crate) fn assert_value(
+        &mut self,
+        key: Vec<u8>,
+        expected: Option<Vec<u8>>,
+    ) -> Result<(), cntryl_midge::MidgeError> {
+        self.inner_mut().assert_value(key, expected)
+    }
+
     pub(crate) fn assert_expected_value(
         &mut self,
         key: Vec<u8>,
@@ -262,12 +274,6 @@ impl std::ops::Deref for AdapterTransaction {
 
     fn deref(&self) -> &Self::Target {
         self.inner()
-    }
-}
-
-impl std::ops::DerefMut for AdapterTransaction {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.inner_mut()
     }
 }
 

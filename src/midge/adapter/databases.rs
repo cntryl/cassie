@@ -618,7 +618,7 @@ impl Midge {
     }
 
     fn write_database_metadata(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         metadata: &DatabaseMeta,
     ) -> Result<(), CassieError> {
         let value =
@@ -639,7 +639,7 @@ impl Midge {
     }
 
     fn write_lifecycle_record(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         record: &DatabaseLifecycleRecord,
     ) -> Result<(), CassieError> {
         let value =
@@ -654,7 +654,7 @@ impl Midge {
     }
 
     fn delete_lifecycle_record(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         operation_id: &str,
     ) -> Result<(), CassieError> {
         tx.delete(key_encoding::database_lifecycle_key(operation_id))

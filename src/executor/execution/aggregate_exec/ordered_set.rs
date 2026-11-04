@@ -153,8 +153,7 @@ fn evaluate_percentile(
     else {
         return Ok(Value::Null);
     };
-    let (values, mut retained, _sort_memory) =
-        collect_sorted_values(function, rows, order, context)?;
+    let (values, mut retained) = collect_sorted_values(function, rows, order, context)?;
 
     if values.is_empty() {
         return Ok(Value::Null);
@@ -240,7 +239,25 @@ fn collect_sorted_values(
     rows: &[BatchRow],
     order: &crate::sql::ast::OrderExpr,
     context: &AggregateExecutionContext<'_>,
-) -> Result<(Vec<Value>, QueryMemoryReservation, QueryMemoryReservation), QueryError> {
+) -> Result<(Vec<Value>, QueryMemoryReservation), QueryError> {
+    collect_sorted_values_using(function, rows, order, context, |values| {
+        try_sort_by(values, context.controls, |left, right| {
+            let comparison = compare_values(left, right);
+            match order.direction {
+                SortDirection::Asc => comparison,
+                SortDirection::Desc => comparison.reverse(),
+            }
+        })
+    })
+}
+
+fn collect_sorted_values_using(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    order: &crate::sql::ast::OrderExpr,
+    context: &AggregateExecutionContext<'_>,
+    sort: impl FnOnce(&mut [Value]) -> Result<(), QueryError>,
+) -> Result<(Vec<Value>, QueryMemoryReservation), QueryError> {
     let mut values = Vec::new();
     let mut retained = context.controls.reserve_query_memory(0)?;
     for row in rows {
@@ -263,23 +280,13 @@ fn collect_sorted_values(
             grow_values(&mut values, &mut retained, "percentile")?;
             retained.try_grow(value_clone_bytes(&value)?)?;
             values.push(value);
+            context.controls.aggregate_input_retained()?;
         }
         drop(temporary);
     }
     check_timeout(context.controls)?;
-    let sort_memory_bytes = values
-        .len()
-        .checked_mul(size_of::<Value>())
-        .ok_or_else(|| CassieError::ResourceLimit("percentile sort capacity overflow".into()))?;
-    let sort_memory = context.controls.reserve_query_memory(sort_memory_bytes)?;
-    values.sort_by(|left, right| {
-        let comparison = compare_values(left, right);
-        match order.direction {
-            SortDirection::Asc => comparison,
-            SortDirection::Desc => comparison.reverse(),
-        }
-    });
-    Ok((values, retained, sort_memory))
+    sort(&mut values)?;
+    Ok((values, retained))
 }
 
 fn percentile_array_values(
@@ -578,12 +585,82 @@ fn grow_values<T>(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::time::Instant;
 
     use crate::config::CassieRuntimeLimits;
     use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
-    use super::try_sort_by;
+    use super::{collect_sorted_values_using, try_sort_by};
+
+    #[test]
+    fn should_release_percentile_ownership_given_comparison_cancellation() {
+        // Arrange
+        let catalog = crate::catalog::Catalog::new();
+        catalog.register_collection(
+            "events",
+            vec![("value".to_owned(), crate::types::DataType::Float)],
+        );
+        let parsed = crate::sql::parse_statement(
+            "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY value) FROM events",
+        )
+        .expect("parse percentile");
+        let plan = crate::executor::execution::build_logical_plan(&catalog, &parsed)
+            .expect("percentile plan");
+        let specs = super::super::aggregate_specs(&plan);
+        let function = &specs[0].function;
+        let cancellation = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        let routines = HashMap::new();
+        let context = super::AggregateExecutionContext {
+            plan: &plan,
+            params: &[],
+            search_context: None,
+            user_functions: &routines,
+            session: None,
+            controls: &controls,
+            after_partition_row: None,
+        };
+        let rows = [3.0, 1.0, 2.0].map(|value| {
+            crate::executor::batch::BatchRow::new(vec![(
+                "value".to_owned(),
+                crate::types::Value::Float64(value),
+            )])
+        });
+        let mut comparisons = 0;
+        let mut retained_at_sort = false;
+
+        // Act
+        let result = collect_sorted_values_using(
+            function,
+            &rows,
+            &function.order_by[0],
+            &context,
+            |values| {
+                retained_at_sort = controls.current_query_memory_bytes() > 0;
+                try_sort_by(values, &controls, |left, right| {
+                    comparisons += 1;
+                    if comparisons == 2 {
+                        cancellation.cancel();
+                    }
+                    crate::executor::semantic::compare_values(left, right)
+                })
+            },
+        );
+
+        // Assert
+        assert!(retained_at_sort);
+        assert_eq!(comparisons, 2);
+        assert!(result
+            .expect_err("cancel during actual percentile sort")
+            .to_string()
+            .contains("query canceled"));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
 
     #[test]
     fn should_order_values_when_an_ordered_set_sort_completes() {

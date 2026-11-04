@@ -197,6 +197,7 @@ mod tests {
             session: None,
             exists: None,
             controls: Some(&controls),
+            memory: None,
         };
 
         // Act
@@ -242,6 +243,7 @@ mod tests {
             session: None,
             exists: None,
             controls: Some(&controls),
+            memory: None,
         };
 
         // Act

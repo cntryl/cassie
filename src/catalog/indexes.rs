@@ -116,6 +116,35 @@ impl IndexMeta {
     pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = "__cassie_nulls_not_distinct";
 
     #[must_use]
+    pub(crate) fn read_definition_matches(&self, other: &Self) -> bool {
+        self.field == other.field
+            && self.fields == other.fields
+            && self.expressions == other.expressions
+            && self.include_fields == other.include_fields
+            && self.predicate == other.predicate
+            && self.kind == other.kind
+            && self.unique == other.unique
+            && self
+                .options
+                .iter()
+                .filter(|(key, _)| !Self::is_identity_option(key))
+                .eq(other
+                    .options
+                    .iter()
+                    .filter(|(key, _)| !Self::is_identity_option(key)))
+    }
+
+    fn is_identity_option(key: &str) -> bool {
+        matches!(
+            key,
+            Self::STORAGE_ID_OPTION
+                | Self::RELATION_ID_OPTION
+                | Self::CATALOG_OID_OPTION
+                | Self::UNIQUE_RESERVATION_NAME_OPTION
+        )
+    }
+
+    #[must_use]
     pub(crate) fn clone_for_relation(&self, collection: &str, name: &str) -> Self {
         let mut cloned = self.clone();
         cloned.collection = collection.to_string();

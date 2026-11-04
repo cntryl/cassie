@@ -43,7 +43,9 @@ pub(super) fn execute_scalar_index_read(
         return Ok(Some(Vec::new()));
     }
 
-    if session.is_some_and(|session| !session.transaction_index_visible(&spec.index)) {
+    if session
+        .is_some_and(|session| !session.transaction_index_visible(&spec.index, &cassie.catalog))
+    {
         return Ok(None);
     }
 

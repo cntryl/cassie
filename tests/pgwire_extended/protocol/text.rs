@@ -7,6 +7,8 @@ use crate::support_pgwire as wire;
 mod like_escape_residuals;
 #[path = "../patterns/named_regexp_like_parameters.rs"]
 mod named_regexp_like_parameters;
+#[path = "../patterns/similar_parameters.rs"]
+mod similar_parameters;
 
 #[test]
 fn should_describe_ilike_parameter_types() {

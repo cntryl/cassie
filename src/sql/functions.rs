@@ -197,6 +197,7 @@ pub enum FunctionId {
     Ascii,
     Chr,
     RegexpLike,
+    SimilarToEscape,
     RegexpCount,
     RegexpReplace,
     StartsWith,

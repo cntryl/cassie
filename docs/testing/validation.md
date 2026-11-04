@@ -5776,3 +5776,27 @@ IDs still require matching retained IDs. Jev selected this rule at 1.00. Its
 index-definition controls. A positive native-seek counter covers both logical
 and persisted/hydrated catalog shapes. The corrected head requires the complete
 ordered gate; no probe pass is inferred from advisory selection.
+
+The third frozen RO gate at `7d2b1e139cc7a4e31309372a912dadd3ba640524`
+passed build (21.47 s). Full tests ran for 707.60 s and stopped at
+`pgwire_extended`: 3,621 passed and one new fixture failed with SQLSTATE `34000`.
+That fixture incorrectly issued an idle Sync after binding its portal; idle
+Sync intentionally retires portals. The corrected fixture binds the SELECT and
+executes BEGIN in one extended cycle, then synchronizes inside the explicit
+block. It preserves the existing idle cleanup behavior and tests first capture
+at direct Execute. Jev selected this reachable boundary at 0.81. Clippy, fmt
+check and policy stages were not reached in this run.
+
+The retained-admission audit found that `RunningQueryGuard` only owns active
+schema/admission/running-query counters. Snapshot reservations independently
+retain their original `QueryMemoryTracker`; later statements share that original
+admission and use separate budgets for new allocations. The runtime memory
+metric observes the latest recorded tracker rather than summing all idle
+transactions. A new focused probe drops the originating controls and query
+guard, then requires positive retained charge with zero running queries,
+positive shared charge after rollback, positive catalog-only charge after the
+data alias retires, and zero only after the last catalog alias retires. Jev's
+initial 0.37 ownership-gap lead prompted these explicit post-origin and
+post-session alias controls; the bounded follow-up selected no supported false
+release path at 0.68 (remaining individual candidates below 0.30). These
+authored fixes require the next complete ordered gate; no pass is inferred.

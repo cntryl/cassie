@@ -7,6 +7,8 @@ pub(crate) use expressions::{
 #[path = "inference_types.rs"]
 mod types;
 pub(crate) use types::common_case_type;
+#[path = "inference_aliases.rs"]
+mod aliases;
 #[path = "inference_set.rs"]
 mod set;
 
@@ -113,16 +115,13 @@ pub(super) fn infer_select_schema_with_outer(
         parameter_types,
         outer_fields,
     )?;
-    let lookup = if let Some(outer) = outer_fields {
-        let mut lookup = source_schema.clone();
-        append_source_qualifiers(&select.source, catalog, &mut lookup)?;
+    let mut lookup = source_schema.clone();
+    append_source_qualifiers(&select.source, catalog, &mut lookup)?;
+    if let Some(outer) = outer_fields {
         // The inner source owns unqualified names; explicit outer names remain
         // available only in this inference lookup, never in wildcard output.
         lookup.fields.extend(outer.fields.iter().cloned());
-        lookup
-    } else {
-        source_schema.clone()
-    };
+    }
     let cte_scope = cte_schemas
         .iter()
         .map(|(name, schema)| {
@@ -482,6 +481,7 @@ pub(super) fn append_source_qualifiers(
             append_source_qualifiers(left, catalog, schema)?;
             append_source_qualifiers(right, catalog, schema)?;
         }
+        QuerySource::Aliased { .. } => aliases::append_visible_fields(source, schema),
         _ => {}
     }
     Ok(())
@@ -710,6 +710,17 @@ pub(crate) fn infer_function_return_type(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
 ) -> Option<DataType> {
+    if function
+        .name
+        .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+    {
+        return expressions::infer_array_constructor_type(
+            function,
+            source_schema,
+            user_functions,
+            parameter_types,
+        );
+    }
     let name = function.name.to_ascii_lowercase();
     if let Some(data_type) =
         types::temporal_function_type(function, source_schema, user_functions, parameter_types)

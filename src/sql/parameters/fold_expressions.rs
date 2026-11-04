@@ -143,11 +143,9 @@ impl Fold<'_, '_> {
         subquery: &ast::SubqueryExpr,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
-        let result = subquery
-            .result_type()
-            .map_or_else(Summary::unqualified, |data_type| {
-                Summary::known(oid(&data_type))
-            });
+        let result = self
+            .subquery_output_summary(subquery, frame)
+            .unwrap_or_else(Summary::unqualified);
         let operands = subquery.operands().len();
         let ast::QueryStatement::Select(select) = &subquery.query.statement else {
             return Ok(result);

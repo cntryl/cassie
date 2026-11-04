@@ -272,3 +272,70 @@ Their historical PostgreSQL conformance tests do not select runtime support.
 The [2026-10-24 MONEY audit](testing/scope-audit-2026-10-24.md) records removal
 of its 30 unselected parity cases and retention of an explicit unsupported-type
 boundary test. Exact NUMERIC read-model values and their coverage remain active.
+
+
+## Selected v0.2 named types and vector identity (2026-11-04)
+
+The user approved this contract direction on 2026-11-04. It is selected
+implementation scope, not implemented or qualified support. Existing rejection
+and compatibility boundaries remain until the owning acceptance cases pass.
+
+### #828
+
+Add CREATE TYPE name AS (...), relation row types, ROW construction/casts/field access,
+typed JSON recordset outputs, and CREATE/ALTER/DROP DOMAIN over already supported
+scalar/container families. Allocate stable database-scoped type/array OIDs from Cassie's
+object allocator rather than copying arbitrary PostgreSQL user OIDs. Preserve field
+order, per-field logical identity and dropped-field positions; distinguish SQL NULL
+record from a non-NULL record whose fields are all NULL. Anonymous RECORD is transient
+and cannot be a stored column. Domains retain named declared identity, base typmods and
+CHECK/NOT NULL validation including NULL; common-type/result flattening follows the
+selected PostgreSQL oracle. Select rename, attribute add/drop with versioned
+descriptors, and domain constraint add/drop only after validation of existing data;
+unsupported destructive base-type changes reject before mutation.
+
+Introduce explicit public named-type/record value carriers and immutable versioned
+descriptors. Reserve CRB1 additive tags 0x0F for composite and 0x10 for domain
+(currently unused). Each new payload begins with version u8=1, type OID u32 and
+descriptor revision u64; composite then has checked field count u32 and recursively
+framed nullable values, domain one framed base value. New integer fields use big-endian
+encoding; existing tags/bytes do not change. Domain NULL uses the outer NULL marker and
+cannot wrap a NULL base value to bypass constraints. Existing CRB1 scalar bytes remain
+unchanged; new tagged payloads require the common compatibility marker. Retain old
+descriptors for old rows, including dropped fields. Text/binary RECORD uses PostgreSQL
+field count/OID/length framing; named composites use allocated OIDs, transient RECORD
+uses 2249/contextual typmod. Domain output uses base codecs where SQL resolution
+flattens it. Catalog/schema/constraint/row changes publish in one family and survive
+restart/image restore; failed validation publishes nothing.
+
+### #843, #844
+
+Select only pgcrypto 1.4 and vector 0.8.7 as built-in SQL shims. Root installs into an
+existing selected schema; support IF NOT EXISTS, selected schema relocation,
+same-version UPDATE no-op, DROP and transactional dependency rules; reject unknown
+versions/extensions and native library loading. digest accepts TEXT/BYTEA plus SHA256
+only, is strict for SQL NULL, returns BYTEA 17 and resolves only while pgcrypto is
+installed. For vector, select one allocated per-database canonical type OID with
+dimension in typmod, plus bare vector typmod -1 with dimensions inferred from each
+finite f32 value. Keep vector arrays outside this issue and report unsupported metadata
+truthfully. Select <-> L2, <#> negative inner product and <=> cosine plus matching
+documented opclasses/ANN options, pinned to pgvector 0.8.7 oracle behavior.
+
+Persist extension identity/version/schema/owner and registered routine/type/operator
+identities as versioned owning-family records. Installation/removal and dependent
+catalog changes are atomic and recoverable. Keep existing vector row representation and
+declared dimensions; canonical SQL descriptors use the installed type OID and typmod
+instead of private 100000+n. Binary vector framing remains dimension int16, reserved
+zero int16, big-endian f32 components with finite validation. This is an explicit public
+wire identity change: invalidate prepared descriptors and require reconnect/reprepare
+when the profile activates; do not silently reinterpret previously supplied private
+OIDs. Reserve legacy OID ranges from dynamic allocation. Existing Rust DataType OID
+helpers need a reviewed contextual resolver contract. DROP RESTRICT protects live
+dependent columns/indexes; CASCADE behavior must remove actual dependents atomically.
+Restore retains extension IDs and rebuilds derived ANN state from authoritative vectors.
+
+These new durable features require the selected compatibility transition in
+[Release Baseline](release-baseline.md#selected-v02-compatibility-transition-2026-11-04).
+Named ENUM #827 remains deferred to v0.4; historical full-parity/CRB3 proposals
+remain superseded. Codec goldens, checked framing and version admission precede
+new row-value admission. Existing tags and scalar bytes retain their meaning.

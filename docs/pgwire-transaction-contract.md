@@ -300,3 +300,31 @@ transaction publication/visibility qualification [#763](https://github.com/cntry
 and packet/client workflow qualification [#780](https://github.com/cntryl/cassie/issues/780).
 No stronger isolation, distributed transaction or general PostgreSQL
 server-parity claim follows from this finite acceptance.
+
+
+## Selected v0.2 snapshot profile (2026-11-04)
+
+The user approved this contract direction on 2026-11-04. It is selected
+implementation scope, not implemented or qualified support. Existing rejection
+and compatibility boundaries remain until the owning acceptance cases pass.
+
+### #819
+
+Keep READ COMMITTED as default. Add REPEATABLE READ for read-only and read-write
+transactions within one database family. Acquire a retained data/catalog view on the
+first snapshot-taking statement, overlay own writes, and retain it through transaction
+completion and suspended portals. Savepoint rollback restores own writes/catalog changes
+without advancing the snapshot. Use first-committer-wins write validation: a write based
+on a row changed since the retained snapshot fails with 40001 before publication. Reject
+SERIALIZABLE, READ UNCOMMITTED aliases, and DEFERRABLE in the new RR profile with 0A000;
+do not claim predicate-serializable guarantees. Finish owner-wait/error-phase semantics
+for the selected scalar primary/unique shapes across supported INSERT/UPDATE/ON
+CONFLICT/COPY paths before claiming unrestricted projector concurrency.
+
+Use direct existing Midge statement/snapshot primitives plus a transaction-owned
+retained view; no durable snapshot image or new Midge API is assumed. Prove Midge can
+retain the required view before runtime work; if not, record the upstream dependency.
+Bound retained resources/wait graph, release on commit/rollback/disconnect/cancel,
+report 40P01 for detected wait cycles and 57014 for cancellation. Existing transaction
+error and ReadyForQuery carriers remain authoritative. No persistent format change is
+needed for isolation itself.

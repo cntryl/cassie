@@ -142,3 +142,33 @@ acceptance. That merged record reports all 20 ordered local stages passed,
 3,633 passed/0 failed/9 ignored and all 13 hosted checks passed. Preserve those
 source-bound results. They do not qualify the newly planned mixed SQL operator
 correction or complete #798's remaining persisted/native obligations.
+
+
+## Selected v0.2 persisted-definition expansion (2026-11-04)
+
+The user approved this contract direction on 2026-11-04. It is selected
+implementation scope, not implemented or qualified support. Existing rejection
+and compatibility boundaries remain until the owning acceptance cases pass.
+
+### #798
+
+Authorize IS DISTINCT FROM and IS NOT DISTINCT FROM in the existing supported
+CHECK/default, view, scalar-index expression/predicate, materialized-projection and
+rollup definition contexts. Keep routine execution outside roadmap scope. Retain
+once-per-operand evaluation, pre-NULL type compatibility checks, ordinary predicate
+equality for non-NULL operands, BOOLEAN OID 16, exact integer behavior and selected
+mixed primitive casts. Qualify a private hash-join NULL bucket and native comparison
+kernels against scalar fallback. Null-omitting indexes must keep scan/residual fallback
+for NULL matches unless a separately proven existing index can supply the complete
+answer; do not invent a new index key encoding just to claim dispatch.
+
+Version durable expression-definition records and preserve existing serialized
+variants/goldens. Pin admitted operator semantics to the documented contract version,
+validate ASTs on create/load/restore, and reject unknown future semantics. Rebuild
+derived indexes from authoritative rows; failed or rolled-back admission leaves no
+definition/index/name reservation. No new value OID or wire codec.
+
+The earlier persisted-definition exclusion describes current runtime behavior.
+Its replacement is selected above, but admission stays rejected until the new
+versioned contract and its create/load/restore/rollback tests are implemented.
+No index key encoding or stored-program execution expansion is selected.

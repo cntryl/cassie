@@ -74,10 +74,12 @@ a future product decision adds them to the roadmap.
 ## Planning gates
 
 Each feature milestone is a shippable release. Complete the required local
-validation on the exact release commit. The repository Actions permission readback
-reports `enabled: true` as of 2026-10-30, but `AGENTS.md` still prohibits enabling
-or dispatching workflows until the user explicitly changes that direction. Do not
-dispatch; report required backend and release workflow evidence as blocked.
+validation on the exact release commit. On 2026-11-04 the user directed that
+GitHub Actions should be enabled and that delivery should use stacked PRs and
+parallel isolated worktrees. The live permission readback reports `enabled: true`.
+Normal push and pull-request workflows are authorized. Verify required checks on
+each final PR head before merging in dependency order. Historical blocked or
+cancelled workflow results retain their original status.
 
 The dates below are planning targets set on 2026-10-20, not capacity-backed
 forecasts. They assume one serial delivery lane and the written exit criteria

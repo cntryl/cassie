@@ -141,6 +141,7 @@ impl DataType {
                 .and_then(|length| i32::try_from(length).ok())
                 .unwrap_or(-1),
             Self::Extended(kind) => kind.typmod(),
+            Self::Array(element) => element.atttypmod(),
             _ => -1,
         }
     }

@@ -32,12 +32,12 @@ Array-valued `ARRAY(SELECT ...)` accumulation follows the separate native
 shape/lower bounds fail `2202E`, and adding a dimension beyond six fails `54000`.
 Array rank does not create a different element-family array OID.
 
-The existing pending character-array cast boundary remains: VALUES casts to
-`CHAR(n)[]` or `VARCHAR(n)[]` fail with `0A000` until element length conversion
-is implemented. Scalar coercion inside a native constructor, such as
-`ARRAY['a'::CHAR(3)]`, retains that scalar's existing behavior. Accepting the
-text-array input without applying its element modifier is not supported.
-This is an outstanding #796/#807 obligation, not completed array-cast parity.
+The selected character-array cast increment applies element modifiers to
+`CHAR(n)[]` and `VARCHAR(n)[]`, including VALUES and native parameters, while
+preserving input shape and NULLs. Its scalar conversion and distinct input
+validation laws are in the [Type Contract](type-contract.md#character-array-element-conversion-2026-11-04).
+The implementation and new resource witnesses await the integrated gate;
+general array-cast and assignment parity are not implied.
 
 `WITH ORDINALITY` appends a non-NULL BIGINT column named `ordinality`, starting
 at one. It counts emitted rows, including rows containing NULL elements. It

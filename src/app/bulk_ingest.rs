@@ -509,6 +509,9 @@ fn copy_value_to_json(
                 let message = format!("field '{}' expects array: {error}", field.name);
                 match error {
                     crate::types::array::TextArrayError::Invalid(_) => CassieError::Parse(message),
+                    crate::types::array::TextArrayError::TypeInput(error) => {
+                        CassieError::TypeInput(error)
+                    }
                     crate::types::array::TextArrayError::UnsupportedJsonDocumentNull => {
                         CassieError::Unsupported(message)
                     }

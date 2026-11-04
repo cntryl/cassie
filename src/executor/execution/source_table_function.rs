@@ -165,7 +165,20 @@ fn execute_pg_input_error_info(
         ));
     };
     let data_type = crate::types::DataType::parse_sql(type_name).map_err(QueryError::General)?;
-    let result = filter::cast_value(&Value::String(input.clone()), &data_type);
+    let result = filter::character_arrays::validate_input(input, &data_type, Some(env.controls))
+        .unwrap_or_else(|| {
+            filter::cast_value(&Value::String(input.clone()), &data_type).map(|_| ())
+        });
+    if let Err(
+        error @ QueryError::Cassie(
+            crate::app::CassieError::ResourceLimit(_)
+            | crate::app::CassieError::QueryCancelled
+            | crate::app::CassieError::DeadlineExceeded,
+        ),
+    ) = result
+    {
+        return Err(error);
+    }
     let rows = match result {
         Ok(_) => vec![BatchRow::new(vec![
             ("message".into(), Value::Null),

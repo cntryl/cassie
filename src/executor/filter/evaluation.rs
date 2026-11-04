@@ -12,9 +12,44 @@ impl EvaluationMemory {
     pub(crate) fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
         Ok(Self(RefCell::new(controls.reserve_query_memory(0)?)))
     }
-    pub(super) fn grow(&self, bytes: usize) -> Result<(), QueryError> {
+    pub(crate) fn grow(&self, bytes: usize) -> Result<(), QueryError> {
         self.0.borrow_mut().try_grow(bytes).map_err(Into::into)
     }
+    pub(crate) fn into_reservation(self) -> QueryMemoryReservation {
+        self.0.into_inner()
+    }
+}
+
+pub(crate) struct ProjectionValueContext<'a> {
+    pub(crate) params: &'a [Value],
+    pub(crate) search: Option<&'a SearchContext>,
+    pub(crate) functions: &'a HashMap<String, FunctionMeta>,
+    pub(crate) session: Option<&'a CassieSession>,
+    pub(crate) resolver: Option<&'a super::ExistsResolver<'a>>,
+}
+
+pub(crate) fn evaluate_projection_value<R: RowAccess + ?Sized>(
+    row: &R,
+    expression: &Expr,
+    context: &ProjectionValueContext<'_>,
+    controls: &QueryExecutionControls,
+    memory: &EvaluationMemory,
+) -> Result<Value, QueryError> {
+    controls.check_interruption()?;
+    evaluate_expr_value_with_context(
+        row,
+        expression,
+        EvalContext {
+            params: context.params,
+            search_context: context.search,
+            user_functions: context.functions,
+            local_args: None,
+            session: context.session,
+            exists: context.resolver,
+            controls: Some(controls),
+            memory: Some(memory),
+        },
+    )
 }
 
 pub(crate) fn evaluate_source_argument<R: RowAccess + ?Sized>(

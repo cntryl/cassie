@@ -721,6 +721,31 @@ pub(crate) fn infer_function_return_type(
             parameter_types,
         );
     }
+    let result =
+        infer_function_result_type(function, source_schema, user_functions, parameter_types)?;
+    // These SQL conditional constructs have their own argument-derived type
+    // policy; they are not ordinary PostgreSQL FuncExpr result descriptors.
+    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::Coalesce
+                | crate::sql::functions::FunctionId::NullIf
+                | crate::sql::functions::FunctionId::Greatest
+                | crate::sql::functions::FunctionId::Least
+        )
+    }) {
+        Some(result)
+    } else {
+        Some(super::array_outputs::unmodified_result(result))
+    }
+}
+
+fn infer_function_result_type(
+    function: &FunctionCall,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
     if let Some(data_type) =
         types::temporal_function_type(function, source_schema, user_functions, parameter_types)

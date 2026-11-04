@@ -7,6 +7,10 @@ pub(super) fn scalar(
     source: Option<&DataType>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
+    if let Some(value) = super::character_arrays::cast(value, target, source, controls, None, true)
+    {
+        return value;
+    }
     if let Some(value) = text_cast(value, target, source, controls)? {
         return Ok(value);
     }
@@ -91,6 +95,10 @@ fn special_scalar_cast(
     // Explicit typmod casts truncate; assignment and function coercion still
     // use cast_scalar's bounded validation. Format the source before applying
     // the width so CHAR blanks and temporal spellings keep their SQL identity.
+    if let DataType::Char { length } = target {
+        let text = scalar(value, &DataType::Text, source, controls)?;
+        return character(&text, *length, controls).map(Some);
+    }
     if let DataType::Varchar {
         length: Some(width),
     } = target
@@ -312,21 +320,57 @@ pub(super) fn numeric_literal(
 pub(super) fn character(
     value: &ScalarValue,
     width: Option<u32>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     let Some(text) = super::cast_to_text(value) else {
         return Ok(ScalarValue::Null);
     };
-    let Some(width) = width else {
+    if width.is_none() {
         return Ok(ScalarValue::Str(text));
-    };
-    let width =
-        usize::try_from(width).map_err(|_| QueryError::General("CHAR width overflow".into()))?;
-    let mut result: String = text.chars().take(width).collect();
-    result.extend(std::iter::repeat_n(
-        ' ',
-        width.saturating_sub(result.chars().count()),
-    ));
+    }
+    let plan = crate::types::char_text::conversion_plan(&text, width, true, true)
+        .map_err(crate::app::CassieError::TypeInput)?;
+    let mut result = String::new();
+    result
+        .try_reserve_exact(plan.output_bytes)
+        .map_err(|error| {
+            crate::app::CassieError::ResourceLimit(format!(
+                "unable to allocate character output: {error}"
+            ))
+        })?;
+    if result.capacity() > plan.output_bytes {
+        return Err(crate::app::CassieError::ResourceLimit(
+            "allocator exceeded admitted character output capacity".into(),
+        )
+        .into());
+    }
+    result.push_str(&text[..plan.prefix_bytes]);
+    let mut remaining = plan.padding;
+    while remaining > 0 {
+        if let Some(controls) = controls {
+            controls.check_interruption()?;
+        }
+        let count = remaining.min(4096);
+        result.extend(std::iter::repeat_n(' ', count));
+        remaining -= count;
+    }
     Ok(ScalarValue::Str(result))
+}
+
+/// Assignment/input VARCHAR keeps its bounded validation rather than explicit truncation.
+pub(super) fn bounded_varchar(
+    value: &ScalarValue,
+    max_length: Option<u32>,
+) -> Result<ScalarValue, QueryError> {
+    let value = super::cast_to_text(value)
+        .filter(|value| {
+            max_length.is_none_or(|max_length| {
+                usize::try_from(max_length)
+                    .is_ok_and(|max_length| value.chars().count() <= max_length)
+            })
+        })
+        .ok_or_else(|| QueryError::General("cannot cast value to VARCHAR".to_string()))?;
+    Ok(ScalarValue::Str(value))
 }
 
 /// Upper bound for simultaneously retained expanding cast intermediates.

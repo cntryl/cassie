@@ -82,7 +82,7 @@ fn should_release_values_owners_given_result_and_memory_limits_when_follow_up_qu
         "{memory_limit:?}"
     );
     assert!(
-        matches!(array_expansion, Err(CassieError::Unsupported(_))),
+        matches!(array_expansion, Err(CassieError::ResourceLimit(_))),
         "{array_expansion:?}"
     );
     assert_eq!(before, after);
@@ -90,6 +90,43 @@ fn should_release_values_owners_given_result_and_memory_limits_when_follow_up_qu
         recovery.expect("follow up VALUES failure").rows(),
         &[vec![Value::Int64(45)]]
     );
+}
+
+#[test]
+fn should_bound_computed_character_array_projection_padding_and_release_its_owners() {
+    // Arrange
+    let sql = "SELECT array_fill('x'::TEXT, ARRAY[v.n])::CHAR(4096)[] FROM (VALUES (2)) v(n)";
+
+    // Act / Assert
+    for (budget, accepted) in [(64 * 1024, false), (512 * 1024, true)] {
+        let mut config = CassieRuntimeConfig::from_env().expect("config");
+        config.limits.query_memory_budget_bytes = budget;
+        let fixture = sql_fixture_with_config("computed-character-array-projection", &[], config);
+        let result = fixture.execute(sql);
+        if accepted {
+            let result = result.expect("admitted character-array projection");
+            let Value::Array(array) = &result.rows()[0][0] else {
+                panic!("native array result");
+            };
+            assert_eq!(array.len(), 2);
+            assert!(array
+                .elements()
+                .iter()
+                .all(|value| matches!(value, Value::String(text) if text.chars().count() == 4096)));
+            drop(result);
+        } else {
+            assert!(
+                matches!(result, Err(CassieError::ResourceLimit(_))),
+                "{result:?}"
+            );
+        }
+        let recovery = fixture.execute("SELECT 19").expect("same-session recovery");
+        assert_eq!(recovery.rows(), &[vec![Value::Int64(19)]]);
+        assert_eq!(
+            fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"],
+            serde_json::json!(0)
+        );
+    }
 }
 
 #[test]

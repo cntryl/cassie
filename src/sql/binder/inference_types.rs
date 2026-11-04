@@ -39,6 +39,17 @@ pub(super) fn infer_concatenation_type(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
 ) -> Option<DataType> {
+    infer_concatenation_result_type(left, right, source_schema, user_functions, parameter_types)
+        .map(super::super::array_outputs::unmodified_result)
+}
+
+fn infer_concatenation_result_type(
+    left: &Expr,
+    right: &Expr,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
     let operands = [
         infer_expr_type(left, source_schema, user_functions, parameter_types),
         infer_expr_type(right, source_schema, user_functions, parameter_types),

@@ -43,7 +43,33 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
             }),
         );
     }
+    if matches!(data_type, DataType::Array(element) if matches!(element.as_ref(), DataType::Text | DataType::Char { .. } | DataType::Varchar { .. }))
+    {
+        if let Some(memory) = context.memory {
+            let input = match expr {
+                Expr::Column(name) => row.get(name),
+                Expr::Param(index) => context.params.get(*index),
+                _ => None,
+            };
+            if let Some(input) = input {
+                memory.grow(crate::executor::retained_memory::mul(
+                    crate::executor::retained_memory::value_clone_bytes(input)?,
+                    4,
+                )?)?;
+            }
+        }
+    }
     let value = eval_scalar_with_context(row, expr, context)?;
+    if let Some(result) = super::character_arrays::cast(
+        &value,
+        data_type,
+        source_type,
+        super::temporal::context_controls(context),
+        context.memory,
+        true,
+    ) {
+        return result;
+    }
     if let (DataType::Array(_), Some(memory)) = (data_type, context.memory) {
         if let ScalarValue::Str(text) | ScalarValue::Json(text) = &value {
             memory.grow(crate::executor::retained_memory::add(

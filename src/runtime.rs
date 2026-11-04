@@ -42,6 +42,10 @@ pub use aggregate_test_pause::{
 mod sleep_test_pause;
 #[doc(hidden)]
 pub use sleep_test_pause::{pause_next_query_at_sleep_entry, QuerySleepTestPauseGuard};
+#[path = "runtime/regex_test_pause.rs"]
+mod regex_test_pause;
+#[doc(hidden)]
+pub use regex_test_pause::{pause_next_query_after_regex_search, QueryRegexTestPauseGuard};
 #[path = "runtime/scoring_test_pause.rs"]
 mod scoring_test_pause;
 #[doc(hidden)]
@@ -116,6 +120,7 @@ pub use snapshots::*;
 enum QueryTestPause {
     Aggregate(aggregate_test_pause::QueryAggregateTestPause),
     Sleep(sleep_test_pause::QuerySleepTestPause),
+    Regex(regex_test_pause::QueryRegexTestPause),
     Scoring(scoring_test_pause::ScoringTestPause),
 }
 

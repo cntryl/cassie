@@ -377,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn should_resolve_dst_transitions_like_postgresql() {
+    fn should_resolve_ambiguous_local_times_like_postgresql() {
         // Arrange
         let zone = lookup_zone("america/new_york").expect("New York zone");
 

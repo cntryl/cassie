@@ -838,7 +838,7 @@ mod tests {
     }
 
     #[test]
-    fn should_decode_supported_datetime_forms() {
+    fn should_decode_postgresql_datetime_tokens() {
         // Arrange
         let session = TemporalSession::default();
 

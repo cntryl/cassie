@@ -5,6 +5,68 @@ fn numeric(text: &str) -> Numeric {
     parse_text(text).expect("valid numeric input")
 }
 
+#[test]
+fn should_reject_undefined_numeric_powers_with_infinite_operands() {
+    // Arrange
+    let cases = [("-Infinity", "0.5"), ("0", "-Infinity")];
+
+    for (base, exponent) in cases {
+        // Act
+        let result = power(&numeric(base), &numeric(exponent));
+
+        // Assert
+        assert_eq!(
+            result
+                .expect_err("PostgreSQL numeric power domain error")
+                .sqlstate,
+            "2201F",
+            "power({base}, {exponent})"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_exact_signs_for_infinite_numeric_powers() {
+    // Arrange
+    let cases = [
+        ("-Infinity", "9007199254740993", "-Infinity"),
+        ("-Infinity", "9007199254740992", "Infinity"),
+        ("-Infinity", "3", "-Infinity"),
+        ("-Infinity", "-3", "0"),
+        ("-1", "Infinity", "1"),
+        ("0.5", "-Infinity", "Infinity"),
+        ("2", "-Infinity", "0"),
+        ("1", "NaN", "1"),
+        ("NaN", "0", "1"),
+    ];
+
+    for (base, exponent, expected) in cases {
+        // Act
+        let result = power(&numeric(base), &numeric(exponent));
+
+        // Assert
+        assert_eq!(text(result), expected, "power({base}, {exponent})");
+    }
+}
+
+#[test]
+fn should_evaluate_negative_numeric_bases_with_large_integral_exponents() {
+    // Arrange
+    let cases = [
+        ("-1", "2147483648", "1.0000000000000000"),
+        ("-1", "9007199254740993", "-1.0000000000000000"),
+        ("-2", "2147483648", "22003"),
+    ];
+
+    for (base, exponent, expected) in cases {
+        // Act
+        let result = power(&numeric(base), &numeric(exponent));
+
+        // Assert
+        assert_eq!(text(result), expected, "power({base}, {exponent})");
+    }
+}
+
 fn text(result: Result<Numeric, super::TypeInputError>) -> String {
     result.map_or_else(
         |error| error.sqlstate.to_string(),

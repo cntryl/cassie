@@ -8,6 +8,9 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
+#[path = "schema_using.rs"]
+mod using;
+
 #[path = "scalar_index_rename.rs"]
 mod scalar_index_rename;
 #[path = "schema_constraint_helpers.rs"]
@@ -289,7 +292,7 @@ pub(super) fn alter_table(
     let output = empty_command("ALTER TABLE", controls)?;
     let staged_default =
         session.and_then(|session| staged_add_column_default(cassie, session, statement));
-    execute_alter_table_operation(cassie, session, statement, is_column_store)?;
+    execute_alter_table_operation(cassie, session, statement, is_column_store, controls)?;
     if let (Some(session), Some((field, default_value))) = (session, staged_default) {
         session
             .apply_literal_default_to_staged_rows(&statement.table, &field, &default_value)
@@ -318,10 +321,17 @@ fn execute_alter_table_operation(
     session: Option<&CassieSession>,
     statement: &AlterTableStatement,
     is_column_store: bool,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    let using_context = using::Context {
+        cassie,
+        session,
+        controls,
+        is_column_store,
+    };
     match &statement.operation {
         AlterTableOperation::Multiple { operations } => {
-            preflight_alter_table_using(cassie, session, &statement.table, operations)?;
+            using_context.preflight(&statement.table, operations)?;
             for operation in operations {
                 execute_alter_table_operation(
                     cassie,
@@ -332,6 +342,7 @@ fn execute_alter_table_operation(
                         operation: operation.clone(),
                     },
                     is_column_store,
+                    controls,
                 )?;
             }
             Ok(())
@@ -409,113 +420,8 @@ fn execute_alter_table_operation(
             field,
             data_type,
             using,
-        } => alter_table_column_type(
-            cassie,
-            session,
-            &statement.table,
-            field,
-            data_type,
-            using,
-            is_column_store,
-        ),
+        } => using_context.apply(&statement.table, field, data_type, using),
     }
-}
-
-fn preflight_alter_table_using(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    operations: &[AlterTableOperation],
-) -> Result<(), QueryError> {
-    for operation in operations {
-        if let AlterTableOperation::AlterColumnType { field, using, .. } = operation {
-            evaluate_alter_column_using(cassie, session, table, field, using)?;
-        }
-    }
-    Ok(())
-}
-
-fn evaluate_alter_column_using(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    field: &str,
-    expression: &crate::sql::ast::Expr,
-) -> Result<Vec<(String, serde_json::Value)>, QueryError> {
-    let schema = cassie
-        .catalog
-        .get_schema(table)
-        .ok_or_else(|| QueryError::Cassie(CassieError::CollectionNotFound(table.to_string())))?;
-    let documents = cassie
-        .midge
-        .scan_documents(table)
-        .map_err(QueryError::Cassie)?;
-    let empty_functions = std::collections::HashMap::new();
-    documents
-        .into_iter()
-        .map(|document| {
-            let row = super::super::scan::document_to_row(&document, Some(&schema));
-            let value = crate::executor::filter::evaluate_expr_value(
-                &row,
-                expression,
-                &[],
-                None,
-                &empty_functions,
-                session,
-                None,
-            )?;
-            let json = crate::types::json::try_value_to_json(value)
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            let mut payload = document.payload;
-            let object = payload
-                .as_object_mut()
-                .ok_or_else(|| QueryError::General(format!("row in '{table}' is not an object")))?;
-            object.insert(field.to_string(), json);
-            Ok((document.id, payload))
-        })
-        .collect()
-}
-
-fn alter_table_column_type(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    field: &str,
-    data_type: &DataType,
-    using: &crate::sql::ast::Expr,
-    is_column_store: bool,
-) -> Result<(), QueryError> {
-    ensure_row_store_alter_supported(is_column_store, "ALTER COLUMN TYPE")?;
-    let converted = evaluate_alter_column_using(cassie, session, table, field, using)?;
-    for (id, _) in &converted {
-        cassie
-            .midge
-            .delete_document(table, id)
-            .map_err(QueryError::Cassie)?;
-    }
-    cassie
-        .midge
-        .alter_collection_column_type(table, field, data_type.clone())
-        .map_err(QueryError::Cassie)?;
-    if !converted.is_empty() {
-        cassie
-            .midge
-            .put_documents(
-                table,
-                converted
-                    .into_iter()
-                    .map(|(id, payload)| (Some(id), payload))
-                    .collect(),
-            )
-            .map_err(QueryError::Cassie)?;
-    }
-    cassie
-        .catalog
-        .set_collection_field_type(table, field, data_type.clone());
-    cassie
-        .bump_schema_epoch_and_invalidate_query_cache()
-        .map_err(QueryError::Cassie)?;
-    refresh_table_cardinality_stats(cassie, table)
 }
 
 fn staged_add_column_default(

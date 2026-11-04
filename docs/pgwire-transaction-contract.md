@@ -350,3 +350,13 @@ Bound retained resources/wait graph, release on commit/rollback/disconnect/cance
 report 40P01 for detected wait cycles and 57014 for cancellation. Existing transaction
 error and ReadyForQuery carriers remain authoritative. No persistent format change is
 needed for isolation itself.
+
+### Explicit nullable columns
+
+`CREATE TABLE` and `ALTER TABLE ADD COLUMN` accept explicit `NULL` column syntax,
+including repeated or named NULL clauses. The clause is equivalent to omitted
+nullability; it creates no persistent constraint identity. Conflicting NULL and
+NOT NULL, inline PRIMARY KEY, SERIAL or IDENTITY declarations return SQLSTATE
+`42601` before publication. A table-level primary key may supply NOT NULL after
+an explicit nullable column, matching PostgreSQL. A later ALTER may also add
+NOT NULL to the originally nullable column.

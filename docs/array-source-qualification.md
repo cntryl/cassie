@@ -163,3 +163,28 @@ The subsequent [character-array cast increment](character-array-cast-qualificati
 implements that staged conversion boundary as a separate source-only change.
 Its new regressions and full qualification remain pending; the checkpoint
 counts above describe their exact earlier source revisions.
+
+## Combined query correction checkpoint
+
+The assembled query bundle at `86174ceb` built successfully and executed all
+35 test groups: **9,988 passed, 67 failed, 12 ignored**. Strict Clippy also
+reported eight test findings. Formatting, touched-test policy, global test
+policy and the generated inventory passed on that exact revision. This is
+failed integration evidence, not feature qualification.
+
+The next source correction batch preserves unconstrained CHAR padding, routes
+general ARRAY casts through the constructor parser, forwards the visible left
+scope into correlated generated-source arguments, and restores logical stored
+character-array values at controlled read and RETURNING boundaries. Pinned
+PostgreSQL 18.6 controls correct descriptor, COPY-error and same-session timezone
+fixtures without weakening their value or publication assertions. Ownership
+fixtures now observe their actual live results and disable unrelated result
+caching. Containment forwards statement controls through its scalar fallback;
+active query accounting is observable before statement completion. The separate
+JSON aggregate carrier correction addresses the remaining JSON failures.
+
+The original 67 failures and the newly authored focused regressions remain
+required probes for the next complete frozen gate. These corrections have
+source, semantic-oracle and Jev review evidence; their native build, tests and
+strict Clippy results remain pending. Neither #807 nor #808 is closed by this
+checkpoint.

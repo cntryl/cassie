@@ -750,6 +750,9 @@ pub fn parse_text(text: &str) -> Result<Numeric, TypeInputError> {
         if shift as usize + digits.len() > MAX_INTEGER_DIGITS + 1 && !mantissa.is_zero() {
             return Err(overflow());
         }
+        if mantissa.is_zero() {
+            return Numeric::finite(mantissa, 0).check_format();
+        }
         return Numeric::finite(mantissa * pow10(shift), 0).check_format();
     }
     Numeric::finite(mantissa, u32::try_from(scale).unwrap_or_default()).check_format()

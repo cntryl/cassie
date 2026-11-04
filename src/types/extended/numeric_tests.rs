@@ -178,3 +178,26 @@ fn should_reject_fractional_values_above_a_scale_larger_than_precision() {
     // Assert
     assert_eq!(results, [Ok("0.00099".to_string()), Err("22003")]);
 }
+#[test]
+fn should_preserve_zero_given_a_large_positive_numeric_exponent() {
+    // Arrange
+    let inputs = ["0e200000", "-0e200000", "0.000e200000"];
+
+    // Act / Assert
+    for input in inputs {
+        let value = parse_text(input).expect("zero exponent input");
+        assert_eq!(value.to_string(), "0");
+    }
+}
+
+#[test]
+fn should_preserve_numeric_zero_exponent_range_errors() {
+    // Arrange
+    let inputs = ["0e-200000", "0e1073741824"];
+
+    // Act / Assert
+    for input in inputs {
+        let error = parse_text(input).expect_err("existing input range check");
+        assert_eq!(error.sqlstate, "22003");
+    }
+}

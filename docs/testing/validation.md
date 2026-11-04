@@ -5776,7 +5776,7 @@ They are local receipts, not hosted CI.
 New authored regression paths:
 
 - `tests/compatibility/lifecycle/transactions/repeatable_read.rs`: first-view/savepoint/data/catalog visibility, current new-table descriptor, and current rename/add-column descriptors over historical rows.
-- `tests/pgwire_extended/transactions/repeatable_read.rs`, with `tests/support/repeatable_read.rs`: constant/Parse/Bind/Describe/SHOW/SAVEPOINT/utility boundaries, limited direct-cursor pagination, and first Execute of an idle-prebound portal inside explicit RR.
+- `tests/pgwire_extended/transactions/repeatable_read.rs`, with `tests/support/repeatable_read.rs`: constant/Parse/Bind/Describe/SHOW/SAVEPOINT/utility boundaries and limited direct-cursor pagination. The initially proposed idle-prebound Execute witness was removed after the pinned oracle rejected its phase order, as recorded below.
 - `src/app/transaction_snapshot/tests.rs`: rejected admission and retry, last shared owner release, no second request charge, actual cancelled-query/savepoint recovery, disconnect by final session drop, pre-cancel/deadline, synchronized cancellation while publication is held, and RC/RR descriptor-authority controls.
 - `src/app/transaction_snapshot/tests/indexes.rs`: current-planner late scalar selection with row fallback, bounded indexed-join fallback, unchanged/replaced/renamed storage identities, REINDEX/drop-recreate, and a late full-text scalar prefilter.
 - `src/midge/adapter/transactions/snapshot_proofs.rs`: published API capability boundaries; native assertions do not make independently captured snapshots equivalent.
@@ -5799,7 +5799,7 @@ Jev decisions and required actions are advisory, not proof:
 - Phase-aware acquisition 0.93; cancellable blocking Parse capture 0.90. Authored wire and held-publication controls await execution.
 - Catalog SQL-row/current-descriptor distinction 0.96; transaction Arc lifetime 1.00; controlled detached catalog approach 0.97. Controlled typed metadata admission is integrated separately before the frozen gate.
 - Initial uncharged clone 0.86 and JSON-length-only estimate 0.94 require complete typed catalog admission and sparse/nested ownership probes in that helper.
-- First implementation review acquisition 0.64, lifecycle 0.42, descriptor 0.42 and Parse 0.46 leads prompted exact boundary, ownership and descriptor controls. Prebound direct Execute was localized at 0.87 and now acquires the pending view on a blocking boundary.
+- First implementation review acquisition 0.64, lifecycle 0.42, descriptor 0.42 and Parse 0.46 leads prompted exact boundary, ownership and descriptor controls. Prebound direct Execute was localized at 0.87 and led to a defensive pending-view acquisition on a blocking boundary; the later oracle below rejects that proposed wire witness.
 - Late scalar-prefix omission was localized at 0.58; snapshot-catalog identity eligibility selected at 0.99. Identity gap 0.60 requires the authored replacement/rename/REINDEX controls.
 - Unconditional fresh descriptor lookup would weaken ordinary statement metadata retention (0.88); immutable owner-specific descriptor authority selected at 0.99, with paired RC/RR controls.
 - Read-write integration gap 0.84 selected keeping the explicit read-only increment at 0.99. Native row assertions are available; complete Cassie publication, fresh unique/index/generation/epoch preparation and atomic replay still require a proven integration. Read-write RR remains `0A000`; no whole-database epoch conflict fence is substituted for per-row first-committer-wins.
@@ -5922,4 +5922,28 @@ initial 0.37 ownership-gap lead prompted these explicit post-origin and
 post-session alias controls; the bounded follow-up selected no supported false
 release path at 0.68 (remaining individual candidates below 0.30). These
 authored fixes require the next complete ordered gate; no pass is inferred.
+
+
+
+The fourth frozen RO gate at `cc8e201afd2e2854c19a412328329720d62ee247`
+passed build (0.63 s). Full tests ran for 585.94 s, including 1,441 passing
+library tests and 3,622 passing `pgwire_extended` tests, then stopped in
+`sql_mutations` (398 passed, one failed). The inherited isolation test still
+expected read-only RR BEGIN to be rejected. Its negative control now explicitly
+uses READ WRITE, which remains unselected; the selected read-only positive
+controls remain intact. Clippy, fmt check and policy stages were not reached.
+
+The apparent prebound-portal fix in the prior record was a mistaken assumption,
+not an accepted PostgreSQL contract. A pinned PostgreSQL 18.6 raw-wire probe of
+Parse SELECT / Bind SELECT / Parse BEGIN RR / Bind BEGIN / Execute BEGIN / Sync
+returned `25001` (isolation must be set before any query), then Ready `I`; the
+subsequent Execute returned `34000` because the portal was gone. This executable
+oracle supersedes Jev's earlier 0.81 advisory selection. The unsupported wire
+witness and its helper were removed, preserving idle portal cleanup and the
+valid Parse-outside / Bind-inside explicit RR coverage. Direct Execute pending
+view acquisition remains a defensive internal invariant. This slice does not
+add implicit extended-query transaction semantics to manufacture a witness.
+The exact receipt is `pg186-rr-prebound-oracle.json` under the isolated ignored
+evidence directory. The next full test stage uses `--no-fail-fast` to collect
+all suite failures in one frozen-head pass.
 

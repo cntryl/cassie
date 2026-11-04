@@ -4,7 +4,7 @@ use super::support_sql_fixture::sql_fixture;
 use cassie::app::CassieError;
 
 #[test]
-fn should_reject_repeatable_read_transaction_isolation() {
+fn should_reject_read_write_repeatable_read_transaction_isolation() {
     // Arrange
     let fixture = sql_fixture("issue-819-repeatable-read-isolation", &[]);
     let session = fixture.session.clone();
@@ -14,10 +14,10 @@ fn should_reject_repeatable_read_transaction_isolation() {
         .cassie
         .execute_sql(
             &session,
-            "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+            "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ WRITE",
             vec![],
         )
-        .expect_err("repeatable read is outside the selected transaction profile");
+        .expect_err("read-write repeatable read remains outside the selected transaction profile");
 
     // Assert
     assert!(matches!(error, CassieError::Unsupported(_)));
@@ -42,7 +42,7 @@ fn should_reject_repeatable_read_set_transaction_before_snapshot() {
             "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
             vec![],
         )
-        .expect_err("SET TRANSACTION must reject the unsupported isolation level");
+        .expect_err("SET TRANSACTION remains outside the selected transaction profile");
 
     // Assert
     assert!(matches!(error, CassieError::Unsupported(_)));

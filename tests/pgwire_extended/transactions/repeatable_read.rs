@@ -136,21 +136,6 @@ fn should_retain_repeatable_read_for_suspended_direct_cursor_pages() {
 }
 
 #[test]
-fn should_capture_repeatable_read_at_direct_execute_for_a_prebound_portal() {
-    // Arrange
-    let boundary = vec![
-        wire::execute_limited_frame("rr_portal", 1),
-        wire::sync_frame(),
-    ];
-
-    // Act
-    let result = crate::support_repeatable_read::run_prebound_boundary(boundary);
-
-    // Assert
-    assert_counts(&result, "1");
-}
-
-#[test]
 fn should_release_repeatable_read_charge_when_the_connection_terminates() {
     // Arrange
     // The fixture owns its listener and observes the first query's tracker.

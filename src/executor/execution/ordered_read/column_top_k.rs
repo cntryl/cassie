@@ -137,8 +137,14 @@ fn retain_candidates(
                 .ok_or_else(ordered_accounting_overflow)?;
             let candidate_memory = controls.reserve_query_memory(candidate_bytes)?;
             let (document, document_memory) = document.into_parts();
-            let candidate =
-                build_candidate(&document, spec, read, candidate_memory, projection_probe)?;
+            let candidate = build_candidate(
+                &document,
+                spec,
+                read,
+                candidate_memory,
+                controls,
+                projection_probe,
+            )?;
             drop(document);
             drop(document_memory);
             push_ordered_column_top_k(&mut top, spec.top_needed(), candidate, &mut heap_memory)?;
@@ -152,6 +158,7 @@ fn build_candidate(
     spec: &OrderedColumnTopKSpec<'_>,
     read: &PreparedRead,
     memory: QueryMemoryReservation,
+    controls: &QueryExecutionControls,
     projection_probe: &mut impl FnMut() -> Result<(), CassieError>,
 ) -> Result<OrderedColumnCandidate, QueryError> {
     let id = document.id.clone();
@@ -164,11 +171,16 @@ fn build_candidate(
             super::super::projected_read::json_to_query_value,
         );
     projection_probe()?;
-    let values = ordered_projection_row(document, read.projection.as_slice(), read.schema.as_ref());
+    let values = ordered_projection_row(
+        document,
+        read.projection.as_slice(),
+        read.schema.as_ref(),
+        controls,
+    )?;
     Ok(OrderedColumnCandidate {
         order_value,
         id,
-        values: values.into_entries(),
+        values,
         direction: spec.direction.clone(),
         memory,
     })
@@ -198,12 +210,17 @@ fn finish_candidates(
         .and_then(|bytes| bytes.checked_add(2 * std::mem::size_of::<Vec<BatchRow>>()))
         .ok_or_else(ordered_accounting_overflow)?;
     let _output_memory = controls.reserve_query_memory(output_bytes)?;
-    let mut row_memory = output_buffer(output_len)?;
     let mut rows = output_buffer(output_len)?;
-    for candidate in ranked.into_iter().skip(spec.offset).take(spec.limit) {
+    for mut candidate in ranked.into_iter().skip(spec.offset).take(spec.limit) {
         check_timeout(controls)?;
-        row_memory.push(candidate.memory);
-        rows.push(BatchRow::new(candidate.values));
+        candidate.memory.try_grow(
+            std::mem::size_of::<QueryMemoryReservation>() + 2 * std::mem::size_of::<usize>(),
+        )?;
+        rows.push(
+            candidate
+                .values
+                .retain_operator_memory(controls, std::sync::Arc::new(candidate.memory))?,
+        );
     }
     check_timeout(controls)?;
     cassie

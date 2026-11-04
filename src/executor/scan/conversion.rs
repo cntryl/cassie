@@ -181,7 +181,7 @@ fn convert_batch(input: &InputBatch, request: &Request<'_>) -> Result<Batch, Que
                 .then(|| projected_document_to_row(document, fields, request.schema)),
         };
         if let Some(row) = row {
-            rows.push(row);
+            rows.push(super::hydrate_character_arrays(row, request.controls)?);
         }
         #[cfg(test)]
         if let Some(after_row) = request.after_row {

@@ -17,7 +17,11 @@ use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
 
+mod character_arrays;
 mod controlled_source;
+pub(crate) use character_arrays::{
+    hydrate_row as hydrate_character_arrays, hydrate_value as hydrate_character_array_value,
+};
 mod conversion;
 pub(crate) use conversion::{projected_lookup_bytes, projected_row_bytes};
 mod ordered_projection_accounting;

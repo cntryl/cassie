@@ -36,8 +36,10 @@ checked between elements and while adding padding. Original row owners and
 projection search, session and subquery resolver context remain intact.
 
 The stored canonical CHAR spelling is unchanged. Explicit recasts restore
-padding from declared type metadata. Direct stored CHAR-array rendering and
-UNNEST without a cast still require their separate logical-value qualification;
+padding from declared type metadata. A subsequent source-only increment restores
+bounded CHAR-array logical padding at controlled read boundaries, before ordinary
+array functions lose their result typmods. Its direct output, UNNEST and owner
+regressions remain unexecuted;
 this increment does not claim that wider #807 acceptance cell complete.
 
 ## Evidence and pending validation
@@ -83,3 +85,60 @@ closure, hosted CI, merge or support promotion is claimed here.
 Raw primary sources, oracle output and Jev requests/responses are preserved in
 the isolated worktree's ignored `target/v020-evidence/character-arrays/` without
 credentials.
+
+## Stored logical values: pending native qualification
+
+The finite PostgreSQL 18.6 source/character oracle now records 54 expected
+outcomes: 46 array/source cases and eight final character cases. These include
+stored negative lower bounds, padded CHAR element binary bytes, session-aware
+scalar/array conversion, ordinary function/aggregate typmods and quoted-tab
+input rejection. A separate final stored-logical batch records eight more
+expected outcomes for direct output, reverse, UNNEST, RETURNING, ordering, exact
+recasts, concatenation and aggregation. These are oracle receipts, not Cassie
+test results.
+
+The private controlled hydration helper computes every replacement string bound
+without allocation and reserves the complete padding before changing an element.
+It retains a separate operator lease through the row, including its pending lookup;
+a row arriving without a source lease also admits its existing body before that
+operator owner is attached.
+Typed and encoded column paths retain their original scratch reservation until
+the destination has admitted a copy. Cancellation is checked during sizing,
+between elements and at each 4,096-character padding chunk. Durable encoding and
+Midge remain unchanged. Unbounded bpchar and non-character arrays retain their
+existing behavior.
+
+The source-only caller ledger covers ordinary full/projected scans, typed and
+encoded transport, portal pages, point/scalar-index reads, bounded joins, hybrid
+retrieval, ordered row-id and heap top-k reads, time-series reads, ordinary
+RETURNING, and conflict existing-row evaluation. Ordered rows retain declared
+array identity across aliases and keep candidate/source leases in their returned
+row. The time-series row converter was extracted to keep the parent under its
+file-size limit. Same-bound bounded CHAR-array casts no longer bypass element
+conversion in the rich source-argument evaluator.
+
+Five hydration-helper regressions, one ordered-owner regression, one rich
+exact-cast regression and five wire regressions are authored but unexecuted. Static test-policy checks and Rust formatting are
+separate evidence; build, complete tests, strict workspace Clippy, final inventory
+and integrated native qualification remain pending under the user's batch gate
+instruction.
+
+Two legacy callers remain outside this qualification: `ALTER COLUMN ... USING`
+rebuilds rows in `schema_command::evaluate_alter_column_using` without explicit
+execution controls; joined-mutation OLD/NEW row images use a separate
+`dml_joined::stored_value` reconstruction path. This increment does not silently
+hydrate either path. Their logical character-array correspondence still requires
+controlled conversion and focused native evidence. Mixed conditional array
+modifiers also remain unqualified: PostgreSQL removes a COALESCE array typmod
+when one branch is untyped NULL, while equal modifiers on every branch retain it.
+
+The logical hydration checkpoint follows `dc52c54d`. Jev selected the controlled
+logical boundary at 1.00. Its admission 0.88 and identity-elision 0.50 origin
+leads produced the authored bound/counter and rich-cast regressions. The first
+implementation review retained an identity concern at 0.42; the complete source
+route was then supplied for adversarial review (character conversion 0.90),
+with the native regression still pending. Row-owner, chunk-cancellation,
+time-series preflight and top-k lifetime gap judgments were 0.25, 0.16, 0.15
+and 0.22. Source audit also retained pending lookup admission and row-id page
+reservations before freezing the checkpoint. These judgments are review leads,
+not native execution or acceptance evidence.

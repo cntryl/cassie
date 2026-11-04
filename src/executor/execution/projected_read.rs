@@ -329,6 +329,7 @@ fn execute_projected_point_lookup_read(
         .record_read_path_point_lookup(&spec.collection, true);
     let schema = cassie.catalog.get_schema(&spec.collection);
     let row = scan::projected_document_to_row(&document, &spec.scan_fields, schema.as_ref());
+    let row = scan::hydrate_character_arrays(row, controls)?;
     let mut batches = vec![vec![row]];
 
     finalize_projected_filtered_read(

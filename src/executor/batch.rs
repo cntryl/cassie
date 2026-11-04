@@ -66,6 +66,11 @@ impl BatchRow {
         &self.values
     }
 
+    /// Logical hydration changes only value bytes; names and lookup positions stay fixed.
+    pub(in crate::executor) fn entries_mut(&mut self) -> &mut [(String, Value)] {
+        &mut self.values
+    }
+
     pub(crate) fn get(&self, name: &str) -> Option<&Value> {
         let lookup = self
             .lookup

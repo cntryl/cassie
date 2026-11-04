@@ -1,6 +1,7 @@
 use crate::app::CassieError;
 use crate::catalog::CollectionSchema;
 use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
+use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::midge::adapter::DocumentRef;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
@@ -26,10 +27,42 @@ pub(super) fn document_batches(
     controls: &QueryExecutionControls,
 ) -> Result<AccountedTimeSeriesBatches, crate::executor::QueryError> {
     let retained_bytes = time_series_batch_bytes(&documents, fields)?;
+    let retained_bytes =
+        array_transport_bytes(retained_bytes, documents.len(), fields.len(), schema)?;
     let (batches, memory) = reserve_before_building(controls, retained_bytes, || {
-        build_document_batches(documents, fields, schema)
+        build_document_batches(documents, fields, schema, controls)
     })?;
     Ok(AccountedTimeSeriesBatches { batches, memory })
+}
+
+fn array_transport_bytes(
+    original: usize,
+    rows: usize,
+    fields: usize,
+    schema: Option<&CollectionSchema>,
+) -> Result<usize, CassieError> {
+    let Some(schema) = schema.filter(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| matches!(field.data_type, crate::types::DataType::Array(_)))
+    }) else {
+        return Ok(original);
+    };
+    let maximum_type = schema.fields.iter().try_fold(0, |maximum, field| {
+        Ok::<_, CassieError>(maximum.max(data_type_clone_bytes(&field.data_type)?))
+    })?;
+    let entries = add(fields, 1)?;
+    let metadata = add(
+        std::mem::size_of::<Vec<crate::types::DataType>>() + 2 * std::mem::size_of::<usize>(),
+        mul(
+            entries,
+            add(std::mem::size_of::<crate::types::DataType>(), maximum_type)?,
+        )?,
+    )?;
+    // Envelope decoding, native slots and transient scalar conversion coexist.
+    // This conservative transport bound is admitted before row construction.
+    add(mul(original, 4)?, mul(rows, metadata)?)
 }
 
 fn reserve_before_building<T>(
@@ -46,6 +79,7 @@ fn build_document_batches(
     documents: Vec<DocumentRef>,
     fields: &[String],
     schema: Option<&CollectionSchema>,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, CassieError> {
     let batch_count = documents.len().div_ceil(DEFAULT_BATCH_SIZE);
     let mut batches = Vec::new();
@@ -54,7 +88,10 @@ fn build_document_batches(
     let mut current = Vec::new();
     try_reserve(&mut current, remaining.min(DEFAULT_BATCH_SIZE))?;
     for document in documents {
-        current.push(super::document_to_row(&document, fields, schema));
+        current.push(crate::executor::scan::hydrate_character_arrays(
+            super::document_to_row(&document, fields, schema),
+            controls,
+        )?);
         remaining = remaining.saturating_sub(1);
         if current.len() == DEFAULT_BATCH_SIZE {
             batches.push(std::mem::take(&mut current));

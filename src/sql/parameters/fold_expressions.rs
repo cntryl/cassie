@@ -413,6 +413,9 @@ impl Fold<'_, '_> {
         if let Some(summary) = self.specialized_binary(op, frame)? {
             return Ok(summary);
         }
+        if let Some(summary) = self.array_concat(op, frame)? {
+            return Ok(summary);
+        }
         if matches!(op, ast::BinaryOp::Concat | ast::BinaryOp::ByteaConcat) {
             let args = &mut self.summaries.values[frame.start..];
             let bytea = *op == ast::BinaryOp::ByteaConcat
@@ -499,6 +502,44 @@ impl Fold<'_, '_> {
                 Summary::known(if *as_text { 25 } else { 114 })
             }
         })
+    }
+
+    fn array_concat(
+        &mut self,
+        op: &ast::BinaryOp,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if *op != ast::BinaryOp::Concat {
+            return Ok(None);
+        }
+        let args = &mut self.summaries.values[frame.start..];
+        let types = [args[0].oid, args[1].oid].map(binder::parameter_data_type_for_oid);
+        if !types
+            .iter()
+            .any(|kind| matches!(kind, Some(crate::types::DataType::Array(_))))
+        {
+            return Ok(None);
+        }
+        let mut element = crate::types::DataType::Null;
+        for kind in types.into_iter().flatten() {
+            let kind = match kind {
+                crate::types::DataType::Array(inner) => *inner,
+                kind => kind,
+            };
+            let Some(common) = binder::common_case_type(element, kind) else {
+                self.occurrences.undefined_function("||", 2, None)?;
+                return Ok(Some(Summary::known(0)));
+            };
+            element = common;
+        }
+        let result = i32::try_from(crate::types::DataType::Array(Box::new(element)).type_oid())
+            .unwrap_or(i32::MAX);
+        for argument in args {
+            if matches!(argument.oid, 0 | 705) {
+                self.occurrences.coerce(argument, result, true)?;
+            }
+        }
+        Ok(Some(Summary::known(result)))
     }
 
     fn row_inputs(

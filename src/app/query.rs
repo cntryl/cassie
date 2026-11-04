@@ -292,6 +292,7 @@ impl Cassie {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn describe_sql(&self, sql: &str) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        self.check_storage_recovery_required()?;
         if let Some(error) = unsupported_sql_error(sql) {
             return Err(error);
         }
@@ -323,6 +324,7 @@ impl Cassie {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
+        self.check_storage_recovery_required()?;
         self.ensure_session_database_access(session)?;
 
         if let Some(error) = unsupported_sql_error(sql) {
@@ -377,6 +379,9 @@ impl Cassie {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
+        if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
+            return result;
+        }
         self.ensure_session_database_access(session)?;
 
         if let Some(error) = unsupported_sql_error(sql) {
@@ -407,6 +412,7 @@ impl Cassie {
         parsed: &crate::sql::ast::ParsedStatement,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
+        self.check_storage_statement_admission(&parsed.statement)?;
         if controls.is_cancelled() {
             return Err(CassieError::QueryCancelled);
         }

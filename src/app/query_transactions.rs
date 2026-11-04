@@ -132,6 +132,10 @@ impl Cassie {
         session: &CassieSession,
         held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
     ) -> Result<(), CassieError> {
+        if let Err(error) = self.check_storage_recovery_required() {
+            session.rollback_transaction();
+            return Err(error);
+        }
         if session.is_transaction_failed() {
             return Err(CassieError::failed_transaction());
         }

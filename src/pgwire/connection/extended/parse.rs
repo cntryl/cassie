@@ -27,6 +27,11 @@ pub(super) async fn handle_parse(
         query,
         parameter_type_oids,
     } = request;
+    if let Err(error) = cassie.check_storage_recovery_required() {
+        if crate::sql::parser::parse_terminal_transaction_control(&query).is_none() {
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+    }
     if !name.is_empty() && state.prepared_statements.contains_key(&name) {
         return Err(ExtendedQueryError::protocol(format!(
             "prepared statement '{name}' already exists"

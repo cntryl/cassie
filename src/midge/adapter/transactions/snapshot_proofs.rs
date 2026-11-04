@@ -1,6 +1,6 @@
 //! Executable capability probes against the frozen published Midge dependency.
 
-use super::{AdapterTransaction, ExpectedStorageValue, Midge, TransactionMode};
+use super::{AdapterCommitError, AdapterTransaction, ExpectedStorageValue, Midge, TransactionMode};
 use cntryl_midge::{ConflictPolicy, MidgeError};
 
 fn memory_engine() -> Midge {
@@ -49,7 +49,10 @@ fn should_reject_retained_row_assertion_after_aba() {
     let result = retained.commit(midge.write_options_sync());
 
     // Assert
-    assert!(matches!(result, Err(MidgeError::WriteConflict(_))));
+    assert!(matches!(
+        result,
+        Err(AdapterCommitError::Native(MidgeError::WriteConflict(_)))
+    ));
     let fresh = writer(&midge);
     assert_eq!(
         fresh.get(row).expect("fresh row").as_deref(),
@@ -181,5 +184,86 @@ fn should_reject_a_newer_expected_value_against_an_older_assertion_snapshot() {
     let result = older.commit(midge.write_options_sync());
 
     // Assert
-    assert!(matches!(result, Err(MidgeError::WriteConflict(_))));
+    assert!(matches!(
+        result,
+        Err(AdapterCommitError::Native(MidgeError::WriteConflict(_)))
+    ));
+}
+
+#[test]
+fn should_reject_assertion_only_retained_row_validation_after_aba() {
+    // Arrange
+    let midge = memory_engine();
+    let row = b"rr-proof-assertion-only-aba";
+    put(&midge, row, b"original");
+    let mut retained = writer(&midge);
+    retained.set_conflict_policy(ConflictPolicy::LastWriteWins);
+    retained
+        .assert_expected_value(
+            row.to_vec(),
+            &ExpectedStorageValue::Present(b"original".to_vec()),
+        )
+        .expect("assert at retained start");
+    put(&midge, row, b"intermediate");
+    put(&midge, row, b"original");
+
+    // Act
+    let result = retained.commit(midge.write_options_sync());
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(AdapterCommitError::Native(MidgeError::WriteConflict(_)))
+    ));
+    assert_eq!(
+        writer(&midge).get(row).expect("row").as_deref(),
+        Some(&b"original"[..])
+    );
+}
+
+#[test]
+fn should_allow_disjoint_assertion_only_validation_without_mutating_shared_metadata() {
+    // Arrange
+    let midge = memory_engine();
+    let row_a = b"rr-proof-assertion-only-a";
+    let row_b = b"rr-proof-assertion-only-b";
+    let shared = b"rr-proof-assertion-only-metadata";
+    put(&midge, row_a, b"original-a");
+    put(&midge, row_b, b"original-b");
+    put(&midge, shared, &[0]);
+    let mut retained = writer(&midge);
+    retained.set_conflict_policy(ConflictPolicy::LastWriteWins);
+    retained
+        .assert_expected_value(
+            row_a.to_vec(),
+            &ExpectedStorageValue::Present(b"original-a".to_vec()),
+        )
+        .expect("assert only changed-row candidate");
+    let mut other = writer(&midge);
+    other
+        .put(row_b.to_vec(), b"new-b".to_vec(), None)
+        .expect("other row");
+    other
+        .put(shared.to_vec(), vec![1], None)
+        .expect("other metadata");
+    other
+        .commit(midge.write_options_sync())
+        .expect("other commit");
+
+    // Act
+    retained
+        .commit(midge.write_options_sync())
+        .expect("assertion-only disjoint validation");
+
+    // Assert
+    let fresh = writer(&midge);
+    assert_eq!(
+        fresh.get(row_a).expect("a").as_deref(),
+        Some(&b"original-a"[..])
+    );
+    assert_eq!(fresh.get(row_b).expect("b").as_deref(), Some(&b"new-b"[..]));
+    assert_eq!(
+        fresh.get(shared).expect("metadata").as_deref(),
+        Some(&[1][..])
+    );
 }

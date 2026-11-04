@@ -1,3 +1,7 @@
+#[path = "extended/execute.rs"]
+mod execute;
+use execute::handle_execute;
+
 #[path = "extended/prepared_state.rs"]
 mod prepared_state;
 use prepared_state::{
@@ -26,6 +30,9 @@ mod parameter_admission_tests;
 #[cfg(test)]
 #[path = "extended/prepared_descriptor_tests.rs"]
 mod prepared_descriptor_tests;
+#[cfg(test)]
+#[path = "extended/storage_recovery_tests.rs"]
+mod storage_recovery_tests;
 
 use std::io;
 use std::str;
@@ -102,7 +109,16 @@ pub(super) async fn handle_frontend_message(
                 .get(..5)
                 .is_some_and(|prefix| prefix.eq_ignore_ascii_case("copy "))
     );
-    match dispatch_message(cassie, runtime, write_half, state, session, message).await {
+    match dispatch_message(
+        Arc::clone(&cassie),
+        runtime,
+        write_half,
+        state,
+        session,
+        message,
+    )
+    .await
+    {
         Ok(DispatchOutcome::Continue) => ConnectionStep::Continue(HandshakeState::Ready),
         Ok(DispatchOutcome::Break) => ConnectionStep::Break,
         Err(error) => {
@@ -114,6 +130,12 @@ pub(super) async fn handle_frontend_message(
                 state.clear_all_portals(runtime);
             } else {
                 session.mark_transaction_failed();
+            }
+            if cassie.check_storage_recovery_required().is_err()
+                && !session.is_transaction_active()
+                && !session.is_transaction_failed()
+            {
+                state.clear_all_portals(runtime);
             }
             if super::writers::write_changed_parameter_statuses(
                 write_half,
@@ -280,6 +302,7 @@ async fn handle_bind(
         .get(&statement)
         .cloned()
         .ok_or_else(|| missing_statement_error(&statement))?;
+    check_prepared_storage_admission(&cassie, &prepared)?;
     let previous_descriptor = state.prepared_result_descriptors.get(&prepared.id).cloned();
     let catalog_version = current_catalog_version(&cassie, session);
     let descriptor_is_stale = previous_descriptor
@@ -428,97 +451,6 @@ async fn handle_describe(
     Ok(())
 }
 
-async fn handle_execute(
-    cassie: Arc<Cassie>,
-    runtime: &RuntimeState,
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    session: &CassieSession,
-    portal_name: String,
-    max_rows: i32,
-) -> Result<(), ExtendedQueryError> {
-    runtime.record_pgwire_extended_query();
-    let (max_rows, first_execute) =
-        transaction_boundary::prepare_execute(state, session, &portal_name, max_rows)?;
-    let (portal, suspended) = take_portal_execution(state, &portal_name)
-        .ok_or_else(|| missing_portal_error(&portal_name))?;
-
-    if let Some(suspended) = suspended {
-        return resume_suspended_portal(
-            cassie,
-            write_half,
-            SuspendedPortalRequest {
-                state,
-                session,
-                portal_name: &portal_name,
-                portal: &portal,
-                suspended,
-                max_rows,
-            },
-        )
-        .await;
-    }
-    if let Some(command) = portal.completed_command.as_deref() {
-        return write_completed_portal(write_half, command, &state.portal_memory_controls).await;
-    }
-
-    let prepared = prepared_for_portal(state, &portal)?;
-    if let Some(descriptor) = state.prepared_result_descriptors.get(&prepared.id).cloned() {
-        let catalog_version = current_catalog_version(&cassie, session);
-        if descriptor.catalog_version() != catalog_version {
-            let columns =
-                describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
-            validate_prepared_result_types(Some(&descriptor), &columns)?;
-            descriptor.set_catalog_version(catalog_version);
-        }
-    }
-    let Some(parsed) = prepared.parsed.clone() else {
-        return write_empty_query_response(write_half)
-            .await
-            .map_err(|error| ExtendedQueryError::write_failed(&error));
-    };
-    let standalone = transaction_boundary::admit_statement(
-        state,
-        session,
-        &parsed,
-        &cassie.catalog,
-        first_execute,
-    )?;
-    if streamable_portal_query(&prepared, max_rows) {
-        return execute_streaming_portal_page(
-            cassie,
-            write_half,
-            StreamingPortalPageRequest {
-                state,
-                session,
-                portal_name: &portal_name,
-                portal: &portal,
-                prepared: &prepared,
-                max_rows,
-                rows_emitted: 0,
-                cancellation: None,
-            },
-        )
-        .await;
-    }
-    execute_prepared_portal(
-        cassie,
-        runtime,
-        write_half,
-        state,
-        session,
-        PreparedPortalRequest {
-            portal_name: &portal_name,
-            portal: &portal,
-            prepared: &prepared,
-            parsed,
-            max_rows,
-            standalone,
-        },
-    )
-    .await
-}
-
 struct PreparedPortalRequest<'a> {
     portal_name: &'a str,
     portal: &'a PortalExecution,
@@ -662,6 +594,7 @@ async fn describe_prepared(
     session: CassieSession,
     prepared: PreparedStatement,
 ) -> Result<Vec<ColumnMeta>, ExtendedQueryError> {
+    check_prepared_storage_admission(&cassie, &prepared)?;
     let Some(parsed) = prepared.parsed else {
         return Ok(Vec::new());
     };
@@ -674,6 +607,17 @@ async fn describe_prepared(
         )
     })
     .await
+    .map_err(|error| ExtendedQueryError::cassie(&error))
+}
+
+fn check_prepared_storage_admission(
+    cassie: &Cassie,
+    prepared: &PreparedStatement,
+) -> Result<(), ExtendedQueryError> {
+    match &prepared.parsed {
+        Some(parsed) => cassie.check_storage_statement_admission(&parsed.statement),
+        None => cassie.check_storage_recovery_required(),
+    }
     .map_err(|error| ExtendedQueryError::cassie(&error))
 }
 

@@ -304,10 +304,7 @@ impl Midge {
             .database_metadata(name)?
             .ok_or_else(|| CassieError::NotFound(format!("database '{name}' does not exist")))?;
         let handle = self.resolve_database_family(&metadata)?.handle;
-        let data_tx = self
-            .engine
-            .begin_tx(handle.id(), TransactionMode::ReadOnly)
-            .map_err(CassieError::from)?;
+        let data_tx = self.begin_raw_adapter_tx(handle.id(), TransactionMode::ReadOnly)?;
         let has_data = collect_scan(data_tx.scan(&Query::new()).map_err(CassieError::from)?)?
             .into_iter()
             .any(|(key, _)| is_database_data_key(&key));
@@ -437,10 +434,7 @@ impl Midge {
         if entries.is_empty() {
             return Ok(());
         }
-        let mut tx = self
-            .engine
-            .begin_tx(staged.handle.id(), TransactionMode::ReadWrite)
-            .map_err(CassieError::from)?;
+        let mut tx = self.begin_raw_adapter_tx(staged.handle.id(), TransactionMode::ReadWrite)?;
         for (key, value) in entries {
             tx.put(key.clone(), value.clone(), None)
                 .map_err(CassieError::from)?;
@@ -477,10 +471,8 @@ impl Midge {
                 staged.metadata.name
             )));
         }
-        let mut data_tx = self
-            .engine
-            .begin_tx(staged.handle.id(), TransactionMode::ReadWrite)
-            .map_err(CassieError::from)?;
+        let mut data_tx =
+            self.begin_raw_adapter_tx(staged.handle.id(), TransactionMode::ReadWrite)?;
         for (key, value) in catalog_entries {
             validate_database_catalog_entry(&key, &value, source_database)?;
             let Some(family) = key_family(&key) else {
@@ -573,24 +565,32 @@ impl Midge {
         if let Some(handle) = self.engine.get_column_family(name) {
             return Ok(handle);
         }
-        self.engine
-            .create_column_family(name)
-            .or_else(|_| {
-                self.engine.get_column_family(name).ok_or_else(|| {
-                    cntryl_midge::MidgeError::InvalidArgument(format!(
-                        "cannot create or resolve database family '{name}'"
-                    ))
-                })
-            })
-            .map_err(CassieError::from)
+        self.publication.ensure_recovered()?;
+        match self
+            .publication
+            .observe_native(self.engine.create_column_family(name))
+        {
+            Ok(handle) => Ok(handle),
+            Err(error @ cntryl_midge::MidgeError::OutcomeUnknown(_)) => {
+                Err(CassieError::from(error))
+            }
+            Err(error) => self
+                .engine
+                .get_column_family(name)
+                .ok_or_else(|| CassieError::from(error)),
+        }
     }
 
     fn drop_physical_family_if_present(&self, name: &str) -> Result<(), CassieError> {
         if let Some(handle) = self.engine.get_column_family(name) {
             // Every caller is aborting an unpublished family or has verified that
             // the logical database is empty before removing its remaining catalog rows.
-            self.engine
-                .drop_column_family_discarding_unflushed(handle.id())
+            self.publication.ensure_recovered()?;
+            self.publication
+                .observe_native(
+                    self.engine
+                        .drop_column_family_discarding_unflushed(handle.id()),
+                )
                 .map_err(CassieError::from)?;
         }
         Ok(())
@@ -600,11 +600,8 @@ impl Midge {
         &self,
         schema: &ColumnFamilyHandle,
         mode: TransactionMode,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        let mut tx = self
-            .engine
-            .begin_tx(schema.id(), mode)
-            .map_err(CassieError::from)?;
+    ) -> Result<super::AdapterTransaction, CassieError> {
+        let mut tx = self.begin_raw_adapter_tx(schema.id(), mode)?;
         if mode == TransactionMode::ReadWrite {
             tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
         }

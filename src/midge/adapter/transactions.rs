@@ -1,3 +1,4 @@
+use super::publication::{AdapterCommitError, DatabasePublication};
 use super::{
     collect_scan, CassieError, ColumnFamilyHandle, FamilyScope, Midge, Query, RawStorageEntry,
     StorageFamily, TransactionMode, WriteOptions, DEFAULT_FAMILY_NAME,
@@ -73,6 +74,7 @@ pub(crate) struct AdapterTransaction {
     stage_writes: bool,
     suppress_commit: bool,
     local_changes: BTreeMap<Vec<u8>, StorageMutation>,
+    publication: Option<Arc<DatabasePublication>>,
 }
 
 impl AdapterTransaction {
@@ -83,6 +85,7 @@ impl AdapterTransaction {
             stage_writes: false,
             suppress_commit: false,
             local_changes: BTreeMap::new(),
+            publication: None,
         }
     }
 
@@ -98,6 +101,7 @@ impl AdapterTransaction {
             stage_writes,
             suppress_commit,
             local_changes: BTreeMap::new(),
+            publication: None,
         }
     }
 
@@ -213,7 +217,7 @@ impl AdapterTransaction {
         }
     }
 
-    pub(crate) fn commit(mut self, options: WriteOptions) -> Result<(), cntryl_midge::MidgeError> {
+    pub(crate) fn commit(mut self, options: WriteOptions) -> Result<(), AdapterCommitError> {
         let inner = self.inner.take().expect("commit consumes its transaction");
         if self.suppress_commit {
             drop(inner);
@@ -232,7 +236,11 @@ impl AdapterTransaction {
             drop(inner);
             return Ok(());
         }
-        inner.commit(options)
+        if let Some(publication) = self.publication {
+            publication.publish_current(|| inner.commit(options))
+        } else {
+            inner.commit(options).map_err(AdapterCommitError::Native)
+        }
     }
 
     pub(crate) fn rollback(mut self) -> Result<(), cntryl_midge::MidgeError> {
@@ -284,6 +292,17 @@ impl Midge {
         family_id: cntryl_midge::ColumnFamilyId,
         mode: TransactionMode,
     ) -> Result<AdapterTransaction, CassieError> {
+        let mut transaction = self.begin_scoped_adapter_tx(family_id, mode)?;
+        transaction.publication = Some(self.publication.family(family_id));
+        Ok(transaction)
+    }
+
+    fn begin_scoped_adapter_tx(
+        &self,
+        family_id: cntryl_midge::ColumnFamilyId,
+        mode: TransactionMode,
+    ) -> Result<AdapterTransaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let active = ACTIVE_STORAGE_SCOPE.with(|current| current.borrow().clone());
         let Some(scope) =
             active.filter(|scope| scope.midge_identity == std::ptr::from_ref(self) as usize)
@@ -361,10 +380,36 @@ impl Midge {
         mode: TransactionMode,
     ) -> Result<AdapterTransaction, CassieError> {
         let family = self.database_family(database)?;
-        self.engine
-            .begin_tx(family.id(), mode)
-            .map(AdapterTransaction::raw)
-            .map_err(CassieError::from)
+        self.begin_raw_adapter_tx(family.id(), mode)
+    }
+
+    pub(super) fn begin_raw_adapter_tx(
+        &self,
+        family_id: cntryl_midge::ColumnFamilyId,
+        mode: TransactionMode,
+    ) -> Result<AdapterTransaction, CassieError> {
+        self.publication.ensure_recovered()?;
+        let inner = self
+            .engine
+            .begin_tx(family_id, mode)
+            .map_err(CassieError::from)?;
+        let mut transaction = AdapterTransaction::raw(inner);
+        transaction.publication = Some(self.publication.family(family_id));
+        Ok(transaction)
+    }
+
+    pub(crate) fn begin_raw_family_adapter_tx(
+        &self,
+        family: StorageFamily,
+        mode: TransactionMode,
+    ) -> Result<AdapterTransaction, CassieError> {
+        let layout = self.ensure_families_ready()?;
+        let family_id = match family {
+            StorageFamily::Schema => layout.schema.id(),
+            StorageFamily::Temp => layout.temp.id(),
+            StorageFamily::Data => self.database_family(&self.default_database)?.id(),
+        };
+        self.begin_raw_adapter_tx(family_id, mode)
     }
 
     pub(crate) fn commit_storage_overlay(
@@ -494,6 +539,7 @@ impl Midge {
         database: &str,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let family = self.database_family(database)?;
         self.engine
             .begin_tx(family.id(), mode)
@@ -588,6 +634,7 @@ impl Midge {
         family: StorageFamily,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let layout = self.ensure_families_ready()?;
         match family {
             StorageFamily::Schema => self
@@ -607,6 +654,7 @@ impl Midge {
         family: &str,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let Some(cf) = self.engine.get_column_family(family) else {
             return Err(CassieError::StorageMissingFamily(format!(
                 "required column family '{family}' is missing"
@@ -627,13 +675,21 @@ impl Midge {
             return Ok(existing);
         }
 
-        if let Ok(created) = self.engine.create_column_family(name) {
-            return Ok(created);
+        self.publication.ensure_recovered()?;
+        match self
+            .publication
+            .observe_native(self.engine.create_column_family(name))
+        {
+            Ok(created) => Ok(created),
+            Err(error @ cntryl_midge::MidgeError::OutcomeUnknown(_)) => {
+                Err(CassieError::from(error))
+            }
+            Err(_) => self.engine.get_column_family(name).ok_or_else(|| {
+                CassieError::StorageBootstrap(format!(
+                    "cannot resolve required column family '{name}'"
+                ))
+            }),
         }
-
-        self.engine.get_column_family(name).ok_or_else(|| {
-            CassieError::StorageBootstrap(format!("cannot resolve required column family '{name}'"))
-        })
     }
 
     pub(super) fn begin_schema_readonly_tx(&self) -> Result<AdapterTransaction, CassieError> {
@@ -677,6 +733,7 @@ impl Midge {
         if family == StorageFamily::Data {
             return self.begin_database_readonly_tx(&self.default_database);
         }
+        self.publication.ensure_recovered()?;
         self.transaction(family, TransactionMode::ReadOnly)
             .map(AdapterTransaction::raw)
             .map(super::DataReadTransaction::fresh)
@@ -694,6 +751,7 @@ impl Midge {
         if let Some(tx) = self.statement_data_read_for_family(cf.id()) {
             return Ok(tx);
         }
+        self.publication.ensure_recovered()?;
         self.begin_adapter_tx(cf.id(), TransactionMode::ReadOnly)
             .map(super::DataReadTransaction::fresh)
     }

@@ -48,14 +48,23 @@ impl Cassie {
         convert: impl FnOnce(QueryResult, &QueryExecutionControls) -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {
         let started = Instant::now();
+        let mut controls =
+            QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
+        session.apply_statement_timeout(&mut controls, started);
+        if let Some(result) = self.quarantined_sql_result(session, sql, &controls) {
+            let mut rows = 0;
+            let result = result.and_then(|result| {
+                rows = result.row_count();
+                convert(result, &controls)
+            });
+            self.finish_converted_query(session, started, &controls, &result, rows);
+            return result;
+        }
         let Some(running) = self.runtime.try_begin_running_query() else {
             return Err(CassieError::Execution(
                 "query admission exhausted".to_owned(),
             ));
         };
-        let mut controls =
-            QueryExecutionControls::with_cancellation(&self.runtime.limits(), started, execution.1);
-        session.apply_statement_timeout(&mut controls, started);
         self.runtime.record_query_memory(&controls);
         let mut rows = 0;
         let result = self
@@ -66,7 +75,9 @@ impl Cassie {
             });
         self.finish_converted_query(session, started, &controls, &result, rows);
         drop(running);
-        let _ = self.run_deferred_schema_cleanup();
+        if self.check_storage_recovery_required().is_ok() {
+            let _ = self.run_deferred_schema_cleanup();
+        }
         result
     }
 
@@ -78,6 +89,7 @@ impl Cassie {
         cancellation: &QueryCancellationHandle,
         convert: impl FnOnce(QueryExplainOutput, &QueryExecutionControls) -> Result<T, CassieError>,
     ) -> Result<T, CassieError> {
+        self.check_storage_recovery_required()?;
         let started = Instant::now();
         let Some(running) = self.runtime.try_begin_running_query() else {
             return Err(CassieError::Execution(
@@ -100,7 +112,9 @@ impl Cassie {
             });
         self.finish_converted_query(session, started, &controls, &result, rows);
         drop(running);
-        let _ = self.run_deferred_schema_cleanup();
+        if self.check_storage_recovery_required().is_ok() {
+            let _ = self.run_deferred_schema_cleanup();
+        }
         result
     }
 

@@ -104,6 +104,11 @@ pub(super) async fn try_handle_simple_copy_query(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
+    if super::simple_query::is_streaming_copy(sql) {
+        if let Err(error) = cassie.check_storage_recovery_required() {
+            return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await;
+        }
+    }
     if let Some(command) = parse_database_copy_command(sql) {
         return handle_database_copy(cassie, session, command, reader, write_half).await;
     }
@@ -182,6 +187,7 @@ async fn bind_copy_request(
         let Some(request) = request::parse_copy_request(&sql)? else {
             return Ok(None);
         };
+        cassie.check_storage_recovery_required()?;
         match request.direction {
             CopyDirection::FromStdin => {
                 let binding_sql = request.table_binding_sql().ok_or_else(|| {

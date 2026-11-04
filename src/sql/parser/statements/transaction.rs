@@ -75,20 +75,59 @@ fn parsed(sql: &str, statement: TransactionStatement) -> ParsedStatement {
     }
 }
 
+pub(crate) fn parse_terminal_transaction_control(sql: &str) -> Option<TransactionStatement> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let mut tokens = trimmed.split_whitespace();
+    let first = tokens.next()?;
+    let action = if first.eq_ignore_ascii_case("rollback") || first.eq_ignore_ascii_case("abort") {
+        TransactionAction::Rollback
+    } else if first.eq_ignore_ascii_case("commit") || first.eq_ignore_ascii_case("end") {
+        TransactionAction::Commit
+    } else {
+        return None;
+    };
+    Some(TransactionStatement {
+        action,
+        isolation: None,
+        modes: TransactionModes::default(),
+        chain: parse_end_tokens(tokens)?,
+    })
+}
+
 fn parse_end_options(
     tokens: &[&str],
     statement: &mut TransactionStatement,
 ) -> Result<(), SqlError> {
-    let tokens = tokens
-        .strip_prefix(&["work"])
-        .or_else(|| tokens.strip_prefix(&["transaction"]))
-        .unwrap_or(tokens);
-    statement.chain = match tokens {
-        [] | ["and", "no", "chain"] => false,
-        ["and", "chain"] => true,
-        _ => return Err(invalid_transaction()),
-    };
+    statement.chain = parse_end_tokens(tokens.iter().copied()).ok_or_else(invalid_transaction)?;
     Ok(())
+}
+
+fn parse_end_tokens<'a>(mut tokens: impl Iterator<Item = &'a str>) -> Option<bool> {
+    let first = tokens.next();
+    let first = if first.is_some_and(|token| {
+        token.eq_ignore_ascii_case("work") || token.eq_ignore_ascii_case("transaction")
+    }) {
+        tokens.next()
+    } else {
+        first
+    };
+    let chain = match first {
+        None => false,
+        Some(token) if token.eq_ignore_ascii_case("and") => {
+            let option = tokens.next()?;
+            if option.eq_ignore_ascii_case("chain") {
+                true
+            } else if option.eq_ignore_ascii_case("no")
+                && tokens.next()?.eq_ignore_ascii_case("chain")
+            {
+                false
+            } else {
+                return None;
+            }
+        }
+        Some(_) => return None,
+    };
+    tokens.next().is_none().then_some(chain)
 }
 
 fn parse_modes(mut tokens: &[&str], statement: &mut TransactionStatement) -> Result<(), SqlError> {
@@ -159,4 +198,52 @@ fn parse_savepoint_name(raw: &str, command: &str) -> Result<String, SqlError> {
         return Err(SqlError::syntax(format!("invalid savepoint name '{name}'")));
     }
     Ok(name.to_ascii_lowercase())
+}
+
+#[cfg(test)]
+mod cleanup_tests {
+    use super::*;
+
+    #[test]
+    fn should_share_terminal_cleanup_grammar_with_normal_transaction_parsing() {
+        // Arrange
+        let cases = [
+            "ROLLBACK",
+            "abort WORK",
+            "ROLLBACK TRANSACTION AND NO CHAIN;",
+            "COMMIT",
+            "END TRANSACTION AND CHAIN",
+        ];
+        for sql in cases {
+            // Act
+            let terminal = parse_terminal_transaction_control(sql).expect("terminal control");
+            let parsed = parse_transaction_statement(sql).expect("normal transaction parser");
+            let QueryStatement::Transaction(normal) = parsed.statement else {
+                panic!("transaction");
+            };
+
+            // Assert
+            assert_eq!(terminal.action, normal.action);
+            assert_eq!(terminal.chain, normal.chain);
+        }
+    }
+
+    #[test]
+    fn should_reject_nonterminal_commands_from_quarantine_cleanup() {
+        // Arrange
+        let cases = [
+            "ROLLBACK TO SAVEPOINT s",
+            "COMMIT; SELECT 1",
+            "BEGIN",
+            "ROLLBACK AND invalid",
+            "SELECT 1",
+        ];
+        for sql in cases {
+            // Act
+            let terminal = parse_terminal_transaction_control(sql);
+
+            // Assert
+            assert!(terminal.is_none(), "{sql}");
+        }
+    }
 }

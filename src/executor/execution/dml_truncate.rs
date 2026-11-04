@@ -42,7 +42,8 @@ pub(in crate::executor::execution) fn execute_truncate(
         }
         check_timeout(controls)?;
         if statement.restart_identity {
-            restart_owned_sequences(cassie, session, &tables)?;
+            let working_cassie = cassie.with_statement_metadata_writer(batch.session());
+            restart_owned_sequences(&working_cassie, session, &tables)?;
         }
         cassie
             .publish_statement_batch(session, batch, controls)
@@ -50,7 +51,7 @@ pub(in crate::executor::execution) fn execute_truncate(
         Ok::<_, QueryError>(())
     })?;
     for table in &tables {
-        rollups::mark_source_rollups_stale(cassie, table)?;
+        rollups::mark_source_rollups_stale(cassie, session, table)?;
     }
     Ok(output)
 }
@@ -199,7 +200,7 @@ fn restart_owned_sequences(
 ) -> Result<(), QueryError> {
     let transaction = session.filter(|session| session.is_transaction_active());
     let midge = Arc::clone(&cassie.midge);
-    let catalog = cassie.catalog.clone();
+    let catalog = cassie.metadata_write_catalog.clone();
     let restorer: crate::app::SequenceRestorer = Arc::new(move |sequence, cursor| {
         if let Ok(((), updated)) = midge.update_sequence(sequence, |metadata| {
             metadata.set_cursor(cursor);
@@ -219,7 +220,7 @@ fn restart_owned_sequences(
                 Ok(prior)
             })
             .map_err(QueryError::from)?;
-        cassie.catalog.register_sequence(updated);
+        cassie.metadata_write_catalog.register_sequence(updated);
         if let Some(session) = transaction {
             session.record_sequence_restart(&sequence, prior, &restorer);
         }

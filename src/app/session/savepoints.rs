@@ -35,6 +35,7 @@ impl CassieSession {
             .map_or_else(BTreeSet::new, |waits| {
                 waits.snapshot_owner_keys(transaction.unique_owner_id)
             });
+        let catalog_views = transaction.catalog_views.clone();
         transaction.savepoints.push(SessionSavepoint {
             name: name.to_ascii_lowercase(),
             object_mark: self.session_objects_mark(),
@@ -43,6 +44,7 @@ impl CassieSession {
             conflict_intents,
             catalog_overlay,
             catalog_base_version,
+            catalog_views,
             storage_overlay,
             session_state: self.session_state_snapshot(),
             unique_keys,
@@ -86,10 +88,12 @@ impl CassieSession {
         transaction.conflict_intents = conflict_intents;
         transaction.catalog_overlay = catalog_overlay;
         transaction.catalog_base_version = catalog_base_version;
+        transaction.catalog_views = transaction.savepoints[index].catalog_views.clone();
         *transaction.storage_overlay.lock() = storage_overlay;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
         drop(transaction);
+        self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             waits.restore_owner_keys(unique_owner_id, &unique_keys)?;
         }

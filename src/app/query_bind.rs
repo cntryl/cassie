@@ -13,21 +13,39 @@ impl Cassie {
         sql_fingerprint: u64,
         parameter_types: &[i32],
         parameters: &[crate::types::Value],
-        cancellation: &QueryCancellationHandle,
-    ) -> Result<(), CassieError> {
-        let controls = QueryExecutionControls::with_cancellation(
+        authority: (&QueryCancellationHandle, &QueryExecutionControls),
+    ) -> Result<Option<std::sync::Arc<super::BoundReadView>>, CassieError> {
+        let (cancellation, retention) = authority;
+        let started = Instant::now();
+        let mut controls = QueryExecutionControls::with_cancellation(
             &self.runtime.limits(),
-            Instant::now(),
+            started,
             cancellation.clone(),
         );
-        let result = self.validate_pgwire_bind_with_controls(
-            session,
-            parsed,
-            sql_fingerprint,
-            parameter_types,
-            parameters,
-            &controls,
-        );
+        session.apply_statement_timeout(&mut controls, started);
+        let result = self
+            .validate_pgwire_bind_with_controls(
+                session,
+                parsed,
+                sql_fingerprint,
+                parameter_types,
+                parameters,
+                &controls,
+            )
+            .and_then(|needs_data| {
+                needs_data
+                    .map(|needs_data| {
+                        session.capture_bound_read_view(
+                            &self.midge,
+                            session.current_database().unwrap_or(&self.default_database),
+                            needs_data,
+                            &controls,
+                            retention,
+                        )
+                    })
+                    .transpose()
+                    .map(Option::flatten)
+            });
         self.runtime.record_query_memory(&controls);
         result
     }
@@ -40,10 +58,10 @@ impl Cassie {
         parameter_types: &[i32],
         parameters: &[crate::types::Value],
         controls: &QueryExecutionControls,
-    ) -> Result<(), CassieError> {
+    ) -> Result<Option<bool>, CassieError> {
         self.check_storage_statement_admission(&parsed.statement)?;
         if self.check_storage_recovery_required().is_err() {
-            return Ok(());
+            return Ok(None);
         }
         self.prepare_transaction_analysis_view(session, &parsed, !parameters.is_empty(), controls)?;
         self.ensure_session_database_access(session)?;
@@ -57,11 +75,24 @@ impl Cassie {
                 | QueryStatement::Update(_)
                 | QueryStatement::Delete(_)
         ) {
-            return Ok(());
+            return Ok(
+                (Self::analysis_requires_snapshot(&parsed) || !parameters.is_empty())
+                    .then_some(true),
+            );
         }
+        let _publication = self.catalog_publication.read();
+        let descriptor_owner =
+            session.command_descriptor_snapshot(&self.publication_catalog, controls)?;
         let catalog_overlay = session.transaction_catalog_overlay();
         let mut scoped_cassie = self.clone();
-        if let Some(catalog) = catalog_overlay.as_ref() {
+        scoped_cassie.catalog_owner = descriptor_owner.clone();
+        scoped_cassie.metadata_write_catalog = session
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| self.publication_catalog.clone());
+        scoped_cassie.catalog = self.publication_catalog.clone();
+        if let Some(owner) = &descriptor_owner {
+            scoped_cassie.catalog = owner.catalog().clone();
+        } else if let Some(catalog) = catalog_overlay.as_ref() {
             scoped_cassie.catalog = catalog.clone();
         }
         let physical =
@@ -91,10 +122,18 @@ impl Cassie {
                 )?
             };
         crate::executor::check_bound_plan_constants(&physical.logical, controls, parameters)?;
-        controls.check_interruption()
+        controls.check_interruption()?;
+        Ok(Some(
+            physical.logical.command.is_some()
+                || crate::executor::plan_needs_statement_data(&physical.logical),
+        ))
     }
 }
 
 #[cfg(test)]
 #[path = "query_bind_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "query_bind/read_view_tests.rs"]
+mod read_view_tests;

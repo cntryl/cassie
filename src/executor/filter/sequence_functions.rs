@@ -75,9 +75,7 @@ fn nextval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
         .ok_or_else(|| CassieError::Execution("nextval requires storage".into()))?;
     let (value, updated) = midge
         .update_sequence_retrying(&sequence, |metadata| metadata.advance().map_err(Into::into))?;
-    if let Some((catalog, _, _)) = session.sequence_context() {
-        catalog.register_sequence(updated);
-    }
+    session.publish_sequence_metadata(updated);
     session.record_sequence_value(&sequence, value, true);
     Ok(Value::Int64(value))
 }
@@ -113,13 +111,13 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
         .as_i64()
         .ok_or_else(|| CassieError::Execution("setval value must be an integer".into()))?;
     let (sequence, _) = sequence_name(argument, session)?;
-    let (catalog, _, midge) = session
+    let (_, _, midge) = session
         .sequence_context()
         .ok_or_else(|| CassieError::Execution("setval requires storage".into()))?;
     let (value, updated) = midge.update_sequence_retrying(&sequence, |metadata| {
         metadata.assign(value, is_called).map_err(Into::into)
     })?;
-    catalog.register_sequence(updated);
+    session.publish_sequence_metadata(updated);
     if is_called {
         session.record_sequence_value(&sequence, value, false);
     }

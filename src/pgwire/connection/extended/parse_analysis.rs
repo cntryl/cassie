@@ -20,9 +20,20 @@ pub(super) fn admit(
             "private Cassie array parameter OIDs are unsupported by pgwire",
         ));
     }
+    let _publication = cassie.catalog_publication.read();
+    let descriptor_owner = session
+        .command_descriptor_snapshot(&cassie.publication_catalog, controls)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let catalog_overlay = session.transaction_catalog_overlay();
     let mut scoped_cassie = cassie.clone();
-    if let Some(catalog) = catalog_overlay.as_ref() {
+    scoped_cassie.catalog_owner = descriptor_owner.clone();
+    scoped_cassie.metadata_write_catalog = session
+        .transaction_catalog_overlay()
+        .unwrap_or_else(|| cassie.publication_catalog.clone());
+    scoped_cassie.catalog = cassie.publication_catalog.clone();
+    if let Some(owner) = &descriptor_owner {
+        scoped_cassie.catalog = owner.catalog().clone();
+    } else if let Some(catalog) = catalog_overlay.as_ref() {
         scoped_cassie.catalog = catalog.clone();
     }
     crate::sql::parse_analysis::normalize_type_functions(parsed, parameter_type_oids, controls)

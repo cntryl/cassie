@@ -3,6 +3,9 @@ use super::{CassieSession, Catalog};
 #[derive(Clone)]
 pub(super) struct SessionSchemaContext {
     catalog: Catalog,
+    write_catalog: Catalog,
+    publication_catalog: Catalog,
+    _owner: Option<std::sync::Arc<crate::catalog::ControlledCatalogSnapshot>>,
     default_database: String,
     /// Weak so a session that outlives its `Cassie` does not keep the
     /// storage (and its writer lease) open.
@@ -45,17 +48,36 @@ pub(crate) fn resolved_search_path(
 impl CassieSession {
     /// Attaches the catalog and storage that session-evaluated functions such
     /// as `nextval` act on.
-    pub(crate) fn attach_schema_context(
-        &self,
-        catalog: &Catalog,
-        default_database: &str,
-        midge: &std::sync::Arc<crate::midge::Midge>,
-    ) {
+    pub(crate) fn attach_schema_context(&self, app: &super::Cassie) {
         *self.schema_context.lock() = Some(SessionSchemaContext {
-            catalog: catalog.clone(),
-            default_database: default_database.to_string(),
-            midge: std::sync::Arc::downgrade(midge),
+            catalog: app.catalog.clone(),
+            write_catalog: app.metadata_write_catalog.clone(),
+            publication_catalog: app.publication_catalog.clone(),
+            _owner: app.catalog_owner.clone(),
+            default_database: app.default_database.clone(),
+            midge: std::sync::Arc::downgrade(&app.midge),
         });
+    }
+
+    /// A transaction's private read aliases must not keep its catalog lease
+    /// alive after the transaction has retired.
+    pub(crate) fn retire_schema_context(&self) {
+        if let Some(scope) = self.schema_context.lock().as_mut() {
+            scope.catalog = scope.publication_catalog.clone();
+            scope.write_catalog = scope.publication_catalog.clone();
+            scope._owner = None;
+        }
+    }
+
+    pub(crate) fn publish_sequence_metadata(&self, metadata: crate::catalog::SequenceMeta) {
+        let catalog = self
+            .schema_context
+            .lock()
+            .as_ref()
+            .map(|scope| scope.write_catalog.clone());
+        if let Some(catalog) = catalog {
+            catalog.register_sequence(metadata);
+        }
     }
 
     /// The catalog, binding context and storage for session sequence functions.
@@ -108,3 +130,6 @@ impl CassieSession {
         )
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -10,9 +10,15 @@ pub(super) async fn validate(
     state: &SessionState,
     prepared: PreparedStatement,
     parameters: Vec<crate::types::Value>,
-) -> Result<Vec<crate::types::Value>, ExtendedQueryError> {
+) -> Result<
+    (
+        Vec<crate::types::Value>,
+        Option<Arc<crate::app::BoundReadView>>,
+    ),
+    ExtendedQueryError,
+> {
     let Some(parsed) = prepared.parsed else {
-        return Ok(parameters);
+        return Ok((parameters, None));
     };
     let registration = state
         .backend_registration
@@ -21,16 +27,17 @@ pub(super) async fn validate(
     let cancellation = registration.begin_query();
     let handle = cancellation.handle();
     let session = session.clone();
+    let retention = state.portal_memory_controls.clone();
     run_pgwire_blocking(cassie, "pgwire_bind_plan", move |cassie| {
-        cassie.validate_pgwire_bind(
+        let read = cassie.validate_pgwire_bind(
             &session,
             parsed,
             prepared.sql_fingerprint,
             &prepared.parameter_types,
             &parameters,
-            &handle,
+            (&handle, &retention),
         )?;
-        Ok(parameters)
+        Ok((parameters, read))
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))

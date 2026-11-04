@@ -727,3 +727,89 @@ the old handle and permits a recovered instance to select tracked mode. This is
 pending executable evidence; dropping the Cassie wrapper alone is not a claim
 that a still-live external native transaction has disappeared.
 
+
+
+### Explicit nullable columns
+
+`CREATE TABLE` and `ALTER TABLE ADD COLUMN` accept explicit `NULL` column syntax,
+including repeated or named NULL clauses. The clause is equivalent to omitted
+nullability; it creates no persistent constraint identity. Conflicting NULL and
+NOT NULL, inline PRIMARY KEY, SERIAL or IDENTITY declarations return SQLSTATE
+`42601` before publication. A table-level primary key may supply NOT NULL after
+an explicit nullable column, matching PostgreSQL. A later ALTER may also add
+NOT NULL to the originally nullable column.
+
+
+### Selected bounded own-DDL catalog profile
+
+RR SQL catalog rows compose the initial metadata view with this transaction's
+selected DDL. A later current catalog overlay cannot replace the initial view:
+that would import unrelated committed objects. The selected implementation uses
+an admitted immutable DDL base and an exact private content comparison over the
+thirteen maps published by `Catalog::publish_transaction_snapshot`. A controlled
+delta copy inherits all twenty-two initial maps and applies only this
+transaction's insertions, replacements and removals in those thirteen maps.
+Container capacity affects admission and does not affect metadata equality;
+floating metadata fields compare their bits. No public comparison trait is
+added (Jev selection0.99).
+
+The bounded RR catalog-write rule is deliberately conservative: every catalog
+write-intent statement checks the current thirteen-map metadata against the
+initial/own stable base, including referenced schemas and dependencies rather
+than just keys it would change. A stale base returns `40001` before binding or
+execution, including a stale `IF NOT EXISTS` attempt (Jev selections0.98 and1.00).
+READ COMMITTED retains its existing behavior. Pure DML first-committer-wins
+validation still permits disjoint row writers and never asserts a shared data
+epoch. Ordinary descriptor/name lookup and authorization remain current,
+layered with the transaction's own DDL.
+
+This does not claim PostgreSQL's internal catalog-tuple MVCC. Pinned PostgreSQL
+18.6 permits ALTER of a table created outside the RR view and can expose only
+its own added attribute while retaining that attribute's original ordinal.
+In-place/system-catalog details differ again for defaults and indexes. Those
+stale-base tuple-mask cases, including PostgreSQL's successful stale no-op,
+remain explicit pending obligations under #819/#833; a guarded rejection is not
+a passing PostgreSQL parity case. The source selection creates no new durable
+format or storage layer and does not qualify new runtime support before its
+frozen gate.
+
+SQL catalog own changes have command ownership as well as transaction ownership.
+A top-level command pins its catalog owner across internal CTAS steps: PostgreSQL
+CTAS counts its new target as absent in its source query, then sees it in the next
+command. In an explicit RR extended protocol flow, Bind also pins the command's
+own Data overlay and catalog owner. A later own mutation cannot enter an earlier
+bound portal; a fresh command can see it. Actual pinned data/catalog portal
+oracles establish both distinctions (Jev boundary selection0.99). Savepoint
+recovery restores own catalog/cache owners without advancing the retained view.
+
+The current source increment keeps a canonical private publication catalog
+through temporary descriptor scopes. SQL catalog command owners compose only
+the selected thirteen-map own delta; descriptor owners compose current metadata
+with that same delta. Their caches use the overlay version and the pair of Main
+and overlay versions respectively. Prepared descriptors are revalidated when an
+own catalog stage exists, because the existing single version stamp cannot
+represent both versions without collisions.
+
+A private Bind owner carries the command's catalog and, when the compiled plan
+requires Data, its COW own-row map. The connection separately admits retained
+portal backing; owner clones retain those narrow leases through Close or worker
+retirement. Constant queries avoid copying unrelated own payloads. RR bound
+portals use the existing bounded materialized result path, including suspended
+pages; READ COMMITTED keeps its existing direct cursor path. The current Execute
+request supplies cancellation and deadline authority.
+
+Controlled descriptor catalogs remain immutable. Scoped query and session
+lookup aliases retain their controlled owner; sequence/default/TRUNCATE and
+rollup publishers target the existing mutable transaction stage or Main instead.
+Statement mutation forks publish their own metadata changes with their row
+changes. Upsert candidate/default evaluation occurs once before the working base
+is captured, and an owner wait reuses those prepared inputs. Full transaction
+retirement and savepoint restoration discard stale session lookup owners.
+
+These implementations and their regression probes are source-only pending the
+combined native gate; the read-write RR admission guard remains in place. The
+separate existing lifecycle gap for a newly staged SERIAL/identity sequence is
+tracked by [#839](https://github.com/cntryl/cassie/issues/839). Published-image and
+PostgreSQL 18.6 probes confirm that gap also affects READ COMMITTED; this source
+increment does not claim it completed.
+

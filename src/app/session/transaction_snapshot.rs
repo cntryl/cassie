@@ -16,6 +16,16 @@ pub(super) struct TransactionReadSnapshot {
     _memory: QueryMemoryReservation,
 }
 
+impl TransactionReadSnapshot {
+    pub(super) fn catalog(&self) -> &crate::catalog::Catalog {
+        self.catalog.catalog()
+    }
+
+    pub(super) fn catalog_owner(&self) -> Arc<ControlledCatalogSnapshot> {
+        Arc::clone(&self.catalog)
+    }
+}
+
 impl std::fmt::Debug for TransactionReadSnapshot {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -27,6 +37,14 @@ impl std::fmt::Debug for TransactionReadSnapshot {
 }
 
 impl CassieSession {
+    pub(super) fn repeatable_read_identity(&self) -> Option<usize> {
+        self.transaction
+            .lock()
+            .repeatable_read
+            .as_ref()
+            .map(|owner| Arc::as_ptr(owner) as usize)
+    }
+
     pub(crate) fn is_repeatable_read_write(&self) -> bool {
         let transaction = self.transaction.lock();
         transaction.isolation == Some(TransactionIsolation::RepeatableRead)

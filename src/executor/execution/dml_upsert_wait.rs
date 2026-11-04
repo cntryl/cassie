@@ -75,6 +75,7 @@ struct PendingUpsert {
     keys: Option<BTreeSet<UniqueTransactionKey>>,
     owner: Option<uuid::Uuid>,
     previous: Option<BTreeSet<UniqueTransactionKey>>,
+    anonymous_session: Option<CassieSession>,
 }
 
 pub(super) fn execute(request: UpsertRequest<'_>) -> Result<QueryResult, QueryError> {
@@ -127,17 +128,13 @@ impl PendingUpsert {
             keys,
             owner,
             previous,
+            anonymous_session,
         } = self;
         controls.check_interruption()?;
-        let batch = cassie.new_statement_batch(session)?;
-        let statement_controls = super::entrypoints::working_statement_read_controls(
-            cassie,
-            session,
-            batch.session(),
-            controls,
-        )?;
-        let controls = &statement_controls;
-        let current_owner = batch.session().transaction_unique_owner_id();
+        let input_session = session.unwrap_or_else(|| {
+            anonymous_session.get_or_insert_with(|| cassie.create_session("root", None))
+        });
+        let current_owner = input_session.transaction_unique_owner_id();
         if owner.is_some_and(|owner| owner != current_owner) {
             return Err(crate::app::CassieError::Execution(
                 "transaction changed while upsert waited".into(),
@@ -145,16 +142,28 @@ impl PendingUpsert {
             .into());
         }
         *owner = Some(current_owner);
+        // Default/identity expressions execute once before the working base is
+        // captured. A wait reuses these candidates and never repeats inputs.
         if prepared.is_none() {
+            let input_cassie = cassie.with_statement_metadata_writer(input_session);
             *prepared = Some(super::dml::prepare_waiting_insert(
-                cassie,
-                batch.session(),
+                &input_cassie,
+                input_session,
                 statement,
                 params,
                 functions,
                 controls,
             )?);
         }
+        let batch = cassie.new_statement_batch(Some(input_session))?;
+        let statement_controls = super::entrypoints::working_statement_read_controls(
+            cassie,
+            Some(input_session),
+            batch.session(),
+            controls,
+        )?;
+        let controls = &statement_controls;
+        let working_cassie = cassie.with_statement_metadata_writer(batch.session());
         let keys = keys.get_or_insert_with(|| {
             crate::app::collect_upsert_unique_keys(
                 &cassie.catalog,
@@ -184,7 +193,7 @@ impl PendingUpsert {
         }
         let result: Result<QueryResult, QueryError> = (|| {
             let result = super::dml::execute_prepared_insert(
-                cassie,
+                &working_cassie,
                 batch.session(),
                 statement,
                 params,

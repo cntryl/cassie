@@ -6011,7 +6011,7 @@ The private retained assertion owner now has authored modern/column/legacy
 same-payload conflict, disjoint-row, old-empty insert/delete, final-row
 cancellation, and one-/two-row input-admission probes. A synchronized native
 publisher probe covers the gate window. The old-empty correction follows six
-pinned PostgreSQL18.6 successful current-empty insertion controls; it supersedes
+pinned PostgreSQL 18.6 successful current-empty insertion controls; it supersedes
 the earlier blanket missing-key assertion design. Existing native internals are
 unchanged. RW mode remains rejected.
 
@@ -6084,4 +6084,37 @@ All execution remains deferred under the user's batching direction; direct
 Rust parser/formatting and diff checks are interim source checks. Runtime RW
 remains rejected pending own-DDL catalog composition, final integration and the
 full required ordered gate. No new passing support claim is made here.
+
+
+
+### Repeatable-read command owners (source checkpoint)
+
+The RR source bundle now includes controlled catalog delta helper `820c18a1`,
+command and Bind own-view ownership, current descriptor composition, bounded
+portal retention, and immutable read catalog / mutable metadata writer
+separation. Twenty-two new regression declarations cover CTAS command catalog
+boundaries, stale DDL dependencies, savepoint restoration, statement forks,
+Bind own rows/catalog, exact admission, last-owner retirement, current execution
+cancellation, sequence metadata ownership, and once-only upsert inputs across an
+actual unique-owner wait. The latter synchronizes on the installed owner edge;
+its deadline is only a hang guard.
+
+All eight focused source test-policy checks passed (31 declarations, including
+nine preserved RR protocol tests). Direct Rust formatting/parser checks and
+`git diff --check` passed. Per the user's batching instruction, no build, native
+test, Clippy, complete ordered gate, or regenerated inventory is claimed for
+this source checkpoint. RW admission remains unsupported until the combined
+native gate qualifies the implementation. The nine catalog delta helper tests
+also remain pending native execution.
+
+Jev review receipts are retained under the isolated worktree's ignored
+`target/v020-evidence/rw/` directory. Concrete candidates at or above 0.30 led to
+authored CTAS-after-own-DDL, actual bound INSERT-source, frame-plus-directory
+N-1/N, constant-plan memory, and prepared-default owner-wait probes. Source
+review also found the session catalog alias and runtime metadata mutation
+paths, which now retain read owners and target mutable stages explicitly. The
+final focused source judgments were 0.26 for read-owner gaps, 0.23 for mutation
+fork gaps, and 0.24 for once-only input gaps; these are advisory and do not
+replace execution. The separate newly staged sequence lifecycle gap remains
+open in #839.
 

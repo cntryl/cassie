@@ -153,3 +153,34 @@ pub fn disconnect_retained_view() -> (u64, u64) {
         (retained, released)
     })
 }
+
+/// Executes ordered protocol exchanges on one owned memory-mode connection.
+pub fn run_own_script(setup: &[&str], script: Vec<Vec<Vec<u8>>>) -> Vec<Frames> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("current-thread runtime");
+    runtime.block_on(async {
+        let cassie = crate::support_sql::new_in_memory_cassie().expect("memory fixture");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in setup {
+            cassie
+                .execute_sql(&session, sql, Vec::new())
+                .expect("setup");
+        }
+        let server = wire::spawn_server(cassie).await;
+        let socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("client");
+        let (mut reader, mut writer) = socket.into_split();
+        wire::complete_startup(&mut reader, &mut writer).await;
+        let mut responses = Vec::new();
+        for frames in script {
+            responses.push(exchange(&mut reader, &mut writer, frames).await);
+        }
+        drop((reader, writer));
+        server.stop().await;
+        responses
+    })
+}

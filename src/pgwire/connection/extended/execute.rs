@@ -64,7 +64,9 @@ pub(super) async fn handle_execute(
     let prepared = prepared_for_portal(state, &portal)?;
     if let Some(descriptor) = state.prepared_result_descriptors.get(&prepared.id).cloned() {
         let catalog_version = current_catalog_version(&cassie, session);
-        if descriptor.catalog_version() != catalog_version {
+        if session.transaction_catalog_overlay().is_some()
+            || descriptor.catalog_version() != catalog_version
+        {
             let columns =
                 describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
             validate_prepared_result_types(Some(&descriptor), &columns)?;
@@ -83,7 +85,9 @@ pub(super) async fn handle_execute(
         &cassie.catalog,
         first_execute,
     )?;
-    if streamable_portal_query(&prepared, max_rows) {
+    if streamable_portal_query(&prepared, max_rows)
+        && state.portal_reads.get(&portal_name).is_none()
+    {
         return execute_streaming_portal_page(
             cassie,
             write_half,

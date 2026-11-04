@@ -11,6 +11,17 @@ pub(super) struct CommittedWriteBatch {
 }
 
 impl Cassie {
+    /// A statement's metadata side effects join its working catalog stage;
+    /// descriptor reads keep the caller's separately retained immutable view.
+    pub(crate) fn with_statement_metadata_writer(&self, working: &CassieSession) -> Self {
+        let mut scoped = self.clone();
+        scoped.metadata_write_catalog = working
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| self.publication_catalog.clone());
+        working.attach_schema_context(&scoped);
+        scoped
+    }
+
     pub(crate) fn new_statement_batch(
         &self,
         session: Option<&CassieSession>,

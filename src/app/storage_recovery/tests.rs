@@ -30,7 +30,10 @@ fn should_reject_new_constant_queries_after_storage_requires_recovery() {
         0,
         &[],
         &[],
-        &QueryCancellationHandle::new(),
+        (
+            &QueryCancellationHandle::new(),
+            &QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now()),
+        ),
     );
 
     // Assert

@@ -43,6 +43,17 @@ impl std::fmt::Debug for StatementDataRead {
 }
 
 impl StatementDataRead {
+    /// Additional per-command retained backing; the immutable transaction core
+    /// is shared with the transaction owner and is admitted there once.
+    pub(crate) fn command_accounted_bytes(&self) -> Result<usize, CassieError> {
+        crate::executor::retained_memory::add(
+            self._memory.bytes(),
+            self.overlay
+                .as_ref()
+                .map_or(0, |owner| owner.accounted_bytes()),
+        )
+    }
+
     pub(crate) fn capture(
         midge: &Arc<Midge>,
         database: &str,

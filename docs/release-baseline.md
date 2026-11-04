@@ -72,3 +72,6 @@ downgrade after feature use needs a separate export/conversion contract.
 This is not a package-version or dependency-version change. Prove marker/crash
 ordering, unchanged v1-row reads, v1-reader rejection before mutation, rollback,
 restart and image/restore admission before publishing new durable features.
+
+The bounded implementation plan and its source-only evidence status are recorded
+in [Storage Compatibility Transition](storage-compatibility-transition.md).

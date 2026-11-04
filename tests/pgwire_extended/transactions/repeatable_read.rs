@@ -131,7 +131,10 @@ fn should_retain_repeatable_read_for_suspended_direct_cursor_pages() {
     assert_eq!(wire::data_rows(&pages[0]), vec![vec![Some("1".to_owned())]]);
     assert!(pages[0].iter().any(|(tag, _)| *tag == b's'));
     assert_eq!(wire::data_rows(&pages[1]), vec![vec![Some("2".to_owned())]]);
-    assert!(wire::data_rows(&pages[2]).is_empty());
+    assert_eq!(
+        wire::data_rows(&pages[2]),
+        Vec::<Vec<Option<String>>>::new()
+    );
     assert_eq!(wire::data_rows(&fresh), vec![vec![Some("3".to_owned())]]);
 }
 

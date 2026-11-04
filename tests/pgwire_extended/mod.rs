@@ -189,5 +189,7 @@ mod fetch_names;
 mod ddl_concurrent_table_creation;
 #[path = "ddl/ctas_atomicity.rs"]
 mod ddl_ctas_atomicity;
+#[path = "ddl/explicit_null.rs"]
+mod ddl_explicit_null;
 #[path = "protocol/fetch_global.rs"]
 mod fetch_global;

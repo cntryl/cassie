@@ -128,8 +128,12 @@ fn validate(
         crate::sql::literal_inputs::validate_with_controls(expr, data_type, *identity, controls)?;
     }
     match expression {
-        Expr::Function(function) if crate::sql::functions::is_temporal_function(&function.name) => {
-        }
+        Expr::Function(function)
+            if crate::sql::functions::is_temporal_function(&function.name)
+                || function
+                    .name
+                    .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+                || function.name.eq_ignore_ascii_case("_cassie_array_value") => {}
         Expr::Exists(_) | Expr::Subquery(_) => return Ok(()),
         Expr::Function(_) => {
             return Err(CassieError::Unsupported(
@@ -175,6 +179,7 @@ fn validate(
                     | DataType::Date
                     | DataType::Time
                     | DataType::Timestamp
+                    | DataType::Array(_)
                     | DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
             ) && !crate::types::extended::operations::handles(data_type) =>
         {

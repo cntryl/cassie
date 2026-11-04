@@ -65,17 +65,19 @@ pub(super) fn execute(
             let scratch = env
                 .controls
                 .reserve_query_memory(scratch_bytes(expression, env.params)?)?;
-            let value = super::super::filter::evaluate_expr_value(
+            let evaluation = super::filter::EvaluationMemory::new(env.controls)?;
+            let value = super::filter::evaluate_source_argument(
                 &BatchRow::from_projected_values(Vec::new()),
                 expression,
                 env.params,
-                None,
                 env.user_functions,
                 env.session,
-                None,
+                env.controls,
+                &evaluation,
             )?;
             memory.try_grow(value_clone_bytes(&value)?)?;
             values.push((format!("column{}", index + 1), value));
+            drop(evaluation);
             drop(scratch);
         }
         output.push(
@@ -111,7 +113,13 @@ pub(in crate::executor::execution) fn scratch_bytes(
             })?,
             4,
         )?,
-        Expr::Function(function) if crate::sql::functions::is_temporal_function(&function.name) => {
+        Expr::Function(function)
+            if crate::sql::functions::is_temporal_function(&function.name)
+                || function
+                    .name
+                    .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+                || function.name.eq_ignore_ascii_case("_cassie_array_value") =>
+        {
             64
         }
         // A subquery (`_` below) admits its own rows when it runs.

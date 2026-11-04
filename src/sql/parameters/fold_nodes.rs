@@ -225,10 +225,12 @@ fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
                 2 + usize::from(repeatable.is_some())
             }
             ast::QuerySource::Aliased { .. } | ast::QuerySource::Subquery { .. } => 1,
+            ast::QuerySource::TableFunction { function, .. } => {
+                usize::from(crate::sql::table_sources::is_generated(&function.name))
+            }
             ast::QuerySource::Collection(_)
             | ast::QuerySource::Cte(_)
-            | ast::QuerySource::SingleRow
-            | ast::QuerySource::TableFunction { .. } => 0,
+            | ast::QuerySource::SingleRow => 0,
         },
         Node::Expr(expr) => expression_children(expr),
         Node::Function(function) => function.args.len() + 1,
@@ -358,10 +360,13 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
             1 => Node::Source(right),
             _ => Node::Expr(on),
         }),
+        ast::QuerySource::TableFunction { function, .. } => {
+            crate::sql::table_sources::is_generated(&function.name)
+                .then_some(Node::Function(function))
+        }
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)
-        | ast::QuerySource::SingleRow
-        | ast::QuerySource::TableFunction { .. } => None,
+        | ast::QuerySource::SingleRow => None,
     }
 }
 

@@ -24,7 +24,7 @@ fn should_return_numeric_exponential_range_errors_without_publishing_prior_rows(
     let batches = run_script("issue-813-numeric-exp-range", steps);
 
     // Assert
-    for pair in batches.chunks_exact(2) {
+    for pair in batches.as_chunks::<2>().0 {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("22003"));
         assert!(!pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
         assert_eq!(pair[0].last().map(|frame| frame.0), Some(b'Z'));
@@ -72,7 +72,7 @@ fn should_reject_undefined_infinite_numeric_powers_without_partial_output() {
     let batches = run_script("issue-813-infinite-power-domains", steps);
 
     // Assert
-    for pair in batches.chunks_exact(2) {
+    for pair in batches.as_chunks::<2>().0 {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("2201F"));
         assert!(!pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
         assert_eq!(pair[0].last().map(|frame| frame.0), Some(b'Z'));

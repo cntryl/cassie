@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_supported_bit_input_forms() {
+    fn should_parse_postgresql_bit_literals() {
         // Arrange
         let inputs = ["10101", "x1F", "Xa0", "b011", ""];
 
@@ -457,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn should_validate_bit_string_length_modifiers() {
+    fn should_apply_bit_length_typmods() {
         // Arrange
         let value = bits("1011");
 

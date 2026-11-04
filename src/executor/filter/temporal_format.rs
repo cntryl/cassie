@@ -2,10 +2,11 @@
 use super::temporal::type_error;
 use super::QueryError;
 use crate::types::extended::temporal::calendar::{
-    date2j, fields_to_timestamp, timestamp_to_fields, Fields, POSTGRES_EPOCH_JDATE, USECS_PER_DAY,
-    USECS_PER_HOUR, USECS_PER_MINUTE, USECS_PER_SEC,
+    date2j, fields_to_timestamp, timestamp_to_fields, Fields, POSTGRES_EPOCH_JDATE, USECS_PER_HOUR,
+    USECS_PER_MINUTE, USECS_PER_SEC,
 };
 use crate::types::extended::temporal::format::{self, Moment};
+use crate::types::extended::temporal::ops;
 use crate::types::extended::temporal::{range_error, TemporalSession};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
@@ -58,6 +59,9 @@ fn to_char(value: &Value, template: &str, session: &TemporalSession) -> Result<V
     let Value::Typed(value) = value else {
         return Ok(Value::Null);
     };
+    if !ops::is_finite(value) {
+        return Ok(Value::Null);
+    }
     let out_of_range = || type_error(range_error("timestamp out of range"));
     let (moment, zone_name) = match value {
         TypedValue::Timestamp(local) => (
@@ -68,19 +72,17 @@ fn to_char(value: &Value, template: &str, session: &TemporalSession) -> Result<V
             },
             String::new(),
         ),
-        TypedValue::Date(date) => (
-            Moment {
-                fields: timestamp_to_fields(i64::from(*date) * USECS_PER_DAY)
-                    .ok_or_else(out_of_range)?,
-                zone_east: Some(
-                    session
-                        .zone
-                        .offset_for_local(i64::from(*date) * USECS_PER_DAY),
-                ),
-                is_interval: false,
-            },
-            String::new(),
-        ),
+        TypedValue::Date(date) => {
+            let local = ops::date_to_timestamp(*date).map_err(type_error)?;
+            (
+                Moment {
+                    fields: timestamp_to_fields(local).ok_or_else(out_of_range)?,
+                    zone_east: Some(session.zone.offset_for_local(local)),
+                    is_interval: false,
+                },
+                String::new(),
+            )
+        }
         TypedValue::TimestampTz(instant) => {
             let info = session.zone.info_at(*instant);
             let local = instant + i64::from(info.east) * USECS_PER_SEC;

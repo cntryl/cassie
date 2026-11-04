@@ -8,6 +8,10 @@ use super::{pow10, Numeric, TypeInputError, MAX_DISPLAY_SCALE, MAX_DSCALE};
 /// `NUMERIC_MIN_SIG_DIGITS`.
 const MIN_SIG_DIGITS: i64 = 16;
 
+/// PostgreSQL `exp_var` bounds its original argument independently of display
+/// scale: three times `NUMERIC_MAX_RESULT_SCALE` (twice the display-scale cap).
+const MAX_EXP_ARGUMENT: u32 = MAX_DISPLAY_SCALE * 6;
+
 fn error(sqlstate: &'static str, message: &str) -> TypeInputError {
     TypeInputError {
         sqlstate,
@@ -633,12 +637,19 @@ pub fn exp(value: &Numeric) -> Result<Numeric, TypeInputError> {
             other => other.clone(),
         });
     };
-    let approximate_weight =
-        (approximate(value) * std::f64::consts::LOG10_E).clamp(-2000.0, 2000.0);
-    if approximate_weight > 131_072.0 * 0.999 {
+    let approximate_input = approximate(value);
+    if approximate_input >= f64::from(MAX_EXP_ARGUMENT) {
         return Err(error("22003", "value overflows numeric format"));
     }
-    let weight = approximate_weight.trunc().to_i64().unwrap_or_default();
+    if approximate_input <= -f64::from(MAX_EXP_ARGUMENT) {
+        return Ok(Numeric::finite(BigInt::zero(), MAX_DISPLAY_SCALE));
+    }
+    // Guard the original input before choosing working precision. Clamping
+    // this weight for display-scale selection loses integer result digits.
+    let weight = (approximate_input * std::f64::consts::LOG10_E)
+        .trunc()
+        .to_i64()
+        .unwrap_or_default();
     let result_scale = clamp_scale((MIN_SIG_DIGITS - weight).max(i64::from(*scale)));
     let work = Fixed {
         value: BigInt::zero(),
@@ -654,146 +665,9 @@ pub fn exp(value: &Numeric) -> Result<Numeric, TypeInputError> {
     .check_format()
 }
 
-/// `power(numeric, numeric)` / `^`.
-///
-/// # Errors
-/// Returns PostgreSQL's errors for undefined or complex powers and overflow.
-pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputError> {
-    if base.is_nan() || exponent.is_nan() {
-        if base.compare(&super::one()).is_eq() || exponent.is_zero() {
-            return Ok(super::one());
-        }
-        return Ok(Numeric::NaN);
-    }
-    let (
-        Numeric::Finite {
-            mantissa: base_mantissa,
-            scale: base_scale,
-        },
-        Numeric::Finite {
-            mantissa: exponent_mantissa,
-            scale: exponent_scale,
-        },
-    ) = (base, exponent)
-    else {
-        return Ok(
-            Numeric::from_f64(approximate(base).powf(approximate(exponent)))
-                .unwrap_or(Numeric::NaN),
-        );
-    };
-    if base_mantissa.is_zero() && exponent_mantissa.is_negative() {
-        return Err(error(
-            "2201F",
-            "zero raised to a negative power is undefined",
-        ));
-    }
-    let integral = exponent.truncate_to(0).compare(exponent).is_eq();
-    if base_mantissa.is_negative() && !integral {
-        return Err(error(
-            "2201F",
-            "a negative number raised to a non-integer power yields a complex result",
-        ));
-    }
-    if integral {
-        if let Some(power) = exponent
-            .to_i64_rounded()
-            .ok()
-            .flatten()
-            .and_then(|value| i32::try_from(value).ok())
-        {
-            return power_integer(base_mantissa, *base_scale, power, *exponent_scale);
-        }
-    }
-    if base_mantissa.is_zero() {
-        return Ok(Numeric::finite(BigInt::zero(), 16));
-    }
-    let ln_estimate = approximate(base).ln() * approximate(exponent);
-    if ln_estimate.abs() > 131_072.0 * 3.01 * std::f64::consts::LN_10 {
-        if ln_estimate > 0.0 {
-            return Err(error("22003", "value overflows numeric format"));
-        }
-        return Ok(Numeric::finite(BigInt::zero(), MAX_DISPLAY_SCALE));
-    }
-    let weight = (ln_estimate * std::f64::consts::LOG10_E)
-        .trunc()
-        .to_i64()
-        .unwrap_or_default();
-    let result_scale = clamp_scale(
-        (MIN_SIG_DIGITS - weight)
-            .max(i64::from(*base_scale))
-            .max(i64::from(*exponent_scale)),
-    );
-    let work = Fixed {
-        value: BigInt::zero(),
-        digits: working_digits(result_scale, weight.abs() * 2),
-    };
-    let ln_base = ln_fixed(
-        &work,
-        &Fixed::from_numeric(base_mantissa, *base_scale, work.digits).value,
-    );
-    let exponent_fixed = Fixed::from_numeric(exponent_mantissa, *exponent_scale, work.digits);
-    let product = work.multiply(&ln_base, &exponent_fixed.value);
-    Fixed {
-        value: exp_fixed(&work, &product),
-        digits: work.digits,
-    }
-    .into_numeric(result_scale)
-    .check_format()
-}
-
-/// `power_var_int`.
-fn power_integer(
-    mantissa: &BigInt,
-    scale: u32,
-    exponent: i32,
-    exponent_scale: u32,
-) -> Result<Numeric, TypeInputError> {
-    let base = Numeric::finite(mantissa.clone(), scale);
-    let estimate = if mantissa.is_zero() {
-        0.0
-    } else {
-        let (digits, weight) = Numeric::base_digits(mantissa, scale);
-        let mut leading = 0.0f64;
-        let mut decimal_weight = f64::from(weight) * 4.0;
-        for (index, digit) in digits.iter().enumerate() {
-            if index > 0 && index * 4 >= 16 {
-                break;
-            }
-            if index > 0 {
-                decimal_weight -= 4.0;
-            }
-            leading = leading * 10_000.0 + f64::from(*digit);
-        }
-        f64::from(exponent) * (leading.log10() + decimal_weight)
-    };
-    if estimate > 131_072.0 {
-        return Err(error("22003", "value overflows numeric format"));
-    }
-    if estimate + 1.0 < -f64::from(MAX_DISPLAY_SCALE) {
-        return Ok(Numeric::finite(BigInt::zero(), MAX_DISPLAY_SCALE));
-    }
-    let result_scale = clamp_scale(
-        (MIN_SIG_DIGITS - estimate.trunc().to_i64().unwrap_or_default())
-            .max(i64::from(scale))
-            .max(i64::from(exponent_scale)),
-    );
-    let magnitude = exponent.unsigned_abs();
-    if exponent == 0 {
-        return Ok(Numeric::finite(pow10(result_scale), result_scale));
-    }
-    let raised = num_traits::pow(mantissa.clone(), magnitude as usize);
-    let raised_scale = scale.saturating_mul(magnitude);
-    if exponent > 0 {
-        return Numeric::finite(raised, raised_scale)
-            .round_to(i32::try_from(result_scale).unwrap_or_default())
-            .check_format();
-    }
-    if raised.is_zero() {
-        return Err(division_by_zero());
-    }
-    let _ = base;
-    divide_finite(&BigInt::one(), 0, &raised, raised_scale, result_scale).check_format()
-}
+#[path = "numeric_power.rs"]
+mod power_impl;
+pub use power_impl::power;
 
 /// `factorial(bigint)`.
 ///

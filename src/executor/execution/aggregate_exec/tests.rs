@@ -655,3 +655,40 @@ fn should_merge_integer_bitwise_aggregates_across_parallel_partitions() {
     assert_eq!(values, [Value::Int64(1), Value::Int64(7), Value::Int64(1)]);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_cancel_boolean_aggregate_after_the_final_filtered_row() {
+    // Arrange
+    let plan = aggregate_plan("SELECT BOOL_AND(flag) FILTER (WHERE included) FROM records");
+    let functions = HashMap::new();
+    for included in [Value::Bool(false), Value::Null] {
+        let cancellation = crate::runtime::QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        let mut context = aggregate_context(&plan, &functions, &controls);
+        let checkpoint_fired = std::sync::atomic::AtomicBool::new(false);
+        let observer = |_| {
+            assert!(!checkpoint_fired.swap(true, std::sync::atomic::Ordering::AcqRel));
+            cancellation.cancel();
+        };
+        context.after_partition_row = Some(&observer);
+        let rows = [BatchRow::new(vec![
+            ("flag".to_owned(), Value::Bool(true)),
+            ("included".to_owned(), included),
+        ])];
+
+        // Act
+        let result = AggregateAccumulator::evaluate(aggregate_call(&plan), &rows, &context);
+
+        // Assert
+        assert!(checkpoint_fired.load(std::sync::atomic::Ordering::Acquire));
+        assert!(result
+            .expect_err("cancellation after the last excluded input cannot publish NULL")
+            .to_string()
+            .contains("query canceled"));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

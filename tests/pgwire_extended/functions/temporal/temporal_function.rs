@@ -2,7 +2,6 @@
 
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
-use tokio::io::AsyncWriteExt;
 
 #[path = "clock_observation.rs"]
 mod clock_observation_contracts;
@@ -500,14 +499,6 @@ fn should_accept_make_time_hour_24() {
     );
 }
 
-struct FixtureDirectory(String);
-
-impl Drop for FixtureDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 #[test]
 fn should_bind_date_add_parameters_with_dst_zone() {
     // Arrange
@@ -669,123 +660,23 @@ fn should_bind_date_subtract_parameters_with_dst_zone() {
 #[test]
 fn should_cancel_pg_sleep_for() {
     // Arrange
-    let path = wire::data_dir("postgresql18-pg-sleep-cancel");
-    let _directory = FixtureDirectory(path.clone());
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
+    let sql = "SELECT PG_SLEEP_FOR(INTERVAL '60 seconds')";
 
     // Act
-    let (cancelled, recovered) = runtime.block_on(async {
-        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
-        cassie.startup().expect("start cancellation fixture");
-        let server = wire::spawn_server(cassie).await;
-        let socket = tokio::net::TcpStream::connect(server.addr)
-            .await
-            .expect("query connection");
-        let (mut reader, mut writer) = socket.into_split();
-        let (process_id, secret_key) =
-            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame(
-                "SELECT PG_SLEEP_FOR(INTERVAL '60 seconds')",
-            )],
-        )
-        .await;
-        tokio::time::sleep(std::time::Duration::from_millis(40)).await;
-        let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
-            .await
-            .expect("cancel connection");
-        cancel_socket
-            .write_all(&wire::cancel_request_frame(process_id, secret_key))
-            .await
-            .expect("write cancel request");
-        cancel_socket
-            .shutdown()
-            .await
-            .expect("close cancel request");
-        let cancelled =
-            wire::read_frames_until_ready_within(&mut reader, std::time::Duration::from_secs(5))
-                .await;
-        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
-        let recovered =
-            wire::read_frames_until_ready_within(&mut reader, std::time::Duration::from_secs(5))
-                .await;
-        drop(reader);
-        drop(writer);
-        server.stop().await;
-        (cancelled, recovered)
-    });
+    let (cancelled, recovered) = crate::support_temporal_cancellation::run_sleep_cancellation(sql);
 
     // Assert
-    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
-    assert_eq!(wire::error_code(&recovered), None);
-    assert_eq!(
-        wire::data_rows(&recovered),
-        vec![vec![Some("45".to_owned())]]
-    );
+    crate::support_temporal_cancellation::assert_cancelled_and_recovered(&cancelled, &recovered);
 }
 
 #[test]
 fn should_cancel_pg_sleep_until() {
     // Arrange
-    let path = wire::data_dir("postgresql18-pg-sleep-until-cancel");
-    let _directory = FixtureDirectory(path.clone());
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
+    let sql = "SELECT PG_SLEEP_UNTIL(CLOCK_TIMESTAMP() + INTERVAL '60 seconds')";
 
     // Act
-    let (cancelled, recovered) = runtime.block_on(async {
-        let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
-        cassie.startup().expect("start cancellation fixture");
-        let server = wire::spawn_server(cassie).await;
-        let socket = tokio::net::TcpStream::connect(server.addr)
-            .await
-            .expect("query connection");
-        let (mut reader, mut writer) = socket.into_split();
-        let (process_id, secret_key) =
-            wire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
-        wire::write_frames(
-            &mut writer,
-            vec![wire::simple_query_frame(
-                "SELECT PG_SLEEP_UNTIL(CLOCK_TIMESTAMP() + INTERVAL '60 seconds')",
-            )],
-        )
-        .await;
-        tokio::time::sleep(std::time::Duration::from_millis(40)).await;
-        let mut cancel_socket = tokio::net::TcpStream::connect(server.addr)
-            .await
-            .expect("cancel connection");
-        cancel_socket
-            .write_all(&wire::cancel_request_frame(process_id, secret_key))
-            .await
-            .expect("write cancel request");
-        cancel_socket
-            .shutdown()
-            .await
-            .expect("close cancel request");
-        let cancelled =
-            wire::read_frames_until_ready_within(&mut reader, std::time::Duration::from_secs(5))
-                .await;
-        wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
-        let recovered =
-            wire::read_frames_until_ready_within(&mut reader, std::time::Duration::from_secs(5))
-                .await;
-        drop(reader);
-        drop(writer);
-        server.stop().await;
-        (cancelled, recovered)
-    });
+    let (cancelled, recovered) = crate::support_temporal_cancellation::run_sleep_cancellation(sql);
 
     // Assert
-    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
-    assert_eq!(wire::error_code(&recovered), None);
-    assert_eq!(
-        wire::data_rows(&recovered),
-        vec![vec![Some("45".to_owned())]]
-    );
+    crate::support_temporal_cancellation::assert_cancelled_and_recovered(&cancelled, &recovered);
 }

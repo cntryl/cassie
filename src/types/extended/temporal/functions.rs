@@ -381,7 +381,13 @@ pub fn part_interval(name: &str, value: &Interval) -> Result<Option<f64>, TypeIn
         Unit::Hour => f(hour),
         Unit::Day => f64::from(value.days),
         Unit::Month => f64::from(month),
-        Unit::Quarter => f64::from(month / 3 + 1),
+        Unit::Quarter => f64::from(if value.months < 0 {
+            // Match PostgreSQL 18.6's observed INT32_MIN month endpoint as
+            // well as its ordinary signed-month rule, without Rust overflow.
+            -((value.months.wrapping_neg() % MONTHS_PER_YEAR) / 3 + 1)
+        } else {
+            month / 3 + 1
+        }),
         Unit::Year => f64::from(year),
         Unit::Decade => f64::from(year / 10),
         Unit::Century => f64::from(year / 100),
@@ -733,42 +739,53 @@ mod tests {
     }
 
     #[test]
-    fn should_match_postgresql_temporal_truncation_extraction() {
+    fn should_truncate_timestamp_calendar_units_like_postgresql() {
+        // Arrange
+        let inputs = [
+            ("quarter", "2001-05-16 20:38:40", "2001-04-01"),
+            ("week", "2001-02-16 20:38:40", "2001-02-12"),
+        ];
+        for (unit, input, expected) in inputs {
+            // Act
+            let truncated = trunc_timestamp(unit, ts(input));
+            // Assert
+            assert_eq!(truncated.ok(), Some(ts(expected)));
+        }
+    }
+
+    #[test]
+    fn should_truncate_interval_precision_like_postgresql() {
         // Arrange
         let session = TemporalSession::default();
         let interval = parse_interval("2 days 3 hours 40 minutes", -1, &session).expect("interval");
-
         // Act
-        let quarter = trunc_timestamp("quarter", ts("2001-05-16 20:38:40"));
-        let week = trunc_timestamp("week", ts("2001-02-16 20:38:40"));
         let hours = trunc_interval("hour", &interval);
-        let iso_year = part_timestamp("isoyear", ts("2006-01-01"), None, "timestamp");
-
         // Assert
-        assert_eq!(quarter.ok(), Some(ts("2001-04-01")));
-        assert_eq!(week.ok(), Some(ts("2001-02-12")));
         assert_eq!(
             hours.ok(),
             parse_interval("2 days 3 hours", -1, &session).ok()
         );
+    }
+
+    #[test]
+    fn should_extract_timestamp_iso_year_like_postgresql() {
+        // Arrange
+        let input = ts("2006-01-01");
+        // Act
+        let iso_year = part_timestamp("isoyear", input, None, "timestamp");
+        // Assert
         assert_eq!(iso_year.ok(), Some(Some(2005.0)));
     }
 
     #[test]
-    fn should_compute_symbolic_temporal_values() {
+    fn should_compute_symbolic_age_like_postgresql() {
         // Arrange
         let session = TemporalSession::default();
-        let stride = parse_interval("15 minutes", -1, &session).expect("stride");
-
+        let first = ts("2004-06-01");
+        let second = ts("2004-04-30");
         // Act
-        let symbolic = age(ts("2004-06-01"), ts("2004-04-30"));
-        let reversed = age(ts("2004-04-30"), ts("2004-06-01"));
-        let bin = date_bin(
-            &stride,
-            ts("2020-02-11 15:44:17"),
-            ts("2001-01-01 00:02:30"),
-        );
-
+        let symbolic = age(first, second);
+        let reversed = age(second, first);
         // Assert
         assert_eq!(
             symbolic.ok(),
@@ -778,6 +795,20 @@ mod tests {
             reversed.ok(),
             parse_interval("-1 month -1 day", -1, &session).ok()
         );
+    }
+
+    #[test]
+    fn should_align_timestamp_bins_with_their_origin() {
+        // Arrange
+        let session = TemporalSession::default();
+        let stride = parse_interval("15 minutes", -1, &session).expect("stride");
+        // Act
+        let bin = date_bin(
+            &stride,
+            ts("2020-02-11 15:44:17"),
+            ts("2001-01-01 00:02:30"),
+        );
+        // Assert
         assert_eq!(bin.ok(), Some(ts("2020-02-11 15:32:30")));
     }
 }

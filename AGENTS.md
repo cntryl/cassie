@@ -108,6 +108,7 @@ The administrative username is always `root`; set its password with `CASSIE_ROOT
 - **Midge** is the only storage layer. No second abstraction.
 - **PostgreSQL wire protocol** is the primary query interface. REST is secondary and administrative.
 - `cntryl-midge` is an external dependency published on crates.io.
+- Midge engine source changes remain off the table. The user explicitly authorized updating the published `cntryl-midge` dependency to the latest release, verified as 0.5.2 on 2026-11-04, while closing the three existing PRs. Use its published API through Cassie-side adapters; do not edit upstream engine source or introduce another storage layer. Include this boundary in Jev decisions and record exact API blockers instead of inventing capabilities or weakening contracts.
 
 ## Benchmarks
 
@@ -178,6 +179,8 @@ Do not create, edit, rename, or delete CI, release, or versioning configuration 
 
 Jev is TypeSafe's System One model. It returns typed judgments and probabilities; it does not store GitHub issues or prove correctness. Read issue/status data with `gh`, then submit that evidence to Jev for triage, grouping, dependency assessment, implementation review, and adversarial review. Confirm its judgments with source, failing/passing tests, and current GitHub state.
 
+The user delegates remaining questions within the authorized milestone work to Jev. Present concrete, source-backed scope, contract, and implementation options to Jev and use its typed judgment to select the direction without returning routine clarification questions to the user. Record selected contract changes in the active docs or owning issue before implementation. Source, semantic oracles, executable evidence, and permanent product boundaries still determine whether the selected option is implementable and correct.
+
 - Live API documentation: `https://docs.typesafe.ai/api.md` and `https://docs.typesafe.ai/primitives/choice.md`.
 - Endpoint: `POST https://api.typesafe.ai/v1/systemone`, with `Authorization: Bearer <key>` and `Content-Type: application/json`.
 - Model: `jev-latest`. Credentials are in `~/.config/typesafe/jev.key`; read them privately and never print, log, commit, or include them in request artifacts.
@@ -189,24 +192,24 @@ Jev is TypeSafe's System One model. It returns typed judgments and probabilities
 
 ### Bundling and local validation
 
-Use stacked PRs and parallel isolated worktrees for independent work. Bundle related issues when they share implementation context or observable behavior, and define each bundle before coding. A child PR may start from its parent branch while the parent is still in review; complete or implement its prerequisites before dependent runtime work. Implement each behavior as a small local red → green → refactor increment. Run the complete validation for each coherent bundle, open its PR against the appropriate parent, and perform adversarial review. Merge in dependency order after final-head checks and review pass. Rebase children as needed, repeat affected validation and review on their final heads, and read back each merged commit and issue closure. Keep build artifacts isolated between worktrees.
+Use stacked PRs and parallel isolated worktrees for independent work. Bundle related issues when they share implementation context or observable behavior, and define each bundle before coding. A child PR may start from its parent branch while the parent is still in review; complete or implement its prerequisites before dependent runtime work. Author focused regressions before each implementation increment, then use source review and Jev for interim validation. By user direction, defer compilation and test execution until substantial changes form a coherent bundle; do not run a separate build or test loop for each small edit. Run the complete validation for each coherent bundle, open its PR against the appropriate parent, and perform adversarial review. Merge in dependency order after final-head checks and review pass. Rebase children as needed, repeat affected validation and review on their final heads, and read back each merged commit and issue closure. Keep build artifacts isolated between worktrees.
 
-Use local tests and analyzers for iteration; avoid repeatedly pushing tiny changes just to wait for GitHub workflows. If an issue is already fixed, verify the acceptance criteria locally and close it with evidence instead of opening a standalone PR that changes no runtime behavior. Track test-latency findings through the backlog and preserve required checks. GitHub Actions should remain enabled; use normal PR workflows for final-head hosted validation after the coherent local bundle is ready.
+Use source, primary semantic references, and focused Jev judgments during iteration; retain authored regressions for the deferred bundle gate. Jev is the interim reviewer and does not replace the final executable checks or establish that code is defect-free. Preserve existing red/green evidence and label newly authored, unexecuted probes accurately. Avoid repeatedly pushing tiny changes just to wait for GitHub workflows. If an issue is already fixed, verify the acceptance criteria locally and close it with evidence instead of opening a standalone PR that changes no runtime behavior. Track test-latency findings through the backlog and preserve required checks. GitHub Actions should remain enabled; use normal PR workflows for final-head hosted validation after the coherent local bundle is ready.
 
 Required loop:
 
 1. Identify the highest-priority requested or documented slice from the available source of truth.
 2. Confirm every dependency named by the request, docs, or touched subsystem is complete or already implemented.
 3. Follow the requested or documented implementation plan exactly unless repo reality makes a step impossible.
-4. Write the failing test first using `should_` names and `// Arrange / Act / Assert`.
+4. Author the regression test first using `should_` names and `// Arrange / Act / Assert`; defer its execution with the rest of the substantial bundle and do not claim an unobserved baseline failure.
 5. Make the smallest code change that satisfies the failing test and issue requirements.
 6. Refactor only inside the slice scope and without broadening test coverage opportunistically.
 7. Update docs, diagnostics, benchmarks, or roadmap references required by the slice.
-8. Run validation in the required order: `cargo build` -> `cargo test --locked` -> `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` -> `cargo fmt --all -- --check` -> `cntryl-tools validate-tests -f <path>` for touched test files.
+8. Once substantial changes form a coherent bundle, freeze its source and run validation in the required order: `cargo build` -> `cargo test --locked` -> `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` -> `cargo fmt --all -- --check` -> `cntryl-tools validate-tests -f <path>` for touched test files. Fix observed failures and repeat the affected checks without starting new per-edit compile loops.
 9. Treat pedantic clippy findings as defects to fix, not lints to mute. Never add `#[allow(clippy::...)]`, never lower lint levels, and never bypass the requirement by narrowing the clippy invocation.
 10. Confirm every acceptance criterion and close-out step is complete.
 11. Commit the completed slice with only the files required for that slice when a commit is requested.
 
 Do not start implementation from a later roadmap/readiness item while an earlier documented dependency is still open unless the later item explicitly names that dependency as complete or unnecessary.
 Do not reinterpret documented requirements as suggestions; if the plan is wrong, update the doc or issue first so implementation remains mechanical.
-Stop and ask for direction when a slice requires a persistent format decision, storage-layout migration, public API change, or cross-phase dependency that is not already specified.
+When a slice requires an unspecified persistent format, storage-layout migration, public API, or cross-phase decision within the authorized milestone, use the delegated Jev process above to select and document the contract before dependent implementation. Verify every required dependency against current source and executable evidence; a model judgment cannot make an unavailable dependency complete.

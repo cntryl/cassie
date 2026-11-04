@@ -32,23 +32,7 @@ pub(super) async fn handle_parse(
             return Err(ExtendedQueryError::cassie(&error));
         }
     }
-    if !name.is_empty() && state.prepared_statements.contains_key(&name) {
-        return Err(ExtendedQueryError::protocol(format!(
-            "prepared statement '{name}' already exists"
-        )));
-    }
-    if !name.is_empty() && session.has_sql_prepared(&name) {
-        return Err(ExtendedQueryError::cassie(&CassieError::from(
-            crate::app::SessionObjectError::duplicate_prepared(&name),
-        )));
-    }
-    if !state.prepared_statements.contains_key(&name)
-        && state.prepared_statements.len() >= MAX_PREPARED_STATEMENTS_PER_CONNECTION
-    {
-        return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
-            "prepared statement limit exceeded".to_string(),
-        )));
-    }
+    validate_prepared_name(state, session, &name)?;
     let empty_query = super::super::simple_query::split_simple_query(&query)
         .is_ok_and(|statements| statements.is_empty());
     if empty_query {
@@ -132,6 +116,31 @@ pub(super) async fn handle_parse(
     );
 
     let _ = write_parse_complete(write_half).await;
+    Ok(())
+}
+
+fn validate_prepared_name(
+    state: &SessionState,
+    session: &CassieSession,
+    name: &str,
+) -> Result<(), ExtendedQueryError> {
+    if !name.is_empty() && state.prepared_statements.contains_key(name) {
+        return Err(ExtendedQueryError::protocol(format!(
+            "prepared statement '{name}' already exists"
+        )));
+    }
+    if !name.is_empty() && session.has_sql_prepared(name) {
+        return Err(ExtendedQueryError::cassie(&CassieError::from(
+            crate::app::SessionObjectError::duplicate_prepared(name),
+        )));
+    }
+    if !state.prepared_statements.contains_key(name)
+        && state.prepared_statements.len() >= MAX_PREPARED_STATEMENTS_PER_CONNECTION
+    {
+        return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
+            "prepared statement limit exceeded".to_string(),
+        )));
+    }
     Ok(())
 }
 

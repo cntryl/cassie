@@ -290,3 +290,72 @@ fn should_keep_json_calendar_spelling_independent_of_datestyle() {
         ]]
     );
 }
+
+#[test]
+fn should_preserve_jsonb_document_identity_in_aggregate_operator_composition() {
+    // Arrange
+    let fixture = sql_fixture("jsonb-aggregate-document-composition", &[]);
+    // Act
+    let result = fixture.execute(
+        "SELECT (jsonb_agg(n) || '[2]'::JSONB)::TEXT, \
+        jsonb_build_object('items',jsonb_agg(n))::TEXT FROM (VALUES (1::INT)) AS inputs(n)",
+    );
+    // Assert
+    assert_eq!(
+        result.expect("aggregate is a JSONB document").rows(),
+        &[vec![
+            Value::String("[1, 2]".into()),
+            Value::String("{\"items\": [1]}".into())
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_json_timestamp_offset_policy_across_collection_conversion() {
+    // Arrange
+    let cases = [
+        (
+            "UTC",
+            "TIMESTAMPTZ '2024-11-03 06:30:00+00'",
+            "2024-11-03T06:30:00+00:00",
+        ),
+        (
+            "Asia/Kolkata",
+            "TIMESTAMPTZ '2024-11-03 06:30:00+00'",
+            "2024-11-03T12:00:00+05:30",
+        ),
+        (
+            "Europe/Amsterdam",
+            "TIMESTAMPTZ '1900-01-01 00:00:00+00'",
+            "1900-01-01T00:19:32+00:19:32",
+        ),
+        ("UTC", "TIMETZ '12:34:56+05'", "12:34:56+05"),
+        (
+            "UTC",
+            "TIMESTAMPTZ '0001-01-01 00:00:00+00 BC'",
+            "0001-01-01T00:00:00+00:00 BC",
+        ),
+        ("UTC", "TIMESTAMPTZ 'infinity'", "infinity"),
+        ("UTC", "TIMESTAMPTZ '-infinity'", "-infinity"),
+    ];
+    for (zone, input, expected) in cases {
+        let fixture = sql_fixture(
+            "jsonb-aggregate-timestamp-offset",
+            &[&format!("SET TIME ZONE '{zone}'")],
+        );
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_jsonb({input})::TEXT,jsonb_agg({input})::TEXT"
+        ));
+        // Assert
+        let document = serde_json::to_string(expected).expect("JSON string");
+        assert_eq!(
+            result.expect("JSON temporal correspondence").rows(),
+            &[vec![
+                Value::String(document.clone()),
+                Value::String(format!("[{document}]"))
+            ]],
+            "{zone}: {input}"
+        );
+    }
+}

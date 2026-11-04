@@ -90,13 +90,7 @@ pub(super) fn encode(
                 quote(&text)
             }
         }
-        Value::Typed(value) => {
-            let mut text = typed_value_text(value, controls);
-            if matches!(value, TypedValue::Timestamp(_) | TypedValue::TimestampTz(_)) {
-                text = text.replacen(' ', "T", 1);
-            }
-            quote(&text)
-        }
+        Value::Typed(value) => quote(&typed_value_text(value, controls)),
         Value::Vector(value) => {
             let text = serde_json::to_string(&value.values)
                 .map_err(|error| QueryError::General(error.to_string()))?;
@@ -107,15 +101,19 @@ pub(super) fn encode(
 
 fn typed_value_text(value: &TypedValue, controls: Option<&QueryExecutionControls>) -> String {
     let session = crate::executor::filter::temporal::session_of(controls);
-    if matches!(
-        value,
-        TypedValue::Date(_) | TypedValue::Timestamp(_) | TypedValue::TimestampTz(_)
-    ) {
-        let mut iso = (*session).clone();
-        iso.date_output = crate::types::extended::temporal::session::DateOutput::Iso;
-        value.text_in(&iso)
-    } else {
-        value.text_in(&session)
+    match value {
+        TypedValue::Timestamp(value) => {
+            crate::types::extended::temporal::encode::format_json_timestamp(*value, &session, false)
+        }
+        TypedValue::TimestampTz(value) => {
+            crate::types::extended::temporal::encode::format_json_timestamp(*value, &session, true)
+        }
+        TypedValue::Date(_) => {
+            let mut iso = (*session).clone();
+            iso.date_output = crate::types::extended::temporal::session::DateOutput::Iso;
+            value.text_in(&iso)
+        }
+        _ => value.text_in(&session),
     }
 }
 

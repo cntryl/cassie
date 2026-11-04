@@ -117,3 +117,49 @@ fn should_reject_mismatched_boolean_partials_given_different_aggregate_kinds_whe
         Value::Bool(false)
     );
 }
+
+#[test]
+fn should_cancel_boolean_typed_input_after_the_last_transition() {
+    // Arrange
+    let (_pause_guard, selected, resume) = crate::runtime::pause_next_query_after_aggregate_input();
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let batch = TypedBatch::from_columns(
+        &controls,
+        &[("flag".to_owned(), DataType::Boolean)],
+        &[vec![Value::Bool(false)]],
+        1,
+        None,
+    )
+    .expect("one native Boolean lane");
+    assert!(controls.current_query_memory_bytes() > 0);
+    let worker_controls = controls.clone();
+    let worker = std::thread::spawn(move || {
+        let mut state = State::new("bool_and").expect("Boolean state");
+        let result = consume(&mut state, Some(0), &batch, &worker_controls);
+        drop(batch);
+        result
+    });
+
+    // Act
+    let reached = selected.recv_timeout(std::time::Duration::from_secs(1));
+    cancellation.cancel();
+    let _ = resume.send(());
+    let result = worker.join().expect("Boolean input worker");
+
+    // Assert
+    reached.expect("last Boolean input must be retained before cancellation");
+    assert!(result
+        .expect_err("cancelled Boolean aggregate cannot finish its final lane")
+        .to_string()
+        .contains("query canceled"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    let reused = controls
+        .reserve_query_memory(CassieRuntimeLimits::default().query_memory_budget_bytes)
+        .expect("cancelled Boolean input releases its complete memory allowance");
+    drop(reused);
+}

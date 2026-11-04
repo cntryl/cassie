@@ -3,7 +3,8 @@ use super::QueryError;
 use crate::executor::filter::temporal::type_error;
 use crate::types::extended::numeric::{pow10, Numeric};
 use crate::types::extended::temporal::calendar::{
-    date2j, timestamp_to_fields, UNIX_TO_POSTGRES_SECS, USECS_PER_DAY, USECS_PER_SEC,
+    date2j, timestamp_to_fields, DAYS_PER_MONTH, MONTHS_PER_YEAR, UNIX_TO_POSTGRES_SECS,
+    USECS_PER_DAY, USECS_PER_SEC,
 };
 use crate::types::extended::temporal::tokens::{field_unit, Unit};
 use crate::types::typed::TypedValue;
@@ -67,6 +68,19 @@ pub(super) fn numeric_part(
             i128::from(value.time) + i128::from(value.zone) * i128::from(USECS_PER_SEC),
             6,
         ),
+        (Some(Unit::Epoch), TypedValue::Interval(value)) => {
+            // PostgreSQL's interval epoch uses 365.25-day years and 30-day
+            // remaining months. Integer microseconds retain EXTRACT's precision.
+            let years = i128::from(value.months / MONTHS_PER_YEAR);
+            let months = i128::from(value.months % MONTHS_PER_YEAR);
+            let days = i128::from(value.days) + months * i128::from(DAYS_PER_MONTH);
+            scaled(
+                i128::from(value.micros)
+                    + days * i128::from(USECS_PER_DAY)
+                    + years * 1461 * i128::from(USECS_PER_DAY) / 4,
+                6,
+            )
+        }
         (Some(Unit::Julian), TypedValue::Timestamp(value)) => julian(*value)?,
         (Some(Unit::Second | Unit::Epoch), _) if !matches!(source, TypedValue::Date(_)) => {
             from_f64(part, 6)

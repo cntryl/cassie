@@ -16,6 +16,7 @@ pub(super) fn window(
         crate::sql::ast::SelectItem::WindowFunction { function, .. } => function
             .args
             .iter()
+            .chain(function.filter.as_deref())
             .any(super::super::exists_correlated::contains_exists),
         _ => false,
     });

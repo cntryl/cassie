@@ -200,6 +200,9 @@ fn select_item_uses_view_function(
                 .args
                 .iter()
                 .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views))
+                || function.filter.as_deref().is_some_and(|expr| {
+                    expr_uses_view_function(expr, function_name, catalog, visited_views)
+                })
                 || function.partition_by.iter().any(|expr| {
                     expr_uses_view_function(expr, function_name, catalog, visited_views)
                 })

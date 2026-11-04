@@ -24,6 +24,7 @@ pub(in crate::executor::execution) fn apply_resolving(
             session: env.session,
             controls: env.controls,
             evaluate: Some(&evaluate),
+            output_memory: None,
         },
     )
 }

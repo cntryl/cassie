@@ -204,6 +204,7 @@ fn input_bytes(
                 .iter()
                 .chain(function.order_by.iter().map(|order| &order.expr))
                 .chain(&function.args)
+                .chain(function.filter.as_deref())
             {
                 if let Expr::Column(name) = expr {
                     bytes = add(bytes, mul(rows.len(), add(512, mul(name.len(), 32)?)?)?)?;

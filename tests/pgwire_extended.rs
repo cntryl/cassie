@@ -677,3 +677,6 @@ mod parameter_operator_resolution;
 
 #[path = "pgwire_extended/types/review_diagnostics.rs"]
 mod review_diagnostics;
+
+#[path = "pgwire_extended/aggregates/windows/statistical_filter.rs"]
+mod statistical_filter_windows;

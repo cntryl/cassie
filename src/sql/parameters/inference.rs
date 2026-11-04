@@ -426,6 +426,17 @@ fn infer_select_item_parameter_type_oids(
             for arg in &function.args {
                 infer_parameter_type_oids_expr(arg, field_types, catalog, oids);
             }
+            if let Some(filter) = &function.filter {
+                infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, oids);
+                infer_parameter_type_oids_expr(filter, field_types, catalog, oids);
+            }
+            if crate::sql::functions::aggregate_window_function(&function.name).is_some_and(
+                |metadata| crate::sql::functions::regression::is_regression_function(metadata.id),
+            ) {
+                for argument in &function.args {
+                    infer_parameter_type_from_expected_expr(argument, &DataType::Float, oids);
+                }
+            }
             for expr in &function.partition_by {
                 infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
             }

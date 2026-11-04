@@ -72,6 +72,12 @@ fn query_references(
             }
             SelectItem::WindowFunction { function, .. } => {
                 expressions(context, &function.args, fields, &scope)?
+                    || function
+                        .filter
+                        .as_deref()
+                        .map(|filter| expression(context, filter, fields, &scope))
+                        .transpose()?
+                        .unwrap_or(false)
                     || expressions(context, &function.partition_by, fields, &scope)?
                     || function.order_by.iter().try_fold(false, |found, order| {
                         Ok::<_, QueryError>(
@@ -214,7 +220,12 @@ pub(super) fn contains_nested(statement: &ParsedStatement) -> bool {
                 SelectItem::Expr { expr: value, .. } => expr(value),
                 SelectItem::Function { function, .. } => function.expressions().any(expr),
                 SelectItem::WindowFunction { function, .. } => {
-                    function.args.iter().chain(&function.partition_by).any(expr)
+                    function
+                        .args
+                        .iter()
+                        .chain(function.filter.as_deref())
+                        .chain(&function.partition_by)
+                        .any(expr)
                         || function.order_by.iter().any(|order| expr(&order.expr))
                 }
                 _ => false,

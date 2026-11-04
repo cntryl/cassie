@@ -210,6 +210,7 @@ impl ParameterValidation<'_> {
                     for expression in function
                         .args
                         .iter()
+                        .chain(function.filter.as_deref())
                         .chain(&function.partition_by)
                         .chain(function.order_by.iter().map(|order| &order.expr))
                     {

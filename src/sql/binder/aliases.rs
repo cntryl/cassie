@@ -525,7 +525,12 @@ pub(super) fn lower_select(
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expr in function.args.iter_mut().chain(&mut function.partition_by) {
+                for expr in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                {
                     rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
                 }
                 for order in &mut function.order_by {
@@ -620,6 +625,7 @@ fn select_contains_exists(select: &SelectStatement) -> bool {
                 function
                     .args
                     .iter()
+                    .chain(function.filter.as_deref())
                     .chain(&function.partition_by)
                     .any(has_exists)
                     || function

@@ -66,6 +66,7 @@ fn scalar_oracle_on(mut rows: Vec<BatchRow>, projection: &[SelectItem]) -> Vec<B
         session: None,
         controls: &controls,
         evaluate: None,
+        output_memory: None,
     };
     for (window_index, function, alias) in collect_window_functions(projection) {
         let output_name = crate::executor::projection::window_value_key(window_index);
@@ -158,6 +159,7 @@ fn should_preserve_unknown_value_argument_descriptor_after_known_input_fields() 
         session: None,
         controls: &oracle_controls,
         evaluate: None,
+        output_memory: None,
     };
     for (window_index, function, alias) in collect_window_functions(&projection) {
         let output_name = crate::executor::projection::window_value_key(window_index);

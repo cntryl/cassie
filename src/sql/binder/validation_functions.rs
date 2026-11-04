@@ -99,7 +99,7 @@ pub(crate) fn collect_item(item: &SelectItem, out: &mut Vec<FunctionCall>) {
             }
         }
         SelectItem::WindowFunction { function, .. } => {
-            for arg in &function.args {
+            for arg in function.args.iter().chain(function.filter.as_deref()) {
                 collect_expr(arg, out);
             }
             for expr in &function.partition_by {

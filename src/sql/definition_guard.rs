@@ -207,7 +207,12 @@ pub(crate) fn items(projection: &[SelectItem]) -> Result<(), CassieError> {
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expr in function.args.iter().chain(&function.partition_by) {
+                for expr in function
+                    .args
+                    .iter()
+                    .chain(function.filter.as_deref())
+                    .chain(&function.partition_by)
+                {
                     expression(expr)?;
                 }
                 for order in &function.order_by {
@@ -222,6 +227,9 @@ pub(crate) fn items(projection: &[SelectItem]) -> Result<(), CassieError> {
 
 pub(crate) fn encoded_expression(sql: &str) -> Result<(), CassieError> {
     if let Ok(expr) = serde_json::from_str::<Expr>(sql) {
+        if expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_) | Expr::Subquery(_))) {
+            return Err(CassieError::Unsupported("index expressions cannot contain subqueries".into()));
+        }
         expression(&expr)?;
     }
     Ok(())
@@ -318,3 +326,7 @@ mod tests {
         assert!(super::expression(&control).is_ok());
     }
 }
+
+#[cfg(test)]
+#[path = "definition_guard_window_tests.rs"]
+mod window_tests;

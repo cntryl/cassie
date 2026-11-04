@@ -226,6 +226,7 @@ fn items(
                 for arg in function
                     .args
                     .iter_mut()
+                    .chain(function.filter.as_deref_mut())
                     .chain(&mut function.partition_by)
                     .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
                 {
@@ -463,6 +464,7 @@ fn needed(select: &SelectStatement) -> bool {
             SelectItem::WindowFunction { function, .. } => function
                 .args
                 .iter()
+                .chain(function.filter.as_deref())
                 .chain(&function.partition_by)
                 .chain(function.order_by.iter().map(|order| &order.expr))
                 .any(expression_needed),

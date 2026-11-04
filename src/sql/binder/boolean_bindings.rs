@@ -166,11 +166,13 @@ fn validate_items(
                 for expression in function
                     .args
                     .iter_mut()
+                    .chain(function.filter.as_deref_mut())
                     .chain(&mut function.partition_by)
                     .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
                 {
                     boolean_contexts::validate_value(expression, types, None, catalog, context)?;
                 }
+                super::window_aggregates::validate(function, types)?;
             }
             SelectItem::Wildcard | SelectItem::Column { .. } => {}
         }

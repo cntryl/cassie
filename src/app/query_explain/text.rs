@@ -229,7 +229,7 @@ fn projection_fields(
             }
             SelectItem::Expr { expr, .. } => collect_expr_columns(expr, &mut fields, allocation)?,
             SelectItem::WindowFunction { function, .. } => {
-                for argument in &function.args {
+                for argument in function.args.iter().chain(function.filter.as_deref()) {
                     collect_expr_columns(argument, &mut fields, allocation)?;
                 }
             }

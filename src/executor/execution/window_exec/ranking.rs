@@ -45,7 +45,7 @@ pub(super) fn evaluate_partition(
         for peer_position in position..peer_end {
             check_timeout(context.controls)?;
             let index = indices[peer_position];
-            values[index] = super::window_value_at(
+            let value = super::window_value_at(
                 WindowValuePosition {
                     position: peer_position,
                     rank,
@@ -61,6 +61,13 @@ pub(super) fn evaluate_partition(
                 indices,
                 context,
             )?;
+            if !super::aggregate::selected(function) {
+                context
+                    .output_memory
+                    .expect("scalar output owner")
+                    .grow(crate::executor::retained_memory::value_clone_bytes(&value)?)?;
+            }
+            values[index] = value;
         }
         position = peer_end;
     }

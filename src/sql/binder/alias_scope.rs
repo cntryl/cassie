@@ -148,7 +148,12 @@ fn rename_alias_references(
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expr in function.args.iter_mut().chain(&mut function.partition_by) {
+                for expr in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                {
                     rewrite(expr);
                 }
                 for order in &mut function.order_by {
@@ -231,7 +236,12 @@ fn query_names(select: &SelectStatement, names: &mut HashSet<String>) {
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expr in function.args.iter().chain(&function.partition_by) {
+                for expr in function
+                    .args
+                    .iter()
+                    .chain(function.filter.as_deref())
+                    .chain(&function.partition_by)
+                {
                     expression_names(expr, names);
                 }
                 for order in &function.order_by {

@@ -294,3 +294,6 @@ mod bytea_concat;
 
 #[path = "sql_queries/expressions/operators/bytea_functions.rs"]
 mod bytea_functions;
+
+#[path = "sql_queries/aggregates/statistical/windows.rs"]
+mod statistical_windows;

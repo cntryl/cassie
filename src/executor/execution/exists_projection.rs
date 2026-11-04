@@ -47,7 +47,12 @@ pub(super) fn resolve_item(
             }
         }
         SelectItem::WindowFunction { function, .. } => {
-            for argument in function.args.iter_mut().chain(&mut function.partition_by) {
+            for argument in function
+                .args
+                .iter_mut()
+                .chain(function.filter.as_deref_mut())
+                .chain(&mut function.partition_by)
+            {
                 resolve(argument)?;
             }
             for order in &mut function.order_by {

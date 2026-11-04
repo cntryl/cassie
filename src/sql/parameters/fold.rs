@@ -278,6 +278,31 @@ impl<'a, 'c> Fold<'a, 'c> {
         frame: &Frame<'a>,
         window: &ast::WindowFunctionCall,
     ) -> Result<(), ParameterAdmissionError> {
+        if let Some(metadata) = sql_functions::aggregate_window_function(&window.name) {
+            let regression = sql_functions::regression::is_regression_function(metadata.id);
+            let statistical = sql_functions::statistical::is_statistical_function(metadata.id);
+            if regression || statistical {
+                for summary in self.summaries.values[frame.start..]
+                    .iter_mut()
+                    .take(window.args.len())
+                {
+                    check_controls(self.controls)?;
+                    if !regression && matches!(summary.oid, 0 | 705) {
+                        self.occurrences.ambiguous_function(metadata.name)?;
+                    } else if !matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700) {
+                        self.occurrences.undefined_function(
+                            metadata.name,
+                            window.args.len(),
+                            Some(summary.oid),
+                        )?;
+                    }
+                    if regression {
+                        self.occurrences.coerce(summary, 701, true)?;
+                    }
+                }
+                return Ok(());
+            }
+        }
         let metadata = sql_functions::window_function(&window.name);
         let integer_argument_index = if window.name.eq_ignore_ascii_case("ntile") {
             Some(0)

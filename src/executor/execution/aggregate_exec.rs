@@ -558,31 +558,14 @@ fn evaluate_aggregate(
 }
 
 pub(super) fn evaluate_window_aggregate<'a>(
-    function: &FunctionCall,
+    function: &crate::sql::ast::WindowFunctionCall,
     rows: impl IntoIterator<Item = &'a BatchRow>,
     params: &[Value],
-    search_context: Option<&filter::SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
+    output: &filter::EvaluationMemory,
+    evaluate: impl Fn(&BatchRow, &Expr, &filter::EvaluationMemory) -> Result<Value, QueryError>,
 ) -> Result<Value, QueryError> {
-    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
-        crate::sql::functions::regression::is_regression_function(metadata.id)
-    }) {
-        return Err(crate::app::CassieError::Unsupported(
-            "regression aggregate window frames remain pending under #806".into(),
-        )
-        .into());
-    }
-    window::evaluate(
-        function,
-        rows,
-        params,
-        search_context,
-        user_functions,
-        session,
-        controls,
-    )
+    window::evaluate(function, rows, params, controls, output, evaluate)
 }
 
 fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {

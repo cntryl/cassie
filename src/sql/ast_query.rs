@@ -298,6 +298,8 @@ impl FunctionCall {
 pub struct WindowFunctionCall {
     pub name: String,
     pub args: Vec<Expr>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Box<Expr>>,
     pub partition_by: Vec<Expr>,
     pub order_by: Vec<OrderExpr>,
     pub frame: Option<WindowFrame>,

@@ -280,7 +280,12 @@ impl Scope<'_> {
                     }
                 }
                 SelectItem::WindowFunction { function, .. } => {
-                    for arg in function.args.iter_mut().chain(&mut function.partition_by) {
+                    for arg in function
+                        .args
+                        .iter_mut()
+                        .chain(function.filter.as_deref_mut())
+                        .chain(&mut function.partition_by)
+                    {
                         self.expr(arg, ctes, scope)?;
                     }
                     for order in &mut function.order_by {

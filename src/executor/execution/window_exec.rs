@@ -8,13 +8,14 @@ use crate::executor::filter;
 use crate::executor::semantic::{SemanticKey, SemanticValue};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
-    AggregateQuantifier, FunctionCall, NullsOrder, SelectItem, SortDirection, WindowFrame,
-    WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
+    NullsOrder, SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameExclusion,
+    WindowFrameUnit, WindowFunctionCall,
 };
 use crate::types::Value;
 
 use super::{check_timeout, QueryError};
 
+mod aggregate;
 mod exists;
 mod ranking;
 mod typed;
@@ -40,6 +41,7 @@ pub(super) fn apply_window_functions(
             session,
             controls,
             evaluate: None,
+            output_memory: None,
         },
     )
 }
@@ -76,6 +78,7 @@ fn apply_scalar_window_functions(
 type PhaseEvaluator<'a> =
     dyn Fn(&BatchRow, &crate::sql::ast::Expr) -> Result<Value, QueryError> + 'a;
 
+#[derive(Clone, Copy)]
 struct WindowExecutionContext<'a> {
     params: &'a [Value],
     search_context: Option<&'a filter::SearchContext>,
@@ -83,6 +86,7 @@ struct WindowExecutionContext<'a> {
     session: Option<&'a CassieSession>,
     controls: &'a QueryExecutionControls,
     evaluate: Option<&'a PhaseEvaluator<'a>>,
+    output_memory: Option<&'a filter::EvaluationMemory>,
 }
 
 fn collect_window_functions(
@@ -114,8 +118,9 @@ fn apply_single_window(
     let _partition_memory = context
         .controls
         .reserve_query_memory(window_partition_bytes(&partitions))?;
-    let values = evaluate_window_values(rows, function, &function_name, &mut partitions, context)?;
-    let _value_memory = context.controls.reserve_query_memory(
+    let (values, mut values_memory) =
+        evaluate_window_values(rows, function, &function_name, &mut partitions, context)?;
+    values_memory.try_grow(
         values.len().saturating_mul(
             std::mem::size_of::<(String, Value)>()
                 .saturating_add(output_name.len())
@@ -133,30 +138,19 @@ fn apply_single_window(
                 crate::executor::array_order::expression_type(row, expr, context.user_functions)
             })
             .unwrap_or(crate::types::DataType::Null),
-        "sum" | "count" | "bool_and" | "bool_or" | "var_pop" | "var_samp" | "variance"
-        | "stddev_pop" | "stddev_samp" | "stddev" => rows
-            .first()
-            .and_then(|row| {
-                let aggregate = FunctionCall {
-                    name: function.name.clone(),
-                    args: function.args.clone(),
-                    quantifier: AggregateQuantifier::Default,
-                    filter: None,
-                    order_by: Vec::new(),
-                };
-                crate::executor::array_order::expression_type(
-                    row,
-                    &crate::sql::ast::Expr::Function(Box::new(aggregate)),
-                    context.user_functions,
-                )
-            })
-            .unwrap_or(match function_name.as_str() {
-                "bool_and" | "bool_or" => crate::types::DataType::Boolean,
-                _ => crate::types::DataType::BigInt,
-            }),
+        _ if aggregate::selected(function) => aggregate::data_type(rows, function, context),
         _ => crate::types::DataType::BigInt,
     };
+    values_memory.try_grow(aggregate::metadata_bytes(rows, &data_type)?)?;
+    values_memory.try_grow(
+        std::mem::size_of::<crate::runtime::QueryMemoryReservation>()
+            + 2 * std::mem::size_of::<usize>(),
+    )?;
+    let values_memory = std::sync::Arc::new(values_memory);
     append_window_values(rows, output_name, output_alias, values, &data_type)?;
+    for row in rows {
+        row.attach_operator_memory(context.controls, std::sync::Arc::clone(&values_memory))?;
+    }
     Ok(())
 }
 
@@ -183,6 +177,13 @@ fn window_partition_bytes(partitions: &BTreeMap<SemanticKey, Vec<usize>>) -> usi
 
 fn validated_window_function_name(function: &WindowFunctionCall) -> Result<String, QueryError> {
     let function_name = function.name.to_ascii_lowercase();
+    let function_name = function_name
+        .strip_prefix("pg_catalog.")
+        .unwrap_or(&function_name)
+        .to_owned();
+    if aggregate::selected(function) {
+        return Ok(function_name);
+    }
     if matches!(
         function_name.as_str(),
         "row_number"
@@ -261,13 +262,29 @@ fn evaluate_window_values(
     function_name: &str,
     partitions: &mut BTreeMap<SemanticKey, Vec<usize>>,
     context: &WindowExecutionContext<'_>,
-) -> Result<Vec<Value>, QueryError> {
+) -> Result<(Vec<Value>, crate::runtime::QueryMemoryReservation), QueryError> {
+    let memory = filter::EvaluationMemory::new(context.controls)?;
+    memory.grow(crate::executor::retained_memory::mul(
+        rows.len(),
+        std::mem::size_of::<Value>(),
+    )?)?;
+    let context = WindowExecutionContext {
+        output_memory: Some(&memory),
+        ..*context
+    };
     let mut values = vec![Value::Null; rows.len()];
     for indices in partitions.values_mut() {
         check_timeout(context.controls)?;
-        ranking::evaluate_partition(rows, function, function_name, indices, &mut values, context)?;
+        ranking::evaluate_partition(
+            rows,
+            function,
+            function_name,
+            indices,
+            &mut values,
+            &context,
+        )?;
     }
-    Ok(values)
+    Ok((values, memory.into_reservation()))
 }
 
 fn sort_partition(
@@ -378,8 +395,7 @@ fn window_value_at(
             value_position.frame,
             context,
         ),
-        "count" | "sum" | "bool_and" | "bool_or" | "var_pop" | "var_samp" | "variance"
-        | "stddev_pop" | "stddev_samp" | "stddev" => {
+        _ if aggregate::selected(function) => {
             let positions = frame_positions(
                 value_position.position,
                 indices,
@@ -388,21 +404,10 @@ fn window_value_at(
                 value_position.frame,
                 context,
             )?;
-            let aggregate = FunctionCall {
-                name: function.name.clone(),
-                args: function.args.clone(),
-                quantifier: AggregateQuantifier::Default,
-                filter: None,
-                order_by: Vec::new(),
-            };
-            super::aggregate_exec::evaluate_window_aggregate(
-                &aggregate,
+            aggregate::evaluate(
                 positions.iter().map(|position| &rows[indices[*position]]),
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                context.controls,
+                function,
+                context,
             )
         }
         _ => Ok(Value::Null),
@@ -954,3 +959,6 @@ mod typed_tests;
 
 #[cfg(test)]
 mod qualification_tests;
+
+#[cfg(test)]
+mod statistical_tests;

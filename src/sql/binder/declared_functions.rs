@@ -13,7 +13,11 @@ pub(super) fn needs_qualification(select: &SelectStatement) -> bool {
             needs_function_qualification(function) || function.expressions().any(contains)
         }
         SelectItem::Expr { expr, .. } => contains(expr),
-        SelectItem::WindowFunction { function, .. } => function.args.iter().any(contains),
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .any(contains),
         SelectItem::Column { .. } | SelectItem::Wildcard => false,
     }) || select
         .filter
@@ -38,6 +42,7 @@ pub(super) fn qualify_declared(select: &mut SelectStatement, types: &ResultTypes
                 for expression in function
                     .args
                     .iter_mut()
+                    .chain(function.filter.as_deref_mut())
                     .chain(&mut function.partition_by)
                     .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
                 {

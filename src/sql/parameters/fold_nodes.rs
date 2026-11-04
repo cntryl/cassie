@@ -75,7 +75,8 @@ impl<'a> Fold<'a, '_> {
                 Node::Window(window) => match index {
                     0 => Some(Node::WindowArguments(window)),
                     1 => Some(Node::Expressions(&window.partition_by)),
-                    _ => Some(Node::Orders(&window.order_by)),
+                    2 => Some(Node::Orders(&window.order_by)),
+                    _ => window.filter.as_deref().map(Node::Expr),
                 },
                 Node::WindowArguments(window) => window.args.get(index).map(Node::Expr),
             };
@@ -246,7 +247,7 @@ fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
                 2
             }
         }
-        Node::Window(_) => 3,
+        Node::Window(_) => 4,
         Node::WindowArguments(window) => window.args.len(),
     })
 }
@@ -618,6 +619,12 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
                 child.qualified = false;
             }
         }
+        Node::Window(window) => {
+            if index == 3 {
+                child.expected = Expected::Boolean(BooleanConstruct::Filter);
+            }
+            child.qualified = false;
+        }
         Node::WindowArguments(window) => {
             let int4_argument = index == 0 && window.name.eq_ignore_ascii_case("ntile")
                 || window_argument_type(window, index) == Some(WindowArgumentType::Int4);
@@ -632,7 +639,6 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
             | ast::Expr::InList { .. }
             | ast::Expr::Like { .. },
         )
-        | Node::Window(_)
         | Node::Cte(ast::CteQuery::Recursive { .. }) => child.qualified = false,
         _ => {}
     }

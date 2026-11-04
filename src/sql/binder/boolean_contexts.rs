@@ -204,11 +204,13 @@ pub(super) fn validate_select_with_types(
                 for expression in function
                     .args
                     .iter_mut()
+                    .chain(function.filter.as_deref_mut())
                     .chain(&mut function.partition_by)
                     .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
                 {
                     validate_expression(expression, types, catalog, context)?;
                 }
+                super::window_aggregates::validate(function, types)?;
             }
             SelectItem::Wildcard | SelectItem::Column { .. } => {}
         }

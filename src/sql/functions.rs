@@ -53,7 +53,9 @@ pub(crate) use unsupported_server_control::{
 pub(crate) use unsupported_server_files::{
     is_server_file_helper, rejection as reject_server_file_access,
 };
-pub(crate) use window::{window_function, WindowArgumentType, WindowFunction};
+pub(crate) use window::{
+    aggregate_window_function, window_function, WindowArgumentType, WindowFunction,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {

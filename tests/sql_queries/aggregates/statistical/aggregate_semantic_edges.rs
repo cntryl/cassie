@@ -59,7 +59,9 @@ fn should_apply_regression_filter_before_evaluating_both_inputs() {
 
     // Assert
     assert_eq!(
-        result.expect("FILTER must short-circuit both regression inputs").rows(),
+        result
+            .expect("FILTER must short-circuit both regression inputs")
+            .rows(),
         &[vec![Value::Int64(0)]]
     );
 }
@@ -77,7 +79,10 @@ fn should_coerce_numeric_regression_inputs_to_float8() {
 
     // Assert
     let result = result.expect("numeric regression inputs cast to FLOAT8");
-    assert_eq!(result.rows(), &[vec![Value::Float64(1.5), Value::Float64(3.0)]]);
+    assert_eq!(
+        result.rows(),
+        &[vec![Value::Float64(1.5), Value::Float64(3.0)]]
+    );
     assert_eq!(
         result
             .columns()
@@ -154,12 +159,15 @@ fn should_reject_numeric_regression_input_outside_float8_range() {
 
     // Assert
     for result in &results {
-        assert!(matches!(
-            result,
-            Err(cassie::app::CassieError::FloatInput(
-                cassie::types::FloatInputError::Range
-            ))
-        ), "unexpected regression result: {result:?}");
+        assert!(
+            matches!(
+                result,
+                Err(cassie::app::CassieError::FloatInput(
+                    cassie::types::FloatInputError::Range
+                ))
+            ),
+            "unexpected regression result: {result:?}"
+        );
     }
 }
 
@@ -182,7 +190,9 @@ fn should_propagate_first_row_nonfinite_regression_moments() {
     for result in [x_infinity, y_nan] {
         let result = result.expect("non-finite regression moments");
         let row = &result.rows()[0];
-        assert!(row.iter().all(|value| matches!(value, Value::Float64(value) if value.is_nan())));
+        assert!(row
+            .iter()
+            .all(|value| matches!(value, Value::Float64(value) if value.is_nan())));
     }
 }
 
@@ -227,7 +237,10 @@ fn should_reject_distinct_regression_aggregates() {
     );
 
     // Assert
-    assert!(matches!(result, Err(cassie::app::CassieError::Unsupported(_))));
+    assert!(matches!(
+        result,
+        Err(cassie::app::CassieError::Unsupported(_))
+    ));
 }
 
 #[test]
@@ -242,11 +255,14 @@ fn should_reject_ordered_regression_aggregates() {
     );
 
     // Assert
-    assert!(matches!(result, Err(cassie::app::CassieError::Unsupported(_))));
+    assert!(matches!(
+        result,
+        Err(cassie::app::CassieError::Unsupported(_))
+    ));
 }
 
 #[test]
-fn should_reject_regression_window_aggregates() {
+fn should_return_regression_values_over_the_existing_default_window_frame() {
     // Arrange
     let fixture = sql_fixture("issue-806-regression-window", &[]);
 
@@ -257,7 +273,10 @@ fn should_reject_regression_window_aggregates() {
     );
 
     // Assert
-    assert!(matches!(result, Err(cassie::app::CassieError::Unsupported(_))));
+    assert_eq!(
+        result.expect("regression window frame").rows(),
+        &[vec![Value::Null], vec![Value::Float64(1.0)]]
+    );
 }
 
 #[test]
@@ -352,12 +371,10 @@ fn should_preserve_statistical_result_family_from_inputs() {
     );
 
     // Act
-    let real = fixture.execute(
-        "SELECT var_pop(r), stddev_samp(r) FROM issue_806_statistical_types",
-    );
-    let numeric = fixture.execute(
-        "SELECT var_pop(n), stddev_samp(n) FROM issue_806_statistical_types",
-    );
+    let real =
+        fixture.execute("SELECT var_pop(r), stddev_samp(r) FROM issue_806_statistical_types");
+    let numeric =
+        fixture.execute("SELECT var_pop(n), stddev_samp(n) FROM issue_806_statistical_types");
 
     // Assert
     let real = real.expect("REAL statistics return double precision");
@@ -372,9 +389,8 @@ fn should_preserve_statistical_result_family_from_inputs() {
     );
 
     let numeric = numeric.expect("NUMERIC statistics retain numeric identity");
-    let expected_variance =
-        numeric_math::divide(&Numeric::from_i128(8), &Numeric::from_i128(3))
-            .expect("numeric population variance");
+    let expected_variance = numeric_math::divide(&Numeric::from_i128(8), &Numeric::from_i128(3))
+        .expect("numeric population variance");
     assert_eq!(
         numeric.rows()[0],
         [
@@ -561,7 +577,10 @@ fn should_preserve_statistical_states_per_group() {
     {
         assert_eq!(row[0], Value::String(label.to_owned()));
         let Value::String(actual_population) = &row[1] else {
-            panic!("NUMERIC group result should use text carrier, got {:?}", row[1]);
+            panic!(
+                "NUMERIC group result should use text carrier, got {:?}",
+                row[1]
+            );
         };
         let actual_population = parse_text(actual_population).expect("parse group variance");
         assert_eq!(
@@ -569,7 +588,10 @@ fn should_preserve_statistical_states_per_group() {
             std::cmp::Ordering::Equal
         );
         let Value::String(actual_deviation) = &row[2] else {
-            panic!("NUMERIC group result should use text carrier, got {:?}", row[2]);
+            panic!(
+                "NUMERIC group result should use text carrier, got {:?}",
+                row[2]
+            );
         };
         let actual_deviation = parse_text(actual_deviation).expect("parse group stddev");
         assert!(

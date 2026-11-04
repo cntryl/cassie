@@ -4,8 +4,8 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1577 |
-| Rust files | 1545 |
+| Files under `tests/` | 1578 |
+| Rust files | 1546 |
 | Rust test declarations | 8365 |
 | Python test declarations | 21 |
 | Static Rust registration instances | 8493 |

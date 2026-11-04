@@ -180,7 +180,7 @@ fn should_keep_byte_offsets_for_multibyte_left_operands() {
 }
 
 #[test]
-fn should_parse_adjacent_qualified_and_unqualified_prefix_operators() {
+fn should_parse_adjacent_prefix_operators_with_qualified_names() {
     // Arrange
     let sql = "OPERATOR(pg_catalog.~)~1";
 

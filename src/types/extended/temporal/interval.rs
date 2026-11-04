@@ -702,7 +702,7 @@ mod tests {
     }
 
     #[test]
-    fn should_scale_and_justify_intervals_like_postgresql() {
+    fn should_match_postgresql_interval_arithmetic() {
         // Arrange
         let day = interval("1 day");
 

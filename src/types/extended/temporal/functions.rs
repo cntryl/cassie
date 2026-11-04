@@ -733,7 +733,7 @@ mod tests {
     }
 
     #[test]
-    fn should_truncate_and_extract_like_postgresql() {
+    fn should_match_postgresql_temporal_truncation_extraction() {
         // Arrange
         let session = TemporalSession::default();
         let interval = parse_interval("2 days 3 hours 40 minutes", -1, &session).expect("interval");
@@ -755,7 +755,7 @@ mod tests {
     }
 
     #[test]
-    fn should_compute_symbolic_age_and_bins() {
+    fn should_compute_symbolic_temporal_values() {
         // Arrange
         let session = TemporalSession::default();
         let stride = parse_interval("15 minutes", -1, &session).expect("stride");

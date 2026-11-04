@@ -177,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_float4_overflow_and_syntax_with_sqlstates() {
+    fn should_map_invalid_float4_inputs_to_sqlstates() {
         // Arrange
         let inputs = ["1e39", "abc", "1e-46"];
 
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_narrowing_overflow_and_underflow() {
+    fn should_reject_float4_narrowing_outside_supported_range() {
         // Arrange
         let values = [1e39_f64, 1e-46];
 
@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn should_order_float4_with_nan_last_and_equal_zeros() {
+    fn should_order_float4_nonfinite_signed_zero_values() {
         // Arrange
         let values = [
             f32::NAN,

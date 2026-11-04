@@ -1,4 +1,4 @@
-mod array_outputs;
+pub(crate) mod array_outputs;
 #[path = "binder/database_commands.rs"]
 mod database_commands;
 use database_commands::{bind_create_database_statement, bind_drop_database_statement};
@@ -89,6 +89,9 @@ pub(crate) use case_unify::coerce_parameterized_boolean_case_results;
 mod commands;
 #[path = "binder/conditional_bindings.rs"]
 mod conditional_bindings;
+#[path = "binder/source_bindings.rs"]
+mod source_bindings;
+pub(crate) use source_bindings::coerce_statement as bind_generated_source_inputs;
 #[path = "binder/conditional_types.rs"]
 mod conditional_types;
 #[path = "binder/context.rs"]
@@ -227,6 +230,7 @@ pub(crate) fn bind_initial_with_controls(
         // Parameter-free view/projection callers also consume this bound AST.
         // Parameterized statements wait for their concrete OID-aware pass.
         bind_boolean_parameters(&mut statement, catalog, context, &[])?;
+        bind_generated_source_inputs(&mut statement, catalog, context, &[])?;
     }
     conditional_bindings::coerce_statement(&mut statement, catalog, context, &HashMap::new())?;
     let indexes = bound_indexes(&statement, catalog)?;

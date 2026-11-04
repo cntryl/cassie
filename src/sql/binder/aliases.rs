@@ -82,8 +82,8 @@ pub(super) fn columns(
             return columns(source, aliases, catalog, scope);
         }
         QuerySource::Subquery { select, .. } => (subquery_names(select, catalog, scope)?, false),
-        QuerySource::TableFunction { name, .. } => (
-            super::select::table_function_columns(name)
+        QuerySource::TableFunction { .. } => (
+            super::select::table_function_columns(source)
                 .into_iter()
                 .map(|(name, _)| name)
                 .collect(),

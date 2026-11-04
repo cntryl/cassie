@@ -3,7 +3,7 @@
 use crate::sql::functions::FunctionId;
 use crate::types::DataType;
 
-pub(super) fn is_array_result(id: FunctionId) -> bool {
+pub(crate) fn is_array_result(id: FunctionId) -> bool {
     matches!(
         id,
         FunctionId::ArrayCat
@@ -18,7 +18,7 @@ pub(super) fn is_array_result(id: FunctionId) -> bool {
     )
 }
 
-pub(super) fn result_type(id: FunctionId, arguments: &[DataType]) -> Option<DataType> {
+pub(crate) fn result_type(id: FunctionId, arguments: &[DataType]) -> Option<DataType> {
     let first = arguments.first()?;
     let array = |kind: &DataType| match kind {
         DataType::Array(element) => Some(element.as_ref().clone()),

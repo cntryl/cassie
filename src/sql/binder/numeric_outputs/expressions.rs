@@ -241,6 +241,26 @@ impl Analyzer<'_> {
     ) -> Result<OutputType, CassieError> {
         self.check_controls()?;
         let name = function.name.to_ascii_lowercase();
+        if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
+            let mut element = DataType::Null;
+            for argument in &function.args {
+                if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
+                    continue;
+                }
+                element = inference::common_case_type(
+                    element,
+                    self.expression(argument, lookup)?.data_type,
+                )
+                .ok_or_else(|| CassieError::Execution("ARRAY types cannot be matched".into()))?;
+            }
+            while let DataType::Array(inner) = element {
+                element = *inner;
+            }
+            if element == DataType::Null {
+                element = DataType::Text;
+            }
+            return Ok(OutputType::fixed(DataType::Array(Box::new(element))));
+        }
         if let Some(metadata) = self.functions.get(&name).filter(|metadata| {
             !crate::sql::functions::has_distinct_builtin_arity(
                 &name,

@@ -52,64 +52,9 @@ mod text_transform;
 #[path = "toast_identity.rs"]
 mod toast_identity;
 
-pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
-    function: &FunctionCall,
-    row: &R,
-    context: EvalContext<'_>,
-) -> Result<Value, QueryError> {
-    let name = function.name.to_ascii_lowercase();
-    if crate::sql::functions::is_column_size(&name) {
-        return datum_size::evaluate(function, row, context);
-    }
-    if name == "coalesce" {
-        return evaluate_coalesce(function, row, context);
-    }
-
-    let args: Vec<Value> = function
-        .args
-        .iter()
-        .enumerate()
-        .map(|(index, arg)| {
-            text_selection::literal_argument(&name, index, arg, &function.args, context.params)
-                .or_else(|| super::conditional::evaluate_argument(&name, arg, row, context))
-                .unwrap_or_else(|| super::evaluate_expr_value_with_context(row, arg, context))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
-        return crate::types::SqlArray::from_nested_values(args)
-            .map(Value::Array)
-            .map_err(|_| {
-                crate::app::CassieError::ArrayInput(
-                    "multidimensional arrays must have array expressions with matching dimensions"
-                        .to_string(),
-                )
-                .into()
-            });
-    }
-
-    if let Some(result) = json_builders::evaluate(function, row, &args, context) {
-        return result;
-    }
-    if let Some(result) = array_functions::evaluate(&name, &args) {
-        return result;
-    }
-
-    evaluate_builtin_function(
-        &name,
-        function,
-        row,
-        &args,
-        context.search_context,
-        context.session,
-        context.controls.or_else(|| {
-            context
-                .session
-                .and_then(CassieSession::statement_execution_controls)
-        }),
-    )
-    .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))
-}
+#[path = "function_call.rs"]
+mod call;
+pub(super) use call::evaluate_function;
 
 fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     name: &str,
@@ -646,59 +591,9 @@ fn evaluate_cast_function(
     })
 }
 
-fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
-    name: &str,
-    row: &R,
-    context: EvalContext<'_>,
-    args: Vec<Value>,
-) -> Result<Value, QueryError> {
-    let lookup = name.to_ascii_lowercase();
-    let Some(metadata) = context
-        .user_functions
-        .get(name)
-        .or_else(|| context.user_functions.get(&lookup))
-    else {
-        return Err(QueryError::General(format!(
-            "unsupported function '{name}'"
-        )));
-    };
-    if args.len() != metadata.args.len() {
-        return Err(QueryError::General(format!(
-            "function '{name}' expects {} args, got {}",
-            metadata.args.len(),
-            args.len()
-        )));
-    }
-    let body = crate::sql::parser::parse_expression(&metadata.body).map_err(|error| {
-        QueryError::General(format!("invalid function body for '{name}': {error}"))
-    })?;
-    crate::sql::definition_guard::expression(&body).map_err(QueryError::Cassie)?;
-    let locals = metadata
-        .args
-        .iter()
-        .zip(args)
-        .map(|(arg, value)| {
-            let value = cast_scalar(
-                &scalar_from_value(&value),
-                &arg.data_type,
-                execution_controls(context),
-            )?;
-            Ok((arg.name.to_ascii_lowercase(), value.to_value()))
-        })
-        .collect::<Result<HashMap<String, Value>, QueryError>>()?;
-    let merged_args = merge_local_args(context.local_args, locals);
-    eval_scalar(
-        row,
-        &body,
-        context.params,
-        context.search_context,
-        context.user_functions,
-        Some(&merged_args),
-        context.session,
-    )
-    .and_then(|value| cast_scalar(&value, &metadata.return_type, execution_controls(context)))
-    .map(|value| value.to_value())
-}
+#[path = "user_routine.rs"]
+mod routine;
+use routine::evaluate_user_defined_function;
 
 pub(super) fn evaluate_coalesce<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -744,139 +639,10 @@ fn signed_integer_arg(name: &str, value: &Value) -> Result<Option<i64>, QueryErr
     }
 }
 
-pub(super) fn quote_identifier(value: &str) -> String {
-    if !identifier_is_unquoted(value) {
-        return format!("\"{}\"", value.replace('"', "\"\""));
-    }
-    value.to_string()
-}
-
-pub(super) fn identifier_is_unquoted(value: &str) -> bool {
-    let simple = value
-        .chars()
-        .next()
-        .is_some_and(|ch| ch == '_' || ch.is_ascii_lowercase())
-        && value
-            .chars()
-            .all(|ch| ch == '_' || ch.is_ascii_lowercase() || ch.is_ascii_digit());
-    simple && !is_reserved_identifier(value)
-}
-
-fn is_reserved_identifier(value: &str) -> bool {
-    const POSTGRES_RESERVED_IDENTIFIERS: &[&str] = &[
-        "all",
-        "analyse",
-        "analyze",
-        "and",
-        "any",
-        "array",
-        "as",
-        "asc",
-        "asymmetric",
-        "both",
-        "case",
-        "cast",
-        "check",
-        "collate",
-        "column",
-        "constraint",
-        "create",
-        "current_catalog",
-        "current_date",
-        "current_role",
-        "current_time",
-        "current_timestamp",
-        "current_user",
-        "default",
-        "deferrable",
-        "desc",
-        "distinct",
-        "do",
-        "else",
-        "end",
-        "except",
-        "false",
-        "fetch",
-        "for",
-        "foreign",
-        "from",
-        "grant",
-        "group",
-        "having",
-        "in",
-        "initially",
-        "intersect",
-        "into",
-        "lateral",
-        "leading",
-        "limit",
-        "localtime",
-        "localtimestamp",
-        "not",
-        "null",
-        "offset",
-        "on",
-        "only",
-        "or",
-        "order",
-        "placing",
-        "primary",
-        "references",
-        "returning",
-        "select",
-        "session_user",
-        "some",
-        "symmetric",
-        "system_user",
-        "table",
-        "then",
-        "to",
-        "trailing",
-        "true",
-        "union",
-        "unique",
-        "user",
-        "using",
-        "variadic",
-        "when",
-        "where",
-        "window",
-        "with",
-    ];
-    POSTGRES_RESERVED_IDENTIFIERS.binary_search(&value).is_ok()
-}
-
-fn format_type_oid(oid: i64, typmod: i64) -> String {
-    match oid {
-        16 => "boolean".to_string(),
-        17 => "bytea".to_string(),
-        20 => "bigint".to_string(),
-        21 => "smallint".to_string(),
-        23 => "integer".to_string(),
-        25 => "text".to_string(),
-        114 => "json".to_string(),
-        701 => "double precision".to_string(),
-        1042 => format_character_type("character", typmod),
-        1043 => format_character_type("character varying", typmod),
-        1082 => "date".to_string(),
-        1083 => "time without time zone".to_string(),
-        1114 => "timestamp without time zone".to_string(),
-        2950 => "uuid".to_string(),
-        oid if crate::types::schema::vector_dimensions_for_oid(oid).is_some() => {
-            format!("vector({})", oid - crate::types::schema::VECTOR_OID_BASE)
-        }
-        oid if (34_000..50_000).contains(&oid) => "array".to_string(),
-        _ => oid.to_string(),
-    }
-}
-
-fn format_character_type(name: &str, typmod: i64) -> String {
-    if typmod >= 4 {
-        format!("{name}({})", typmod - 4)
-    } else {
-        name.to_string()
-    }
-}
+#[path = "function_identifiers.rs"]
+mod identifiers;
+use identifiers::format_type_oid;
+pub(super) use identifiers::{identifier_is_unquoted, quote_identifier};
 
 pub(super) fn scalar_to_f64(value: &Value) -> f64 {
     match value {

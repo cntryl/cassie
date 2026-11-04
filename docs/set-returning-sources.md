@@ -17,13 +17,24 @@ NULL elements emit rows containing SQL NULL. Multiple array arguments advance
 together to the longest input, padding exhausted or NULL inputs with SQL NULL.
 Only currently selected array element families are included.
 
+Native ARRAY constructors follow PostgreSQL18.6 `ExecEvalArrayExpr`: up to six
+dimensions; all NULL/empty subarrays produce a zero-dimensional empty array;
+mixing empty/NULL subarrays with nonempty subarrays fails `2202E`. This is an
+SQL construction rule over the existing shape carrier, with no row-layout change.
+Array-valued `ARRAY(SELECT ...)` accumulation follows the separate native
+`accumArrayResultArr` rule: NULL subarrays fail `22004`, empty or mismatched
+shape/lower bounds fail `2202E`, and adding a dimension beyond six fails `54000`.
+Array rank does not create a different element-family array OID.
+
 `WITH ORDINALITY` appends a non-NULL BIGINT column named `ordinality`, starting
 at one. It counts emitted rows, including rows containing NULL elements. It
 resets for each invocation, including each outer row of a lateral join.
 
 The default data-column label is `unnest` for each argument. Duplicate default
 labels remain duplicate labels; references must resolve unambiguously. Ordinary
-relation aliases and prefix column-alias lists rename outputs by position,
+single-output relation aliases also supply that data column's default label,
+as in `unnest(ARRAY[1]) AS x` producing column `x`.
+Relation aliases and prefix column-alias lists rename outputs by position,
 including ordinality. Excess aliases fail with `42P10`. Function arguments can
 reference preceding FROM sources without spelling LATERAL. LEFT lateral joins
 preserve an outer row when its source emits no matching rows.
@@ -88,12 +99,23 @@ predicate with LIMIT must stop generation once enough qualifying rows have been
 produced. LIMIT zero does not invoke the source. Aliases and lateral source
 composition must preserve this pull boundary. Blocking sort, grouping, window,
 DISTINCT or explicitly materialized query boundaries may collect admitted rows.
+Schema-backed collection inputs use the existing Cassie `SessionRowCursor`
+transport one row at a time; the current published Midge0.5.1 API remains fixed.
 
 Do not allocate a complete expanded row set before the consumer asks for it.
 Admit retained arguments and row buffers before growth, check cancellation at
 advancement and consumer boundaries, and release source/input/output ownership
 on exhaustion, early LIMIT, cancellation and error. Query deadlines remain in
 force for calendar steps or predicates that do not quickly reach a stop.
+A private expression scratch owner retains admitted nested array-function
+intermediates until argument evaluation completes; input ownership transfers to
+the source cursor before that scratch is released.
+Native JSONB array elements use the existing canonical JSONB formatter and exact
+numeric expansion; JSON elements retain their selected JSON carrier semantics.
+Native array text publication and explicit array-to-TEXT casts use the captured
+statement TimeZone, DateStyle and IntervalStyle. A private result context carries
+that snapshot through pgwire formatting; public Value/SqlArray carriers and
+native binary values retain their existing representation.
 A terminal error returns no partial result rows or command tag; a subsequent
 statement on the same connection must recover according to its transaction state.
 

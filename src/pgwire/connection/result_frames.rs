@@ -12,7 +12,7 @@ use crate::types::schema::vector_dimensions_for_oid;
 use crate::types::Value;
 
 use super::writers::{
-    append_command_complete_frame, append_data_row_frame, append_portal_suspended_frame,
+    append_command_complete_frame, append_data_row_frame_in, append_portal_suspended_frame,
     append_row_description_frame, select_command_tag,
 };
 
@@ -87,6 +87,10 @@ impl<'a> QueryResultFrames<'a> {
         let postgres_array_text_columns = self
             .result
             .map_or(&[][..], QueryResult::postgres_array_text_columns);
+        let temporal = self.result.map_or_else(
+            || crate::types::extended::temporal::default_session(),
+            QueryResult::temporal_context,
+        );
         let binary_object_columns = self.result.map(|result| {
             (0..row.len())
                 .filter(|column| super::writers::result_format_for_index(formats, *column) == 1)
@@ -103,20 +107,22 @@ impl<'a> QueryResultFrames<'a> {
                 for (column, value) in replacements {
                     row[column] = value;
                 }
-                append_data_row_frame(
+                append_data_row_frame_in(
                     &mut self.bytes,
                     &row,
                     columns,
                     formats,
                     postgres_array_text_columns,
+                    temporal,
                 )
             }
-            _ => append_data_row_frame(
+            _ => append_data_row_frame_in(
                 &mut self.bytes,
                 row,
                 columns,
                 formats,
                 postgres_array_text_columns,
+                temporal,
             ),
         }
     }
@@ -179,7 +185,32 @@ fn scratch_bytes(
                 _ => formats.get(index).copied().unwrap_or(0),
             };
             let postgres_array_text = postgres_array_text_columns.binary_search(&index).is_ok();
-            let cell = cell_bytes(value, oid, atttypmod, format, postgres_array_text)?;
+            let mut cell = cell_bytes(value, oid, atttypmod, format, postgres_array_text)?;
+            if format == 0 && array_element_oid(oid).is_some() {
+                let mut extra = 0;
+                if let Value::Array(array) = value {
+                    if array
+                        .dimensions()
+                        .iter()
+                        .any(|dimension| dimension.lower_bound != 1)
+                    {
+                        extra = add(extra, mul(array.dimensions().len(), 32)?)?;
+                    }
+                }
+                if array_element_oid(oid) == Some(1184) {
+                    let count = match value {
+                        Value::Array(array) => array.len(),
+                        Value::Json(serde_json::Value::Array(array)) => array.len(),
+                        _ => 0,
+                    };
+                    extra = add(
+                        extra,
+                        mul(count, result.temporal_context().zone.name().len())?,
+                    )?;
+                }
+                cell.encoded = add(cell.encoded, mul(extra, 2)?)?;
+                cell.scratch = add(cell.scratch, mul(extra, 8)?)?;
+            }
             payload = add(payload, cell.encoded)?;
             cell_scratch = cell_scratch.max(cell.scratch);
         }
@@ -215,7 +246,7 @@ fn cell_bytes(
         });
     }
     if format == 0 && (postgres_array_text || array_element_oid(oid).is_some()) {
-        return postgres_array_text_bytes(value);
+        return postgres_array_text_bytes(value, oid);
     }
     if format == 1 && oid == 1042 && atttypmod >= 4 {
         return bpchar_cell_bytes(value, atttypmod);
@@ -316,21 +347,25 @@ fn array_cell_bytes(value: &Value, oid: i64) -> Result<Option<CellBytes>, Cassie
     let Some(element_oid) = array_element_oid(oid) else {
         return Ok(None);
     };
-    let owned;
-    let (values, dimension_count) = match value {
+    let (count, dimension_count) = match value {
         Value::Json(serde_json::Value::Array(values)) => {
-            (values.as_slice(), usize::from(!values.is_empty()))
+            (values.len(), usize::from(!values.is_empty()))
         }
-        Value::Array(array) => {
-            owned = array.elements_as_json();
-            (owned.as_slice(), array.dimensions().len())
-        }
+        Value::Array(array) => (array.len(), array.dimensions().len()),
         _ => return Ok(None),
     };
     let mut encoded = add(12, mul(dimension_count, 8)?)?;
     let mut element_scratch = 0;
-    for value in values {
-        let cell = array_element_bytes(value, element_oid)?;
+    for index in 0..count {
+        let cell = match value {
+            Value::Json(serde_json::Value::Array(values)) => {
+                array_element_bytes(&values[index], element_oid)?
+            }
+            Value::Array(array) => {
+                native_array_element_bytes(&array.elements()[index], element_oid)?
+            }
+            _ => unreachable!("native or JSON array"),
+        };
         encoded = add(encoded, add(4, cell.encoded)?)?;
         element_scratch = element_scratch.max(cell.scratch);
     }
@@ -338,6 +373,30 @@ fn array_cell_bytes(value: &Value, oid: i64) -> Result<Option<CellBytes>, Cassie
         encoded,
         scratch: add(mul(encoded.max(8), 3)?, element_scratch)?,
     }))
+}
+
+fn native_array_element_bytes(value: &Value, oid: i64) -> Result<CellBytes, CassieError> {
+    if value.is_null() {
+        return Ok(CellBytes {
+            encoded: 0,
+            scratch: 0,
+        });
+    }
+    if let Value::Json(value) = value {
+        return array_element_bytes(value, oid);
+    }
+    // Native scalar receivers have bounded framing in addition to their text
+    // magnitude (numeric digits, bit length, network header, temporal width).
+    let text = text_bytes(value)?;
+    let encoded = if matches!(oid, 25 | 1042 | 1043 | 705) {
+        text.encoded
+    } else {
+        add(text.encoded, 32)?
+    };
+    Ok(CellBytes {
+        encoded,
+        scratch: add(text.scratch, mul(encoded.max(128), 8)?)?,
+    })
 }
 
 fn array_element_oid(array_oid: i64) -> Option<i64> {
@@ -363,10 +422,13 @@ fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
         }
         Value::Json(value) => return json_bytes(value),
         Value::Typed(value) => {
-            let text = value.text();
+            let encoded = crate::executor::native_result_text_bound(
+                value,
+                crate::types::extended::temporal::default_session(),
+            )?;
             return Ok(CellBytes {
-                encoded: text.len(),
-                scratch: mul(text.len().max(8), 3)?,
+                encoded,
+                scratch: mul(encoded.max(128), 4)?,
             });
         }
         Value::Vector(vector) => {
@@ -380,8 +442,7 @@ fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
             return Ok(CellBytes { encoded, scratch });
         }
         Value::Array(array) => {
-            let json = array.to_nested_json();
-            return json_bytes(&json);
+            return native_array_json_bytes(array, None);
         }
     };
     Ok(CellBytes {
@@ -390,14 +451,18 @@ fn text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
     })
 }
 
-fn postgres_array_text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
-    let array = match value {
-        Value::Json(array) => array.clone(),
-        Value::Array(array) => array.to_nested_json(),
+fn postgres_array_text_bytes(value: &Value, oid: i64) -> Result<CellBytes, CassieError> {
+    let (element_count, json_bytes) = match value {
+        Value::Json(array) => (
+            array.as_array().map_or(0, Vec::len),
+            serialized_json_bytes(array)?,
+        ),
+        Value::Array(array) => (
+            array.len(),
+            native_array_json_bytes(array, array_element_oid(oid))?.encoded,
+        ),
         _ => return text_bytes(value),
     };
-    let element_count = array.as_array().map_or(0, Vec::len);
-    let json_bytes = serialized_json_bytes(&array)?;
     // Array quoting can expand each element; also admit the temporary String
     // directory used while joining PostgreSQL's text representation.
     let encoded = add(add(mul(json_bytes, 4)?, mul(element_count, 2)?)?, 2)?;
@@ -406,6 +471,31 @@ fn postgres_array_text_bytes(value: &Value) -> Result<CellBytes, CassieError> {
         mul(element_count, size_of::<String>())?,
     )?;
     Ok(CellBytes { encoded, scratch })
+}
+
+fn native_array_json_bytes(
+    array: &crate::types::SqlArray,
+    element_oid: Option<i64>,
+) -> Result<CellBytes, CassieError> {
+    // Rank is bounded by six. This covers every nested bracket/comma and the
+    // escaped JSON representation without cloning or rendering any element.
+    let encoded =
+        array
+            .elements()
+            .iter()
+            .try_fold(mul(add(array.len(), 1)?, 14)?, |bytes, value| {
+                let encoded = match (element_oid, value) {
+                    (Some(3802), Value::Json(json)) => {
+                        crate::types::jsonb::text_len(json).map_err(CassieError::TypeInput)?
+                    }
+                    _ => text_bytes(value)?.encoded,
+                };
+                add(bytes, add(mul(encoded, 6)?, 2)?)
+            })?;
+    Ok(CellBytes {
+        encoded,
+        scratch: add(mul(encoded.max(128), 8)?, mul(array.len(), 128)?)?,
+    })
 }
 
 fn json_bytes(value: &serde_json::Value) -> Result<CellBytes, CassieError> {
@@ -454,7 +544,7 @@ fn array_element_bytes(value: &serde_json::Value, oid: i64) -> Result<CellBytes,
             let encoded = if matches!(oid, 25 | 1042 | 1043 | 705) {
                 text.len()
             } else {
-                text.len().max(16)
+                add(text.len().max(16), 32)?
             };
             Ok(CellBytes {
                 encoded,

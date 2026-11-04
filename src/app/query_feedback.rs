@@ -309,6 +309,12 @@ impl Cassie {
             &context,
             parameter_type_oids,
         )?;
+        binder::bind_generated_source_inputs(
+            &mut bound.statement,
+            &self.catalog,
+            &context,
+            parameter_type_oids,
+        )?;
         crate::sql::pagination::validate_statement(
             &mut bound.statement,
             Some(parameter_type_oids),

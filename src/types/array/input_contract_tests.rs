@@ -107,12 +107,14 @@ fn should_canonicalize_text_array_scalar_spellings() {
         (
             DataType::Timestamp,
             r#"{"2000-01-01T01:30:00+01:30",NULL}"#,
-            "2000-01-01T00:00:00.000000Z",
+            // PostgreSQL18.6 timestamp without time zone ignores the offset.
+            "2000-01-01T01:30:00.000000Z",
         ),
         (
             DataType::Timestamp,
             r#"["2000-01-01T01:30:00+01:30",null]"#,
-            "2000-01-01T00:00:00.000000Z",
+            // PostgreSQL18.6 timestamp without time zone ignores the offset.
+            "2000-01-01T01:30:00.000000Z",
         ),
     ];
 

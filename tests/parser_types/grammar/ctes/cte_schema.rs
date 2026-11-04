@@ -155,6 +155,7 @@ fn should_parse_graph_table_function_source() {
         name,
         function,
         lateral,
+        with_ordinality,
     } = statement.source
     else {
         panic!("expected table function source");
@@ -162,6 +163,7 @@ fn should_parse_graph_table_function_source() {
     assert_eq!(name, "graph_expand");
     assert_eq!(function.args.len(), 7);
     assert!(!lateral);
+    assert!(!with_ordinality);
 }
 
 #[test]

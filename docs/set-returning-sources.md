@@ -17,6 +17,12 @@ NULL elements emit rows containing SQL NULL. Multiple array arguments advance
 together to the longest input, padding exhausted or NULL inputs with SQL NULL.
 Only currently selected array element families are included.
 
+The scalar result keeps its element OID and has typmod -1, including when the
+input element has a character length, numeric precision/scale or temporal
+precision modifier. The already-coerced values retain their input precision.
+This follows PostgreSQL18.6 `addRangeTableEntryForFunction` and `exprTypmod` for
+an ordinary non-length-coercion `FuncExpr`; it does not add an element family.
+
 Native ARRAY constructors follow PostgreSQL18.6 `ExecEvalArrayExpr`: up to six
 dimensions; all NULL/empty subarrays produce a zero-dimensional empty array;
 mixing empty/NULL subarrays with nonempty subarrays fails `2202E`. This is an
@@ -25,6 +31,13 @@ Array-valued `ARRAY(SELECT ...)` accumulation follows the separate native
 `accumArrayResultArr` rule: NULL subarrays fail `22004`, empty or mismatched
 shape/lower bounds fail `2202E`, and adding a dimension beyond six fails `54000`.
 Array rank does not create a different element-family array OID.
+
+The existing pending character-array cast boundary remains: VALUES casts to
+`CHAR(n)[]` or `VARCHAR(n)[]` fail with `0A000` until element length conversion
+is implemented. Scalar coercion inside a native constructor, such as
+`ARRAY['a'::CHAR(3)]`, retains that scalar's existing behavior. Accepting the
+text-array input without applying its element modifier is not supported.
+This is an outstanding #796/#807 obligation, not completed array-cast parity.
 
 `WITH ORDINALITY` appends a non-NULL BIGINT column named `ordinality`, starting
 at one. It counts emitted rows, including rows containing NULL elements. It

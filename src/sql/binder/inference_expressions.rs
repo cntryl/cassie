@@ -91,7 +91,7 @@ pub(crate) fn infer_expr_type(
     }
 }
 
-fn infer_array_constructor_type(
+pub(super) fn infer_array_constructor_type(
     function: &crate::sql::ast::FunctionCall,
     source_schema: &Schema,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,

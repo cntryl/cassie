@@ -47,5 +47,11 @@ fn scalar_element(mut kind: DataType) -> DataType {
     while let DataType::Array(element) = kind {
         kind = *element;
     }
-    kind
+    // An ordinary set-returning FuncExpr has typmod -1 even when the
+    // incoming array's elements were explicitly constrained. Values already
+    // carry that input coercion; only the scalar result descriptor is erased.
+    i32::try_from(kind.type_oid())
+        .ok()
+        .and_then(super::binder::parameter_data_type_for_oid)
+        .unwrap_or(kind)
 }

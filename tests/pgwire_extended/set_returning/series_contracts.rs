@@ -90,6 +90,7 @@ fn should_report_series_signature_step_and_range_errors_without_partial_rows() {
     // Arrange
     let cases = [
         ("SELECT * FROM generate_series(NULL,NULL)","42725"),
+        ("SELECT * FROM generate_series($1,(SELECT '3'))","42883"),
         ("SELECT * FROM generate_series(1::FLOAT8,2::FLOAT8)","42883"),
         ("SELECT * FROM generate_series(1,3,0)","22023"),
         ("SELECT * FROM generate_series((2147483647+1)-1,2147483647)","22003"),
@@ -159,4 +160,52 @@ fn should_preserve_sql_routine_return_coercion_when_evaluating_series_arguments(
         wire::data_rows(&batches[1]),
         vec![vec![Some("8".to_owned())]]
     );
+}
+
+#[test]
+fn should_infer_series_inputs_from_scalar_subquery_projection_identities() {
+    // Arrange
+    let cases = [
+        ("SELECT * FROM generate_series($1,(SELECT 3))", 0, 23),
+        ("SELECT * FROM generate_series((SELECT $1::BIGINT),(SELECT 3::BIGINT))", 20, 20),
+        ("SELECT s.item FROM (VALUES (3)) v(n) CROSS JOIN LATERAL generate_series($1,(SELECT v.n)) s(item)", 0, 23),
+    ];
+    let cycles = cases
+        .iter()
+        .map(|(sql, supplied, _)| {
+            fixture::execute_cycle(sql, Some((*supplied, 0, Some(b"1"))), 0, true)
+        })
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("issue-808-series-subquery-parameters", &[], cycles);
+
+    // Assert
+    for ((sql, _, oid), frames) in cases.into_iter().zip(&batches) {
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(
+            frames,
+            (oid, if oid == 23 { 4 } else { 8 }, -1),
+            0,
+            true,
+        );
+        let parameters = frames
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("parameter description");
+        assert_eq!(
+            wire::parse_parameter_description(&parameters.1),
+            vec![oid],
+            "{sql}"
+        );
+        assert_eq!(
+            wire::data_rows(frames),
+            vec![
+                vec![Some("1".to_owned())],
+                vec![Some("2".to_owned())],
+                vec![Some("3".to_owned())]
+            ],
+            "{sql}"
+        );
+    }
 }

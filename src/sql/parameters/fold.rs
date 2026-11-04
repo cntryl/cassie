@@ -24,6 +24,8 @@ mod functions;
 mod literal_inputs;
 #[path = "fold_nodes.rs"]
 mod nodes;
+#[path = "fold_subqueries.rs"]
+mod subqueries;
 #[path = "fold_table_sources.rs"]
 mod table_sources;
 
@@ -219,7 +221,7 @@ impl<'a, 'c> Fold<'a, 'c> {
                 | ast::SelectItem::Column { .. }
                 | ast::SelectItem::WindowFunction { .. } => None,
             },
-            Node::Select(_) => {
+            Node::Select(select) => {
                 let start = self.contexts.values[frame.context].target_start;
                 for index in start..self.targets.values.len() {
                     check_controls(self.controls)?;
@@ -227,12 +229,13 @@ impl<'a, 'c> Fold<'a, 'c> {
                     debug_assert_eq!(target.context, frame.context);
                     self.occurrences.finalize_target(&mut target.summary)?;
                 }
+                let output = self.subquery_select_summary(select, frame.context, start);
                 self.targets.values.truncate(start);
                 self.contexts.values.pop();
-                None
+                output
             }
-            Node::Query(_)
-            | Node::Source(_)
+            Node::Query(_) => self.subquery_query_summary(frame),
+            Node::Source(_)
             | Node::Expressions(_)
             | Node::Items(_)
             | Node::Orders(_)

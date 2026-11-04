@@ -9,6 +9,14 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if table_sources::is_generated(&function.name)
+            && self.occurrences.len() == frame.occurrence_start
+        {
+            // A source's sublinks and lateral columns receive their native
+            // types during binding. No parameter occurred beneath this frame,
+            // so leave signature diagnostics to that typed binding boundary.
+            return Ok(Some(Summary::unqualified()));
+        }
         if table_sources::is_unnest(&function.name) {
             if function.args.is_empty() {
                 self.occurrences.undefined_function("unnest", 0, None)?;

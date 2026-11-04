@@ -213,3 +213,77 @@ fn should_bind_computed_array_sources_without_losing_native_parameter_identity()
         );
     }
 }
+
+#[test]
+fn should_drop_input_element_modifiers_from_unnest_result_descriptors() {
+    // Arrange
+    let cases = [
+        (
+            "SELECT * FROM unnest(ARRAY['a'::VARCHAR(3)])",
+            1_043,
+            -1,
+            "a",
+        ),
+        (
+            "SELECT * FROM unnest(ARRAY['a'::CHAR(3)])",
+            1_042,
+            -1,
+            "a  ",
+        ),
+        (
+            "SELECT * FROM unnest(ARRAY[1.20::NUMERIC(4,2)])",
+            1_700,
+            -1,
+            "1.20",
+        ),
+        (
+            "SELECT * FROM unnest(ARRAY['12:34:56.1234'::TIME(3)])",
+            1_083,
+            8,
+            "12:34:56.123",
+        ),
+    ];
+    let cycles = cases
+        .iter()
+        .map(|(sql, _, _, _)| fixture::execute_cycle(sql, None, 0, true))
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("issue-808-unnest-input-modifiers", &[], cycles);
+
+    // Assert
+    for ((sql, oid, width, value), frames) in cases.into_iter().zip(&batches) {
+        fixture::assert_success(frames);
+        fixture::assert_single_column_descriptors(frames, (oid, width, -1), 0, true);
+        assert_eq!(
+            wire::data_rows(frames),
+            vec![vec![Some(value.to_owned())]],
+            "{sql}"
+        );
+    }
+}
+
+#[test]
+fn should_retain_parameter_identity_through_array_subquery_source_arguments() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT * FROM unnest(ARRAY(SELECT $1::INT))",
+        Some((23, 0, Some(b"7"))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-808-unnest-subquery-parameter", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    fixture::assert_single_column_descriptors(frames, (23, 4, -1), 0, true);
+    let parameters = frames
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("parameter description");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), vec![23]);
+    assert_eq!(wire::data_rows(frames), vec![vec![Some("7".to_owned())]]);
+}

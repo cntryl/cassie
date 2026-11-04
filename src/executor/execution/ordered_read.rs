@@ -165,6 +165,7 @@ fn execute_ordered_row_id_page_with_projection_probe(
                 schema.as_ref(),
                 controls,
             )
+            .map_err(crate::app::CassieError::from)
         })?;
     }
     check_timeout(controls)?;

@@ -12,7 +12,7 @@ pub(super) fn append_visible_fields(source: &QuerySource, lookup: &mut Schema) {
     else {
         return;
     };
-    let prefix = format!("{}.", super::aliases::qualifier(alias));
+    let prefix = format!("{}.", crate::sql::binder::aliases::qualifier(alias));
     let visible_qualifier = ColumnIdentifierPath::parse(alias)
         .map_or_else(|_| alias.clone(), |path| path.namespace_key());
     // The source schema already retains its physical and private-qualified

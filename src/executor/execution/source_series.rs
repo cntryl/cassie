@@ -115,14 +115,14 @@ impl Cursor {
             }
         };
         let start = integer(0)?;
-        let stop = integer(1)?;
+        let finish = integer(1)?;
         let step = if args.len() == 3 { integer(2)? } else { 1 };
         if step == 0 {
             return Err(invalid("step size cannot equal zero"));
         }
         Ok(State::Integer {
             current: Some(start),
-            stop,
+            stop: finish,
             step,
             int4: kind == Kind::Int4,
         })
@@ -137,11 +137,11 @@ impl Cursor {
             _ => Err(QueryError::from(series_signature::undefined())),
         };
         let start = number(0)?;
-        let stop = number(1)?;
+        let finish = number(1)?;
         let one = Numeric::from_i128(1);
         let step = if args.len() == 3 { number(2)? } else { &one };
         if !matches!(
-            (start, stop, step),
+            (start, finish, step),
             (
                 Numeric::Finite { .. },
                 Numeric::Finite { .. },
@@ -155,13 +155,13 @@ impl Cursor {
         if step.is_zero() {
             return Err(invalid("step size cannot equal zero"));
         }
-        let scale = [start, stop, step]
+        let scale = [start, finish, step]
             .iter()
             .filter_map(|value| value.scale())
             .max()
             .unwrap_or(0);
         let mut scratch = 1024;
-        for number in [start, stop, step] {
+        for number in [start, finish, step] {
             if let Numeric::Finite {
                 mantissa,
                 scale: own,
@@ -184,7 +184,7 @@ impl Cursor {
         memory.try_grow(mul(scratch, 16)?)?;
         Ok(State::Decimal {
             current: start.clone(),
-            stop: stop.clone(),
+            stop: finish.clone(),
             step: step.clone(),
         })
     }
@@ -212,7 +212,7 @@ impl Cursor {
             }
         };
         let start = timestamp(&args[0])?;
-        let stop = timestamp(&args[1])?;
+        let finish = timestamp(&args[1])?;
         let step = match &args[2] {
             Value::Typed(TypedValue::Interval(value)) => *value,
             Value::String(text) => {
@@ -226,7 +226,7 @@ impl Cursor {
         if step.order_key() == 0 {
             return Err(invalid("step size cannot equal zero"));
         }
-        if [start, stop]
+        if [start, finish]
             .iter()
             .any(|value| matches!(*value, i64::MIN | i64::MAX))
         {
@@ -252,7 +252,7 @@ impl Cursor {
         };
         Ok(State::Calendar {
             current: start,
-            stop,
+            stop: finish,
             step,
             zone,
         })

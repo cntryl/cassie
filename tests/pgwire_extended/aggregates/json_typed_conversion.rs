@@ -1,7 +1,7 @@
 //! Exact JSON aggregate values and native document identities over pgwire.
 
 use crate::support_pgwire as wire;
-use crate::support_wire_queries as fixture;
+use crate::support_type_metadata_contract as fixture;
 
 const VALUE: &str = "9007199254740993.125500";
 const PARAMETER_SQL: &str = "SELECT json_agg($1::NUMERIC), jsonb_agg($1::NUMERIC), \

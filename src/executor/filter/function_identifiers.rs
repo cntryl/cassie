@@ -1,4 +1,4 @@
-//! Identifier quoting and legacy format_type display policy.
+//! Identifier quoting and legacy `format_type` display policy.
 
 pub(in crate::executor::filter) fn quote_identifier(value: &str) -> String {
     if !identifier_is_unquoted(value) {

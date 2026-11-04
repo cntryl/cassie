@@ -128,30 +128,8 @@ impl Analyzer<'_> {
             return self.expression(left, lookup);
         }
         if *op == BinaryOp::Concat {
-            let left_type = self.expression(left, lookup)?.data_type;
-            let right_type = self.expression(right, lookup)?.data_type;
-            let elements = match (&left_type, &right_type) {
-                (DataType::Array(left), DataType::Array(right)) => {
-                    Some((left.as_ref().clone(), right.as_ref().clone()))
-                }
-                (DataType::Array(element), scalar) | (scalar, DataType::Array(element)) => {
-                    Some((element.as_ref().clone(), scalar.clone()))
-                }
-                _ => None,
-            };
-            if let Some((left, right)) = elements {
-                if let Some(element) = inference::common_case_type(left, right) {
-                    return Ok(OutputType::fixed(DataType::Array(Box::new(element))));
-                }
-            }
-            if let Some(kind) = [
-                self.expression(left, lookup)?.data_type,
-                self.expression(right, lookup)?.data_type,
-            ]
-            .into_iter()
-            .find(DataType::is_json)
-            {
-                return Ok(OutputType::fixed(kind));
+            if let Some(output) = self.concatenation_output(left, right, lookup)? {
+                return Ok(output);
             }
         }
         if let Some(operator) = op.typed_operator() {
@@ -234,6 +212,65 @@ impl Analyzer<'_> {
         })
     }
 
+    fn concatenation_output(
+        &self,
+        left: &Expr,
+        right: &Expr,
+        lookup: &[OutputField],
+    ) -> Result<Option<OutputType>, CassieError> {
+        let left_type = self.expression(left, lookup)?.data_type;
+        let right_type = self.expression(right, lookup)?.data_type;
+        let elements = match (&left_type, &right_type) {
+            (DataType::Array(left), DataType::Array(right)) => {
+                Some((left.as_ref().clone(), right.as_ref().clone()))
+            }
+            (DataType::Array(element), scalar) | (scalar, DataType::Array(element)) => {
+                Some((element.as_ref().clone(), scalar.clone()))
+            }
+            _ => None,
+        };
+        if let Some((left, right)) = elements {
+            if let Some(element) = inference::common_case_type(left, right) {
+                return Ok(Some(OutputType::fixed(DataType::Array(Box::new(element)))));
+            }
+        }
+        if let Some(kind) = [
+            self.expression(left, lookup)?.data_type,
+            self.expression(right, lookup)?.data_type,
+        ]
+        .into_iter()
+        .find(DataType::is_json)
+        {
+            return Ok(Some(OutputType::fixed(kind)));
+        }
+        Ok(None)
+    }
+
+    fn array_constructor_output(
+        &self,
+        function: &FunctionCall,
+        lookup: &[OutputField],
+    ) -> Result<OutputType, CassieError> {
+        let mut element = DataType::Null;
+        for argument in &function.args {
+            if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
+                continue;
+            }
+            element =
+                inference::common_case_type(element, self.expression(argument, lookup)?.data_type)
+                    .ok_or_else(|| {
+                        CassieError::Execution("ARRAY types cannot be matched".into())
+                    })?;
+        }
+        while let DataType::Array(inner) = element {
+            element = *inner;
+        }
+        if element == DataType::Null {
+            element = DataType::Text;
+        }
+        Ok(OutputType::fixed(DataType::Array(Box::new(element))))
+    }
+
     pub(super) fn function(
         &self,
         function: &FunctionCall,
@@ -242,24 +279,7 @@ impl Analyzer<'_> {
         self.check_controls()?;
         let name = function.name.to_ascii_lowercase();
         if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
-            let mut element = DataType::Null;
-            for argument in &function.args {
-                if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
-                    continue;
-                }
-                element = inference::common_case_type(
-                    element,
-                    self.expression(argument, lookup)?.data_type,
-                )
-                .ok_or_else(|| CassieError::Execution("ARRAY types cannot be matched".into()))?;
-            }
-            while let DataType::Array(inner) = element {
-                element = *inner;
-            }
-            if element == DataType::Null {
-                element = DataType::Text;
-            }
-            return Ok(OutputType::fixed(DataType::Array(Box::new(element))));
+            return self.array_constructor_output(function, lookup);
         }
         if let Some(metadata) = self.functions.get(&name).filter(|metadata| {
             !crate::sql::functions::has_distinct_builtin_arity(

@@ -90,7 +90,7 @@ fn statement_with_outer(
                     }
                 }
                 super::InsertSource::Select(select) => {
-                    select_inputs(select, catalog, context, parameters, ctes, outer)?
+                    select_inputs(select, catalog, context, parameters, ctes, outer)?;
                 }
             }
             if let Some(conflict) = &mut insert.on_conflict {
@@ -220,7 +220,7 @@ fn items(
         match item {
             SelectItem::Expr { expr, .. } => expression(expr, types, catalog, context, parameters)?,
             SelectItem::Function { function, .. } => {
-                function_arguments(function, types, catalog, context, parameters)?
+                function_arguments(function, types, catalog, context, parameters)?;
             }
             SelectItem::WindowFunction { function, .. } => {
                 for arg in function
@@ -248,7 +248,7 @@ fn source(
     match source {
         QuerySource::Aliased { source: inner, .. }
         | QuerySource::TableSample { source: inner, .. } => {
-            self::source(inner, types, catalog, context, parameters)?
+            self::source(inner, types, catalog, context, parameters)?;
         }
         QuerySource::Join {
             left, right, on, ..

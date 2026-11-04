@@ -64,69 +64,7 @@ pub(super) fn execute(
         function.name.to_ascii_lowercase().as_str(),
         "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"
     ) {
-        let session = env.session.ok_or_else(|| {
-            QueryError::General("pg_show_all_settings requires a session".to_string())
-        })?;
-        let rows = crate::app::all_session_settings()
-            .iter()
-            .map(|spec| {
-                BatchRow::new(vec![
-                    ("name".to_string(), Value::String(spec.name.to_string())),
-                    (
-                        "setting".to_string(),
-                        Value::String(
-                            session
-                                .setting(spec.name)
-                                .unwrap_or_else(|_| spec.default.to_string()),
-                        ),
-                    ),
-                    ("unit".to_string(), Value::Null),
-                    (
-                        "category".to_string(),
-                        Value::String("Client Connection Defaults".to_string()),
-                    ),
-                    (
-                        "short_desc".to_string(),
-                        Value::String("Cassie compatibility setting".to_string()),
-                    ),
-                    ("extra_desc".to_string(), Value::Null),
-                    (
-                        "context".to_string(),
-                        Value::String(
-                            if spec.kind == crate::app::SettingKind::Mutable {
-                                "user"
-                            } else {
-                                "internal"
-                            }
-                            .to_string(),
-                        ),
-                    ),
-                    ("vartype".to_string(), Value::String("string".to_string())),
-                    ("source".to_string(), Value::String("default".to_string())),
-                    ("min_val".to_string(), Value::Null),
-                    ("max_val".to_string(), Value::Null),
-                    ("enumvals".to_string(), Value::Null),
-                    (
-                        "boot_val".to_string(),
-                        Value::String(spec.default.to_string()),
-                    ),
-                    (
-                        "reset_val".to_string(),
-                        Value::String(spec.default.to_string()),
-                    ),
-                    ("sourcefile".to_string(), Value::Null),
-                    ("sourceline".to_string(), Value::Null),
-                    ("pending_restart".to_string(), Value::Bool(false)),
-                ])
-            })
-            .collect::<Vec<_>>();
-        return finalize_source_batches(
-            env,
-            batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
-            Vec::new(),
-            qualify,
-            name,
-        );
+        return execute_settings(env, name, qualify);
     }
     let (rows, _table_memory) = if function.name.eq_ignore_ascii_case("jsonb_path_query")
         || function.name.eq_ignore_ascii_case("jsonb_path_query_tz")
@@ -136,6 +74,72 @@ pub(super) fn execute(
         graph::execute_table_function(env, function, if lateral { outer_row } else { None })?
             .into_parts()
     };
+    finalize_source_batches(
+        env,
+        batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
+        Vec::new(),
+        qualify,
+        name,
+    )
+}
+
+fn execute_settings(env: &SourceExecutionEnv<'_>, name: &str, qualify: bool) -> SourceExecution {
+    let session = env.session.ok_or_else(|| {
+        QueryError::General("pg_show_all_settings requires a session".to_string())
+    })?;
+    let rows = crate::app::all_session_settings()
+        .iter()
+        .map(|spec| {
+            BatchRow::new(vec![
+                ("name".to_string(), Value::String(spec.name.to_string())),
+                (
+                    "setting".to_string(),
+                    Value::String(
+                        session
+                            .setting(spec.name)
+                            .unwrap_or_else(|_| spec.default.to_string()),
+                    ),
+                ),
+                ("unit".to_string(), Value::Null),
+                (
+                    "category".to_string(),
+                    Value::String("Client Connection Defaults".to_string()),
+                ),
+                (
+                    "short_desc".to_string(),
+                    Value::String("Cassie compatibility setting".to_string()),
+                ),
+                ("extra_desc".to_string(), Value::Null),
+                (
+                    "context".to_string(),
+                    Value::String(
+                        if spec.kind == crate::app::SettingKind::Mutable {
+                            "user"
+                        } else {
+                            "internal"
+                        }
+                        .to_string(),
+                    ),
+                ),
+                ("vartype".to_string(), Value::String("string".to_string())),
+                ("source".to_string(), Value::String("default".to_string())),
+                ("min_val".to_string(), Value::Null),
+                ("max_val".to_string(), Value::Null),
+                ("enumvals".to_string(), Value::Null),
+                (
+                    "boot_val".to_string(),
+                    Value::String(spec.default.to_string()),
+                ),
+                (
+                    "reset_val".to_string(),
+                    Value::String(spec.default.to_string()),
+                ),
+                ("sourcefile".to_string(), Value::Null),
+                ("sourceline".to_string(), Value::Null),
+                ("pending_restart".to_string(), Value::Bool(false)),
+            ])
+        })
+        .collect::<Vec<_>>();
     finalize_source_batches(
         env,
         batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
@@ -180,7 +184,7 @@ fn execute_pg_input_error_info(
         return Err(error);
     }
     let rows = match result {
-        Ok(_) => vec![BatchRow::new(vec![
+        Ok(()) => vec![BatchRow::new(vec![
             ("message".into(), Value::Null),
             ("detail".into(), Value::Null),
             ("hint".into(), Value::Null),

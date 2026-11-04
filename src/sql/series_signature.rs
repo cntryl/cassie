@@ -1,4 +1,4 @@
-//! Finite existing-type generate_series overload resolution.
+//! Finite existing-type `generate_series` overload resolution.
 use crate::app::CassieError;
 use crate::sql::ast::{Expr, FunctionCall};
 use crate::types::{extended::ExtendedType, DataType};

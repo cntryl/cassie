@@ -271075,7 +271075,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 123,
-      "sha256": "345b8ed3218cdb2422d703cfa3bef379bf9b4dba8b5f5e2b6734b69cca566522",
+      "sha256": "8d383c58932df05c7d52dfeeb067f17276b98fd7ecd64ec92c02f501ccd03b79",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"

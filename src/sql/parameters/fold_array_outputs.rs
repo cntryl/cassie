@@ -69,9 +69,12 @@ impl Fold<'_, '_> {
             let element_oid = i32::try_from(element.type_oid()).unwrap_or(705);
             for (index, argument) in args.iter_mut().enumerate() {
                 let target = match metadata.id {
-                    functions::FunctionId::ArrayPrepend if index == 0 => element_oid,
+                    functions::FunctionId::ArrayPrepend | functions::FunctionId::ArrayFill
+                        if index == 0 =>
+                    {
+                        element_oid
+                    }
                     functions::FunctionId::ArrayAppend if index == 1 => element_oid,
-                    functions::FunctionId::ArrayFill if index == 0 => element_oid,
                     functions::FunctionId::ArrayFill => 1_007,
                     functions::FunctionId::ArraySample | functions::FunctionId::TrimArray
                         if index == 1 =>

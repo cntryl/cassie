@@ -79,7 +79,7 @@ fn generated_column_names(source: &QuerySource, names: &mut HashSet<String>) {
             );
         }
         QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
-            generated_column_names(source, names)
+            generated_column_names(source, names);
         }
         QuerySource::Join { left, right, .. } => {
             generated_column_names(left, names);

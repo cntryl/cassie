@@ -82,7 +82,7 @@ pub enum QuerySource {
         name: String,
         function: FunctionCall,
         lateral: bool,
-        #[serde(default, skip_serializing_if = "without_ordinality")]
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         with_ordinality: bool,
     },
     Subquery {
@@ -97,10 +97,6 @@ pub enum QuerySource {
         on: Expr,
     },
     SingleRow,
-}
-
-fn without_ordinality(value: &bool) -> bool {
-    !value
 }
 
 impl PartialEq for QuerySource {

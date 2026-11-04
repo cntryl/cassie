@@ -9,7 +9,7 @@ use super::{
 use crate::runtime::QueryMemoryReservation;
 
 enum Cursor<'a> {
-    Collection(super::source_collection_pull::Cursor<'a>),
+    Collection(Box<super::source_collection_pull::Cursor<'a>>),
     Empty,
     Unnest(super::source_set_function::Cursor),
     Series(Box<super::source_series::Cursor>),
@@ -68,7 +68,9 @@ impl<'a> Cursor<'a> {
                 if let Some(cursor) =
                     super::source_collection_pull::Cursor::open(env, name, qualify)?
                 {
-                    return Ok(Self::Collection(cursor));
+                    // Cursor::open already retains size_of::<Self>() in its own lease,
+                    // which covers this moved heap allocation for the cursor lifetime.
+                    return Ok(Self::Collection(Box::new(cursor)));
                 }
                 let (batches, _) =
                     super::execute_query_source(env, source, ctes, qualify, outer, None)?;

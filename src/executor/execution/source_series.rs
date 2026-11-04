@@ -1,4 +1,4 @@
-//! Finite, checked generate_series state; advancement allocates no expanded relation.
+//! Finite, checked `generate_series` state; advancement allocates no expanded relation.
 use super::{BatchRow, QueryError, SourceExecution, SourceExecutionEnv, Value};
 use crate::executor::retained_memory::{add, mul, value_clone_bytes};
 use crate::runtime::QueryMemoryReservation;

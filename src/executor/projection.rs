@@ -125,46 +125,13 @@ where
                     expr,
                     precomputed_key,
                 } => {
-                    let value = precomputed_key
-                        .as_ref()
-                        .and_then(|precomputed_key| {
-                            row.entries().iter().find_map(|(name, value)| {
-                                (name == precomputed_key).then_some(value)
-                            })
-                        })
-                        .cloned()
-                        .map_or_else(
-                            || {
-                                if let Some(result) = cast_memory.evaluate(&row, expr, &evaluation)
-                                {
-                                    return result;
-                                }
-                                if let Some(resolver) = resolver {
-                                    filter::evaluate_resolving_exists(
-                                        &row,
-                                        expr,
-                                        filter::ExistsValueContext {
-                                            params,
-                                            search: search_context,
-                                            functions: user_functions,
-                                            session,
-                                            resolver,
-                                        },
-                                    )
-                                } else {
-                                    filter::evaluate_expr_value(
-                                        &row,
-                                        expr,
-                                        params,
-                                        search_context,
-                                        user_functions,
-                                        session,
-                                        None,
-                                    )
-                                }
-                            },
-                            Ok,
-                        )?;
+                    let value = scalar_projection_value(
+                        &row,
+                        expr,
+                        precomputed_key.as_deref(),
+                        &cast_memory,
+                        &evaluation,
+                    )?;
                     projected.push((key.clone(), value));
                 }
                 ProjectionOp::WindowFunction { key, source } => {
@@ -183,6 +150,53 @@ where
     }
 
     Ok(out)
+}
+
+fn scalar_projection_value<R: RowAccess>(
+    row: &R,
+    expr: &Expr,
+    precomputed_key: Option<&str>,
+    cast_memory: &character_casts::Memory<'_>,
+    evaluation: &filter::evaluation::ProjectionValueContext<'_>,
+) -> Result<Value, QueryError> {
+    precomputed_key
+        .and_then(|key| {
+            row.entries()
+                .iter()
+                .find_map(|(name, value)| (name == key).then_some(value))
+        })
+        .cloned()
+        .map_or_else(
+            || {
+                if let Some(result) = cast_memory.evaluate(row, expr, evaluation) {
+                    return result;
+                }
+                if let Some(resolver) = evaluation.resolver {
+                    filter::evaluate_resolving_exists(
+                        row,
+                        expr,
+                        filter::ExistsValueContext {
+                            params: evaluation.params,
+                            search: evaluation.search,
+                            functions: evaluation.functions,
+                            session: evaluation.session,
+                            resolver,
+                        },
+                    )
+                } else {
+                    filter::evaluate_expr_value(
+                        row,
+                        expr,
+                        evaluation.params,
+                        evaluation.search,
+                        evaluation.functions,
+                        evaluation.session,
+                        None,
+                    )
+                }
+            },
+            Ok,
+        )
 }
 
 fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {

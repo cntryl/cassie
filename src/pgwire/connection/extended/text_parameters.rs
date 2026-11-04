@@ -97,6 +97,9 @@ fn decode_array_or_text(text: &str, oid: i32) -> Result<Value, ExtendedQueryErro
                     crate::types::array::TextArrayError::Invalid(_) => {
                         ExtendedQueryError::protocol("invalid text array parameter")
                     }
+                    crate::types::array::TextArrayError::TypeInput(error) => {
+                        ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
+                    }
                     crate::types::array::TextArrayError::UnsupportedJsonDocumentNull => {
                         ExtendedQueryError::unsupported(error.to_string())
                     }

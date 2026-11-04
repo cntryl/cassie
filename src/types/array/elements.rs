@@ -89,18 +89,10 @@ pub(super) fn normalize_element(
 fn normalize_string(text: String, data_type: &DataType) -> Result<String, String> {
     match data_type {
         DataType::Name => Ok(crate::types::name::parse_text(&text)),
-        DataType::Char {
-            length: Some(length),
-        } => {
-            let text = crate::types::char_text::canonical_char_text(&text).to_string();
-            validate_character_bound(&text, *length)?;
-            Ok(text)
-        }
-        DataType::Varchar {
-            length: Some(length),
-        } => {
-            validate_character_bound(&text, *length)?;
-            Ok(text)
+        DataType::Char { length: Some(_) } | DataType::Varchar { length: Some(_) } => {
+            character_input(&text, data_type)
+                .expect("character input")
+                .map_err(|error| error.to_string())
         }
         DataType::Uuid => uuid::Uuid::parse_str(text.trim())
             .map(|uuid| uuid.to_string())
@@ -127,13 +119,27 @@ fn normalize_string(text: String, data_type: &DataType) -> Result<String, String
     }
 }
 
-fn validate_character_bound(text: &str, length: u32) -> Result<(), String> {
-    let maximum = usize::try_from(length)
-        .map_err(|_| "array character bound exceeds the platform range".to_string())?;
-    if text.chars().count() > maximum {
-        return Err("array character element exceeds its declared bound".to_string());
-    }
-    Ok(())
+pub(super) fn character_input(
+    text: &str,
+    data_type: &DataType,
+) -> Option<Result<String, crate::types::extended::TypeInputError>> {
+    let (width, padded) = match data_type {
+        DataType::Char { length } => (*length, true),
+        DataType::Varchar { length } => (*length, false),
+        _ => return None,
+    };
+    Some(
+        crate::types::char_text::conversion_plan(text, width, padded, false).map(|plan| {
+            let text = &text[..plan.prefix_bytes];
+            // This parser also feeds the existing canonical stored CHAR carrier.
+            // Query casts materialize padding only after their own admission.
+            if padded && width.is_some() {
+                crate::types::char_text::canonical_char_text(text).to_owned()
+            } else {
+                text.to_owned()
+            }
+        }),
+    )
 }
 
 fn normalize_integer(value: &JsonValue, minimum: i64, maximum: i64) -> Result<JsonValue, String> {

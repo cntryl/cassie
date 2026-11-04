@@ -10,6 +10,7 @@ use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
 use crate::types::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+mod character_casts;
 #[path = "projection/json_object_keys.rs"]
 mod json_object_keys;
 
@@ -70,8 +71,17 @@ where
     R: RowAccess,
 {
     let ops = compile_projection_ops(projection);
+    let retain_cast_memory = character_casts::required(&ops);
+    let evaluation = filter::evaluation::ProjectionValueContext {
+        params,
+        search: search_context,
+        functions: user_functions,
+        session,
+        resolver,
+    };
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
+        let cast_memory = character_casts::Memory::new(retain_cast_memory, session)?;
         let data_types = super::projection_types::projected(&row, &ops, user_functions);
         let mut projected = Vec::with_capacity(ops.len());
         for op in &ops {
@@ -125,6 +135,10 @@ where
                         .cloned()
                         .map_or_else(
                             || {
+                                if let Some(result) = cast_memory.evaluate(&row, expr, &evaluation)
+                                {
+                                    return result;
+                                }
                                 if let Some(resolver) = resolver {
                                     filter::evaluate_resolving_exists(
                                         &row,
@@ -159,10 +173,12 @@ where
             }
         }
         out.push(
-            BatchRow::from_projected_values(projected)
-                .with_optional_data_types(data_types)
-                .with_query_memory(row.query_memory())
-                .with_operator_memory(row.operator_memory()),
+            cast_memory.retain(
+                BatchRow::from_projected_values(projected)
+                    .with_optional_data_types(data_types)
+                    .with_query_memory(row.query_memory())
+                    .with_operator_memory(row.operator_memory()),
+            )?,
         );
     }
 

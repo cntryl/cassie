@@ -8,6 +8,7 @@ mod elements;
 #[derive(Debug)]
 pub(crate) enum TextArrayError {
     Invalid(String),
+    TypeInput(crate::types::extended::TypeInputError),
     UnsupportedJsonDocumentNull,
 }
 
@@ -28,6 +29,7 @@ impl std::fmt::Display for TextArrayError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Invalid(message) => formatter.write_str(message),
+            Self::TypeInput(error) => std::fmt::Display::fmt(error, formatter),
             Self::UnsupportedJsonDocumentNull => formatter
                 .write_str("JSON document-null scalar elements in SQL arrays are not supported"),
         }
@@ -91,7 +93,11 @@ pub(crate) fn parse_text_array_with_dimensions(
                 JsonValue::Null
             }
             ArrayElement::Value(value) => {
-                let parsed = parse_element(value, element_type).map_err(TextArrayError::Invalid)?;
+                let parsed = if let Some(parsed) = elements::character_input(&value, element_type) {
+                    JsonValue::String(parsed.map_err(TextArrayError::TypeInput)?)
+                } else {
+                    parse_element(value, element_type).map_err(TextArrayError::Invalid)?
+                };
                 flat_elements.push(ParsedTextArrayElement::Value(parsed.clone()));
                 parsed
             }
@@ -145,10 +151,18 @@ fn parse_json_text_array(
     };
     let value = values
         .into_iter()
-        .map(|value| elements::normalize_element(value, element_type))
+        .map(|value| {
+            if let JsonValue::String(text) = &value {
+                if let Some(result) = elements::character_input(text, element_type) {
+                    return result
+                        .map(JsonValue::String)
+                        .map_err(TextArrayError::TypeInput);
+                }
+            }
+            elements::normalize_element(value, element_type).map_err(TextArrayError::Invalid)
+        })
         .collect::<Result<Vec<_>, _>>()
-        .map(JsonValue::Array)
-        .map_err(TextArrayError::Invalid)?;
+        .map(JsonValue::Array)?;
     parsed_json_array(value)
 }
 

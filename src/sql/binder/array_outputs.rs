@@ -3,6 +3,17 @@
 use crate::sql::functions::FunctionId;
 use crate::types::DataType;
 
+/// Ordinary function/operator result descriptors do not inherit argument typmods.
+pub(crate) fn unmodified_result(kind: DataType) -> DataType {
+    if !matches!(kind, DataType::Array(_)) {
+        return kind;
+    }
+    i32::try_from(kind.type_oid())
+        .ok()
+        .and_then(super::parameter_data_type_for_oid)
+        .unwrap_or(kind)
+}
+
 pub(crate) fn is_array_result(id: FunctionId) -> bool {
     matches!(
         id,

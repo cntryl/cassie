@@ -158,3 +158,8 @@ modules; this is source formatting evidence only. The integrator will run one co
 gate on the assembled substantial bundle, then collect the release benchmark
 artifact. Full #807/#808 closure remains pending that evidence and the explicit
 remaining cast obligation.
+
+The subsequent [character-array cast increment](character-array-cast-qualification.md)
+implements that staged conversion boundary as a separate source-only change.
+Its new regressions and full qualification remain pending; the checkpoint
+counts above describe their exact earlier source revisions.

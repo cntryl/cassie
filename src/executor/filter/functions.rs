@@ -131,6 +131,19 @@ fn evaluate_pg_input_is_valid(
             return Ok(Value::Null);
         };
         let data_type = DataType::parse_sql(type_name).map_err(QueryError::General)?;
+        if let Some(result) = super::character_arrays::validate_input(input, &data_type, controls) {
+            if let Err(
+                error @ QueryError::Cassie(
+                    crate::app::CassieError::ResourceLimit(_)
+                    | crate::app::CassieError::QueryCancelled
+                    | crate::app::CassieError::DeadlineExceeded,
+                ),
+            ) = result
+            {
+                return Err(error);
+            }
+            return Ok(Value::Bool(result.is_ok()));
+        }
         Ok(Value::Bool(
             cast_scalar(
                 &scalar_from_value(&Value::String(input.clone())),

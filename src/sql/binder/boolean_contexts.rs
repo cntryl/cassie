@@ -6,6 +6,9 @@ use super::{
 
 #[path = "boolean_aggregates.rs"]
 mod boolean_aggregates;
+#[path = "boolean_cast_source.rs"]
+mod cast_source;
+use cast_source::cast_source_type;
 #[path = "decimal_literals.rs"]
 mod decimal_literals;
 #[path = "declared_functions.rs"]
@@ -791,59 +794,6 @@ fn validate_case(
         validate_expression(result, types, catalog, context)?;
     }
     Ok(())
-}
-
-fn cast_source_type(
-    expr: &Expr,
-    target: &DataType,
-    types: &ResultTypes,
-    catalog: &Catalog,
-) -> Option<DataType> {
-    if target.is_json() {
-        return types.expression_type(expr).filter(DataType::is_json);
-    }
-    if matches!(target, DataType::Array(_)) {
-        return types
-            .expression_type(expr)
-            .filter(|source| source == target);
-    }
-    if *target == DataType::Date {
-        return types
-            .expression_type(expr)
-            .filter(|source| *source == DataType::Timestamp);
-    }
-    if *target == DataType::Bytea || crate::types::IntegerWidth::from_data_type(target).is_some() {
-        return types.expression_type(expr).filter(|source| {
-            (*target == DataType::Bytea
-                && crate::types::IntegerWidth::from_data_type(source).is_some())
-                || (*source == DataType::Bytea
-                    && crate::types::IntegerWidth::from_data_type(target).is_some())
-        });
-    }
-    if !matches!(
-        target,
-        DataType::Text | DataType::Varchar { .. } | DataType::Char { length: None }
-    ) {
-        return None;
-    }
-    if matches!(target, DataType::Text | DataType::Varchar { .. }) {
-        if let Some(source @ DataType::Array(_)) = types.expression_type(expr) {
-            return Some(source);
-        }
-    }
-    // These selected output conversions need source identity. Unresolved
-    // NUMERIC carriers must not be relabeled as proven FLOAT8, and no heap
-    // type descriptor is cloned just to annotate an unrelated cast.
-    types.expression_type(expr).filter(|kind| {
-        matches!(
-            kind,
-            DataType::Time
-                | DataType::Timestamp
-                | DataType::Char { .. }
-                | DataType::ObjectId(_)
-                | DataType::Jsonb
-        ) || (*kind == DataType::Float && types.proven_float8(expr, catalog))
-    })
 }
 
 fn coerce_numeric_pair(left: &mut Expr, right: &mut Expr, types: &ResultTypes, catalog: &Catalog) {

@@ -106,6 +106,8 @@ mod pgwire_type_scalar_matrix;
 #[path = "support/type_codec_matrix.rs"]
 mod support_type_codec_matrix;
 
+#[path = "pgwire_extended/types/arrays/character_casts.rs"]
+mod pgwire_character_array_casts;
 #[path = "pgwire_extended/types/arrays/aggregate_identity/semantics.rs"]
 mod pgwire_type_array_text_inputs;
 #[path = "pgwire_extended/type_resolution/codec_boundaries.rs"]

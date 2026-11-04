@@ -12,11 +12,15 @@ single-node projection writes, replay recovery, schema/object lifecycle,
 rebuild, and the selected PostgreSQL-wire and named-client workflows. The
 former v0.2.0 package value and the former v0.3 Projection Store/v0.4 Query
 planning labels are not prior releases or compatibility commitments. The exact
-v0.1.0 release commit still requires its own local gate. Actions permission
-reports enabled as of 2026-10-30, but the active repository instruction prohibits
-workflow dispatch until the user explicitly changes that direction. The active baseline/recovery PR
-[#1144](https://github.com/cntryl/cassie/pull/1144) is assigned to this
-milestone.
+v0.1.0 release commit still requires its own local gate. Baseline/recovery PR
+[#1144](https://github.com/cntryl/cassie/pull/1144) merged as
+`b9afc913fd1e65d1888df922f1d33e280f08f611` on 2026-10-30. The user directed
+that Actions should be enabled on 2026-11-04; normal push and PR checks are
+authorized under the updated `AGENTS.md`.
+
+The GitHub v0.1.0 milestone was closed on 2026-11-04 after live verification
+of zero open issues and 13 closed issues. Release publication and exact-commit
+qualification remain separately evidenced.
 
 ## v0.2.0 Query and Retrieval
 
@@ -34,6 +38,27 @@ This release adds the finite read-side SQL and retrieval feature on top of the
 - Bounded extension and retrieval compatibility: #843, #844.
 - Synchronized cancellation correctness probes for query and retrieval paths:
   #954.
+
+### Stacked delivery bundles selected 2026-11-04
+
+The user requested a handful of related feature PRs, stacked without waiting for
+parent review completion, with independent work in isolated worktrees. A
+contract/process foundation PR precedes these five logical bundles:
+
+| Bundle | Issues | Dependency and acceptance boundary |
+| --- | --- | --- |
+| Boolean and scalar functions | #805, #813, #815 | Existing aggregate/math/time prerequisites are closed. Qualify current implementations and repair confirmed defects, including execution-boundary cancellation. |
+| Query expressions and arrays | #762, #796, #798, #799, #800, #807, #808 | Resolve casts/subqueries before dependent arrays and set functions. Persisted null-safe definitions use the newly selected versioned contract. |
+| Row lifecycle, snapshots and type catalogs | #817, #818, #819, #826, #828, #833, #839, #842 | Complete selected catalog publication before dependent table/type evolution; casts precede object pseudo-types. Verify direct Midge retained-view support before snapshot runtime. |
+| JSON, collection/statistical functions and cancellation | #806, #809, #810, #811, #829, #954 | JSON operators precede construction; arrays, table functions and named records precede dependent collections/recordsets. Reconcile all named cancellation fixtures against current source. |
+| Reader/projector access and extension retrieval | #831, #843, #844, #845 | Catalog identities precede grants/comments/extensions; extension identity precedes the selected vector descriptor/retrieval profile. |
+
+The table records logical ownership, not completed acceptance or a limit on
+necessary review splits. Agents may prepare independent increments in parallel;
+combine them into their coherent bundle before its final gate. Children target
+parent branches, merges follow prerequisite order, and rebases require affected
+validation and review again on the final head. Do not close an issue from an
+agent report, authored test, Jev probability, or a partial implementation.
 
 Every issue must retain a finite Cassie contract and the named read-model or
 client workflow that requires it. Full PostgreSQL parity is out of scope.

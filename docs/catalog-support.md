@@ -331,3 +331,82 @@ vectors and unqualified expressions reject with `0A000` before evaluation;
 these remain unsupported in this checkpoint. Untyped direct parameters
 retain `42P18`. Query budget, cancellation and result ownership use existing
 execution controls. Plan-cache cost model epoch is 19.
+
+
+## Selected v0.2 grants, extensions and comments (2026-11-04)
+
+The user approved this contract direction on 2026-11-04. It is selected
+implementation scope, not implemented or qualified support. Existing rejection
+and compatibility boundaries remain until the owning acceptance cases pass.
+
+### #831
+
+Retain current password login and Argon2 hashes; root remains the administrator.
+Operators create separate LOGIN roles directly, without memberships/inheritance. Root
+alone manages roles, grants and DDL. Select CONNECT, schema USAGE and table
+SELECT/INSERT/UPDATE/DELETE with explicit per-role grants/revocations; no PUBLIC
+defaults or grant options. Applications log in directly as their chosen actor; keep SET
+ROLE and SET SESSION AUTHORIZATION deterministically unsupported in this finite profile.
+Projector roles get required DML, reader roles SELECT only. Require SELECT for read
+columns/RETURNING/subqueries, USAGE for accessed schemas and the relevant write
+privilege for mutations/COPY. Privilege catalogs and has_* answers derive from the same
+authority. No RLS, sequence/routine/default privileges or PostgreSQL membership parity.
+
+Keep existing global login identity/password records and CONNECT behavior; store new
+database-scoped grants as versioned records keyed by immutable grantee and
+schema/relation object IDs in the owning family. Deny absent grants. Rename preserves
+grants, drop cleans them, and revoked grants affect the next statement of an existing
+session; already-admitted portal ownership needs an explicit revalidation boundary. No
+cross-database transaction is implied by global role creation. Reconstruct grants on
+restart and retain them in images; missing/corrupt grant metadata fails closed. New
+public AST/error/privilege descriptors require review before implementation; retain
+42501 for denied access.
+
+### #843, #844
+
+Select only pgcrypto 1.4 and vector 0.8.7 as built-in SQL shims. Root installs into an
+existing selected schema; support IF NOT EXISTS, selected schema relocation,
+same-version UPDATE no-op, DROP and transactional dependency rules; reject unknown
+versions/extensions and native library loading. digest accepts TEXT/BYTEA plus SHA256
+only, is strict for SQL NULL, returns BYTEA 17 and resolves only while pgcrypto is
+installed. For vector, select one allocated per-database canonical type OID with
+dimension in typmod, plus bare vector typmod -1 with dimensions inferred from each
+finite f32 value. Keep vector arrays outside this issue and report unsupported metadata
+truthfully. Select <-> L2, <#> negative inner product and <=> cosine plus matching
+documented opclasses/ANN options, pinned to pgvector 0.8.7 oracle behavior.
+
+Persist extension identity/version/schema/owner and registered routine/type/operator
+identities as versioned owning-family records. Installation/removal and dependent
+catalog changes are atomic and recoverable. Keep existing vector row representation and
+declared dimensions; canonical SQL descriptors use the installed type OID and typmod
+instead of private 100000+n. Binary vector framing remains dimension int16, reserved
+zero int16, big-endian f32 components with finite validation. This is an explicit public
+wire identity change: invalidate prepared descriptors and require reconnect/reprepare
+when the profile activates; do not silently reinterpret previously supplied private
+OIDs. Reserve legacy OID ranges from dynamic allocation. Existing Rust DataType OID
+helpers need a reviewed contextual resolver contract. DROP RESTRICT protects live
+dependent columns/indexes; CASCADE behavior must remove actual dependents atomically.
+Restore retains extension IDs and rebuilds derived ANN state from authoritative vectors.
+
+### #845
+
+Select COMMENT ON SCHEMA/TABLE/COLUMN ... IS text-or-NULL, owner/root authorization,
+obj_description and col_description plus the finite pg_description fields needed for
+those objects. NULL removes the record; empty string is a retained comment. Keep
+routine/type/database/index/materialized-view comments deterministically unsupported.
+Preserve comments across rename/schema moves and remove them on owning-object drop.
+
+Store versioned comment records keyed by stable object ID and stable column attribute
+identity, never only the mutable name or current ordinal. Reuse the existing persisted
+RowSchema.field_id and retired-field metadata rather than introducing another column
+identity; expose a stable attnum mapping where needed and never reuse dropped IDs.
+Publish comment updates, drop cleanup and schema changes in the same
+family/transaction/savepoint overlay. Restart and database-image restore reload exact
+comment text/ownership; malformed records fail deterministically rather than
+disappearing. Text descriptions use OID 25 and SQL NULL when absent, without new
+row-value wire formats.
+
+Revalidate grants at statement admission and before each resumed Execute so
+revocations affect existing sessions and suspended portals before more output.
+All new durable records require the compatibility transition in
+[Release Baseline](release-baseline.md#selected-v02-compatibility-transition-2026-11-04).

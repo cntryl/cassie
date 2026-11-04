@@ -42,3 +42,33 @@ Pre-release Cassie storage and snapshots are not compatibility inputs for
 and snapshot restore rejects the former version-2 manifest. Create a fresh
 storage directory and new snapshots for 0.1.0; there is no in-place migration
 from unreleased development formats.
+
+
+## Selected v0.2 compatibility transition (2026-11-04)
+
+The user approved this contract direction on 2026-11-04. It is selected
+implementation scope, not implemented or qualified support. Existing rejection
+and compatibility boundaries remain until the owning acceptance cases pass.
+
+v0.2 reads existing v1 stores without rewriting rows. Before the first write using
+persisted null-safe definitions, named types, object grants, extensions, or comments,
+advance the store compatibility marker to the explicit cassie-midge-layout-v2-0.2.0
+identifier. v0.1 must then reject that store before mutation. The monotonic marker
+change precedes feature publication; a crash between the marker and feature transaction
+leaves a valid v0.2-readable store with no partial feature. This is not a cross-family
+transaction. New database-scoped feature records and their row/catalog effects publish
+together in the owning Midge database family. Add versioned feature records, immutable
+object IDs and minimum-reader requirements; reject unknown versions before publication.
+Database images/snapshots retain the marker, all referenced descriptors and
+authoritative metadata. No automatic row rewrite, destructive recreate, second storage
+layer, or migration from older pre-v0.1 development layouts is selected.
+
+The selected new marker is `cassie-midge-layout-v2-0.2.0`, stored at
+the existing schema-family marker key. Existing key namespaces remain unchanged.
+This permits a one-way storage compatibility transition for stores that use new durable
+features. Staying on v1 remains possible until first feature use. A user needing
+downgrade after feature use needs a separate export/conversion contract.
+
+This is not a package-version or dependency-version change. Prove marker/crash
+ordering, unchanged v1-row reads, v1-reader rejection before mutation, rollback,
+restart and image/restore admission before publishing new durable features.

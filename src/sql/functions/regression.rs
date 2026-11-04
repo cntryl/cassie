@@ -150,7 +150,6 @@ mod tests {
             ("regr_avgy", FunctionId::RegrAvgy),
         ];
 
-
         for (name, expected) in identities {
             // Act
             let registered = function(name).expect("registered regression aggregate");

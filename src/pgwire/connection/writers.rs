@@ -455,16 +455,22 @@ pub(super) async fn write_copy_done(write_half: &mut (impl AsyncWrite + Unpin)) 
     write_backend_frame(write_half, b'c', &[]).await
 }
 
-/// Gives a `SELECT` command tag the row count PostgreSQL reports: the rows
-/// this query, or this `Execute` of a portal, actually returned. Every other
-/// tag passes through unchanged.
-pub(super) fn select_command_tag(command: &str, rows: usize) -> std::borrow::Cow<'_, str> {
+/// Result sets report the rows this query or portal execution returned.
+/// Command-only outcomes retain their operator's affected-row count, including
+/// `CREATE TABLE AS`. A bare empty `SELECT` still reports zero rows.
+pub(super) fn select_command_tag(command: &str, rows: Option<usize>) -> std::borrow::Cow<'_, str> {
     let is_select = command.eq_ignore_ascii_case("SELECT")
         || command.split_once(' ').is_some_and(|(verb, count)| {
             verb.eq_ignore_ascii_case("SELECT") && count.parse::<u64>().is_ok()
         });
     if is_select {
-        std::borrow::Cow::Owned(format!("SELECT {rows}"))
+        match rows {
+            Some(rows) => std::borrow::Cow::Owned(format!("SELECT {rows}")),
+            None if command.eq_ignore_ascii_case("SELECT") => {
+                std::borrow::Cow::Borrowed("SELECT 0")
+            }
+            None => std::borrow::Cow::Borrowed(command),
+        }
     } else {
         std::borrow::Cow::Borrowed(command)
     }

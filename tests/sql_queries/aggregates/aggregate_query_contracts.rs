@@ -23,6 +23,8 @@ mod numeric_statistical_result_identity;
 #[path = "json/ordered_json_aggregate_modifiers/semantics.rs"]
 mod ordered_json_aggregate_modifiers;
 
+#[path = "json/array_conversion.rs"]
+mod native_json_array_conversion;
 #[path = "grouping/single_grouping_set/semantics.rs"]
 mod single_grouping_set_semantics;
 #[path = "strings/string_agg_bytea/semantics.rs"]

@@ -83,9 +83,35 @@ probe and sparse parsed-object admission/lifetime probe address that ownership
 lead and remain unexecuted. Oracle and correction artifacts are retained under
 `target/v020-evidence/json-aggregate-carrier/`.
 
-Native array-to-JSON element formatting, including canonical stored CHAR padding,
-remains a separate selected correspondence obligation with #807. This increment
-does not change `SqlArray::to_nested_json`, row encoding, Midge, public value APIs,
-dependency versions, CI, release configuration or feature support status. #810,
-#811 and their selected prerequisites remain open until their complete finite
-acceptance inventories and final gates are resolved.
+A subsequent source-only array increment replaces the JSON-construction call to
+`SqlArray::to_nested_json` with a private dimension walker. It preserves row-major
+shape through six dimensions, leaves lower bounds and SQL/document NULL origins
+unchanged, and reuses scalar conversion with the declared element type. Exact
+NUMERIC/REAL values remain numbers; nonfinite numeric values become strings;
+JSON document text keeps duplicate members while SQL TEXT is quoted. Temporal
+array elements use the statement JSON formatting described above. This applies
+to builders, scalar conversions and collection finalization through their shared
+helper. The existing workspace is admitted before array text/fragment allocation;
+both raw fragments and canonical JSONB output are bounded before allocation;
+preflight and actual element encoding check interruption, including a probe
+paused after actual first-element work. JSONB still uses its existing canonical
+finalizer and parsed physical output owner.
+
+The array source increment has six SQL probes (including paired REAL/FLOAT8
+controls), one text/binary parameter/result
+matrix and nine native semantic, measured-admission, late-error, cancellation and
+physical last-alias probes authored from twelve PostgreSQL 18.6 oracle cases.
+They are pending the combined executable gate, not passing evidence. Source,
+Jev decision/review and oracle artifacts are retained under
+`target/v020-evidence/json-array-construction/`. Jev selected the private encoder
+and existing workspace plan (1.00 each); its stored-CHAR (0.41) and late-document
+error (0.30) leads prompted focused probes. The stored bounded CHAR[] probe
+requires the independently integrated logical-padding hydration work. Persisted
+unconstrained bpchar[] cannot reconstruct per-value blanks from canonical trimmed
+bytes without a separate specified representation decision (#796/#807); this
+increment does not fabricate a width.
+
+The general `SqlArray::to_nested_json`, row encoding, Midge, public value APIs,
+dependency versions, CI, release configuration and feature support status remain
+unchanged. #810, #811 and their selected prerequisites remain open until their
+complete finite acceptance inventories and final gates are resolved.

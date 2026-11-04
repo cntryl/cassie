@@ -6,6 +6,12 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::typed::TypedValue;
 use crate::types::{DataType, Value};
 
+mod arrays;
+
+#[cfg(test)]
+#[path = "json_construction/array_tests.rs"]
+mod array_tests;
+
 pub(super) fn bound(
     value: &Value,
     kind: Option<&DataType>,
@@ -37,12 +43,25 @@ pub(super) fn bound(
             5,
         ),
         Value::Typed(value) => add(mul(value.heap_bytes(), 8)?, 128),
-        Value::Array(array) => array.elements().iter().try_fold(
-            add(mul(array.elements().len(), 16)?, 256)?,
-            |bytes, element| add(bytes, mul(bound(element, None, binary)?, 6)?),
-        ),
+        Value::Array(array) => arrays::bound(array, kind, binary),
         Value::Vector(value) => add(mul(value.values.len(), 64)?, 2),
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => Ok(64),
+    }
+}
+
+/// Request-aware admission walks native array elements before encoding allocates.
+pub(super) fn bound_controlled(
+    value: &Value,
+    kind: Option<&DataType>,
+    binary: bool,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<usize, CassieError> {
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    match value {
+        Value::Array(array) => arrays::bound_controlled(array, kind, binary, controls),
+        _ => bound(value, kind, binary),
     }
 }
 
@@ -66,7 +85,7 @@ pub(super) fn encode(
         }
         Value::String(text) => quote(text),
         Value::Json(value) => Ok(value.to_string()),
-        Value::Array(value) => Ok(value.to_nested_json().to_string()),
+        Value::Array(value) => arrays::encode(value, kind, controls),
         Value::Null => Ok("null".into()),
         Value::Bool(value) => Ok(value.to_string()),
         Value::Int64(value) => Ok(value.to_string()),

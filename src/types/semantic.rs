@@ -3,6 +3,11 @@ use std::hash::{Hash, Hasher};
 
 use crate::types::Value;
 
+mod jsonb;
+mod jsonb_array;
+pub(crate) use jsonb::JsonbKey;
+pub(crate) use jsonb_array::JsonbArrayKey;
+
 #[derive(Debug, Clone)]
 pub(crate) struct SemanticNumber(SemanticNumberRepr);
 
@@ -90,6 +95,8 @@ pub(crate) enum SemanticValue {
     String(String),
     Vector(Vec<u32>),
     Json(String),
+    Jsonb(JsonbKey),
+    JsonbArray(JsonbArrayKey),
     Array(Vec<Self>),
     SqlArray {
         dimensions: Vec<(i32, i32)>,
@@ -168,7 +175,12 @@ impl SemanticValue {
                     elements.len().saturating_mul(std::mem::size_of::<Self>()),
                     |bytes, value| bytes.saturating_add(value.estimated_bytes()),
                 )),
-            Self::Null | Self::Bool(_) | Self::Number(_) | Self::Typed(_) => 0,
+            Self::Null
+            | Self::Bool(_)
+            | Self::Number(_)
+            | Self::Typed(_)
+            | Self::Jsonb(_)
+            | Self::JsonbArray(_) => 0,
         }
     }
 
@@ -180,6 +192,8 @@ impl SemanticValue {
             Self::String(_) => 3,
             Self::Vector(_) => 4,
             Self::Json(_) => 5,
+            Self::Jsonb(_) => 8,
+            Self::JsonbArray(_) => 9,
             Self::Array(_) | Self::SqlArray { .. } => 6,
             Self::Typed(_) => 7,
         }
@@ -202,6 +216,8 @@ impl Ord for SemanticValue {
                 left.cmp(right)
             }
             (Self::Vector(left), Self::Vector(right)) => left.cmp(right),
+            (Self::Jsonb(left), Self::Jsonb(right)) => left.cmp(right),
+            (Self::JsonbArray(left), Self::JsonbArray(right)) => left.cmp(right),
             (Self::Typed(left), Self::Typed(right)) => left.cmp(right),
             (Self::Number(number), Self::Typed(crate::types::typed::TypedKey::Numeric(key))) => {
                 compare_number_numeric(number, key)
@@ -310,7 +326,9 @@ impl SemanticKey {
                 SemanticValue::Null
                 | SemanticValue::Bool(_)
                 | SemanticValue::Number(_)
-                | SemanticValue::Typed(_) => 0,
+                | SemanticValue::Typed(_)
+                | SemanticValue::Jsonb(_)
+                | SemanticValue::JsonbArray(_) => 0,
             }
         }
         self.0.capacity() * std::mem::size_of::<SemanticValue>()

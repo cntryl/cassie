@@ -16,6 +16,10 @@ use crate::types::Value;
 use super::{check_timeout, QueryError};
 
 mod exists;
+mod keys;
+use keys::{
+    compare_window_sort_keys, window_peer_key, window_sort_key, WindowSortKey, WindowSortPart,
+};
 mod ranking;
 mod typed;
 mod value_functions;
@@ -252,7 +256,21 @@ fn partition_key(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(SemanticKey::from_values(values.iter()))
+    let keys = function
+        .partition_by
+        .iter()
+        .zip(&values)
+        .map(|(expr, value)| {
+            crate::executor::array_order::key(
+                row,
+                expr,
+                value,
+                context.user_functions,
+                Some(context.controls),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SemanticKey::from_semantic_values(keys))
 }
 
 fn evaluate_window_values(
@@ -778,7 +796,14 @@ fn append_window_values(
     data_type: &crate::types::DataType,
 ) -> Result<(), QueryError> {
     let types: Option<std::sync::Arc<Vec<crate::types::DataType>>> = rows.first().and_then(|row| {
-        if row.data_types().is_empty() && !matches!(data_type, crate::types::DataType::Array(_)) {
+        if row.data_types().is_empty()
+            && !matches!(
+                data_type,
+                crate::types::DataType::Array(_)
+                    | crate::types::DataType::Jsonb
+                    | crate::types::DataType::Char { .. }
+            )
+        {
             return None;
         }
         let mut types = row.data_types().to_vec();
@@ -827,126 +852,6 @@ fn evaluate_window_expr(
         context.session,
         None,
     )
-}
-
-struct WindowPeerKey {
-    key: SemanticKey,
-    _memory: crate::runtime::QueryMemoryReservation,
-}
-
-impl PartialEq for WindowPeerKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-}
-
-fn window_peer_key(
-    row: &BatchRow,
-    order_by: &[crate::sql::ast::OrderExpr],
-    context: &WindowExecutionContext<'_>,
-) -> Result<WindowPeerKey, QueryError> {
-    let parts = order_by
-        .iter()
-        .map(|order| {
-            filter::evaluate_expr_value(
-                row,
-                &order.expr,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                None,
-            )
-            .map(|value| {
-                crate::executor::array_order::key(row, &order.expr, &value, context.user_functions)
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let key = SemanticKey::from_semantic_values(parts);
-    let memory = context
-        .controls
-        .reserve_query_memory(key.estimated_bytes())?;
-    Ok(WindowPeerKey {
-        key,
-        _memory: memory,
-    })
-}
-
-struct WindowSortPart {
-    value: SemanticValue,
-    direction: SortDirection,
-    nulls: Option<NullsOrder>,
-}
-
-struct WindowSortKey {
-    parts: Vec<WindowSortPart>,
-    tie_key: String,
-}
-
-fn window_sort_key(
-    row: &BatchRow,
-    order_by: &[crate::sql::ast::OrderExpr],
-    context: &WindowExecutionContext<'_>,
-) -> Result<WindowSortKey, QueryError> {
-    let parts = order_by
-        .iter()
-        .map(|order| {
-            filter::evaluate_expr_value(
-                row,
-                &order.expr,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                None,
-            )
-            .map(|value| WindowSortPart {
-                value: crate::executor::array_order::key(
-                    row,
-                    &order.expr,
-                    &value,
-                    context.user_functions,
-                ),
-                direction: order.direction.clone(),
-                nulls: order.nulls,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(WindowSortKey {
-        parts,
-        tie_key: batch::row_tie_key(row),
-    })
-}
-
-fn compare_window_sort_keys(left: &WindowSortKey, right: &WindowSortKey) -> CmpOrdering {
-    for (left, right) in left.parts.iter().zip(&right.parts) {
-        let cmp = compare_window_sort_parts(left, right);
-        if cmp != CmpOrdering::Equal {
-            return cmp;
-        }
-    }
-    left.tie_key.cmp(&right.tie_key)
-}
-
-fn compare_window_sort_parts(left: &WindowSortPart, right: &WindowSortPart) -> CmpOrdering {
-    let left_null = left.value.is_null();
-    let right_null = right.value.is_null();
-    if left_null != right_null {
-        let nulls = left.nulls.unwrap_or(match &left.direction {
-            SortDirection::Asc => NullsOrder::Last,
-            SortDirection::Desc => NullsOrder::First,
-        });
-        return match (left_null, nulls) {
-            (true, NullsOrder::First) | (false, NullsOrder::Last) => CmpOrdering::Less,
-            (true, NullsOrder::Last) | (false, NullsOrder::First) => CmpOrdering::Greater,
-        };
-    }
-
-    let cmp = left.value.cmp(&right.value);
-    match &left.direction {
-        SortDirection::Asc => cmp,
-        SortDirection::Desc => cmp.reverse(),
-    }
 }
 
 #[cfg(test)]

@@ -175,10 +175,14 @@ fn prepare_input(
         .args
         .first()
         .map(|argument| semantic_key(row, argument, &value, context))
+        .transpose()?
         .filter(|key| {
             matches!(
                 key,
-                SemanticValue::Array(_) | SemanticValue::SqlArray { .. }
+                SemanticValue::Array(_)
+                    | SemanticValue::SqlArray { .. }
+                    | SemanticValue::Jsonb(_)
+                    | SemanticValue::JsonbArray(_)
             )
         });
     Ok(PreparedInput {
@@ -385,7 +389,7 @@ fn ordered_keys(
                 None,
             )?;
             memory.try_grow(add(key_bound(&value)?, 64)?)?;
-            keys.push(semantic_key(row, &order.expr, &value, context));
+            keys.push(semantic_key(row, &order.expr, &value, context)?);
             drop(value);
             drop(temporary);
         }
@@ -496,17 +500,14 @@ fn semantic_key(
     expression: &Expr,
     value: &Value,
     context: &AggregateExecutionContext<'_>,
-) -> SemanticValue {
-    if row.has_array_types()
-        && matches!(
-            crate::executor::array_order::expression_type(row, expression, context.user_functions),
-            Some(crate::types::DataType::Array(_))
-        )
-    {
-        crate::executor::array_order::key(row, expression, value, context.user_functions)
-    } else {
-        scalar_key(value)
-    }
+) -> Result<SemanticValue, QueryError> {
+    Ok(crate::executor::array_order::key(
+        row,
+        expression,
+        value,
+        context.user_functions,
+        Some(context.controls),
+    )?)
 }
 
 fn transition(

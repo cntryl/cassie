@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 
 use crate::executor::array_order;
-use crate::executor::batch::RowAccess;
 use crate::types::DataType;
 
 use super::{aggregate_specs, group_expr_name, AggregateExecutionContext, Batch, Expr};
@@ -15,23 +14,22 @@ pub(super) fn infer(
     let Some(row) = batches.iter().flatten().next() else {
         return HashMap::new();
     };
-    if !row.has_array_types() {
-        return HashMap::new();
-    }
     let mut types = HashMap::new();
     for expr in &context.plan.group_by {
-        if let Some(data_type @ DataType::Array(_)) =
+        if let Some(data_type @ (DataType::Array(_) | DataType::Char { .. } | DataType::Jsonb)) =
             array_order::expression_type(row, expr, context.user_functions)
         {
             types.insert(group_expr_name(expr), data_type);
         }
     }
     for spec in aggregate_specs(context.plan) {
-        if let Some(data_type @ DataType::Array(_)) = array_order::expression_type(
-            row,
-            &Expr::Function(Box::new(spec.function)),
-            context.user_functions,
-        ) {
+        if let Some(data_type @ (DataType::Array(_) | DataType::Char { .. } | DataType::Jsonb)) =
+            array_order::expression_type(
+                row,
+                &Expr::Function(Box::new(spec.function)),
+                context.user_functions,
+            )
+        {
             for name in spec.output_names {
                 types.insert(name, data_type.clone());
             }

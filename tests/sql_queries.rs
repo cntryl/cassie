@@ -296,3 +296,6 @@ mod bytea_concat;
 
 #[path = "sql_queries/expressions/operators/bytea_functions.rs"]
 mod bytea_functions;
+
+#[path = "sql_queries/ordering/jsonb_semantic_keys.rs"]
+mod jsonb_semantic_keys;

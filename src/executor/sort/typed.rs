@@ -427,7 +427,13 @@ fn direct_key(
                 data_type.as_ref(),
             )?)?;
             // This borrowed-value bound precedes every rich clone/semantic adaptation.
-            crate::executor::array_order::key(row, &order.expr, value, eval.user_functions)
+            crate::executor::array_order::key(
+                row,
+                &order.expr,
+                value,
+                eval.user_functions,
+                Some(controls),
+            )?
         };
         parts.push(KeyPart {
             value: semantic,

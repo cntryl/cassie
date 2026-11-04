@@ -18,7 +18,7 @@ pub(crate) fn type_scratch<R: RowAccess>(
     expr: &Expr,
     functions: &HashMap<String, FunctionMeta>,
 ) -> Result<usize, CassieError> {
-    if !row.has_array_types() {
+    if !row.has_array_types() && matches!(expr, Expr::Column(_) | Expr::Cast { .. }) {
         return Ok(0);
     }
     let mut maximum_type = row.maximum_type_heap_bytes()?;
@@ -182,7 +182,9 @@ pub(crate) fn semantic_heap(value: &SemanticValue) -> Result<usize, CassieError>
         SemanticValue::Null
         | SemanticValue::Bool(_)
         | SemanticValue::Number(_)
-        | SemanticValue::Typed(_) => Ok(0),
+        | SemanticValue::Typed(_)
+        | SemanticValue::Jsonb(_)
+        | SemanticValue::JsonbArray(_) => Ok(0),
     }
 }
 

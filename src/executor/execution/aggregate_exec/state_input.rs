@@ -186,13 +186,16 @@ impl AggregateAccumulator {
         session: Option<&CassieSession>,
     ) -> Result<RetainedChange, QueryError> {
         Ok(self
-            .update_selected(
+            .update_selected_context(
                 function,
                 row,
-                params,
-                search_context,
-                user_functions,
-                session,
+                &AggregateValueContext {
+                    params,
+                    search_context,
+                    user_functions,
+                    session,
+                },
+                None,
             )?
             .unwrap_or_default())
     }
@@ -201,25 +204,32 @@ impl AggregateAccumulator {
         &mut self,
         function: &FunctionCall,
         row: &BatchRow,
-        params: &[Value],
-        search_context: Option<&filter::SearchContext>,
-        user_functions: &HashMap<String, FunctionMeta>,
-        session: Option<&CassieSession>,
+        context: &AggregateExecutionContext<'_>,
     ) -> Result<Option<RetainedChange>, QueryError> {
-        let value_context = AggregateValueContext {
-            params,
-            search_context,
-            user_functions,
-            session,
-        };
-        let Some(value) = selected_input(function, row, &value_context)? else {
+        self.update_selected_context(
+            function,
+            row,
+            &value_context(context),
+            Some(context.controls),
+        )
+    }
+
+    fn update_selected_context(
+        &mut self,
+        function: &FunctionCall,
+        row: &BatchRow,
+        value_context: &AggregateValueContext<'_>,
+        controls: Option<&crate::runtime::QueryExecutionControls>,
+    ) -> Result<Option<RetainedChange>, QueryError> {
+        let user_functions = value_context.user_functions;
+        let Some(value) = selected_input(function, row, value_context)? else {
             return Ok(None);
         };
         let second_argument = if matches!(
             self,
             Self::StringAgg { .. } | Self::Regression(_) | Self::Collection { .. }
         ) {
-            Some(evaluate_argument(function, 1, row, &value_context)?)
+            Some(evaluate_argument(function, 1, row, value_context)?)
         } else {
             None
         };
@@ -227,11 +237,17 @@ impl AggregateAccumulator {
             function
                 .args
                 .first()
-                .map(|expr| crate::executor::array_order::key(row, expr, &value, user_functions))
+                .map(|expr| {
+                    crate::executor::array_order::key(row, expr, &value, user_functions, controls)
+                })
+                .transpose()?
                 .filter(|key| {
                     matches!(
                         key,
-                        SemanticValue::Array(_) | SemanticValue::SqlArray { .. }
+                        SemanticValue::Array(_)
+                            | SemanticValue::SqlArray { .. }
+                            | SemanticValue::Jsonb(_)
+                            | SemanticValue::JsonbArray(_)
                     )
                 })
         } else {

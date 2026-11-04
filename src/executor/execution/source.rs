@@ -837,3 +837,7 @@ mod projection_admission_tests;
 #[cfg(test)]
 #[path = "source_projection_scope_tests.rs"]
 mod projection_scope_tests;
+
+#[cfg(test)]
+#[path = "jsonb_projection_tests.rs"]
+mod jsonb_projection_tests;

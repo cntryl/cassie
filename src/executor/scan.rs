@@ -697,10 +697,12 @@ fn typed_row(mut row: BatchRow, schema: Option<&CollectionSchema>) -> BatchRow {
 
 pub(crate) fn attach_row_types(row: &mut BatchRow, schema: Option<&CollectionSchema>) {
     if !schema.is_some_and(|schema| {
-        schema
-            .fields
-            .iter()
-            .any(|field| matches!(field.data_type, DataType::Array(_)))
+        schema.fields.iter().any(|field| {
+            matches!(
+                field.data_type,
+                DataType::Array(_) | DataType::Jsonb | DataType::Char { .. }
+            )
+        })
     }) {
         return;
     }

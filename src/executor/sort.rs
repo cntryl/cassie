@@ -437,19 +437,19 @@ impl EvalInput<'_> {
                     &order.expr,
                     self.user_functions,
                 )?)?;
-                let data_type = row.has_array_types().then(|| {
-                    super::array_order::expression_type(row, &order.expr, self.user_functions)
-                });
+                let data_type =
+                    super::array_order::expression_type(row, &order.expr, self.user_functions);
                 admitted = accounting::order_conversion_bytes(
                     row,
                     &order.expr,
                     &value,
-                    data_type.flatten().as_ref(),
+                    data_type.as_ref(),
                 )?;
                 memory.try_grow(admitted)?;
             }
             retention.before(SortRetentionPhase::SemanticPart)?;
-            let semantic = super::array_order::key(row, &order.expr, &value, self.user_functions);
+            let semantic =
+                super::array_order::key(row, &order.expr, &value, self.user_functions, controls)?;
             if let Some(memory) = memory.as_mut() {
                 let retained = accounting::semantic_heap(&semantic)?;
                 if retained > admitted {

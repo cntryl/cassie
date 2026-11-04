@@ -213,7 +213,7 @@ fn execute_recursive_cte(
         environment.controls,
     )?;
 
-    let mut seen = seen::SeenRows::new(environment.controls)?;
+    let mut seen = seen::SeenRows::new_typed(environment.controls, fields)?;
     if matches!(operator, SetOperator::Union) {
         seen.retain_unique(&mut rows, environment.controls)?;
     }

@@ -84,6 +84,7 @@ impl OutputRow {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct ConversionContext<'a> {
     pub(super) value_type: Option<&'a DataType>,
     pub(super) controls: Option<&'a QueryExecutionControls>,
@@ -178,10 +179,10 @@ pub(super) fn finish_with_observer(
             "unable to allocate JSON aggregate entries: {error}"
         ))
     })?;
-    for (first, second) in &values {
+    for (first, second) in values {
         json::check(context.controls)?;
         let key = object
-            .then(|| object_key(first, context.controls))
+            .then(|| object_key(&first, context.controls))
             .transpose()?;
         if unique {
             for previous in &entries {
@@ -195,7 +196,11 @@ pub(super) fn finish_with_observer(
                 }
             }
         }
-        let input = if object { second.as_ref() } else { Some(first) };
+        let input = if object {
+            second.as_ref()
+        } else {
+            Some(&first)
+        };
         let mut value = input
             .map(|value| json::encode(value, context.value_type, context.controls))
             .transpose()?;

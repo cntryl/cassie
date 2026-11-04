@@ -57,22 +57,30 @@ pub(super) fn key<R: RowAccess + ?Sized>(
     expr: &Expr,
     value: &Value,
     functions: &HashMap<String, FunctionMeta>,
-) -> SemanticValue {
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<SemanticValue, crate::app::CassieError> {
     if let Some(key) = search_order_key(row, expr) {
-        return key;
+        return Ok(key);
     }
     let declared = match expr {
         Expr::Column(name) => row.column_type(name),
         Expr::Cast { data_type, .. } => Some(data_type),
         _ => None,
     };
-    if matches!(declared, Some(DataType::Char { .. })) {
-        return super::semantic::typed_value(value, declared);
+    if let Some(declared) = declared {
+        if matches!(declared, DataType::Char { .. }) || super::semantic::jsonb_type(declared) {
+            return super::semantic::typed_value(value, Some(declared), controls);
+        }
+        return Ok(typed_key(value, Some(declared)));
     }
-    if !row.has_array_types() {
-        return SemanticValue::from_value(value);
+    if matches!(expr, Expr::Column(_)) {
+        return Ok(SemanticValue::from_value(value));
     }
-    typed_key(value, expression_type(row, expr, functions).as_ref())
+    let inferred = expression_type(row, expr, functions);
+    if inferred.as_ref().is_some_and(super::semantic::jsonb_type) {
+        return super::semantic::typed_value(value, inferred.as_ref(), controls);
+    }
+    Ok(typed_key(value, inferred.as_ref()))
 }
 
 pub(super) fn search_order_metadata_bytes<R: RowAccess + ?Sized>(

@@ -11,13 +11,14 @@ use crate::executor::retained_memory::{add, hash_table_bytes, mul, serialized_js
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::QueryMemoryReservation;
 
-pub(super) struct SeenRows {
+pub(super) struct SeenRows<'fields> {
+    fields: &'fields [crate::types::FieldSchema],
     keys: HashSet<SemanticKey>,
     memory: QueryMemoryReservation,
     table_bytes: usize,
 }
 
-impl SeenRows {
+impl<'fields> SeenRows<'fields> {
     #[cfg(test)]
     pub(super) fn capacity_probe(&self) -> (usize, usize, usize) {
         let actual = hash_table_bytes::<SemanticKey>(self.keys.capacity())
@@ -30,8 +31,17 @@ impl SeenRows {
         (self.keys.capacity(), self.memory.bytes(), actual)
     }
 
+    #[cfg(test)]
     pub(super) fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
+        Self::new_typed(controls, &[])
+    }
+
+    pub(super) fn new_typed(
+        controls: &QueryExecutionControls,
+        fields: &'fields [crate::types::FieldSchema],
+    ) -> Result<Self, QueryError> {
         Ok(Self {
+            fields,
             keys: HashSet::new(),
             memory: controls.reserve_query_memory(0)?,
             table_bytes: 0,
@@ -60,7 +70,13 @@ impl SeenRows {
         )?;
         // Integral FLOAT canonicalization/comparison can create a sequential formatter temporary.
         let _candidate_memory = controls.reserve_query_memory(add(key_bytes, 64)?)?;
-        let key = row_signature(row);
+        let key = row_signature(
+            &TypedCteRow {
+                row,
+                fields: self.fields,
+            },
+            controls,
+        )?;
         if self.keys.contains(&key) {
             return Ok(false);
         }
@@ -118,5 +134,23 @@ impl SeenRows {
             }
         });
         failure.map_or(Ok(()), Err)
+    }
+}
+
+// Plain recursive working rows retain their declared fields in the CTE context.
+// Borrow those fields for identity; do not copy or reinterpret document-looking TEXT.
+struct TypedCteRow<'a> {
+    row: &'a Vec<(String, Value)>,
+    fields: &'a [crate::types::FieldSchema],
+}
+impl crate::executor::batch::RowAccess for TypedCteRow<'_> {
+    fn get(&self, name: &str) -> Option<&Value> {
+        crate::executor::batch::RowAccess::get(self.row, name)
+    }
+    fn entries(&self) -> &[(String, Value)] {
+        self.row
+    }
+    fn entry_type(&self, index: usize) -> Option<&crate::types::DataType> {
+        self.fields.get(index).map(|field| &field.data_type)
     }
 }

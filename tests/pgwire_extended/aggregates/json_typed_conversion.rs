@@ -1,7 +1,7 @@
 //! Exact JSON aggregate values and native document identities over pgwire.
 
 use crate::support_pgwire as wire;
-use crate::support_wire_queries as fixture;
+use crate::support_type_metadata_contract as fixture;
 
 const VALUE: &str = "9007199254740993.125500";
 const PARAMETER_SQL: &str = "SELECT json_agg($1::NUMERIC), jsonb_agg($1::NUMERIC), \
@@ -51,7 +51,7 @@ fn should_preserve_exact_json_aggregate_numbers_in_simple_query_results() {
 }
 
 #[test]
-fn should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats() {
+fn should_preserve_json_aggregate_oids_across_numeric_wire_formats() {
     // Arrange
     let numeric = cassie::types::extended::numeric::parse_text(VALUE)
         .expect("finite numeric fixture")

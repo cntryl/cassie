@@ -403,7 +403,11 @@ fn keys(
             partition.push(if let Some(batch) = &batch {
                 primitive(batch.cell(column, lane)?)
             } else {
-                SemanticValue::from_value(&row.entries()[*index].1)
+                crate::executor::semantic::typed_value(
+                    &row.entries()[*index].1,
+                    row.data_types().get(*index),
+                    Some(context.controls),
+                )?
             });
         }
         let mut parts = Vec::with_capacity(selection.order.len());
@@ -416,7 +420,8 @@ fn keys(
                     &item.expr,
                     &row.entries()[*index].1,
                     context.user_functions,
-                )
+                    Some(context.controls),
+                )?
             };
             parts.push(WindowSortPart {
                 value,
@@ -636,7 +641,12 @@ fn apply_one(
         });
     }
     let types = rows.first().and_then(|row| {
-        if row.data_types().is_empty() && !matches!(data_type, DataType::Array(_)) {
+        if row.data_types().is_empty()
+            && !matches!(
+                data_type,
+                DataType::Array(_) | DataType::Jsonb | DataType::Char { .. }
+            )
+        {
             return None;
         }
         let mut types = Vec::with_capacity(row.entries().len() + 1);
@@ -686,7 +696,12 @@ fn output_bytes(
         }
     }
     if let Some(row) = rows.first() {
-        if !row.data_types().is_empty() || matches!(data_type, DataType::Array(_)) {
+        if !row.data_types().is_empty()
+            || matches!(
+                data_type,
+                DataType::Array(_) | DataType::Jsonb | DataType::Char { .. }
+            )
+        {
             bytes = add(
                 bytes,
                 add(

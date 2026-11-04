@@ -10,6 +10,7 @@ mod numeric_identity;
 mod object_identity;
 mod ordered_set;
 mod pattern_matching;
+pub(crate) use pattern_matching::QUANTIFIED_PATTERN_FUNCTION;
 mod percentile_identity;
 pub(crate) mod regression;
 mod sequences;
@@ -198,6 +199,7 @@ pub enum FunctionId {
     Chr,
     RegexpLike,
     SimilarToEscape,
+    QuantifiedPattern,
     RegexpCount,
     RegexpReplace,
     StartsWith,

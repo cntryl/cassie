@@ -21,7 +21,50 @@ mod bounded;
 #[path = "similar_pattern.rs"]
 mod similar_pattern;
 
+#[path = "quantified_pattern.rs"]
+mod quantified_pattern;
+
+#[path = "pattern_memory.rs"]
+mod pattern_memory;
+
+#[path = "regex_assertions.rs"]
+mod regex_assertions;
+
+#[path = "pattern_arguments.rs"]
+mod pattern_arguments;
+
+#[path = "regex_workspace.rs"]
+mod workspace;
+
 use bounded::Regex;
+
+pub(super) fn evaluate_expression<R: crate::executor::batch::RowAccess + ?Sized>(
+    function: &crate::sql::ast::FunctionCall,
+    row: &R,
+    context: crate::executor::filter::EvalContext<'_>,
+) -> Option<Result<Value, QueryError>> {
+    let metadata = crate::sql::functions::function(&function.name)?;
+    if !matches!(
+        metadata.id,
+        FunctionId::RegexpLike
+            | FunctionId::RegexpCount
+            | FunctionId::RegexpReplace
+            | FunctionId::SimilarToEscape
+            | FunctionId::QuantifiedPattern
+    ) {
+        return None;
+    }
+    let controls = context.controls.or_else(|| {
+        context
+            .session
+            .and_then(crate::app::CassieSession::statement_execution_controls)
+    });
+    Some(
+        pattern_arguments::collect(function, row, context, controls).and_then(|arguments| {
+            evaluate(metadata.id, &arguments.values, controls).expect("selected pattern function")
+        }),
+    )
+}
 
 pub(super) fn evaluate(
     function: FunctionId,
@@ -31,6 +74,7 @@ pub(super) fn evaluate(
     match function {
         FunctionId::RegexpLike => Some(regexp_like(arguments, controls)),
         FunctionId::SimilarToEscape => Some(similar_pattern::evaluate(arguments, controls)),
+        FunctionId::QuantifiedPattern => Some(quantified_pattern::evaluate(arguments, controls)),
         FunctionId::RegexpCount => Some(regexp_count(arguments, controls)),
         FunctionId::RegexpReplace => Some(regexp_replace(arguments, controls)),
         _ => None,
@@ -47,13 +91,22 @@ fn regexp_like(
     let input = text_argument("regexp_like", arguments, 0)?;
     let pattern = text_argument("regexp_like", arguments, 1)?;
     let flags = optional_text_argument("regexp_like", arguments, 2)?.unwrap_or_default();
+    regexp_like_text(input, pattern, flags, controls).map(Value::Bool)
+}
+
+fn regexp_like_text(
+    input: &str,
+    pattern: &str,
+    flags: &str,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<bool, QueryError> {
     check_interruption(controls)?;
     let regex = compiler::compile(pattern, flags, controls)?;
     check_interruption(controls)?;
     let matched = regex.is_match(input);
     regex_search_completed(controls, matched)?;
     check_interruption(controls)?;
-    Ok(Value::Bool(matched))
+    Ok(matched)
 }
 
 fn regexp_count(

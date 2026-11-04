@@ -31,6 +31,16 @@ SQL scalar text formatting, including session temporal settings and the native
 nonfinite numeric names. These rules are pinned by pure SELECT probes against
 the dedicated PostgreSQL 18.6 reference.
 
+Historical-second formatting uses Europe/Paris in 1900 (`+00:09:21`), where
+the selected bundled jiff data and PostgreSQL 18.6 agree. The original Amsterdam
+witness failed the integrated gate because jiff-tzdb 0.1.9 maps Amsterdam and
+Brussels to the same transition data (1900 GMT), while PostgreSQL's database
+retains Amsterdam's `+00:19:32` backzone history. The correction preserves the
+bundled provider selected by [Extended Types](extended-types.md), retains the
+seconds-offset assertion, and does not claim complete pre-1970 PostgreSQL timezone
+history parity. Provider bytes, oracle results and the bounded Jev decision are
+recorded under `target/v020-evidence/json-timezone-provider/`.
+
 The aggregate retains original values until FILTER, DISTINCT and ordering have
 run. Finalization then uses the group's bound logical argument type and its
 statement controls. It admits metadata lookup, encoded fragments, directories,

@@ -177,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_float4_overflow_and_syntax_with_sqlstates() {
+    fn should_classify_float4_input_errors_with_sqlstates() {
         // Arrange
         let inputs = ["1e39", "abc", "1e-46"];
 
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_narrowing_overflow_and_underflow() {
+    fn should_reject_unrepresentable_float4_narrowing() {
         // Arrange
         let values = [1e39_f64, 1e-46];
 
@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn should_order_float4_with_nan_last_and_equal_zeros() {
+    fn should_generate_postgresql_float4_order_keys() {
         // Arrange
         let values = [
             f32::NAN,

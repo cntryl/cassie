@@ -702,20 +702,32 @@ mod tests {
     }
 
     #[test]
-    fn should_scale_and_justify_intervals_like_postgresql() {
+    fn should_multiply_intervals_like_postgresql() {
         // Arrange
         let day = interval("1 day");
-
         // Act
         let scaled = day.mul(2.5).expect("product");
-        let divided = interval("3 hours").div(1.5).expect("quotient");
-        let justified = interval("1 month -1 hour")
-            .justify_interval()
-            .expect("justified");
-
         // Assert
         assert_eq!(scaled, interval("2 days 12 hours"));
+    }
+
+    #[test]
+    fn should_divide_intervals_like_postgresql() {
+        // Arrange
+        let hours = interval("3 hours");
+        // Act
+        let divided = hours.div(1.5).expect("quotient");
+        // Assert
         assert_eq!(divided, interval("2 hours"));
+    }
+
+    #[test]
+    fn should_justify_intervals_like_postgresql() {
+        // Arrange
+        let input = interval("1 month -1 hour");
+        // Act
+        let justified = input.justify_interval().expect("justified");
+        // Assert
         assert_eq!(
             justified.format(IntervalStyle::Postgres),
             "29 days 23:00:00"

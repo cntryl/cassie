@@ -838,7 +838,7 @@ mod tests {
     }
 
     #[test]
-    fn should_decode_zones_and_specials() {
+    fn should_decode_postgresql_datetime_tokens() {
         // Arrange
         let session = TemporalSession::default();
 

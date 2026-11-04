@@ -150,9 +150,10 @@ mod tests {
             ("regr_avgy", FunctionId::RegrAvgy),
         ];
 
-        // Act / Assert
         for (name, expected) in identities {
+            // Act
             let registered = function(name).expect("registered regression aggregate");
+            // Assert
             assert!(registered.is_aggregate);
             assert_eq!(registered.id, expected);
             assert_eq!(registered.arity, FunctionArity::Exact(2));

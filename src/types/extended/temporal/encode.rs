@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn should_format_timestamptz_in_session_zone_and_style() {
+    fn should_format_timestamptz_using_session_settings() {
         // Arrange
         let zone = lookup_zone("America/New_York").expect("zone");
         let iso = TemporalSession {

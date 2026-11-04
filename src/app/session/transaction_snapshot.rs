@@ -71,9 +71,34 @@ impl CassieSession {
         &self,
         midge: &Arc<Midge>,
         database: &str,
+        controls: &QueryExecutionControls,
     ) -> Result<Option<Arc<StatementDataRead>>, CassieError> {
-        let owner = self.transaction.lock().repeatable_read.clone();
-        let Some(owner) = owner else {
+        let transaction = self.transaction.lock();
+        let Some(owner) = transaction.repeatable_read.as_ref() else {
+            return Ok(None);
+        };
+        if !owner.data.matches_current_family(midge, database)? {
+            return Err(CassieError::Transaction {
+                kind: TransactionErrorKind::SerializationFailure,
+                message: "database family changed during REPEATABLE READ".to_owned(),
+            });
+        }
+        if transaction.modes.read_only == Some(true) {
+            return Ok(Some(Arc::clone(&owner.data)));
+        }
+        let overlay = self.capture_statement_overlay_locked(&transaction, controls)?;
+        StatementDataRead::with_overlay(&owner.data, Some(overlay), controls).map(Some)
+    }
+
+    /// The direct cursor path has already declined native streaming when this
+    /// relation has own changes. It needs only the immutable committed view.
+    pub(crate) fn repeatable_committed_read(
+        &self,
+        midge: &Arc<Midge>,
+        database: &str,
+    ) -> Result<Option<Arc<StatementDataRead>>, CassieError> {
+        let transaction = self.transaction.lock();
+        let Some(owner) = transaction.repeatable_read.as_ref() else {
             return Ok(None);
         };
         if !owner.data.matches_current_family(midge, database)? {

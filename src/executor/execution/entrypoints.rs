@@ -265,6 +265,33 @@ pub(super) fn enter_statement_read(
     (read_scope, overlay_scope)
 }
 
+/// A data-modifying CTE's working fork inherits the command's original read
+/// map, while the fork's live staged map continues to receive its mutations.
+pub(super) fn working_statement_read_controls(
+    cassie: &Cassie,
+    original: Option<&CassieSession>,
+    working: &CassieSession,
+    controls: &QueryExecutionControls,
+) -> Result<QueryExecutionControls, QueryError> {
+    let database = working
+        .database
+        .as_deref()
+        .unwrap_or(&cassie.default_database);
+    let matching = controls.statement_read().filter(|owner| {
+        owner.matches(&cassie.midge, database)
+            && original.is_some_and(|original| {
+                owner
+                    .overlay()
+                    .is_some_and(|overlay| overlay.matches_session(original))
+            })
+    });
+    let Some(owner) = matching else {
+        return Ok(controls.clone());
+    };
+    let rebound = working.rebind_statement_read(owner, controls)?;
+    Ok(controls.with_statement_read(Some(rebound)))
+}
+
 fn check_constants(
     plan: &super::LogicalPlan,
     controls: &QueryExecutionControls,

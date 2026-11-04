@@ -49,6 +49,9 @@ mod postgresql18_transactional_ddl;
 #[path = "sql_mutations/transactions/transaction_isolation.rs"]
 mod postgresql18_transaction_isolation;
 
+#[path = "sql_mutations/transactions/repeatable_read.rs"]
+mod repeatable_read;
+
 #[path = "sql_mutations/mutations/statement_atomicity.rs"]
 mod postgresql18_mutation_inventory_wave4;
 

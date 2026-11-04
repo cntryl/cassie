@@ -45,47 +45,11 @@ impl CassieSession {
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
-        if let Some(owner) = self.repeatable_statement_read(midge, database)? {
+        if let Some(owner) = self.repeatable_statement_read(midge, database, controls)? {
             return Ok(owner);
         }
         let transaction = self.transaction.lock();
-        let node = 11 * (size_of::<String>() + size_of::<Arc<CollectionChanges>>())
-            + 16 * size_of::<usize>();
-        // The weak identity keeps only the original Arc allocation, not its
-        // savepoint/conflict payloads, alive if the session is later dropped.
-        let base = size_of::<StatementOverlay>()
-            .checked_add(2 * size_of::<usize>())
-            .and_then(|bytes| bytes.checked_add(size_of::<Mutex<SessionTransactionState>>()))
-            .and_then(|bytes| bytes.checked_add(2 * size_of::<usize>()))
-            .ok_or_else(staged_snapshot_accounting_overflow)?;
-        // Do not retain a possibly allocated empty BTree root. None is still
-        // an authoritative captured empty view, including its transaction flag.
-        let bytes = if transaction.writes.is_empty() {
-            base
-        } else {
-            let base = base
-                .checked_add(size_of::<TransactionWrites>())
-                .and_then(|bytes| bytes.checked_add(2 * size_of::<usize>()))
-                .and_then(|bytes| bytes.checked_add(transaction.writes.len().checked_mul(node)?))
-                .ok_or_else(staged_snapshot_accounting_overflow)?;
-            transaction
-                .writes
-                .iter()
-                .try_fold(base, |bytes, (name, changes)| {
-                    let changes_bytes = collection_snapshot_bytes(changes)?;
-                    bytes
-                        .checked_add(name.capacity())
-                        .and_then(|bytes| bytes.checked_add(changes_bytes))
-                        .ok_or_else(staged_snapshot_accounting_overflow)
-                })?
-        };
-        let memory = controls.reserve_query_memory(bytes)?;
-        let overlay = Arc::new(StatementOverlay {
-            writes: (!transaction.writes.is_empty()).then(|| Arc::clone(&transaction.writes)),
-            active_transaction: transaction.status != SessionTransactionStatus::Idle,
-            identity: Arc::downgrade(&self.transaction),
-            _memory: memory,
-        });
+        let overlay = self.capture_statement_overlay_locked(&transaction, controls)?;
         // Keep the session state lock through capture; staged-map changes
         // cannot interleave between the borrowed estimate and the Data owner.
         if !transaction.implicit
@@ -100,6 +64,86 @@ impl CassieSession {
         } else {
             StatementDataRead::capture_with_overlay(midge, database, controls, Some(overlay))
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn capture_statement_overlay(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<StatementOverlay>, CassieError> {
+        let transaction = self.transaction.lock();
+        self.capture_statement_overlay_locked(&transaction, controls)
+    }
+
+    pub(super) fn capture_statement_overlay_locked(
+        &self,
+        transaction: &SessionTransactionState,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<StatementOverlay>, CassieError> {
+        self.capture_overlay_from_writes(
+            (!transaction.writes.is_empty()).then_some(&transaction.writes),
+            transaction.status != SessionTransactionStatus::Idle,
+            controls,
+        )
+    }
+
+    pub(crate) fn rebind_statement_read(
+        &self,
+        owner: &StatementDataRead,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<StatementDataRead>, CassieError> {
+        let original = owner.overlay().ok_or_else(|| {
+            CassieError::Execution("statement batch lost its command overlay".to_owned())
+        })?;
+        let overlay = self.capture_overlay_from_writes(
+            original.writes.as_ref(),
+            original.active_transaction,
+            controls,
+        )?;
+        StatementDataRead::with_overlay(owner, Some(overlay), controls)
+    }
+
+    fn capture_overlay_from_writes(
+        &self,
+        writes: Option<&SharedTransactionWrites>,
+        active_transaction: bool,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<StatementOverlay>, CassieError> {
+        controls.check_interruption()?;
+        let node = 11 * (size_of::<String>() + size_of::<Arc<CollectionChanges>>())
+            + 16 * size_of::<usize>();
+        // The weak identity keeps only the original Arc allocation, not its
+        // savepoint/conflict payloads, alive if the session is later dropped.
+        let base = size_of::<StatementOverlay>()
+            .checked_add(2 * size_of::<usize>())
+            .and_then(|bytes| bytes.checked_add(size_of::<Mutex<SessionTransactionState>>()))
+            .and_then(|bytes| bytes.checked_add(2 * size_of::<usize>()))
+            .ok_or_else(staged_snapshot_accounting_overflow)?;
+        // Do not retain a possibly allocated empty BTree root. None is still
+        // an authoritative captured empty view, including its transaction flag.
+        let bytes = if let Some(writes) = writes {
+            let base = base
+                .checked_add(size_of::<TransactionWrites>())
+                .and_then(|bytes| bytes.checked_add(2 * size_of::<usize>()))
+                .and_then(|bytes| bytes.checked_add(writes.len().checked_mul(node)?))
+                .ok_or_else(staged_snapshot_accounting_overflow)?;
+            writes.iter().try_fold(base, |bytes, (name, changes)| {
+                let changes_bytes = collection_snapshot_bytes(changes)?;
+                bytes
+                    .checked_add(name.capacity())
+                    .and_then(|bytes| bytes.checked_add(changes_bytes))
+                    .ok_or_else(staged_snapshot_accounting_overflow)
+            })?
+        } else {
+            base
+        };
+        let memory = controls.reserve_query_memory(bytes)?;
+        Ok(Arc::new(StatementOverlay {
+            writes: writes.cloned(),
+            active_transaction,
+            identity: Arc::downgrade(&self.transaction),
+            _memory: memory,
+        }))
     }
 
     pub(crate) fn read_transaction_is_active(&self) -> bool {

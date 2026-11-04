@@ -579,3 +579,30 @@ Blocked publication and snapshot-window acquisition check both authorities
 before waiting, while contended, and immediately after acquiring the gate. No
 first-Parse/first-Execute cancellation owner is retained in the publication gate.
 
+
+
+### Read-write command overlay ownership
+
+The private read owner separates one immutable committed-data core from each
+command's COW own-write overlay (Jev 0.97). The core retains the same published
+native transaction, engine, family identity, epoch and descriptor authority. Each
+new wrapper and overlay has its own admission; shared backing remains charged
+until its last owner. Read-only RR continues to reuse its whole initial owner
+without charging a second request. A RW command shares the committed core and
+captures the current own-write map while the session transaction lock is held.
+Savepoint restoration changes future command maps while existing portals retain
+their original command map. RW mode remains disabled until its commit fence and
+remaining acceptance obligations are complete.
+
+A modifying CTE's atomic working session has a different identity from its
+originating session. Its SQL source reads must retain the original command's
+COW map rather than recapturing earlier sibling CTE effects. A private rebind
+requires the owner to match the original session and Midge/database, then
+rebinds only that admitted immutable map to the working identity. The rebound
+controls flow through the existing query-read boundaries for ordinary atomic
+DML and the simple upsert wait path. Constraint and mutation validation retains
+its live own-write behavior; a global rebound thread-local scope would wrongly
+hide a parent inserted earlier in the same command from a foreign-key check.
+Jev selected these existing read boundaries at 1.00 after source inspection;
+no global session-identity check is weakened.
+

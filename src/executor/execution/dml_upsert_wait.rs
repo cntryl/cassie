@@ -130,6 +130,13 @@ impl PendingUpsert {
         } = self;
         controls.check_interruption()?;
         let batch = cassie.new_statement_batch(session)?;
+        let statement_controls = super::entrypoints::working_statement_read_controls(
+            cassie,
+            session,
+            batch.session(),
+            controls,
+        )?;
+        let controls = &statement_controls;
         let current_owner = batch.session().transaction_unique_owner_id();
         if owner.is_some_and(|owner| owner != current_owner) {
             return Err(crate::app::CassieError::Execution(

@@ -215,3 +215,172 @@ fn should_admit_wide_numeric_json_output_before_the_value_encoder_allocates() {
     assert_eq!(scarce.current_query_memory_bytes(), 0);
     assert_eq!(ample.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_retain_jsonb_collection_results_as_native_document_values() {
+    // Arrange
+    let plan = aggregate_plan("SELECT jsonb_agg(payload) AS documents FROM events");
+    let functions = HashMap::new();
+    let controls = controls_with_budget(1_048_576);
+    // Act
+    let output = aggregate_query_batches_serial(
+        json_rows(),
+        &aggregate_specs(&plan),
+        &aggregate_context(&plan, &functions, &controls),
+    )
+    .expect("native JSONB aggregate");
+    // Assert
+    let document = output[0][0]
+        .entries()
+        .iter()
+        .find_map(|(_, value)| match value {
+            Value::Json(document) => Some(document),
+            _ => None,
+        })
+        .expect("JSONB physical document carrier");
+    assert_eq!(
+        document[0].as_number().expect("exact decimal").as_str(),
+        "9007199254740993.125500"
+    );
+    assert!(document[1].is_null());
+    assert!(
+        controls.current_query_memory_bytes()
+            >= crate::runtime::accounted::json::retained_bytes(document).expect("document heap")
+    );
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_duplicate_plain_json_input_text_in_physical_aggregate_rows() {
+    // Arrange
+    let plan = aggregate_plan("SELECT json_agg(payload) AS documents FROM events");
+    let functions = HashMap::new();
+    let controls = controls_with_budget(1_048_576);
+    let rows = vec![BatchRow::new(vec![(
+        "payload".into(),
+        Value::String(r#"{"a":1,"a":2}"#.into()),
+    )])
+    .with_optional_data_types(Some(std::sync::Arc::new(vec![
+        crate::types::DataType::Json,
+    ])))];
+    // Act
+    let output = aggregate_query_batches_serial(
+        rows,
+        &aggregate_specs(&plan),
+        &aggregate_context(&plan, &functions, &controls),
+    )
+    .expect("plain JSON aggregate");
+    // Assert
+    assert!(output[0][0]
+        .entries()
+        .iter()
+        .all(|(_, value)| *value == Value::String(r#"[{"a":1,"a":2}]"#.into())));
+}
+
+#[test]
+fn should_release_parsed_jsonb_output_when_cancellation_follows_document_decode() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let document = r#"{"n":9007199254740993.125500}"#.to_owned();
+    let mut memory =
+        crate::executor::json_construction::reserve(Some(&controls), document.len() + 256)
+            .expect("reserved construction workspace");
+    let mut observed = false;
+    // Act
+    let result = super::super::collection_json::finish_document_observing(
+        document,
+        true,
+        0,
+        &mut memory,
+        Some(&controls),
+        || {
+            observed = true;
+            cancellation.cancel();
+        },
+    );
+    // Assert
+    assert!(observed);
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+    ));
+    drop(memory);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_parsed_jsonb_object_backing_through_its_last_output_alias() {
+    // Arrange
+    let plan = aggregate_plan("SELECT jsonb_object_agg(key,payload) AS documents FROM events");
+    let functions = HashMap::new();
+    let rows = || {
+        let document =
+            serde_json::from_str(r#"{"n":9007199254740993.125500,"nested":[null,{"keep":true}]}"#)
+                .expect("exact nested document");
+        vec![BatchRow::new(vec![
+            ("key".into(), Value::String("k".repeat(64))),
+            ("payload".into(), Value::Json(document)),
+        ])]
+    };
+    let ample = controls_with_budget(4_194_304);
+    let measured = aggregate_query_batches_serial(
+        rows(),
+        &aggregate_specs(&plan),
+        &aggregate_context(&plan, &functions, &ample),
+    )
+    .expect("measured parsed object");
+    let peak = ample.peak_query_memory_bytes();
+    drop(measured);
+    let exact = controls_with_budget(peak);
+    let scarce = controls_with_budget(peak - 1);
+    // Act
+    let admitted = aggregate_query_batches_serial(
+        rows(),
+        &aggregate_specs(&plan),
+        &aggregate_context(&plan, &functions, &exact),
+    );
+    let denied = aggregate_query_batches_serial(
+        rows(),
+        &aggregate_specs(&plan),
+        &aggregate_context(&plan, &functions, &scarce),
+    );
+    let output = admitted.expect("exact parsed object bound");
+    let alias = output.clone();
+    drop(output);
+    // Assert
+    let document = alias[0][0]
+        .entries()
+        .iter()
+        .find_map(|(_, value)| match value {
+            Value::Json(document) => Some(document),
+            _ => None,
+        })
+        .expect("native parsed object");
+    assert_eq!(
+        document["k".repeat(64)]["n"]
+            .as_number()
+            .expect("exact decimal")
+            .as_str(),
+        "9007199254740993.125500"
+    );
+    assert!(
+        exact.current_query_memory_bytes()
+            >= crate::runtime::accounted::json::retained_bytes(document)
+                .expect("parsed object bound")
+    );
+    assert!(matches!(
+        denied,
+        Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+            _
+        )))
+    ));
+    drop(alias);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+    assert_eq!(scarce.current_query_memory_bytes(), 0);
+}

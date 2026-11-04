@@ -87,7 +87,7 @@ pub fn format_timestamp(value: i64, session: &TemporalSession) -> String {
     }
     timestamp_to_fields(value).map_or_else(
         || "timestamp out of range".to_string(),
-        |fields| encode_datetime(&fields, None, session),
+        |fields| encode_datetime(&fields, None, session, false),
     )
 }
 
@@ -103,14 +103,55 @@ pub fn format_timestamptz(value: i64, session: &TemporalSession) -> String {
     let local = value.saturating_add(i64::from(info.east) * USECS_PER_SEC);
     timestamp_to_fields(local).map_or_else(
         || "timestamp out of range".to_string(),
-        |fields| encode_datetime(&fields, Some((info.east, &info.abbreviation)), session),
+        |fields| {
+            encode_datetime(
+                &fields,
+                Some((info.east, &info.abbreviation)),
+                session,
+                false,
+            )
+        },
     )
+}
+
+/// JSON timestamps use ISO calendar spelling and explicit timezone minutes.
+/// SQL TIMETZ output deliberately retains its established short-offset rule.
+#[must_use]
+pub(crate) fn format_json_timestamp(
+    value: i64,
+    session: &TemporalSession,
+    with_timezone: bool,
+) -> String {
+    match value {
+        TIMESTAMP_NOBEGIN => return "-infinity".to_owned(),
+        TIMESTAMP_NOEND => return "infinity".to_owned(),
+        _ => {}
+    }
+    let east = with_timezone.then(|| session.zone.offset_at(value));
+    let local = east.map_or(value, |east| {
+        value.saturating_add(i64::from(east) * USECS_PER_SEC)
+    });
+    let mut iso = session.clone();
+    iso.date_output = DateOutput::Iso;
+    timestamp_to_fields(local).map_or_else(
+        || "timestamp out of range".to_owned(),
+        |fields| encode_datetime(&fields, east.map(|east| (east, "")), &iso, true),
+    )
+}
+
+fn json_offset(east: i32) -> String {
+    let mut offset = encode_offset(east);
+    if east % 3600 == 0 {
+        offset.push_str(":00");
+    }
+    offset
 }
 
 fn encode_datetime(
     fields: &Fields,
     zone: Option<(i32, &str)>,
     session: &TemporalSession,
+    json: bool,
 ) -> String {
     let year = era_year(fields.year);
     let (month, day) = (fields.month, fields.day);
@@ -130,7 +171,8 @@ fn encode_datetime(
     };
     match session.date_output {
         DateOutput::Iso => {
-            let _ = write!(out, "{year:04}-{month:02}-{day:02} ");
+            let _ = write!(out, "{year:04}-{month:02}-{day:02}");
+            out.push(if json { 'T' } else { ' ' });
             clock(
                 &mut out,
                 fields.hour,
@@ -139,7 +181,11 @@ fn encode_datetime(
                 fields.micros,
             );
             if let Some((east, _)) = zone {
-                out.push_str(&encode_offset(east));
+                out.push_str(&if json {
+                    json_offset(east)
+                } else {
+                    encode_offset(east)
+                });
             }
         }
         DateOutput::Sql => {
@@ -202,6 +248,20 @@ mod tests {
     use super::{format_date, format_time, format_timestamptz, format_timetz};
     use crate::types::extended::temporal::session::{DateOrder, DateOutput, TemporalSession};
     use crate::types::extended::temporal::zone::lookup_zone;
+
+    #[test]
+    fn should_keep_json_timestamp_offset_minutes_separate_from_sql_output() {
+        // Arrange
+        let session = super::TemporalSession::default();
+        // Act
+        let sql = super::format_timestamptz(0, &session);
+        let json = super::format_json_timestamp(0, &session, true);
+        let timestamp = super::format_json_timestamp(0, &session, false);
+        // Assert
+        assert_eq!(sql, "2000-01-01 00:00:00+00");
+        assert_eq!(json, "2000-01-01T00:00:00+00:00");
+        assert_eq!(timestamp, "2000-01-01T00:00:00");
+    }
 
     #[test]
     fn should_format_iso_temporal_output() {

@@ -92,7 +92,7 @@ fn should_preserve_json_aggregate_oids_across_numeric_wire_formats() {
             .find(|(tag, _)| *tag == b't')
             .expect("numeric parameter descriptor");
         assert_eq!(wire::parse_parameter_description(&parameters.1), [1700]);
-        assert_document_values(frames, if index % 2 == 0 { 0 } else { 1 });
+        assert_document_values(frames, i16::from(index % 2 != 0));
     }
 }
 

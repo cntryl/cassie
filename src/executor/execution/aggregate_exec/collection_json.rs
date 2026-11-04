@@ -216,7 +216,26 @@ pub(super) fn finish_with_observer(
         entries.push(EncodedEntry { key, value });
     }
     let document = render(&entries, object, binary, bound, context.controls)?;
-    let value = json::finish(document, binary, context.controls)?;
+    let entry_bytes = entries.iter().try_fold(
+        mul(entries.capacity(), std::mem::size_of::<EncodedEntry>())?,
+        |bytes, entry| {
+            add(
+                bytes,
+                add(
+                    entry.key.as_ref().map_or(0, String::capacity),
+                    entry.value.as_ref().map_or(0, String::capacity),
+                )?,
+            )
+        },
+    )?;
+    let value = finish_document_observing(
+        document,
+        binary,
+        entry_bytes,
+        &mut memory,
+        context.controls,
+        || {},
+    )?;
     drop(entries);
     if let Some(memory) = memory.as_mut() {
         let retained = match &value {
@@ -226,6 +245,46 @@ pub(super) fn finish_with_observer(
         memory.shrink_to(retained);
     }
     Ok(AggregateOutput { value, memory })
+}
+
+/// Preserve JSONB's document carrier when the aggregate becomes a physical row value.
+/// Plain JSON must keep its original text, including duplicate members and order.
+pub(super) fn finish_document_observing(
+    document: String,
+    binary: bool,
+    entry_bytes: usize,
+    memory: &mut Option<QueryMemoryReservation>,
+    controls: Option<&QueryExecutionControls>,
+    mut after_decode: impl FnMut(),
+) -> Result<Value, QueryError> {
+    let value = json::finish(document, binary, controls)?;
+    if !binary {
+        return Ok(value);
+    }
+    let Value::String(document) = value else {
+        return Ok(value);
+    };
+    // Reuse the still-live construction workspace. Grow before parsing only if
+    // actual canonical/entry capacities require more than its original bound.
+    let required = add(
+        crate::runtime::accounted::json::serialized_decode_bytes(document.len())?,
+        add(document.capacity(), entry_bytes)?,
+    )?;
+    if let Some(memory) = memory.as_mut() {
+        if required > memory.bytes() {
+            memory.try_grow(required - memory.bytes())?;
+        }
+    }
+    json::check(controls)?;
+    let document = serde_json::from_str(&document).map_err(|error| {
+        CassieError::TypeInput(crate::types::extended::TypeInputError::new(
+            "22P02",
+            format!("invalid JSONB collection document: {error}"),
+        ))
+    })?;
+    after_decode();
+    json::check(controls)?;
+    Ok(Value::Json(document))
 }
 
 fn row_memory(

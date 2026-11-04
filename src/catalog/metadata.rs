@@ -221,6 +221,11 @@ impl Catalog {
         out
     }
 
+    /// Cached registration count for storage-independent health probes.
+    pub(crate) fn registered_collection_count(&self) -> usize {
+        self.collections.read().len()
+    }
+
     #[must_use]
     pub(crate) fn list_collections_canonical(&self) -> Vec<CollectionMeta> {
         let collections = self.collections.read();

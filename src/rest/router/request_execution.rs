@@ -214,13 +214,39 @@ impl RestRequestExecution {
     where
         T: Send + 'static,
     {
+        self.run_blocking_observed(cassie, operation_name, operation, || {})
+            .await
+    }
+
+    pub(super) async fn run_blocking_observed<T>(
+        &self,
+        cassie: Arc<Cassie>,
+        operation_name: &'static str,
+        operation: impl FnOnce(Arc<Cassie>, &QueryCancellationHandle) -> Result<T, CassieError>
+            + Send
+            + 'static,
+        queued: impl FnOnce() + Send,
+    ) -> Result<T, RestBlockingError>
+    where
+        T: Send + 'static,
+    {
         let runtime = cassie.runtime.clone();
         let started_at = Instant::now();
         runtime.record_rest_boundary_started(operation_name);
 
         let cancellation = self.cancellation.clone();
         let worker_cancellation = cancellation.clone();
-        let mut worker = task::spawn_blocking(move || operation(cassie, &worker_cancellation));
+        let absolute_deadline = self.deadline;
+        let mut worker = task::spawn_blocking(move || {
+            let _publication_controls =
+                crate::midge::adapter::PublicationControlScope::enter_for_rest(
+                    &worker_cancellation,
+                    absolute_deadline,
+                );
+            cassie.check_storage_recovery_required()?;
+            operation(cassie, &worker_cancellation)
+        });
+        queued();
         let deadline = tokio::time::Instant::from_std(self.deadline);
 
         tokio::select! {

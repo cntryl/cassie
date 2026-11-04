@@ -5833,3 +5833,20 @@ limit validation into a small private helper, preserving order and diagnostics.
 No lint suppression or reduced scope is used. Formatting check and touched-test
 policy stages were not reached. The corrected exact head requires the ordered
 gate again; this passing test count belongs only to the recorded fifth head.
+
+The sixth frozen RO gate at `bc46b2353e8dc1b8abe9a3f59418006f790a7589`
+passed build (37.62 s) and complete locked/no-fail-fast tests (843.31 s):
+9,933 passed, zero failed, 12 ignored. Strict full Clippy then stopped in the
+pgwire test target after 55.15 s on `assert_is_empty`. An unchanged-head
+full-scope `cargo clippy --keep-going --workspace --all-targets --all-features --
+-D warnings -D clippy::pedantic` collection pass (105.90 s) found three total
+instances in the new wire/index tests. They now compare typed empty vectors,
+preserving all assertions while showing values on failure. No lint suppression
+or narrowed target is used. No strict Clippy pass is claimed; fmt check and test
+policy were not reached.
+
+Per the user's explicit validation-batching instruction, the lint-only corrected
+head does not trigger another 9,933-test run by itself. Its source/test
+qualification remains pending; the next complete ordered gate will cover the
+substantial combined owner/fence/RW integration. The exact sixth-head runtime
+receipt remains authoritative for that earlier head only.

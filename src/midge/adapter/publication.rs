@@ -151,7 +151,10 @@ impl DatabasePublication {
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
     ) -> Result<(), AdapterCommitError> {
         let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
-        self.publish_with_wait_observer(controls.as_ref(), operation, |_| {})
+        self.publish_with_wait_observer(controls.as_ref(), operation, |_boundary| {
+            #[cfg(test)]
+            tests::observe_publication(_boundary);
+        })
     }
 
     #[cfg(test)]

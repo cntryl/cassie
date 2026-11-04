@@ -32,7 +32,7 @@ mod publication;
 mod raw_ops;
 pub(crate) use publication::PublicationControlScope;
 mod transactions;
-pub(crate) use transactions::{AdapterTransaction, StorageOverlay};
+pub(crate) use transactions::{AdapterTransaction, RetainedRowFence, StorageOverlay};
 
 #[doc(hidden)]
 pub use column_batch_format_v1::{
@@ -899,7 +899,7 @@ impl Midge {
     }
 
     fn save_databases(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         databases: &[String],
     ) -> Result<(), CassieError> {
         let value =

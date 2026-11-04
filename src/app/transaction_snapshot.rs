@@ -86,15 +86,25 @@ impl Cassie {
             return Ok(());
         };
         let database = session.current_database().unwrap_or(&self.default_database);
-        let (data, catalog) = self
-            .midge
-            .with_database_publication(database, controls, || {
-                let data = session.capture_statement_read(&self.midge, database, controls)?;
-                let catalog = self.catalog.snapshot_with_controls(controls)?;
-                controls.check_interruption()?;
-                Ok((data, catalog))
-            })?;
-        session.install_repeatable_read_snapshot(generation, data, catalog, controls)
+        let (data, catalog, fence) =
+            self.midge
+                .with_database_publication(database, controls, || {
+                    let fence = session
+                        .is_repeatable_read_write()
+                        .then(|| {
+                            crate::midge::adapter::RetainedRowFence::capture(
+                                &self.midge,
+                                database,
+                                controls,
+                            )
+                        })
+                        .transpose()?;
+                    let data = session.capture_statement_read(&self.midge, database, controls)?;
+                    let catalog = self.catalog.snapshot_with_controls(controls)?;
+                    controls.check_interruption()?;
+                    Ok((data, catalog, fence))
+                })?;
+        session.install_repeatable_read_snapshot(generation, data, catalog, fence, controls)
     }
 }
 

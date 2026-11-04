@@ -146,6 +146,8 @@ fn consume(
         check_controls(controls)?;
         let cell = column.map_or(Ok(Cell::Integer(1)), |column| batch.cell(column, lane))?;
         state.update(cell)?;
+        controls.aggregate_input_retained()?;
+        check_controls(controls)?;
     }
     Ok(())
 }

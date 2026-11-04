@@ -5871,3 +5871,14 @@ add implicit extended-query transaction semantics to manufacture a witness.
 The exact receipt is `pg186-rr-prebound-oracle.json` under the isolated ignored
 evidence directory. The next full test stage uses `--no-fail-fast` to collect
 all suite failures in one frozen-head pass.
+
+The fifth frozen RO gate at `1bbd1b131b7f462722311a4ca353cd592851f21a`
+passed build (0.23 s) and complete `cargo test --locked --no-fail-fast`
+(613.71 s): 9,933 passed, zero failed, 12 ignored across 35 result summaries.
+Whole-workspace/all-target/all-feature pedantic Clippy then stopped with one
+library finding (159.12 s): new `handle_parse` was 106 lines against the 100-line
+function limit. The correction extracts its existing prepared-name/connection
+limit validation into a small private helper, preserving order and diagnostics.
+No lint suppression or reduced scope is used. Formatting check and touched-test
+policy stages were not reached. The corrected exact head requires the ordered
+gate again; this passing test count belongs only to the recorded fifth head.

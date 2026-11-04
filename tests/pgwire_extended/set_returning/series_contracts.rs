@@ -54,7 +54,7 @@ fn should_describe_series_native_overloads_without_retagging_supplied_parameters
 }
 
 #[test]
-fn should_return_scalar_binary_series_values_and_bigint_ordinality() {
+fn should_emit_series_rows_with_native_binary_column_widths() {
     // Arrange
     let sql = "SELECT value,position FROM generate_series(2,4,2) WITH ORDINALITY s(value,position)";
     let cycle = fixture::execute_cycle(sql, None, 1, true);
@@ -86,7 +86,7 @@ fn should_return_scalar_binary_series_values_and_bigint_ordinality() {
 }
 
 #[test]
-fn should_report_series_signature_step_and_range_errors_without_partial_rows() {
+fn should_reject_invalid_series_sources_without_partial_rows() {
     // Arrange
     let cases = [
         ("SELECT * FROM generate_series(NULL,NULL)","42725"),
@@ -115,7 +115,7 @@ fn should_report_series_signature_step_and_range_errors_without_partial_rows() {
     let batches = fixture::run_cycles("issue-808-series-error-recovery", &[], cycles);
 
     // Assert
-    for ((sql, state), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((sql, state), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0.iter()) {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some(state), "{sql}");
         assert_eq!(
             pair[0]

@@ -5,7 +5,9 @@ use crate::support_type_metadata_contract as fixture;
 fn hexadecimal(value: &str) -> Vec<u8> {
     value
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             u8::from_str_radix(std::str::from_utf8(pair).expect("ASCII hex"), 16).expect("hex byte")
         })
@@ -36,7 +38,7 @@ fn should_preserve_native_array_identity_for_multidimensional_constructors() {
 }
 
 #[test]
-fn should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays() {
+fn should_preserve_native_array_fill_shape_semantics() {
     // Arrange
     let sql = "SELECT array_fill(NULL::INT,ARRAY[2])::TEXT, array_fill(1,ARRAY[]::INT[])::TEXT, array_fill(1,ARRAY[0])::TEXT, array_ndims(array_fill(1,ARRAY[0]))";
     let cycle = fixture::execute_cycle(sql, None, 0, true);
@@ -58,7 +60,7 @@ fn should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays() {
 }
 
 #[test]
-fn should_preserve_temporal_array_text_and_binary_values_under_native_oids() {
+fn should_preserve_native_temporal_array_elements_across_wire_formats() {
     // Arrange
     let cases = [
         (
@@ -91,7 +93,7 @@ fn should_preserve_temporal_array_text_and_binary_values_under_native_oids() {
     let batches = fixture::run_cycles("issue-807-native-temporal-arrays", &[], cycles);
 
     // Assert
-    for ((_, oid, text, binary), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((_, oid, text, binary), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0.iter()) {
         for (format, frames) in [0, 1].into_iter().zip(pair) {
             fixture::assert_success(frames);
             fixture::assert_single_column_descriptors(frames, (oid, -1, -1), format, true);
@@ -105,7 +107,7 @@ fn should_preserve_temporal_array_text_and_binary_values_under_native_oids() {
 }
 
 #[test]
-fn should_reject_ragged_array_constructors_before_rows_and_recover() {
+fn should_reject_nonrectangular_array_constructors_without_partial_output() {
     // Arrange
     let cycles = vec![
         fixture::execute_cycle("SELECT ARRAY[[1,2],[3]]", None, 0, true),
@@ -132,7 +134,7 @@ fn should_reject_ragged_array_constructors_before_rows_and_recover() {
 }
 
 #[test]
-fn should_distinguish_nested_empty_and_null_subarrays_from_scalar_null_elements() {
+fn should_keep_array_constructor_subarrays_distinct_from_scalar_null_elements() {
     // Arrange
     let sql = "SELECT ARRAY[ARRAY[]::INT[],ARRAY[]::INT[]]::TEXT,ARRAY[NULL::INT[],NULL::INT[]]::TEXT,ARRAY[NULL::INT,NULL::INT]::TEXT";
     let cycle = fixture::execute_cycle(sql, None, 0, true);
@@ -261,7 +263,7 @@ fn should_resolve_unknown_array_elements_without_coercing_concrete_text_paramete
 }
 
 #[test]
-fn should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats() {
+fn should_preserve_canonical_jsonb_array_elements_across_wire_formats() {
     // Arrange
     let sql = r#"SELECT ARRAY['{"b":2,"a":1e8}'::JSONB,NULL] AS items"#;
     let cycles = [0, 1]
@@ -304,7 +306,7 @@ fn should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats() {
 }
 
 #[test]
-fn should_accumulate_native_array_subqueries_with_matching_bounds_and_native_identity() {
+fn should_accumulate_native_array_subqueries_with_matching_declared_bounds() {
     // Arrange
     let sql = "SELECT ARRAY(SELECT items FROM (VALUES ('[-2:-1]={1,NULL}'::INT[]),('[-2:-1]={3,4}'::INT[])) s(items)) AS items";
     let cycle = fixture::execute_cycle(sql, None, 0, true);
@@ -344,7 +346,7 @@ fn should_use_visible_array_subquery_aliases_when_physical_names_collide() {
 }
 
 #[test]
-fn should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs() {
+fn should_enforce_native_array_subquery_input_shape_requirements() {
     // Arrange
     let cases = [
         ("SELECT ARRAY(SELECT items FROM (VALUES (ARRAY[1]),(ARRAY[2,3]),(NULL::INT[])) s(items))","2202E"),
@@ -368,7 +370,7 @@ fn should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs() {
     let batches = fixture::run_cycles("issue-807-array-subquery-errors", &[], cycles);
 
     // Assert
-    for ((sql, state), pair) in cases.into_iter().zip(batches.chunks_exact(2)) {
+    for ((sql, state), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0.iter()) {
         assert_eq!(wire::error_code(&pair[0]).as_deref(), Some(state), "{sql}");
         assert!(
             !pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')),

@@ -3,6 +3,31 @@
 use crate::sql::functions::FunctionId;
 use crate::types::DataType;
 
+/// Keep the existing common-type policy while requiring typmod consensus for COALESCE arrays.
+pub(crate) fn first_non_null_result(name: &str, arguments: &[Option<DataType>]) -> DataType {
+    let known = arguments
+        .iter()
+        .flatten()
+        .filter(|kind| **kind != DataType::Null);
+    let first = known.clone().next();
+    let kind = known
+        .cloned()
+        .try_fold(DataType::Null, super::inference::common_case_type)
+        .filter(|kind| *kind != DataType::Null)
+        .or_else(|| first.cloned())
+        .unwrap_or(DataType::Text);
+    if name.eq_ignore_ascii_case("coalesce")
+        && matches!(kind, DataType::Array(_))
+        && arguments
+            .iter()
+            .any(|argument| argument.as_ref() != Some(&kind))
+    {
+        unmodified_result(kind)
+    } else {
+        kind
+    }
+}
+
 /// Ordinary function/operator result descriptors do not inherit argument typmods.
 pub(crate) fn unmodified_result(kind: DataType) -> DataType {
     if !matches!(kind, DataType::Array(_)) {

@@ -4,6 +4,34 @@ use crate::sql::QueryStatement;
 use crate::types::DataType;
 
 #[test]
+fn should_infer_coalesce_array_modifiers_from_every_argument() {
+    // Arrange
+    let catalog = Catalog::new();
+    let cases = [
+        ("SELECT coalesce(ARRAY['x'::CHAR(3)],NULL)", -1),
+        ("SELECT coalesce(NULL,ARRAY['x'::CHAR(3)])", -1),
+        ("SELECT coalesce(ARRAY['x'::CHAR(3)],NULL::CHAR(3)[])", 7),
+        ("SELECT coalesce(NULL::CHAR(3)[],NULL::CHAR(3)[])", 7),
+        ("SELECT coalesce(ARRAY['x'::VARCHAR(3)],NULL)", -1),
+        (
+            "SELECT coalesce(ARRAY['x'::VARCHAR(3)],NULL::VARCHAR(3)[])",
+            7,
+        ),
+    ];
+
+    // Act
+    for (sql, modifier) in cases {
+        let parsed = crate::sql::parse_statement(sql).expect("conditional array parses");
+        let QueryStatement::Select(select) = parsed.statement else {
+            panic!("SELECT");
+        };
+        let schema = infer_select_schema(&select, &catalog).expect("conditional array schema");
+        // Assert
+        assert_eq!(schema.fields[0].data_type.atttypmod(), modifier, "{sql}");
+    }
+}
+
+#[test]
 fn should_infer_qualified_wildcard_shape_from_unbound_select() {
     // Arrange
     let catalog = Catalog::new();

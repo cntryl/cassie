@@ -15,8 +15,8 @@ fn should_admit_all_character_array_padding_before_converting_any_element() {
     let target = DataType::Array(Box::new(element.clone()));
     let required = scratch_bytes(&array, &element, None).expect("padding bound");
 
-    // Act / Assert
     for (budget, accepted) in [(required - 1, false), (required, true)] {
+        // Arrange
         let controls = QueryExecutionControls::from_limits(
             &crate::config::CassieRuntimeLimits {
                 query_memory_budget_bytes: budget,
@@ -26,6 +26,7 @@ fn should_admit_all_character_array_padding_before_converting_any_element() {
         );
         let memory = EvaluationMemory::new(&controls).expect("expression owner");
         CONVERTED_ELEMENTS.with(|count| count.set(0));
+        // Act
         let result = cast(
             &ScalarValue::Array(array.clone()),
             &target,
@@ -35,6 +36,7 @@ fn should_admit_all_character_array_padding_before_converting_any_element() {
             true,
         )
         .expect("character array cast");
+        // Assert
         assert_eq!(result.is_ok(), accepted);
         assert_eq!(
             CONVERTED_ELEMENTS.with(std::cell::Cell::get),

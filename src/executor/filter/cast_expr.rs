@@ -272,8 +272,8 @@ mod array_admission_tests {
         let row = BatchRow::from_projected_values(Vec::new());
         let functions = std::collections::HashMap::new();
 
-        // Act / Assert
         for (budget, accepted, calls) in [(8_192, false, 0), (32_768, true, 1)] {
+            // Arrange
             let controls = QueryExecutionControls::from_limits(
                 &crate::config::CassieRuntimeLimits {
                     query_memory_budget_bytes: budget,
@@ -283,6 +283,7 @@ mod array_admission_tests {
             );
             let memory = EvaluationMemory::new(&controls).expect("array cast owner");
             ARRAY_CAST_CALLS.with(|count| count.set(0));
+            // Act
             let result = evaluate_source_argument(
                 &row,
                 &expression,
@@ -292,6 +293,7 @@ mod array_admission_tests {
                 &controls,
                 &memory,
             );
+            // Assert
             assert_eq!(result.is_ok(), accepted);
             if !accepted {
                 assert!(matches!(

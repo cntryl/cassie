@@ -203,7 +203,7 @@ fn should_preserve_effect_counts_without_changing_result_page_counts() {
 }
 
 #[test]
-fn should_bound_native_array_text_and_binary_encoders_without_growing_frame_capacity() {
+fn should_keep_native_array_encoder_frames_within_their_admitted_capacity() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -236,7 +236,7 @@ fn should_bound_native_array_text_and_binary_encoders_without_growing_frame_capa
 }
 
 #[test]
-fn should_bound_native_bit_and_escaped_rank_six_json_array_encodings() {
+fn should_keep_expanding_native_array_encodings_within_admitted_frame_capacity() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

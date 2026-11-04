@@ -92,8 +92,8 @@ mod tests {
             4_096,
         )));
 
-        // Act / Assert
         for (budget, accepted, expected_renders) in [(4_096, false, 0), (32_768, true, 2)] {
+            // Arrange
             let controls = QueryExecutionControls::from_limits(
                 &crate::config::CassieRuntimeLimits {
                     query_memory_budget_bytes: budget,
@@ -103,7 +103,9 @@ mod tests {
             );
             RENDER_COUNT.with(|count| count.set(0));
             let mut builder = QueryResult::try_builder(&controls).expect("result owner");
+            // Act
             let result = builder.try_push_row(std::slice::from_ref(&value));
+            // Assert
             assert_eq!(result.is_ok(), accepted);
             if !accepted {
                 assert!(matches!(result, Err(CassieError::ResourceLimit(_))));

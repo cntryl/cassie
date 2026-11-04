@@ -123,7 +123,7 @@ fn should_distinguish_null_filled_arrays_from_null_array_arguments() {
 }
 
 #[test]
-fn should_preserve_unnest_default_labels_aliases_and_scalar_identities() {
+fn should_describe_unnest_outputs_using_the_resolved_source_shape() {
     // Arrange
     let fixture = sql_fixture("issue-808-unnest-default-names", &[]);
     let cases = [
@@ -146,9 +146,10 @@ fn should_preserve_unnest_default_labels_aliases_and_scalar_identities() {
         ),
     ];
 
-    // Act / Assert
     for (sql, labels, oids) in cases {
+        // Act
         let result = fixture.execute(sql).expect("selected source labels");
+        // Assert
         assert_eq!(
             result
                 .columns()
@@ -158,6 +159,7 @@ fn should_preserve_unnest_default_labels_aliases_and_scalar_identities() {
             labels,
             "{sql}"
         );
+        // Assert
         assert_eq!(
             result
                 .columns()
@@ -171,7 +173,7 @@ fn should_preserve_unnest_default_labels_aliases_and_scalar_identities() {
 }
 
 #[test]
-fn should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases() {
+fn should_reject_invalid_unnest_bindings_with_native_diagnostics() {
     // Arrange
     let fixture = sql_fixture("issue-808-unnest-errors", &[]);
     let cases = [
@@ -181,9 +183,10 @@ fn should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases() {
         ("SELECT * FROM unnest(ARRAY[1]) s(a,b)", "42P10"),
     ];
 
-    // Act / Assert
     for (sql, state) in cases {
+        // Act
         let error = fixture.execute(sql).expect_err("selected source error");
+        // Assert
         let matches = match state {
             "42725" => matches!(error, CassieError::AmbiguousFunction(_)),
             "42702" => matches!(error, CassieError::AmbiguousColumn(_)),

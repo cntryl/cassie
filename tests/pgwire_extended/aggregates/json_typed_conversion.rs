@@ -51,7 +51,7 @@ fn should_preserve_exact_json_aggregate_numbers_in_simple_query_results() {
 }
 
 #[test]
-fn should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats() {
+fn should_preserve_json_aggregate_oids_across_numeric_wire_formats() {
     // Arrange
     let numeric = cassie::types::extended::numeric::parse_text(VALUE)
         .expect("finite numeric fixture")

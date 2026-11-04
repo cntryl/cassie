@@ -93,16 +93,18 @@ fn should_release_values_owners_given_result_and_memory_limits_when_follow_up_qu
 }
 
 #[test]
-fn should_bound_computed_character_array_projection_padding_and_release_its_owners() {
+fn should_bound_computed_character_array_projection_memory_until_result_release() {
     // Arrange
     let sql = "SELECT array_fill('x'::TEXT, ARRAY[v.n])::CHAR(4096)[] FROM (VALUES (2)) v(n)";
 
-    // Act / Assert
     for (budget, accepted) in [(64 * 1024, false), (512 * 1024, true)] {
+        // Arrange
         let mut config = CassieRuntimeConfig::from_env().expect("config");
         config.limits.query_memory_budget_bytes = budget;
         let fixture = sql_fixture_with_config("computed-character-array-projection", &[], config);
+        // Act
         let result = fixture.execute(sql);
+        // Assert
         if accepted {
             let result = result.expect("admitted character-array projection");
             let Value::Array(array) = &result.rows()[0][0] else {
@@ -120,7 +122,9 @@ fn should_bound_computed_character_array_projection_padding_and_release_its_owne
                 "{result:?}"
             );
         }
+        // Observe same-session recovery after releasing the projection.
         let recovery = fixture.execute("SELECT 19").expect("same-session recovery");
+        // Assert
         assert_eq!(recovery.rows(), &[vec![Value::Int64(19)]]);
         assert_eq!(
             fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"],

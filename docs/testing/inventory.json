@@ -55853,8 +55853,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/aggregates/json_typed_conversion.rs::should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats",
-      "name": "should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats",
+      "id": "tests/pgwire_extended/aggregates/json_typed_conversion.rs::should_preserve_json_aggregate_oids_across_numeric_wire_formats",
+      "name": "should_preserve_json_aggregate_oids_across_numeric_wire_formats",
       "current_file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
       "line": 54,
       "end_line": 97,
@@ -55865,7 +55865,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::aggregates_json_typed_conversion::should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats"
+          "name": "pgwire_extended::aggregates_json_typed_conversion::should_preserve_json_aggregate_oids_across_numeric_wire_formats"
         }
       ],
       "attributes": [
@@ -138251,8 +138251,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_return_scalar_binary_series_values_and_bigint_ordinality",
-      "name": "should_return_scalar_binary_series_values_and_bigint_ordinality",
+      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_emit_series_rows_with_native_binary_column_widths",
+      "name": "should_emit_series_rows_with_native_binary_column_widths",
       "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
       "line": 57,
       "end_line": 86,
@@ -138263,7 +138263,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::series_sources::should_return_scalar_binary_series_values_and_bigint_ordinality"
+          "name": "pgwire_extended::series_sources::should_emit_series_rows_with_native_binary_column_widths"
         }
       ],
       "attributes": [
@@ -138282,8 +138282,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_report_series_signature_step_and_range_errors_without_partial_rows",
-      "name": "should_report_series_signature_step_and_range_errors_without_partial_rows",
+      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_reject_invalid_series_sources_without_partial_rows",
+      "name": "should_reject_invalid_series_sources_without_partial_rows",
       "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
       "line": 89,
       "end_line": 131,
@@ -138294,7 +138294,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::series_sources::should_report_series_signature_step_and_range_errors_without_partial_rows"
+          "name": "pgwire_extended::series_sources::should_reject_invalid_series_sources_without_partial_rows"
         }
       ],
       "attributes": [
@@ -143149,8 +143149,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_cast_native_array_parameters_to_character_elements_in_text_and_binary_formats",
-      "name": "should_cast_native_array_parameters_to_character_elements_in_text_and_binary_formats",
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_preserve_native_character_array_parameter_values_across_wire_formats",
+      "name": "should_preserve_native_character_array_parameter_values_across_wire_formats",
       "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
       "line": 45,
       "end_line": 92,
@@ -143161,7 +143161,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_character_array_casts::should_cast_native_array_parameters_to_character_elements_in_text_and_binary_formats"
+          "name": "pgwire_character_array_casts::should_preserve_native_character_array_parameter_values_across_wire_formats"
         }
       ],
       "attributes": [
@@ -143335,8 +143335,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_keep_scalar_and_array_character_temporal_casts_in_the_statement_timezone",
-      "name": "should_keep_scalar_and_array_character_temporal_casts_in_the_statement_timezone",
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_apply_the_statement_timezone_before_character_width_conversion",
+      "name": "should_apply_the_statement_timezone_before_character_width_conversion",
       "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
       "line": 301,
       "end_line": 324,
@@ -143347,7 +143347,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_character_array_casts::should_keep_scalar_and_array_character_temporal_casts_in_the_statement_timezone"
+          "name": "pgwire_character_array_casts::should_apply_the_statement_timezone_before_character_width_conversion"
         }
       ],
       "attributes": [
@@ -143428,8 +143428,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays",
-      "name": "should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays",
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_native_array_fill_shape_semantics",
+      "name": "should_preserve_native_array_fill_shape_semantics",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "line": 39,
       "end_line": 58,
@@ -143440,7 +143440,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::array_constructor_contracts::should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays"
+          "name": "pgwire_extended::array_constructor_contracts::should_preserve_native_array_fill_shape_semantics"
         }
       ],
       "attributes": [
@@ -143459,8 +143459,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_temporal_array_text_and_binary_values_under_native_oids",
-      "name": "should_preserve_temporal_array_text_and_binary_values_under_native_oids",
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_native_temporal_array_elements_across_wire_formats",
+      "name": "should_preserve_native_temporal_array_elements_across_wire_formats",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "line": 61,
       "end_line": 105,
@@ -143471,7 +143471,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::array_constructor_contracts::should_preserve_temporal_array_text_and_binary_values_under_native_oids"
+          "name": "pgwire_extended::array_constructor_contracts::should_preserve_native_temporal_array_elements_across_wire_formats"
         }
       ],
       "attributes": [
@@ -143490,8 +143490,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_reject_ragged_array_constructors_before_rows_and_recover",
-      "name": "should_reject_ragged_array_constructors_before_rows_and_recover",
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_reject_nonrectangular_array_constructors_without_partial_output",
+      "name": "should_reject_nonrectangular_array_constructors_without_partial_output",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "line": 108,
       "end_line": 132,
@@ -143502,7 +143502,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::array_constructor_contracts::should_reject_ragged_array_constructors_before_rows_and_recover"
+          "name": "pgwire_extended::array_constructor_contracts::should_reject_nonrectangular_array_constructors_without_partial_output"
         }
       ],
       "attributes": [
@@ -143521,8 +143521,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_distinguish_nested_empty_and_null_subarrays_from_scalar_null_elements",
-      "name": "should_distinguish_nested_empty_and_null_subarrays_from_scalar_null_elements",
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_keep_array_constructor_subarrays_distinct_from_scalar_null_elements",
+      "name": "should_keep_array_constructor_subarrays_distinct_from_scalar_null_elements",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "line": 135,
       "end_line": 153,
@@ -143533,7 +143533,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::array_constructor_contracts::should_distinguish_nested_empty_and_null_subarrays_from_scalar_null_elements"
+          "name": "pgwire_extended::array_constructor_contracts::should_keep_array_constructor_subarrays_distinct_from_scalar_null_elements"
         }
       ],
       "attributes": [
@@ -143645,8 +143645,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats",
-      "name": "should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats",
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_canonical_jsonb_array_elements_across_wire_formats",
+      "name": "should_preserve_canonical_jsonb_array_elements_across_wire_formats",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "line": 264,
       "end_line": 304,
@@ -143657,7 +143657,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::array_constructor_contracts::should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats"
+          "name": "pgwire_extended::array_constructor_contracts::should_preserve_canonical_jsonb_array_elements_across_wire_formats"
         }
       ],
       "attributes": [
@@ -143676,8 +143676,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_accumulate_native_array_subqueries_with_matching_bounds_and_native_identity",
-      "name": "should_accumulate_native_array_subqueries_with_matching_bounds_and_native_identity",
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_accumulate_native_array_subqueries_with_matching_declared_bounds",
+      "name": "should_accumulate_native_array_subqueries_with_matching_declared_bounds",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "line": 307,
       "end_line": 322,
@@ -143688,7 +143688,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::array_constructor_contracts::should_accumulate_native_array_subqueries_with_matching_bounds_and_native_identity"
+          "name": "pgwire_extended::array_constructor_contracts::should_accumulate_native_array_subqueries_with_matching_declared_bounds"
         }
       ],
       "attributes": [
@@ -143738,8 +143738,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs",
-      "name": "should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs",
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_enforce_native_array_subquery_input_shape_requirements",
+      "name": "should_enforce_native_array_subquery_input_shape_requirements",
       "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
       "line": 347,
       "end_line": 380,
@@ -143750,7 +143750,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::array_constructor_contracts::should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs"
+          "name": "pgwire_extended::array_constructor_contracts::should_enforce_native_array_subquery_input_shape_requirements"
         }
       ],
       "attributes": [
@@ -144823,8 +144823,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_preserve_unnest_parameter_identity_bounds_nulls_and_ordinality",
-      "name": "should_preserve_unnest_parameter_identity_bounds_nulls_and_ordinality",
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_emit_native_unnest_rows_from_bound_array_parameters",
+      "name": "should_emit_native_unnest_rows_from_bound_array_parameters",
       "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
       "line": 36,
       "end_line": 71,
@@ -144835,7 +144835,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::unnest_sources::should_preserve_unnest_parameter_identity_bounds_nulls_and_ordinality"
+          "name": "pgwire_extended::unnest_sources::should_emit_native_unnest_rows_from_bound_array_parameters"
         }
       ],
       "attributes": [
@@ -144854,8 +144854,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_unnest_native_binary_parameters_and_emit_scalar_binary_values",
-      "name": "should_unnest_native_binary_parameters_and_emit_scalar_binary_values",
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_encode_unnest_elements_using_native_scalar_binary_widths",
+      "name": "should_encode_unnest_elements_using_native_scalar_binary_widths",
       "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
       "line": 99,
       "end_line": 126,
@@ -144866,7 +144866,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::unnest_sources::should_unnest_native_binary_parameters_and_emit_scalar_binary_values"
+          "name": "pgwire_extended::unnest_sources::should_encode_unnest_elements_using_native_scalar_binary_widths"
         }
       ],
       "attributes": [
@@ -144885,8 +144885,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_report_selected_unnest_diagnostics_and_recover_at_sync",
-      "name": "should_report_selected_unnest_diagnostics_and_recover_at_sync",
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_terminate_invalid_unnest_requests_at_their_native_diagnostic",
+      "name": "should_terminate_invalid_unnest_requests_at_their_native_diagnostic",
       "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
       "line": 129,
       "end_line": 160,
@@ -144897,7 +144897,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::unnest_sources::should_report_selected_unnest_diagnostics_and_recover_at_sync"
+          "name": "pgwire_extended::unnest_sources::should_terminate_invalid_unnest_requests_at_their_native_diagnostic"
         }
       ],
       "attributes": [
@@ -196779,8 +196779,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_finite_real_numbers_and_nonfinite_numeric_names_in_json_aggregates",
-      "name": "should_preserve_finite_real_numbers_and_nonfinite_numeric_names_in_json_aggregates",
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_typed_numeric_json_aggregate_spelling",
+      "name": "should_preserve_typed_numeric_json_aggregate_spelling",
       "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
       "line": 32,
       "end_line": 67,
@@ -196791,7 +196791,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_finite_real_numbers_and_nonfinite_numeric_names_in_json_aggregates"
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_typed_numeric_json_aggregate_spelling"
         }
       ],
       "attributes": [
@@ -196841,8 +196841,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_sql_null_and_document_null_collection_policies",
-      "name": "should_preserve_sql_null_and_document_null_collection_policies",
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_null_kind_collection_policies",
+      "name": "should_preserve_null_kind_collection_policies",
       "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
       "line": 95,
       "end_line": 124,
@@ -196853,7 +196853,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_sql_null_and_document_null_collection_policies"
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_null_kind_collection_policies"
         }
       ],
       "attributes": [
@@ -196965,8 +196965,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_numeric_filter_distinct_and_order_before_json_conversion",
-      "name": "should_preserve_numeric_filter_distinct_and_order_before_json_conversion",
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_apply_numeric_aggregate_modifiers_before_json_conversion",
+      "name": "should_apply_numeric_aggregate_modifiers_before_json_conversion",
       "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
       "line": 194,
       "end_line": 210,
@@ -196977,7 +196977,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_numeric_filter_distinct_and_order_before_json_conversion"
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_apply_numeric_aggregate_modifiers_before_json_conversion"
         }
       ],
       "attributes": [
@@ -233607,11 +233607,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/relations/values_admission.rs::should_bound_computed_character_array_projection_padding_and_release_its_owners",
-      "name": "should_bound_computed_character_array_projection_padding_and_release_its_owners",
+      "id": "tests/sql_queries/relations/values_admission.rs::should_bound_computed_character_array_projection_memory_until_result_release",
+      "name": "should_bound_computed_character_array_projection_memory_until_result_release",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
       "line": 96,
-      "end_line": 130,
+      "end_line": 134,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233619,7 +233619,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_values_admission::should_bound_computed_character_array_projection_padding_and_release_its_owners"
+          "name": "sql_queries::postgresql18_values_admission::should_bound_computed_character_array_projection_memory_until_result_release"
         }
       ],
       "attributes": [
@@ -233641,8 +233641,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
       "name": "should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 133,
-      "end_line": 154,
+      "line": 137,
+      "end_line": 158,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233672,8 +233672,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
       "name": "should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 157,
-      "end_line": 194,
+      "line": 161,
+      "end_line": 198,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233703,8 +233703,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
       "name": "should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 197,
-      "end_line": 208,
+      "line": 201,
+      "end_line": 212,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233734,8 +233734,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
       "name": "should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 211,
-      "end_line": 279,
+      "line": 215,
+      "end_line": 283,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242570,7 +242570,7 @@
       "name": "should_generate_inclusive_integer_series_with_checked_endpoint_progression",
       "current_file": "tests/sql_queries/set_returning/series.rs",
       "line": 28,
-      "end_line": 49,
+      "end_line": 50,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242597,11 +242597,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/set_returning/series.rs::should_generate_exact_numeric_series_with_the_start_and_step_scale",
-      "name": "should_generate_exact_numeric_series_with_the_start_and_step_scale",
+      "id": "tests/sql_queries/set_returning/series.rs::should_preserve_exact_numeric_series_scale_during_advancement",
+      "name": "should_preserve_exact_numeric_series_scale_during_advancement",
       "current_file": "tests/sql_queries/set_returning/series.rs",
-      "line": 52,
-      "end_line": 66,
+      "line": 53,
+      "end_line": 67,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242609,7 +242609,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::series_sources::should_generate_exact_numeric_series_with_the_start_and_step_scale"
+          "name": "sql_queries::series_sources::should_preserve_exact_numeric_series_scale_during_advancement"
         }
       ],
       "attributes": [
@@ -242628,11 +242628,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/set_returning/series.rs::should_generate_calendar_timestamp_series_and_named_zone_dst_steps",
-      "name": "should_generate_calendar_timestamp_series_and_named_zone_dst_steps",
+      "id": "tests/sql_queries/set_returning/series.rs::should_advance_calendar_series_under_the_resolved_timezone",
+      "name": "should_advance_calendar_series_under_the_resolved_timezone",
       "current_file": "tests/sql_queries/set_returning/series.rs",
-      "line": 69,
-      "end_line": 94,
+      "line": 70,
+      "end_line": 95,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242640,7 +242640,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::series_sources::should_generate_calendar_timestamp_series_and_named_zone_dst_steps"
+          "name": "sql_queries::series_sources::should_advance_calendar_series_under_the_resolved_timezone"
         }
       ],
       "attributes": [
@@ -242662,8 +242662,8 @@
       "id": "tests/sql_queries/set_returning/series.rs::should_treat_null_series_arguments_as_empty_before_validating_zero_steps",
       "name": "should_treat_null_series_arguments_as_empty_before_validating_zero_steps",
       "current_file": "tests/sql_queries/set_returning/series.rs",
-      "line": 97,
-      "end_line": 114,
+      "line": 98,
+      "end_line": 119,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242693,8 +242693,8 @@
       "id": "tests/sql_queries/set_returning/series.rs::should_preserve_numeric_scale_when_descending_past_the_inclusive_bound",
       "name": "should_preserve_numeric_scale_when_descending_past_the_inclusive_bound",
       "current_file": "tests/sql_queries/set_returning/series.rs",
-      "line": 117,
-      "end_line": 131,
+      "line": 122,
+      "end_line": 136,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242876,11 +242876,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/set_returning/unnest.rs::should_preserve_unnest_default_labels_aliases_and_scalar_identities",
-      "name": "should_preserve_unnest_default_labels_aliases_and_scalar_identities",
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_describe_unnest_outputs_using_the_resolved_source_shape",
+      "name": "should_describe_unnest_outputs_using_the_resolved_source_shape",
       "current_file": "tests/sql_queries/set_returning/unnest.rs",
       "line": 126,
-      "end_line": 171,
+      "end_line": 173,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242888,7 +242888,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::unnest_sources::should_preserve_unnest_default_labels_aliases_and_scalar_identities"
+          "name": "sql_queries::unnest_sources::should_describe_unnest_outputs_using_the_resolved_source_shape"
         }
       ],
       "attributes": [
@@ -242907,11 +242907,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/set_returning/unnest.rs::should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases",
-      "name": "should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases",
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_reject_invalid_unnest_bindings_with_native_diagnostics",
+      "name": "should_reject_invalid_unnest_bindings_with_native_diagnostics",
       "current_file": "tests/sql_queries/set_returning/unnest.rs",
-      "line": 174,
-      "end_line": 197,
+      "line": 176,
+      "end_line": 200,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -242919,7 +242919,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::unnest_sources::should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases"
+          "name": "sql_queries::unnest_sources::should_reject_invalid_unnest_bindings_with_native_diagnostics"
         }
       ],
       "attributes": [
@@ -271075,7 +271075,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 123,
-      "sha256": "daf4ab0ea0185d194d46606d4198830ccc9514351764b2d2c97fc721d9d243a2",
+      "sha256": "345b8ed3218cdb2422d703cfa3bef379bf9b4dba8b5f5e2b6734b69cca566522",
       "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
@@ -275344,7 +275344,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 211,
-      "sha256": "0b9760b7362f1a93fcb27f8f3017db047c6c3d2951fe8a9b137607f7025ec1e3",
+      "sha256": "1f85ee23090be56664998dfa99cd989688b9c00ae06fed4d576ebeffbc4958af",
       "test_declarations": 5,
       "registered_suites": [
         "pgwire_extended"
@@ -276236,7 +276236,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 367,
-      "sha256": "b6e54a01df0fed6f3ad32be6963a86d04770ee6fe7fd1c0bcd2fc4c61aa31583",
+      "sha256": "f04116e597e438b3595a7f70362486f2b946ad57b6c5b7ac717788f9f9a47e27",
       "test_declarations": 9,
       "registered_suites": [
         "pgwire_extended"
@@ -276251,7 +276251,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 380,
-      "sha256": "6feab5086093205a9a843e6b0e523f6bba2071373af4ba79f2e4a2e43e3d0ca2",
+      "sha256": "08e5f72ba40930e18d00a3bdb1de08f320b6a46b7a23fc75d5a7bd5710d49a3b",
       "test_declarations": 12,
       "registered_suites": [
         "pgwire_extended"
@@ -276590,7 +276590,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 289,
-      "sha256": "4008230de8ddf7fe6c3e798e9623692f5f08998c1ec34e9d204ed25fdcb7493e",
+      "sha256": "711b3c40c4335c31573a0d6b806801024c8beb86cb2fee26394505734081d2ba",
       "test_declarations": 6,
       "registered_suites": [
         "pgwire_extended"
@@ -281656,7 +281656,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 292,
-      "sha256": "6cea395a6d1e0d9a6ef7a37b39e1c29b738a74d654fae63d60c7ad79db75d278",
+      "sha256": "bf668c2f96ac92b2b84caa686aeb782f0fa0964eb1f65f6c52022bb80fe69416",
       "test_declarations": 11,
       "registered_suites": [
         "sql_queries"
@@ -283533,8 +283533,8 @@
       "current_file": "tests/sql_queries/relations/values_admission.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 279,
-      "sha256": "3f84ecc2b9200dabe1a71956340515faf267ac8886c96d2e714c547cfc8d39d4",
+      "lines": 283,
+      "sha256": "12a51224628e166bd6350746dfed85056b01fc9d3a2635a374d4905162c5c90d",
       "test_declarations": 7,
       "registered_suites": [
         "sql_queries"
@@ -283788,8 +283788,8 @@
       "current_file": "tests/sql_queries/set_returning/series.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 131,
-      "sha256": "0800df54e16a6736736335ac7cedf7b0e713df6c6350466f3570542163419af5",
+      "lines": 136,
+      "sha256": "c17205e954b713e523f444bfea43b2f2aa8991045ea8d4ec18b2ff28034808b8",
       "test_declarations": 6,
       "registered_suites": [
         "sql_queries"
@@ -283803,8 +283803,8 @@
       "current_file": "tests/sql_queries/set_returning/unnest.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 197,
-      "sha256": "01b3ddf2fdbaf2d8357a567ddc042a677f4edc0dbbabedc0786fed56748760c3",
+      "lines": 200,
+      "sha256": "3e5300f4b3c0c08adb3f1099c1cdc27529ba0a5db68139c4cc34cb15fdad6dd8",
       "test_declarations": 7,
       "registered_suites": [
         "sql_queries"

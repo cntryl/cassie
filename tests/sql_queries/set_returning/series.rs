@@ -38,10 +38,11 @@ fn should_generate_inclusive_integer_series_with_checked_endpoint_progression() 
         ("SELECT v::TEXT FROM generate_series(9223372036854775807::BIGINT,9223372036854775807::BIGINT,1::BIGINT) s(v)", vec!["9223372036854775807"]),
     ];
 
-    // Act / Assert
     for (sql, expected) in cases {
+        // Act
         assert_eq!(
             fixture.execute(sql).expect("finite integer series").rows(),
+            // Assert
             strings(&expected),
             "{sql}"
         );
@@ -49,7 +50,7 @@ fn should_generate_inclusive_integer_series_with_checked_endpoint_progression() 
 }
 
 #[test]
-fn should_generate_exact_numeric_series_with_the_start_and_step_scale() {
+fn should_preserve_exact_numeric_series_scale_during_advancement() {
     // Arrange
     let fixture = sql_fixture("issue-808-series-numeric", &[]);
 
@@ -66,7 +67,7 @@ fn should_generate_exact_numeric_series_with_the_start_and_step_scale() {
 }
 
 #[test]
-fn should_generate_calendar_timestamp_series_and_named_zone_dst_steps() {
+fn should_advance_calendar_series_under_the_resolved_timezone() {
     // Arrange
     let fixture = sql_fixture("issue-808-series-calendar", &["SET TIME ZONE 'UTC'"]);
 
@@ -103,10 +104,14 @@ fn should_treat_null_series_arguments_as_empty_before_validating_zero_steps() {
         "SELECT count(*) FROM generate_series(NULL::TIMESTAMPTZ,'2026-01-01'::TIMESTAMPTZ,INTERVAL '0','not/a/zone') s(v)",
     ];
 
-    // Act / Assert
     for sql in queries {
+        // Act
         assert_eq!(
-            fixture.execute(sql).expect("strict NULL source").rows(),
+            fixture
+                .execute(sql)
+                // Assert
+                .expect("strict NULL source")
+                .rows(),
             &[vec![Value::Int64(0)]],
             "{sql}"
         );

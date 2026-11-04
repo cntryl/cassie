@@ -47,13 +47,15 @@ fn should_infer_array_projection_types_through_visible_values_aliases() {
         "SELECT column2,s.column2 FROM (VALUES (ARRAY[1], 'x')) s(column2,column1)",
     ];
 
-    // Act / Assert
     for sql in cases {
+        // Arrange
         let parsed = crate::sql::parse_statement(sql).expect("array VALUES aliases parse");
         let QueryStatement::Select(select) = parsed.statement else {
             panic!("array projection is a SELECT");
         };
+        // Act
         let schema = infer_select_schema(&select, &catalog).expect("infer visible alias types");
+        // Assert
         assert_eq!(schema.fields.len(), 2, "{sql}");
         assert!(
             schema

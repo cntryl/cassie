@@ -33,7 +33,7 @@ fn assert_columns(frames: &fixture::Frames, format: i16, expected: &[(&str, i32)
 }
 
 #[test]
-fn should_preserve_unnest_parameter_identity_bounds_nulls_and_ordinality() {
+fn should_emit_native_unnest_rows_from_bound_array_parameters() {
     // Arrange
     let sql = "SELECT item, position FROM unnest($1::INT[]) WITH ORDINALITY AS s(item,position)";
     let inputs = [Some("[-2:0]={1,NULL,3}"), Some("{}"), None];
@@ -96,7 +96,7 @@ fn row(fields: &[Option<Vec<u8>>]) -> Vec<u8> {
 }
 
 #[test]
-fn should_unnest_native_binary_parameters_and_emit_scalar_binary_values() {
+fn should_encode_unnest_elements_using_native_scalar_binary_widths() {
     // Arrange
     let sql = "SELECT item, position FROM unnest($1) WITH ORDINALITY AS s(item,position)";
     let input = native_int4_array();
@@ -126,7 +126,7 @@ fn should_unnest_native_binary_parameters_and_emit_scalar_binary_values() {
 }
 
 #[test]
-fn should_report_selected_unnest_diagnostics_and_recover_at_sync() {
+fn should_terminate_invalid_unnest_requests_at_their_native_diagnostic() {
     // Arrange
     let cases = [
         ("SELECT * FROM unnest(NULL)", "42725"),

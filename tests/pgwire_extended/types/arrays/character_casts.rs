@@ -42,7 +42,7 @@ fn should_apply_explicit_character_array_modifiers_without_losing_native_descrip
 }
 
 #[test]
-fn should_cast_native_array_parameters_to_character_elements_in_text_and_binary_formats() {
+fn should_preserve_native_character_array_parameter_values_across_wire_formats() {
     // Arrange
     let sql = "SELECT $1::CHAR(3)[]";
     let input = "[-2:0]={é,NULL,long}";
@@ -298,7 +298,7 @@ fn should_preserve_multidimensional_binary_parameter_bounds_when_casting_charact
 }
 
 #[test]
-fn should_keep_scalar_and_array_character_temporal_casts_in_the_statement_timezone() {
+fn should_apply_the_statement_timezone_before_character_width_conversion() {
     // Arrange
     let setup = [("SET TIME ZONE 'America/New_York'", vec![])];
     let sql = "SELECT ('2026-01-01 12:00:00+00'::TIMESTAMPTZ)::CHAR(32),ARRAY['2026-01-01 12:00:00+00'::TIMESTAMPTZ]::CHAR(32)[]";

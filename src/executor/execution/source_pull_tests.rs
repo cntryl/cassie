@@ -83,7 +83,7 @@ fn should_cancel_unnest_at_advancement_without_retaining_partial_results() {
 }
 
 #[test]
-fn should_stop_generated_rows_through_a_derived_filter_and_lateral_join() {
+fn should_stop_generated_rows_at_the_requested_consumer_limit() {
     // Arrange
     let cassie = fixture();
     let session = cassie.create_session("tester", None);
@@ -95,12 +95,13 @@ fn should_stop_generated_rows_through_a_derived_filter_and_lateral_join() {
         "SELECT n FROM (SELECT n FROM generate_series(1,2147483647) s(n) WHERE n > 1) d LIMIT 1",
     ];
 
-    // Act / Assert
     for sql in queries {
+        // Arrange
         let controls = QueryExecutionControls::from_limits(
             &crate::config::CassieRuntimeLimits::default(),
             Instant::now(),
         );
+        // Act
         let (result, advances) = super::source_set_function::probe::run(None, || {
             cassie.execute_sql_with_controls(
                 &session,
@@ -110,6 +111,7 @@ fn should_stop_generated_rows_through_a_derived_filter_and_lateral_join() {
                 &controls,
             )
         });
+        // Assert
         let result = result.expect("composed pull result");
         assert_eq!(result.rows(), &[vec![Value::Int64(2)]], "{sql}");
         assert_eq!(advances, 2, "{sql}");
@@ -129,12 +131,13 @@ fn should_skip_generated_source_invocation_given_zero_limit_at_ordinary_boundari
         "SELECT * FROM (VALUES(1)) v(k) CROSS JOIN LATERAL generate_series(1,3,0) s(n) LIMIT 0",
     ];
 
-    // Act / Assert
     for sql in queries {
+        // Arrange
         let controls = QueryExecutionControls::from_limits(
             &crate::config::CassieRuntimeLimits::default(),
             Instant::now(),
         );
+        // Act
         let (result, advances) = super::source_set_function::probe::run(None, || {
             cassie.execute_sql_with_controls(
                 &session,
@@ -144,6 +147,7 @@ fn should_skip_generated_source_invocation_given_zero_limit_at_ordinary_boundari
                 &controls,
             )
         });
+        // Assert
         let result = result.expect("zero-limit source remains unopened");
         assert!(result.rows().is_empty(), "{sql}");
         assert_eq!(advances, 0, "{sql}");
@@ -256,14 +260,15 @@ fn should_cancel_each_selected_series_family_at_an_admitted_row_boundary() {
         "SELECT * FROM generate_series(timestamptz '2026-01-01 00:00:00+00',timestamptz '2026-01-05 00:00:00+00',interval '1 day','UTC')",
     ];
 
-    // Act / Assert
     for sql in queries {
+        // Arrange
         let cancellation = QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
             &crate::config::CassieRuntimeLimits::default(),
             Instant::now(),
             cancellation.clone(),
         );
+        // Act
         let (result, advances) =
             super::source_set_function::probe::run(Some((2, cancellation)), || {
                 cassie.execute_sql_with_controls(
@@ -274,6 +279,7 @@ fn should_cancel_each_selected_series_family_at_an_admitted_row_boundary() {
                     &controls,
                 )
             });
+        // Assert
         assert!(matches!(result, Err(CassieError::QueryCancelled)), "{sql}");
         assert_eq!(advances, 2, "{sql}");
         assert_eq!(controls.current_query_memory_bytes(), 0, "{sql}");
@@ -288,7 +294,7 @@ fn should_cancel_each_selected_series_family_at_an_admitted_row_boundary() {
 }
 
 #[test]
-fn should_retain_controlled_collection_row_owners_after_advancement_and_cursor_drop() {
+fn should_keep_collection_row_owners_live_until_the_last_retained_row_is_dropped() {
     // Arrange
     let cassie = fixture();
     let session = cassie.create_session("tester", None);
@@ -356,19 +362,22 @@ fn should_apply_offset_after_each_volatile_projection_without_overrunning_limit(
             .expect("projection sequence");
     }
 
-    // Act / Assert
     for (name, sql) in cases {
+        // Act
         assert_eq!(
             cassie
                 .execute_sql(&session, sql, vec![])
+                // Assert
                 .expect("offset projection")
                 .rows(),
             &[vec![Value::Int64(2)]],
             "{sql}"
         );
+        // Observe the next sequence value after pagination.
         assert_eq!(
             cassie
                 .execute_sql(&session, &format!("SELECT nextval('{name}')"), vec![])
+                // Assert
                 .expect("projection count witness")
                 .rows(),
             &[vec![Value::Int64(3)]],

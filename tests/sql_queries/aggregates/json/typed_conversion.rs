@@ -29,7 +29,7 @@ fn should_preserve_exact_numeric_values_in_json_collection_aggregates() {
 }
 
 #[test]
-fn should_preserve_finite_real_numbers_and_nonfinite_numeric_names_in_json_aggregates() {
+fn should_preserve_typed_numeric_json_aggregate_spelling() {
     // Arrange
     let fixture = sql_fixture("issue-811-json-real-and-special-values", &[]);
     let cases = [
@@ -92,7 +92,7 @@ fn should_distinguish_json_documents_from_sql_text_in_collection_aggregates() {
 }
 
 #[test]
-fn should_preserve_sql_null_and_document_null_collection_policies() {
+fn should_preserve_null_kind_collection_policies() {
     // Arrange
     let fixture = sql_fixture("issue-811-typed-json-collection-null-policies", &[]);
 
@@ -191,7 +191,7 @@ fn should_preserve_json_real_negative_zero_while_canonicalizing_jsonb() {
 }
 
 #[test]
-fn should_preserve_numeric_filter_distinct_and_order_before_json_conversion() {
+fn should_apply_numeric_aggregate_modifiers_before_json_conversion() {
     // Arrange
     let fixture = sql_fixture("issue-811-typed-json-collection-modifiers", &[]);
 

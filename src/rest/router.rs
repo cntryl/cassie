@@ -23,6 +23,7 @@ use crate::rest::static_files::AdminUiStaticFiles;
 mod auth_routes;
 mod collection_routes;
 mod query_response;
+mod recovery_admission;
 mod request_execution;
 mod security;
 
@@ -291,6 +292,15 @@ async fn route_request_with_admin_ui(
     let started_at = Instant::now();
     validate_rest_origin(&method, &path, &request)?;
     validate_rest_content_type(&method, &path, &request)?;
+    if let Some(response) = recovery_admission::guard(&cassie, &method, &path, started_at)? {
+        cassie.runtime.record_rest_request(
+            method.as_str(),
+            &path,
+            response.status().as_u16(),
+            started_at.elapsed(),
+        );
+        return Ok(response);
+    }
     let mut role = None;
     let mut token = None;
     let mut session = None;
@@ -375,6 +385,11 @@ async fn route_dispatch(
     admin_ui: Arc<AdminUiStaticFiles>,
     body: RestBytes,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
+    if let Some(response) =
+        recovery_admission::guard(&cassie, context.method, context.path, context.started_at)?
+    {
+        return Ok(response);
+    }
     if let Some(response) = dispatch_health_routes(context.method, context.segments, &cassie) {
         return Ok(response);
     }

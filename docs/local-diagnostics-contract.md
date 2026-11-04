@@ -21,6 +21,32 @@ list, and health responses never include credentials, query text, row values, or
 The routes are suitable for local process and restart smoke checks; they do not establish a
 production availability objective.
 
+### Selected storage recovery admission (#819)
+
+The v0.2 transaction work selects an instance-level recovery-required latch after an
+unconfirmed native publication. This contract is pending the combined transaction gate;
+the selected behavior must not be described as qualified before that gate completes.
+
+Health responses use the registered in-memory SQL/REST catalog count and never open a
+native storage read. `collections` is cached metadata, not a durability or freshness proof;
+low-level mutations outside the supported catalog publication paths may require hydration
+before the count reflects them.
+
+After the latch, `GET /health` preserves its compatibility HTTP 200 response with
+`ready: false` and `status: "recovery_required"`. `GET /healthz`, `/readyz`, and `/startupz`
+return HTTP 503 with that same readiness body. The process-only `/liveness`, `/livez`, and
+`/targetz` aliases keep HTTP 200 and `ready: true`. These seven exact canonical GET paths remain
+available without storage access. The existing canonicalizer still removes trailing slashes. Other methods or canonical paths, static UI, authentication,
+and `/metrics` receive the existing terminal storage diagnostic (SQLSTATE 58030 / HTTP 503).
+The metrics endpoint has no quarantine authentication exception: its current token and
+capacity paths access native storage.
+
+Ordinary REST admission checks precede authentication, repeat after request-body waits,
+and run inside the actual blocking worker before its operation. Publication waits use that
+request's cancellation handle and absolute deadline. A recovery-required response states
+that the earlier operation's outcome is uncertain and this new operation was not submitted;
+recover the engine and reconcile the earlier outcome before retrying work.
+
 ## Metrics
 
 `GET /metrics` requires the normal authenticated admin boundary. `Cassie::metrics()` returns the

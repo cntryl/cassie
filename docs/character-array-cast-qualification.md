@@ -123,9 +123,9 @@ separate evidence; build, complete tests, strict workspace Clippy, final invento
 and integrated native qualification remain pending under the user's batch gate
 instruction.
 
-The legacy `ALTER COLUMN ... USING` caller still rebuilds rows in
-`schema_command::evaluate_alter_column_using` without explicit execution controls;
-its controlled logical input increment remains pending. OLD/NEW row images now
+The legacy `ALTER COLUMN ... USING` caller now has a separate source-only
+controlled logical-input increment described below; its native qualification
+remains pending. OLD/NEW row images now
 have a separate source-only controlled preparation increment described below;
 its native qualification is pending. The mixed-NULL COALESCE descriptor correction is authored for already-admitted
 equal array operand types: an untyped NULL removes the result typmod, while a
@@ -172,3 +172,34 @@ The authored decode counter, Weak reservation-owner assertion and EXISTS wire
 projection are their focused probes; these probabilities are retained without
 substituting a later score for native execution. Complete compilation, native
 semantics/resource/cancellation checks and strict workspace Clippy remain pending.
+
+## Existing NUMERIC USING target: pending native gate
+
+The controlled USING checkpoint selects logical CHAR-array input for the existing
+row-authoritative TEXT-to-NUMERIC(20,2) target. PostgreSQL 18.6 records 3.00 for
+`octet_length(items[-2])`, 4.00 after a CHAR(4)[] recast and 1.00 after a TEXT[]
+cast, with NULL arrays producing SQL NULL. A final three-case receipt records
+these outcomes. This is oracle evidence; the three wire regressions are unexecuted.
+
+USING cast provenance now binds against the existing per-operation working schema,
+including qualified references. Runtime controls flow through ALTER and its
+multiple-action calls. The existing controlled Midge row reader retains each
+input through row construction and evaluation. Logical padding, argument scratch,
+native formatting and converted payloads are admitted before growth. The returned
+AccountedVec owns prepared payloads after evaluation; both payload and write-slot
+reservations remain live through the existing rewrite mutation sequence. Every
+payload and write-vector slot is prepared before the first mutation begins.
+
+Four private regressions are authored for output retention, padding denial,
+cancellation after conversion and cancellation at the prepared rewrite boundary.
+The latter observes both retained reservations before mutation and requires the
+original row to remain unchanged. It is the focused probe for Jev's retained
+output-owner lead (design 0.55, review 0.45); neither score is native evidence.
+
+This uses existing Cassie-side APIs over published Midge 0.5.1 and changes no
+durable layout or CHAR canonicalization. It does not qualify additional USING
+target pairs, staged-row source semantics or full rewrite failure/recovery.
+Those remain pending under #839 and its #833 atomic-publication dependency;
+the existing mutation sequence and its broader storage-error behavior are not
+reclassified as complete by controlled preparation. Compilation, native tests,
+strict Clippy and the final combined inventory remain pending.

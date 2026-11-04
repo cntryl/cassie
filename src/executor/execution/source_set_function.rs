@@ -182,7 +182,7 @@ pub(super) fn execute(
     ))
 }
 
-pub(super) fn argument_scratch(
+pub(in crate::executor::execution) fn argument_scratch(
     expression: &Expr,
     params: &[Value],
     row: &BatchRow,

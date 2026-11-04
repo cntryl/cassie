@@ -18,6 +18,8 @@ mod schema_defaults;
 mod schema_index_options;
 #[path = "schema_indexes.rs"]
 mod schema_indexes;
+#[path = "schema_using.rs"]
+mod schema_using;
 use super::schema_sequences::validate_alter_column_operation;
 use crate::catalog::{canonical_relation_name, parse_name, ParsedName};
 use crate::sql::ast::IdentifierPath;
@@ -667,6 +669,14 @@ fn bind_existing_alter_table(
     validate_alter_schema(table, &statement.operation, &existing_fields, catalog)?;
     bind_alter_constraint_targets(&mut statement.operation, table, schema, catalog, context)?;
     schema_checks::bind_alter_checks(&mut statement.operation, schema)?;
+    schema_using::bind(
+        &mut statement.operation,
+        source_table,
+        table,
+        schema,
+        catalog,
+        context,
+    )?;
 
     statement.table = canonical_relation_path(table)?;
     Ok(())

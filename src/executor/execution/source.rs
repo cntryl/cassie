@@ -10,7 +10,7 @@ mod source_pull;
 #[path = "source_series.rs"]
 mod source_series;
 #[path = "source_set_function.rs"]
-mod source_set_function;
+pub(super) mod source_set_function;
 #[path = "source_table_function.rs"]
 mod source_table_function;
 #[path = "source_values.rs"]

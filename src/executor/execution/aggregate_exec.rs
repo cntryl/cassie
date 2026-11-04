@@ -33,6 +33,7 @@ mod rewrite;
 mod state;
 #[path = "aggregate_exec/state_input.rs"]
 mod state_input;
+mod state_numeric;
 mod statistical;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]

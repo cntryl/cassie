@@ -15,8 +15,13 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
+#[path = "transactions/mutation_error.rs"]
+mod mutation_error;
+use mutation_error::AdapterMutationError;
+
 #[path = "transactions/row_fence/mod.rs"]
 mod row_fence;
+pub(super) use row_fence::admitted_row_keys;
 pub(crate) use row_fence::RetainedRowFence;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -79,6 +84,7 @@ pub(crate) struct AdapterTransaction {
     suppress_commit: bool,
     local_changes: BTreeMap<Vec<u8>, StorageMutation>,
     publication: Option<Arc<DatabasePublication>>,
+    row_keys: Option<super::publication::MutationKeys>,
 }
 
 impl AdapterTransaction {
@@ -90,6 +96,7 @@ impl AdapterTransaction {
             suppress_commit: false,
             local_changes: BTreeMap::new(),
             publication: None,
+            row_keys: None,
         }
     }
 
@@ -106,6 +113,7 @@ impl AdapterTransaction {
             suppress_commit,
             local_changes: BTreeMap::new(),
             publication: None,
+            row_keys: None,
         }
     }
 
@@ -169,7 +177,8 @@ impl AdapterTransaction {
         key: Vec<u8>,
         value: Vec<u8>,
         ttl_seconds: Option<u64>,
-    ) -> Result<(), cntryl_midge::MidgeError> {
+    ) -> Result<(), AdapterMutationError> {
+        let row_key = self.prepare_row_mutation(&key)?;
         let expected = if self.stage_writes {
             self.expected_value_before_change(&key)?
         } else {
@@ -177,23 +186,53 @@ impl AdapterTransaction {
         };
         self.inner_mut()
             .put(key.clone(), value.clone(), ttl_seconds)?;
+        self.install_row_mutation(row_key);
         if self.stage_writes {
             self.record_change(key, Some(value), ttl_seconds, expected);
         }
         Ok(())
     }
 
-    pub(crate) fn delete(&mut self, key: Vec<u8>) -> Result<(), cntryl_midge::MidgeError> {
+    pub(crate) fn delete(&mut self, key: Vec<u8>) -> Result<(), AdapterMutationError> {
+        let row_key = self.prepare_row_mutation(&key)?;
         let expected = if self.stage_writes {
             self.expected_value_before_change(&key)?
         } else {
             ExpectedStorageValue::Untracked
         };
         self.inner_mut().delete(key.clone())?;
+        self.install_row_mutation(row_key);
         if self.stage_writes {
             self.record_change(key, None, None, expected);
         }
         Ok(())
+    }
+
+    fn prepare_row_mutation(
+        &mut self,
+        key: &[u8],
+    ) -> Result<Option<super::publication::PreparedKey>, CassieError> {
+        if !super::key_encoding::is_authoritative_row_key(key) {
+            return Ok(None);
+        }
+        if self.row_keys.is_none() {
+            let publication = self.publication.as_ref().ok_or_else(|| {
+                CassieError::Unsupported(
+                    "authoritative row mutation requires an observed publication owner".to_owned(),
+                )
+            })?;
+            self.row_keys = Some(publication.row_history.key_log()?);
+        }
+        self.row_keys
+            .as_mut()
+            .expect("prepared key log")
+            .prepare(key)
+    }
+
+    fn install_row_mutation(&mut self, key: Option<super::publication::PreparedKey>) {
+        if let Some(keys) = &mut self.row_keys {
+            keys.install(key);
+        }
     }
 
     pub(crate) fn scan(
@@ -249,7 +288,11 @@ impl AdapterTransaction {
             return Ok(());
         }
         if let Some(publication) = self.publication {
-            publication.publish_current(|| inner.commit(options))
+            if let Some(keys) = self.row_keys {
+                publication.publish_rows_current(keys, || inner.commit(options))
+            } else {
+                publication.publish_current(|| inner.commit(options))
+            }
         } else {
             inner.commit(options).map_err(AdapterCommitError::Native)
         }
@@ -547,9 +590,7 @@ impl Midge {
     ) -> Result<cntryl_midge::Transaction, CassieError> {
         self.publication.ensure_recovered()?;
         let family = self.database_family(database)?;
-        self.engine
-            .begin_tx(family.id(), mode)
-            .map_err(CassieError::from)
+        self.open_native_transaction(family.id(), mode)
     }
 
     /// # Errors
@@ -643,15 +684,9 @@ impl Midge {
         self.publication.ensure_recovered()?;
         let layout = self.ensure_families_ready()?;
         match family {
-            StorageFamily::Schema => self
-                .engine
-                .begin_tx(layout.schema.id(), mode)
-                .map_err(CassieError::from),
+            StorageFamily::Schema => self.open_native_transaction(layout.schema.id(), mode),
             StorageFamily::Data => self.database_tx(&self.default_database, mode),
-            StorageFamily::Temp => self
-                .engine
-                .begin_tx(layout.temp.id(), mode)
-                .map_err(CassieError::from),
+            StorageFamily::Temp => self.open_native_transaction(layout.temp.id(), mode),
         }
     }
 
@@ -667,9 +702,20 @@ impl Midge {
             )));
         };
 
-        self.engine
-            .begin_tx(cf.id(), mode)
-            .map_err(CassieError::from)
+        self.open_native_transaction(cf.id(), mode)
+    }
+
+    fn open_native_transaction(
+        &self,
+        family: cntryl_midge::ColumnFamilyId,
+        mode: TransactionMode,
+    ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.open_native(mode, || {
+            self.publication.ensure_recovered()?;
+            self.engine
+                .begin_tx(family, mode)
+                .map_err(CassieError::from)
+        })
     }
 
     pub(super) fn get_or_create_family(

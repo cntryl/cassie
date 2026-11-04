@@ -237,10 +237,12 @@ fn should_enforce_the_exact_peak_admission_boundary_for_row_validation() {
             serde_json::json!({"value": 2, "extra": "second-input"}),
         )
         .expect("second retained row");
-    let rows = || [
-        Ok(("row_fence", identity, "one")),
-        Ok(("row_fence", identity, "two")),
-    ];
+    let rows = || {
+        [
+            Ok(("row_fence", identity, "one")),
+            Ok(("row_fence", identity, "two")),
+        ]
+    };
     let origin = controls(1024 * 1024);
     let measured = controls(1024 * 1024);
     RetainedRowFence::capture(&cassie.midge, "postgres", &origin)

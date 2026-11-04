@@ -6021,3 +6021,29 @@ direction. Execute these probes and the full required ordered gate only after
 the substantive RW/history/admission bundle is frozen. The prior RO v6 runtime
 pass does not qualify this newer source.
 
+
+
+### Pending RW early-conflict authority increment (2026-11-04)
+
+Source now includes private instance-exclusive native writable capability
+admission and bounded per-family confirmed mutation history. Authored controls
+cover all six public factories, immutable native read-only capabilities,
+pre-capture staging, modern/column/legacy same-payload writes, public raw point
+writes, same-payload delete/reinsert, known and unknown outcomes, checked sequence
+exhaustion, multiple retained owners, exact retirement/confirmation ordering,
+full directory reuse, complete memory boundaries, and header denial before a
+tracker exists. A confirmation-time pressure owner exhausts the remaining
+history allowance before native success to test infallible installation. The
+24 pinned conflict-target cases, six current-empty insertion controls and own
+savepoint target control are authored as focused SQL tests.
+
+Jev source review reported installation0.21 and retirement0.23 leads; initial
+resource0.35/native-interop0.49 led to directory-growth correction and complete
+factory controls. Follow-up resource0.30 led to lazy tracker pre-admission and
+its negative control (new header lead0.16). The later installation0.41 remains a
+required executable confirmation-pressure probe. These are advisory reviews;
+all new tests remain unexecuted under the user's batching instruction. Direct
+Rust formatting/parser and diff checks are interim source checks only. RW still
+rejects until final commit/catalog/lifecycle integration and the full required
+ordered gate; this increment claims no passing runtime behavior.
+

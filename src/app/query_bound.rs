@@ -53,6 +53,18 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        if session.is_implicit_transaction()
+            && matches!(&parsed.statement, QueryStatement::CreateTable(table) if table.as_query.is_none())
+        {
+            return self.execute_implicit_table_creation(
+                session,
+                parsed,
+                sql_fingerprint,
+                (parameters.0, parameters.1, true),
+                mode,
+                controls,
+            );
+        }
         self.execute_bound_statement(
             session,
             parsed,
@@ -98,18 +110,6 @@ impl Cassie {
             );
         }
 
-        if session.is_implicit_transaction()
-            && matches!(parsed.statement, QueryStatement::CreateTable(_))
-        {
-            return self.execute_implicit_table_creation(
-                session,
-                parsed,
-                sql_fingerprint,
-                parameters,
-                mode,
-                controls,
-            );
-        }
         let _publication_read = self.catalog_publication.read();
         self.execute_bound_catalog_scoped(
             session,

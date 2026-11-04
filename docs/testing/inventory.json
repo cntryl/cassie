@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1585,
-    "rust_files": 1549,
-    "rust_test_declarations": 8376,
+    "files": 1586,
+    "rust_files": 1550,
+    "rust_test_declarations": 8378,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8504,
+    "registered_rust_instances": 8506,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -76617,6 +76617,68 @@
         "category": "ddl",
         "directory": "tests/pgwire_extended/ddl",
         "file": "tests/pgwire_extended/ddl/concurrent_table_creation.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/ctas_atomicity.rs::should_rollback_failed_ctas_in_both_wire_protocols",
+      "name": "should_rollback_failed_ctas_in_both_wire_protocols",
+      "current_file": "tests/pgwire_extended/ddl/ctas_atomicity.rs",
+      "line": 78,
+      "end_line": 85,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_ctas_atomicity::should_rollback_failed_ctas_in_both_wire_protocols"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl/tables",
+        "directory": "tests/pgwire_extended/ddl/tables",
+        "file": "tests/pgwire_extended/ddl/tables/ctas_atomicity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/ctas_atomicity.rs::should_publish_successful_ctas_in_both_wire_protocols",
+      "name": "should_publish_successful_ctas_in_both_wire_protocols",
+      "current_file": "tests/pgwire_extended/ddl/ctas_atomicity.rs",
+      "line": 88,
+      "end_line": 95,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_ctas_atomicity::should_publish_successful_ctas_in_both_wire_protocols"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl/tables",
+        "directory": "tests/pgwire_extended/ddl/tables",
+        "file": "tests/pgwire_extended/ddl/tables/ctas_atomicity.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -269877,6 +269939,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/ddl/ctas_atomicity.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 95,
+      "sha256": "5e365abe92851e4faa55696abbd4d497af555b29ffbca6b84a055ff723ebd0c1",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/ddl/tables/ctas_atomicity.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/ddl/transaction_boundaries/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -271984,8 +272061,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 191,
-      "sha256": "291fc9490442c6435b41e83ca3281b3594776aa8feced36f4ccc36515eb1d6c0",
+      "lines": 193,
+      "sha256": "7c182d44a97d8234f59e01843e7f01745d6683f65998ac252eae06d6c452c400",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

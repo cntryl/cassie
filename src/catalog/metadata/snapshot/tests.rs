@@ -90,7 +90,7 @@ fn should_reject_a_catalog_clone_before_copying_when_one_byte_below_its_admissio
 }
 
 #[test]
-fn should_admit_sparse_hash_backing_and_nested_capacity_instead_of_serialized_length() {
+fn should_admit_complete_sparse_snapshot_backing() {
     // Arrange
     let source = catalog();
     source.databases.write().reserve(4096);
@@ -131,7 +131,7 @@ fn should_admit_sparse_hash_backing_and_nested_capacity_instead_of_serialized_le
 }
 
 #[test]
-fn should_drop_partial_catalog_copies_and_their_charge_when_capture_is_cancelled() {
+fn should_retire_partial_catalog_snapshot_ownership_when_capture_is_cancelled() {
     // Arrange
     let source = catalog();
     let cancellation = QueryCancellationHandle::new();
@@ -196,7 +196,7 @@ fn should_check_cancellation_while_waiting_for_catalog_read_guards() {
 }
 
 #[test]
-fn should_admit_nested_vector_graph_and_training_backing_without_a_sparse_root_map() {
+fn should_admit_nested_vector_backing_without_sparse_root_capacity() {
     // Arrange
     use crate::embeddings::{
         DistanceMetric, HnswGraphNode, HnswGraphState, IvfFlatTrainingState, VectorIndexMetadata,
@@ -295,7 +295,7 @@ fn should_reject_an_expired_capture_without_retaining_memory() {
 }
 
 #[test]
-fn should_omit_catalog_metadata_and_role_password_hashes_from_snapshot_debug_output() {
+fn should_sanitize_catalog_snapshot_debug_output() {
     // Arrange
     let source = catalog();
     let secret = "secret-hash-sentinel";

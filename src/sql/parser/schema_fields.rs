@@ -6,6 +6,10 @@ use super::{
 };
 use crate::catalog::DefaultSequenceOwnership;
 
+#[cfg(test)]
+#[path = "schema_field_nullability_tests.rs"]
+mod nullability_tests;
+
 pub(super) fn parse_field_definition(raw: &str) -> Result<FieldDefinition, SqlError> {
     parse_field_definition_for_table(raw, None)
 }
@@ -26,6 +30,7 @@ pub(super) fn parse_field_definition_for_table(
 
     let mut constraint = FieldConstraint::new(name.clone());
     let mut saw_constraint = false;
+    let mut saw_null = false;
     if let Some(sequence) = serial_sequence {
         saw_constraint = true;
         constraint.not_null = true;
@@ -55,6 +60,7 @@ pub(super) fn parse_field_definition_for_table(
             &mut constraint,
             &mut pending_constraint_name,
             &mut saw_constraint,
+            &mut saw_null,
         )? {
             break;
         }
@@ -63,6 +69,12 @@ pub(super) fn parse_field_definition_for_table(
     if constraint.identity.is_some() {
         let table = table.ok_or_else(|| SqlError::new("IDENTITY requires a table name".into()))?;
         super::schema_identity::attach_identity_sequence(&mut constraint, table, &name);
+    }
+
+    if saw_null && constraint.not_null {
+        return Err(SqlError::new(format!(
+            "conflicting NULL/NOT NULL declarations for column '{name}'"
+        )));
     }
 
     if !saw_constraint {
@@ -211,6 +223,7 @@ fn apply_field_constraint(
     constraint: &mut FieldConstraint,
     pending_constraint_name: &mut Option<String>,
     saw_constraint: &mut bool,
+    saw_null: &mut bool,
 ) -> Result<bool, SqlError> {
     if is_column_storage_option(token) {
         return Err(SqlError::unsupported(format!(
@@ -225,7 +238,10 @@ fn apply_field_constraint(
             *pending_constraint_name = Some(super::schema_identifiers::parse_identifier(&name)?);
         }
         "not" => apply_not_null_constraint(token, parts, constraint, saw_constraint)?,
-        "null" => return Err(SqlError::new("unexpected NULL constraint".to_string())),
+        "null" => {
+            *saw_null = true;
+            *pending_constraint_name = None;
+        }
         "unique" => {
             *saw_constraint = true;
             constraint.unique = true;

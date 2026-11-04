@@ -709,3 +709,13 @@ returned writer across Midge drop, requires another open to fail, then retires
 the old handle and permits a recovered instance to select tracked mode. This is
 pending executable evidence; dropping the Cassie wrapper alone is not a claim
 that a still-live external native transaction has disappeared.
+
+### Explicit nullable columns
+
+`CREATE TABLE` and `ALTER TABLE ADD COLUMN` accept explicit `NULL` column syntax,
+including repeated or named NULL clauses. The clause is equivalent to omitted
+nullability; it creates no persistent constraint identity. Conflicting NULL and
+NOT NULL, inline PRIMARY KEY, SERIAL or IDENTITY declarations return SQLSTATE
+`42601` before publication. A table-level primary key may supply NOT NULL after
+an explicit nullable column, matching PostgreSQL. A later ALTER may also add
+NOT NULL to the originally nullable column.

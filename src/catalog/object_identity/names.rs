@@ -236,7 +236,7 @@ mod tests {
     use super::{builtin_type_oid, qualified_name, quote_identifier, signature, Identifier};
 
     #[test]
-    fn should_apply_postgresql_identifier_case_rules() {
+    fn should_parse_qualified_identifier_case_rules() {
         // Arrange
         let text = r#"Public."Mixed""#;
 
@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn should_quote_noncanonical_identifiers() {
+    fn should_quote_identifiers_requiring_delimiters() {
         // Arrange
         let names = ["item", "default", "Mixed", "with space"];
 

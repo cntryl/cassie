@@ -20,47 +20,6 @@ pub fn run_script(
     boundary: Vec<Vec<u8>>,
     readbacks: Vec<Vec<Vec<u8>>>,
 ) -> (Vec<Frames>, Frames) {
-    run_script_with_begin(
-        before_begin,
-        vec![wire::simple_query_frame(
-            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
-        )],
-        boundary,
-        readbacks,
-    )
-}
-
-pub fn run_prebound_boundary(boundary: Vec<Vec<u8>>) -> (Frames, Frames) {
-    // A Sync while idle correctly retires portals. Keep the prebound SELECT
-    // and BEGIN in one extended cycle, then synchronize inside the block.
-    let begin = vec![
-        wire::parse_frame("rr", "SELECT id FROM rr_boundary_rows"),
-        wire::bind_frame("rr_portal", "rr", &[]),
-        wire::parse_frame(
-            "rr_begin",
-            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
-        ),
-        wire::bind_frame("rr_begin_portal", "rr_begin", &[]),
-        wire::execute_frame("rr_begin_portal"),
-        wire::sync_frame(),
-    ];
-    let (mut retained, fresh) = run_script_with_begin(
-        Vec::new(),
-        begin,
-        boundary,
-        vec![vec![wire::simple_query_frame(
-            "SELECT count(*) FROM rr_boundary_rows",
-        )]],
-    );
-    (retained.pop().expect("one readback"), fresh)
-}
-
-fn run_script_with_begin(
-    before_begin: Vec<Vec<Vec<u8>>>,
-    begin: Vec<Vec<u8>>,
-    boundary: Vec<Vec<u8>>,
-    readbacks: Vec<Vec<Vec<u8>>>,
-) -> (Vec<Frames>, Frames) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -89,7 +48,14 @@ fn run_script_with_begin(
         for frames in before_begin.into_iter().filter(|frames| !frames.is_empty()) {
             exchange(&mut reader_read, &mut reader_write, frames).await;
         }
-        exchange(&mut reader_read, &mut reader_write, begin).await;
+        exchange(
+            &mut reader_read,
+            &mut reader_write,
+            vec![wire::simple_query_frame(
+                "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
+            )],
+        )
+        .await;
         exchange(&mut reader_read, &mut reader_write, boundary).await;
         exchange(
             &mut writer_read,

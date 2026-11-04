@@ -23,12 +23,18 @@ pub(crate) struct StatementOverlay {
     writes: Option<SharedTransactionWrites>,
     active_transaction: bool,
     identity: Weak<Mutex<SessionTransactionState>>,
+    generation: u64,
     _memory: QueryMemoryReservation,
 }
 
 impl StatementOverlay {
+    pub(crate) const fn accounted_bytes(&self) -> usize {
+        self._memory.bytes()
+    }
+
     pub(crate) fn matches_session(&self, session: &CassieSession) -> bool {
         std::ptr::eq(self.identity.as_ptr(), Arc::as_ptr(&session.transaction))
+            && self.generation == session.transaction_generation()
     }
 }
 
@@ -83,6 +89,7 @@ impl CassieSession {
         self.capture_overlay_from_writes(
             (!transaction.writes.is_empty()).then_some(&transaction.writes),
             transaction.status != SessionTransactionStatus::Idle,
+            transaction.generation,
             controls,
         )
     }
@@ -98,6 +105,7 @@ impl CassieSession {
         let overlay = self.capture_overlay_from_writes(
             original.writes.as_ref(),
             original.active_transaction,
+            self.transaction_generation(),
             controls,
         )?;
         StatementDataRead::with_overlay(owner, Some(overlay), controls)
@@ -107,6 +115,7 @@ impl CassieSession {
         &self,
         writes: Option<&SharedTransactionWrites>,
         active_transaction: bool,
+        generation: u64,
         controls: &QueryExecutionControls,
     ) -> Result<Arc<StatementOverlay>, CassieError> {
         controls.check_interruption()?;
@@ -142,6 +151,7 @@ impl CassieSession {
             writes: writes.cloned(),
             active_transaction,
             identity: Arc::downgrade(&self.transaction),
+            generation,
             _memory: memory,
         }))
     }
@@ -151,9 +161,7 @@ impl CassieSession {
             current
                 .borrow()
                 .as_ref()
-                .filter(|owner| {
-                    std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&self.transaction))
-                })
+                .filter(|owner| owner.matches_session(self))
                 .map_or_else(
                     || self.transaction_status() != "idle",
                     |owner| owner.active_transaction,
@@ -166,9 +174,7 @@ impl CassieSession {
             current
                 .borrow()
                 .as_ref()
-                .filter(|owner| {
-                    std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&self.transaction))
-                })
+                .filter(|owner| owner.matches_session(self))
                 .map(|owner| {
                     owner.writes.as_ref().is_some_and(|writes| {
                         writes.iter().any(|(name, changes)| {
@@ -199,9 +205,7 @@ pub(super) fn captured_snapshot(
         current
             .borrow()
             .as_ref()
-            .filter(|owner| {
-                std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&session.transaction))
-            })
+            .filter(|owner| owner.matches_session(session))
             .map(|owner| {
                 owner
                     .writes

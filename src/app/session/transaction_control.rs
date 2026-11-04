@@ -108,6 +108,7 @@ impl CassieSession {
         transaction.repeatable_read = None;
         transaction.catalog_overlay = None;
         transaction.catalog_base_version = None;
+        transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.session_state = Some(session_state);
@@ -245,11 +246,13 @@ impl CassieSession {
         transaction.repeatable_read = None;
         transaction.catalog_overlay = None;
         transaction.catalog_base_version = None;
+        transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         drop(transaction);
+        self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             waits.release_owner(unique_owner_id);
         }
@@ -294,10 +297,12 @@ impl CassieSession {
         transaction.repeatable_read = None;
         transaction.catalog_overlay = None;
         transaction.catalog_base_version = None;
+        transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
         drop(transaction);
+        self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             waits.release_owner(unique_owner_id);
         }

@@ -30,6 +30,7 @@ mod copy;
 mod errors;
 #[path = "connection/extended.rs"]
 mod extended;
+mod portal_reads;
 #[path = "connection/readers.rs"]
 mod readers;
 #[path = "connection/result_frames.rs"]

@@ -26,8 +26,17 @@ impl Cassie {
                 "CREATE TABLE AS query is missing".to_string(),
             ));
         };
+        let descriptor_owner =
+            session.command_descriptor_snapshot(&self.publication_catalog, controls)?;
         let mut scoped = self.clone();
-        if let Some(catalog) = session.transaction_catalog_overlay() {
+        scoped.catalog_owner = descriptor_owner.clone();
+        scoped.metadata_write_catalog = session
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| self.publication_catalog.clone());
+        scoped.catalog = self.publication_catalog.clone();
+        if let Some(owner) = &descriptor_owner {
+            scoped.catalog = owner.catalog().clone();
+        } else if let Some(catalog) = session.transaction_catalog_overlay() {
             scoped.catalog = catalog;
         }
         let parsed_target = ParsedStatement {

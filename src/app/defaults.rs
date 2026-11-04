@@ -19,7 +19,7 @@ pub(super) fn apply_default_values(
             let (value, updated) = app.midge.update_sequence_retrying(sequence, |metadata| {
                 metadata.advance().map_err(Into::into)
             })?;
-            app.catalog.register_sequence(updated);
+            app.metadata_write_catalog.register_sequence(updated);
             object.insert(
                 constraint.field.clone(),
                 serde_json::Value::Number(value.into()),

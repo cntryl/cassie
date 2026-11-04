@@ -1,3 +1,5 @@
+#[path = "pgwire_extended/transactions/repeatable_own_views.rs"]
+mod repeatable_own_views;
 #[path = "pgwire_extended/transactions/repeatable_read.rs"]
 mod repeatable_read;
 #[path = "support/repeatable_read.rs"]

@@ -94,12 +94,13 @@ pub use error::{
 };
 pub use session::CassieSession;
 pub(crate) use session::{
-    CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
-    MAX_PREPARED_PER_SESSION,
+    BoundReadScope, BoundReadView, CommandCatalogScope, SessionRandom, SessionReadScope,
+    StagedWriteSnapshot, StatementMutationBatch, StatementOverlay, TransactionConflictIntent,
+    TransactionRowChange,
 };
 pub(crate) use session::{
-    SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
-    TransactionConflictIntent, TransactionRowChange,
+    CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
+    MAX_PREPARED_PER_SESSION,
 };
 pub(crate) use session_objects::parameter_type_display as prepared_parameter_type_display;
 pub(crate) use session_objects::SessionObjectError;

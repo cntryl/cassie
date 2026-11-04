@@ -7,6 +7,49 @@ use crate::sql::ast::SessionObjectStatement;
 use crate::sql::ParsedStatement;
 
 impl Cassie {
+    pub(super) fn prepare_command_catalog_scope(
+        &self,
+        session: &CassieSession,
+        parsed: &ParsedStatement,
+        controls: &QueryExecutionControls,
+    ) -> Result<(super::CommandCatalogScope, QueryExecutionControls), CassieError> {
+        let bound = super::BoundReadScope::take(
+            session,
+            &self.midge,
+            session.current_database().unwrap_or(&self.default_database),
+        )?;
+        let command_controls =
+            controls.with_statement_read(bound.as_ref().and_then(|owner| owner.data().cloned()));
+        self.prepare_transaction_read_view(session, parsed, controls)?;
+        if matches!(
+            parsed.statement,
+            QueryStatement::Transaction(_)
+                | QueryStatement::Set(_)
+                | QueryStatement::Show(_)
+                | QueryStatement::SessionObject(SessionObjectStatement::Fetch(_))
+        ) {
+            return Ok((
+                super::CommandCatalogScope::enter(session, None),
+                command_controls,
+            ));
+        }
+        self.ensure_session_database_access(session)?;
+        self.ensure_statement_can_execute(session, parsed, controls)?;
+        let _publication = self.catalog_publication.read();
+        if parsed.statement.family() != crate::sql::ast::StatementFamily::Runtime {
+            session.check_repeatable_catalog_write(&self.publication_catalog, controls)?;
+        }
+        let owner = if let Some(bound) = bound {
+            Some(bound.catalog())
+        } else {
+            session.command_catalog_snapshot(controls)?
+        };
+        Ok((
+            super::CommandCatalogScope::enter(session, owner),
+            command_controls,
+        ))
+    }
+
     pub(crate) fn prepare_transaction_read_view(
         &self,
         session: &CassieSession,
@@ -39,7 +82,15 @@ impl Cassie {
         // PostgreSQL18.6 analyze_requires_snapshot and exec_bind_message:
         // utility wrappers acquire during analysis only in these cases; Bind
         // also needs a snapshot for parameter input functions.
-        let requires_analysis = match &parsed.statement {
+        let requires_analysis = Self::analysis_requires_snapshot(parsed);
+        if !requires_analysis && !has_parameters {
+            return Ok(());
+        }
+        self.capture_transaction_read_view(session, parsed, controls)
+    }
+
+    pub(super) fn analysis_requires_snapshot(parsed: &ParsedStatement) -> bool {
+        match &parsed.statement {
             QueryStatement::Select(_)
             | QueryStatement::Insert(_)
             | QueryStatement::Update(_)
@@ -50,11 +101,7 @@ impl Cassie {
             | QueryStatement::SessionObject(SessionObjectStatement::DeclareCursor(_)) => true,
             QueryStatement::CreateTable(statement) => statement.as_query.is_some(),
             _ => false,
-        };
-        if !requires_analysis && !has_parameters {
-            return Ok(());
         }
-        self.capture_transaction_read_view(session, parsed, controls)
     }
 
     pub(crate) fn check_repeatable_conflict_row(
@@ -131,7 +178,7 @@ impl Cassie {
                         })
                         .transpose()?;
                     let data = session.capture_statement_read(&self.midge, database, controls)?;
-                    let catalog = self.catalog.snapshot_with_controls(controls)?;
+                    let catalog = self.publication_catalog.snapshot_with_controls(controls)?;
                     controls.check_interruption()?;
                     Ok((data, catalog, fence, history))
                 })?;

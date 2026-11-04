@@ -67,7 +67,7 @@ impl Cassie {
                 match session.take_repeatable_row_fence() {
                     Some(fence) => session.validate_repeatable_row_writes(
                         fence,
-                        catalog.unwrap_or(&self.catalog),
+                        catalog.unwrap_or(&self.publication_catalog),
                         controls,
                     )?,
                     None if !collections.is_empty() || catalog.is_some() => {

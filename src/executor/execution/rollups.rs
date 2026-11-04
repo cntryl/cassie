@@ -12,7 +12,8 @@ use crate::types::{DataType, FieldSchema, Schema, Value};
 use super::source::{aggregate_signature, expr_key, group_expr_name};
 use super::{
     aggregate_exec, check_timeout, filter, projection, reserve_projection_output_before_building,
-    scan, sort, Cassie, FunctionMeta, LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
+    scan, sort, Cassie, CassieSession, FunctionMeta, LogicalPlan, QueryError,
+    QueryExecutionControls, QueryResult,
 };
 use crate::midge::adapter::check_rollup_maintenance_failure_point;
 
@@ -379,7 +380,14 @@ pub(super) fn try_execute_rollup_query(
     Ok(Some(rows))
 }
 
-pub(super) fn mark_source_rollups_stale(cassie: &Cassie, source: &str) -> Result<(), QueryError> {
+pub(super) fn mark_source_rollups_stale(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    source: &str,
+) -> Result<(), QueryError> {
+    let write_catalog = session
+        .and_then(CassieSession::transaction_catalog_overlay)
+        .unwrap_or_else(|| cassie.publication_catalog.clone());
     for rollup in cassie.catalog.list_rollups_for_source(source) {
         cassie.midge.with_collection_gates(
             std::slice::from_ref(&rollup.output_collection),
@@ -394,7 +402,9 @@ pub(super) fn mark_source_rollups_stale(cassie: &Cassie, source: &str) -> Result
                     .midge
                     .put_rollup(&current_rollup)
                     .map_err(|error| QueryError::General(error.to_string()))?;
-                cassie.catalog.register_rollup(current_rollup);
+                cassie
+                    .metadata_write_catalog
+                    .register_rollup(current_rollup);
                 Ok(())
             },
         )?;

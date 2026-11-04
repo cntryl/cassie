@@ -79,10 +79,20 @@ impl Cassie {
         if let crate::sql::ast::QueryStatement::SessionObject(statement) = &parsed.statement {
             return self.describe_session_object(session, statement, wire_output);
         }
-        let (scoped_cassie, can_use_shared_plan_cache) = self.catalog_scope_for_session(session);
-        let controls = scoped_cassie
-            .runtime
-            .query_controls(std::time::Instant::now());
+        let controls = self.runtime.query_controls(std::time::Instant::now());
+        let _publication = self.catalog_publication.read();
+        let descriptor_owner = session
+            .map(|session| {
+                session.command_descriptor_snapshot(&self.publication_catalog, &controls)
+            })
+            .transpose()?
+            .flatten();
+        let (mut scoped_cassie, can_use_shared_plan_cache) =
+            self.catalog_scope_for_session(session);
+        if let Some(owner) = &descriptor_owner {
+            scoped_cassie.catalog = owner.catalog().clone();
+        }
+        scoped_cassie.catalog_owner = descriptor_owner.clone();
         let admitted = super::query_parameters::admit_parameter_types(
             &scoped_cassie,
             session,
@@ -172,6 +182,7 @@ impl Cassie {
     fn catalog_scope_for_session(&self, session: Option<&super::CassieSession>) -> (Self, bool) {
         let catalog_overlay = session.and_then(super::CassieSession::transaction_catalog_overlay);
         let mut scoped_cassie = self.clone();
+        scoped_cassie.catalog = self.publication_catalog.clone();
         if let Some(catalog) = catalog_overlay.as_ref() {
             scoped_cassie.catalog = catalog.clone();
         }

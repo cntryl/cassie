@@ -17,6 +17,12 @@ pub struct CassieRuntimeConfigState {
 pub struct Cassie {
     pub midge: Arc<Midge>,
     pub catalog: Catalog,
+    /// Current publication authority survives temporary query catalog scopes.
+    pub(crate) publication_catalog: Catalog,
+    /// Runtime side effects target the existing mutable transaction stage or Main.
+    pub(crate) metadata_write_catalog: Catalog,
+    /// Every alias of a controlled descriptor catalog retains its admitted owner.
+    pub(crate) catalog_owner: Option<Arc<crate::catalog::ControlledCatalogSnapshot>>,
     pub(crate) catalog_publication: Arc<parking_lot::RwLock<()>>,
     pub(crate) transaction_unique_waits: Arc<super::TransactionUniqueWaits>,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,

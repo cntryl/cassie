@@ -207,7 +207,8 @@ impl Cassie {
             controls,
         )?;
         if catalog_overlay.is_some()
-            && session.transaction_catalog_base_version() != Some(self.catalog.version())
+            && session.transaction_catalog_base_version()
+                != Some(self.publication_catalog.version())
         {
             session.mark_transaction_failed();
             return Err(CassieError::Transaction {
@@ -250,7 +251,8 @@ impl Cassie {
         .inspect_err(|_| session.mark_transaction_failed())?;
 
         if let Some(snapshot) = catalog_overlay.as_ref() {
-            self.catalog.publish_transaction_snapshot(snapshot);
+            self.publication_catalog
+                .publish_transaction_snapshot(snapshot);
         }
         session.commit_transaction();
         if let Some(publication) = catalog_publication {

@@ -61,7 +61,6 @@ fn run_with_execution_breakdown_controls(
     let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {
-        let controls = controls.with_statement_read(None);
         let started = Instant::now();
         let result = dml_command::execute_command(
             cassie,
@@ -69,7 +68,7 @@ fn run_with_execution_breakdown_controls(
             command,
             &params,
             &user_functions,
-            &controls,
+            controls,
         )?;
         let breakdown = ExecutionBreakdownDurations {
             result_build: started.elapsed(),
@@ -133,14 +132,13 @@ pub(crate) fn run_with_session_controls(
     }
 
     if let Some(command) = plan.logical.command.as_ref() {
-        let controls = controls.with_statement_read(None);
         return dml_command::execute_command(
             cassie,
             session,
             command,
             &params,
             &user_functions,
-            &controls,
+            controls,
         );
     }
 

@@ -82,7 +82,11 @@ pub fn rows(
     if let Some(rows) = virtual_views_session_objects::rows(name.as_str(), session) {
         return Some(rows);
     }
-    let snapshot = session.and_then(CassieSession::transaction_catalog_snapshot);
+    let snapshot = session.and_then(|session| {
+        session
+            .current_command_catalog()
+            .or_else(|| session.transaction_catalog_snapshot())
+    });
     let catalog = snapshot.as_ref().map_or(catalog, |owner| owner.catalog());
     let current_database = session.and_then(CassieSession::current_database);
     information_schema_rows_for(catalog, name.as_str(), current_database)

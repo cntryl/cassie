@@ -34,6 +34,14 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        if let Some(result) =
+            self.quarantined_statement_result(session, &parsed.statement, controls)
+        {
+            return result;
+        }
+        let (_command_catalog, command_controls) =
+            self.prepare_command_catalog_scope(session, &parsed, controls)?;
+        let controls = &command_controls;
         self.execute_bound_statement(
             session,
             parsed,
@@ -53,6 +61,14 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        if let Some(result) =
+            self.quarantined_statement_result(session, &parsed.statement, controls)
+        {
+            return result;
+        }
+        let (_command_catalog, command_controls) =
+            self.prepare_command_catalog_scope(session, &parsed, controls)?;
+        let controls = &command_controls;
         if session.is_implicit_transaction()
             && matches!(&parsed.statement, QueryStatement::CreateTable(table) if table.as_query.is_none())
         {
@@ -147,18 +163,32 @@ impl Cassie {
         let transaction_active = session.is_transaction_active();
         let catalog_statement =
             parsed.statement.family() != crate::sql::ast::StatementFamily::Runtime;
-        let catalog = if transaction_active {
+        if catalog_statement {
+            session.check_repeatable_catalog_write(&self.publication_catalog, controls)?;
+        }
+        let descriptor_owner = if catalog_statement {
+            None
+        } else {
+            session.command_descriptor_snapshot(&self.publication_catalog, controls)?
+        };
+        let catalog = if let Some(owner) = &descriptor_owner {
+            owner.catalog().clone()
+        } else if transaction_active {
             if catalog_statement && session.transaction_catalog_overlay().is_none() {
-                session.begin_transaction_catalog_overlay(&self.catalog)
+                session.begin_transaction_catalog_overlay(&self.publication_catalog, controls)?
             } else {
                 session
                     .transaction_catalog_overlay()
-                    .unwrap_or_else(|| self.catalog.clone())
+                    .unwrap_or_else(|| self.publication_catalog.clone())
             }
         } else {
-            self.catalog.clone()
+            self.publication_catalog.clone()
         };
         let mut scoped_cassie = self.clone();
+        scoped_cassie.metadata_write_catalog = session
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| self.publication_catalog.clone());
+        scoped_cassie.catalog_owner = descriptor_owner.clone();
         scoped_cassie.catalog = catalog;
         let _storage_scope = if transaction_active {
             Some(self.midge.enter_transactional_ddl_scope(
@@ -459,22 +489,29 @@ impl Cassie {
     ) -> Result<QueryExecutionControls, CassieError> {
         #[cfg(test)]
         super::statement_read_tests::before_statement_view_capture();
-        let owner = if plan.command.is_none() && crate::executor::plan_needs_statement_data(plan) {
-            Some(
-                session.capture_statement_read(
-                    &self.midge,
-                    session
-                        .database
-                        .as_deref()
-                        .unwrap_or(&self.default_database),
-                    controls,
-                )?,
-            )
+        let database = session
+            .database
+            .as_deref()
+            .unwrap_or(&self.default_database);
+        let matching = controls.statement_read().filter(|owner| {
+            owner.matches(&self.midge, database)
+                && owner
+                    .overlay()
+                    .is_some_and(|overlay| overlay.matches_session(session))
+        });
+        let owner = if plan.command.is_some() {
+            matching.cloned()
+        } else if crate::executor::plan_needs_statement_data(plan) {
+            Some(if let Some(owner) = matching {
+                std::sync::Arc::clone(owner)
+            } else {
+                session.capture_statement_read(&self.midge, database, controls)?
+            })
         } else {
             None
         };
-        // Each top-level execution owns a fresh local clone. A nested writer
-        // suspends a reader scope rather than borrowing stale validation state.
+        // The actual command entry cleared enclosing controls. A matching
+        // explicit Bind owner is preserved; other commands capture afresh.
         Ok(controls.with_statement_read(owner))
     }
 

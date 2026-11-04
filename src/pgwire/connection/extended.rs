@@ -305,9 +305,10 @@ async fn handle_bind(
     check_prepared_storage_admission(&cassie, &prepared)?;
     let previous_descriptor = state.prepared_result_descriptors.get(&prepared.id).cloned();
     let catalog_version = current_catalog_version(&cassie, session);
-    let descriptor_is_stale = previous_descriptor
-        .as_ref()
-        .is_some_and(|descriptor| descriptor.catalog_version() != catalog_version);
+    let descriptor_is_stale = previous_descriptor.as_ref().is_some_and(|descriptor| {
+        session.transaction_catalog_overlay().is_some()
+            || descriptor.catalog_version() != catalog_version
+    });
     let columns = if !result_formats.is_empty() || descriptor_is_stale {
         Some(describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?)
     } else {
@@ -350,13 +351,20 @@ async fn handle_bind(
 
     let prepared_id = prepared.id;
     let described = prepared.described;
-    let values = bind_planning::validate(cassie, session, state, prepared, values).await?;
+    let (values, read_view) =
+        bind_planning::validate(cassie, session, state, prepared, values).await?;
 
     let replaced_portal = state.remove_portal(&portal).is_some();
     if !replaced_portal && state.portals.len() >= MAX_PORTALS_PER_CONNECTION {
         return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
             "portal limit exceeded".to_string(),
         )));
+    }
+    if let Some(owner) = read_view {
+        state
+            .portal_reads
+            .insert(&portal, owner, &state.portal_memory_controls)
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
     }
     state.portals.insert(
         portal.clone(),
@@ -490,10 +498,12 @@ async fn execute_prepared_portal(
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
     let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
+    let bound_read = state.portal_reads.get(portal_name);
     let result = run_pgwire_blocking(
         Arc::clone(&cassie),
         "pgwire_extended_query",
         move |cassie| {
+            let _bound = crate::app::BoundReadScope::enter(bound_read);
             cassie.execute_parsed_sql_with_cancellation(
                 &execution_session,
                 (parsed, &sql),

@@ -325,9 +325,9 @@ fn should_preserve_json_timestamp_offset_policy_across_collection_conversion() {
             "2024-11-03T12:00:00+05:30",
         ),
         (
-            "Europe/Amsterdam",
+            "Europe/Paris",
             "TIMESTAMPTZ '1900-01-01 00:00:00+00'",
-            "1900-01-01T00:19:32+00:19:32",
+            "1900-01-01T00:09:21+00:09:21",
         ),
         ("UTC", "TIMETZ '12:34:56+05'", "12:34:56+05"),
         (

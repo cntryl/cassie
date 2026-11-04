@@ -60,8 +60,13 @@ fn should_reject_copy_scalar_array_input_before_publication() {
 
         // Assert
         assert!(
-            matches!(result, Err(CassieError::Parse(_))),
-            "{label}: invalid COPY input should be rejected before publication"
+            match &result {
+                Err(CassieError::Parse(_)) => label == "integer",
+                Err(CassieError::TypeInput(error)) =>
+                    label != "integer" && error.sqlstate == "22001",
+                _ => false,
+            },
+            "{label}: invalid COPY input should be rejected before publication: {result:?}"
         );
         let element_type = match label {
             "integer" => DataType::Int,

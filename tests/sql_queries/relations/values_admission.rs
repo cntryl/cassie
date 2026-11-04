@@ -101,6 +101,8 @@ fn should_bound_computed_character_array_projection_memory_until_result_release(
         // Arrange
         let mut config = CassieRuntimeConfig::from_env().expect("config");
         config.limits.query_memory_budget_bytes = budget;
+        config.limits.execution_result_cache_enabled =
+            cassie::config::ExecutionResultCacheEnabled::disabled();
         let fixture = sql_fixture_with_config("computed-character-array-projection", &[], config);
         // Act
         let result = fixture.execute(sql);
@@ -115,6 +117,12 @@ fn should_bound_computed_character_array_projection_memory_until_result_release(
                 .elements()
                 .iter()
                 .all(|value| matches!(value, Value::String(text) if text.chars().count() == 4096)));
+            assert!(
+                fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+                    .as_u64()
+                    .expect("current query memory")
+                    > 0
+            );
             drop(result);
         } else {
             assert!(
@@ -126,6 +134,7 @@ fn should_bound_computed_character_array_projection_memory_until_result_release(
         let recovery = fixture.execute("SELECT 19").expect("same-session recovery");
         // Assert
         assert_eq!(recovery.rows(), &[vec![Value::Int64(19)]]);
+        drop(recovery);
         assert_eq!(
             fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"],
             serde_json::json!(0)

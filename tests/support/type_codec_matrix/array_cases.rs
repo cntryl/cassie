@@ -137,7 +137,7 @@ pub static ARRAY_CASES: [CodecCase; 10] = [
         sql_type: "VARCHAR(4)[]",
         oid: 1015,
         typlen: -1,
-        typmod: -1,
+        typmod: 8,
         input_text: &[123, 34, 206, 188, 95, 195, 159, 34, 44, 78, 85, 76, 76, 125],
         output_text: &[123, 206, 188, 95, 195, 159, 44, 78, 85, 76, 76, 125],
         stored_output_text: &[123, 206, 188, 95, 195, 159, 44, 78, 85, 76, 76, 125],

@@ -300,7 +300,6 @@ fn should_preserve_multidimensional_binary_parameter_bounds_when_casting_charact
 #[test]
 fn should_apply_the_statement_timezone_before_character_width_conversion() {
     // Arrange
-    let setup = [("SET TIME ZONE 'America/New_York'", vec![])];
     let sql = "SELECT ('2026-01-01 12:00:00+00'::TIMESTAMPTZ)::CHAR(32),ARRAY['2026-01-01 12:00:00+00'::TIMESTAMPTZ]::CHAR(32)[]";
     let expected = format!("{:32}", "2026-01-01 07:00:00-05");
     let cycle = fixture::execute_cycle(sql, None, 0, true);
@@ -308,14 +307,18 @@ fn should_apply_the_statement_timezone_before_character_width_conversion() {
     // Act
     let batches = fixture::run_cycles(
         "issue-796-character-array-temporal-session",
-        &setup,
-        vec![cycle],
+        &[],
+        vec![
+            vec![wire::simple_query_frame("SET TIME ZONE 'America/New_York'")],
+            cycle,
+        ],
     );
 
     // Assert
     fixture::assert_success(&batches[0]);
+    fixture::assert_success(&batches[1]);
     assert_eq!(
-        wire::data_rows(&batches[0]),
+        wire::data_rows(&batches[1]),
         vec![vec![
             Some(expected.clone()),
             Some(format!("{{\"{expected}\"}}"))

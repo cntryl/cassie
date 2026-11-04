@@ -223,7 +223,7 @@ fn should_keep_repeatable_read_rows_after_index_rebuild_or_replacement() {
 
         // Assert
         assert_eq!(old, vec![vec![Value::Int64(1)]]);
-        assert!(newer.is_empty());
+        assert_eq!(newer, Vec::<Vec<Value>>::new());
     }
 }
 
@@ -311,7 +311,7 @@ fn should_decline_old_indexes_for_a_recreated_relation_with_the_same_name() {
         indexed.is_empty(),
         "current relation identity cannot expose the removed relation's old index rows"
     );
-    assert!(direct.is_empty());
+    assert_eq!(direct, Vec::<Vec<Value>>::new());
 }
 
 #[test]

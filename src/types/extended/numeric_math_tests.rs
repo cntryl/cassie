@@ -20,7 +20,7 @@ fn should_reject_finite_numeric_exponential_overflow_before_fixed_point_construc
 }
 
 #[test]
-fn should_preserve_finite_exponential_underflow_scale_and_special_infinity_identity() {
+fn should_preserve_exponential_zero_identity_given_finite_underflow_or_infinity() {
     // Arrange
     let cases = ["-6000", "-1e400"];
     let expected_zero = format!("0.{}", "0".repeat(1000));
@@ -95,7 +95,7 @@ fn should_refine_power_precision_after_an_extreme_exponent_amplifies_a_near_unit
 }
 
 #[test]
-fn should_preserve_reciprocal_scale_and_sign_in_the_bounded_integer_power_fallback() {
+fn should_preserve_reciprocal_identity_in_the_bounded_integer_power_fallback() {
     // Arrange
     let magnitude = format!("10.{}", "0".repeat(1000));
     let cases = [

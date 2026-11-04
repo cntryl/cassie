@@ -18,10 +18,14 @@ mod pgwire_parameter_slot_completeness;
 mod pgwire_unsigned_parameter_oids;
 #[path = "pgwire_extended/grammar/rows/arity_aliases.rs"]
 mod row_arity_aliases;
+#[path = "support/boolean_aggregate_cancellation.rs"]
+mod support_boolean_aggregate_cancellation;
 #[path = "support/parameter_cache_identity.rs"]
 mod support_parameter_cache_identity;
 #[path = "support/parameter_occurrence_wire.rs"]
 mod support_parameter_occurrence_wire;
+#[path = "support/temporal_cancellation.rs"]
+mod support_temporal_cancellation;
 
 #[path = "pgwire_extended/parameters/parameter_signatures.rs"]
 mod pgwire_parameter_signatures;

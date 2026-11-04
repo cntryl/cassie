@@ -11,12 +11,14 @@ fn should_reject_undefined_infinite_numeric_powers_without_partial_output() {
     let queries = [
         "SELECT power(base, exponent) FROM (VALUES (1::numeric, 2::numeric), ('-Infinity'::numeric, 0.5::numeric)) AS inputs(base, exponent)",
         "SELECT power(base, exponent) FROM (VALUES (1::numeric, 2::numeric), (0::numeric, '-Infinity'::numeric)) AS inputs(base, exponent)",
+        "SELECT base ^ exponent FROM (VALUES (1::numeric, 2::numeric), ('-Infinity'::numeric, 0.5::numeric)) AS inputs(base, exponent)",
+        "SELECT base ^ exponent FROM (VALUES (1::numeric, 2::numeric), (0::numeric, '-Infinity'::numeric)) AS inputs(base, exponent)",
     ];
     let mut steps = Vec::new();
     for sql in queries {
         steps.push(Step::ThroughReady(vec![wire::simple_query_frame(sql)]));
         steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
-            "SELECT power('-Infinity'::numeric, 3::numeric), power(NULL::numeric, '-Infinity'::numeric)",
+            "SELECT power('-Infinity'::numeric, 3::numeric), power(NULL::numeric, '-Infinity'::numeric), power('1e400'::numeric, '0.001'::numeric)",
         )]));
     }
 
@@ -31,7 +33,11 @@ fn should_reject_undefined_infinite_numeric_powers_without_partial_output() {
         assert_eq!(wire::error_code(&pair[1]), None);
         assert_eq!(
             wire::data_rows(&pair[1]),
-            vec![vec![Some("-Infinity".to_owned()), None]]
+            vec![vec![
+                Some("-Infinity".to_owned()),
+                None,
+                Some("2.5118864315095801".to_owned())
+            ]]
         );
         let description = pair[1]
             .iter()

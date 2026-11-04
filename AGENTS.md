@@ -108,6 +108,7 @@ The administrative username is always `root`; set its password with `CASSIE_ROOT
 - **Midge** is the only storage layer. No second abstraction.
 - **PostgreSQL wire protocol** is the primary query interface. REST is secondary and administrative.
 - `cntryl-midge` is an external dependency published on crates.io.
+- Midge engine changes and `cntryl-midge` dependency-version changes are off the table for the current milestone work. Use only the current published API through Cassie-side adapters. Include this constraint in Jev decisions; record an exact blocker if the API cannot satisfy a requirement instead of inventing a capability or weakening the contract.
 
 ## Benchmarks
 
@@ -178,6 +179,8 @@ Do not create, edit, rename, or delete CI, release, or versioning configuration 
 
 Jev is TypeSafe's System One model. It returns typed judgments and probabilities; it does not store GitHub issues or prove correctness. Read issue/status data with `gh`, then submit that evidence to Jev for triage, grouping, dependency assessment, implementation review, and adversarial review. Confirm its judgments with source, failing/passing tests, and current GitHub state.
 
+The user delegates remaining questions within the authorized milestone work to Jev. Present concrete, source-backed scope, contract, and implementation options to Jev and use its typed judgment to select the direction without returning routine clarification questions to the user. Record selected contract changes in the active docs or owning issue before implementation. Source, semantic oracles, executable evidence, and permanent product boundaries still determine whether the selected option is implementable and correct.
+
 - Live API documentation: `https://docs.typesafe.ai/api.md` and `https://docs.typesafe.ai/primitives/choice.md`.
 - Endpoint: `POST https://api.typesafe.ai/v1/systemone`, with `Authorization: Bearer <key>` and `Content-Type: application/json`.
 - Model: `jev-latest`. Credentials are in `~/.config/typesafe/jev.key`; read them privately and never print, log, commit, or include them in request artifacts.
@@ -209,4 +212,4 @@ Required loop:
 
 Do not start implementation from a later roadmap/readiness item while an earlier documented dependency is still open unless the later item explicitly names that dependency as complete or unnecessary.
 Do not reinterpret documented requirements as suggestions; if the plan is wrong, update the doc or issue first so implementation remains mechanical.
-Stop and ask for direction when a slice requires a persistent format decision, storage-layout migration, public API change, or cross-phase dependency that is not already specified.
+When a slice requires an unspecified persistent format, storage-layout migration, public API, or cross-phase decision within the authorized milestone, use the delegated Jev process above to select and document the contract before dependent implementation. Verify every required dependency against current source and executable evidence; a model judgment cannot make an unavailable dependency complete.

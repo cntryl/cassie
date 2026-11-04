@@ -178,6 +178,12 @@ Explicit casts, ARRAY constructors and typed subquery/subscript expressions
 retain their modifier. Ordinary array function, aggregate and concatenation
 results have typmod -1; argument modifiers do not become result modifiers.
 
+For already-admitted COALESCE array operands, preserve the element modifier only
+when every operand has the same resolved array type and modifier. An untyped
+NULL operand removes that modifier; a NULL explicitly cast to the same array
+type retains it. This descriptor rule does not add common-type conversions or
+ARRAY/CHAR operands to the separate finite NULLIF/GREATEST/LEAST contract.
+
 Explicit casts truncate at character boundaries and CHAR pads with ASCII
 spaces. A CHAR element converted to TEXT or VARCHAR drops insignificant
 trailing ASCII spaces. Unknown array literals are parsed without the target

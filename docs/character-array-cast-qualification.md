@@ -128,9 +128,11 @@ rebuilds rows in `schema_command::evaluate_alter_column_using` without explicit
 execution controls; joined-mutation OLD/NEW row images use a separate
 `dml_joined::stored_value` reconstruction path. This increment does not silently
 hydrate either path. Their logical character-array correspondence still requires
-controlled conversion and focused native evidence. Mixed conditional array
-modifiers also remain unqualified: PostgreSQL removes a COALESCE array typmod
-when one branch is untyped NULL, while equal modifiers on every branch retain it.
+controlled conversion and focused native evidence. The mixed-NULL COALESCE descriptor correction is authored for already-admitted
+equal array operand types: an untyped NULL removes the result typmod, while a
+matching typed NULL retains it. One binder and two wire regressions are unexecuted.
+Different-width common-type acceptance and wider array conditional behavior remain
+pending; the separate NULLIF/GREATEST/LEAST finite contract still excludes arrays.
 
 The logical hydration checkpoint follows `dc52c54d`. Jev selected the controlled
 logical boundary at 1.00. Its admission 0.88 and identity-elision 0.50 origin

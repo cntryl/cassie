@@ -878,23 +878,16 @@ fn infer_function_policy_return_type(
             )
         }
         crate::sql::functions::FunctionReturnType::FirstNonNullArgument => {
-            let argument_types = function
+            let arguments = function
                 .args
                 .iter()
-                .filter_map(|arg| {
-                    infer_expr_type(arg, source_schema, user_functions, parameter_types)
+                .map(|argument| {
+                    infer_expr_type(argument, source_schema, user_functions, parameter_types)
                 })
-                .filter(|data_type| !matches!(data_type, DataType::Null))
                 .collect::<Vec<_>>();
-            // Any argument may supply the value (COALESCE), so the result is
-            // their common type; incompatible arguments keep the first type.
-            argument_types
-                .iter()
-                .cloned()
-                .try_fold(DataType::Null, common_case_type)
-                .filter(|data_type| !matches!(data_type, DataType::Null))
-                .or_else(|| argument_types.first().cloned())
-                .or(Some(DataType::Text))
+            Some(super::array_outputs::first_non_null_result(
+                name, &arguments,
+            ))
         }
         crate::sql::functions::FunctionReturnType::NumericArgument => function
             .args

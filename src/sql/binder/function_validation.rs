@@ -20,6 +20,11 @@ pub(super) fn validate_function_calls(
         {
             continue;
         }
+        if crate::sql::table_sources::is_generated(&function.name) {
+            return Err(CassieError::Unsupported(
+                "set-returning functions are selected only as FROM sources".into(),
+            ));
+        }
         if crate::sql::functions::is_catalog_table(&function.name) {
             return Err(CassieError::Unsupported(
                 "record-valued table-function projection remains pending under #793/#817; use FROM"

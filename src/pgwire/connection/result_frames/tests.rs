@@ -201,3 +201,82 @@ fn should_preserve_effect_counts_without_changing_result_page_counts() {
         assert_eq!(&payload[..payload.len() - 1], expected.as_bytes());
     }
 }
+
+#[test]
+fn should_bound_native_array_text_and_binary_encoders_without_growing_frame_capacity() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let numeric = crate::types::typed::TypedValue::Numeric(
+        crate::types::extended::numeric::Numeric::finite(num_bigint::BigInt::from(1), 4_096),
+    );
+    let array =
+        crate::types::SqlArray::from_nested_values(vec![Value::Typed(numeric), Value::Null])
+            .expect("native numeric array");
+    let cells = vec![(1_231, Value::Array(array))];
+    let result = result(&controls, &cells);
+
+    // Act
+    let observations = [0, 1].map(|format| {
+        let mut frames = QueryResultFrames::try_new(&result, result.rows(), &[format])
+            .expect("admitted native array frames");
+        let capacity = frames.bytes.capacity();
+        frames
+            .row(0, &result.rows()[0], result.columns(), &[format])
+            .expect("native array encoder");
+        (capacity, frames.bytes.capacity())
+    });
+    drop(result);
+
+    // Assert
+    for (admitted, actual) in observations {
+        assert_eq!(actual, admitted);
+    }
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_bound_native_bit_and_escaped_rank_six_json_array_encodings() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let bit = crate::types::typed::TypedValue::VarBit(
+        crate::types::extended::bit_string::parse_text(&"10".repeat(2_048)).expect("native bits"),
+    );
+    let bit_array =
+        crate::types::SqlArray::from_elements(vec![Value::Typed(bit)]).expect("bit array");
+    let dimensions = vec![
+        crate::types::ArrayDimension {
+            length: 1,
+            lower_bound: -2
+        };
+        6
+    ];
+    let nested_json = serde_json::from_str(r#"{"escaped":"\"\\\nλ","nested":[1e256,{"a":true}]}"#)
+        .expect("exact JSONB fixture");
+    let json_array = crate::types::SqlArray::new(dimensions, vec![Value::Json(nested_json)])
+        .expect("rank six JSONB array");
+    let cells = vec![
+        (1563, Value::Array(bit_array)),
+        (3807, Value::Array(json_array)),
+    ];
+    let result = result(&controls, &cells);
+
+    // Act
+    let observations = [0, 1].map(|format| {
+        let mut frames = QueryResultFrames::try_new(&result, result.rows(), &[format])
+            .expect("admitted native frames");
+        let capacity = frames.bytes.capacity();
+        frames
+            .row(0, &result.rows()[0], result.columns(), &[format])
+            .expect("native array encoding");
+        (capacity, frames.bytes.capacity())
+    });
+    drop(result);
+
+    // Assert
+    for (admitted, actual) in observations {
+        assert_eq!(actual, admitted);
+    }
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

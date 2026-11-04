@@ -29,6 +29,30 @@ pub struct SqlArray {
 }
 
 impl SqlArray {
+    pub(crate) fn from_constructor_values(
+        values: Vec<Value>,
+        nested: bool,
+    ) -> Result<Self, String> {
+        if !nested {
+            return Self::from_nested_values(values);
+        }
+        let empty = |value: &Value| {
+            value.is_null() || matches!(value,Value::Array(array) if array.is_empty())
+        };
+        if values.iter().all(empty) {
+            return Ok(Self::empty());
+        }
+        if values.iter().any(empty) {
+            return Err("multidimensional SQL arrays must be rectangular".into());
+        }
+        if values
+            .iter()
+            .any(|value| matches!(value,Value::Array(array) if array.dimensions().len() >= 6))
+        {
+            return Err("number of array dimensions exceeds the maximum allowed (6)".into());
+        }
+        Self::from_nested_values(values)
+    }
     /// Build a shaped array, validating dimension arithmetic and element count.
     ///
     /// # Errors
@@ -367,17 +391,30 @@ impl SqlArray {
 /// Format a shaped SQL array using PostgreSQL text output syntax.
 #[must_use]
 pub fn format_text(array: &SqlArray, element_type: &DataType) -> Option<String> {
+    format_text_in(
+        array,
+        element_type,
+        crate::types::extended::temporal::default_session(),
+    )
+}
+
+pub(crate) fn format_text_in(
+    array: &SqlArray,
+    element_type: &DataType,
+    session: &crate::types::extended::temporal::TemporalSession,
+) -> Option<String> {
     fn render(
         array: &SqlArray,
         dimension: usize,
         element_type: &DataType,
         offset: &mut usize,
+        session: &crate::types::extended::temporal::TemporalSession,
     ) -> Option<String> {
         let shape = array.dimensions().get(dimension)?;
         let mut values = Vec::with_capacity(usize::try_from(shape.length).ok()?);
         for _ in 0..shape.length {
             if dimension + 1 < array.dimensions().len() {
-                values.push(render(array, dimension + 1, element_type, offset)?);
+                values.push(render(array, dimension + 1, element_type, offset, session)?);
             } else {
                 let value = array.elements().get(*offset)?;
                 *offset += 1;
@@ -385,8 +422,26 @@ pub fn format_text(array: &SqlArray, element_type: &DataType) -> Option<String> 
                     values.push("NULL".to_string());
                 } else {
                     let text = match value {
-                        Value::String(text) => text.clone(),
-                        Value::Typed(value) => value.text(),
+                        Value::String(text) => {
+                            use crate::types::extended::ExtendedType;
+                            let kind = match element_type {
+                                DataType::Date => Some(ExtendedType::Date),
+                                DataType::Time => Some(ExtendedType::Time { precision: None }),
+                                DataType::Timestamp => {
+                                    Some(ExtendedType::Timestamp { precision: None })
+                                }
+                                _ => None,
+                            };
+                            if let Some(kind) = kind {
+                                kind.parse_text_in(text, session).ok()?.text_in(session)
+                            } else {
+                                text.clone()
+                            }
+                        }
+                        Value::Typed(value) => value.text_in(session),
+                        Value::Json(value) if *element_type == DataType::Jsonb => {
+                            crate::types::jsonb::format(value).ok()?
+                        }
                         Value::Json(value) => value.to_string(),
                         Value::Array(_) => return None,
                         Value::Vector(value) => format!(
@@ -416,7 +471,7 @@ pub fn format_text(array: &SqlArray, element_type: &DataType) -> Option<String> 
         return Some("{}".to_string());
     }
     let mut offset = 0;
-    let body = render(array, 0, element_type, &mut offset)?;
+    let body = render(array, 0, element_type, &mut offset, session)?;
     if offset != array.len() {
         return None;
     }

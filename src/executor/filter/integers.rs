@@ -252,6 +252,7 @@ mod review_tests {
                 session: None,
                 search_context: None,
                 controls: Some(&below),
+                memory: None,
             },
         );
         let constant = super::super::constants::value(
@@ -270,6 +271,7 @@ mod review_tests {
                 session: None,
                 search_context: None,
                 controls: Some(&below),
+                memory: None,
             },
         );
         // Assert

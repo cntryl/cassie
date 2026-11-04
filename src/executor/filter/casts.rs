@@ -7,7 +7,7 @@ pub(super) fn scalar(
     source: Option<&DataType>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
-    if let Some(value) = text_cast(value, target, source)? {
+    if let Some(value) = text_cast(value, target, source, controls)? {
         return Ok(value);
     }
     if matches!(target, DataType::Array(_)) && source == Some(target) {
@@ -32,6 +32,7 @@ fn text_cast(
     value: &ScalarValue,
     target: &DataType,
     source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     if source == Some(&DataType::Jsonb)
         && matches!(target, DataType::Text | DataType::Varchar { .. })
@@ -39,7 +40,7 @@ fn text_cast(
         return jsonb_text(value).map(Some);
     }
     if matches!(target, DataType::Text | DataType::Varchar { .. }) {
-        if let Some(formatted) = format_array_text(value, source) {
+        if let Some(formatted) = format_array_text(value, source, controls) {
             return Ok(Some(formatted));
         }
         if matches!(value, ScalarValue::Json(_)) || source == Some(&DataType::Json) {
@@ -209,7 +210,11 @@ fn json_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         .map_err(|error| crate::app::CassieError::TypeInput(error).into())
 }
 
-fn format_array_text(value: &ScalarValue, source: Option<&DataType>) -> Option<ScalarValue> {
+fn format_array_text(
+    value: &ScalarValue,
+    source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Option<ScalarValue> {
     let Some(DataType::Array(element_type)) = source else {
         return None;
     };
@@ -218,9 +223,12 @@ fn format_array_text(value: &ScalarValue, source: Option<&DataType>) -> Option<S
             let array = serde_json::from_str::<serde_json::Value>(input).ok()?;
             crate::types::array::format_text_array(&array, element_type).map(ScalarValue::Str)
         }
-        ScalarValue::Array(array) => {
-            crate::types::array_value::format_text(array, element_type).map(ScalarValue::Str)
-        }
+        ScalarValue::Array(array) => crate::types::array_value::format_text_in(
+            array,
+            element_type,
+            &super::temporal::session_of(controls),
+        )
+        .map(ScalarValue::Str),
         _ => None,
     }
 }

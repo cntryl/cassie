@@ -4,6 +4,38 @@ use super::{
 };
 
 pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
+    scenario!(
+        "perf.executor.generated_source_limit.2k",
+        "core_read",
+        "generated_source",
+        "tier2_subsystem_generated_sources",
+        "generated_source_filtered_limit",
+        "2k",
+        2_048,
+        Tier2,
+        Counted,
+        Subsystem,
+        "query",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
+        "perf.executor.generated_source_limit.100k",
+        "core_read",
+        "generated_source",
+        "tier2_subsystem_generated_sources",
+        "generated_source_filtered_limit",
+        "100k",
+        100_000,
+        Tier2,
+        Counted,
+        Subsystem,
+        "query",
+        Disabled,
+        None,
+        None
+    ),
     // Tier 2: one operation over a bounded subsystem fixture.
     scenario!(
         "perf.sql_planning.parsing.128",

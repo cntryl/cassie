@@ -226,6 +226,13 @@ impl<'a> Occurrences<'a> {
     ) -> Result<(), ParameterAdmissionError> {
         self.report(ParameterSemanticDiagnostic::ValuesTypes { left, right })
     }
+    pub(super) fn array_types(
+        &mut self,
+        left: i32,
+        right: i32,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::ArrayTypes { left, right })
+    }
 
     pub(super) fn invalid_distinct_order(&mut self) -> Result<(), ParameterAdmissionError> {
         self.report(ParameterSemanticDiagnostic::DistinctAggregateOrder)

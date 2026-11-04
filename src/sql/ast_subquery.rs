@@ -148,10 +148,10 @@ impl SubqueryExpr {
     pub fn result_type(&self) -> Option<DataType> {
         match &self.kind {
             SubqueryKind::Scalar => self.data_type.clone(),
-            SubqueryKind::Array => self
-                .data_type
-                .clone()
-                .map(|element| DataType::Array(Box::new(element))),
+            SubqueryKind::Array => self.data_type.clone().map(|element| match element {
+                DataType::Array(_) => element,
+                _ => DataType::Array(Box::new(element)),
+            }),
             SubqueryKind::Row { .. } | SubqueryKind::Quantified { .. } => Some(DataType::Boolean),
         }
     }

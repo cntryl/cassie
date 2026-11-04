@@ -146,15 +146,30 @@ impl Analyzer<'_> {
                 Ok(exported_scope(fields, std::slice::from_ref(name)))
             }
             QuerySource::TableFunction { name, .. } => {
-                let fields = super::super::select::table_function_columns(name)
-                    .into_iter()
-                    .map(|(name, data_type)| OutputField {
-                        name,
-                        value: super::OutputType::fixed(data_type),
-                        nullable: true,
-                        wildcard_identity: false,
-                    })
-                    .collect();
+                let outer = outer_fields.map(|fields| crate::types::Schema {
+                    fields: fields
+                        .iter()
+                        .map(|field| crate::types::FieldSchema {
+                            name: field.name.clone(),
+                            data_type: field.value.data_type.clone(),
+                            nullable: field.nullable,
+                        })
+                        .collect(),
+                });
+                let fields = super::super::table_functions::typed_columns(
+                    source,
+                    outer.as_ref(),
+                    self.functions,
+                    self.declared_oids,
+                )?
+                .into_iter()
+                .map(|(name, data_type)| OutputField {
+                    name,
+                    value: super::OutputType::fixed(data_type),
+                    nullable: true,
+                    wildcard_identity: false,
+                })
+                .collect();
                 Ok(exported_scope(fields, std::slice::from_ref(name)))
             }
             QuerySource::Subquery {

@@ -38,7 +38,7 @@ pub(super) fn value<R: RowAccess + ?Sized>(
                 .cloned()
                 .unwrap_or(Value::Null))
         }
-        SubqueryKind::Array => array(rows),
+        SubqueryKind::Array => array(rows, subquery.data_type.as_ref(), context),
         SubqueryKind::Row { left, op } => {
             if rows.len() > 1 {
                 return Err(multiple_rows());
@@ -217,7 +217,51 @@ const fn bool_result(value: bool) -> PredicateResult {
 }
 
 /// `ARRAY(SELECT ...)` retains SQL nulls, typed values, and nested dimensions.
-fn array(rows: &[Vec<Value>]) -> Result<Value, QueryError> {
+fn array(
+    rows: &[Vec<Value>],
+    element_type: Option<&crate::types::DataType>,
+    context: EvalContext<'_>,
+) -> Result<Value, QueryError> {
+    let nested = matches!(element_type, Some(crate::types::DataType::Array(_)));
+    let bytes = rows.iter().try_fold(1024, |bytes, fields| {
+        if let Some(controls) = context.controls {
+            controls.check_interruption()?;
+        }
+        let value = fields.first().unwrap_or(&Value::Null);
+        if nested {
+            match value {
+                Value::Null => {
+                    return Err(QueryError::Cassie(
+                        crate::app::DiagnosticError::new("22004", "cannot accumulate null arrays")
+                            .into(),
+                    ))
+                }
+                Value::Array(array) if array.is_empty() => {
+                    return Err(QueryError::Cassie(
+                        crate::app::DiagnosticError::new("2202E", "cannot accumulate empty arrays")
+                            .into(),
+                    ))
+                }
+                Value::Array(array) if array.dimensions().len() >= 6 => {
+                    return Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                        "number of array dimensions exceeds the maximum allowed (6)".into(),
+                    )))
+                }
+                _ => {}
+            }
+        }
+        crate::executor::retained_memory::add(
+            bytes,
+            crate::executor::retained_memory::add(
+                std::mem::size_of::<Value>(),
+                crate::executor::retained_memory::value_clone_bytes(value)?,
+            )?,
+        )
+        .map_err(Into::into)
+    })?;
+    if let Some(memory) = context.memory {
+        memory.grow(crate::executor::retained_memory::mul(bytes, 4)?)?;
+    }
     let elements = rows
         .iter()
         .map(|fields| fields.first().cloned().unwrap_or(Value::Null))
@@ -225,11 +269,13 @@ fn array(rows: &[Vec<Value>]) -> Result<Value, QueryError> {
     crate::types::SqlArray::from_nested_values(elements)
         .map(Value::Array)
         .map_err(|_| {
-            crate::app::CassieError::ArrayInput(
-                "multidimensional arrays must have array expressions with matching dimensions"
-                    .to_string(),
+            QueryError::Cassie(
+                crate::app::DiagnosticError::new(
+                    "2202E",
+                    "cannot accumulate arrays of different dimensionality",
+                )
+                .into(),
             )
-            .into()
         })
 }
 

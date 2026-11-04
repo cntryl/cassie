@@ -122,6 +122,7 @@ pub(super) struct EvalContext<'a> {
     session: Option<&'a CassieSession>,
     exists: Option<&'a ExistsResolver<'a>>,
     controls: Option<&'a crate::runtime::QueryExecutionControls>,
+    memory: Option<&'a evaluation::EvaluationMemory>,
 }
 
 #[derive(Debug, Clone)]
@@ -287,29 +288,10 @@ pub(crate) fn filter_batches(
         .collect()
 }
 
-pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
-    row: &R,
-    expr: &Expr,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    local_args: Option<&HashMap<String, Value>>,
-) -> Result<Value, QueryError> {
-    evaluate_expr_value_with_context(
-        row,
-        expr,
-        EvalContext {
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-            exists: None,
-            controls: None,
-        },
-    )
-}
+#[path = "filter/evaluation.rs"]
+mod evaluation;
+pub(crate) use evaluation::evaluate_source_argument_resolving;
+pub(crate) use evaluation::{evaluate_expr_value, evaluate_source_argument, EvaluationMemory};
 
 pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     row: &R,
@@ -353,6 +335,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
             session,
             exists: None,
             controls: None,
+            memory: None,
         },
     )?;
     value.is_true()
@@ -378,6 +361,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             session,
             exists: None,
             controls: None,
+            memory: None,
         },
     )
 }

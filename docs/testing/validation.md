@@ -5882,3 +5882,25 @@ limit validation into a small private helper, preserving order and diagnostics.
 No lint suppression or reduced scope is used. Formatting check and touched-test
 policy stages were not reached. The corrected exact head requires the ordered
 gate again; this passing test count belongs only to the recorded fifth head.
+
+The RW read-owner preparation now separates an admitted immutable native-data
+core from admitted per-command overlays. RW is still rejected. Jev selected the
+shape at 0.97; its 0.63 overlay-law lead prompted four native COW/savepoint,
+identity-rebind, last-owner and denied-admission probes plus the SQL own-write
+CTE/savepoint/disjoint-writer regression. The subsequent exact fork review
+localized a later modifying CTE recapture gap at 0.75 and selected a private
+origin-checked working-session rebind at 0.88. Existing source query boundaries
+receive the rebound controls; constraint and mutation checks retain live own
+writes. A new paired RC/RR parent-CTE/child-VALUES foreign-key control guards that
+distinction. The dedicated simple upsert-wait path participates too.
+
+The final interim review selected passing the rebound owner through existing
+read boundaries at 1.00; retained-core ownership gap was 0.17. Remaining source
+leads of 0.40 for sibling CTE reads and 0.37 for RC/RO authority require focused
+execution in the substantial RW gate. They prompted additional paired RC/RR
+INSERT/ON CONFLICT, UPDATE subquery and DELETE subquery sibling-source probes,
+and a native descriptor-authority pair after a new wrapper shares its core. The
+existing read-only zero-second-request-admission and last-owner tests must also
+run on the integrated source. These new tests have only been authored; no Cargo
+compilation or test execution is claimed for the RW increment. Root startup-DDL
+fix `cd6131b8` is integrated as `ebdea5a1` before future commit-fence wiring.

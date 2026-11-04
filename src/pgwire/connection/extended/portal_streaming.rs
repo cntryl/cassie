@@ -152,7 +152,7 @@ pub(super) async fn execute_streaming_portal_page(
             }
         }
         let cursor = (|| {
-            let owner = request.session.repeatable_statement_read(
+            let owner = request.session.repeatable_committed_read(
                 &cassie.midge,
                 request
                     .session

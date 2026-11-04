@@ -665,6 +665,24 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
         }
         return Ok(Numeric::NaN);
     }
+    let integer_exponent = exponent.truncate_to(0);
+    let integral = integer_exponent.compare(exponent).is_eq();
+    if base.is_zero() && exponent.signum() == Some(-1) {
+        return Err(error(
+            "2201F",
+            "zero raised to a negative power is undefined",
+        ));
+    }
+    if base.signum() == Some(-1) && !integral {
+        return Err(error(
+            "2201F",
+            "a negative number raised to a non-integer power yields a complex result",
+        ));
+    }
+    let odd = matches!(
+        &integer_exponent,
+        Numeric::Finite { mantissa, .. } if mantissa.is_odd()
+    );
     let (
         Numeric::Finite {
             mantissa: base_mantissa,
@@ -676,24 +694,8 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
         },
     ) = (base, exponent)
     else {
-        return Ok(
-            Numeric::from_f64(approximate(base).powf(approximate(exponent)))
-                .unwrap_or(Numeric::NaN),
-        );
+        return Ok(power_infinite(base, exponent, odd));
     };
-    if base_mantissa.is_zero() && exponent_mantissa.is_negative() {
-        return Err(error(
-            "2201F",
-            "zero raised to a negative power is undefined",
-        ));
-    }
-    let integral = exponent.truncate_to(0).compare(exponent).is_eq();
-    if base_mantissa.is_negative() && !integral {
-        return Err(error(
-            "2201F",
-            "a negative number raised to a non-integer power yields a complex result",
-        ));
-    }
     if integral {
         if let Some(power) = exponent
             .to_i64_rounded()
@@ -707,7 +709,11 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
     if base_mantissa.is_zero() {
         return Ok(Numeric::finite(BigInt::zero(), 16));
     }
-    let ln_estimate = approximate(base).ln() * approximate(exponent);
+    // An integral exponent outside the i32 fast path still permits a negative
+    // base. Evaluate its positive magnitude and restore the exact integer sign.
+    let magnitude = base_mantissa.abs();
+    let positive_base = Numeric::finite(magnitude.clone(), *base_scale);
+    let ln_estimate = approximate(&positive_base).ln() * approximate(exponent);
     if ln_estimate.abs() > 131_072.0 * 3.01 * std::f64::consts::LN_10 {
         if ln_estimate > 0.0 {
             return Err(error("22003", "value overflows numeric format"));
@@ -729,16 +735,46 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
     };
     let ln_base = ln_fixed(
         &work,
-        &Fixed::from_numeric(base_mantissa, *base_scale, work.digits).value,
+        &Fixed::from_numeric(&magnitude, *base_scale, work.digits).value,
     );
     let exponent_fixed = Fixed::from_numeric(exponent_mantissa, *exponent_scale, work.digits);
     let product = work.multiply(&ln_base, &exponent_fixed.value);
+    let value = exp_fixed(&work, &product);
     Fixed {
-        value: exp_fixed(&work, &product),
+        value: if base_mantissa.is_negative() && odd {
+            -value
+        } else {
+            value
+        },
         digits: work.digits,
     }
     .into_numeric(result_scale)
     .check_format()
+}
+
+/// Special numeric powers retain exact integer parity rather than casting the
+/// exponent to FLOAT8, which loses odd integers above 2^53.
+fn power_infinite(base: &Numeric, exponent: &Numeric, odd: bool) -> Numeric {
+    if matches!(exponent, Numeric::Infinity | Numeric::NegInfinity) {
+        let magnitude = abs(base).compare(&super::one());
+        if magnitude.is_eq() {
+            return super::one();
+        }
+        return if magnitude.is_gt() == matches!(exponent, Numeric::Infinity) {
+            Numeric::Infinity
+        } else {
+            Numeric::from_i64(0)
+        };
+    }
+    if exponent.is_zero() {
+        super::one()
+    } else if exponent.signum() == Some(-1) {
+        Numeric::from_i64(0)
+    } else if matches!(base, Numeric::NegInfinity) && odd {
+        Numeric::NegInfinity
+    } else {
+        Numeric::Infinity
+    }
 }
 
 /// `power_var_int`.

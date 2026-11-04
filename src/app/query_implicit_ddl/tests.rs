@@ -253,7 +253,7 @@ fn should_cancel_an_implicit_ddl_publication_wait_before_staging() {
     let cassie = fixture();
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
-        cassie.runtime.limits(),
+        &cassie.runtime.limits(),
         Instant::now(),
         cancellation.clone(),
     );

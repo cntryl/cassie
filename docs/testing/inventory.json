@@ -269922,7 +269922,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 284,
-      "sha256": "120caac9175bc8057247339e259dbe4d6113efee6bb03d2cf7c28a73eeb5f585",
+      "sha256": "1bf0f3bc369f00eb4a8e0dc4b563dcb6cf05537b417dbd29f10049d1e6ab3ee9",
       "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"

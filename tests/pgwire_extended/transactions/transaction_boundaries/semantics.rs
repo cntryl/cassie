@@ -3,7 +3,7 @@ fn should_preserve_the_supported_wire_isolation_boundary() {
     // Arrange
     let cases = [
         ("READ COMMITTED", true),
-        ("REPEATABLE READ", false),
+        ("REPEATABLE READ", true),
         ("SERIALIZABLE", false),
     ];
 

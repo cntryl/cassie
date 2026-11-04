@@ -48,7 +48,16 @@ impl CassieSession {
     pub(crate) fn is_repeatable_read_write(&self) -> bool {
         let transaction = self.transaction.lock();
         transaction.isolation == Some(TransactionIsolation::RepeatableRead)
-            && transaction.modes.read_only == Some(false)
+            && transaction.repeatable_read.as_ref().map_or_else(
+                || {
+                    transaction.modes.read_only == Some(false)
+                        || transaction
+                            .savepoints
+                            .iter()
+                            .any(|saved| saved.modes.read_only == Some(false))
+                },
+                |owner| owner.history.is_some(),
+            )
     }
 
     pub(crate) fn repeatable_read_capture_generation(&self) -> Option<u64> {
@@ -163,7 +172,9 @@ impl CassieSession {
                 message: "database family changed during REPEATABLE READ".to_owned(),
             });
         }
-        if transaction.modes.read_only == Some(true) {
+        // Tightening future writes to READ ONLY does not discard a previously
+        // captured RW transaction's own changes or its publication authority.
+        if owner.history.is_none() {
             return Ok(Some(Arc::clone(&owner.data)));
         }
         let overlay = self.capture_statement_overlay_locked(&transaction, controls)?;

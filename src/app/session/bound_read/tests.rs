@@ -163,3 +163,131 @@ fn should_keep_execute_authority_independent_of_the_bind_request() {
     assert!(admitted.is_ok());
     assert!(matches!(cancelled, Err(CassieError::QueryCancelled)));
 }
+
+#[test]
+fn should_reuse_the_read_only_transaction_without_a_bind_frame() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
+            Vec::new(),
+        )
+        .expect("begin");
+    cassie
+        .execute_sql(&session, "SELECT 1", Vec::new())
+        .expect("initial owner");
+    let current = controls(1);
+    let retention = controls(1);
+    let original = session
+        .repeatable_committed_read(&cassie.midge, &cassie.default_database)
+        .expect("data")
+        .expect("retained");
+
+    // Act
+    let frame = session
+        .capture_bound_read_view(
+            &cassie.midge,
+            &cassie.default_database,
+            true,
+            &current,
+            &retention,
+        )
+        .expect("no additional backing");
+    let reused = session
+        .repeatable_committed_read(&cassie.midge, &cassie.default_database)
+        .expect("reuse")
+        .expect("retained");
+
+    // Assert
+    assert!(frame.is_none());
+    assert!(Arc::ptr_eq(&original, &reused));
+    assert_eq!(current.current_query_memory_bytes(), 0);
+    assert_eq!(retention.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reserve_native_write_authority_for_restorable_modes() {
+    // Arrange
+    let cases: &[(&str, &[&str], &[&str], bool)] = &[
+        ("READ WRITE", &[], &[], true),
+        ("READ WRITE", &[], &["SET transaction_read_only = on"], true),
+        (
+            "READ WRITE",
+            &["SET transaction_read_only = on"],
+            &[],
+            false,
+        ),
+        ("READ ONLY", &[], &[], false),
+        ("READ ONLY", &["SET transaction_read_only = off"], &[], true),
+        (
+            "READ WRITE",
+            &["SAVEPOINT writable", "SET transaction_read_only = on"],
+            &[],
+            true,
+        ),
+        (
+            "READ WRITE",
+            &["SAVEPOINT writable", "SET transaction_read_only = on"],
+            &["ROLLBACK TO SAVEPOINT writable"],
+            true,
+        ),
+        (
+            "READ WRITE",
+            &[
+                "SAVEPOINT writable",
+                "SET transaction_read_only = on",
+                "SAVEPOINT readonly",
+            ],
+            &["RELEASE SAVEPOINT writable"],
+            true,
+        ),
+    ];
+    for (mode, before, after, retained_rw) in cases {
+        let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+            .expect("memory fixture");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                &format!("BEGIN ISOLATION LEVEL REPEATABLE READ {mode}"),
+                Vec::new(),
+            )
+            .expect("begin");
+        for sql in *before {
+            cassie
+                .execute_sql(&session, sql, Vec::new())
+                .expect("mode before first snapshot");
+        }
+
+        // Act
+        cassie
+            .execute_sql(&session, "SELECT 1", Vec::new())
+            .expect("capture");
+        for sql in *after {
+            cassie
+                .execute_sql(&session, sql, Vec::new())
+                .expect("mode after capture");
+        }
+        let native = cassie
+            .midge
+            .data_tx(cntryl_midge::TransactionMode::ReadWrite);
+        let blocked = match native {
+            Ok(transaction) => {
+                transaction.rollback().expect("retire external capability");
+                false
+            }
+            Err(CassieError::Unsupported(_)) => true,
+            Err(error) => panic!("unexpected native admission: {error}"),
+        };
+        session.rollback_transaction();
+
+        // Assert
+        assert_eq!(blocked, *retained_rw, "{mode}; {before:?}; {after:?}");
+    }
+}

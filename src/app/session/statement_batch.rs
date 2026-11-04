@@ -16,6 +16,7 @@ impl CassieSession {
         let base_transaction_active = transaction.status == SessionTransactionStatus::InTransaction;
         let working_state = self.statement_fork_state(&transaction);
         drop(transaction);
+        let base_generation = working_state.generation;
         let base_writes = working_state.writes.clone();
         let conflict_intents = &working_state.conflict_intents;
         let catalog_overlay = working_state
@@ -47,6 +48,7 @@ impl CassieSession {
         Ok(StatementMutationBatch {
             session,
             base_transaction_active,
+            base_generation,
             base_writes,
             base_conflict_intent_count,
             base_catalog_overlay: catalog_overlay,
@@ -128,6 +130,11 @@ impl CassieSession {
             ));
         }
 
+        if transaction.generation != batch.base_generation {
+            return Err(CassieError::Execution(
+                "session transaction changed while statement was executing".to_owned(),
+            ));
+        }
         for mutation in &delta.rows {
             let current = transaction
                 .writes

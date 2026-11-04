@@ -25,7 +25,7 @@ fn should_release_the_read_directory_when_its_last_portal_closes() {
     cassie
         .execute_sql(
             &session,
-            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
             Vec::new(),
         )
         .expect("begin");
@@ -80,7 +80,7 @@ fn should_admit_a_frame_together_with_its_portal_directory() {
     cassie
         .execute_sql(
             &session,
-            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY",
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
             Vec::new(),
         )
         .expect("begin");

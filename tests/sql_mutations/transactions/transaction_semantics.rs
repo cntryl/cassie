@@ -46,12 +46,13 @@ fn reject_active_transaction_command(
 }
 
 #[test]
-fn should_reject_non_read_committed_begin() {
+fn should_reject_unselected_stronger_begin_modes() {
     // Arrange
     with_source_table("transaction_semantics_isolation", |cassie, session| {
         for sql in [
             "BEGIN ISOLATION LEVEL SERIALIZABLE",
-            "BEGIN ISOLATION LEVEL REPEATABLE READ",
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY DEFERRABLE",
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE DEFERRABLE",
         ] {
             // Act
             let error = cassie

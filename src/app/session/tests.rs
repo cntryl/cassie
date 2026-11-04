@@ -192,3 +192,28 @@ fn should_report_no_changes_for_an_unmatched_collection_snapshot() {
     assert!(snapshot.is_empty());
     assert!(!session.has_collection_changes("other_items"));
 }
+
+#[test]
+fn should_reject_a_statement_fork_from_a_retired_transaction() {
+    // Arrange
+    let session = CassieSession::new("root".into(), None);
+    session.begin_transaction(None).expect("old transaction");
+    let batch = session.fork_statement_batch().expect("old working fork");
+    batch
+        .session()
+        .stage_document_write("retired_rows", "row".into(), serde_json::json!({"id":1}))
+        .expect("old own change");
+    session.rollback_transaction();
+    session
+        .begin_transaction(None)
+        .expect("replacement transaction");
+
+    // Act
+    let failure = session.publish_statement_batch(&batch);
+    let replacement = session.document_change("retired_rows", "row");
+
+    // Assert
+    assert!(matches!(failure, Err(CassieError::Execution(_))));
+    assert!(replacement.is_none());
+    assert_eq!(session.transaction_status(), "in_transaction");
+}

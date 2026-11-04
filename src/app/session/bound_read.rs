@@ -49,6 +49,12 @@ impl CassieSession {
         controls: &QueryExecutionControls,
         retention: &QueryExecutionControls,
     ) -> Result<Option<Arc<BoundReadView>>, CassieError> {
+        // A permanently read-only RR owner has no own changes to pin. Saved
+        // writable modes are included in this authority predicate before capture;
+        // their restoration must not bypass a Bind view or the row fence.
+        if !self.is_repeatable_read_write() {
+            return Ok(None);
+        }
         let Some(initial_catalog) = self.transaction_catalog_snapshot() else {
             return Ok(None);
         };

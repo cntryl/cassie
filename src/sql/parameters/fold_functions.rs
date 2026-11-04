@@ -15,6 +15,12 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if let Some(summary) = self.generated_function(function, frame)? {
+            return Ok(summary);
+        }
+        if let Some(summary) = self.array_function_output(function, frame)? {
+            return Ok(summary);
+        }
         if let Some(oid) = functions::hashing::return_type(&function.name)
             .and_then(|kind| i32::try_from(kind.type_oid()).ok())
         {

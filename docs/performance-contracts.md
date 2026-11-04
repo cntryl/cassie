@@ -15,6 +15,13 @@ Every performance-sensitive query family must prove:
 
 Missing access-path evidence is a failed contract, not permission to infer the intended path from latency.
 
+The selected #808 source consumer has a counted Tier2 owner,
+`tier2_subsystem_generated_sources`, with 2k and 100k logical generator
+cardinalities. Both scenarios consume the same filtered LIMIT16 query under
+disabled result caching and explicit Midge memory mode. They compare source
+domain growth without seeding expanded input rows; artifacts remain pending
+until the substantial source bundle's ordered gate and benchmark batch run.
+
 ## Query Memory and Results
 
 The required end state uses one shared tracker for query-owned materialization: sorts, distinct sets, hash tables, aggregate state, recursive working sets, graph frontiers, search candidates, portal buffers, and execution-result-cache payloads. Operators must reserve before allocation and release on drop. Exceeding the configured query budget returns SQLSTATE `54000`.

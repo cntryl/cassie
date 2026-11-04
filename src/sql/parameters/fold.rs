@@ -10,6 +10,8 @@ use super::occurrences::{Occurrences, PrivateParameterTypeInput, Summary};
 use super::ParameterAdmissionError;
 use super::UNKNOWN_PARAMETER_TYPE_OID;
 
+#[path = "fold_array_outputs.rs"]
+mod array_outputs;
 #[path = "fold_bytea_functions.rs"]
 mod bytea_functions;
 #[path = "fold_columns.rs"]
@@ -22,6 +24,8 @@ mod functions;
 mod literal_inputs;
 #[path = "fold_nodes.rs"]
 mod nodes;
+#[path = "fold_table_sources.rs"]
+mod table_sources;
 
 #[derive(Clone, Copy)]
 enum Expected {

@@ -133,6 +133,11 @@ harness = false
 path = "benches/tier2_subsystem_executor.rs"
 
 [[bench]]
+name = "tier2_subsystem_generated_sources"
+harness = false
+path = "benches/tier2_subsystem_generated_sources.rs"
+
+[[bench]]
 name = "tier2_subsystem_column_scan"
 harness = false
 path = "benches/tier2_subsystem_column_scan.rs"

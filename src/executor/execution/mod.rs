@@ -52,6 +52,7 @@ fn primary_key_indexes(
 
 mod command_output;
 mod query_result;
+pub(crate) use query_result::native_result_text_bound;
 mod types;
 pub use query_result::{OwnedQueryRows, QueryResultBuilder};
 use types::ExecutionBreakdownDurations;

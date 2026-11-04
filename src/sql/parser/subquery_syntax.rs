@@ -102,7 +102,12 @@ fn array_constructor(raw: &str) -> Result<Expr, SqlError> {
                         "ARRAY constructor contains a missing element".into(),
                     ));
                 }
-                super::parse_expression(lexical::trim_separators(value))
+                let value = lexical::trim_separators(value);
+                if value.starts_with('[') {
+                    array_constructor(value)
+                } else {
+                    super::parse_expression(value)
+                }
             })
             .collect::<Result<Vec<_>, _>>()?
     };

@@ -66,12 +66,24 @@ pub(super) fn value_to_text(value: &Value, type_oid: i64) -> String {
 }
 
 pub(super) fn value_to_postgres_array_text(value: &Value, type_oid: i64) -> Option<String> {
+    value_to_postgres_array_text_in(
+        value,
+        type_oid,
+        crate::types::extended::temporal::default_session(),
+    )
+}
+
+pub(super) fn value_to_postgres_array_text_in(
+    value: &Value,
+    type_oid: i64,
+    session: &crate::types::extended::temporal::TemporalSession,
+) -> Option<String> {
     if let Value::Array(array) = value {
         let element_oid = u32::try_from(builtin_array_element_oid(type_oid)?).ok()?;
         let element_type = crate::types::builtin::builtin_for_oid(element_oid)?
             .kind
             .data_type();
-        return crate::types::array_value::format_text(array, &element_type);
+        return crate::types::array_value::format_text_in(array, &element_type, session);
     }
     let Value::Json(array) = value else {
         return None;

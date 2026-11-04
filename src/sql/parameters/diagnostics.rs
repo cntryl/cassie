@@ -93,6 +93,10 @@ pub(crate) enum ParameterSemanticDiagnostic {
         left: i32,
         right: i32,
     },
+    ArrayTypes {
+        left: i32,
+        right: i32,
+    },
     MissingEquality {
         actual: i32,
     },
@@ -132,6 +136,7 @@ impl ParameterSemanticDiagnostic {
             self,
             Self::DistinctAggregateOrder
                 | Self::ValuesTypes { .. }
+                | Self::ArrayTypes { .. }
                 | Self::MissingEquality { .. }
                 | Self::AmbiguousFunction { .. }
                 | Self::PolymorphicUnknown
@@ -154,9 +159,10 @@ impl ParameterSemanticDiagnostic {
             Self::MissingEquality { .. } | Self::UndefinedFunction { .. } => "42883",
             Self::Inconsistent { .. } | Self::Indeterminate { .. } => "42P08",
             Self::Unresolved { .. } => "42P18",
-            Self::ValuesTypes { .. } | Self::BooleanOperand { .. } | Self::PolymorphicUnknown => {
-                "42804"
-            }
+            Self::ValuesTypes { .. }
+            | Self::ArrayTypes { .. }
+            | Self::BooleanOperand { .. }
+            | Self::PolymorphicUnknown => "42804",
         }
     }
 
@@ -179,6 +185,11 @@ impl ParameterSemanticDiagnostic {
             }
             Self::AmbiguousFunction { function } => {
                 "function (unknown) is not unique".len() + function.len()
+            }
+            Self::ArrayTypes { left, right } => {
+                "ARRAY types  and  cannot be matched".len()
+                    + type_name(left).len()
+                    + type_name(right).len()
             }
             Self::ValuesTypes { left, right } => {
                 "VALUES types  and  cannot be matched".len()
@@ -231,6 +242,12 @@ impl ParameterSemanticDiagnostic {
             Self::ValuesTypes { left, right } => write!(
                 output,
                 "VALUES types {} and {} cannot be matched",
+                type_name(left),
+                type_name(right)
+            ),
+            Self::ArrayTypes { left, right } => write!(
+                output,
+                "ARRAY types {} and {} cannot be matched",
                 type_name(left),
                 type_name(right)
             ),
@@ -308,6 +325,7 @@ impl ParameterSemanticDiagnostic {
             | Self::PolymorphicUnknown
             | Self::DistinctAggregateOrder
             | Self::ValuesTypes { .. }
+            | Self::ArrayTypes { .. }
             | Self::ValuesWidth
             | Self::MissingEquality { .. } => None,
         }

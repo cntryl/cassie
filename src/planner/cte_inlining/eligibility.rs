@@ -62,6 +62,13 @@ fn function_pure(
     controls.check_interruption()?;
     let mut pure = if volatile_builtin_name(&function.name) {
         false
+    } else if crate::sql::table_sources::is_generated(&function.name)
+        || function
+            .name
+            .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+        || function.name.eq_ignore_ascii_case("_cassie_array_value")
+    {
+        true
     } else if let Some(definition) = functions::function(&function.name) {
         !volatile_builtin(&function.name, definition.id)
     } else {

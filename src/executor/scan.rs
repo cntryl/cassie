@@ -50,12 +50,18 @@ pub(crate) struct ProjectedScanStream<'a> {
 }
 
 impl BatchStream for ProjectedScanStream<'_> {
-    fn next_batch(&mut self) -> Result<Option<Batch>, crate::executor::QueryError> {
+    fn next_batch(&mut self) -> Result<Option<Batch>, QueryError> {
+        self.next_bounded_batch(DEFAULT_BATCH_SIZE)
+    }
+}
+
+impl ProjectedScanStream<'_> {
+    fn next_bounded_batch(&mut self, max_rows: usize) -> Result<Option<Batch>, QueryError> {
         self.previous_page_memory = None;
         if self.remaining == 0 {
             return Ok(None);
         }
-        let batch_size = self.remaining.min(DEFAULT_BATCH_SIZE);
+        let batch_size = self.remaining.min(DEFAULT_BATCH_SIZE).min(max_rows);
         let accounted_documents = self
             .cursor
             .next_accounted_documents(&self.cassie.midge, batch_size, self.controls)
@@ -84,6 +90,32 @@ impl BatchStream for ProjectedScanStream<'_> {
         )?;
         self.previous_page_memory = Some(converted.memory);
         Ok(converted.batches.into_iter().next())
+    }
+
+    pub(crate) fn next_retained_row(&mut self) -> Result<Option<BatchRow>, QueryError> {
+        let Some(mut batch) = self.next_bounded_batch(1)? else {
+            return Ok(None);
+        };
+        debug_assert!(batch.len() <= 1);
+        let Some(_) = batch.last() else {
+            return Ok(None);
+        };
+        // Keep the conversion owner in the stream until the successor owner is
+        // admitted, so a failed admission never drops the lease before its row.
+        self.previous_page_memory
+            .as_mut()
+            .expect("converted source row has an owner")
+            .try_grow(
+                std::mem::size_of::<QueryMemoryReservation>() + 2 * std::mem::size_of::<usize>(),
+            )?;
+        let row = batch.pop().expect("one converted source row");
+        let memory = self
+            .previous_page_memory
+            .take()
+            .expect("admitted converted source row");
+        Ok(Some(
+            row.with_query_memory(Some(std::sync::Arc::new(memory))),
+        ))
     }
 }
 

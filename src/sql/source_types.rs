@@ -61,6 +61,7 @@ pub(crate) fn source_field_type_map_with_parameters(
                         super::ColumnIdentifierPath::stored_field_key(&field.name)
                     };
                     fields.insert(visible.clone(), field.data_type.clone());
+                    fields.insert(physical.clone(), field.data_type.clone());
                     fields.insert(
                         format!("{visible_qualifier}.{visible}"),
                         field.data_type.clone(),

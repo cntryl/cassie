@@ -541,6 +541,7 @@ fn evaluate_constant(
                 session: None,
                 exists: None,
                 controls,
+                memory: None,
             },
             parameter,
             admit_cast,

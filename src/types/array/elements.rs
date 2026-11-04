@@ -108,9 +108,21 @@ fn normalize_string(text: String, data_type: &DataType) -> Result<String, String
         DataType::Bytea => {
             crate::midge::row_blob::canonical_bytea_text(&text).map_err(|error| error.to_string())
         }
-        DataType::Date => crate::types::temporal::canonical_date(text.trim()),
-        DataType::Time => crate::types::temporal::canonical_time(text.trim()),
-        DataType::Timestamp => crate::types::temporal::canonical_timestamp(text.trim()),
+        DataType::Date | DataType::Time | DataType::Timestamp => {
+            use crate::types::extended::ExtendedType;
+            let kind = match data_type {
+                DataType::Date => ExtendedType::Date,
+                DataType::Time => ExtendedType::Time { precision: None },
+                _ => ExtendedType::Timestamp { precision: None },
+            };
+            let value = kind
+                .parse_text(text.trim())
+                .map_err(|error| error.to_string())?;
+            Ok(
+                crate::types::extended::temporal_legacy_text(&value)
+                    .unwrap_or_else(|| value.text()),
+            )
+        }
         _ => Ok(text),
     }
 }

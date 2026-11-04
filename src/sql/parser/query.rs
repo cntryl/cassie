@@ -19,6 +19,8 @@ mod relation_alias;
 mod query_cte;
 #[path = "query_table_sample.rs"]
 mod query_table_sample;
+#[path = "set_function_source.rs"]
+mod set_function_source;
 use query_cte::parse_cte_definitions;
 pub(super) use query_cte::parse_enclosed_parenthesized;
 
@@ -774,10 +776,16 @@ pub(super) fn mark_source_lateral(source: QuerySource) -> QuerySource {
             kind,
             on,
         },
-        QuerySource::TableFunction { name, function, .. } => QuerySource::TableFunction {
+        QuerySource::TableFunction {
+            name,
+            function,
+            with_ordinality,
+            ..
+        } => QuerySource::TableFunction {
             name,
             function,
             lateral: true,
+            with_ordinality,
         },
         other => other,
     }
@@ -852,6 +860,9 @@ fn parse_parenthesized_query_source(raw: &str, lateral: bool) -> Result<QuerySou
 }
 
 fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, SqlError> {
+    if let Some(source) = set_function_source::parse(raw)? {
+        return Ok(source);
+    }
     if let Some(source) = parse_jsonpath_table_function(raw, lateral)? {
         return Ok(source);
     }
@@ -887,6 +898,7 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
                     name,
                     function,
                     lateral,
+                    with_ordinality: false,
                 },
                 &raw[close + 1..],
             );
@@ -913,6 +925,7 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
                 name: lower_name,
                 function,
                 lateral,
+                with_ordinality: false,
             });
         }
     }
@@ -941,6 +954,7 @@ fn parse_jsonpath_table_function(
             name,
             function,
             lateral,
+            with_ordinality: false,
         },
         &raw[close + 1..],
     )

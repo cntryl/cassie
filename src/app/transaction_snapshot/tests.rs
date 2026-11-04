@@ -60,7 +60,7 @@ fn should_leave_repeatable_read_unacquired_after_admission_failure() {
 }
 
 #[test]
-fn should_keep_repeatable_read_charge_until_the_last_data_and_catalog_owner() {
+fn should_retain_repeatable_read_charge_until_its_last_shared_owner() {
     // Arrange
     let (cassie, session, parsed) = fixture();
     let controls = controls(16 * 1024 * 1024);
@@ -243,7 +243,7 @@ fn should_cancel_repeatable_read_capture_while_publication_is_blocked() {
 }
 
 #[test]
-fn should_preserve_statement_metadata_and_select_current_rr_descriptors() {
+fn should_select_encoding_descriptor_authority_for_each_isolation_scope() {
     // Arrange
     for repeatable in [false, true] {
         let (cassie, reader, _) = fixture();

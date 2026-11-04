@@ -1,4 +1,4 @@
-//! User-selected finite PostgreSQL18.6 generate_series families.
+//! User-selected finite PostgreSQL18.6 `generate_series` families.
 use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 

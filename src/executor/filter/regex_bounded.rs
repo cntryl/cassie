@@ -38,6 +38,7 @@ impl Regex {
         match_kind: Option<MatchKind>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Self, QueryError> {
+        let workspace = super::workspace::bytes(pattern, syntax, controls)?;
         let mut limit = if controls.is_some() {
             mul(pattern.len(), 64)?.clamp(MIN_NFA_BYTES, MAX_NFA_BYTES)
         } else {
@@ -45,7 +46,7 @@ impl Regex {
         };
         loop {
             check_interruption(controls)?;
-            let envelope = compilation_bytes(limit, pattern.len())?;
+            let envelope = add(compilation_bytes(limit, pattern.len())?, workspace)?;
             let mut compiled_memory = reserve(controls, envelope)?;
             let built = PikeVM::builder()
                 .syntax(syntax)
@@ -352,7 +353,10 @@ mod tests {
     #[test]
     fn should_release_failed_native_regex_attempt_before_retry_admission() {
         // Arrange
-        let first_envelope = compilation_bytes(MIN_NFA_BYTES, 2).expect("first native attempt");
+        let workspace = super::super::workspace::bytes(r"\w", syntax::Config::new(), None)
+            .expect("Unicode workspace");
+        let first_envelope =
+            compilation_bytes(MIN_NFA_BYTES, 2).expect("first native attempt") + workspace;
         let controls = controls(first_envelope);
 
         // Act
@@ -370,15 +374,18 @@ mod tests {
     #[test]
     fn should_admit_unicode_regex_after_releasing_smaller_native_attempts() {
         // Arrange
-        let controls = controls(1024 * 1024);
-        let first_envelope = compilation_bytes(MIN_NFA_BYTES, 2).expect("first native attempt");
+        let controls = controls(4 * 1024 * 1024);
+        let workspace = super::super::workspace::bytes(r"\w", syntax::Config::new(), None)
+            .expect("Unicode workspace");
+        let first_envelope =
+            compilation_bytes(MIN_NFA_BYTES, 2).expect("first native attempt") + workspace;
 
         // Act
         let regex = Regex::build(r"\w", syntax::Config::new(), None, Some(&controls))
             .expect("larger native regex is admitted");
         let matched = regex.is_match("猫");
         let peak = controls.peak_query_memory_bytes();
-        let native_ceiling = (peak - 2 * 128 - 4096) / 8;
+        let native_ceiling = (peak - workspace - 2 * 128 - 4096) / 8;
         drop(regex);
 
         // Assert

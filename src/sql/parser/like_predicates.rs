@@ -185,6 +185,27 @@ fn regex_predicate(expression: Expr, pattern: Expr, case_insensitive: bool) -> E
     function("regexp_like", arguments)
 }
 
+fn quantified_collection(right: &str) -> Result<Option<(Expr, bool)>, SqlError> {
+    let right = super::super::lexical::trim_separators(right);
+    for (keyword, all) in [("any", false), ("some", false), ("all", true)] {
+        let Some(end) = super::super::lexical::pattern_end(right, 0, keyword) else {
+            continue;
+        };
+        let suffix = super::super::lexical::trim_separators(&right[end..]);
+        let inner = super::super::clauses::strip_parentheses(suffix).ok_or_else(|| {
+            SqlError::syntax("quantified pattern requires a parenthesized array or subquery".into())
+        })?;
+        let collection = if super::subquery_syntax::body(suffix).is_some() {
+            super::subquery_syntax::array(&format!("ARRAY{suffix}"))?
+                .expect("selected array subquery")
+        } else {
+            super::parse_expression(inner)?
+        };
+        return Ok(Some((collection, all)));
+    }
+    Ok(None)
+}
+
 pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     let Some((left, right, operator)) = split_predicate(raw) else {
         return Ok(None);
@@ -204,6 +225,37 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
         return Err(SqlError::syntax(message));
     }
     let expression = parse_comparison_expression(left)?;
+    if let Some((collection, all)) = quantified_collection(right)? {
+        let mode = match operator.kind {
+            PatternKind::Like {
+                case_insensitive: false,
+            } => "like",
+            PatternKind::Like {
+                case_insensitive: true,
+            } => "ilike",
+            PatternKind::Regex {
+                case_insensitive: false,
+            } => "regex",
+            PatternKind::Regex {
+                case_insensitive: true,
+            } => "iregex",
+            PatternKind::Similar => {
+                return Err(SqlError::syntax(
+                    "SIMILAR TO does not accept ANY/ALL".into(),
+                ))
+            }
+        };
+        return Ok(Some(function(
+            crate::sql::functions::QUANTIFIED_PATTERN_FUNCTION,
+            vec![
+                expression,
+                collection,
+                Expr::StringLiteral(mode.into()),
+                Expr::BoolLiteral(operator.negated),
+                Expr::BoolLiteral(all),
+            ],
+        )));
+    }
     let predicate = match operator.kind {
         PatternKind::Like { case_insensitive } => {
             let (pattern, escape) =

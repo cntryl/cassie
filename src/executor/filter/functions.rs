@@ -65,6 +65,10 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         return evaluate_coalesce(function, row, context);
     }
 
+    if let Some(result) = regex_functions::evaluate_expression(function, row, context) {
+        return result;
+    }
+
     let args: Vec<Value> = function
         .args
         .iter()

@@ -4,7 +4,10 @@ use regex_automata::{util::syntax, MatchKind};
 
 use crate::runtime::QueryExecutionControls;
 
-use super::{bounded::Regex, invalid_regular_expression, newline_classes, QueryError};
+use super::{
+    bounded::Regex, invalid_regular_expression, newline_classes, pattern_memory::PatternText,
+    regex_assertions, resource_limit, QueryError,
+};
 
 pub(super) fn compile(
     pattern: &str,
@@ -41,23 +44,37 @@ fn compile_with_options(
     match_kind: Option<MatchKind>,
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Regex, QueryError> {
-    let (pattern, quoted) = if matches!(options.syntax, PatternSyntax::Quoted) {
-        (escape(pattern), true)
+    let (pattern, quoted, advanced) = if matches!(options.syntax, PatternSyntax::Quoted) {
+        (escape(pattern, controls)?, true, false)
     } else if let Some(literal) = pattern.strip_prefix("***=") {
-        (escape(literal), true)
+        (escape(literal, controls)?, true, false)
     } else if let Some(advanced) = pattern.strip_prefix("***:") {
-        (advanced.to_owned(), false)
+        (PatternText::copy(advanced, controls)?, false, true)
     } else {
         let pattern = match options.syntax {
-            PatternSyntax::Basic => basic_to_extended(pattern),
-            PatternSyntax::Extended | PatternSyntax::Quoted => pattern.to_owned(),
+            PatternSyntax::Basic => basic_to_extended(pattern, controls)?,
+            PatternSyntax::Advanced | PatternSyntax::Extended | PatternSyntax::Quoted => {
+                PatternText::copy(pattern, controls)?
+            }
         };
-        (pattern, false)
+        (
+            pattern,
+            false,
+            matches!(options.syntax, PatternSyntax::Advanced),
+        )
     };
     let expanded = !quoted && matches!(options.whitespace, WhitespaceMode::Expanded);
+    let pattern = if quoted {
+        pattern
+    } else {
+        regex_assertions::translate(pattern, advanced, expanded, controls)?
+    };
     let corrected_classes = !quoted && options.newlines.excludes_class_newline();
     let pattern = if corrected_classes {
-        newline_classes::exclude_newlines(&pattern, expanded)?
+        let corrected =
+            newline_classes::exclude_newlines_owned(pattern.as_str(), expanded, controls)?;
+        drop(pattern);
+        corrected
     } else {
         pattern
     };
@@ -72,7 +89,7 @@ fn compile_with_options(
         // the same path, which the backend's nesting visitor counts separately.
         syntax = syntax.nest_limit(syntax.get_nest_limit().saturating_mul(3));
     }
-    Regex::build(&pattern, syntax, match_kind, controls)
+    Regex::build(pattern.as_str(), syntax, match_kind, controls)
 }
 
 #[derive(Clone, Copy)]
@@ -90,7 +107,7 @@ impl RegexOptions {
             case: CaseMode::Sensitive,
             newlines: NewlineMode::Default,
             whitespace: WhitespaceMode::Tight,
-            syntax: PatternSyntax::Extended,
+            syntax: PatternSyntax::Advanced,
             global: false,
         };
         for flag in flags.chars() {
@@ -129,6 +146,7 @@ impl RegexOptions {
 
 #[derive(Clone, Copy)]
 enum PatternSyntax {
+    Advanced,
     Basic,
     Extended,
     Quoted,
@@ -175,41 +193,57 @@ enum WhitespaceMode {
     Expanded,
 }
 
-fn escape(pattern: &str) -> String {
-    let mut escaped = String::with_capacity(pattern.len());
-    for character in pattern.chars() {
-        if matches!(
-            character,
-            '\\' | '.' | '^' | '$' | '|' | '?' | '*' | '+' | '(' | ')' | '[' | ']' | '{' | '}'
-        ) {
-            escaped.push('\\');
+fn escape(
+    pattern: &str,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<PatternText, QueryError> {
+    let capacity = pattern
+        .len()
+        .checked_mul(2)
+        .ok_or_else(|| resource_limit("quoted pattern size overflow"))?;
+    PatternText::build(capacity, controls, |writer| {
+        for character in pattern.chars() {
+            if matches!(
+                character,
+                '\\' | '.' | '^' | '$' | '|' | '?' | '*' | '+' | '(' | ')' | '[' | ']' | '{' | '}'
+            ) {
+                writer.push('\\')?;
+            }
+            writer.push(character)?;
         }
-        escaped.push(character);
-    }
-    escaped
+        Ok(())
+    })
 }
 
-fn basic_to_extended(pattern: &str) -> String {
-    let mut converted = String::with_capacity(pattern.len());
-    let mut characters = pattern.chars();
-    while let Some(character) = characters.next() {
-        if character == '\\' {
-            if let Some(next) = characters.next() {
-                if matches!(next, '+' | '?' | '|' | '(' | ')' | '{' | '}') {
-                    converted.push(next);
+fn basic_to_extended(
+    pattern: &str,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<PatternText, QueryError> {
+    let capacity = pattern
+        .len()
+        .checked_mul(2)
+        .ok_or_else(|| resource_limit("basic pattern size overflow"))?;
+    PatternText::build(capacity, controls, |writer| {
+        let mut characters = pattern.chars();
+        while let Some(character) = characters.next() {
+            if character == '\\' {
+                if let Some(next) = characters.next() {
+                    if matches!(next, '+' | '?' | '|' | '(' | ')' | '{' | '}') {
+                        writer.push(next)?;
+                    } else {
+                        writer.push('\\')?;
+                        writer.push(next)?;
+                    }
                 } else {
-                    converted.push('\\');
-                    converted.push(next);
+                    writer.push('\\')?;
                 }
             } else {
-                converted.push('\\');
+                if matches!(character, '+' | '?' | '|' | '(' | ')' | '{' | '}') {
+                    writer.push('\\')?;
+                }
+                writer.push(character)?;
             }
-        } else {
-            if matches!(character, '+' | '?' | '|' | '(' | ')' | '{' | '}') {
-                converted.push('\\');
-            }
-            converted.push(character);
         }
-    }
-    converted
+        Ok(())
+    })
 }

@@ -2,7 +2,9 @@
 
 use regex_syntax::ast::{self, Ast, ClassBracketed, ClassSetItem, Visitor};
 
+use super::pattern_memory::{syntax_scratch, PatternText};
 use super::{invalid_regular_expression, resource_limit, QueryError};
+use crate::runtime::QueryExecutionControls;
 
 #[derive(Default)]
 struct NegatedClasses {
@@ -43,7 +45,12 @@ impl Visitor for NegatedClasses {
     }
 }
 
-pub(super) fn exclude_newlines(pattern: &str, expanded: bool) -> Result<String, QueryError> {
+pub(super) fn exclude_newlines_owned(
+    pattern: &str,
+    expanded: bool,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<PatternText, QueryError> {
+    let _syntax_memory = syntax_scratch(pattern.len(), controls)?;
     let ast = ast::parse::ParserBuilder::new()
         .ignore_whitespace(expanded)
         .build()
@@ -60,20 +67,20 @@ pub(super) fn exclude_newlines(pattern: &str, expanded: bool) -> Result<String, 
                 .checked_add(text.len())
                 .ok_or_else(|| resource_limit("regular-expression pattern size overflow"))
         })?;
-    let mut output = String::new();
-    output.try_reserve_exact(length).map_err(|error| {
-        resource_limit(&format!(
-            "unable to allocate regular-expression pattern: {error}"
-        ))
-    })?;
-    let mut previous = 0;
-    for (offset, text) in insertions {
-        output.push_str(&pattern[previous..offset]);
-        output.push_str(text);
-        previous = offset;
-    }
-    output.push_str(&pattern[previous..]);
-    Ok(output)
+    PatternText::build(length, controls, |writer| {
+        let mut previous = 0;
+        for (offset, text) in insertions {
+            writer.push_str(&pattern[previous..offset])?;
+            writer.push_str(text)?;
+            previous = offset;
+        }
+        writer.push_str(&pattern[previous..])
+    })
+}
+
+#[cfg(test)]
+fn exclude_newlines(pattern: &str, expanded: bool) -> Result<String, QueryError> {
+    exclude_newlines_owned(pattern, expanded, None).map(|text| text.into_parts().0)
 }
 
 #[cfg(test)]

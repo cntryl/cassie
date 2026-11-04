@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::support_pgwire as wire;
 use cassie::app::{Cassie, CassieError};
-use cassie::config::CassieRuntimeConfig;
+use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
@@ -23,6 +23,8 @@ pub struct CancellationCase {
     pub control: Frames,
     pub cancelled: Frames,
     pub recovery: Frames,
+    during_pause: serde_json::Value,
+    after_cancel: serde_json::Value,
 }
 
 struct TestServer {
@@ -156,11 +158,57 @@ pub fn run_memory_budget_case_with_setup_at_budget(
     result
 }
 
+async fn assert_filtered_does_not_pause(
+    reader: &mut OwnedReadHalf,
+    writer: &mut OwnedWriteHalf,
+    filtered_sql: &str,
+) {
+    let (_guard, selected, _resume) = cassie::runtime::pause_next_query_after_aggregate_input();
+    wire::write_frames(writer, vec![wire::simple_query_frame(filtered_sql)]).await;
+    let filtered = wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await;
+    assert_no_error(&filtered, "filtered-out aggregate control");
+    assert_eq!(wire::data_rows(&filtered), vec![vec![None]]);
+    assert!(
+        matches!(
+            selected.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ),
+        "FILTER FALSE must not reach the retained-input boundary"
+    );
+}
+
+async fn cancel_and_wait_for_close(address: SocketAddr, process_id: i32, secret_key: i32) {
+    let mut cancel_socket = tokio::net::TcpStream::connect(address)
+        .await
+        .expect("open cancellation connection");
+    cancel_socket
+        .write_all(&wire::cancel_request_frame(process_id, secret_key))
+        .await
+        .expect("send aggregate cancellation request");
+    cancel_socket
+        .shutdown()
+        .await
+        .expect("close cancellation connection");
+    let mut cancel_response = [0; 1];
+    let cancel_response_bytes = tokio::time::timeout(
+        Duration::from_secs(5),
+        cancel_socket.read(&mut cancel_response),
+    )
+    .await
+    .expect("CancelRequest connection must close")
+    .expect("wait for cancellation connection to close");
+    assert_eq!(
+        cancel_response_bytes, 0,
+        "CancelRequest has no response body"
+    );
+}
+
 pub fn run_cancellation_case_with_setup_after_aggregate_input(
     _label: &str,
     setup_sql: &[String],
     control_sql: &str,
     candidate_sql: &str,
+    filtered_sql: &str,
 ) -> CancellationCase {
     let runtime = current_thread_runtime();
     let mut config = crate::support_sql::with_test_root_password(
@@ -168,6 +216,7 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
     );
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 512 * 1024 * 1024;
+    config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
 
     runtime.block_on(async {
         let cassie = configured_instance(config.clone());
@@ -182,6 +231,8 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
         assert_no_error(&control, "small retained-value cancellation control");
 
+        assert_filtered_does_not_pause(&mut reader, &mut writer, filtered_sql).await;
+
         let (_pause_guard, selected, resume) =
             cassie::runtime::pause_next_query_after_aggregate_input();
         wire::write_frames(&mut writer, vec![wire::simple_query_frame(candidate_sql)]).await;
@@ -189,32 +240,15 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
             .await
             .expect("aggregate-input pause observer task")
             .expect("target aggregate must retain input before cancellation");
+        let during_pause = cassie.metrics();
 
-        let mut cancel_socket = tokio::net::TcpStream::connect(server.address)
-            .await
-            .expect("open cancellation connection");
-        cancel_socket
-            .write_all(&wire::cancel_request_frame(process_id, secret_key))
-            .await
-            .expect("send aggregate cancellation request");
-        cancel_socket
-            .shutdown()
-            .await
-            .expect("close cancellation connection");
-        let mut cancel_response = [0; 1];
-        let cancel_response_bytes = cancel_socket
-            .read(&mut cancel_response)
-            .await
-            .expect("wait for cancellation connection to close");
-        assert_eq!(
-            cancel_response_bytes, 0,
-            "CancelRequest has no response body"
-        );
+        cancel_and_wait_for_close(server.address, process_id, secret_key).await;
         resume
             .send(())
             .expect("resume retained aggregate after CancelRequest was handled");
         let cancelled =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
+        let after_cancel = cassie.metrics();
         wire::write_frames(
             &mut writer,
             vec![wire::simple_query_frame("SELECT 47 AS recovery")],
@@ -230,8 +264,31 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
             control,
             cancelled,
             recovery,
+            during_pause,
+            after_cancel,
         }
     })
+}
+
+pub fn assert_cancelled_without_retained_resources(case: &CancellationCase) {
+    assert_eq!(case.during_pause["running_queries"].as_u64(), Some(1));
+    assert!(case.during_pause["query"]["current_accounted_memory_bytes"]
+        .as_u64()
+        .is_some_and(|bytes| bytes > 0));
+    assert_rejected_without_partial_rows(&case.cancelled, "57014");
+    assert_eq!(
+        case.cancelled.last().map(|frame| frame.1.as_slice()),
+        Some(b"I".as_slice())
+    );
+    assert_eq!(case.after_cancel["running_queries"].as_u64(), Some(0));
+    assert_eq!(
+        case.after_cancel["query"]["current_accounted_memory_bytes"].as_u64(),
+        Some(0)
+    );
+    assert_eq!(
+        case.after_cancel["runtime"]["active_operator_workers"].as_u64(),
+        Some(0)
+    );
 }
 
 pub fn assert_control_and_recovery(

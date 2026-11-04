@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::app::CassieError;
 use crate::executor::batch::BatchRow;
-use crate::executor::retained_memory::add;
+use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::{DataType, Value};
 
@@ -33,23 +33,54 @@ fn padding_bytes(
     kind: &DataType,
     controls: &QueryExecutionControls,
 ) -> Result<usize, CassieError> {
-    let (Some(width), Value::Array(array)) = (width(kind), value) else {
+    let Some(width) = width(kind) else {
         return Ok(0);
     };
-    array.elements().iter().try_fold(0, |bytes, value| {
-        controls.check_interruption()?;
-        let Value::String(text) = value else {
-            return Ok(bytes);
-        };
-        let plan = plan(text, width)?;
-        add(
-            bytes,
-            if plan.padding == 0 {
-                0
-            } else {
-                plan.output_bytes
-            },
-        )
+    let mut bytes = 0;
+    match value {
+        Value::Array(array) => {
+            for value in array.elements() {
+                controls.check_interruption()?;
+                if let Value::String(text) = value {
+                    bytes = add(bytes, string_padding_bytes(text, width)?)?;
+                }
+            }
+        }
+        Value::Json(document) => {
+            bytes = add(
+                mul(
+                    crate::runtime::accounted::json::retained_bytes(document)?,
+                    4,
+                )?,
+                1024,
+            )?;
+            for value in envelope_elements(document)? {
+                controls.check_interruption()?;
+                if let Some(text) = value.get("String").and_then(serde_json::Value::as_str) {
+                    bytes = add(bytes, string_padding_bytes(text, width)?)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(bytes)
+}
+
+fn envelope_elements(document: &serde_json::Value) -> Result<&[serde_json::Value], CassieError> {
+    document
+        .get("$cassie_array_v1")
+        .and_then(|envelope| envelope.get("elements"))
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::as_slice)
+        .ok_or_else(|| CassieError::ArrayInput("invalid stored character-array envelope".into()))
+}
+
+fn string_padding_bytes(text: &str, width: u32) -> Result<usize, CassieError> {
+    let plan = plan(text, width)?;
+    Ok(if plan.padding == 0 {
+        0
+    } else {
+        plan.output_bytes
     })
 }
 
@@ -104,7 +135,18 @@ fn hydrate(
     kind: &DataType,
     controls: &QueryExecutionControls,
 ) -> Result<(), CassieError> {
-    let (Some(width), Value::Array(array)) = (width(kind), value) else {
+    let Some(width) = width(kind) else {
+        return Ok(());
+    };
+    if let Value::Json(document) = value {
+        controls.check_interruption()?;
+        #[cfg(test)]
+        DECODED.with(|count| count.set(count.get() + 1));
+        let array =
+            crate::types::SqlArray::from_storage_json(document).map_err(CassieError::ArrayInput)?;
+        *value = Value::Array(array);
+    }
+    let Value::Array(array) = value else {
         return Ok(());
     };
     for value in array.elements_mut() {
@@ -149,6 +191,7 @@ fn hydrate(
 
 #[cfg(test)]
 thread_local! {
+    static DECODED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static HYDRATED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static AFTER_CHUNK: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
 }

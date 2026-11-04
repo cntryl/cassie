@@ -187,3 +187,48 @@ fn should_deny_stored_character_array_expansion_before_allocating_large_padding(
     assert_eq!(value, native());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_character_array_envelope_conversion_before_native_decoding() {
+    // Arrange
+    let Value::Array(array) = native() else {
+        unreachable!()
+    };
+    let input = Value::Json(array.to_storage_json());
+    let target = kind(3);
+    let sizing = QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        Instant::now(),
+    );
+    let bytes = padding_bytes(&input, &target, &sizing).expect("native envelope bound");
+
+    // Act
+    for (budget, accepted) in [(bytes - 1, false), (bytes, true)] {
+        let controls = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                ..crate::config::CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let mut value = input.clone();
+        let mut memory = controls.reserve_query_memory(0).expect("native scratch");
+        DECODED.with(|count| count.set(0));
+        let result = hydrate_value(&mut value, &target, &controls, &mut memory);
+        // Assert
+        assert_eq!(result.is_ok(), accepted);
+        assert_eq!(DECODED.with(std::cell::Cell::get), usize::from(accepted));
+        if accepted {
+            let Value::Array(array) = value else {
+                panic!("native image array");
+            };
+            assert_eq!(array.dimensions()[0].lower_bound, -2);
+            assert_eq!(array.elements()[0], Value::String("é  ".into()));
+            assert_eq!(array.elements()[1], Value::Null);
+        } else {
+            assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+        }
+        drop(memory);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

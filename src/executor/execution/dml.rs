@@ -317,36 +317,27 @@ fn build_dml_result(
     if super::exists_projection::contains(context.returning) {
         return dml_returning::build(context, affected_count, returning_rows);
     }
-    let column_schema = context
-        .returning_schema
-        .cloned()
-        .or_else(|| context.cassie.catalog.get_schema(context.table));
-    let has_arrays = column_schema.as_ref().is_some_and(|schema| {
+    let projection_schema = dml_returning::prepare_projection_schema(context)?;
+    let column_schema = projection_schema.schema.as_ref();
+    let has_arrays = column_schema.is_some_and(|schema| {
         schema
             .fields
             .iter()
             .any(|field| matches!(field.data_type, DataType::Array(_)))
     });
-    if has_arrays {
-        if let Some(first) = returning_rows.first_mut() {
-            scan::attach_row_types(first, column_schema.as_ref());
-            let types = first.shared_data_types();
-            if let Some(types) = types {
-                for row in &mut returning_rows[1..] {
-                    row.set_data_types(types.clone());
-                }
-            }
-        }
-    }
     let _returning_memory = if has_arrays {
-        Some((
-            ensure_query_memory_budget(context.controls, std::slice::from_ref(&returning_rows))?,
-            reserve_projection_output_before_building(
-                context.controls,
-                std::slice::from_ref(&returning_rows),
-                context.returning,
-            )?,
-        ))
+        let capacity = returning_rows.capacity();
+        dml_returning::prepare_inputs(
+            &mut returning_rows,
+            capacity,
+            column_schema,
+            context.controls,
+        )?;
+        Some(reserve_projection_output_before_building(
+            context.controls,
+            std::slice::from_ref(&returning_rows),
+            context.returning,
+        )?)
     } else {
         None
     };
@@ -366,11 +357,7 @@ fn build_dml_result(
         &projected,
         projected.capacity(),
     );
-    let columns = dml_returning_columns(
-        context.returning,
-        column_schema.as_ref(),
-        context.user_functions,
-    );
+    let columns = dml_returning_columns(context.returning, column_schema, context.user_functions);
     dml_returning::finish(context, affected_count, &columns, projected)
 }
 

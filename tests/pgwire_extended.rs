@@ -110,6 +110,8 @@ mod support_type_codec_matrix;
 mod character_conditionals;
 #[path = "pgwire_extended/types/arrays/character_logical_values.rs"]
 mod character_logical_values;
+#[path = "pgwire_extended/types/arrays/character_row_images.rs"]
+mod character_row_images;
 #[path = "pgwire_extended/types/arrays/character_casts.rs"]
 mod pgwire_character_array_casts;
 #[path = "pgwire_extended/types/arrays/aggregate_identity/semantics.rs"]

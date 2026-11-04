@@ -314,6 +314,7 @@ impl DatabaseRestoreSession {
     /// refresh fails, the database has already been committed and cannot be
     /// aborted through this restore session.
     pub fn finish(&mut self) -> Result<(), CassieError> {
+        self.cassie.check_storage_recovery_required()?;
         if matches!(self.phase, RestorePhase::Closed) {
             return Err(CassieError::Execution(
                 "database restore session is already closed".to_string(),
@@ -334,6 +335,7 @@ impl DatabaseRestoreSession {
         self.cassie
             .midge
             .require_storage_layout_version(&header.storage_layout_version)?;
+        self.cassie.check_storage_recovery_required()?;
         let staged = self.staged.take().ok_or_else(|| {
             CassieError::Execution("database restore staging is unavailable".to_string())
         })?;

@@ -40,6 +40,7 @@ impl Midge {
     }
 
     pub(crate) fn storage_layout_version(&self) -> Result<&'static str, CassieError> {
+        self.publication.ensure_recovered()?;
         let schema = self.ensure_families_ready()?.schema.id();
         let read = self
             .engine
@@ -59,11 +60,15 @@ impl Midge {
     /// Acknowledges the minimum reader before a separate feature transaction publishes.
     /// A failure never authorizes that feature publication, even if the marker is visible.
     pub(crate) fn require_storage_layout_version(&self, version: &str) -> Result<(), CassieError> {
+        self.publication.ensure_recovered()?;
         let required = Compatibility::parse(version.as_bytes()).ok_or_else(|| {
             CassieError::Unsupported(format!("unsupported required storage layout '{version}'"))
         })?;
         let schema = self.ensure_families_ready()?.schema.id();
+        #[cfg(test)]
+        tests::before_marker_lock();
         let _marker_guard = self.compatibility_gate.lock();
+        self.publication.ensure_recovered()?;
         let mut transaction = self
             .engine
             .begin_tx(schema, TransactionMode::ReadWrite)

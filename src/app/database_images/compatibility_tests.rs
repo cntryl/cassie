@@ -345,3 +345,37 @@ fn should_preserve_v2_when_restoring_a_v1_image() {
         .expect("target")
         .is_some());
 }
+
+#[test]
+fn should_retain_validated_restore_ownership_after_storage_requires_recovery() {
+    // Arrange
+    for layout in [V1, V2] {
+        let cassie = fixture();
+        let image = with_layout(
+            &collect(cassie.begin_database_backup("postgres").expect("backup")),
+            layout,
+        );
+        let mut restore = cassie
+            .begin_database_restore("quarantined_restore")
+            .expect("staging");
+        restore.push_chunk(&image).expect("validated image");
+        let catalog_entries = restore.catalog_entries.len();
+        cassie.midge.latch_storage_recovery_required_for_test();
+
+        // Act
+        let failure = restore.finish();
+
+        // Assert
+        assert_eq!(
+            failure
+                .expect_err("publication not admitted")
+                .descriptor()
+                .sql_state,
+            "58030"
+        );
+        assert!(restore.staged.is_some());
+        assert!(matches!(restore.phase, super::RestorePhase::Footer));
+        assert_eq!(restore.catalog_entries.len(), catalog_entries);
+        assert!(!cassie.catalog.database_exists("quarantined_restore"));
+    }
+}

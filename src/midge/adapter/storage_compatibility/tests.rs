@@ -235,3 +235,104 @@ fn should_reopen_an_upgraded_store_after_no_feature_was_published() {
     drop(reopened);
     std::fs::remove_dir_all(directory).expect("cleanup owned local fixture");
 }
+
+thread_local! {
+    static BEFORE_MARKER_LOCK: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
+}
+
+struct MarkerLockObserver {
+    previous: Option<Box<dyn FnOnce()>>,
+}
+
+fn observe_marker_lock(callback: impl FnOnce() + 'static) -> MarkerLockObserver {
+    MarkerLockObserver {
+        previous: BEFORE_MARKER_LOCK.with(|slot| slot.replace(Some(Box::new(callback)))),
+    }
+}
+
+pub(super) fn before_marker_lock() {
+    if let Some(callback) = BEFORE_MARKER_LOCK.with(|slot| slot.take()) {
+        callback();
+    }
+}
+
+impl Drop for MarkerLockObserver {
+    fn drop(&mut self) {
+        drop(BEFORE_MARKER_LOCK.with(|slot| slot.replace(self.previous.take())));
+    }
+}
+
+fn raw_marker_after_quarantine(store: &Midge) -> Vec<u8> {
+    // Test-only observation of the owned memory fixture; production marker
+    // readers must reject after the recovery latch.
+    let schema = store
+        .ensure_families_ready()
+        .expect("known layout")
+        .schema
+        .id();
+    store
+        .engine
+        .begin_tx(schema, cntryl_midge::TransactionMode::ReadOnly)
+        .expect("test observation")
+        .get(&key_encoding::layout_marker_key())
+        .expect("stored marker")
+        .expect("marker")
+}
+
+#[test]
+fn should_reject_marker_admission_after_storage_requires_recovery() {
+    // Arrange
+    let store = memory_store();
+    store.latch_storage_recovery_required_for_test();
+
+    // Act
+    let read = store.storage_layout_version();
+    let baseline = store.require_storage_layout_version(V1);
+    let upgrade = store.require_storage_layout_version(V2);
+    let retained = raw_marker_after_quarantine(&store);
+
+    // Assert
+    for result in [read.map(|_| ()), baseline, upgrade] {
+        assert_eq!(
+            result
+                .expect_err("already quarantined")
+                .descriptor()
+                .sql_state,
+            "58030"
+        );
+    }
+    assert_eq!(retained, V1.as_bytes());
+}
+
+#[test]
+fn should_recheck_recovery_after_waiting_for_marker_admission() {
+    // Arrange
+    let store = memory_store();
+    let marker_lock = store.compatibility_gate.lock();
+    let (send, receive) = std::sync::mpsc::sync_channel(1);
+
+    // Act
+    let result = std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let _observer = observe_marker_lock(move || send.send(()).expect("entry signal"));
+            store.require_storage_layout_version(V2)
+        });
+        receive
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("passed entry check before lock");
+        store.latch_storage_recovery_required_for_test();
+        drop(marker_lock);
+        worker.join().expect("marker worker")
+    });
+    let retained = raw_marker_after_quarantine(&store);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect_err("latched while waiting")
+            .descriptor()
+            .sql_state,
+        "58030"
+    );
+    assert_eq!(retained, V1.as_bytes());
+}

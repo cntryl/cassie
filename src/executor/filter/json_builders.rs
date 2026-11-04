@@ -2,12 +2,10 @@
 use super::{EvalContext, FunctionCall, QueryError, Value};
 use crate::app::CassieError;
 use crate::executor::batch::RowAccess;
+use crate::executor::json_construction::{self as values, check, finish, reserve};
 use crate::executor::retained_memory::{add, mul};
 use crate::sql::functions::{self, json::JsonFunction, FunctionId};
 use crate::types::DataType;
-
-#[path = "json_builder_values.rs"]
-mod values;
 
 pub(super) fn evaluate<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -301,42 +299,6 @@ fn argument_types<R: RowAccess + ?Sized>(
             super::super::super::array_order::expression_type(row, expr, context.user_functions)
         })
         .collect()
-}
-
-fn reserve(
-    controls: Option<&crate::runtime::QueryExecutionControls>,
-    bytes: usize,
-) -> Result<Option<crate::runtime::QueryMemoryReservation>, QueryError> {
-    check(controls)?;
-    let bytes = add(
-        crate::runtime::accounted::json::serialized_decode_bytes(bytes)?,
-        mul(bytes.max(8), 8)?,
-    )?;
-    controls
-        .map(|controls| controls.reserve_query_memory(bytes))
-        .transpose()
-        .map_err(Into::into)
-}
-
-fn finish(
-    document: String,
-    binary: bool,
-    controls: Option<&crate::runtime::QueryExecutionControls>,
-) -> Result<Value, QueryError> {
-    check(controls)?;
-    let document = if binary {
-        crate::types::jsonb::canonical(&document).map_err(CassieError::TypeInput)?
-    } else {
-        document
-    };
-    check(controls)?;
-    Ok(Value::String(document))
-}
-
-fn check(controls: Option<&crate::runtime::QueryExecutionControls>) -> Result<(), QueryError> {
-    controls.map_or(Ok(()), |controls| {
-        controls.check_interruption().map_err(Into::into)
-    })
 }
 
 fn admit_types<R: RowAccess + ?Sized>(

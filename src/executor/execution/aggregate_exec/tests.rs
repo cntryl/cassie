@@ -11,6 +11,9 @@ mod controls;
 #[path = "modifier_tests.rs"]
 mod modifiers;
 
+#[path = "collection_json_tests.rs"]
+mod collection_json;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 

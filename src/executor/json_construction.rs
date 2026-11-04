@@ -1,8 +1,10 @@
-//! Scalar JSON construction and pre-allocation bounds.
-use super::{CassieError, DataType, QueryError, Value};
+//! Private SQL-to-JSON conversion shared by scalar builders and collections.
+use crate::app::CassieError;
 use crate::executor::retained_memory::{add, mul, serialized_json_bytes};
-use crate::runtime::QueryExecutionControls;
+use crate::executor::QueryError;
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::typed::TypedValue;
+use crate::types::{DataType, Value};
 
 pub(super) fn bound(
     value: &Value,
@@ -35,9 +37,9 @@ pub(super) fn bound(
             5,
         ),
         Value::Typed(value) => add(mul(value.heap_bytes(), 8)?, 128),
-        Value::Array(_) => add(
-            crate::executor::retained_memory::value_clone_bytes(value)?,
-            128,
+        Value::Array(array) => array.elements().iter().try_fold(
+            add(mul(array.elements().len(), 16)?, 256)?,
+            |bytes, element| add(bytes, mul(bound(element, None, binary)?, 6)?),
         ),
         Value::Vector(value) => add(mul(value.values.len(), 64)?, 2),
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => Ok(64),
@@ -89,7 +91,7 @@ pub(super) fn encode(
             }
         }
         Value::Typed(value) => {
-            let mut text = value.text_in(&super::super::super::temporal::session_of(controls));
+            let mut text = typed_value_text(value, controls);
             if matches!(value, TypedValue::Timestamp(_) | TypedValue::TimestampTz(_)) {
                 text = text.replacen(' ', "T", 1);
             }
@@ -100,6 +102,20 @@ pub(super) fn encode(
                 .map_err(|error| QueryError::General(error.to_string()))?;
             quote(&text)
         }
+    }
+}
+
+fn typed_value_text(value: &TypedValue, controls: Option<&QueryExecutionControls>) -> String {
+    let session = crate::executor::filter::temporal::session_of(controls);
+    if matches!(
+        value,
+        TypedValue::Date(_) | TypedValue::Timestamp(_) | TypedValue::TimestampTz(_)
+    ) {
+        let mut iso = (*session).clone();
+        iso.date_output = crate::types::extended::temporal::session::DateOutput::Iso;
+        value.text_in(&iso)
+    } else {
+        value.text_in(&session)
     }
 }
 
@@ -117,15 +133,65 @@ pub(super) fn key(
         )
         .into());
     }
-    let text = match value {
+    let text = scalar_key_text(value, controls)
+        .expect("document and non-scalar JSON object keys are rejected above");
+    quote(&text)
+}
+
+pub(super) fn scalar_key_text(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+) -> Option<String> {
+    Some(match value {
         Value::String(text) => text.clone(),
         Value::Bool(value) => value.to_string(),
         Value::Int64(value) => value.to_string(),
         Value::Float64(value) => crate::types::float_text::format(*value),
-        Value::Typed(value) => value.text_in(&super::super::super::temporal::session_of(controls)),
-        _ => unreachable!("non-scalar keys rejected"),
+        Value::Typed(value) => {
+            value.text_in(&crate::executor::filter::temporal::session_of(controls))
+        }
+        Value::Null | Value::Json(_) | Value::Array(_) | Value::Vector(_) => return None,
+    })
+}
+
+pub(super) fn workspace_bytes(bytes: usize) -> Result<usize, CassieError> {
+    add(
+        crate::runtime::accounted::json::serialized_decode_bytes(bytes)?,
+        mul(bytes.max(8), 8)?,
+    )
+}
+
+pub(super) fn reserve(
+    controls: Option<&QueryExecutionControls>,
+    bytes: usize,
+) -> Result<Option<QueryMemoryReservation>, QueryError> {
+    check(controls)?;
+    let bytes = workspace_bytes(bytes)?;
+    controls
+        .map(|controls| controls.reserve_query_memory(bytes))
+        .transpose()
+        .map_err(Into::into)
+}
+
+pub(super) fn finish(
+    document: String,
+    binary: bool,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    check(controls)?;
+    let document = if binary {
+        crate::types::jsonb::canonical(&document).map_err(CassieError::TypeInput)?
+    } else {
+        document
     };
-    quote(&text)
+    check(controls)?;
+    Ok(Value::String(document))
+}
+
+pub(super) fn check(controls: Option<&QueryExecutionControls>) -> Result<(), QueryError> {
+    controls.map_or(Ok(()), |controls| {
+        controls.check_interruption().map_err(Into::into)
+    })
 }
 
 fn floating(value: f64) -> Result<String, QueryError> {

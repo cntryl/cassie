@@ -17,6 +17,7 @@ use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 #[path = "aggregate_exec/bitwise.rs"]
 mod bitwise;
 mod boolean;
+mod collection_json;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
 #[path = "aggregate_exec/interval_aggregate.rs"]
@@ -43,6 +44,7 @@ pub(super) mod typed;
 mod window;
 
 use bitwise::BitwiseState;
+use collection_json::AggregateOutput;
 use group_memory::GroupMemory;
 pub(super) use rewrite::{
     contains_aggregate, rewrite_aggregate_expr, rewrite_aggregate_order,
@@ -159,14 +161,12 @@ fn aggregate_query_batches_serial(
     let mut out = Vec::with_capacity(groups.len());
     for (_signature, (group_values, group_rows)) in groups {
         check_timeout(context.controls)?;
-        let mut values = group_values;
+        let mut output = collection_json::OutputRow::new(group_values, specs, context.controls)?;
         for spec in specs {
             let value = evaluate_aggregate(&spec.function, &group_rows, context)?;
-            for name in &spec.output_names {
-                values.push((name.clone(), value.clone()));
-            }
+            output.append(value, &spec.output_names)?;
         }
-        out.push(BatchRow::new(values));
+        out.push(output.finish());
     }
     drop(group_memory);
 
@@ -515,10 +515,18 @@ fn evaluate_aggregate(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
-) -> Result<Value, QueryError> {
+) -> Result<AggregateOutput, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if ordered_set::is_ordered_set(function) {
-        return ordered_set::evaluate(function, rows, context);
+        return ordered_set::evaluate(function, rows, context).map(AggregateOutput::from_value);
+    }
+    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::CollectionAggregate(_)
+        )
+    }) {
+        return modifiers::evaluate_owned(function, rows, context);
     }
     let is_string_aggregate = crate::sql::functions::function(&function.name)
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg);
@@ -543,9 +551,9 @@ fn evaluate_aggregate(
             )
         })
     {
-        AggregateAccumulator::evaluate(function, rows, context)
+        AggregateAccumulator::evaluate(function, rows, context).map(AggregateOutput::from_value)
     } else {
-        Ok(Value::Null)
+        Ok(AggregateOutput::from_value(Value::Null))
     }
 }
 

@@ -47,17 +47,11 @@ impl CassieSession {
                     .unwrap_or_else(|| self.default_transaction_deferrable()),
             ),
         };
-        if isolation == Some(TransactionIsolation::RepeatableRead) {
-            if modes.read_only != Some(true) {
-                return Err(CassieError::Unsupported(
-                    "read-write REPEATABLE READ is not yet supported".to_owned(),
-                ));
-            }
-            if modes.deferrable == Some(true) {
-                return Err(CassieError::Unsupported(
-                    "DEFERRABLE REPEATABLE READ is unsupported".to_owned(),
-                ));
-            }
+        if isolation == Some(TransactionIsolation::RepeatableRead) && modes.deferrable == Some(true)
+        {
+            return Err(CassieError::Unsupported(
+                "DEFERRABLE REPEATABLE READ is unsupported".to_owned(),
+            ));
         }
         let session_state = self.session_state_snapshot();
         let mut transaction = self.transaction.lock();
@@ -184,11 +178,6 @@ impl CassieSession {
                 kind: TransactionErrorKind::ActiveTransaction,
                 message: "transaction read-write mode must be set before any query".to_string(),
             });
-        }
-        if !read_only && transaction.isolation == Some(TransactionIsolation::RepeatableRead) {
-            return Err(CassieError::Unsupported(
-                "read-write REPEATABLE READ is not yet supported".to_owned(),
-            ));
         }
         transaction.modes.read_only = Some(read_only);
         Ok(if read_only { "on" } else { "off" }.to_string())

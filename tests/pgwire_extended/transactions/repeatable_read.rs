@@ -103,7 +103,7 @@ fn should_capture_repeatable_read_at_deallocate() {
 }
 
 #[test]
-fn should_retain_repeatable_read_for_suspended_portal_pages() {
+fn should_retain_repeatable_read_for_suspended_direct_cursor_pages() {
     // Arrange
     let prefix = vec![
         vec![wire::simple_query_frame(

@@ -774,9 +774,9 @@ represent both versions without collisions.
 A private Bind owner carries the command's catalog and, when the compiled plan
 requires Data, its COW own-row map. The connection separately admits retained
 portal backing; owner clones retain those narrow leases through Close or worker
-retirement. Constant queries avoid copying unrelated own payloads. RR bound
+retirement. Constant queries avoid copying unrelated own payloads. RW RR bound
 portals use the existing bounded materialized result path, including suspended
-pages; READ COMMITTED keeps its existing direct cursor path. The current Execute
+pages; genuinely read-only RR and READ COMMITTED keep their existing direct cursor paths. The current Execute
 request supplies cancellation and deadline authority.
 
 Controlled descriptor catalogs remain immutable. Scoped query and session
@@ -787,9 +787,34 @@ changes. Upsert candidate/default evaluation occurs once before the working base
 is captured, and an owner wait reuses those prepared inputs. Full transaction
 retirement and savepoint restoration discard stale session lookup owners.
 
-These implementations and their regression probes are source-only pending the
-combined native gate; the read-write RR admission guard remains in place. The
+At source checkpoint `87753170`, these implementations and their regression
+probes remained pending the combined native gate, with the RW admission guard
+still in place. The enabled candidate below supersedes that guard status. The
 separate existing lifecycle gap for a newly staged SERIAL/identity sequence is
 tracked by [#839](https://github.com/cntryl/cassie/issues/839). Published-image and
 PostgreSQL 18.6 probes confirm that gap also affects READ COMMITTED; this source
 increment does not claim it completed.
+
+
+### Enabled RW candidate for the combined native gate
+
+The next source candidate deliberately admits default and explicit READ WRITE
+`BEGIN ... REPEATABLE READ`, plus changing READ ONLY to READ WRITE before the
+first snapshot. SERIALIZABLE and RR DEFERRABLE remain unsupported. The existing
+`SET TRANSACTION ISOLATION` rejection remains a checkpoint gap in #819; its
+negative regression is preserved, and this increment does not close #819.
+
+A legal READ WRITE-to-READ ONLY change only tightens future write permission.
+It cannot remove an already captured RW owner's row fence or own-row map.
+Before capture, a writable savepoint mode also requires RW authority because
+rollback can restore that mode. After capture, that authority remains fixed
+through mode changes, savepoint rollback and release. A permanently read-only
+view keeps the existing shared transaction owner and direct cursor path without
+allocating a Bind frame. Pinned PostgreSQL 18.6 probes confirm the legal mode
+changes and savepoint restoration used by the authored regressions.
+
+Statement forks also carry their originating transaction generation. Publication
+rejects an old fork after rollback and a new BEGIN, even when the row/catalog
+before-images happen to match. This candidate is enabled for executable
+qualification, with no passing support or issue-closure claim before the
+complete ordered native gate.

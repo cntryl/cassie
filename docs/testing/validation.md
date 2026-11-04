@@ -6001,7 +6001,7 @@ Rust parser/formatting and diff checks are interim source checks. Runtime RW
 remains rejected pending own-DDL catalog composition, final integration and the
 full required ordered gate. No new passing support claim is made here.
 
-### Repeatable-read command owners (source checkpoint)
+### Repeatable-read command owners (source checkpoint `87753170`)
 
 The RR source bundle now includes controlled catalog delta helper `820c18a1`,
 command and Bind own-view ownership, current descriptor composition, bounded
@@ -6017,8 +6017,8 @@ All eight focused source test-policy checks passed (31 declarations, including
 nine preserved RR protocol tests). Direct Rust formatting/parser checks and
 `git diff --check` passed. Per the user's batching instruction, no build, native
 test, Clippy, complete ordered gate, or regenerated inventory is claimed for
-this source checkpoint. RW admission remains unsupported until the combined
-native gate qualifies the implementation. The nine catalog delta helper tests
+this source checkpoint. RW admission remained unsupported at `87753170`; the
+enabled candidate below is deliberately admitted for the combined native gate. The nine catalog delta helper tests
 also remain pending native execution.
 
 Jev review receipts are retained under the isolated worktree's ignored
@@ -6031,3 +6031,33 @@ final focused source judgments were 0.26 for read-owner gaps, 0.23 for mutation
 fork gaps, and 0.24 for once-only input gaps; these are advisory and do not
 replace execution. The separate newly staged sequence lifecycle gap remains
 open in #839.
+
+
+### Enabled RR owner candidate (native gate pending)
+
+The follow-up source candidate enables default/explicit RW RR BEGIN and a
+pre-snapshot READ ONLY-to-READ WRITE change. Genuinely read-only RR keeps its
+existing direct cursor path; only snapshots with RW authority retain a private
+Bind own-view frame and use bounded portal materialization. New controls prove
+that a read-only owner requires no extra one-byte Bind budget, and that retained
+RW ownership survives legal mode tightening and writable savepoint restoration.
+An old statement fork also cannot publish into a replacement transaction.
+
+Pinned PostgreSQL 18.6 probes passed for RW-to-RO after SELECT or INSERT, and
+for restoring RW by rollback to a savepoint created before RO capture. The
+candidate keys write authority off the immutable retained owner after capture,
+and off current/saved writable modes before capture. Current read-only mode
+continues to prohibit new writes. Serializable, Deferrable, READ UNCOMMITTED
+alias controls, native-writer mutual exclusion and first-committer-wins fences
+remain intact. SET TRANSACTION ISOLATION and the separate new-sequence #839
+lifecycle case remain explicit incomplete acceptance work.
+
+All twelve focused source-policy checks passed (54 declarations). Direct Rust
+format/parser and diff checks passed; no Cargo build, native regression,
+Clippy or complete gate has run for this enabled source. Jev selected RW-only
+Bind ownership at 0.98 and stable captured authority at 1.00. Its mode gap 0.58
+triggered an eight-case native capability/mode transition probe, authored for
+the combined gate; that lead is not declared discharged by test authorship.
+The concrete retired-fork gap narrowed to 0.08 after the generation check and
+focused regression. Build/test/Clippy/fmt/global policy and inventory must now
+qualify the combined head before support is claimed.

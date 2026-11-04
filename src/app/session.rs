@@ -154,6 +154,7 @@ pub(crate) struct StagedWriteSnapshot {
 pub(crate) struct StatementMutationBatch {
     session: CassieSession,
     base_transaction_active: bool,
+    base_generation: u64,
     base_writes: SharedTransactionWrites,
     base_conflict_intent_count: usize,
     base_catalog_overlay: Option<Catalog>,

@@ -72,7 +72,10 @@ fn build_array_query<R: RowAccess + ?Sized>(
             if value.is_null() {
                 Ok(bytes)
             } else {
-                add(bytes, values::bound(value, element_type.as_ref(), false)?)
+                add(
+                    bytes,
+                    values::bound_controlled(value, element_type.as_ref(), false, controls)?,
+                )
             }
         },
     )?;
@@ -233,12 +236,15 @@ fn build<R: RowAccess + ?Sized>(
     let controls = super::super::temporal::context_controls(context);
     let _types_memory = admit_types(function, row, context, controls)?;
     let types = argument_types(function, row, context);
-    let bound = args
-        .iter()
-        .zip(&types)
-        .try_fold(add(mul(args.len(), 8)?, 2)?, |bytes, (value, kind)| {
-            add(bytes, values::bound(value, kind.as_ref(), binary)?)
-        })?;
+    let bound = args.iter().zip(&types).try_fold(
+        add(mul(args.len(), 8)?, 2)?,
+        |bytes, (value, kind)| {
+            add(
+                bytes,
+                values::bound_controlled(value, kind.as_ref(), binary, controls)?,
+            )
+        },
+    )?;
     let _memory = reserve(controls, bound)?;
     let mut elements = Vec::with_capacity(if object { args.len() / 2 } else { args.len() });
     if object {
@@ -282,7 +288,10 @@ fn convert<R: RowAccess + ?Sized>(
         &function.args[0],
         context.user_functions,
     );
-    let _memory = reserve(controls, values::bound(value, kind.as_ref(), binary)?)?;
+    let _memory = reserve(
+        controls,
+        values::bound_controlled(value, kind.as_ref(), binary, controls)?,
+    )?;
     let document = values::encode(value, kind.as_ref(), controls)?;
     finish(document, binary, controls)
 }

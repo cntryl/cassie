@@ -693,7 +693,7 @@ fn scalar_prefilter_ids(
     else {
         return Ok(None);
     };
-    if session.is_some_and(|session| !session.transaction_index_visible(&index)) {
+    if session.is_some_and(|session| !session.transaction_index_visible(&index, &cassie.catalog)) {
         return Ok(None);
     }
     let signed_zero_counterpart = super::super::index_read::signed_zero_probe_counterpart(

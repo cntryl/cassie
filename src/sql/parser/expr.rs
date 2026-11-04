@@ -1,8 +1,3 @@
-#[path = "text_array_literals.rs"]
-mod text_array_literals;
-pub(super) fn parse_text_array_element(raw: &str) -> Result<Option<String>, SqlError> {
-    string_literals::parse(raw)
-}
 use super::clauses::{split_top_level, strip_parentheses};
 use super::identifiers::{normalize_identifier, parse_quoted_identifier_chain};
 use super::schema::{parse_data_type, starts_with_keyword};
@@ -456,18 +451,7 @@ fn parse_postfix_expression(raw: &str) -> Result<Expr, SqlError> {
         cast_positions[0]
     };
     let operand_sql = super::lexical::trim_separators(&raw[..operand_end]);
-    let selected_array = if cast_count > 0 {
-        let end = if cast_count > 1 {
-            cast_positions[1]
-        } else {
-            raw.len()
-        };
-        let target = parse_data_type(raw[cast_positions[0] + 2..end].trim())?;
-        text_array_literals::parse(operand_sql, &target)?
-    } else {
-        None
-    };
-    let mut expr = selected_array.map_or_else(|| parse_expr_token(operand_sql), Ok)?;
+    let mut expr = parse_expr_token(operand_sql)?;
     if cast_count > 0 {
         depth::validate(&expr, cast_count)?;
     }
@@ -896,8 +880,7 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
     let (expr_raw, type_raw) = split_top_level(inner, " as ")
         .ok_or_else(|| SqlError::new("CAST requires AS type clause".into()))?;
     let data_type = parse_data_type(super::lexical::trim_separators(type_raw))?;
-    let operand = text_array_literals::parse(expr_raw, &data_type)?
-        .map_or_else(|| parse_expression(expr_raw), Ok)?;
+    let operand = parse_expression(expr_raw)?;
 
     Ok(Some(Expr::Cast {
         expr: Box::new(exact_numeric_operand(
@@ -946,3 +929,7 @@ fn exact_numeric_operand(operand: Expr, raw: &str, target: &crate::types::DataTy
 const fn cast_identity(_raw: &str) -> crate::sql::ast::CastIdentity {
     crate::sql::ast::CastIdentity::Scalar
 }
+
+#[cfg(test)]
+#[path = "expr_array_cast_tests.rs"]
+mod array_cast_tests;

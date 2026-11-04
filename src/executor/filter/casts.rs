@@ -96,6 +96,9 @@ fn special_scalar_cast(
     // use cast_scalar's bounded validation. Format the source before applying
     // the width so CHAR blanks and temporal spellings keep their SQL identity.
     if let DataType::Char { length } = target {
+        if length.is_none() && matches!(source, Some(DataType::Char { .. })) {
+            return Ok(Some(value.clone()));
+        }
         let text = scalar(value, &DataType::Text, source, controls)?;
         return character(&text, *length, controls).map(Some);
     }
@@ -424,3 +427,7 @@ pub(super) fn bytea_literal_scratch(expr: &crate::sql::ast::Expr) -> Result<usiz
         Ok(0)
     }
 }
+
+#[cfg(test)]
+#[path = "casts_character_tests.rs"]
+mod character_tests;

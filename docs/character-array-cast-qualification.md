@@ -203,3 +203,49 @@ Those remain pending under #839 and its #833 atomic-publication dependency;
 the existing mutation sequence and its broader storage-error behavior are not
 reclassified as complete by controlled preparation. Compilation, native tests,
 strict Clippy and the final combined inventory remain pending.
+
+
+## Frozen integrated gate v3: source corrections pending rerun
+
+The integrated `86174ceb` gate ran 9,988 passing tests, 67 failures and 12
+ignored tests. This lane retains its actual failing CHAR/VALUES, array codec,
+COPY, series-sublink and projected-memory observations. The subsequent source
+corrections are unexecuted; none is recorded as native green.
+
+A same-family CHAR coercion to an unconstrained common type must retain each
+value's existing padding. Its previous path converted through TEXT and removed
+those blanks. Source CHAR to TEXT/VARCHAR still removes trailing blanks, and
+bounded explicit CHAR casts still truncate/pad. The general ARRAY constructor
+parser now handles both postfix and CAST syntax instead of the obsolete
+TEXT-literal-only shortcut, preserving typed element expressions. Right-side
+implicit-lateral table-function sublinks inherit the left relation's visible
+schema while ordinary non-LATERAL subqueries retain their isolated scope.
+Two scalar cast, one parser and one sublink-typing regressions were authored
+before these runtime corrections; the frozen integration failures remain the
+executed red evidence.
+
+PostgreSQL 18.6 confirms the finite VARCHAR(4)[] descriptor typmod is 8; the
+matrix's previous -1 expectation was stale. COPY over-width CHAR-array input
+uses SQLSTATE 22001, matching the existing TypeInput error route; integer input
+still checks Parse. Codec payload and COPY no-publication assertions are retained.
+The timezone test now executes SET on the wire connection being queried rather
+than a separate seed session. The computed character-array owner test disables
+the execution-result cache and drops its recovery result before requiring zero
+retained query memory, while observing positive admission for its live result.
+
+The earlier 198949b7 logical-hydration and exact-cast checkpoint addresses the
+frozen stored-array recast failure; d8e10c29, 8feeb0c6 and 72445740 retain their
+separate authored NULL-modifier, OLD/NEW and controlled-USING coverage. Their
+compilation, behavior, admission and cancellation results remain pending.
+Jev selected the same-family cast and general-constructor corrections at 1.00,
+with 0.88 support for the missing left typing scope and 0.72 for the fixture
+corrections. The seven-case pinned oracle batch and bounded review requests
+are retained in ignored target evidence. Complete native validation and strict
+workspace Clippy are reserved for the next frozen integrated gate.
+
+The implementation review retained gap judgments of 0.26 for casts, 0.19 for
+constructor parsing, 0.25 for lateral scope and 0.22 for fixture laws. A separate
+compile/API lead at 0.48 was followed by a bounded exact-declaration review and
+Rust syntax/test-policy probes; it identified no concrete supported defect
+(choice none 0.87). This does not replace the deferred native compiler/Clippy
+gate, and the original 0.48 lead remains in the evidence record.

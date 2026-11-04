@@ -138,18 +138,13 @@ fn should_retain_repeatable_read_for_suspended_direct_cursor_pages() {
 #[test]
 fn should_capture_repeatable_read_at_direct_execute_for_a_prebound_portal() {
     // Arrange
-    let prefix = vec![
-        wire::parse_frame("rr", "SELECT id FROM rr_boundary_rows"),
-        wire::bind_frame("rr_portal", "rr", &[]),
-        wire::sync_frame(),
-    ];
     let boundary = vec![
         wire::execute_limited_frame("rr_portal", 1),
         wire::sync_frame(),
     ];
 
     // Act
-    let result = run_boundary(prefix, boundary, vec![wire::simple_query_frame(COUNT)]);
+    let result = crate::support_repeatable_read::run_prebound_boundary(boundary);
 
     // Assert
     assert_counts(&result, "1");

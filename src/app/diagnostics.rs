@@ -3,12 +3,19 @@ use super::Cassie;
 impl Cassie {
     #[must_use]
     pub fn health(&self) -> serde_json::Value {
-        let ready = self.is_started();
-        let collections = self.midge.list_collections();
+        let recovery_required = self.check_storage_recovery_required().is_err();
+        let ready = self.is_started() && !recovery_required;
+        let status = if recovery_required {
+            "recovery_required"
+        } else if ready {
+            "ok"
+        } else {
+            "starting"
+        };
         serde_json::json!({
-            "status": if ready { "ok" } else { "starting" },
+            "status": status,
             "ready": ready,
-            "collections": collections.len(),
+            "collections": self.catalog.registered_collection_count(),
             "version": env!("CARGO_PKG_VERSION")
         })
     }

@@ -27,10 +27,13 @@ fn should_admit_containment_parser_frames_before_decoding() {
     let document = ScalarValue::Json(r#"{"a":[1,2,3],"b":{"k":"value"}}"#.into());
     let required = ScalarValue::Json(r#"{"b":{"k":"value"}}"#.into());
 
-    // Act / Assert
     for (budget, accepted) in [(128, false), (128 * 1024, true)] {
         let controls = controls(budget);
+
+        // Act
         let result = evaluate_with_controls(&contains(), &document, &required, Some(&controls));
+
+        // Assert
         assert_eq!(result.is_ok(), accepted);
         if accepted {
             assert!(matches!(result, Ok(ScalarValue::Bool(true))));
@@ -49,10 +52,13 @@ fn should_bound_expanded_numeric_coefficients_before_comparing_them() {
     // Arrange
     let number = ScalarValue::Json("1e400".into());
 
-    // Act / Assert
     for (budget, accepted) in [(4096, false), (64 * 1024, true)] {
         let controls = controls(budget);
+
+        // Act
         let result = evaluate_with_controls(&contains(), &number, &number, Some(&controls));
+
+        // Assert
         assert_eq!(result.is_ok(), accepted);
         if accepted {
             assert!(matches!(result, Ok(ScalarValue::Bool(true))));
@@ -87,10 +93,13 @@ fn should_preserve_deep_raw_json_with_iterative_owned_frames() {
     let text = format!("{}1{}", "[".repeat(180), "]".repeat(180));
     let document = ScalarValue::Json(text);
 
-    // Act / Assert
     for (budget, accepted) in [(256 * 1024, false), (32 * 1024 * 1024, true)] {
         let controls = controls(budget);
+
+        // Act
         let result = evaluate_with_controls(&contains(), &document, &document, Some(&controls));
+
+        // Assert
         assert_eq!(result.is_ok(), accepted);
         if accepted {
             assert!(matches!(result, Ok(ScalarValue::Bool(true))));

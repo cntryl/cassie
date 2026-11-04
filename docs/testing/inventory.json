@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1586,
-    "rust_files": 1550,
-    "rust_test_declarations": 8378,
+    "files": 1587,
+    "rust_files": 1551,
+    "rust_test_declarations": 8380,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8506,
+    "registered_rust_instances": 8508,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -76679,6 +76679,68 @@
         "category": "ddl/tables",
         "directory": "tests/pgwire_extended/ddl/tables",
         "file": "tests/pgwire_extended/ddl/tables/ctas_atomicity.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/explicit_null.rs::should_store_explicit_null_columns_in_both_wire_protocols",
+      "name": "should_store_explicit_null_columns_in_both_wire_protocols",
+      "current_file": "tests/pgwire_extended/ddl/explicit_null.rs",
+      "line": 109,
+      "end_line": 116,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_explicit_null::should_store_explicit_null_columns_in_both_wire_protocols"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl",
+        "directory": "tests/pgwire_extended/ddl",
+        "file": "tests/pgwire_extended/ddl/explicit_null.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/ddl/explicit_null.rs::should_reject_conflicting_nullability_in_both_wire_protocols",
+      "name": "should_reject_conflicting_nullability_in_both_wire_protocols",
+      "current_file": "tests/pgwire_extended/ddl/explicit_null.rs",
+      "line": 119,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::ddl_explicit_null::should_reject_conflicting_nullability_in_both_wire_protocols"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "ddl",
+        "directory": "tests/pgwire_extended/ddl",
+        "file": "tests/pgwire_extended/ddl/explicit_null.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -269954,6 +270016,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/ddl/explicit_null.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 126,
+      "sha256": "3be4b805492bdd13b9088df267add15f6b7d202531ad1a62e57a5a3bf19f0fc2",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/ddl/explicit_null.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/ddl/transaction_boundaries/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -272061,8 +272138,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 193,
-      "sha256": "7c182d44a97d8234f59e01843e7f01745d6683f65998ac252eae06d6c452c400",
+      "lines": 195,
+      "sha256": "d53daf58d04225942129759d12af7b8be54d623f1e4eecae2282f34a8eb0a7e4",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"

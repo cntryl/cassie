@@ -123,12 +123,11 @@ separate evidence; build, complete tests, strict workspace Clippy, final invento
 and integrated native qualification remain pending under the user's batch gate
 instruction.
 
-Two legacy callers remain outside this qualification: `ALTER COLUMN ... USING`
-rebuilds rows in `schema_command::evaluate_alter_column_using` without explicit
-execution controls; joined-mutation OLD/NEW row images use a separate
-`dml_joined::stored_value` reconstruction path. This increment does not silently
-hydrate either path. Their logical character-array correspondence still requires
-controlled conversion and focused native evidence. The mixed-NULL COALESCE descriptor correction is authored for already-admitted
+The legacy `ALTER COLUMN ... USING` caller still rebuilds rows in
+`schema_command::evaluate_alter_column_using` without explicit execution controls;
+its controlled logical input increment remains pending. OLD/NEW row images now
+have a separate source-only controlled preparation increment described below;
+its native qualification is pending. The mixed-NULL COALESCE descriptor correction is authored for already-admitted
 equal array operand types: an untyped NULL removes the result typmod, while a
 matching typed NULL retains it. One binder and two wire regressions are unexecuted.
 Different-width common-type acceptance and wider array conditional behavior remain
@@ -144,3 +143,32 @@ time-series preflight and top-k lifetime gap judgments were 0.25, 0.16, 0.15
 and 0.22. Source audit also retained pending lookup admission and row-id page
 reservations before freezing the checkpoint. These judgments are review leads,
 not native execution or acceptance evidence.
+
+## Controlled OLD/NEW preparation: pending native gate
+
+The next checkpoint corrects the earlier caller ledger: `198949b7` wired the
+EXISTS RETURNING path; ordinary array RETURNING still used a separate branch.
+Both now admit their raw input rows before adding metadata, native character-array
+conversion or padding. Virtual returning schemas are cloned under admission;
+exact qualified field keys take precedence when assigning each row's types.
+Rows are typed independently because MERGE INSERT and UPDATE/DELETE shapes can
+carry different reserved identity positions. A separate metadata reservation
+follows each row through projection and managed result admission.
+
+The existing OLD/NEW builders keep their canonical storage envelope. Controlled
+preparation estimates native envelope conversion and every padding string without
+allocation, then reserves the complete bound before decoding or growing output.
+The stable storage envelope, durable CHAR canonicalization and Midge remain
+unchanged. The finite PostgreSQL context batch has nine expected outcomes and a
+separate final batch has two more for EXISTS projection and mixed MERGE actions;
+these are oracle evidence, not Cassie test runs.
+
+Seven wire and two source-local regressions are authored and unexecuted. They
+cover joined UPDATE/DELETE, INSERT/conflict, MERGE with mixed actions, ordinary
+and EXISTS projections, binary lower bounds, NULL images versus NULL elements,
+exact decode admission and virtual type/owner lifetime. Jev retained decode
+admission 0.30, metadata ownership 0.56 and virtual EXISTS schema 0.37 leads.
+The authored decode counter, Weak reservation-owner assertion and EXISTS wire
+projection are their focused probes; these probabilities are retained without
+substituting a later score for native execution. Complete compilation, native
+semantics/resource/cancellation checks and strict workspace Clippy remain pending.

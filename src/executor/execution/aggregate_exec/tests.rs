@@ -669,9 +669,9 @@ fn should_cancel_boolean_aggregate_after_the_final_filtered_row() {
             cancellation.clone(),
         );
         let mut context = aggregate_context(&plan, &functions, &controls);
-        let observed = std::sync::atomic::AtomicBool::new(false);
+        let checkpoint_fired = std::sync::atomic::AtomicBool::new(false);
         let observer = |_| {
-            assert!(!observed.swap(true, std::sync::atomic::Ordering::AcqRel));
+            assert!(!checkpoint_fired.swap(true, std::sync::atomic::Ordering::AcqRel));
             cancellation.cancel();
         };
         context.after_partition_row = Some(&observer);
@@ -684,7 +684,7 @@ fn should_cancel_boolean_aggregate_after_the_final_filtered_row() {
         let result = AggregateAccumulator::evaluate(aggregate_call(&plan), &rows, &context);
 
         // Assert
-        assert!(observed.load(std::sync::atomic::Ordering::Acquire));
+        assert!(checkpoint_fired.load(std::sync::atomic::Ordering::Acquire));
         assert!(result
             .expect_err("cancellation after the last excluded input cannot publish NULL")
             .to_string()

@@ -414,3 +414,131 @@ RR owners use current encoding descriptors with historical rows. The immutable
 owner distinction survives worker/cursor sharing. Jev selected it at 0.99 after
 identifying the unconditional-fresh descriptor regression at 0.88; authored RC/RR
 controls and current rename/add-column reads await the frozen executable gate.
+
+### Next read-write design gate
+
+The next selected investigation is a Cassie-side publication gate per database
+family. Every publishing `AdapterTransaction::commit` must participate, including
+SQL/REST document mutations, graph/time-series/fresh loads, DDL backfills and
+maintenance sidecars. Pure overlay staging does not publish. Capture the retained
+RW assertion fence and readonly data view while that same gate is held, under
+the catalog publication boundary. Existing per-collection and referential gates
+remain necessary for preparation and constraint ownership. The read-only
+baseline had no general database publication gate; the common Cassie-only guard
+is now authored as a prerequisite, pending the coherent RW executable gate.
+
+Jev selected investigating assertion-only old-start row validation followed by
+existing fresh atomic document publication while the complete gate remains held
+(0.99), rather than adding a controlled operation recorder/replay path. Published
+Midge 0.5.1 explicitly validates assertion-only commits server-side. The first
+native commit writes no SQL data; the second reuses fresh uniqueness, index,
+generation and data-epoch preparation. A competing protected writer must not
+publish between them. This is a design selection, not an implemented guarantee:
+the separate conditional race/atomicity lead remains 0.74 and requires both
+native assertion-only ABA/disjoint probes and synchronized competing-writer
+coverage of the complete publication window. No whole-database epoch assertion
+is selected.
+
+Both commit strategies consume the retained native fence. The selected lifetime
+for a failure during a new RW RR COMMIT attempt is to retire the entire block and
+its owners to Idle, matching PostgreSQL 18.6 `AbortCurrentTransaction`'s
+`TBLOCK_END` branch (Jev 0.88). Errors in earlier ordinary statements still retain
+the bounded snapshot/fence for savepoint recovery. Existing READ COMMITTED
+behavior is not changed by this investigation.
+
+The supported SQL/projector/document mutation APIs must all be covered. Raw byte
+writes and returned native Midge transactions are low-level escape paths that can
+bypass SQL row/index/catalog invariants; direct concurrent mutation of Cassie's
+internal authoritative keys through those escapes is outside the selected SQL
+snapshot contract. This boundary does not exclude a production SQL/REST caller:
+the source inventory found Data raw writes in corruption fixtures, Schema raw
+deletes for REST session tokens, native REST session issuance, Temp query-cache
+writes, and native orphaned vector staging/marker cleanup. All in-repository
+production write callers now use the private guarded adapter transaction; public
+raw-byte writes also use its outcome guard. Fresh public native transaction opens
+check recovery admission without changing their signatures. A native transaction
+already returned to external code remains the explicit low-level escape. Any
+additional authoritative production writer must join the gate before RW is
+enabled.
+
+Common obligations remain: per-command own-write overlays over one retained
+committed view, own catalog changes over the original catalog snapshot, precise
+unique/ON CONFLICT owner waits and invisible-target errors, bounded resources,
+legacy and column-store row identities, and complete savepoint/portal/error
+lifetimes. In particular, current RC conflict-intent resolution must not silently
+retarget an RR upsert to a row absent from its snapshot. RW remains rejected
+until the selected obligations and frozen executable gate pass.
+
+The publication gate must survive an unknown native commit outcome. Midge 0.5.1
+states that an admitted timed-out write may still apply after the caller returns;
+a mutex released at that return alone cannot fence later publication. The
+selected Cassie guard therefore latches an instance-wide recovery-required flag
+before releasing the gate after any native `OutcomeUnknown`. New publishing
+operations and new RR snapshot acquisition reject until that Midge instance is
+closed and a new instance completes normal recovery. Existing retained reads and
+transaction cleanup may still retire their owners. A weak gate cache must not
+clear the recovery-required state. Known-not-applied conflicts or stalls do not
+set it.
+
+The blocked operation uses a private adapter error mapped to existing terminal
+storage SQLSTATE `58030`; its message states that an earlier write is unconfirmed,
+that the new commit was not submitted, and that recovery/reconciliation is
+required. It is not reported as a new unknown-outcome write or a retryable stall.
+Jev selected the instance lifetime and this diagnostic contract at 1.00 each. The
+remaining conditional race lead is 0.30 and requires synchronized late-outcome,
+blocked-capture/blocked-publication, known-not-applied, gate-owner retirement and
+recovered-instance controls before the guard can qualify RW.
+
+Publication waits use the current blocking request's private control scope
+(Jev 0.97), with interruption checks while waiting and immediately before native
+submission. A retained RW fence does not retain the cancellation token from its
+initial Parse or Execute. Nested SQL/document calls inherit the originating
+request; standalone administrative document/COPY calls establish their current
+cancellation/deadline owner. The scope never crosses an async suspension.
+
+The publisher inventory also includes database lifecycle journal transactions,
+unpublished database import transactions, bootstrap layout writes, Temp cleanup
+and vector staging cleanup. Their internal native transactions participate in
+the same private adapter outcome/gate handling. Native column-family create/drop
+outcomes latch recovery-required state too; an unknown create outcome must not
+be converted to success by an existing-family lookup fallback.
+
+Quarantine also blocks new reads and metadata admission. New ordinary SQL
+Parse/Describe/Bind/Execute, cached results, suspended portal resumes, SQL cursor
+FETCH, and ordinary REST routes reject with terminal `58030`/HTTP 503. Fresh
+private adapter read acquisition rejects too. A request accepted before the
+latch may finish only from its already pinned immutable data and owned encoding
+descriptors/results; a fresh descriptor/read acquisition can fail it. No new
+Execute is permitted merely because a portal retains a cursor or buffered rows.
+Any unknown-outcome diagnostic returned to the caller retains its original
+write outcome. Existing best-effort Temp cache cleanup may still ignore its
+error for an already accepted read, while the instance remains quarantined;
+subsequent fresh reads and publications reject. This preserves the selected
+owned-response completion boundary without exempting cache commits from latching
+(Jev 0.77).
+
+Plain full ROLLBACK/ABORT remains local cleanup after quarantine; once classified,
+it retires transaction owners before response allocation. COMMIT or a chained
+transaction-end attempt retires the block to Idle and reports the terminal
+unsubmitted-operation error; it cannot publish or start a replacement block.
+Terminate, EOF and protocol synchronization remain available for cleanup.
+Healthy transaction behavior is unchanged. Jev selected these SQL cleanup and
+in-flight boundaries at 1.00 each.
+
+The REST exception is an explicit GET-only public health/liveness allowlist:
+`/health`, `/healthz`, `/readyz`, `/startupz`, `/liveness`, `/livez`, and `/targetz`.
+Post-quarantine readiness uses only in-memory/cached observations and is false;
+process liveness may remain true. `/metrics`, authentication, administrative,
+static/UI and ordinary data routes are not exceptions: existing stored-token
+authentication and capacity reads cannot be assumed safe after uncertain
+metadata publication. Admission must run before auth storage access and again
+when a worker begins after body awaits. Jev selected this finite allowlist at
+0.97. Closing/reopening the storage owner through normal recovery is required;
+no public reset endpoint or flag-clear operation is added.
+
+The common implementation keeps SQL controls and the originating REST worker's
+absolute deadline/cancellation in one fixed, stack-scoped pair. Nested SQL or
+document helpers cannot replace the REST deadline with a later SQL deadline.
+Blocked publication and snapshot-window acquisition check both authorities
+before waiting, while contended, and immediately after acquiring the gate. No
+first-Parse/first-Execute cancellation owner is retained in the publication gate.

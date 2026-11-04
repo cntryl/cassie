@@ -8,6 +8,7 @@ mod settings;
 #[path = "statements/transaction.rs"]
 mod transaction;
 pub(super) use settings::{parse_reset_statement, parse_set_statement, parse_show_statement};
+pub(crate) use transaction::parse_terminal_transaction_control;
 pub(super) use transaction::parse_transaction_statement;
 
 use super::expr::{parse_expr_token, split_csv};

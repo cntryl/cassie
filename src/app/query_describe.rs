@@ -66,6 +66,10 @@ impl Cassie {
         parameter_type_oids: &[i32],
         wire_output: bool,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        self.check_storage_statement_admission(&parsed.statement)?;
+        if self.check_storage_recovery_required().is_err() {
+            return Ok(Vec::new());
+        }
         if let Some(session) = session {
             self.ensure_session_database_access(session)?;
         }

@@ -92,7 +92,9 @@ fn issue_transaction(
     ttl_seconds: u64,
     now: u64,
 ) -> Result<String, CassieError> {
-    let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite)?;
+    let mut tx = cassie
+        .midge
+        .begin_raw_family_adapter_tx(StorageFamily::Schema, TransactionMode::ReadWrite)?;
     tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
     let revision = tx
         .get(SESSION_QUOTA_REVISION_KEY)

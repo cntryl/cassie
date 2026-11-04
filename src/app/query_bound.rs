@@ -72,6 +72,11 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        if let Some(result) =
+            self.quarantined_statement_result(session, &parsed.statement, controls)
+        {
+            return result;
+        }
         if let QueryStatement::CreateTable(statement) = &parsed.statement {
             if statement.as_query.is_some() {
                 self.ensure_session_database_access(session)?;
@@ -149,6 +154,8 @@ impl Cassie {
         // commit validation when embedded execution is nested on one thread.
         let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
         let _entry_overlay_scope = super::SessionReadScope::enter(None);
+        let _publication_controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         self.ensure_session_database_access(session)?;
         self.ensure_statement_can_execute(session, &parsed, controls)?;
         if let QueryStatement::AlterTable(statement) = &parsed.statement {

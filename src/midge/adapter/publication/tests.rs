@@ -1,0 +1,290 @@
+//! Publication ordering and recovery quarantine before any new native write.
+
+use std::cell::Cell;
+use std::sync::{mpsc, Arc};
+use std::time::{Duration, Instant};
+
+use super::*;
+use crate::config::CassieRuntimeLimits;
+use crate::runtime::QueryCancellationHandle;
+
+fn controls(cancellation: QueryCancellationHandle) -> QueryExecutionControls {
+    QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation,
+    )
+}
+
+#[test]
+fn should_block_new_native_publication_after_an_unknown_outcome() {
+    // Arrange
+    let coordinator = PublicationCoordinator::default();
+    let first = coordinator.family(1);
+    let second = coordinator.family(2);
+    let submitted = Cell::new(0);
+    let unknown = first.publish_with(None, || {
+        Err(cntryl_midge::MidgeError::OutcomeUnknown(
+            "unconfirmed".to_owned(),
+        ))
+    });
+
+    // Act
+    let blocked = second.publish_with(None, || {
+        submitted.set(submitted.get() + 1);
+        Ok(())
+    });
+
+    // Assert
+    assert!(matches!(
+        unknown,
+        Err(AdapterCommitError::Native(
+            cntryl_midge::MidgeError::OutcomeUnknown(_)
+        ))
+    ));
+    let error = CassieError::from(blocked.expect_err("recovery required"));
+    assert_eq!(error.descriptor().sql_state, "58030");
+    assert!(error.to_string().contains("not submitted"));
+    assert!(error.storage_retry_kind().is_none());
+    assert_eq!(submitted.get(), 0);
+}
+
+#[test]
+fn should_latch_recovery_required_before_releasing_the_original_gate() {
+    // Arrange
+    let coordinator = PublicationCoordinator::default();
+    let first = coordinator.family(1);
+    let second = coordinator.family(2);
+    let (latched_tx, latched_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        first.publish_with_observer(
+            None,
+            || {
+                Err(cntryl_midge::MidgeError::OutcomeUnknown(
+                    "may apply later".to_owned(),
+                ))
+            },
+            |boundary| {
+                if boundary == PublicationBoundary::RecoveryLatched {
+                    latched_tx.send(()).expect("latched under original gate");
+                    resume_rx
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("release original gate");
+                }
+            },
+        )
+    });
+    latched_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("recovery boundary");
+    let submitted = Cell::new(false);
+
+    // Act
+    let blocked = second.publish_with(None, || {
+        submitted.set(true);
+        Ok(())
+    });
+    let captured = second.with_operation(&controls(QueryCancellationHandle::new()), || {
+        submitted.set(true);
+        Ok(())
+    });
+    resume_tx.send(()).expect("finish unknown operation");
+    let original = worker.join().expect("original publisher");
+
+    // Assert
+    assert!(matches!(blocked, Err(AdapterCommitError::RecoveryRequired)));
+    assert!(matches!(captured, Err(CassieError::Storage(_))));
+    assert!(matches!(original, Err(AdapterCommitError::Native(_))));
+    assert!(!submitted.get());
+}
+
+#[test]
+fn should_preserve_recovery_required_after_the_last_gate_owner_retires() {
+    // Arrange
+    let coordinator = PublicationCoordinator::default();
+    let gate = coordinator.family(1);
+    let unknown = gate.publish_with(None, || {
+        Err(cntryl_midge::MidgeError::OutcomeUnknown(
+            "unconfirmed".to_owned(),
+        ))
+    });
+    assert!(unknown.is_err());
+    drop(gate);
+
+    // Act
+    let replacement = coordinator.family(1);
+    let blocked = replacement.publish_with(None, || Ok(()));
+    let new_instance = PublicationCoordinator::default()
+        .family(1)
+        .publish_with(None, || Ok(()));
+
+    // Assert
+    assert!(matches!(blocked, Err(AdapterCommitError::RecoveryRequired)));
+    assert!(
+        new_instance.is_ok(),
+        "only a new coordinator initializes a clear recovery flag"
+    );
+}
+
+#[test]
+fn should_keep_known_not_applied_conflicts_out_of_recovery_quarantine() {
+    // Arrange
+    let coordinator = PublicationCoordinator::default();
+    let gate = coordinator.family(1);
+    let conflict = gate.publish_with(None, || {
+        Err(cntryl_midge::MidgeError::WriteConflict(
+            "not applied".to_owned(),
+        ))
+    });
+
+    // Act
+    let next = gate.publish_with(None, || Ok(()));
+
+    // Assert
+    assert!(matches!(
+        conflict,
+        Err(AdapterCommitError::Native(
+            cntryl_midge::MidgeError::WriteConflict(_)
+        ))
+    ));
+    assert!(next.is_ok());
+}
+
+#[test]
+fn should_cancel_a_publication_wait_before_submitting_a_native_commit() {
+    // Arrange
+    let coordinator = PublicationCoordinator::default();
+    let gate = coordinator.family(1);
+    let held = gate.mutex.lock();
+    let worker_gate = Arc::clone(&gate);
+    let cancellation = QueryCancellationHandle::new();
+    let controls = controls(cancellation.clone());
+    let (waiting_tx, waiting_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let (done_tx, done_rx) = mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let submitted = Cell::new(false);
+        let mut waiting = Some((waiting_tx, resume_rx));
+        let result = worker_gate.publish_with_observer(
+            Some(&controls),
+            || {
+                submitted.set(true);
+                Ok(())
+            },
+            |boundary| {
+                if boundary == PublicationBoundary::WaitingForGate {
+                    if let Some((waiting_tx, resume_rx)) = waiting.take() {
+                        waiting_tx.send(()).expect("held gate boundary");
+                        resume_rx
+                            .recv_timeout(Duration::from_secs(5))
+                            .expect("resume waiter");
+                    }
+                }
+            },
+        );
+        done_tx.send(()).expect("interrupted wait retired");
+        (result, submitted.get())
+    });
+    waiting_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("waiter failed to acquire held gate");
+
+    // Act
+    cancellation.cancel();
+    resume_tx.send(()).expect("resume cancelled waiter");
+    done_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("retire without releasing gate");
+    let (result, submitted) = worker.join().expect("waiter");
+    drop(held);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(AdapterCommitError::Cassie(CassieError::QueryCancelled))
+    ));
+    assert!(!submitted);
+}
+
+#[test]
+fn should_use_the_current_publication_request_instead_of_a_capture_request() {
+    // Arrange
+    let coordinator = PublicationCoordinator::default();
+    let cancellation = QueryCancellationHandle::new();
+    let first = controls(cancellation.clone());
+    let gate = {
+        let _capture_scope = PublicationControlScope::enter(Some(&first));
+        coordinator.family(1)
+    };
+    cancellation.cancel();
+    let current = controls(QueryCancellationHandle::new());
+    let submitted = Cell::new(false);
+
+    // Act
+    let _commit_scope = PublicationControlScope::enter(Some(&current));
+    let result = gate.publish_current(|| {
+        submitted.set(true);
+        Ok(())
+    });
+
+    // Assert
+    assert!(result.is_ok());
+    assert!(submitted.get());
+}
+
+#[test]
+fn should_preserve_the_outer_rest_deadline_inside_sql_scopes() {
+    // Arrange
+    let gate = PublicationCoordinator::default().family(1);
+    let submitted = Cell::new(false);
+    let deadline = Instant::now()
+        .checked_sub(Duration::from_secs(1))
+        .expect("past deadline");
+    let query = controls(QueryCancellationHandle::new());
+
+    // Act
+    let blocked = {
+        let _rest =
+            PublicationControlScope::enter_for_rest(&QueryCancellationHandle::new(), deadline);
+        let _sql = PublicationControlScope::enter(Some(&query));
+        let _nested = PublicationControlScope::for_request(&CassieRuntimeLimits::default(), None);
+        gate.publish_current(|| {
+            submitted.set(true);
+            Ok(())
+        })
+    };
+    let restored = gate.publish_current(|| Ok(()));
+
+    // Assert
+    assert!(matches!(
+        blocked,
+        Err(AdapterCommitError::Cassie(CassieError::DeadlineExceeded))
+    ));
+    assert!(!submitted.get());
+    assert!(restored.is_ok(), "stack scopes retire the REST deadline");
+}
+
+#[test]
+fn should_preserve_rest_cancellation_for_an_explicit_snapshot_window() {
+    // Arrange
+    let gate = PublicationCoordinator::default().family(1);
+    let cancellation = QueryCancellationHandle::new();
+    let query = controls(QueryCancellationHandle::new());
+    let deadline = Instant::now()
+        .checked_add(Duration::from_secs(5))
+        .expect("hang guard");
+    let submitted = Cell::new(false);
+    let _rest = PublicationControlScope::enter_for_rest(&cancellation, deadline);
+    cancellation.cancel();
+
+    // Act
+    let blocked = gate.with_operation(&query, || {
+        submitted.set(true);
+        Ok(())
+    });
+
+    // Assert
+    assert!(matches!(blocked, Err(CassieError::QueryCancelled)));
+    assert!(!submitted.get());
+}

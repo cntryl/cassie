@@ -11,6 +11,7 @@ pub(super) fn admit(
     parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<AdmittedParameterTypes, ExtendedQueryError> {
+    cassie.check_storage_statement_admission(&parsed.statement)?;
     if parameter_type_oids
         .iter()
         .any(|oid| (34_000..44_000).contains(oid))

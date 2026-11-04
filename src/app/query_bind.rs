@@ -41,6 +41,10 @@ impl Cassie {
         parameters: &[crate::types::Value],
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
+        self.check_storage_statement_admission(&parsed.statement)?;
+        if self.check_storage_recovery_required().is_err() {
+            return Ok(());
+        }
         self.prepare_transaction_analysis_view(session, &parsed, !parameters.is_empty(), controls)?;
         self.ensure_session_database_access(session)?;
         self.ensure_statement_can_execute(session, &parsed, controls)?;

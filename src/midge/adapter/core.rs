@@ -17,6 +17,7 @@ pub struct Midge {
     pub(super) default_database: String,
     collection_write_gates: Mutex<HashMap<String, Arc<ReentrantMutex<()>>>>,
     referential_write_gate: ReentrantMutex<()>,
+    pub(super) publication: super::publication::PublicationCoordinator,
     query_scan_entries: AtomicU64,
     pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
 }
@@ -80,6 +81,7 @@ impl Midge {
             default_database: default_database.into(),
             collection_write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
+            publication: super::publication::PublicationCoordinator::default(),
             query_scan_entries: AtomicU64::new(0),
             column_batch_operational_metrics: Mutex::new(
                 super::ColumnBatchOperationalMetrics::default(),
@@ -200,10 +202,7 @@ impl Midge {
 
     fn ensure_lexkey_layout_ready(&self, schema: &ColumnFamilyHandle) -> Result<(), CassieError> {
         let marker_key = key_encoding::layout_marker_key();
-        let mut tx = self
-            .engine
-            .begin_tx(schema.id(), TransactionMode::ReadWrite)
-            .map_err(CassieError::from)?;
+        let mut tx = self.begin_raw_adapter_tx(schema.id(), TransactionMode::ReadWrite)?;
         match tx.get(&marker_key).map_err(CassieError::from)? {
             Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
             Some(value) => Err(Self::incompatible_layout_marker(&value)),
@@ -223,10 +222,7 @@ impl Midge {
         self.reject_legacy_layout_prefixes()?;
         let marker = if let Some(schema) = self.engine.get_column_family(super::SCHEMA_FAMILY_NAME)
         {
-            let read = self
-                .engine
-                .begin_tx(schema.id(), TransactionMode::ReadOnly)
-                .map_err(CassieError::from)?;
+            let read = self.begin_raw_adapter_tx(schema.id(), TransactionMode::ReadOnly)?;
             read.get(&key_encoding::layout_marker_key())
                 .map_err(CassieError::from)?
         } else {
@@ -269,10 +265,7 @@ impl Midge {
             ) {
                 return Ok(Some(family.name().to_owned()));
             }
-            let read = self
-                .engine
-                .begin_tx(family.id(), TransactionMode::ReadOnly)
-                .map_err(CassieError::from)?;
+            let read = self.begin_raw_adapter_tx(family.id(), TransactionMode::ReadOnly)?;
             let entries = read
                 .scan(&Query::new().limit(1))
                 .map_err(CassieError::from)?
@@ -299,10 +292,7 @@ impl Midge {
                 key_encoding::LEGACY_DATA_PREFIXES
             };
             let family_name = family.name();
-            let tx = self
-                .engine
-                .begin_tx(family.id(), TransactionMode::ReadOnly)
-                .map_err(CassieError::from)?;
+            let tx = self.begin_raw_adapter_tx(family.id(), TransactionMode::ReadOnly)?;
             for prefix in prefixes {
                 let scan = tx
                     .scan(&Query::new().prefix(prefix.to_vec().into()))

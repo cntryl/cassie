@@ -5750,3 +5750,52 @@ capture, observe a positive retained charge, send Terminate, await actual EOF
 (after connection-state cleanup), then require zero charge. It uses no sleep
 or scheduling poll. All these new probes remain unexecuted until the frozen
 gate, so the lower probabilities are advisory refinement, not acceptance.
+
+The subsequent RW design comparison selected investigating assertion-only
+old-start validation plus the existing fresh atomic commit under a complete
+per-database publication gate (0.99). This has not been implemented. PostgreSQL
+18.6 source `AbortCurrentTransaction`/`TBLOCK_END` supports ending a failed COMMIT
+attempt at Idle; Jev selected this new-RW lifetime at 0.88. The conditional
+race/atomicity lead remains 0.74. Two additional authored native probes require
+assertion-only server-side ABA rejection and disjoint validation with no shared
+metadata mutation. Complete locked-window competing-writer probes and the
+production writer/gate inventory remain required before RW enablement.
+
+The native late-apply source narrowed the RW mutex gap: Midge may still publish
+an admitted write after `OutcomeUnknown`. Jev selected instance-wide
+recovery-required quarantine and a private terminal adapter error mapped to the
+existing `58030` storage diagnostic at 1.00 each. The new blocked operation must
+be explicitly not submitted; the prior unknown write still requires recovery and
+reconciliation. Conditional residual race 0.30 requires synchronized quarantine
+and gate lifetime probes in the coherent RW batch. No RW implementation or pass
+is claimed by this design record.
+
+The common Cassie publication/recovery prerequisite is now authored in
+`midge/adapter/publication.rs`, private transaction factories, SQL admission and
+protocol fast paths. RW RR remains disabled. The audit additionally found native
+REST session issuance and Temp query-cache writes; both now use guarded private
+transactions. Existing public native transaction signatures and Midge 0.5.1 are
+unchanged. Fresh native opens check recovery admission, while the documented
+preobtained native transaction escape remains outside SQL guarantees.
+
+The new source-only probes cover unknown latching before gate release, another
+family's blocked publication and snapshot capture, weak-gate retirement, known
+not-applied conflict, synchronized request cancellation before native submission,
+current-request versus retired capture control, nested REST absolute deadline and
+REST cancellation, fresh native read/write admission, local rollback/commit owner
+retirement, owned preexisting cursor completion, new cursor FETCH rejection, low
+budget cleanup, and completed/suspended/empty protocol fast paths. Two more
+native assertion-only ABA/disjoint probes are authored. No new compilation or
+execution has occurred for these RW files under the batching instruction.
+
+Bounded Jev source review selected no shown production publication escape at
+0.76, with nested wait-control gap 0.23 and instance-latch gap 0.19. Admission
+review selected no retained protocol escape at 0.80, cleanup-owner gap 0.12,
+fresh-read gap 0.29 and shared plain terminal grammar at 1.00. The fixed-pair
+REST/SQL controls correct a source-found risk where nested SQL could replace the
+REST deadline. Existing best-effort Temp cache cleanup remains best effort for an
+already accepted owned read (selected 0.77); its guarded native commit still
+latches quarantine and future fresh operations reject. These advisory results
+do not replace the substantial integrated build/full-test/strict-clippy/fmt/test
+policy gate. Parent REST route/worker/health source `06437d45` is the next planned
+integration; its authored tests are not included in any passing count.

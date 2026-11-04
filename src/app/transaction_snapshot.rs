@@ -35,6 +35,7 @@ impl Cassie {
         has_parameters: bool,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
+        self.check_storage_statement_admission(&parsed.statement)?;
         // PostgreSQL18.6 analyze_requires_snapshot and exec_bind_message:
         // utility wrappers acquire during analysis only in these cases; Bind
         // also needs a snapshot for parameter input functions.
@@ -84,12 +85,15 @@ impl Cassie {
         let Some(generation) = session.repeatable_read_capture_generation() else {
             return Ok(());
         };
-        let data = session.capture_statement_read(
-            &self.midge,
-            session.current_database().unwrap_or(&self.default_database),
-            controls,
-        )?;
-        let catalog = self.catalog.snapshot_with_controls(controls)?;
+        let database = session.current_database().unwrap_or(&self.default_database);
+        let (data, catalog) = self
+            .midge
+            .with_database_publication(database, controls, || {
+                let data = session.capture_statement_read(&self.midge, database, controls)?;
+                let catalog = self.catalog.snapshot_with_controls(controls)?;
+                controls.check_interruption()?;
+                Ok((data, catalog))
+            })?;
         session.install_repeatable_read_snapshot(generation, data, catalog, controls)
     }
 }

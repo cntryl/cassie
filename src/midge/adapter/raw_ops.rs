@@ -12,7 +12,7 @@ impl Midge {
         key: &[u8],
         value: &[u8],
     ) -> Result<(), CassieError> {
-        let mut tx = self.transaction(family, TransactionMode::ReadWrite)?;
+        let mut tx = self.begin_raw_family_adapter_tx(family, TransactionMode::ReadWrite)?;
         tx.put(key.to_vec(), value.to_vec(), None)
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
@@ -23,7 +23,7 @@ impl Midge {
     ///
     /// Returns an error when the raw delete cannot be committed.
     pub fn raw_delete(&self, family: StorageFamily, key: &[u8]) -> Result<(), CassieError> {
-        let mut tx = self.transaction(family, TransactionMode::ReadWrite)?;
+        let mut tx = self.begin_raw_family_adapter_tx(family, TransactionMode::ReadWrite)?;
         tx.delete(key.to_vec()).map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
@@ -160,7 +160,8 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn clear_temp_family(&self) -> Result<usize, CassieError> {
-        let mut tx = self.temp_tx(TransactionMode::ReadWrite)?;
+        let mut tx =
+            self.begin_raw_family_adapter_tx(StorageFamily::Temp, TransactionMode::ReadWrite)?;
         let entries = collect_scan(tx.scan(&Query::new()).map_err(CassieError::from)?)?;
         let mut keys = Vec::new();
         for (raw_key, _) in entries {

@@ -28,7 +28,9 @@ where
 
     let cleanup_cassie = Arc::clone(&cassie);
     let result = task::spawn_blocking(move || operation(cassie)).await;
-    let _ = cleanup_cassie.run_deferred_schema_cleanup();
+    if cleanup_cassie.check_storage_recovery_required().is_ok() {
+        let _ = cleanup_cassie.run_deferred_schema_cleanup();
+    }
 
     match result {
         Ok(result) => match result {

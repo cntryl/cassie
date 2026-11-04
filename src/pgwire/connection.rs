@@ -517,6 +517,18 @@ async fn handle_simple_query(
         }
     };
 
+    if let Err(error) = cassie.check_storage_recovery_required() {
+        if crate::sql::parser::parse_terminal_transaction_control(&sql).is_none() {
+            return write_simple_query_error(
+                runtime,
+                write_half,
+                state,
+                &session,
+                cassie_pg_error(&error),
+            )
+            .await;
+        }
+    }
     state.reset_unnamed_query_objects(runtime);
     state.extended_cycle = transactions::ExtendedCycle::default();
     let statements = match simple_query::split_simple_query(&sql) {

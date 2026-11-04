@@ -49,8 +49,13 @@ fn run_with_execution_breakdown_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
+    cassie
+        .check_storage_recovery_required()
+        .map_err(QueryError::from)?;
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
+    let _publication_controls =
+        crate::midge::adapter::PublicationControlScope::enter(Some(controls));
     check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
@@ -106,8 +111,13 @@ pub(crate) fn run_with_session_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    cassie
+        .check_storage_recovery_required()
+        .map_err(QueryError::from)?;
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
+    let _publication_controls =
+        crate::midge::adapter::PublicationControlScope::enter(Some(controls));
     check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, session, &plan.logical);

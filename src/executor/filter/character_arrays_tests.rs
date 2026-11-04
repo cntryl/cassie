@@ -3,6 +3,49 @@ use crate::runtime::QueryCancellationHandle;
 use std::time::Instant;
 
 #[test]
+fn should_apply_exact_character_array_casts_on_the_rich_source_argument_path() {
+    // Arrange
+    let target = DataType::Array(Box::new(DataType::Char { length: Some(3) }));
+    let expression = crate::sql::ast::Expr::Cast {
+        expr: Box::new(crate::sql::ast::Expr::Column("items".into())),
+        data_type: target.clone(),
+        source_type: Some(target.clone()),
+        identity: crate::sql::ast::CastIdentity::Scalar,
+    };
+    let row = crate::executor::batch::BatchRow::from_projected_values(vec![(
+        "items".into(),
+        Value::Array(
+            SqlArray::from_elements(vec![Value::String("x".into())]).expect("native array"),
+        ),
+    )])
+    .with_optional_data_types(Some(std::sync::Arc::new(vec![target])));
+    let functions = std::collections::HashMap::new();
+    let controls = QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        Instant::now(),
+    );
+    let memory = EvaluationMemory::new(&controls).expect("expression owner");
+
+    // Act
+    let value = super::super::evaluate_source_argument(
+        &row,
+        &expression,
+        &[],
+        &functions,
+        None,
+        &controls,
+        &memory,
+    )
+    .expect("exact character array cast");
+
+    // Assert
+    let Value::Array(array) = value else {
+        panic!("native result");
+    };
+    assert_eq!(array.elements(), &[Value::String("x  ".into())]);
+}
+
+#[test]
 fn should_admit_all_character_array_padding_before_converting_any_element() {
     // Arrange
     let array = SqlArray::from_elements(vec![
@@ -15,7 +58,7 @@ fn should_admit_all_character_array_padding_before_converting_any_element() {
     let target = DataType::Array(Box::new(element.clone()));
     let required = scratch_bytes(&array, &element, None).expect("padding bound");
 
-    // Act / Assert
+    // Act
     for (budget, accepted) in [(required - 1, false), (required, true)] {
         let controls = QueryExecutionControls::from_limits(
             &crate::config::CassieRuntimeLimits {
@@ -35,6 +78,7 @@ fn should_admit_all_character_array_padding_before_converting_any_element() {
             true,
         )
         .expect("character array cast");
+        // Assert
         assert_eq!(result.is_ok(), accepted);
         assert_eq!(
             CONVERTED_ELEMENTS.with(std::cell::Cell::get),

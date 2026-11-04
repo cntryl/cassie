@@ -106,6 +106,8 @@ mod pgwire_type_scalar_matrix;
 #[path = "support/type_codec_matrix.rs"]
 mod support_type_codec_matrix;
 
+#[path = "pgwire_extended/types/arrays/character_logical_values.rs"]
+mod character_logical_values;
 #[path = "pgwire_extended/types/arrays/character_casts.rs"]
 mod pgwire_character_array_casts;
 #[path = "pgwire_extended/types/arrays/aggregate_identity/semantics.rs"]

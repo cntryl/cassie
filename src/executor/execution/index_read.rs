@@ -72,11 +72,8 @@ pub(super) fn execute_scalar_index_read(
             };
             document
         };
-        rows.push(scan::projected_document_to_row(
-            &document,
-            &spec.scan_fields,
-            schema.as_ref(),
-        ));
+        let row = scan::projected_document_to_row(&document, &spec.scan_fields, schema.as_ref());
+        rows.push(scan::hydrate_character_arrays(row, controls)?);
     }
 
     record_scalar_index_read_path(cassie, &spec, rows.len());

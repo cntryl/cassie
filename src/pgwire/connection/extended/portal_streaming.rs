@@ -399,6 +399,7 @@ fn portal_document_result(
             &spec.source_fields,
             schema.as_ref(),
         );
+        let row = crate::executor::scan::hydrate_character_arrays(row, controls)?;
         builder.try_push_values(portal_projection_values(select, &row, schema.as_ref()))?;
     }
     builder.finish()

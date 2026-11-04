@@ -188,7 +188,7 @@ impl<'a> TypedScanStream<'a> {
             for source in &documents {
                 conversion::check_controls(self.controls)?;
                 let document = source.document();
-                let value = if is_row_identity_column(name) {
+                let mut value = if is_row_identity_column(name) {
                     memory.try_grow(document.id.len())?;
                     Value::String(document.id.clone())
                 } else {
@@ -206,6 +206,12 @@ impl<'a> TypedScanStream<'a> {
                             Ok::<_, CassieError>(json_to_typed_value(value, data_type))
                         })?
                 };
+                super::hydrate_character_array_value(
+                    &mut value,
+                    data_type,
+                    self.controls,
+                    &mut memory,
+                )?;
                 values.push(value);
             }
             columns.push(values);

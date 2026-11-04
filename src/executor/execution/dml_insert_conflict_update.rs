@@ -188,6 +188,8 @@ pub(super) fn execute_insert_conflict_update(
         &current.payload,
         &context.statement.table,
     );
+    let existing_row =
+        crate::executor::scan::hydrate_character_arrays(existing_row, context.controls)?;
     let _type_memory = context
         .controls
         .reserve_query_memory(crate::executor::batch::row_type_bytes([&existing_row]))?;

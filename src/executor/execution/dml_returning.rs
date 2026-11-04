@@ -72,6 +72,10 @@ pub(super) fn project(
     }
     let capacity = rows.capacity();
     admit_inputs(&mut rows, capacity, context.controls)?;
+    for row in &mut rows {
+        let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
+        *row = scan::hydrate_character_arrays(owned, context.controls)?;
+    }
     let mut batches = vec![rows];
     let (memory, _scratch) =
         ProjectionOutputMemory::admit(context.controls, &batches, context.returning, true, true)?;

@@ -530,6 +530,7 @@ fn fetch_hybrid_candidate_rows<'a>(
         let row_bytes = projected_hybrid_row_bytes(&document, &fields);
         document_memory.try_grow(row_bytes)?;
         let row = scan::projected_document_to_row(&document, &fields, Some(request.context.schema));
+        let row = scan::hydrate_character_arrays(row, request.controls)?;
         retrieval_memory.push(document_memory);
         rows.push(row);
     }
@@ -610,6 +611,7 @@ fn prefilter_hybrid_rows(
             let (document, mut reservation) = document.into_parts();
             reservation.try_grow(projected_hybrid_row_bytes(&document, &fields))?;
             let row = scan::projected_document_to_row(&document, &fields, Some(context.schema));
+            let row = scan::hydrate_character_arrays(row, controls)?;
             memory.push(reservation);
             rows.push(row);
         }

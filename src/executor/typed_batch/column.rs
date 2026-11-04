@@ -556,7 +556,14 @@ impl Column {
         for value in field.values() {
             check_controls(controls)?;
             memory.try_grow(crate::runtime::accounted::json::retained_bytes(value)?)?;
-            values.push(crate::executor::scan::json_to_typed_value(value, data_type));
+            let mut value = crate::executor::scan::json_to_typed_value(value, data_type);
+            crate::executor::scan::hydrate_character_array_value(
+                &mut value,
+                data_type,
+                controls,
+                &mut memory,
+            )?;
+            values.push(value);
         }
         let parent = Self::from_values(controls, data_type, &values)?;
         parent.view(

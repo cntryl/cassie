@@ -31,6 +31,13 @@ impl Drop for Midge {
 }
 
 impl Midge {
+    pub(crate) fn configure_repeatable_history_budget(
+        &self,
+        bytes: usize,
+    ) -> Result<(), CassieError> {
+        self.publication.configure_history_budget(bytes)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

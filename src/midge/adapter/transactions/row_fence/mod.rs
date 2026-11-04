@@ -102,36 +102,14 @@ impl RetainedRowFence {
         controls: &QueryExecutionControls,
         inputs: &mut QueryMemoryReservation,
     ) -> Result<(), CassieError> {
-        if relation_id == 0 {
-            return Err(CassieError::Unsupported(
-                "REPEATABLE READ row validation requires a persisted relation identity".to_owned(),
-            ));
-        }
-        let mut scratch = controls.reserve_query_memory(key_scratch_bytes(
-            collection.len(),
-            self.midge.default_database.len(),
-            id.len(),
-        )?)?;
-        let canonical = self.midge.canonical_collection_name(collection);
-        if crate::catalog::relation_database_name(&canonical)
-            .is_some_and(|database| !database.eq_ignore_ascii_case(&self.database))
-        {
-            return Err(CassieError::Unsupported(
-                "REPEATABLE READ cannot publish rows across database families".to_owned(),
-            ));
-        }
-        let keys = [
-            Midge::row_key(relation_id, id),
-            Midge::column_store_row_key(relation_id, id),
-            Midge::doc_key(&canonical, id),
-        ];
-        drop(canonical);
-        let key_bytes = keys.iter().try_fold(0_usize, |bytes, key| {
-            bytes
-                .checked_add(key.capacity())
-                .ok_or_else(accounting_overflow)
-        })?;
-        scratch.shrink_to(key_bytes);
+        let (keys, scratch) = admitted_row_keys(
+            &self.midge,
+            &self.database,
+            collection,
+            relation_id,
+            id,
+            controls,
+        )?;
         let expected = keys.each_ref().map(|key| self.transaction.get(key));
         let [row, column, legacy] = expected;
         let expected = [row?, column?, legacy?];
@@ -154,6 +132,47 @@ impl RetainedRowFence {
         }
         Ok(())
     }
+}
+
+pub(in crate::midge::adapter) fn admitted_row_keys(
+    midge: &Midge,
+    database: &str,
+    collection: &str,
+    relation_id: u64,
+    id: &str,
+    controls: &QueryExecutionControls,
+) -> Result<([Vec<u8>; 3], QueryMemoryReservation), CassieError> {
+    if relation_id == 0 {
+        return Err(CassieError::Unsupported(
+            "REPEATABLE READ row validation requires a persisted relation identity".to_owned(),
+        ));
+    }
+    let mut scratch = controls.reserve_query_memory(key_scratch_bytes(
+        collection.len(),
+        midge.default_database.len(),
+        id.len(),
+    )?)?;
+    let canonical = midge.canonical_collection_name(collection);
+    if crate::catalog::relation_database_name(&canonical)
+        .is_some_and(|row_database| !row_database.eq_ignore_ascii_case(database))
+    {
+        return Err(CassieError::Unsupported(
+            "REPEATABLE READ cannot publish rows across database families".to_owned(),
+        ));
+    }
+    let keys = [
+        Midge::row_key(relation_id, id),
+        Midge::column_store_row_key(relation_id, id),
+        Midge::doc_key(&canonical, id),
+    ];
+    drop(canonical);
+    let key_bytes = keys.iter().try_fold(0_usize, |bytes, key| {
+        bytes
+            .checked_add(key.capacity())
+            .ok_or_else(accounting_overflow)
+    })?;
+    scratch.shrink_to(key_bytes);
+    Ok((keys, scratch))
 }
 
 fn assertion_input_bytes(key_bytes: usize, value_bytes: usize) -> Result<usize, CassieError> {

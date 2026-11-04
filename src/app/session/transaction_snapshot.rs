@@ -5,11 +5,12 @@ use std::mem::size_of;
 use super::{Arc, CassieError, CassieSession, SessionTransactionStatus, TransactionIsolation};
 use crate::app::TransactionErrorKind;
 use crate::catalog::ControlledCatalogSnapshot;
-use crate::midge::adapter::{Midge, RetainedRowFence, StatementDataRead};
+use crate::midge::adapter::{Midge, RetainedRowFence, RetainedRowHistory, StatementDataRead};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 pub(super) struct TransactionReadSnapshot {
     fence: parking_lot::Mutex<Option<Box<RetainedRowFence>>>,
+    history: Option<Arc<RetainedRowHistory>>,
     data: Arc<StatementDataRead>,
     catalog: Arc<ControlledCatalogSnapshot>,
     _memory: QueryMemoryReservation,
@@ -47,6 +48,7 @@ impl CassieSession {
         data: Arc<StatementDataRead>,
         catalog: Arc<ControlledCatalogSnapshot>,
         fence: Option<Box<RetainedRowFence>>,
+        history: Option<Arc<RetainedRowHistory>>,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         controls.check_interruption()?;
@@ -54,6 +56,7 @@ impl CassieSession {
             .reserve_query_memory(size_of::<TransactionReadSnapshot>() + 2 * size_of::<usize>())?;
         let owner = Arc::new(TransactionReadSnapshot {
             fence: parking_lot::Mutex::new(fence),
+            history,
             data,
             catalog,
             _memory: memory,
@@ -74,6 +77,25 @@ impl CassieSession {
             transaction.has_query = true;
         }
         Ok(())
+    }
+
+    pub(crate) fn repeatable_conflict_history(
+        &self,
+        collection: &str,
+        id: &str,
+    ) -> Option<Arc<RetainedRowHistory>> {
+        let transaction = self.transaction.lock();
+        let owner = transaction.repeatable_read.as_ref()?;
+        if transaction.writes.iter().any(|(name, changes)| {
+            crate::catalog::name_matches(name, collection)
+                && matches!(
+                    changes.get(id),
+                    Some(super::TransactionRowChange::Upsert(_))
+                )
+        }) {
+            return None;
+        }
+        owner.history.as_ref().map(Arc::clone)
     }
 
     pub(crate) fn take_repeatable_row_fence(&self) -> Option<Box<RetainedRowFence>> {

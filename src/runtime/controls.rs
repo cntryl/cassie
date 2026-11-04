@@ -139,6 +139,31 @@ pub struct QueryMemoryReservation {
 }
 
 impl QueryMemoryReservation {
+    /// A narrow bounded owner without a request token, deadline or test scope.
+    pub(crate) fn independent_budget(budget: usize, bytes: usize) -> Result<Self, CassieError> {
+        if bytes > budget {
+            return Err(memory_limit_error(budget, bytes));
+        }
+        Ok(Self {
+            tracker: Arc::new(QueryMemoryTracker {
+                budget,
+                used: AtomicUsize::new(bytes),
+                peak: AtomicUsize::new(bytes),
+            }),
+            bytes,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn tracker_peak_bytes(&self) -> usize {
+        self.tracker.peak.load(Ordering::Acquire)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn tracker_used_bytes(&self) -> usize {
+        self.tracker.used.load(Ordering::Acquire)
+    }
+
     /// Creates a separate narrow lease against the same query tracker.
     pub(crate) fn try_sibling(&self, bytes: usize) -> Result<Self, CassieError> {
         reserve_tracker_memory(&self.tracker, bytes)?;

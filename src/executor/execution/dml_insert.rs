@@ -480,6 +480,14 @@ fn execute_insert_payload(
         &payload,
         context.schema,
     )?;
+    if let (Some(session), Some(id)) = (context.session, maybe_conflict_id.as_deref()) {
+        context.cassie.check_repeatable_conflict_row(
+            session,
+            &context.statement.table,
+            id,
+            context.controls,
+        )?;
+    }
     match (context.statement.on_conflict.as_ref(), maybe_conflict_id) {
         (Some(on_conflict), Some(conflict_id)) => match &on_conflict.action {
             crate::sql::ast::InsertConflictAction::DoNothing => Ok(None),

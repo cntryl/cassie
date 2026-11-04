@@ -71,6 +71,7 @@ impl Cassie {
             limits,
             ..
         } = runtime_config;
+        midge.configure_repeatable_history_budget(limits.query_memory_budget_bytes)?;
         let runtime = Arc::new(RuntimeState::new(limits));
         Ok(Self {
             midge,

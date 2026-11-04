@@ -677,3 +677,16 @@ preserve stable modern relation identity and log any legacy-key rewrites.
 This amendment selects implementation work, not support qualification. RW stays
 rejected until early-phase/ABA/no-write, disjoint writer, native-interop,
 resource, savepoint/portal and recovery obligations pass the frozen full gate.
+
+
+The private history uses sorted capacity-coupled vectors (Jev 0.99), with
+pre-admitted replacement overlap through the existing retained-memory helper.
+Only keys absent from the current history require new history slots; rewriting
+an existing key must reuse its slot. Stage-key ownership moves into confirmed
+history without copying after native success. The independent tracker itself is
+created lazily, only after the complete header allowance is checked. The private
+mutation error carrier preserves native failures and maps new accounting
+failures to the existing typed resource error (`54000`); Jev selected this
+caller-preserving refinement at 0.99 after the exact conversion/lint inventory.
+Authored confirmation-time budget-exhaustion and full-directory reuse probes
+remain pending the frozen gate, along with all other new RW probes.

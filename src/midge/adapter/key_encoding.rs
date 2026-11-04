@@ -9,6 +9,9 @@ mod fulltext;
 mod graph;
 #[path = "key_encoding/hot_indexes.rs"]
 mod hot_indexes;
+#[path = "key_encoding/row_history.rs"]
+mod row_history;
+pub(super) use row_history::is_authoritative_row_key;
 #[path = "key_encoding/time_series.rs"]
 mod time_series;
 #[path = "key_encoding/vector.rs"]

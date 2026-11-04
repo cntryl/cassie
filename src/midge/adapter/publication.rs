@@ -5,13 +5,18 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
 use parking_lot::{Mutex, ReentrantMutex, ReentrantMutexGuard};
 
 use super::{CassieError, Midge};
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+
+mod native_access;
+mod row_history;
+pub(crate) use row_history::RetainedRowHistory;
+pub(super) use row_history::{MutationKeys, PreparedKey};
 
 const RECOVERY_REQUIRED: &str = "storage recovery required after an earlier unconfirmed write; this operation was not submitted; recover and reconcile before retrying";
 
@@ -36,6 +41,8 @@ impl From<AdapterCommitError> for CassieError {
 pub(super) struct PublicationCoordinator {
     families: Mutex<HashMap<cntryl_midge::ColumnFamilyId, Weak<DatabasePublication>>>,
     recovery_required: Arc<AtomicBool>,
+    native_access: native_access::NativeAccess,
+    history_budget: OnceLock<usize>,
 }
 
 impl PublicationCoordinator {
@@ -48,9 +55,44 @@ impl PublicationCoordinator {
         let gate = Arc::new(DatabasePublication {
             mutex: ReentrantMutex::new(()),
             recovery_required: Arc::clone(&self.recovery_required),
+            row_history: row_history::RowHistory::new(
+                self.history_budget.get().copied().unwrap_or_else(|| {
+                    crate::config::CassieRuntimeLimits::default().query_memory_budget_bytes
+                }),
+            ),
         });
         families.insert(family, Arc::downgrade(&gate));
         gate
+    }
+
+    pub(super) fn open_native<T>(
+        &self,
+        mode: cntryl_midge::TransactionMode,
+        open: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        self.native_access.native(mode, open)
+    }
+
+    pub(super) fn admit_tracked_write<T>(
+        &self,
+        register: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        self.native_access.tracked(register)
+    }
+
+    pub(super) fn configure_history_budget(&self, bytes: usize) -> Result<(), CassieError> {
+        if self
+            .history_budget
+            .get()
+            .is_some_and(|current| *current != bytes)
+            || !self.families.lock().is_empty()
+        {
+            return Err(CassieError::Unsupported(
+                "row-history budget must be configured before storage admission".to_owned(),
+            ));
+        }
+        let _ = self.history_budget.set(bytes);
+        Ok(())
     }
 
     pub(super) fn ensure_recovered(&self) -> Result<(), CassieError> {
@@ -74,6 +116,7 @@ impl PublicationCoordinator {
 pub(super) struct DatabasePublication {
     mutex: ReentrantMutex<()>,
     recovery_required: Arc<AtomicBool>,
+    pub(super) row_history: row_history::RowHistory,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -157,6 +200,22 @@ impl DatabasePublication {
         })
     }
 
+    pub(super) fn publish_rows_current(
+        &self,
+        keys: MutationKeys,
+        operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
+    ) -> Result<(), AdapterCommitError> {
+        let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
+        self.publish_controlled(
+            controls.as_ref(),
+            || self.row_history.publish(keys, operation),
+            |_boundary| {
+                #[cfg(test)]
+                tests::observe_publication(_boundary);
+            },
+        )
+    }
+
     #[cfg(test)]
     fn publish_with(
         &self,
@@ -182,17 +241,35 @@ impl DatabasePublication {
         &self,
         controls: Option<&PublicationWaitControls>,
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
+        observer: impl FnMut(PublicationBoundary),
+    ) -> Result<(), AdapterCommitError> {
+        self.publish_controlled(
+            controls,
+            || operation().map_err(AdapterCommitError::Native),
+            observer,
+        )
+    }
+
+    fn publish_controlled(
+        &self,
+        controls: Option<&PublicationWaitControls>,
+        operation: impl FnOnce() -> Result<(), AdapterCommitError>,
         mut observer: impl FnMut(PublicationBoundary),
     ) -> Result<(), AdapterCommitError> {
         let _guard = self.lock(controls, &mut observer)?;
         let result = operation();
-        if matches!(&result, Err(cntryl_midge::MidgeError::OutcomeUnknown(_))) {
+        if matches!(
+            &result,
+            Err(AdapterCommitError::Native(
+                cntryl_midge::MidgeError::OutcomeUnknown(_)
+            ))
+        ) {
             // Midge may still publish after an unknown response. Latch while
             // protected, before a waiter can enter another publication window.
             self.recovery_required.store(true, Ordering::Release);
             observer(PublicationBoundary::RecoveryLatched);
         }
-        result.map_err(AdapterCommitError::Native)
+        result
     }
 
     fn with_operation<T>(
@@ -291,6 +368,20 @@ impl Midge {
                     "controlled unconfirmed-write boundary".to_owned(),
                 )));
         assert!(result.is_err());
+    }
+
+    pub(crate) fn capture_repeatable_row_history(
+        &self,
+        database: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Arc<RetainedRowHistory>, CassieError> {
+        self.with_database_publication(database, controls, || {
+            controls.check_interruption()?;
+            let family = self.database_family(database)?;
+            let publication = self.publication.family(family.id());
+            self.publication
+                .admit_tracked_write(|| row_history::RowHistory::register(&publication))
+        })
     }
 
     pub(crate) fn with_database_publication<T>(

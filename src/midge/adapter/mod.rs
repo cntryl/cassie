@@ -29,6 +29,7 @@ pub(crate) use column_batch_format_v1::NumericValues;
 mod core;
 pub mod fulltext_retrieval;
 mod publication;
+pub(crate) use publication::RetainedRowHistory;
 mod raw_ops;
 pub(crate) use publication::PublicationControlScope;
 mod transactions;

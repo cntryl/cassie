@@ -57,6 +57,30 @@ impl Cassie {
         self.capture_transaction_read_view(session, parsed, controls)
     }
 
+    pub(crate) fn check_repeatable_conflict_row(
+        &self,
+        session: &CassieSession,
+        collection: &str,
+        id: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let Some(history) = session.repeatable_conflict_history(collection, id) else {
+            return Ok(());
+        };
+        let relation = self
+            .catalog
+            .collection_storage_id(collection)
+            .filter(|identity| *identity != 0)
+            .ok_or_else(|| {
+                CassieError::Unsupported(
+                    "REPEATABLE READ conflict validation requires a persisted relation identity"
+                        .to_owned(),
+                )
+            })?;
+        let database = session.current_database().unwrap_or(&self.default_database);
+        history.check_row(&self.midge, database, (collection, relation, id), controls)
+    }
+
     fn capture_transaction_read_view(
         &self,
         session: &CassieSession,
@@ -86,9 +110,16 @@ impl Cassie {
             return Ok(());
         };
         let database = session.current_database().unwrap_or(&self.default_database);
-        let (data, catalog, fence) =
+        let (data, catalog, fence, history) =
             self.midge
                 .with_database_publication(database, controls, || {
+                    let history = session
+                        .is_repeatable_read_write()
+                        .then(|| {
+                            self.midge
+                                .capture_repeatable_row_history(database, controls)
+                        })
+                        .transpose()?;
                     let fence = session
                         .is_repeatable_read_write()
                         .then(|| {
@@ -102,9 +133,10 @@ impl Cassie {
                     let data = session.capture_statement_read(&self.midge, database, controls)?;
                     let catalog = self.catalog.snapshot_with_controls(controls)?;
                     controls.check_interruption()?;
-                    Ok((data, catalog, fence))
+                    Ok((data, catalog, fence, history))
                 })?;
-        session.install_repeatable_read_snapshot(generation, data, catalog, fence, controls)
+        session
+            .install_repeatable_read_snapshot(generation, data, catalog, fence, history, controls)
     }
 }
 

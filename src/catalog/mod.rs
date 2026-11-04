@@ -64,7 +64,7 @@ pub use indexes::{
 };
 pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
-pub(crate) use metadata::FunctionInputScope;
+pub(crate) use metadata::{ControlledCatalogSnapshot, FunctionInputScope};
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
 pub(crate) const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};

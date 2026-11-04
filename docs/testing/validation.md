@@ -5748,3 +5748,71 @@ inventory, and run the complete ordered local gate on the combined scalar PR
 head. This focused evidence does not replace that gate or hosted final-head
 checks. #805 closure awaits those checks; remaining regex and other independently
 owned #954 obligations stay open.
+
+## 2026-11-04 — #819 read-only RR implementation work record
+
+This is an interim source/advisory record, not completed support or an issue
+closure. The selected profile is in
+[the wire transaction contract](../pgwire-transaction-contract.md#selected-v02-snapshot-profile-2026-11-04).
+The user directed compilation and test execution to wait for a substantial frozen
+bundle; new regressions below are authored and unexecuted. No Midge engine,
+registry source, dependency version, public API, or workflow was changed.
+
+Earlier executed evidence on the original native dependency:
+
+- `CARGO_BUILD_JOBS=2 cargo test --locked --lib should_reuse_the_statement_view_for_raw_database_reads -- --nocapture`: passed 1 retained point/prefix/page owner proof.
+- `CARGO_BUILD_JOBS=2 cargo test --locked --test compatibility should_retain_repeatable_read_view_from_the_first_query -- --nocapture`: red at `BEGIN ... REPEATABLE READ READ ONLY`, SQLSTATE `0A000`, before runtime implementation.
+- `CARGO_BUILD_JOBS=1 cargo test --locked --lib midge::adapter::transactions::snapshot_proofs:: -- --nocapture`: passed the original 2 published-Midge capability probes: ABA rejection and disjoint row assertion with fresh shared metadata. Two later separate-snapshot/native-escape probes are authored, not included in that passed count.
+
+Pinned PostgreSQL 18.6 raw-wire receipts distinguish first-view acquisition from
+transaction ownership: constant SELECT, explicit-RR Parse and Bind, PREPARE,
+DECLARE, CALL, EXPLAIN and DEALLOCATE capture; SHOW/SAVEPOINT and Describe alone
+do not. The SQL catalog omits a newly created relation while its current name
+resolves against the retained data view. The native scripts, exact upstream
+`REL_18_6` classification sources, and Jev requests/responses are retained under
+the isolated transaction worktree's ignored `target/v020-evidence/` directory.
+They are local receipts, not hosted CI.
+
+New authored regression paths:
+
+- `tests/compatibility/lifecycle/transactions/repeatable_read.rs`: first-view/savepoint/data/catalog visibility, current new-table descriptor, and current rename/add-column descriptors over historical rows.
+- `tests/pgwire_extended/transactions/repeatable_read.rs`, with `tests/support/repeatable_read.rs`: constant/Parse/Bind/Describe/SHOW/SAVEPOINT/utility boundaries, limited direct-cursor pagination, and first Execute of an idle-prebound portal inside explicit RR.
+- `src/app/transaction_snapshot/tests.rs`: rejected admission and retry, last shared owner release, no second request charge, actual cancelled-query/savepoint recovery, disconnect by final session drop, pre-cancel/deadline, synchronized cancellation while publication is held, and RC/RR descriptor-authority controls.
+- `src/app/transaction_snapshot/tests/indexes.rs`: current-planner late scalar selection with row fallback, bounded indexed-join fallback, unchanged/replaced/renamed storage identities, REINDEX/drop-recreate, and a late full-text scalar prefilter.
+- `src/midge/adapter/transactions/snapshot_proofs.rs`: published API capability boundaries; native assertions do not make independently captured snapshots equivalent.
+
+Read-access sibling source inventory:
+
+| Path | Retained-view eligibility/fallback |
+|---|---|
+| `executor/execution/index_read.rs` | Selected scalar index requires identity in admitted transaction catalog; otherwise existing row fallback. |
+| `executor/execution/source_join/bounded.rs` | Selected bounded join index requires the same identity; otherwise existing join fallback. |
+| `executor/execution/scored/fulltext_read.rs` | Scalar prefilter declines late identity; persisted full-text loader already resolves old `get_index` and returns exact fallback for missing/invalid artifacts. |
+| `midge/adapter/column_batches/validation.rs` | Both controlled and ordinary summary validation resolve old `get_index`; no covering index, metadata or matching generation returns existing fallback. |
+| `midge/adapter/time_series_indexes/controlled.rs` | Old-view missing manifest/integrity returns fallback; executor `time_series_read.rs` uses retained row-backed scan. |
+| `executor/execution/scored/vector_topk/{hnsw,ivfflat}.rs` | `get_vector_index_definition` reads retained Data; absent definition/artifact returns exact fallback, and native candidates require retained source generation. |
+| `executor/execution/scored/hybrid.rs` | Missing retained ANN state or invalid text/vector artifact declines bounded retrieval; source generation checks remain. |
+| `executor/execution/projected_read.rs` | Its separate scalar-selection helpers report diagnostics; native scalar reads route through `index_read.rs`. |
+
+Jev decisions and required actions are advisory, not proof:
+
+- Phase-aware acquisition 0.93; cancellable blocking Parse capture 0.90. Authored wire and held-publication controls await execution.
+- Catalog SQL-row/current-descriptor distinction 0.96; transaction Arc lifetime 1.00; controlled detached catalog approach 0.97. Controlled typed metadata admission is integrated separately before the frozen gate.
+- Initial uncharged clone 0.86 and JSON-length-only estimate 0.94 require complete typed catalog admission and sparse/nested ownership probes in that helper.
+- First implementation review acquisition 0.64, lifecycle 0.42, descriptor 0.42 and Parse 0.46 leads prompted exact boundary, ownership and descriptor controls. Prebound direct Execute was localized at 0.87 and now acquires the pending view on a blocking boundary.
+- Late scalar-prefix omission was localized at 0.58; snapshot-catalog identity eligibility selected at 0.99. Identity gap 0.60 requires the authored replacement/rename/REINDEX controls.
+- Unconditional fresh descriptor lookup would weaken ordinary statement metadata retention (0.88); immutable owner-specific descriptor authority selected at 0.99, with paired RC/RR controls.
+- Read-write integration gap 0.84 selected keeping the explicit read-only increment at 0.99. Native row assertions are available; complete Cassie publication, fresh unique/index/generation/epoch preparation and atomic replay still require a proven integration. Read-write RR remains `0A000`; no whole-database epoch conflict fence is substituted for per-row first-committer-wins.
+
+The final frozen bundle still requires the ordered build, complete locked tests,
+whole-workspace pedantic clippy, formatting and touched-test policy validation.
+These checks have not been run for this candidate head.
+
+The later bounded adversarial pass returned acquisition 0.25, ownership 0.34,
+index-sibling gap 0.29 and descriptor regression 0.29. The ownership lead at
+0.34 requires the newly authored raw-wire Terminate probe: read Ready after
+capture, observe a positive retained charge, send Terminate, await actual EOF
+(after connection-state cleanup), then require zero charge. It uses no sleep
+or scheduling poll. All these new probes remain unexecuted until the frozen
+gate, so the lower probabilities are advisory refinement, not acceptance.
+

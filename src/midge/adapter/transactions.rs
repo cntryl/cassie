@@ -711,3 +711,7 @@ impl Midge {
         Ok(tx)
     }
 }
+
+#[cfg(test)]
+#[path = "transactions/snapshot_proofs.rs"]
+mod snapshot_proofs;

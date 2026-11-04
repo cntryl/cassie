@@ -131,6 +131,20 @@ impl Catalog {
     }
 
     #[must_use]
+    pub(crate) fn contains_index_storage_identity(&self, index: &IndexMeta) -> bool {
+        let (Some(relation_id), Some(storage_id)) = (index.relation_id(), index.storage_id())
+        else {
+            return false;
+        };
+        self.indexes.read().values().any(|stored| {
+            name_matches(&stored.collection, &index.collection)
+                && name_matches(&stored.name, &index.name)
+                && stored.kind == index.kind
+                && stored.relation_id() == Some(relation_id)
+                && stored.storage_id() == Some(storage_id)
+        })
+    }
+
     pub fn list_indexes(&self, collection: &str) -> Vec<IndexMeta> {
         let lookup_collection = self
             .materialized_view_output_collection(collection)

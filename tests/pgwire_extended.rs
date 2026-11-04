@@ -1,3 +1,8 @@
+#[path = "pgwire_extended/transactions/repeatable_read.rs"]
+mod repeatable_read;
+#[path = "support/repeatable_read.rs"]
+mod support_repeatable_read;
+
 #[path = "pgwire_extended/conflicts/unique_validation_errors.rs"]
 mod unique_validation_errors;
 

@@ -112,6 +112,10 @@ pub(super) async fn execute_streaming_portal_page(
             "streaming portal requires a select statement",
         ));
     };
+    if let Err(error) = prepare_transaction_view(&cassie, &request, &parsed).await {
+        clear_request_execution(&mut request);
+        return Err(error);
+    }
     request.session.mark_transaction_query();
     let resolved = cassie.resolve_portal_read_spec(request.session, parsed);
     let resolved = match resolved {
@@ -147,15 +151,27 @@ pub(super) async fn execute_streaming_portal_page(
                 }
             }
         }
-        let cursor = suspended_cursor.map_or_else(
-            || {
-                cassie.midge.open_row_cursor(
-                    &spec.collection,
-                    RowDecode::ProjectedHistorical(spec.source_fields.clone()),
-                )
-            },
-            |cursor| Ok(Some(cursor)),
-        );
+        let cursor = (|| {
+            let owner = request.session.repeatable_statement_read(
+                &cassie.midge,
+                request
+                    .session
+                    .current_database()
+                    .unwrap_or(&cassie.default_database),
+            )?;
+            // The cursor retains DataReadTransaction's admitted Arc. Drop the
+            // thread-local scope before any await or row-page execution.
+            let _read_scope = crate::midge::adapter::StatementReadScope::enter(owner.as_ref());
+            suspended_cursor.map_or_else(
+                || {
+                    cassie.midge.open_row_cursor(
+                        &spec.collection,
+                        RowDecode::ProjectedHistorical(spec.source_fields.clone()),
+                    )
+                },
+                |cursor| Ok(Some(cursor)),
+            )
+        })();
         let cursor = match cursor {
             Ok(cursor) => cursor,
             Err(error) => {
@@ -168,6 +184,47 @@ pub(super) async fn execute_streaming_portal_page(
         }
     }
     execute_offset_portal_page(cassie, write_half, request).await
+}
+
+async fn prepare_transaction_view(
+    cassie: &Arc<Cassie>,
+    request: &StreamingPortalPageRequest<'_>,
+    parsed: &crate::sql::ParsedStatement,
+) -> Result<(), ExtendedQueryError> {
+    if request
+        .session
+        .repeatable_read_capture_generation()
+        .is_none()
+    {
+        return Ok(());
+    }
+    let registration = request
+        .state
+        .backend_registration
+        .as_ref()
+        .ok_or_else(|| ExtendedQueryError::protocol("backend is not registered"))?;
+    let cancellation = registration.begin_query();
+    let handle = cancellation.handle();
+    let session = request.session.clone();
+    let parsed = parsed.clone();
+    run_pgwire_blocking(
+        Arc::clone(cassie),
+        "pgwire_portal_snapshot",
+        move |cassie| {
+            let started = std::time::Instant::now();
+            let mut controls = QueryExecutionControls::with_cancellation(
+                &cassie.runtime.limits(),
+                started,
+                handle,
+            );
+            session.apply_statement_timeout(&mut controls, started);
+            let result = cassie.prepare_transaction_read_view(&session, &parsed, &controls);
+            cassie.runtime.record_query_memory(&controls);
+            result
+        },
+    )
+    .await
+    .map_err(|error| ExtendedQueryError::cassie(&error))
 }
 
 fn clear_request_execution(request: &mut StreamingPortalPageRequest<'_>) {

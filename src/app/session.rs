@@ -1,3 +1,8 @@
+mod catalog_overlay;
+mod savepoints;
+mod transaction_snapshot;
+use transaction_snapshot::TransactionReadSnapshot;
+
 mod statement_read;
 mod statement_text;
 pub(crate) use statement_read::{SessionReadScope, StatementOverlay};
@@ -79,6 +84,7 @@ struct SessionTransactionState {
     modes: crate::sql::ast::TransactionModes,
     has_query: bool,
     generation: u64,
+    repeatable_read: Option<Arc<TransactionReadSnapshot>>,
     unique_owner_id: Uuid,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
@@ -240,6 +246,7 @@ impl CassieSession {
                 modes: crate::sql::ast::TransactionModes::default(),
                 has_query: false,
                 generation: 0,
+                repeatable_read: None,
                 unique_owner_id: Uuid::new_v4(),
                 writes: SharedTransactionWrites::default(),
                 conflict_intents: Vec::new(),
@@ -350,6 +357,7 @@ impl CassieSession {
                 modes,
                 has_query,
                 generation,
+                repeatable_read: self.transaction.lock().repeatable_read.clone(),
                 unique_owner_id,
                 writes: base_writes.clone(),
                 conflict_intents,
@@ -545,162 +553,8 @@ impl CassieSession {
         self.backend_pid.load(Ordering::Relaxed)
     }
 
-    pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock();
-        match transaction.status {
-            SessionTransactionStatus::InTransaction => {}
-            SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
-            SessionTransactionStatus::Idle => {
-                return Err(CassieError::savepoint_outside_transaction("SAVEPOINT"));
-            }
-        }
-        if transaction.savepoints.len() >= MAX_SAVEPOINTS_PER_TRANSACTION {
-            return Err(CassieError::ResourceLimit(
-                "savepoint limit exceeded".to_string(),
-            ));
-        }
-
-        let writes = transaction.writes.clone();
-        let conflict_intents = transaction.conflict_intents.clone();
-        let modes = transaction.modes;
-        let catalog_overlay = transaction
-            .catalog_overlay
-            .as_ref()
-            .map(Catalog::detached_transaction_snapshot);
-        let catalog_base_version = transaction.catalog_base_version;
-        let storage_overlay = transaction.storage_overlay.lock().clone();
-        let unique_keys = self
-            .transaction_unique_waits()
-            .map_or_else(BTreeSet::new, |waits| {
-                waits.snapshot_owner_keys(transaction.unique_owner_id)
-            });
-        transaction.savepoints.push(SessionSavepoint {
-            name: name.to_ascii_lowercase(),
-            object_mark: self.session_objects_mark(),
-            modes,
-            writes,
-            conflict_intents,
-            catalog_overlay,
-            catalog_base_version,
-            storage_overlay,
-            session_state: self.session_state_snapshot(),
-            unique_keys,
-        });
-        Ok(())
-    }
-
-    pub(crate) fn rollback_to_savepoint(&self, name: &str) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock();
-        if !matches!(
-            transaction.status,
-            SessionTransactionStatus::InTransaction | SessionTransactionStatus::Failed
-        ) {
-            return Err(CassieError::savepoint_outside_transaction(
-                "ROLLBACK TO SAVEPOINT",
-            ));
-        }
-
-        let normalized = name.to_ascii_lowercase();
-        let Some(index) = transaction
-            .savepoints
-            .iter()
-            .rposition(|savepoint| savepoint.name == normalized)
-        else {
-            return Err(CassieError::missing_savepoint(&normalized));
-        };
-
-        transaction.modes = transaction.savepoints[index].modes;
-        transaction.writes = transaction.savepoints[index].writes.clone();
-        let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
-        let catalog_overlay = transaction.savepoints[index]
-            .catalog_overlay
-            .as_ref()
-            .map(Catalog::detached_transaction_snapshot);
-        let catalog_base_version = transaction.savepoints[index].catalog_base_version;
-        let storage_overlay = transaction.savepoints[index].storage_overlay.clone();
-        let session_state = transaction.savepoints[index].session_state.clone();
-        let object_mark = transaction.savepoints[index].object_mark;
-        let unique_owner_id = transaction.unique_owner_id;
-        let unique_keys = transaction.savepoints[index].unique_keys.clone();
-        transaction.conflict_intents = conflict_intents;
-        transaction.catalog_overlay = catalog_overlay;
-        transaction.catalog_base_version = catalog_base_version;
-        *transaction.storage_overlay.lock() = storage_overlay;
-        transaction.savepoints.truncate(index + 1);
-        transaction.status = SessionTransactionStatus::InTransaction;
-        drop(transaction);
-        if let Some(waits) = self.transaction_unique_waits() {
-            waits.restore_owner_keys(unique_owner_id, &unique_keys)?;
-        }
-        self.restore_session_state(session_state);
-        self.rollback_session_objects_to(object_mark);
-        Ok(())
-    }
-
-    pub(crate) fn release_savepoint(&self, name: &str) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock();
-        match transaction.status {
-            SessionTransactionStatus::InTransaction => {}
-            SessionTransactionStatus::Failed => return Err(CassieError::failed_transaction()),
-            SessionTransactionStatus::Idle => {
-                return Err(CassieError::savepoint_outside_transaction(
-                    "RELEASE SAVEPOINT",
-                ));
-            }
-        }
-
-        let normalized = name.to_ascii_lowercase();
-        let Some(index) = transaction
-            .savepoints
-            .iter()
-            .rposition(|savepoint| savepoint.name == normalized)
-        else {
-            return Err(CassieError::missing_savepoint(&normalized));
-        };
-
-        transaction.savepoints.truncate(index);
-        Ok(())
-    }
-
     pub(crate) fn is_transaction_active(&self) -> bool {
         self.transaction.lock().status == SessionTransactionStatus::InTransaction
-    }
-
-    pub(crate) fn transaction_catalog_overlay(&self) -> Option<Catalog> {
-        self.transaction.lock().catalog_overlay.clone()
-    }
-
-    pub(crate) fn transaction_catalog_version(&self) -> Option<u64> {
-        self.transaction
-            .lock()
-            .catalog_overlay
-            .as_ref()
-            .map(Catalog::version)
-    }
-
-    pub(crate) fn begin_transaction_catalog_overlay(&self, catalog: &Catalog) -> Catalog {
-        let mut transaction = self.transaction.lock();
-        if transaction.catalog_overlay.is_none() {
-            transaction.catalog_base_version = Some(catalog.version());
-            transaction.catalog_overlay = Some(catalog.detached_transaction_snapshot());
-        }
-        transaction
-            .catalog_overlay
-            .as_ref()
-            .expect("catalog overlay initialized above")
-            .clone()
-    }
-
-    pub(crate) fn transaction_catalog_base_version(&self) -> Option<u64> {
-        self.transaction.lock().catalog_base_version
-    }
-
-    pub(crate) fn transaction_storage_overlay(&self) -> std::sync::Arc<Mutex<StorageOverlay>> {
-        std::sync::Arc::clone(&self.transaction.lock().storage_overlay)
-    }
-
-    pub(crate) fn transaction_storage_overlay_snapshot(&self) -> StorageOverlay {
-        self.transaction.lock().storage_overlay.lock().clone()
     }
 
     pub(crate) fn rename_transaction_collections(
@@ -1115,199 +969,5 @@ impl StatementMutationBatch {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::cell::Cell;
-    use std::sync::Arc;
-    use std::time::Instant;
-
-    use serde_json::json;
-
-    use crate::config::CassieRuntimeLimits;
-    use crate::runtime::accounted::Accounted;
-    use crate::runtime::QueryExecutionControls;
-
-    use super::{
-        BTreeMap, CassieError, CassieSession, CollectionChanges, StagedWriteSnapshot,
-        TransactionRowChange,
-    };
-
-    #[test]
-    fn should_include_staged_snapshot_btree_nodes_before_retaining_shared_changes() {
-        // Arrange
-        let snapshot = StagedWriteSnapshot {
-            changes: Arc::new(BTreeMap::from([(
-                "one".to_owned(),
-                TransactionRowChange::Delete,
-            )])),
-        };
-        let node_bytes = 11
-            * (std::mem::size_of::<String>() + std::mem::size_of::<TransactionRowChange>())
-            + 16 * std::mem::size_of::<usize>();
-        let owned_container_bytes = std::mem::size_of::<CollectionChanges>()
-            + 2 * std::mem::size_of::<usize>()
-            + node_bytes
-            + "one".len();
-
-        // Act
-        let estimated_bytes = snapshot
-            .estimated_retained_bytes()
-            .expect("snapshot retained estimate");
-
-        // Assert
-        assert!(
-            estimated_bytes >= owned_container_bytes,
-            "a retained snapshot owns BTree slots and its Arc allocation"
-        );
-    }
-
-    #[test]
-    fn should_reserve_sparse_staged_snapshot_json_before_retaining_owned_changes() {
-        // Arrange
-        let session = CassieSession::new("postgres".to_owned(), None);
-        session.begin_transaction(None).expect("begin transaction");
-        let mut payload = serde_json::Value::Null;
-        for _ in 0..32 {
-            payload = json!({"a": payload});
-        }
-        session
-            .stage_document_write("items", "one".to_owned(), payload)
-            .expect("stage sparse JSON");
-        let snapshot = session.staged_write_snapshot("items");
-        let controls = QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits {
-                query_memory_budget_bytes: 16 * 1_024,
-                ..CassieRuntimeLimits::default()
-            },
-            Instant::now(),
-        );
-        let retained_calls = Cell::new(0);
-
-        // Act
-        let result = Accounted::try_new(
-            &controls,
-            snapshot
-                .estimated_retained_bytes()
-                .expect("snapshot retained estimate"),
-            || {
-                retained_calls.set(retained_calls.get() + 1);
-                snapshot.shared_changes()
-            },
-        );
-
-        // Assert
-        assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
-        assert_eq!(
-            retained_calls.get(),
-            0,
-            "reserve the complete staged snapshot"
-        );
-        assert_eq!(controls.current_query_memory_bytes(), 0);
-    }
-
-    #[test]
-    fn should_keep_staged_write_snapshot_immutable_when_session_changes() {
-        // Arrange
-        let session = CassieSession::new("postgres".to_string(), Some("cassie".to_string()));
-        session.begin_transaction(None).expect("begin transaction");
-        session
-            .stage_document_write(
-                "cassie.public.snapshot_items",
-                "item-a".to_string(),
-                json!({"value": "before"}),
-            )
-            .expect("stage initial row");
-        let snapshot = session.staged_write_snapshot("snapshot_items");
-        let shared_changes = snapshot.shared_changes();
-        let retained_bytes = snapshot
-            .estimated_retained_bytes()
-            .expect("snapshot retained estimate");
-
-        // Act
-        session
-            .stage_document_write(
-                "cassie.public.snapshot_items",
-                "item-b".to_string(),
-                json!({"value": "after"}),
-            )
-            .expect("stage later row");
-        session
-            .stage_document_delete("cassie.public.snapshot_items", "item-a".to_string())
-            .expect("stage later delete");
-        let updated = session.staged_write_snapshot("snapshot_items");
-
-        // Assert
-        assert!(Arc::ptr_eq(&shared_changes, &snapshot.shared_changes()));
-        assert!(retained_bytes > "item-a".len());
-        assert!(matches!(
-            snapshot.ordered_changes().get("item-a"),
-            Some(TransactionRowChange::Upsert(payload))
-                if payload == &json!({"value": "before"})
-        ));
-        assert!(!snapshot.ordered_changes().contains_key("item-b"));
-        assert!(matches!(
-            updated.ordered_changes().get("item-a"),
-            Some(TransactionRowChange::Delete)
-        ));
-        assert!(updated.ordered_changes().contains_key("item-b"));
-        assert!(session.has_collection_changes("snapshot_items"));
-    }
-
-    #[test]
-    fn should_preserve_cow_snapshots_across_savepoint_rollback() {
-        // Arrange
-        let session = CassieSession::new("postgres".to_string(), Some("cassie".to_string()));
-        session.begin_transaction(None).expect("begin transaction");
-        session
-            .stage_document_write(
-                "snapshot_savepoint_items",
-                "item-a".to_string(),
-                json!({"value": "kept"}),
-            )
-            .expect("stage row before savepoint");
-        session
-            .create_savepoint("before_more")
-            .expect("create savepoint");
-        let before_more = session.staged_write_snapshot("snapshot_savepoint_items");
-        session
-            .stage_document_write(
-                "snapshot_savepoint_items",
-                "item-b".to_string(),
-                json!({"value": "rolled back"}),
-            )
-            .expect("stage row after savepoint");
-        let after_more = session.staged_write_snapshot("snapshot_savepoint_items");
-
-        // Act
-        session
-            .rollback_to_savepoint("before_more")
-            .expect("rollback to savepoint");
-        let restored = session.staged_write_snapshot("snapshot_savepoint_items");
-
-        // Assert
-        assert!(before_more.ordered_changes().contains_key("item-a"));
-        assert!(!before_more.ordered_changes().contains_key("item-b"));
-        assert!(after_more.ordered_changes().contains_key("item-b"));
-        assert_eq!(restored.ordered_changes(), before_more.ordered_changes());
-    }
-
-    #[test]
-    fn should_report_no_changes_for_an_unmatched_collection_snapshot() {
-        // Arrange
-        let session = CassieSession::new("postgres".to_string(), Some("cassie".to_string()));
-        session.begin_transaction(None).expect("begin transaction");
-        session
-            .stage_document_write(
-                "cassie.public.snapshot_items",
-                "item-a".to_string(),
-                json!({"value": "present"}),
-            )
-            .expect("stage row");
-
-        // Act
-        let snapshot = session.staged_write_snapshot("other_items");
-
-        // Assert
-        assert!(snapshot.is_empty());
-        assert!(!session.has_collection_changes("other_items"));
-    }
-}
+#[path = "session/tests.rs"]
+mod tests;

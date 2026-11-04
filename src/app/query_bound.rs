@@ -110,6 +110,7 @@ impl Cassie {
             );
         }
 
+        self.prepare_transaction_read_view(session, &parsed, controls)?;
         let _publication_read = self.catalog_publication.read();
         self.execute_bound_catalog_scoped(
             session,

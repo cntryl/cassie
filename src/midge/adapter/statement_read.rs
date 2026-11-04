@@ -10,6 +10,12 @@ thread_local! {
     static CURRENT_READ: RefCell<Option<Arc<StatementDataRead>>> = const { RefCell::new(None) };
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DescriptorAuthority {
+    StatementSnapshot,
+    CurrentCatalog,
+}
+
 pub(crate) struct StatementDataRead {
     // Release the snapshot before its engine owner, then its admitted metadata.
     tx: crate::midge::adapter::AdapterTransaction,
@@ -17,6 +23,7 @@ pub(crate) struct StatementDataRead {
     database: String,
     family_id: cntryl_midge::ColumnFamilyId,
     data_epoch: u64,
+    descriptor_authority: DescriptorAuthority,
     _memory: QueryMemoryReservation,
     overlay: Option<Arc<crate::app::StatementOverlay>>,
 }
@@ -43,6 +50,17 @@ impl StatementDataRead {
         Arc::ptr_eq(&self.midge, midge) && self.database.eq_ignore_ascii_case(database)
     }
 
+    pub(crate) fn matches_current_family(
+        &self,
+        midge: &Arc<Midge>,
+        database: &str,
+    ) -> Result<bool, CassieError> {
+        Ok(
+            self.matches(midge, database)
+                && midge.database_family(database)?.id() == self.family_id,
+        )
+    }
+
     pub(crate) const fn data_epoch(&self) -> u64 {
         self.data_epoch
     }
@@ -56,6 +74,37 @@ impl StatementDataRead {
         database: &str,
         controls: &QueryExecutionControls,
         overlay: Option<Arc<crate::app::StatementOverlay>>,
+    ) -> Result<Arc<Self>, CassieError> {
+        Self::capture_with_authority(
+            midge,
+            database,
+            controls,
+            overlay,
+            DescriptorAuthority::StatementSnapshot,
+        )
+    }
+
+    pub(crate) fn capture_repeatable_read_with_overlay(
+        midge: &Arc<Midge>,
+        database: &str,
+        controls: &QueryExecutionControls,
+        overlay: Option<Arc<crate::app::StatementOverlay>>,
+    ) -> Result<Arc<Self>, CassieError> {
+        Self::capture_with_authority(
+            midge,
+            database,
+            controls,
+            overlay,
+            DescriptorAuthority::CurrentCatalog,
+        )
+    }
+
+    fn capture_with_authority(
+        midge: &Arc<Midge>,
+        database: &str,
+        controls: &QueryExecutionControls,
+        overlay: Option<Arc<crate::app::StatementOverlay>>,
+        descriptor_authority: DescriptorAuthority,
     ) -> Result<Arc<Self>, CassieError> {
         if controls.is_cancelled() {
             return Err(CassieError::QueryCancelled);
@@ -87,6 +136,7 @@ impl StatementDataRead {
             database: database.to_owned(),
             family_id,
             data_epoch,
+            descriptor_authority,
             _memory: memory,
             overlay,
         }))
@@ -108,6 +158,12 @@ impl DataReadTransaction {
             fresh: Some(tx),
             shared: None,
         }
+    }
+
+    pub(super) fn uses_current_descriptors(&self) -> bool {
+        self.shared
+            .as_ref()
+            .is_some_and(|owner| owner.descriptor_authority == DescriptorAuthority::CurrentCatalog)
     }
 
     fn shared(owner: Arc<StatementDataRead>) -> Self {

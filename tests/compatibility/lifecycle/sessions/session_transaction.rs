@@ -1,5 +1,8 @@
 use super::*;
 
+#[path = "../transactions/repeatable_read.rs"]
+mod repeatable_read;
+
 #[path = "cursor_sensitivity.rs"]
 mod cursor_sensitivity;
 #[path = "discard_all_state.rs"]

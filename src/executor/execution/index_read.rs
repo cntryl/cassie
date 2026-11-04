@@ -43,6 +43,10 @@ pub(super) fn execute_scalar_index_read(
         return Ok(Some(Vec::new()));
     }
 
+    if session.is_some_and(|session| !session.transaction_index_visible(&spec.index)) {
+        return Ok(None);
+    }
+
     let hits = cassie
         .midge
         .scan_scalar_index_controlled(&spec.index, &spec.request, controls)

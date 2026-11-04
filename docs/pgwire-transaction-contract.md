@@ -338,8 +338,9 @@ first snapshot-taking statement, overlay own writes, and retain it through trans
 completion and suspended portals. Savepoint rollback restores own writes/catalog changes
 without advancing the snapshot. Use first-committer-wins write validation: a write based
 on a row changed since the retained snapshot fails with 40001 before publication. Reject
-SERIALIZABLE, READ UNCOMMITTED aliases, and DEFERRABLE in the new RR profile with 0A000;
-do not claim predicate-serializable guarantees. Finish owner-wait/error-phase semantics
+SERIALIZABLE and DEFERRABLE in the new RR profile with 0A000. Preserve the existing
+READ UNCOMMITTED-to-READ COMMITTED alias and its fresh command snapshots; adding RR
+does not remove that supported behavior. Do not claim predicate-serializable guarantees. Finish owner-wait/error-phase semantics
 for the selected scalar primary/unique shapes across supported INSERT/UPDATE/ON
 CONFLICT/COPY paths before claiming unrestricted projector concurrency.
 
@@ -360,3 +361,88 @@ NOT NULL, inline PRIMARY KEY, SERIAL or IDENTITY declarations return SQLSTATE
 `42601` before publication. A table-level primary key may supply NOT NULL after
 an explicit nullable column, matching PostgreSQL. A later ALTER may also add
 NOT NULL to the originally nullable column.
+
+### RR snapshot acquisition and catalog authority
+
+Pinned PostgreSQL 18.6 probes on 2026-11-04 distinguish transaction ownership
+from snapshot acquisition. Inside an already-explicit RR block, a qualifying
+Parse or Bind may acquire the first snapshot before Execute. Executing constant
+`SELECT 1` also acquires it. SHOW, SAVEPOINT and Describe alone do not acquire
+the data view. Idle and READ COMMITTED preparation-only mutation ownership stays
+unchanged. The selected implementation follows these observed boundaries.
+
+SQL catalog object rows use the retained metadata view. Ordinary descriptor/name
+lookup and authorization remain current: the native oracle excludes a newly
+created table from `information_schema.tables` in the older RR snapshot, yet a
+direct SELECT from that table resolves and returns its snapshot-visible empty
+result. Existing dynamic settings and session-object catalog branches remain live.
+
+The selected owner is a transaction-retained Arc over the existing published
+Midge statement-read owner and a separately admitted controlled Catalog snapshot.
+Its lifetime is independent of the first Parse/Execute request guard and of
+savepoint rollback. Query/portal owners may share it; the last transaction/portal
+owner releases its charge. Explicit-error recovery retains only the bounded
+transaction snapshot needed to keep ROLLBACK TO on the same view; statement
+resources still retire on error/cancellation.
+
+Jev selected the observed explicit-RR acquisition classification (0.93), separate
+SQL catalog/current descriptor authorities (0.96), and transaction Arc ownership
+(1.00). The controlled detached Catalog approach was selected at 0.97 after
+reviewing its 22 typed maps and current cache-backed hydration callers. The 0.86
+uncharged-clone and 0.94 JSON-length-only accounting leads require typed admission
+and ownership probes before qualification. These are advisory decision records;
+the source, pinned oracle and executable tests establish acceptance.
+
+The first runtime increment may qualify read-only RR independently. Read-write
+RR remains rejected until per-row first-committer-wins validation, disjoint writers,
+ABA behavior and the selected owner-wait/error phases pass on published Midge
+0.5.1. No Midge engine/source/registry/dependency change is selected.
+
+Snapshot acquisition uses PostgreSQL 18.6's phase distinction. Execution defaults
+utility statements to snapshot-taking except transaction controls, SET, SHOW,
+and FETCH/MOVE among Cassie's supported statements. Parse uses the upstream
+analysis classes (queries/DML, EXPLAIN, DECLARE, CALL, and CREATE TABLE AS); Bind
+uses those classes or parameter input. Describe does not acquire a view. Pinned
+wire probes confirm constant SELECT, Parse, Bind, PREPARE, DECLARE, EXPLAIN,
+CALL, and DEALLOCATE capture before a competing commit; SHOW/SAVEPOINT and
+Describe do not. Jev selected this phase-aware classification (0.93) and blocking,
+cancellable Parse admission (0.90); these are advisory choices backed by the
+upstream functions and executable probes, not support proof by themselves.
+
+Read-write integration is still an explicit gap, not an upstream capability
+absence. Published Midge 0.5.1 retained assertions can detect ABA and allow
+disjoint rows, as the adapter capability probes demonstrate. The proposed pair
+of retained read/write transactions cannot be assumed to share one snapshot:
+current collection gates do not cover the public native `database_tx` and raw
+write paths. Further, replaying writes against the older transaction without
+fresh metadata handling can overwrite a newer shared data epoch, index state,
+or collection generation. A whole-database epoch assertion would reject valid
+disjoint writers and is not the selected contract. Jev selected retaining the
+read-only boundary while recording this integration gap (0.99), with a material
+candidate gap of 0.84. Authored native probes cover separately captured views
+and rejection of newer expected values against older assertion snapshots; their
+execution is deferred to the frozen bundle gate. A future Cassie-only design
+may investigate a single retained RW read owner, fresh operation preparation
+and replay, portal retirement, and complete publication/epoch synchronization.
+It must be proved before read-write RR is enabled; Midge changes remain excluded.
+
+Runtime scalar access paths also respect the retained view. A current index
+descriptor can refer to a prefix created after the data snapshot, so scalar
+selection, bounded indexed joins, and full-text scalar prefilters must decline
+that index and use their existing row or exact fallback. Eligibility compares
+borrowed name/collection/kind and stable relation/storage identities in the
+admitted catalog owner; it does not replace current binding or shared plan-cache
+inputs. Jev selected this narrow eligibility contract at 0.99. The 0.60 identity
+lead is covered by authored unchanged/replaced/renamed, REINDEX, and drop/recreate
+controls, pending the frozen executable gate. Existing column-batch,
+time-series, full-text artifact, and ANN readers have separate missing-artifact
+or snapshot-generation fallback checks; their source inventory is retained in
+the validation record.
+
+Encoding descriptor authority is captured in the read owner. Ordinary READ
+COMMITTED statement owners preserve their existing frozen Data metadata law;
+RR owners use current encoding descriptors with historical rows. The immutable
+owner distinction survives worker/cursor sharing. Jev selected it at 0.99 after
+identifying the unconditional-fresh descriptor regression at 0.88; authored RC/RR
+controls and current rename/add-column reads await the frozen executable gate.
+

@@ -113,7 +113,21 @@ pub(crate) fn source_field_type_map_with_parameters(
         )
         .map(|schema| field_type_map(schema.fields.iter()))
         .unwrap_or_default(),
-        ast::QuerySource::TableFunction { .. } | ast::QuerySource::SingleRow => FieldTypeMap::new(),
+        ast::QuerySource::TableFunction { .. } => binder::wildcard_output_shape_with_parameters(
+            source,
+            ctes,
+            catalog,
+            &HashMap::new(),
+            parameter_types,
+        )
+        .map(|(fields, _)| {
+            fields
+                .into_iter()
+                .map(|field| (field.name, field.data_type))
+                .collect()
+        })
+        .unwrap_or_default(),
+        ast::QuerySource::SingleRow => FieldTypeMap::new(),
     }
 }
 

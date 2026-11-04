@@ -80,3 +80,31 @@ Raw requests, responses, pinned receipts, historical red logs and ordered gate
 logs remain under the isolated worktree's ignored `target/v020-evidence/`.
 They contain no API credentials. Finite local evidence never establishes full
 PostgreSQL parity, hosted CI, merge completion or production readiness.
+
+
+## Complete integration pass and correction checkpoint
+
+The first complete no-fail-fast pass executed all 35 groups: **9,928 passed,
+18 failed, 12 ignored**. The failures were confined to native table-source
+parameter folding/descriptors, existing plain local/ancestor/DML CTE binding,
+VALUES array admission, unary source arguments and duplicate default labels.
+The same pass kept all 1,428 source-local unit tests green, including source
+stop counters, cancellation, native frame bounds and row owner lifetimes.
+
+A batched correction now visits selected source function children in the
+parameter fold, derives source column types through the existing typed shape
+API, limits coercion traversal to relevant array/source expressions, preserves
+unqualified generated scalar labels during alias allocation, and reuses native
+scalar argument binding. VALUES admits native array casts/constructors and
+retains controlled expression memory until its row takes ownership. Array text
+casts admit parsing scratch first. Array-valued subquery validation checks
+inputs in order, preserving native NULL/shape/rank error precedence.
+
+The correction checkpoint builds cleanly; its full locked no-fail-fast test
+retry is running. The expanded pinned PostgreSQL18.6 semantic batch passed
+**39/39**, including ordered array-subquery failures and unary INT4 overflow.
+Jev correction gaps remain recorded: parameter fold 0.39, CTE scope 0.36,
+VALUES ownership 0.38, and ordered array-subquery candidate 0.66. The existing
+18 regressions and newly authored array-parser entry/budget and ordered-error
+witnesses are required probes in the running gate. This checkpoint does not
+claim issue closure, strict-lint success or benchmark qualification.

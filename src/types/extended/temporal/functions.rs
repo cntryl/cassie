@@ -381,7 +381,13 @@ pub fn part_interval(name: &str, value: &Interval) -> Result<Option<f64>, TypeIn
         Unit::Hour => f(hour),
         Unit::Day => f64::from(value.days),
         Unit::Month => f64::from(month),
-        Unit::Quarter => f64::from(month / 3 + 1),
+        Unit::Quarter => f64::from(if value.months < 0 {
+            // Match PostgreSQL 18.6's observed INT32_MIN month endpoint as
+            // well as its ordinary signed-month rule, without Rust overflow.
+            -((value.months.wrapping_neg() % MONTHS_PER_YEAR) / 3 + 1)
+        } else {
+            month / 3 + 1
+        }),
         Unit::Year => f64::from(year),
         Unit::Decade => f64::from(year / 10),
         Unit::Century => f64::from(year / 100),

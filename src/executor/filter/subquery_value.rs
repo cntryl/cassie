@@ -223,6 +223,7 @@ fn array(
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
     let nested = matches!(element_type, Some(crate::types::DataType::Array(_)));
+    let mut dimensions: Option<&[crate::types::ArrayDimension]> = None;
     let bytes = rows.iter().try_fold(1024, |bytes, fields| {
         if let Some(controls) = context.controls {
             controls.check_interruption()?;
@@ -236,16 +237,37 @@ fn array(
                             .into(),
                     ))
                 }
-                Value::Array(array) if array.is_empty() => {
-                    return Err(QueryError::Cassie(
-                        crate::app::DiagnosticError::new("2202E", "cannot accumulate empty arrays")
-                            .into(),
-                    ))
-                }
-                Value::Array(array) if array.dimensions().len() >= 6 => {
-                    return Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
-                        "number of array dimensions exceeds the maximum allowed (6)".into(),
-                    )))
+                Value::Array(array) => {
+                    if let Some(expected) = dimensions {
+                        if array.dimensions() != expected {
+                            return Err(QueryError::Cassie(
+                                crate::app::DiagnosticError::new(
+                                    "2202E",
+                                    "cannot accumulate arrays of different dimensionality",
+                                )
+                                .into(),
+                            ));
+                        }
+                    } else {
+                        if array.is_empty() {
+                            return Err(QueryError::Cassie(
+                                crate::app::DiagnosticError::new(
+                                    "2202E",
+                                    "cannot accumulate empty arrays",
+                                )
+                                .into(),
+                            ));
+                        }
+                        if array.dimensions().len() >= 6 {
+                            return Err(QueryError::Cassie(
+                                crate::app::CassieError::ResourceLimit(
+                                    "number of array dimensions exceeds the maximum allowed (6)"
+                                        .into(),
+                                ),
+                            ));
+                        }
+                        dimensions = Some(array.dimensions());
+                    }
                 }
                 _ => {}
             }

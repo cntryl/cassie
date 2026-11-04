@@ -129,6 +129,12 @@ fn should_preserve_unnest_default_labels_aliases_and_scalar_identities() {
     let cases = [
         ("SELECT * FROM unnest(ARRAY[1])", vec!["unnest"], vec![23]),
         (
+            "SELECT unnest FROM unnest(ARRAY[1])",
+            vec!["unnest"],
+            vec![23],
+        ),
+        ("SELECT x FROM unnest(ARRAY[1]) AS x", vec!["x"], vec![23]),
+        (
             "SELECT * FROM unnest(ARRAY[1], ARRAY['a'])",
             vec!["unnest", "unnest"],
             vec![23, 25],

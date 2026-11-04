@@ -136,9 +136,12 @@ fn select_inputs(
     if !needed(select) {
         return Ok(());
     }
+    let mut scoped = select.clone();
+    let names = ctes.keys().cloned().collect();
+    super::boolean_contexts::resolve_nested_sources(&mut scoped, &names, catalog, context)?;
     let types = ResultTypes::for_scope_with_parameters(
-        &select.source,
-        &select.ctes,
+        &scoped.source,
+        &scoped.ctes,
         catalog,
         context,
         ctes,
@@ -265,6 +268,14 @@ fn source(
             lateral.then_some(types),
         )?,
         QuerySource::TableFunction { function, .. } => {
+            function_arguments(function, types, catalog, context, parameters)?;
+            if table_sources::is_generated(&function.name) {
+                for argument in &mut function.args {
+                    super::boolean_contexts::validate_value(
+                        argument, types, None, catalog, context,
+                    )?;
+                }
+            }
             let signature = if table_sources::is_series(&function.name) {
                 Some(crate::sql::series_signature::resolve(
                     function,
@@ -273,7 +284,6 @@ fn source(
             } else {
                 None
             };
-            function_arguments(function, types, catalog, context, parameters)?;
             for (index, argument) in function.args.iter_mut().enumerate() {
                 if let Some(signature) = &signature {
                     cast_input(argument, &signature.inputs[index], types);
@@ -419,27 +429,43 @@ fn cast_input(expr: &mut Expr, target: &DataType, types: &ResultTypes) {
     };
 }
 
+fn expression_needed(expr: &Expr) -> bool {
+    expr.any_descendant_or_self(&mut|expr| {
+        matches!(expr,Expr::Function(function) if function.name.eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION))
+            || matches!(expr,Expr::Subquery(subquery) if matches!(subquery.kind,crate::sql::ast::SubqueryKind::Array))
+            || expr.subquery_statement().is_some_and(statement_needed)
+    })
+}
+fn statement_needed(statement: &ParsedStatement) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => needed(select),
+        QueryStatement::Explain(explain) => statement_needed(&explain.statement),
+        _ => false,
+    }
+}
 fn needed(select: &SelectStatement) -> bool {
-    let expression = |expr: &Expr| {
-        expr.any_descendant_or_self(&mut |expr| matches!(expr,Expr::Function(function) if function.name.eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)) || expr.is_subquery_node())
-    };
     source_needed(&select.source)
-        || !select.ctes.is_empty()
-        || select.set.is_some()
+        || select.ctes.iter().any(|cte| match &cte.query {
+            CteQuery::Simple(statement) => statement_needed(statement),
+            CteQuery::Recursive {
+                base, recursive, ..
+            } => statement_needed(base) || statement_needed(recursive),
+        })
+        || select.set.as_ref().is_some_and(|set| needed(&set.right))
         || select.projection.iter().any(|item| match item {
-            SelectItem::Expr { expr, .. } => expression(expr),
+            SelectItem::Expr { expr, .. } => expression_needed(expr),
             SelectItem::Function { function, .. } => {
                 function
                     .name
                     .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
-                    || function.expressions().any(expression)
+                    || function.expressions().any(expression_needed)
             }
             SelectItem::WindowFunction { function, .. } => function
                 .args
                 .iter()
                 .chain(&function.partition_by)
                 .chain(function.order_by.iter().map(|order| &order.expr))
-                .any(expression),
+                .any(expression_needed),
             _ => false,
         })
         || select
@@ -449,15 +475,17 @@ fn needed(select: &SelectStatement) -> bool {
             .chain(&select.group_by)
             .chain(&select.distinct_on)
             .chain(select.order.iter().map(|order| &order.expr))
-            .any(expression)
+            .any(expression_needed)
 }
 fn source_needed(source: &QuerySource) -> bool {
     match source {
-        QuerySource::TableFunction { function,.. } => table_sources::is_generated(&function.name),
-        QuerySource::Aliased { source,.. } | QuerySource::TableSample { source,.. } => source_needed(source),
-        QuerySource::Join { left,right,.. } => source_needed(left) || source_needed(right),
-        QuerySource::Subquery { select,.. } => needed(select),
-        QuerySource::Values { rows } => rows.iter().flatten().any(|expr|expr.any_descendant_or_self(&mut|expr| matches!(expr,Expr::Function(function) if function.name.eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)))),
+        QuerySource::TableFunction { function, .. } => table_sources::is_generated(&function.name),
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            source_needed(source)
+        }
+        QuerySource::Join { left, right, .. } => source_needed(left) || source_needed(right),
+        QuerySource::Subquery { select, .. } => needed(select),
+        QuerySource::Values { rows } => rows.iter().flatten().any(expression_needed),
         _ => false,
     }
 }

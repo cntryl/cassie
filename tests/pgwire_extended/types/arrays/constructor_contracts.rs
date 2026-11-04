@@ -325,6 +325,8 @@ fn should_accumulate_native_array_subqueries_with_matching_bounds_and_native_ide
 fn should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs() {
     // Arrange
     let cases = [
+        ("SELECT ARRAY(SELECT items FROM (VALUES (ARRAY[1]),(ARRAY[2,3]),(NULL::INT[])) s(items))","2202E"),
+        ("SELECT ARRAY(SELECT items FROM (VALUES (ARRAY[1]),(ARRAY[[[[[[2]]]]]])) s(items))","2202E"),
         ("SELECT ARRAY(SELECT NULL::INT[])","22004"),
         ("SELECT ARRAY(SELECT ARRAY[]::INT[])","2202E"),
         ("SELECT ARRAY(SELECT items FROM (VALUES ('[0:0]={1}'::INT[]),('[1:1]={2}'::INT[])) s(items))","2202E"),

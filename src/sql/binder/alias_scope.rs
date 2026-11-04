@@ -55,16 +55,51 @@ pub(super) fn allocate(select: &mut SelectStatement) -> Result<(), CassieError> 
         });
         allocated.insert(name, carrier);
     }
+    let mut scalar_names = HashSet::new();
+    generated_column_names(&select.source, &mut scalar_names);
     rename_source(&mut select.source, &allocated);
-    rename_alias_references(select, &allocated);
+    rename_alias_references(select, &allocated, &scalar_names);
     // The fresh carriers no longer shadow original names at this scope; inner
     // scopes still shadow them according to the existing qualified-name laws.
     nested::query(select, &spaces)
 }
 
-fn rename_alias_references(select: &mut SelectStatement, aliases: &HashMap<String, String>) {
+fn generated_column_names(source: &QuerySource, names: &mut HashSet<String>) {
+    match source {
+        QuerySource::Aliased {
+            source,
+            column_aliases,
+            ..
+        } if matches!(source.as_ref(),QuerySource::TableFunction { function,.. } if crate::sql::table_sources::is_generated(&function.name)) =>
+        {
+            names.extend(
+                column_aliases
+                    .iter()
+                    .map(|name| ColumnIdentifierPath::reference_field_key(name)),
+            );
+        }
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            generated_column_names(source, names)
+        }
+        QuerySource::Join { left, right, .. } => {
+            generated_column_names(left, names);
+            generated_column_names(right, names);
+        }
+        _ => {}
+    }
+}
+
+fn rename_alias_references(
+    select: &mut SelectStatement,
+    aliases: &HashMap<String, String>,
+    scalar_names: &HashSet<String>,
+) {
     let rewrite = |expr: &mut Expr| {
-        fn visit(expr: &Expr, aliases: &HashMap<String, String>) -> Expr {
+        fn visit(
+            expr: &Expr,
+            aliases: &HashMap<String, String>,
+            scalar_names: &HashSet<String>,
+        ) -> Expr {
             if let Expr::Column(name) = expr {
                 let (qualifier, field) = name
                     .strip_suffix(".*")
@@ -74,8 +109,10 @@ fn rename_alias_references(select: &mut SelectStatement, aliases: &HashMap<Strin
                         return Expr::Column(format!("{carrier}.{field}"));
                     }
                 }
-                if let Some(carrier) = aliases.get(name) {
-                    return Expr::Column(carrier.clone());
+                if !scalar_names.contains(&ColumnIdentifierPath::reference_field_key(name)) {
+                    if let Some(carrier) = aliases.get(name) {
+                        return Expr::Column(carrier.clone());
+                    }
                 }
                 if let Ok(path) = ColumnIdentifierPath::parse(name) {
                     if let Some(qualifier) = path.namespace_qualifier() {
@@ -85,14 +122,16 @@ fn rename_alias_references(select: &mut SelectStatement, aliases: &HashMap<Strin
                     }
                 }
             }
-            expr.map_children(|child| visit(child, aliases))
+            expr.map_children(|child| visit(child, aliases, scalar_names))
         }
-        *expr = visit(expr, aliases);
+        *expr = visit(expr, aliases, scalar_names);
     };
     for item in &mut select.projection {
         match item {
             SelectItem::Column { name, .. } => {
-                if let Some(carrier) = aliases.get(name) {
+                if let Some(carrier) = aliases.get(name).filter(|_| {
+                    !scalar_names.contains(&ColumnIdentifierPath::reference_field_key(name))
+                }) {
                     name.clone_from(carrier);
                 } else if let Ok(path) = ColumnIdentifierPath::parse(name) {
                     if let Some(qualifier) = path.namespace_qualifier() {

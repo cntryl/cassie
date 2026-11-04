@@ -92,6 +92,7 @@ fn should_report_series_signature_step_and_range_errors_without_partial_rows() {
         ("SELECT * FROM generate_series(NULL,NULL)","42725"),
         ("SELECT * FROM generate_series(1::FLOAT8,2::FLOAT8)","42883"),
         ("SELECT * FROM generate_series(1,3,0)","22023"),
+        ("SELECT * FROM generate_series((2147483647+1)-1,2147483647)","22003"),
         ("SELECT * FROM generate_series('NaN'::NUMERIC,3::NUMERIC)","22023"),
         ("SELECT * FROM generate_series(1::NUMERIC,'Infinity'::NUMERIC)","22023"),
         ("SELECT * FROM generate_series('2026-01-01'::TIMESTAMP,'2026-01-02'::TIMESTAMP,INTERVAL '1 month -30 days')","22023"),

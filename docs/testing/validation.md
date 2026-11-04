@@ -5683,3 +5683,68 @@ Types`, with no due date and a description that defers implementation until the
 active v0.1.0, v0.2.0, and v0.3.0 releases complete. Issue #827 is now assigned
 to that milestone. The Product Roadmap, Release Milestones, and v0.1 scope map
 record that only #827 is deferred there; no runtime work was started.
+
+
+## Boolean aggregate retained-input cancellation — 2026-11-04
+
+This focused slice advances #805 and the synchronized-fixture work related to
+#954. It adds the existing request-owned retained-input checkpoint to native
+Boolean aggregation and the plain scalar aggregate fallback. Scalar input
+selection now lives in `state_input.rs`; its private selected-update helper
+returns `None` for FALSE/NULL FILTER rows, while the existing update wrapper
+preserves partial-state callers and their retained-byte accounting. FILTER runs
+once per row. The scalar loop checks cancellation after its final row, including
+a filtered-out row. No SQL/type identity or durable representation is added.
+
+The Boolean wire fixture now uses two rows and an owned listener. Its VALUES
+control proves scalar fallback; its physical-table control proves native typed
+dispatch through `typed-worker-limit-one`. Result caching is disabled. Empty
+source, FALSE FILTER and NULL FILTER controls must finish without reaching the
+retained-input pause. Nonempty input then reaches that pause before a real wire
+CancelRequest; EOF acknowledges cancellation handling before execution resumes.
+The tests retain BOOLEAN OIDs, false/true control values, SQLSTATE 57014, no rows
+or command tag on cancellation, ReadyForQuery, released accounted memory and
+workers, and recovery on the same session. SQL sleeps, admission polling and the
+performance timing assertion are removed.
+
+Red/green evidence and focused review:
+
+- The new one-lane typed test initially failed waiting for the absent retained
+  checkpoint. The typed checkpoint plus final-lane cancellation check passes.
+- The VALUES wire case initially timed out waiting for its separate plain
+  scalar checkpoint. Adding that checkpoint made both source shapes pass.
+- The new FALSE FILTER controls exposed a false checkpoint signal in the
+  intermediate candidate. The selected-update helper fixes it; both FALSE and
+  NULL FILTER controls pass for both wire source shapes.
+- Jev `jev-1.14.0` returned gap probabilities 0.34 for final-lane cancellation,
+  0.31 for wire cancellation before a transition, and 0.39 for cancellation
+  after a final filtered row. The first two led to the probes above. For 0.39,
+  an existing `cfg(test)` row observer cancels after the only excluded row.
+  Temporarily withholding only the candidate's final cancellation check returned
+  SQL NULL and failed the test; restoring that check passes for FALSE and NULL.
+  This last red is a candidate mutation probe, not an origin/main regression
+  claim. Requests, responses, source hashes and probe differences are retained
+  locally under ignored `target/v020-evidence/`.
+
+Final focused commands all passed:
+
+```sh
+cargo test --locked --lib --test pgwire_extended --test sql_queries --test executor executor::execution::aggregate_exec:: -- --nocapture
+cargo test --locked --lib --test pgwire_extended --test sql_queries --test executor boolean -- --nocapture
+cargo test --locked --lib --test pgwire_extended --test sql_queries --test executor every -- --nocapture
+```
+
+The aggregate unit selection passed 64/64. Boolean selections passed library
+22/22, executor 6/6, wire 109/109 and SQL 47/47; EVERY selections passed library
+20/20, executor 4/4, wire 8/8 and SQL 8/8. These selections contain 275 distinct
+passing test identities, with no failures or ignored selected tests. Aggregate
+unit execution was 8.19s; Boolean wire execution was 1.62s. Compilation is
+separate from those execution times. Touched test policies pass 18/18 scalar
+unit, 4/4 typed unit and 2/2 wire declarations.
+
+The integrator will move the reusable Boolean wire fixture into
+`tests/support/boolean_aggregate_cancellation.rs`, regenerate the combined test
+inventory, and run the complete ordered local gate on the combined scalar PR
+head. This focused evidence does not replace that gate or hosted final-head
+checks. #805 closure awaits those checks; remaining regex and other independently
+owned #954 obligations stay open.

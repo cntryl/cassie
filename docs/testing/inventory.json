@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1587,
-    "rust_files": 1551,
-    "rust_test_declarations": 8380,
+    "files": 1595,
+    "rust_files": 1559,
+    "rust_test_declarations": 8445,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8508,
+    "registered_rust_instances": 8573,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -40531,7 +40531,7 @@
       "name": "should_parse_graph_table_function_source",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
       "line": 142,
-      "end_line": 165,
+      "end_line": 167,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40561,8 +40561,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_create_table_with_column_store_storage_mode",
       "name": "should_parse_create_table_with_column_store_storage_mode",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 168,
-      "end_line": 182,
+      "line": 170,
+      "end_line": 184,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40592,8 +40592,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_create_table_with_column_indexed_storage_mode",
       "name": "should_reject_create_table_with_column_indexed_storage_mode",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 185,
-      "end_line": 197,
+      "line": 187,
+      "end_line": 199,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40623,8 +40623,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_drop_table_with_if_exists",
       "name": "should_parse_drop_table_with_if_exists",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 200,
-      "end_line": 214,
+      "line": 202,
+      "end_line": 216,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40654,8 +40654,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_create_schema_if_not_exists",
       "name": "should_parse_create_schema_if_not_exists",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 217,
-      "end_line": 231,
+      "line": 219,
+      "end_line": 233,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40685,8 +40685,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_drop_schema_statement",
       "name": "should_parse_drop_schema_statement",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 234,
-      "end_line": 248,
+      "line": 236,
+      "end_line": 250,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40716,8 +40716,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_alter_schema_rename_statement",
       "name": "should_parse_alter_schema_rename_statement",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 251,
-      "end_line": 268,
+      "line": 253,
+      "end_line": 270,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40747,8 +40747,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_create_schema_when_schema_exists_without_if_not_exists",
       "name": "should_reject_create_schema_when_schema_exists_without_if_not_exists",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 271,
-      "end_line": 292,
+      "line": 273,
+      "end_line": 294,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40778,8 +40778,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_rename_table_alter_statement",
       "name": "should_parse_rename_table_alter_statement",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 295,
-      "end_line": 314,
+      "line": 297,
+      "end_line": 316,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40809,8 +40809,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_rename_column_alter_statement",
       "name": "should_parse_rename_column_alter_statement",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 317,
-      "end_line": 337,
+      "line": 319,
+      "end_line": 339,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40840,8 +40840,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_duplicate_fields_in_create_table_definition",
       "name": "should_reject_duplicate_fields_in_create_table_definition",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 340,
-      "end_line": 349,
+      "line": 342,
+      "end_line": 351,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40871,8 +40871,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_create_table_field_constraints",
       "name": "should_parse_create_table_field_constraints",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 352,
-      "end_line": 385,
+      "line": 354,
+      "end_line": 387,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40902,8 +40902,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_parse_create_table_foreign_key_constraint",
       "name": "should_parse_create_table_foreign_key_constraint",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 388,
-      "end_line": 406,
+      "line": 390,
+      "end_line": 408,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40933,8 +40933,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_create_table_constraints_without_parentheses",
       "name": "should_reject_create_table_constraints_without_parentheses",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 409,
-      "end_line": 418,
+      "line": 411,
+      "end_line": 420,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40964,8 +40964,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_reserved_namespace_on_create_schema",
       "name": "should_reject_reserved_namespace_on_create_schema",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 421,
-      "end_line": 439,
+      "line": 423,
+      "end_line": 441,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -40995,8 +40995,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_reserved_namespace_on_drop_schema",
       "name": "should_reject_reserved_namespace_on_drop_schema",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 442,
-      "end_line": 460,
+      "line": 444,
+      "end_line": 462,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -41026,8 +41026,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_reserved_namespace_on_alter_schema",
       "name": "should_reject_reserved_namespace_on_alter_schema",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 463,
-      "end_line": 482,
+      "line": 465,
+      "end_line": 484,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -41057,8 +41057,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_create_table_when_collection_exists_without_if_not_exists",
       "name": "should_reject_create_table_when_collection_exists_without_if_not_exists",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 485,
-      "end_line": 513,
+      "line": 487,
+      "end_line": 515,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -41088,8 +41088,8 @@
       "id": "tests/parser_types/grammar/ctes/cte_schema.rs::should_reject_drop_table_when_collection_missing_without_if_exists",
       "name": "should_reject_drop_table_when_collection_missing_without_if_exists",
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
-      "line": 516,
-      "end_line": 532,
+      "line": 518,
+      "end_line": 534,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55818,6 +55818,99 @@
         "file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/json_typed_conversion.rs::should_preserve_exact_json_aggregate_numbers_in_simple_query_results",
+      "name": "should_preserve_exact_json_aggregate_numbers_in_simple_query_results",
+      "current_file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
+      "line": 41,
+      "end_line": 51,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::aggregates_json_typed_conversion::should_preserve_exact_json_aggregate_numbers_in_simple_query_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates",
+        "directory": "tests/pgwire_extended/aggregates",
+        "file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/json_typed_conversion.rs::should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats",
+      "name": "should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats",
+      "current_file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
+      "line": 54,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::aggregates_json_typed_conversion::should_preserve_json_aggregate_oids_across_numeric_parameter_and_result_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates",
+        "directory": "tests/pgwire_extended/aggregates",
+        "file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/json_typed_conversion.rs::should_reject_duplicate_formatted_json_keys_without_publishing_partial_results",
+      "name": "should_reject_duplicate_formatted_json_keys_without_publishing_partial_results",
+      "current_file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
+      "line": 100,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::aggregates_json_typed_conversion::should_reject_duplicate_formatted_json_keys_without_publishing_partial_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates",
+        "directory": "tests/pgwire_extended/aggregates",
+        "file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -138127,6 +138220,161 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_describe_series_native_overloads_without_retagging_supplied_parameters",
+      "name": "should_describe_series_native_overloads_without_retagging_supplied_parameters",
+      "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
+      "line": 6,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::series_sources::should_describe_series_native_overloads_without_retagging_supplied_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "set_returning",
+        "directory": "tests/pgwire_extended/set_returning",
+        "file": "tests/pgwire_extended/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_return_scalar_binary_series_values_and_bigint_ordinality",
+      "name": "should_return_scalar_binary_series_values_and_bigint_ordinality",
+      "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
+      "line": 57,
+      "end_line": 86,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::series_sources::should_return_scalar_binary_series_values_and_bigint_ordinality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "set_returning",
+        "directory": "tests/pgwire_extended/set_returning",
+        "file": "tests/pgwire_extended/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_report_series_signature_step_and_range_errors_without_partial_rows",
+      "name": "should_report_series_signature_step_and_range_errors_without_partial_rows",
+      "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
+      "line": 89,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::series_sources::should_report_series_signature_step_and_range_errors_without_partial_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "set_returning",
+        "directory": "tests/pgwire_extended/set_returning",
+        "file": "tests/pgwire_extended/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_preserve_sql_routine_return_coercion_when_evaluating_series_arguments",
+      "name": "should_preserve_sql_routine_return_coercion_when_evaluating_series_arguments",
+      "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
+      "line": 134,
+      "end_line": 163,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::series_sources::should_preserve_sql_routine_return_coercion_when_evaluating_series_arguments"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "set_returning",
+        "directory": "tests/pgwire_extended/set_returning",
+        "file": "tests/pgwire_extended/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/set_returning/series_contracts.rs::should_infer_series_inputs_from_scalar_subquery_projection_identities",
+      "name": "should_infer_series_inputs_from_scalar_subquery_projection_identities",
+      "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
+      "line": 166,
+      "end_line": 211,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::series_sources::should_infer_series_inputs_from_scalar_subquery_projection_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "set_returning",
+        "directory": "tests/pgwire_extended/set_returning",
+        "file": "tests/pgwire_extended/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/simple_query/simple_query_batch.rs::should_execute_simple_query_statements_in_order_with_one_ready_frame",
       "name": "should_execute_simple_query_statements_in_order_with_one_ready_frame",
       "current_file": "tests/pgwire_extended/simple_query/simple_query_batch.rs",
@@ -142064,6 +142312,161 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_preserve_array_lower_bounds_when_prepending_scalar_elements",
+      "name": "should_preserve_array_lower_bounds_when_prepending_scalar_elements",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 131,
+      "end_line": 150,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_preserve_array_lower_bounds_when_prepending_scalar_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_preserve_native_identity_for_array_function_outputs",
+      "name": "should_preserve_native_identity_for_array_function_outputs",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 153,
+      "end_line": 177,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_preserve_native_identity_for_array_function_outputs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_concatenate_scalar_elements_with_arrays_in_both_operand_orders",
+      "name": "should_concatenate_scalar_elements_with_arrays_in_both_operand_orders",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 180,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_concatenate_scalar_elements_with_arrays_in_both_operand_orders"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_distinguish_typed_text_elements_from_unknown_array_text_during_concatenation",
+      "name": "should_distinguish_typed_text_elements_from_unknown_array_text_during_concatenation",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 200,
+      "end_line": 219,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_distinguish_typed_text_elements_from_unknown_array_text_during_concatenation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/array_boundaries.rs::should_preserve_array_concatenation_parameter_overloads",
+      "name": "should_preserve_array_concatenation_parameter_overloads",
+      "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+      "line": 222,
+      "end_line": 288,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_array_boundaries::should_preserve_array_concatenation_parameter_overloads"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/arrays/array_function/binary.rs::should_round_trip_multidimensional_nondefault_bounds_in_binary_format",
       "name": "should_round_trip_multidimensional_nondefault_bounds_in_binary_format",
       "current_file": "tests/pgwire_extended/types/arrays/array_function/binary.rs",
@@ -142711,6 +143114,657 @@
         "file": "tests/pgwire_extended/types/arrays/bounds_subscripts/semantics.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_apply_explicit_character_array_modifiers_without_losing_native_descriptors",
+      "name": "should_apply_explicit_character_array_modifiers_without_losing_native_descriptors",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 6,
+      "end_line": 42,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_apply_explicit_character_array_modifiers_without_losing_native_descriptors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_cast_native_array_parameters_to_character_elements_in_text_and_binary_formats",
+      "name": "should_cast_native_array_parameters_to_character_elements_in_text_and_binary_formats",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 45,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_cast_native_array_parameters_to_character_elements_in_text_and_binary_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_preserve_scalar_conversion_policy_for_native_character_array_elements",
+      "name": "should_preserve_scalar_conversion_policy_for_native_character_array_elements",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 95,
+      "end_line": 120,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_preserve_scalar_conversion_policy_for_native_character_array_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_reject_non_space_character_array_input_overflow_without_using_explicit_truncation",
+      "name": "should_reject_non_space_character_array_input_overflow_without_using_explicit_truncation",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 123,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_reject_non_space_character_array_input_overflow_without_using_explicit_truncation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_reapply_character_array_casts_to_canonical_stored_elements_without_changing_bounds",
+      "name": "should_reapply_character_array_casts_to_canonical_stored_elements_without_changing_bounds",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 157,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_reapply_character_array_casts_to_canonical_stored_elements_without_changing_bounds"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_keep_character_array_assignment_validation_distinct_from_explicit_casts",
+      "name": "should_keep_character_array_assignment_validation_distinct_from_explicit_casts",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 189,
+      "end_line": 242,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_keep_character_array_assignment_validation_distinct_from_explicit_casts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_preserve_multidimensional_binary_parameter_bounds_when_casting_character_elements",
+      "name": "should_preserve_multidimensional_binary_parameter_bounds_when_casting_character_elements",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 245,
+      "end_line": 298,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_preserve_multidimensional_binary_parameter_bounds_when_casting_character_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_keep_scalar_and_array_character_temporal_casts_in_the_statement_timezone",
+      "name": "should_keep_scalar_and_array_character_temporal_casts_in_the_statement_timezone",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 301,
+      "end_line": 324,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_keep_scalar_and_array_character_temporal_casts_in_the_statement_timezone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/character_casts.rs::should_retain_explicit_array_modifiers_without_inheriting_them_from_function_arguments",
+      "name": "should_retain_explicit_array_modifiers_without_inheriting_them_from_function_arguments",
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "line": 327,
+      "end_line": 367,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_character_array_casts::should_retain_explicit_array_modifiers_without_inheriting_them_from_function_arguments"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_native_array_identity_for_multidimensional_constructors",
+      "name": "should_preserve_native_array_identity_for_multidimensional_constructors",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 16,
+      "end_line": 36,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_preserve_native_array_identity_for_multidimensional_constructors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays",
+      "name": "should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 39,
+      "end_line": 58,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_canonicalize_zero_dimension_fills_and_preserve_null_filled_arrays"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_temporal_array_text_and_binary_values_under_native_oids",
+      "name": "should_preserve_temporal_array_text_and_binary_values_under_native_oids",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 61,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_preserve_temporal_array_text_and_binary_values_under_native_oids"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_reject_ragged_array_constructors_before_rows_and_recover",
+      "name": "should_reject_ragged_array_constructors_before_rows_and_recover",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 108,
+      "end_line": 132,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_reject_ragged_array_constructors_before_rows_and_recover"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_distinguish_nested_empty_and_null_subarrays_from_scalar_null_elements",
+      "name": "should_distinguish_nested_empty_and_null_subarrays_from_scalar_null_elements",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 135,
+      "end_line": 153,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_distinguish_nested_empty_and_null_subarrays_from_scalar_null_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_bound_native_array_constructor_dimensions_at_the_selected_six",
+      "name": "should_bound_native_array_constructor_dimensions_at_the_selected_six",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 156,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_bound_native_array_constructor_dimensions_at_the_selected_six"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_format_native_temporal_arrays_under_the_connection_timezone",
+      "name": "should_format_native_temporal_arrays_under_the_connection_timezone",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 189,
+      "end_line": 220,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_format_native_temporal_arrays_under_the_connection_timezone"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_resolve_unknown_array_elements_without_coercing_concrete_text_parameters",
+      "name": "should_resolve_unknown_array_elements_without_coercing_concrete_text_parameters",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 223,
+      "end_line": 261,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_resolve_unknown_array_elements_without_coercing_concrete_text_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats",
+      "name": "should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 264,
+      "end_line": 304,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_preserve_canonical_jsonb_array_elements_in_text_and_binary_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_accumulate_native_array_subqueries_with_matching_bounds_and_native_identity",
+      "name": "should_accumulate_native_array_subqueries_with_matching_bounds_and_native_identity",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 307,
+      "end_line": 322,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_accumulate_native_array_subqueries_with_matching_bounds_and_native_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_use_visible_array_subquery_aliases_when_physical_names_collide",
+      "name": "should_use_visible_array_subquery_aliases_when_physical_names_collide",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 325,
+      "end_line": 344,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_use_visible_array_subquery_aliases_when_physical_names_collide"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/constructor_contracts.rs::should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs",
+      "name": "should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs",
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "line": 347,
+      "end_line": 380,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::array_constructor_contracts::should_reject_null_empty_mismatched_and_excess_rank_array_subquery_inputs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -143765,6 +144819,192 @@
         "file": "tests/pgwire_extended/types/arrays/three_dimensional_bounds_restart.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_preserve_unnest_parameter_identity_bounds_nulls_and_ordinality",
+      "name": "should_preserve_unnest_parameter_identity_bounds_nulls_and_ordinality",
+      "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+      "line": 36,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unnest_sources::should_preserve_unnest_parameter_identity_bounds_nulls_and_ordinality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_unnest_native_binary_parameters_and_emit_scalar_binary_values",
+      "name": "should_unnest_native_binary_parameters_and_emit_scalar_binary_values",
+      "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+      "line": 99,
+      "end_line": 126,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unnest_sources::should_unnest_native_binary_parameters_and_emit_scalar_binary_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_report_selected_unnest_diagnostics_and_recover_at_sync",
+      "name": "should_report_selected_unnest_diagnostics_and_recover_at_sync",
+      "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+      "line": 129,
+      "end_line": 160,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unnest_sources::should_report_selected_unnest_diagnostics_and_recover_at_sync"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_bind_computed_array_sources_without_losing_native_parameter_identity",
+      "name": "should_bind_computed_array_sources_without_losing_native_parameter_identity",
+      "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+      "line": 163,
+      "end_line": 215,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unnest_sources::should_bind_computed_array_sources_without_losing_native_parameter_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_drop_input_element_modifiers_from_unnest_result_descriptors",
+      "name": "should_drop_input_element_modifiers_from_unnest_result_descriptors",
+      "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+      "line": 218,
+      "end_line": 264,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unnest_sources::should_drop_input_element_modifiers_from_unnest_result_descriptors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/arrays/unnest_sources.rs::should_retain_parameter_identity_through_array_subquery_source_arguments",
+      "name": "should_retain_parameter_identity_through_array_subquery_source_arguments",
+      "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+      "line": 267,
+      "end_line": 289,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::unnest_sources::should_retain_parameter_identity_through_array_subquery_source_arguments"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/arrays",
+        "directory": "tests/pgwire_extended/types/arrays",
+        "file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -195508,6 +196748,347 @@
       }
     },
     {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_exact_numeric_values_in_json_collection_aggregates",
+      "name": "should_preserve_exact_numeric_values_in_json_collection_aggregates",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 7,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_exact_numeric_values_in_json_collection_aggregates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_finite_real_numbers_and_nonfinite_numeric_names_in_json_aggregates",
+      "name": "should_preserve_finite_real_numbers_and_nonfinite_numeric_names_in_json_aggregates",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 32,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_finite_real_numbers_and_nonfinite_numeric_names_in_json_aggregates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_distinguish_json_documents_from_sql_text_in_collection_aggregates",
+      "name": "should_distinguish_json_documents_from_sql_text_in_collection_aggregates",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 70,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_distinguish_json_documents_from_sql_text_in_collection_aggregates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_sql_null_and_document_null_collection_policies",
+      "name": "should_preserve_sql_null_and_document_null_collection_policies",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 95,
+      "end_line": 124,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_sql_null_and_document_null_collection_policies"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_format_nonfinite_json_object_keys_as_scalar_sql_values",
+      "name": "should_format_nonfinite_json_object_keys_as_scalar_sql_values",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 127,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_format_nonfinite_json_object_keys_as_scalar_sql_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_distinguish_filtered_empty_groups_from_strict_groups_with_null_inputs",
+      "name": "should_distinguish_filtered_empty_groups_from_strict_groups_with_null_inputs",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 148,
+      "end_line": 173,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_distinguish_filtered_empty_groups_from_strict_groups_with_null_inputs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_json_real_negative_zero_while_canonicalizing_jsonb",
+      "name": "should_preserve_json_real_negative_zero_while_canonicalizing_jsonb",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 176,
+      "end_line": 191,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_json_real_negative_zero_while_canonicalizing_jsonb"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_preserve_numeric_filter_distinct_and_order_before_json_conversion",
+      "name": "should_preserve_numeric_filter_distinct_and_order_before_json_conversion",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 194,
+      "end_line": 210,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_preserve_numeric_filter_distinct_and_order_before_json_conversion"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_infer_json_conversion_identity_without_evaluating_a_filtered_first_row",
+      "name": "should_infer_json_conversion_identity_without_evaluating_a_filtered_first_row",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 213,
+      "end_line": 230,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_infer_json_conversion_identity_without_evaluating_a_filtered_first_row"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_use_the_statement_temporal_session_for_json_aggregate_values",
+      "name": "should_use_the_statement_temporal_session_for_json_aggregate_values",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 233,
+      "end_line": 256,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_use_the_statement_temporal_session_for_json_aggregate_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/typed_conversion.rs::should_keep_json_calendar_spelling_independent_of_datestyle",
+      "name": "should_keep_json_calendar_spelling_independent_of_datestyle",
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "line": 259,
+      "end_line": 292,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::typed_json_collection_conversion::should_keep_json_calendar_spelling_independent_of_datestyle"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/aggregates/json/unique_object_aggregate_duplicate_keys/errors.rs::should_reject_duplicate_keys_in_unique_json_object_aggregates_with_sqlstate",
       "name": "should_reject_duplicate_keys_in_unique_json_object_aggregates_with_sqlstate",
       "current_file": "tests/sql_queries/aggregates/json/unique_object_aggregate_duplicate_keys/errors.rs",
@@ -232026,11 +233607,42 @@
       }
     },
     {
+      "id": "tests/sql_queries/relations/values_admission.rs::should_bound_computed_character_array_projection_padding_and_release_its_owners",
+      "name": "should_bound_computed_character_array_projection_padding_and_release_its_owners",
+      "current_file": "tests/sql_queries/relations/values_admission.rs",
+      "line": 96,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_values_admission::should_bound_computed_character_array_projection_padding_and_release_its_owners"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "relations",
+        "directory": "tests/sql_queries/relations",
+        "file": "tests/sql_queries/relations/values_admission.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
       "name": "should_preserve_values_text_given_different_varchar_typmods_when_unknown_literals_are_coerced",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 96,
-      "end_line": 117,
+      "line": 133,
+      "end_line": 154,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -232060,8 +233672,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
       "name": "should_preserve_values_character_identity_given_mixed_text_types_when_padding_is_coerced",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 120,
-      "end_line": 157,
+      "line": 157,
+      "end_line": 194,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -232091,8 +233703,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
       "name": "should_validate_nested_ctes_given_a_values_body_when_a_declared_relation_is_missing",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 160,
-      "end_line": 171,
+      "line": 197,
+      "end_line": 208,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -232122,8 +233734,8 @@
       "id": "tests/sql_queries/relations/values_admission.rs::should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
       "name": "should_preserve_integer_operator_width_given_values_rows_when_addition_is_evaluated",
       "current_file": "tests/sql_queries/relations/values_admission.rs",
-      "line": 174,
-      "end_line": 242,
+      "line": 211,
+      "end_line": 279,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -240920,6 +242532,409 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/series.rs::should_evaluate_scalar_subquery_series_bounds_with_native_result_identity",
+      "name": "should_evaluate_scalar_subquery_series_bounds_with_native_result_identity",
+      "current_file": "tests/sql_queries/set_returning/series.rs",
+      "line": 6,
+      "end_line": 18,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::series_sources::should_evaluate_scalar_subquery_series_bounds_with_native_result_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/series.rs::should_generate_inclusive_integer_series_with_checked_endpoint_progression",
+      "name": "should_generate_inclusive_integer_series_with_checked_endpoint_progression",
+      "current_file": "tests/sql_queries/set_returning/series.rs",
+      "line": 28,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::series_sources::should_generate_inclusive_integer_series_with_checked_endpoint_progression"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/series.rs::should_generate_exact_numeric_series_with_the_start_and_step_scale",
+      "name": "should_generate_exact_numeric_series_with_the_start_and_step_scale",
+      "current_file": "tests/sql_queries/set_returning/series.rs",
+      "line": 52,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::series_sources::should_generate_exact_numeric_series_with_the_start_and_step_scale"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/series.rs::should_generate_calendar_timestamp_series_and_named_zone_dst_steps",
+      "name": "should_generate_calendar_timestamp_series_and_named_zone_dst_steps",
+      "current_file": "tests/sql_queries/set_returning/series.rs",
+      "line": 69,
+      "end_line": 94,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::series_sources::should_generate_calendar_timestamp_series_and_named_zone_dst_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/series.rs::should_treat_null_series_arguments_as_empty_before_validating_zero_steps",
+      "name": "should_treat_null_series_arguments_as_empty_before_validating_zero_steps",
+      "current_file": "tests/sql_queries/set_returning/series.rs",
+      "line": 97,
+      "end_line": 114,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::series_sources::should_treat_null_series_arguments_as_empty_before_validating_zero_steps"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/series.rs::should_preserve_numeric_scale_when_descending_past_the_inclusive_bound",
+      "name": "should_preserve_numeric_scale_when_descending_past_the_inclusive_bound",
+      "current_file": "tests/sql_queries/set_returning/series.rs",
+      "line": 117,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::series_sources::should_preserve_numeric_scale_when_descending_past_the_inclusive_bound"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/series.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_evaluate_array_subquery_arguments_at_their_source_invocation",
+      "name": "should_evaluate_array_subquery_arguments_at_their_source_invocation",
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "line": 8,
+      "end_line": 30,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unnest_sources::should_evaluate_array_subquery_arguments_at_their_source_invocation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/unnest.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_unnest_multidimensional_arrays_in_row_major_order_with_ordinality",
+      "name": "should_unnest_multidimensional_arrays_in_row_major_order_with_ordinality",
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "line": 33,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unnest_sources::should_unnest_multidimensional_arrays_in_row_major_order_with_ordinality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/unnest.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_pad_shorter_arrays_with_nulls_when_unnesting_multiple_arrays",
+      "name": "should_pad_shorter_arrays_with_nulls_when_unnesting_multiple_arrays",
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "line": 55,
+      "end_line": 76,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unnest_sources::should_pad_shorter_arrays_with_nulls_when_unnesting_multiple_arrays"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/unnest.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_preserve_outer_rows_when_lateral_unnest_has_empty_or_null_arrays",
+      "name": "should_preserve_outer_rows_when_lateral_unnest_has_empty_or_null_arrays",
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "line": 79,
+      "end_line": 104,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unnest_sources::should_preserve_outer_rows_when_lateral_unnest_has_empty_or_null_arrays"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/unnest.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_distinguish_null_filled_arrays_from_null_array_arguments",
+      "name": "should_distinguish_null_filled_arrays_from_null_array_arguments",
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "line": 107,
+      "end_line": 123,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unnest_sources::should_distinguish_null_filled_arrays_from_null_array_arguments"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/unnest.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_preserve_unnest_default_labels_aliases_and_scalar_identities",
+      "name": "should_preserve_unnest_default_labels_aliases_and_scalar_identities",
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "line": 126,
+      "end_line": 171,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unnest_sources::should_preserve_unnest_default_labels_aliases_and_scalar_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/unnest.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/set_returning/unnest.rs::should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases",
+      "name": "should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases",
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "line": 174,
+      "end_line": 197,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::unnest_sources::should_reject_ambiguous_unnest_arguments_columns_and_excess_aliases"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "set_returning",
+        "directory": "tests/sql_queries/set_returning",
+        "file": "tests/sql_queries/set_returning/unnest.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -267494,8 +269509,8 @@
       "current_file": "tests/parser_types/grammar/ctes/cte_schema.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 532,
-      "sha256": "a4b351c301c5da6e851afc7563a942d03f80d52b94d44c2bfdfe89fd35187165",
+      "lines": 534,
+      "sha256": "623daae5d68c94d30051df892453674b8ae6383ff8f908d0fe7f793935c00df6",
       "test_declarations": 25,
       "registered_suites": [
         "parser_types"
@@ -269052,6 +271067,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/aggregates/json_object_agg/resources.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/aggregates/json_typed_conversion.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 123,
+      "sha256": "daf4ab0ea0185d194d46606d4198830ccc9514351764b2d2c97fc721d9d243a2",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/aggregates/json_typed_conversion.rs"
       ],
       "line_limit": 1000
     },
@@ -272138,8 +274168,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 195,
-      "sha256": "d53daf58d04225942129759d12af7b8be54d623f1e4eecae2282f34a8eb0a7e4",
+      "lines": 204,
+      "sha256": "24bc3fb006ee69e7b87a5001950012e09de29096b07329ea54e1429a01cfdaae",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -273310,6 +275340,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/set_returning/series_contracts.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 211,
+      "sha256": "0b9760b7362f1a93fcb27f8f3017db047c6c3d2951fe8a9b137607f7025ec1e3",
+      "test_declarations": 5,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/set_returning/series.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/simple_query/simple_query_batch.rs",
       "role": "test_module",
       "action": "keep",
@@ -273943,9 +275988,9 @@
       "current_file": "tests/pgwire_extended/types/arrays/array_boundaries.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 128,
-      "sha256": "6b181ddc8d266113abc793acbd39e9fc467f46ab49f9153f9cad25487f3f2769",
-      "test_declarations": 2,
+      "lines": 288,
+      "sha256": "2e5b73fdb7d02bb6128758c03a15cd61ec63e910de430493408707fcb53d9ea9",
+      "test_declarations": 7,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -274183,6 +276228,36 @@
       ],
       "destinations": [
         "tests/pgwire_extended/types/arrays/bounds_subscripts/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/arrays/character_casts.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 367,
+      "sha256": "b6e54a01df0fed6f3ad32be6963a86d04770ee6fe7fd1c0bcd2fc4c61aa31583",
+      "test_declarations": 9,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/arrays/character_casts.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/arrays/constructor_contracts.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 380,
+      "sha256": "6feab5086093205a9a843e6b0e523f6bba2071373af4ba79f2e4a2e43e3d0ca2",
+      "test_declarations": 12,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/arrays/constructor_contracts.rs"
       ],
       "line_limit": 1000
     },
@@ -274507,6 +276582,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/types/arrays/three_dimensional_bounds_restart.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/arrays/unnest_sources.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 289,
+      "sha256": "4008230de8ddf7fe6c3e798e9623692f5f08998c1ec34e9d204ed25fdcb7493e",
+      "test_declarations": 6,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/arrays/unnest_sources.rs"
       ],
       "line_limit": 1000
     },
@@ -276462,8 +278552,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 669,
-      "sha256": "c57f50bf92ab3597083d6009d9dbc2ad78ea28ffa892c37c5b25e02a3d93be73",
+      "lines": 671,
+      "sha256": "36f10fcfc1804346086c17ac738f8e5faaa85c32ca67e76422329817bd505f9b",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -279265,8 +281355,8 @@
       "current_file": "tests/sql_queries/aggregates/aggregate_query_contracts.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 76,
-      "sha256": "aacd956fca1db8f0537029da9e3c66653a0eb682c97f561366ad082cbbf1ada4",
+      "lines": 79,
+      "sha256": "79179269a0ab45a01eca55e340cfaa3773e3aef299437954ea00cbc5684adfab",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -279558,6 +281648,21 @@
       ],
       "destinations": [
         "tests/sql_queries/aggregates/json/ordered_json_aggregate_modifiers/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/aggregates/json/typed_conversion.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 292,
+      "sha256": "6cea395a6d1e0d9a6ef7a37b39e1c29b738a74d654fae63d60c7ad79db75d278",
+      "test_declarations": 11,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/json/typed_conversion.rs"
       ],
       "line_limit": 1000
     },
@@ -281022,8 +283127,8 @@
       "current_file": "tests/sql_queries/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 75,
-      "sha256": "a22e33fbceb28c5d89d3ac3bb8bfc9de225c9b5ca07d054d4ba462a4e7bf4a9d",
+      "lines": 79,
+      "sha256": "bd15ce96c199cdbc64e33b77ac051574205c288f216ed35f016ffcb455440209",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -281428,9 +283533,9 @@
       "current_file": "tests/sql_queries/relations/values_admission.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 242,
-      "sha256": "5cdc05873c1153a2e0dc20c2f4d4ce15d1888bec90dc238c4d38d6abff8b672c",
-      "test_declarations": 6,
+      "lines": 279,
+      "sha256": "3f84ecc2b9200dabe1a71956340515faf267ac8886c96d2e714c547cfc8d39d4",
+      "test_declarations": 7,
       "registered_suites": [
         "sql_queries"
       ],
@@ -281676,6 +283781,36 @@
       ],
       "destinations": [
         "tests/sql_queries/set_returning/lateral_ordinality.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/set_returning/series.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 131,
+      "sha256": "0800df54e16a6736736335ac7cedf7b0e713df6c6350466f3570542163419af5",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/set_returning/series.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/set_returning/unnest.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 197,
+      "sha256": "01b3ddf2fdbaf2d8357a567ddc042a677f4edc0dbbabedc0786fed56748760c3",
+      "test_declarations": 7,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/set_returning/unnest.rs"
       ],
       "line_limit": 1000
     },

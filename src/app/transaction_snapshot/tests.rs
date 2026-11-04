@@ -113,6 +113,58 @@ fn should_reuse_repeatable_read_without_a_second_request_charge() {
 }
 
 #[test]
+fn should_retain_snapshot_admission_after_the_originating_query_retires() {
+    // Arrange
+    let (cassie, session, parsed) = fixture();
+    let first = controls(16 * 1024 * 1024);
+    let running = cassie.runtime.begin_running_query();
+    cassie
+        .prepare_transaction_read_view(&session, &parsed, &first)
+        .expect("capture");
+    let charged = first.current_query_memory_bytes();
+    cassie.runtime.record_query_memory(&first);
+    let data = session
+        .capture_statement_read(&cassie.midge, &cassie.default_database, &first)
+        .expect("shared data owner");
+    let catalog = session
+        .transaction_catalog_snapshot()
+        .expect("shared catalog owner");
+
+    // Act
+    drop(running);
+    drop(first);
+    let idle = cassie.runtime.snapshot();
+    let later = controls(1);
+    cassie
+        .prepare_transaction_read_view(&session, &parsed, &later)
+        .expect("later statement shares retained admission");
+    let still_retained = cassie.runtime.snapshot();
+    session.rollback_transaction();
+    let shared = cassie.runtime.snapshot();
+    drop(data);
+    let catalog_only = cassie.runtime.snapshot();
+    drop(catalog);
+    let retired = cassie.runtime.snapshot();
+
+    // Assert
+    assert!(charged > 0);
+    assert_eq!(idle.runtime.running_queries, 0);
+    assert_eq!(idle.query.current_accounted_memory_bytes, charged as u64);
+    assert_eq!(
+        still_retained.query.current_accounted_memory_bytes,
+        charged as u64
+    );
+    assert_eq!(later.current_query_memory_bytes(), 0);
+    assert!(shared.query.current_accounted_memory_bytes < charged as u64);
+    assert!(
+        shared.query.current_accounted_memory_bytes
+            > catalog_only.query.current_accounted_memory_bytes
+    );
+    assert!(catalog_only.query.current_accounted_memory_bytes > 0);
+    assert_eq!(retired.query.current_accounted_memory_bytes, 0);
+}
+
+#[test]
 fn should_preserve_repeatable_read_charge_through_failed_savepoint_recovery() {
     // Arrange
     let (cassie, session, parsed) = fixture();

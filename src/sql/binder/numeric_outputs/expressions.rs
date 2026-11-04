@@ -128,6 +128,22 @@ impl Analyzer<'_> {
             return self.expression(left, lookup);
         }
         if *op == BinaryOp::Concat {
+            let left_type = self.expression(left, lookup)?.data_type;
+            let right_type = self.expression(right, lookup)?.data_type;
+            let elements = match (&left_type, &right_type) {
+                (DataType::Array(left), DataType::Array(right)) => {
+                    Some((left.as_ref().clone(), right.as_ref().clone()))
+                }
+                (DataType::Array(element), scalar) | (scalar, DataType::Array(element)) => {
+                    Some((element.as_ref().clone(), scalar.clone()))
+                }
+                _ => None,
+            };
+            if let Some((left, right)) = elements {
+                if let Some(element) = inference::common_case_type(left, right) {
+                    return Ok(OutputType::fixed(DataType::Array(Box::new(element))));
+                }
+            }
             if let Some(kind) = [
                 self.expression(left, lookup)?.data_type,
                 self.expression(right, lookup)?.data_type,
@@ -262,6 +278,16 @@ impl Analyzer<'_> {
         }
         if let Some(output) = self.numeric_function(function, metadata.id, lookup)? {
             return Ok(output);
+        }
+        if super::super::array_outputs::is_array_result(metadata.id) {
+            let arguments = self.function_arguments(function, lookup)?;
+            let types = arguments
+                .into_iter()
+                .map(|argument| argument.data_type)
+                .collect::<Vec<_>>();
+            if let Some(kind) = super::super::array_outputs::result_type(metadata.id, &types) {
+                return Ok(OutputType::fixed(kind));
+            }
         }
         if matches!(
             metadata.id,

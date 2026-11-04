@@ -101,10 +101,6 @@ fn append_or_prepend(
                 .length
                 .checked_add(1)
                 .ok_or_else(|| invalid_call(function))?;
-            first.lower_bound = first
-                .lower_bound
-                .checked_sub(1)
-                .ok_or_else(|| invalid_call(function))?;
         } else {
             dimensions.push(crate::types::ArrayDimension {
                 length: 1,

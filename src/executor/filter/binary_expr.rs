@@ -28,8 +28,8 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         if let Some(result) = super::array_operators::concatenate_operand(
             &left_value,
             &right_value,
-            null_type(left),
-            null_type(right),
+            operand_type(left),
+            operand_type(right),
         ) {
             return result;
         }
@@ -145,11 +145,9 @@ fn array_comparison<R: RowAccess + ?Sized>(
     None
 }
 
-fn null_type(expr: &Expr) -> (bool, bool) {
+fn operand_type(expr: &Expr) -> (bool, bool) {
     match expr {
-        Expr::Cast {
-            expr, data_type, ..
-        } if matches!(expr.as_ref(), Expr::Null) => {
+        Expr::Cast { data_type, .. } => {
             if matches!(data_type, crate::types::DataType::Array(_)) {
                 (true, false)
             } else {

@@ -19,7 +19,8 @@ impl Default for QueryCancellationHandle {
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
             super::aggregate_test_pause::take_next_query_pause()
-                .or_else(super::sleep_test_pause::take_next_query_pause),
+                .or_else(super::sleep_test_pause::take_next_query_pause)
+                .or_else(super::regex_test_pause::take_next_query_pause),
             cancellation_signal,
         )
     }
@@ -214,6 +215,13 @@ impl QueryExecutionControls {
     pub(crate) fn sleep_function_entered(&self) -> Result<(), CassieError> {
         if let Some(super::QueryTestPause::Sleep(pause)) = self.cancellation.2.as_deref() {
             pause.reach()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn regex_search_completed(&self, matched: bool) -> Result<(), CassieError> {
+        if let Some(super::QueryTestPause::Regex(pause)) = self.cancellation.2.as_deref() {
+            pause.reach(matched)?;
         }
         Ok(())
     }

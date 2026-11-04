@@ -7,7 +7,6 @@ use super::{Cassie, CassieError};
 use crate::midge::adapter::StagedDatabaseFamily;
 
 pub const DATABASE_IMAGE_VERSION: u16 = 1;
-const DATABASE_IMAGE_LAYOUT_VERSION: &str = "cassie-midge-layout-v1-0.1.0";
 const DATABASE_IMAGE_MAGIC: &[u8] = b"CASSIEDB";
 const FRAME_HEADER: u8 = b'H';
 const FRAME_CATALOG: u8 = b'C';
@@ -64,6 +63,7 @@ pub struct DatabaseBackupStream {
     source_physical_family: String,
     schema_epoch: u64,
     data_epoch: u64,
+    storage_layout_version: &'static str,
     catalog_entries: Vec<(Vec<u8>, Vec<u8>)>,
     catalog_index: usize,
     data_cursor: Option<Vec<u8>>,
@@ -103,7 +103,7 @@ impl DatabaseBackupStream {
                         image_version: DATABASE_IMAGE_VERSION,
                         source_database: self.source_database.clone(),
                         source_physical_family: self.source_physical_family.clone(),
-                        storage_layout_version: DATABASE_IMAGE_LAYOUT_VERSION.to_string(),
+                        storage_layout_version: self.storage_layout_version.to_string(),
                         schema_epoch: self.schema_epoch,
                         data_epoch: self.data_epoch,
                         integrity: "sha256(catalog-and-data-frame-payloads)".to_string(),
@@ -194,6 +194,7 @@ impl DatabaseBackupStream {
                 .data_epoch_for_database(&self.source_database)?
                 == self.data_epoch
             && self.source_family_matches()?
+            && self.cassie.midge.storage_layout_version()? == self.storage_layout_version
         {
             return Ok(());
         }
@@ -326,13 +327,16 @@ impl DatabaseRestoreSession {
                 "database image ended before a complete footer".to_string(),
             ));
         }
-        let staged = self.staged.take().ok_or_else(|| {
-            CassieError::Execution("database restore staging is unavailable".to_string())
-        })?;
         let header = self
             .header
             .as_ref()
             .ok_or_else(|| CassieError::Parse("database image header is missing".to_string()))?;
+        self.cassie
+            .midge
+            .require_storage_layout_version(&header.storage_layout_version)?;
+        let staged = self.staged.take().ok_or_else(|| {
+            CassieError::Execution("database restore staging is unavailable".to_string())
+        })?;
         let result = self
             .cassie
             .midge
@@ -376,7 +380,9 @@ impl DatabaseRestoreSession {
             CassieError::Parse(format!("invalid database image header: {error}"))
         })?;
         if header.image_version != DATABASE_IMAGE_VERSION
-            || header.storage_layout_version != DATABASE_IMAGE_LAYOUT_VERSION
+            || !crate::midge::adapter::Midge::supports_storage_layout_version(
+                &header.storage_layout_version,
+            )
         {
             return Err(CassieError::Unsupported(
                 "database image version or storage layout is incompatible".to_string(),
@@ -474,6 +480,7 @@ impl Cassie {
             source_physical_family: metadata.physical_family,
             schema_epoch: self.midge.schema_epoch()?,
             data_epoch: self.midge.data_epoch_for_database(database)?,
+            storage_layout_version: self.midge.storage_layout_version()?,
             catalog_entries: self.midge.database_catalog_entries(database)?,
             catalog_index: 0,
             data_cursor: None,
@@ -579,3 +586,7 @@ fn hex_digest(hasher: &Sha256) -> String {
     }
     output
 }
+
+#[cfg(test)]
+#[path = "database_images/compatibility_tests.rs"]
+mod compatibility_tests;

@@ -9,9 +9,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+#[path = "storage_compatibility.rs"]
+mod storage_compatibility;
+
 pub struct Midge {
     pub(super) engine: Engine,
     write_policy: super::storage_config::WritePolicy,
+    compatibility_gate: Mutex<()>,
     pub(super) storage_layout: OnceLock<StorageLayout>,
     pub(super) database_families: RwLock<BTreeMap<String, super::DatabaseFamily>>,
     pub(super) default_database: String,
@@ -83,6 +87,7 @@ impl Midge {
         Ok(Self {
             engine: Engine::open(options).map_err(CassieError::from)?,
             write_policy,
+            compatibility_gate: Mutex::new(()),
             storage_layout: OnceLock::new(),
             database_families: RwLock::new(BTreeMap::new()),
             default_database: default_database.into(),
@@ -211,7 +216,7 @@ impl Midge {
         let marker_key = key_encoding::layout_marker_key();
         let mut tx = self.begin_raw_adapter_tx(schema.id(), TransactionMode::ReadWrite)?;
         match tx.get(&marker_key).map_err(CassieError::from)? {
-            Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
+            Some(value) if Self::supports_storage_layout_marker(&value) => Ok(()),
             Some(value) => Err(Self::incompatible_layout_marker(&value)),
             None => {
                 if let Some(family) = self.existing_unmarked_family()? {
@@ -236,7 +241,7 @@ impl Midge {
             None
         };
         match marker {
-            Some(value) if value == key_encoding::LAYOUT_MARKER_VALUE => Ok(()),
+            Some(value) if Self::supports_storage_layout_marker(&value) => Ok(()),
             Some(value) => Err(Self::incompatible_layout_marker(&value)),
             None => match self.existing_unmarked_family()? {
                 Some(family) => Err(Self::missing_layout_marker(&family)),
@@ -248,8 +253,9 @@ impl Midge {
     fn incompatible_layout_marker(value: &[u8]) -> CassieError {
         let version = String::from_utf8_lossy(value);
         let expected = String::from_utf8_lossy(key_encoding::LAYOUT_MARKER_VALUE);
+        let upgraded = storage_compatibility::V020_LAYOUT_VERSION;
         CassieError::StorageBootstrap(format!(
-            "incompatible Midge storage layout: found marker '{version}'; expected baseline marker '{expected}'; recreate the Midge data directory"
+            "incompatible Midge storage layout: found marker '{version}'; expected baseline marker '{expected}' or upgrade marker '{upgraded}'; preserve the data directory and use a compatible Cassie reader"
         ))
     }
 

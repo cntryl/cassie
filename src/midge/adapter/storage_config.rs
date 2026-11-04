@@ -29,6 +29,14 @@ pub(super) enum WritePolicy {
 
 impl WritePolicy {
     #[must_use]
+    pub(super) fn compatibility_upgrade(self) -> WriteOptions {
+        match self {
+            Self::Local => WriteOptions::sync(),
+            Self::CloudBackground | Self::CloudStrict => WriteOptions::cloud_strict(),
+        }
+    }
+
+    #[must_use]
     pub(super) fn sync(self) -> WriteOptions {
         match self {
             Self::Local => WriteOptions::sync(),

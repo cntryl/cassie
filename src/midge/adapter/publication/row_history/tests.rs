@@ -165,8 +165,8 @@ fn should_preserve_only_history_needed_by_the_oldest_remaining_owner() {
     assert!(second_key.is_err());
     assert_eq!(retained, 1);
     let state = publication.row_history.state.lock();
-    assert!(state.entries.is_empty());
-    assert!(state.active.is_empty());
+    assert_eq!(state.entries.capacity(), 0);
+    assert_eq!(state.active.capacity(), 0);
     assert_eq!(
         state
             .entries_memory
@@ -468,8 +468,8 @@ fn should_reject_the_initial_header_before_creating_a_memory_tracker() {
     assert!(state.admission.is_none());
     assert!(state.active_memory.is_none());
     assert!(state.entries_memory.is_none());
-    assert!(state.active.is_empty());
-    assert!(state.entries.is_empty());
+    assert_eq!(state.active.capacity(), 0);
+    assert_eq!(state.entries.capacity(), 0);
 }
 
 #[test]

@@ -219,6 +219,11 @@ impl HistoryState {
 }
 
 impl MutationKeys {
+    #[cfg(test)]
+    pub(in crate::midge::adapter) fn has_keys(&self) -> bool {
+        !self.values.is_empty()
+    }
+
     pub(in crate::midge::adapter) fn prepare(
         &mut self,
         key: &[u8],

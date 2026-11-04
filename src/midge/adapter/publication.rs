@@ -206,9 +206,18 @@ impl DatabasePublication {
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
     ) -> Result<(), AdapterCommitError> {
         let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
+        #[cfg(test)]
+        let row_write = keys.has_keys();
         self.publish_controlled(
             controls.as_ref(),
-            || self.row_history.publish(keys, operation),
+            || {
+                let result = self.row_history.publish(keys, operation);
+                #[cfg(test)]
+                if row_write && result.is_ok() {
+                    tests::observe_confirmation();
+                }
+                result
+            },
             |_boundary| {
                 #[cfg(test)]
                 tests::observe_publication(_boundary);
@@ -299,6 +308,15 @@ pub(crate) struct PublicationControlScope {
 }
 
 impl PublicationControlScope {
+    pub(crate) fn check_interruption(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+        CURRENT_CONTROLS.with(|slot| {
+            if let Some(current) = slot.borrow().as_ref() {
+                current.check_interruption()?;
+            }
+            controls.check_interruption()
+        })
+    }
+
     pub(crate) fn for_request(
         limits: &crate::config::CassieRuntimeLimits,
         cancellation: Option<&crate::runtime::QueryCancellationHandle>,
@@ -351,13 +369,18 @@ impl PublicationControlScope {
 
 impl Drop for PublicationControlScope {
     fn drop(&mut self) {
-        CURRENT_CONTROLS.with(|slot| slot.replace(self.previous.take()));
+        drop(CURRENT_CONTROLS.with(|slot| slot.replace(self.previous.take())));
     }
 }
 
 impl Midge {
     pub(crate) fn check_storage_recovery_required(&self) -> Result<(), CassieError> {
         self.publication.ensure_recovered()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn observe_next_row_commit_for_test(callback: impl FnOnce() + 'static) -> impl Drop {
+        tests::next_confirmation(callback)
     }
 
     #[cfg(test)]

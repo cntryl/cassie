@@ -204,3 +204,55 @@ fn should_preserve_repeatable_read_command_snapshots_across_own_changes() {
         ]
     );
 }
+
+#[test]
+fn should_commit_disjoint_repeatable_rows_after_the_shared_epoch_advances() {
+    // Arrange
+    let fixture = sql_fixture(
+        "rr-disjoint-commit",
+        &[
+            "CREATE TABLE rr_disjoint_rows (id INT PRIMARY KEY, v INT)",
+            "INSERT INTO rr_disjoint_rows VALUES (1, 1), (2, 2)",
+        ],
+    );
+    let second = fixture.cassie.create_session("tester", None);
+    for session in [&fixture.session, &second] {
+        for sql in [
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+            "SELECT id FROM rr_disjoint_rows ORDER BY id",
+        ] {
+            fixture
+                .cassie
+                .execute_sql(session, sql, Vec::new())
+                .expect("same committed view");
+        }
+    }
+    fixture
+        .execute("UPDATE rr_disjoint_rows SET v = 10 WHERE id = 1")
+        .expect("first own row");
+    fixture
+        .cassie
+        .execute_sql(
+            &second,
+            "UPDATE rr_disjoint_rows SET v = 20 WHERE id = 2",
+            Vec::new(),
+        )
+        .expect("disjoint own row");
+
+    // Act
+    fixture.execute("COMMIT").expect("first row publishes");
+    fixture
+        .cassie
+        .execute_sql(&second, "COMMIT", Vec::new())
+        .expect("second old-start row remains unchanged");
+    let visible = fixture.rows("SELECT id, v FROM rr_disjoint_rows ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        visible,
+        vec![
+            vec![Value::Int64(1), Value::Int64(10)],
+            vec![Value::Int64(2), Value::Int64(20)]
+        ]
+    );
+}

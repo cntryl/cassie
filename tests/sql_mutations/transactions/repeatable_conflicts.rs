@@ -151,7 +151,8 @@ fn should_exempt_the_transactions_own_staged_conflict_target() {
     fixture.execute("COMMIT").expect("publish restored own row");
 
     // Assert
-    assert!(skipped.rows().is_empty());
+    let empty: &[Vec<Value>] = &[];
+    assert_eq!(skipped.rows(), empty);
     assert_eq!(changed.rows(), &[vec![Value::Int64(3)]]);
     assert_eq!(
         fixture.rows("SELECT id, v FROM rr_own_conflicts"),

@@ -71,11 +71,14 @@ impl RetainedRowFence {
         if family.id() != self.family_id {
             return Err(changed_family());
         }
+        let fresh = self
+            .midge
+            .begin_raw_database_adapter_tx(&self.database, TransactionMode::ReadOnly)?;
         let mut inputs = controls.reserve_query_memory(0)?;
         for row in rows {
             controls.check_interruption()?;
             let (collection, relation_id, id) = row?;
-            self.assert_row(collection, relation_id, id, controls, &mut inputs)?;
+            self.assert_row((collection, relation_id, id), &fresh, controls, &mut inputs)?;
             retained();
         }
         controls.check_interruption()?;
@@ -96,12 +99,12 @@ impl RetainedRowFence {
 
     fn assert_row(
         &mut self,
-        collection: &str,
-        relation_id: u64,
-        id: &str,
+        row: (&str, u64, &str),
+        fresh: &AdapterTransaction,
         controls: &QueryExecutionControls,
         inputs: &mut QueryMemoryReservation,
     ) -> Result<(), CassieError> {
+        let (collection, relation_id, id) = row;
         let (keys, scratch) = admitted_row_keys(
             &self.midge,
             &self.database,
@@ -113,10 +116,21 @@ impl RetainedRowFence {
         let expected = keys.each_ref().map(|key| self.transaction.get(key));
         let [row, column, legacy] = expected;
         let expected = [row?, column?, legacy?];
-        // A new logical row is protected by fresh unique/publication checks.
-        // An older missing-key assertion would reject a completed insert/delete
-        // that PostgreSQL permits before this transaction creates the row.
+        // Normal document Put replaces a current row with the same physical
+        // ID. Reject that late overlap, while permitting a completed insert /
+        // delete whose current representation is empty. The caller keeps the
+        // database gate through validation and fresh user publication.
         if expected.iter().all(Option::is_none) {
+            for key in &keys {
+                controls.check_interruption()?;
+                if fresh.get(key).map_err(CassieError::from)?.is_some() {
+                    return Err(CassieError::Transaction {
+                        kind: TransactionErrorKind::SerializationFailure,
+                        message: "could not serialize access due to a concurrent row insertion"
+                            .to_owned(),
+                    });
+                }
+            }
             return Ok(());
         }
         // Transfer the already admitted keys without a second reservation.

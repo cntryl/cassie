@@ -633,8 +633,14 @@ current/own-DDL catalog supplies the relation identity without cloning a large
 encoding descriptor. If any representation existed in the retained view, all
 three are asserted, including the other absent slots; a marker rewritten with
 the same value still conflicts through the published start-sequence check. If
-all three were absent, fresh uniqueness and normal atomic publication protect
-the new row. PostgreSQL 18.6 permits a new insertion after another transaction's
+all three were absent, compare those keys with a fresh same-family read under
+the complete publication window. Any current representation rejects with
+`40001`; if all remain absent, allow the new row. Normal document publication
+is an upsert, so uniqueness alone cannot protect a newly staged row from a
+later direct document writer using the same physical row identity. This bounded
+mixed-interface overlap fails before user publication (Jev selection1.00,
+error identity0.98), without claiming PostgreSQL RETURNING/wait phase for a
+direct document API. PostgreSQL 18.6 permits a new insertion after another transaction's
 completed insert/delete against an originally empty view; an old missing-key
 assertion would incorrectly reject that case. The six pinned PK/UNIQUE controls
 supersede the earlier blanket-absence design judgment; Jev selected this
@@ -708,4 +714,16 @@ failures to the existing typed resource error (`54000`); Jev selected this
 caller-preserving refinement at 0.99 after the exact conversion/lint inventory.
 Authored confirmation-time budget-exhaustion and full-directory reuse probes
 remain pending the frozen gate, along with all other new RW probes.
+
+
+
+A local close/reopen mode change also requires the published engine's fencing
+resources to retire. Midge0.5.1 owns a runtime transaction guard in each returned
+native transaction and moves its runtime plus directory/cloud lease into a
+reaper when Engine drops. The lease stays owned until those old transactions
+and workers retire. An authored explicitly local recovery control retains a
+returned writer across Midge drop, requires another open to fail, then retires
+the old handle and permits a recovered instance to select tracked mode. This is
+pending executable evidence; dropping the Cassie wrapper alone is not a claim
+that a still-live external native transaction has disappeared.
 

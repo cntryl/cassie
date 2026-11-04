@@ -35,10 +35,10 @@ mod dml_update;
 mod identity_insert;
 
 pub(super) use dml_delete::execute_delete;
-pub(crate) use dml_insert::resolve_transaction_conflict_intents;
 pub(super) use dml_insert::{
     execute_insert, execute_prepared_insert, prepare_waiting_insert, WaitingInsert,
 };
+pub(crate) use dml_insert::{repeatable_conflict_failure, resolve_transaction_conflict_intents};
 pub(crate) use dml_joined::joined_returning_schema;
 pub(crate) use dml_joined_update::{delete_is_joined, update_is_joined};
 pub(super) use dml_merge::execute_merge;

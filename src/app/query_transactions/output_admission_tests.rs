@@ -1,38 +1,55 @@
 //! Required transaction output is admitted before changing transaction state.
-use std::path::PathBuf;
 use std::time::Instant;
 
 use super::*;
-use crate::config::CassieRuntimeLimits;
-use crate::runtime::QueryExecutionControls;
+use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
+use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::types::Value;
-
-struct Directory(PathBuf);
-
-impl Drop for Directory {
-    fn drop(&mut self) {
-        std::fs::remove_dir_all(&self.0).expect("strict transaction-admission cleanup");
-    }
-}
 
 struct Fixture {
     cassie: Cassie,
-    _directory: Directory,
 }
 
 impl Fixture {
     fn new() -> Self {
-        let directory = Directory(std::env::temp_dir().join(format!(
-            "cassie-transaction-output-{}",
-            uuid::Uuid::new_v4()
-        )));
-        std::fs::create_dir_all(&directory.0).expect("owned fixture directory");
-        let cassie = Cassie::new_with_data_dir(&directory.0).expect("isolated local store");
+        let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default())
+            .expect("ephemeral transaction fixture");
         cassie.startup().expect("startup");
-        Self {
-            cassie,
-            _directory: directory,
+        Self { cassie }
+    }
+
+    fn repeatable(
+        &self,
+        cancellation: QueryCancellationHandle,
+    ) -> (CassieSession, QueryExecutionControls) {
+        let session = self.cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE rr_commit_rows(id INT PRIMARY KEY, v INT)",
+            "INSERT INTO rr_commit_rows VALUES (1, 1)",
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+        ] {
+            self.cassie
+                .execute_sql(&session, sql, Vec::new())
+                .expect("repeatable write fixture");
         }
+        let origin = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation,
+        );
+        let parsed = crate::sql::parse_statement("SELECT 1").expect("snapshot-taking SELECT");
+        self.cassie
+            .prepare_transaction_read_view(&session, &parsed, &origin)
+            .expect("retained first statement");
+        self.cassie
+            .execute_sql(
+                &session,
+                "UPDATE rr_commit_rows SET v = 2 WHERE id = 1",
+                Vec::new(),
+            )
+            .expect("own staged replacement");
+        assert!(origin.current_query_memory_bytes() > 0);
+        (session, origin)
     }
 
     fn denied(
@@ -243,4 +260,214 @@ fn should_admit_transaction_output_before_releasing_a_savepoint() {
     assert_denied(result, &controls);
     assert!(retained, "denied command must preserve its savepoint");
     assert_eq!(setting, "saved");
+}
+
+#[test]
+fn should_retire_repeatable_writes_after_commit_output_admission_fails() {
+    // Arrange
+    let fixture = Fixture::new();
+    let (session, origin) = fixture.repeatable(QueryCancellationHandle::new());
+
+    // Act
+    let (result, controls) = fixture.denied(&session, TransactionAction::Commit);
+    let status = session.transaction_status();
+
+    // Assert
+    assert_denied(result, &controls);
+    assert_eq!(status, "idle");
+    assert_eq!(origin.current_query_memory_bytes(), 0);
+    assert_eq!(
+        fixture
+            .cassie
+            .execute_sql(&session, "SELECT v FROM rr_commit_rows", Vec::new())
+            .expect("fresh unchanged value")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_retire_repeatable_writes_after_commit_input_admission_fails() {
+    // Arrange
+    let fixture = Fixture::new();
+    let (session, origin) = fixture.repeatable(QueryCancellationHandle::new());
+    let current = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_memory_budget_bytes: 64,
+            ..CassieRuntimeLimits::default()
+        },
+        Instant::now(),
+    );
+
+    // Act
+    let result = fixture
+        .cassie
+        .commit_transaction_with_controls(&session, &current);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(session.transaction_status(), "idle");
+    assert_eq!(origin.current_query_memory_bytes(), 0);
+    assert_eq!(current.current_query_memory_bytes(), 0);
+    assert_eq!(
+        fixture
+            .cassie
+            .execute_sql(&session, "SELECT v FROM rr_commit_rows", Vec::new())
+            .expect("fresh unchanged value")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_retire_repeatable_writes_after_a_same_payload_conflict() {
+    // Arrange
+    let fixture = Fixture::new();
+    let (session, origin) = fixture.repeatable(QueryCancellationHandle::new());
+    let row = fixture
+        .cassie
+        .midge
+        .scan_documents("rr_commit_rows")
+        .expect("committed row")
+        .into_iter()
+        .next()
+        .expect("one row");
+    fixture
+        .cassie
+        .midge
+        .put_document(
+            "rr_commit_rows",
+            Some(row.id),
+            serde_json::json!({"id":1,"v":1}),
+        )
+        .expect("same-payload competing native publication");
+    let current = fixture.cassie.runtime.query_controls(Instant::now());
+
+    // Act
+    let result = fixture
+        .cassie
+        .commit_transaction_with_controls(&session, &current);
+
+    // Assert
+    assert_eq!(
+        result
+            .expect_err("native old-start FCW")
+            .descriptor()
+            .sql_state,
+        "40001"
+    );
+    assert_eq!(session.transaction_status(), "idle");
+    assert_eq!(origin.current_query_memory_bytes(), 0);
+    assert_eq!(current.current_query_memory_bytes(), 0);
+    assert_eq!(
+        fixture
+            .cassie
+            .execute_sql(&session, "SELECT v FROM rr_commit_rows", Vec::new())
+            .expect("competing value survives")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_ignore_the_retired_capture_requests_cancellation_during_commit() {
+    // Arrange
+    let fixture = Fixture::new();
+    let cancelled_origin = QueryCancellationHandle::new();
+    let (session, origin) = fixture.repeatable(cancelled_origin.clone());
+    cancelled_origin.cancel();
+    let current = fixture.cassie.runtime.query_controls(Instant::now());
+
+    // Act
+    let result = fixture
+        .cassie
+        .commit_transaction_with_controls(&session, &current);
+
+    // Assert
+    assert!(result.is_ok());
+    assert_eq!(session.transaction_status(), "idle");
+    assert_eq!(origin.current_query_memory_bytes(), 0);
+    assert_eq!(current.current_query_memory_bytes(), 0);
+    assert_eq!(
+        fixture
+            .cassie
+            .execute_sql(&session, "SELECT v FROM rr_commit_rows", Vec::new())
+            .expect("confirmed own replacement")
+            .rows(),
+        &[vec![Value::Int64(2)]]
+    );
+}
+
+#[test]
+fn should_obey_the_current_commit_requests_cancellation() {
+    // Arrange
+    let fixture = Fixture::new();
+    let (session, origin) = fixture.repeatable(QueryCancellationHandle::new());
+    let cancelled_current = QueryCancellationHandle::new();
+    let current = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancelled_current.clone(),
+    );
+    cancelled_current.cancel();
+
+    // Act
+    let result = fixture
+        .cassie
+        .commit_transaction_with_controls(&session, &current);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(session.transaction_status(), "idle");
+    assert_eq!(origin.current_query_memory_bytes(), 0);
+    assert_eq!(current.current_query_memory_bytes(), 0);
+    assert_eq!(
+        fixture
+            .cassie
+            .execute_sql(&session, "SELECT v FROM rr_commit_rows", Vec::new())
+            .expect("unpublished own replacement")
+            .rows(),
+        &[vec![Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_preserve_confirmed_commit_success_after_request_cancellation() {
+    // Arrange
+    let fixture = Fixture::new();
+    let (session, origin) = fixture.repeatable(QueryCancellationHandle::new());
+    let cancellation = QueryCancellationHandle::new();
+    let current = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let confirmed = std::rc::Rc::new(std::cell::Cell::new(false));
+    let observed = std::rc::Rc::clone(&confirmed);
+    let cancel_after_native_ok = cancellation.clone();
+    let _observer = crate::midge::Midge::observe_next_row_commit_for_test(move || {
+        observed.set(true);
+        cancel_after_native_ok.cancel();
+    });
+
+    // Act
+    let result = fixture
+        .cassie
+        .commit_transaction_with_controls(&session, &current);
+
+    // Assert
+    assert!(confirmed.get());
+    assert!(cancellation.is_cancelled());
+    assert!(result.is_ok());
+    assert_eq!(session.transaction_status(), "idle");
+    assert_eq!(origin.current_query_memory_bytes(), 0);
+    assert_eq!(current.current_query_memory_bytes(), 0);
+    assert_eq!(
+        fixture
+            .cassie
+            .execute_sql(&session, "SELECT v FROM rr_commit_rows", Vec::new())
+            .expect("confirmed replacement remains")
+            .rows(),
+        &[vec![Value::Int64(2)]]
+    );
 }

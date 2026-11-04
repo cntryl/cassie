@@ -102,8 +102,8 @@ use dispatch::{preferred_access_path_route, AccessPathRoute};
 use result::{build_select_result, compare_query_values, deduce_text_fields, row_signature};
 
 mod dml;
-pub(crate) use dml::resolve_transaction_conflict_intents;
 pub(crate) use dml::{delete_is_joined, joined_returning_schema, update_is_joined};
+pub(crate) use dml::{repeatable_conflict_failure, resolve_transaction_conflict_intents};
 mod dml_command;
 mod dml_referential_actions;
 #[path = "dml_upsert_wait.rs"]

@@ -232,7 +232,6 @@ pub(crate) fn check_projection_activation_failure_point() -> Result<(), crate::a
     Ok(())
 }
 pub(crate) use execution::projection_verification_column_definitions;
-pub(crate) use execution::resolve_transaction_conflict_intents;
 pub(crate) use execution::show_result_columns;
 pub(crate) use execution::{
     compare_projection_column_definitions, diff_projection_column_definitions,
@@ -243,6 +242,7 @@ pub(crate) use execution::{
     plan_needs_user_functions, plan_uses_function, plan_uses_function_including_views,
     run_with_session_controls,
 };
+pub(crate) use execution::{repeatable_conflict_failure, resolve_transaction_conflict_intents};
 pub use execution::{
     run, run_with_controls, run_with_execution_breakdown, ColumnMeta, ExecutionBreakdownMicros,
     ExecutionBreakdownOutput, QueryError, QueryResult,

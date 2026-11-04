@@ -345,6 +345,22 @@ impl Midge {
         })
     }
 
+    pub(crate) fn with_transaction_write_gates<T>(
+        &self,
+        collections: &[String],
+        referential: bool,
+        controls: &crate::runtime::QueryExecutionControls,
+        operation: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        super::collection_gates::with_controls(
+            self,
+            collections,
+            referential.then_some(&self.referential_write_gate),
+            controls,
+            operation,
+        )
+    }
+
     pub(crate) fn with_collection_write_gates<T>(
         &self,
         collections: &[String],

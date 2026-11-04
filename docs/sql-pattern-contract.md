@@ -118,3 +118,50 @@ attempt envelope remains owned through builder cleanup and is released before a
 retry. Tight, case-sensitive literal patterns preserve the existing small
 literal compilation envelope. This selection requires final executable boundary
 and hostile-Unicode qualification; the model/source plan is interim evidence.
+
+The next constraint increment selects closed numeric backreferences and positive
+and negative lookahead/lookbehind, including variable-width lookbehind. Ordinary
+regular patterns retain the existing native path. Hard patterns use the public
+AST parser from pinned `fancy-regex` 0.19.2, then a private Cassie interpreter;
+neither that dependency's matcher nor its native compiler is invoked. Its
+published parser recursion ceiling is 64. The private interpreter has a finite
+10,000,000-step ceiling per search and enforces the existing query budget and
+deadline. Exhausted
+execution resources return `54000`; malformed or unselected syntax returns
+`2201B`, and interruption returns `57014`.
+
+Only previously closed capturing parentheses outside constraints can be
+referenced. Parentheses inside a lookaround are noncapturing, and backreferences
+inside a lookaround are invalid. An unmatched optional capture makes its
+backreference fail; a participating empty capture matches an empty string.
+Constraint evaluation retains the complete UTF-8 input for anchors and nested
+lookarounds. Lookbehind tests scalar boundaries and requires its body to end at
+the current position. Word and case classification remain the existing native
+Unicode profile. New named-reference, recursion, conditionals, atomic groups,
+backtracking verbs and Oniguruma syntax are not selected by the AST adapter.
+A separate source-notation guard rejects aliases erased by that parser, while
+preserving scoped expanded flags, ignored line/inline comments, escaped tokens
+and nested bracket contexts. It does not replace the structural AST parser.
+
+Count/replacement retain the finite existing leftmost-longest policy, including
+lazy quantifiers. Equal whole matches prefer earlier subexpressions, comparing
+their successive participating spans in traversal order; repeated captures
+expose the last participating iteration. Descendant captures are cleared before
+each iteration. A backreference-free repetition with a positive minimum
+prioritizes its noncapturing prefix before its final capturing iteration,
+following the pinned PostgreSQL compiler's corresponding rewrite. Other nullable
+repetitions stop an unnecessary zero-progress iteration, preventing an empty
+iteration from replacing a consumed capture. Pinned PostgreSQL controls qualify
+the selected greedy capture cases;
+this does not assert general POSIX submatch or locale parity.
+
+AST/program directories are admitted before parsing/construction. Interpreter
+state, capture/tag copies and vector replacements are admitted before allocation
+and keep their leases with their backing. Repetition uses iterative frontiers;
+recursive interpreter calls are bounded by the parser's structural limit.
+Regular atoms use the existing admitted PikeVM, with cancellation checked around
+each atom and each bounded interpreter step. Backreference comparisons check
+interruption while scanning scalars. Jev selected this architecture and parser
+with probability 1.0. Its 0.73 capture-priority concern produced pinned repeated
+capture and greedy-prefix probes before code. Executable qualification remains
+deferred to the frozen coherent bundle; these decisions are not test results.

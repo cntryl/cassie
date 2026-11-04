@@ -150,8 +150,8 @@ bundle's test phase. The calibration uses the actual private survey source with
 standalone control stubs and measures native allocation peaks independently;
 it has not run. Version-rollover stress remains separate from small correctness
 fixtures. None of these deferred checks is represented as passed. Backreference
-and lookaround obligations remain open under #799 while their exact contract is
-resolved against the current backend and product scope.
+and lookaround obligations remain open under #799 pending the subsequent finite
+constraint implementation and its frozen-bundle qualification.
 
 The subsequent focused source review retained advisory gaps of 0.35 for nested
 output lifetime, 0.38 for assertion comment/quote contexts, 0.53 for generated
@@ -171,3 +171,58 @@ could disagree with the registry's case-insensitive lookup. Raw helper calls now
 reject the resolved FunctionId, and mixed-case controls are authored. The earlier
 advisory private-call probability was 0.07; it did not establish correctness or
 prevent this source-confirmed repair. Its executable controls remain deferred.
+
+The following source batch implements the selected closed numeric references
+and all four lookaround kinds, including variable-width lookbehind, with the
+public AST parser from pinned `fancy-regex` 0.19.2 and a private Cassie interpreter.
+The dependency's opaque runtime, reverse DFA and cache pools are never called.
+Ordinary regular expressions retain the admitted native path; private atoms use
+the same native engine. Lock resolution added only the parser and its two new
+transitive packages, without changing any existing package version or Midge.
+
+Jev selected this architecture and its public AST representation at 1.0. A 0.73
+priority concern produced pinned PostgreSQL 18.6 greedy-prefix and repeated
+capture controls. A further 0.74 concern produced required-minimum, nested and
+empty-progress witnesses. The positive-minimum capture rule follows the pinned
+PostgreSQL compiler's backreference-free prefix/final-iteration rewrite; it is
+recorded in the finite contract before qualification. The selected whole-match
+policy remains Cassie's existing leftmost-longest policy for count/replacement,
+including lazy quantifiers, without a full POSIX capture claim.
+
+The focused implementation review retained gaps of 0.48 for parser resource
+ownership, 0.37 for capture numbering, 0.52 for class contexts, 0.72 for erased
+source notation and 0.51 for API consistency. Its walk review retained 0.44 for
+positive-minimum captures, 0.40 for lookbehind context, 0.61 for ownership, 0.37
+for interruption and 0.55 for empty progress. The authored probes cover large
+numeric targets under a small budget, parser recursion rejection, lookaround
+capture-number identities, invalid bracket constraints, full-context nested
+lookbehind, the pinned repetition corpus, exact 39/40-byte directory replacement
+boundaries, search error/drop/retry ownership and capture lifetime after program
+drop. Source inspection confirmed skipped priority tags and lookbehind result
+scans needed checks; both loops now check interruption, with a focused active
+skipped-tag cancellation control.
+Source inspection also found that pruning a nested repetition's prior child
+tags could remove tags belonging to an earlier outer iteration, invalidating an
+ancestor's saved tag offset. Pruning is now bounded by the current repetition's
+entry floor. The pinned `((a|ab)+)*` capture control is the corresponding
+authored regression; it remains deferred with the rest of this batch.
+
+The public parser erases some unselected aliases into ordinary AST nodes.
+Jev chose a separate source-notation guard at 1.0, retaining a 0.79 context concern.
+The guard admits selected escapes/flags while preserving scoped expanded syntax,
+line/inline comments, escaped tokens and nested/leading bracket contexts; the
+published AST remains the structural parser. Corresponding accepted/rejected
+contexts are authored. A second three-row real pgwire CancelRequest fixture
+selects an ARE constraint predicate and asserts `57014`, no partial DataRows or
+CommandComplete, idle ReadyForQuery, memory release and same-session recovery.
+The final focused source review chose the private 10,000,000-step ceiling at
+0.96, with context/ownership concerns of 0.53, 0.49 and 0.58 retained against the
+authored scoped-comment, bracket and capacity/lifetime probes. The original
+adverse probabilities remain part of the gate record.
+
+Every newly authored probe in this batch remains unexecuted under the user's
+deferred-compilation instruction. Source review, formatting edits, oracle output
+and Jev judgments are interim evidence. The final coherent bundle still needs
+build, locked tests, strict full Clippy, formatting and touched-test policy in
+the required order, together with the deferred native allocation corpus. Neither
+#799 nor the broader #954 is closed by this source batch.

@@ -5,9 +5,12 @@ use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::BatchRow;
 use crate::executor::filter;
+use crate::executor::semantic::SemanticValue;
 use crate::sql::ast::{Expr, FunctionCall};
 use crate::types::Value;
 
+use super::retained_change::RetainedChange;
+use super::state::{has_bytea_carrier, is_string_aggregate, AggregateAccumulator};
 use super::{AggregateExecutionContext, QueryError};
 
 pub(super) struct AggregateValueContext<'a> {
@@ -165,5 +168,85 @@ pub(super) fn stored_json_column_value(row: &BatchRow, expr: &Expr) -> Option<Va
     match row.get(name) {
         Some(value @ Value::Json(_)) => Some(value.clone()),
         _ => None,
+    }
+}
+
+fn has_bytea_pair(value: &Value, delimiter: Option<&Value>) -> bool {
+    has_bytea_carrier(value) && delimiter.is_some_and(has_bytea_carrier)
+}
+
+impl AggregateAccumulator {
+    pub(super) fn update(
+        &mut self,
+        function: &FunctionCall,
+        row: &BatchRow,
+        params: &[Value],
+        search_context: Option<&filter::SearchContext>,
+        user_functions: &HashMap<String, FunctionMeta>,
+        session: Option<&CassieSession>,
+    ) -> Result<RetainedChange, QueryError> {
+        Ok(self
+            .update_selected(
+                function,
+                row,
+                params,
+                search_context,
+                user_functions,
+                session,
+            )?
+            .unwrap_or_default())
+    }
+
+    pub(super) fn update_selected(
+        &mut self,
+        function: &FunctionCall,
+        row: &BatchRow,
+        params: &[Value],
+        search_context: Option<&filter::SearchContext>,
+        user_functions: &HashMap<String, FunctionMeta>,
+        session: Option<&CassieSession>,
+    ) -> Result<Option<RetainedChange>, QueryError> {
+        let value_context = AggregateValueContext {
+            params,
+            search_context,
+            user_functions,
+            session,
+        };
+        let Some(value) = selected_input(function, row, &value_context)? else {
+            return Ok(None);
+        };
+        let second_argument = if matches!(
+            self,
+            Self::StringAgg { .. } | Self::Regression(_) | Self::Collection { .. }
+        ) {
+            Some(evaluate_argument(function, 1, row, &value_context)?)
+        } else {
+            None
+        };
+        let key = if matches!(self, Self::MinMax { .. }) {
+            function
+                .args
+                .first()
+                .map(|expr| crate::executor::array_order::key(row, expr, &value, user_functions))
+                .filter(|key| {
+                    matches!(
+                        key,
+                        SemanticValue::Array(_) | SemanticValue::SqlArray { .. }
+                    )
+                })
+        } else {
+            None
+        };
+        let bytea = is_string_aggregate(function)
+            && (function.args.first().is_some_and(|argument| {
+                crate::executor::array_order::expression_type(row, argument, user_functions)
+                    == Some(crate::types::DataType::Bytea)
+            }) || has_bytea_pair(&value, second_argument.as_ref()));
+        let change = if bytea {
+            self.update_values_with_bytea(function, value, key, second_argument, true)
+        } else {
+            self.update_values(function, value, key, second_argument)
+        }?;
+        Ok(Some(change))
     }
 }

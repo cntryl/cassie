@@ -1,10 +1,7 @@
 use crate::types::numeric::{self, i128_to_f64, i64_to_f64, usize_to_f64};
-use std::collections::HashMap;
 
-use crate::app::{CassieError, CassieSession};
-use crate::catalog::FunctionMeta;
+use crate::app::CassieError;
 use crate::executor::batch::BatchRow;
-use crate::executor::filter;
 use crate::executor::semantic::{compare_values, SemanticValue};
 use crate::sql::ast::FunctionCall;
 use crate::types::extended::numeric::{math as numeric_math, Numeric};
@@ -15,7 +12,6 @@ use super::bitwise::BitwiseState;
 use super::boolean::BooleanState;
 use super::regression::RegressionAccumulator;
 use super::retained_change::{value_retained_bytes, RetainedChange};
-use super::state_input::{self, AggregateValueContext};
 use super::statistical::StatisticalAccumulator;
 use super::{AggregateExecutionContext, AggregateSpec, QueryError};
 
@@ -125,10 +121,6 @@ pub(super) fn has_bytea_carrier(value: &Value) -> bool {
         .is_some_and(|hex| hex.len() % 2 == 0 && hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
 }
 
-fn has_bytea_pair(value: &Value, delimiter: Option<&Value>) -> bool {
-    has_bytea_carrier(value) && delimiter.is_some_and(has_bytea_carrier)
-}
-
 impl AggregateAccumulator {
     /// Accounted bytes for this accumulator, including a retained MIN/MAX
     /// value whose size depends on the input (for example long text).
@@ -192,7 +184,7 @@ impl AggregateAccumulator {
         let mut retained_key_bytes = 0;
         for row in rows {
             super::check_timeout(context.controls)?;
-            accumulator.update(
+            let selected = accumulator.update_selected(
                 function,
                 row,
                 context.params,
@@ -200,6 +192,13 @@ impl AggregateAccumulator {
                 context.user_functions,
                 context.session,
             )?;
+            #[cfg(test)]
+            if let Some(observer) = context.after_partition_row {
+                observer(0);
+            }
+            if selected.is_none() {
+                continue;
+            }
             let bytes = match &accumulator {
                 Self::MinMax { key: Some(key), .. } => key.estimated_bytes(),
                 Self::AnyValue {
@@ -211,7 +210,10 @@ impl AggregateAccumulator {
             };
             key_memory.resize(retained_key_bytes, bytes)?;
             retained_key_bytes = bytes;
+            context.controls.aggregate_input_retained()?;
+            super::check_timeout(context.controls)?;
         }
+        super::check_timeout(context.controls)?;
         accumulator.finish()
     }
 
@@ -270,63 +272,6 @@ impl AggregateAccumulator {
                 key: None,
                 max: false,
             },
-        }
-    }
-
-    pub(super) fn update(
-        &mut self,
-        function: &FunctionCall,
-        row: &BatchRow,
-        params: &[Value],
-        search_context: Option<&filter::SearchContext>,
-        user_functions: &HashMap<String, FunctionMeta>,
-        session: Option<&CassieSession>,
-    ) -> Result<RetainedChange, QueryError> {
-        let value_context = AggregateValueContext {
-            params,
-            search_context,
-            user_functions,
-            session,
-        };
-        let Some(value) = state_input::selected_input(function, row, &value_context)? else {
-            return Ok(RetainedChange::default());
-        };
-        let second_argument = if matches!(
-            self,
-            Self::StringAgg { .. } | Self::Regression(_) | Self::Collection { .. }
-        ) {
-            Some(state_input::evaluate_argument(
-                function,
-                1,
-                row,
-                &value_context,
-            )?)
-        } else {
-            None
-        };
-        let key = if matches!(self, Self::MinMax { .. }) {
-            function
-                .args
-                .first()
-                .map(|expr| crate::executor::array_order::key(row, expr, &value, user_functions))
-                .filter(|key| {
-                    matches!(
-                        key,
-                        SemanticValue::Array(_) | SemanticValue::SqlArray { .. }
-                    )
-                })
-        } else {
-            None
-        };
-        let bytea = is_string_aggregate(function)
-            && (function.args.first().is_some_and(|argument| {
-                crate::executor::array_order::expression_type(row, argument, user_functions)
-                    == Some(crate::types::DataType::Bytea)
-            }) || has_bytea_pair(&value, second_argument.as_ref()));
-        if bytea {
-            self.update_values_with_bytea(function, value, key, second_argument, true)
-        } else {
-            self.update_values(function, value, key, second_argument)
         }
     }
 
@@ -868,7 +813,7 @@ fn update_average(
     Ok(())
 }
 
-fn is_string_aggregate(function: &FunctionCall) -> bool {
+pub(super) fn is_string_aggregate(function: &FunctionCall) -> bool {
     crate::sql::functions::function(&function.name)
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
 }

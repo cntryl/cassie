@@ -124,10 +124,10 @@ struct PreparedInput {
 
 struct ModifierAccumulator {
     seen: Seen,
-    state_memory: QueryMemoryReservation,
     accumulator: AggregateAccumulator,
-    memory: QueryMemoryReservation,
+    state_memory: QueryMemoryReservation,
     inputs: Vec<OrderedInput>,
+    memory: QueryMemoryReservation,
 }
 
 fn prepare_input(
@@ -300,8 +300,9 @@ impl ModifierAccumulator {
     fn finish(
         mut self,
         function: &FunctionCall,
+        row: Option<&BatchRow>,
         context: &AggregateExecutionContext<'_>,
-    ) -> Result<Value, QueryError> {
+    ) -> Result<super::collection_json::AggregateOutput, QueryError> {
         if !self.inputs.is_empty() {
             let (indices, _sort_memory) = sorted_indices(&self.inputs, function, context.controls)?;
             for index in indices {
@@ -325,7 +326,7 @@ impl ModifierAccumulator {
             }
         }
         check_timeout(context.controls)?;
-        self.accumulator.finish()
+        self.accumulator.finish_with_context(function, row, context)
     }
 }
 
@@ -334,12 +335,20 @@ pub(super) fn evaluate(
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
+    evaluate_owned(function, rows, context).map(super::collection_json::AggregateOutput::into_value)
+}
+
+pub(super) fn evaluate_owned(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    context: &AggregateExecutionContext<'_>,
+) -> Result<super::collection_json::AggregateOutput, QueryError> {
     let mut accumulator = ModifierAccumulator::new(function, context)?;
     for row in rows {
         check_timeout(context.controls)?;
         accumulator.push_row(function, row, context)?;
     }
-    accumulator.finish(function, context)
+    accumulator.finish(function, rows.first(), context)
 }
 
 fn ordered_keys(

@@ -100,13 +100,16 @@ fn collection_aggregate_text_cast<R: RowAccess + ?Sized>(
     else {
         return Ok(None);
     };
-    let ScalarValue::Json(text) = eval_scalar_with_context(row, expr, context)? else {
-        return Ok(None);
-    };
-    let document = serde_json::from_str::<serde_json::Value>(&text)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let formatted = collection_aggregate_json_text(*kind, document)?;
-    Ok(Some(ScalarValue::Str(formatted)))
+    match super::evaluate_expr_value_with_context(row, expr, context)? {
+        // Contextual finalization already preserves JSON input text, member
+        // order and duplicate keys. Re-parsing it would destroy that identity.
+        crate::types::Value::String(text) => Ok(Some(ScalarValue::Str(text))),
+        crate::types::Value::Json(document) => collection_aggregate_json_text(*kind, document)
+            .map(ScalarValue::Str)
+            .map(Some),
+        crate::types::Value::Null => Ok(Some(ScalarValue::Null)),
+        _ => Ok(None),
+    }
 }
 
 fn collection_aggregate_json_text(

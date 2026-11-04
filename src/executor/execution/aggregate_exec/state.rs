@@ -90,6 +90,7 @@ pub(super) enum AggregateAccumulator {
     Collection {
         kind: crate::sql::functions::CollectionAggregate,
         values: Vec<(Value, Option<Value>)>,
+        seen_input: bool,
     },
     Sum {
         sum: NumericSum,
@@ -251,6 +252,7 @@ impl AggregateAccumulator {
             return Self::Collection {
                 kind,
                 values: Vec::new(),
+                seen_input: false,
             };
         }
         match function.name.to_ascii_lowercase().as_str() {
@@ -334,7 +336,12 @@ impl AggregateAccumulator {
             Self::StringAgg { value: output } => {
                 return update_string_aggregate(output, function, value, second_argument, bytea);
             }
-            Self::Collection { kind, values } => {
+            Self::Collection {
+                kind,
+                values,
+                seen_input,
+            } => {
+                *seen_input = true;
                 return update_collection_values(*kind, values, value, second_argument);
             }
             Self::Sum { sum, seen } => update_sum(sum, seen, function, value)?,
@@ -464,7 +471,11 @@ impl AggregateAccumulator {
             }
             Self::Count { count } => Value::Int64(count),
             Self::StringAgg { value } => value.map_or(Value::Null, Value::String),
-            Self::Collection { kind, values } => finish_collection(kind, values)?,
+            Self::Collection {
+                kind,
+                values,
+                seen_input,
+            } => finish_collection(kind, values, seen_input)?,
             Self::Sum { sum, seen } => {
                 if seen {
                     sum.finish_value()?
@@ -543,6 +554,28 @@ impl AggregateAccumulator {
                 .saturating_mul(2)
                 .saturating_mul(std::mem::size_of::<(Value, Option<Value>)>()),
             _ => 0,
+        }
+    }
+
+    pub(super) fn finish_with_context(
+        self,
+        function: &FunctionCall,
+        row: Option<&BatchRow>,
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<super::collection_json::AggregateOutput, QueryError> {
+        match self {
+            Self::Collection {
+                kind,
+                values,
+                seen_input,
+            } if kind != crate::sql::functions::CollectionAggregate::Array => {
+                super::collection_json::finish_scoped(
+                    function, row, context, kind, values, seen_input,
+                )
+            }
+            _ => self
+                .finish()
+                .map(super::collection_json::AggregateOutput::from_value),
         }
     }
 }
@@ -658,23 +691,6 @@ fn update_sum(
     Ok(())
 }
 
-fn value_to_json(value: &Value) -> serde_json::Value {
-    match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(value) => serde_json::Value::Bool(*value),
-        Value::Int64(value) => serde_json::Value::Number((*value).into()),
-        Value::Float64(value) => serde_json::Number::from_f64(*value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
-        Value::String(value) => serde_json::Value::String(value.clone()),
-        Value::Json(value) => value.clone(),
-        Value::Array(value) => value.to_nested_json(),
-        Value::Vector(value) => {
-            serde_json::to_value(value.values.clone()).unwrap_or(serde_json::Value::Null)
-        }
-        Value::Typed(value) => serde_json::Value::String(value.text()),
-    }
-}
-
 fn collection_values_retained_bytes(values: &Vec<(Value, Option<Value>)>) -> usize {
     values
         .iter()
@@ -692,97 +708,18 @@ fn collection_values_retained_bytes(values: &Vec<(Value, Option<Value>)>) -> usi
 fn finish_collection(
     kind: crate::sql::functions::CollectionAggregate,
     values: Vec<(Value, Option<Value>)>,
+    seen_input: bool,
 ) -> Result<Value, QueryError> {
+    if kind != crate::sql::functions::CollectionAggregate::Array {
+        return super::collection_json::finish_unscoped(kind, values, seen_input);
+    }
     if values.is_empty() {
         return Ok(Value::Null);
     }
-    match kind {
-        crate::sql::functions::CollectionAggregate::Array => {
-            let values = values.into_iter().map(|(value, _)| value).collect();
-            crate::types::array_value::SqlArray::from_nested_values(values)
-                .map(Value::Array)
-                .map_err(|error| QueryError::General(format!("array_agg: {error}")))
-        }
-        crate::sql::functions::CollectionAggregate::Json { .. } => {
-            Ok(Value::Json(serde_json::Value::Array(
-                values
-                    .into_iter()
-                    .map(|(value, _)| value_to_json(&value))
-                    .collect(),
-            )))
-        }
-        crate::sql::functions::CollectionAggregate::JsonObject { binary: false, .. } => {
-            if values.iter().all(|(_, value)| value.is_none()) {
-                return Ok(Value::Null);
-            }
-            let entries = values
-                .into_iter()
-                .filter_map(|(key, value)| value.map(|value| (key, value)))
-                .map(|(key, value)| {
-                    let key = json_object_key_text(&key);
-                    let key = serde_json::to_string(&key).unwrap_or_default();
-                    let value = value_to_json(&value);
-                    let value =
-                        crate::types::jsonb::format(&value).unwrap_or_else(|_| value.to_string());
-                    format!("{key} : {value}")
-                })
-                .collect::<Vec<_>>();
-            Ok(Value::String(format!("{{ {} }}", entries.join(", "))))
-        }
-        crate::sql::functions::CollectionAggregate::JsonObject { binary: true, .. } => {
-            if values.iter().all(|(_, value)| value.is_none()) {
-                return Ok(Value::Null);
-            }
-            let mut object = serde_json::Map::new();
-            for (key, value) in values {
-                let Some(value) = value else {
-                    continue;
-                };
-                let key = json_object_key_text(&key);
-                let value = value_to_json(&value);
-                if object.insert(key, value).is_some()
-                    && matches!(
-                        kind,
-                        crate::sql::functions::CollectionAggregate::JsonObject { unique: true, .. }
-                    )
-                {
-                    return Err(
-                        crate::app::CassieError::from(crate::app::DiagnosticError::new(
-                            "22030",
-                            "duplicate JSON object key value",
-                        ))
-                        .into(),
-                    );
-                }
-            }
-            Ok(Value::Json(serde_json::Value::Object(object)))
-        }
-    }
-}
-
-fn json_object_key_text(value: &Value) -> String {
-    match value {
-        Value::Null => String::new(),
-        Value::Bool(value) => value.to_string(),
-        Value::Int64(value) => value.to_string(),
-        Value::Float64(value) => value.to_string(),
-        Value::String(value) => value.clone(),
-        Value::Typed(value) => value.text(),
-        Value::Array(value) => {
-            crate::types::array_value::format_text(value, &crate::types::DataType::Text)
-                .unwrap_or_else(|| value.to_nested_json().to_string())
-        }
-        Value::Json(value) => value.to_string(),
-        Value::Vector(value) => format!(
-            "[{}]",
-            value
-                .values
-                .iter()
-                .map(std::string::ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",")
-        ),
-    }
+    let values = values.into_iter().map(|(value, _)| value).collect();
+    crate::types::array_value::SqlArray::from_nested_values(values)
+        .map(Value::Array)
+        .map_err(|error| QueryError::General(format!("array_agg: {error}")))
 }
 
 fn update_average(

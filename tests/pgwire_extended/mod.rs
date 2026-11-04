@@ -119,6 +119,9 @@ mod aggregates_array_agg_resources;
 #[path = "aggregates/json_agg/resources.rs"]
 mod aggregates_json_agg_resources;
 
+#[path = "aggregates/json_typed_conversion.rs"]
+mod aggregates_json_typed_conversion;
+
 #[path = "aggregates/json_object_agg/resources.rs"]
 mod aggregates_json_object_agg_resources;
 

@@ -98,7 +98,39 @@ impl Cassie {
             );
         }
 
+        if session.is_implicit_transaction()
+            && matches!(parsed.statement, QueryStatement::CreateTable(_))
+        {
+            return self.execute_implicit_table_creation(
+                session,
+                parsed,
+                sql_fingerprint,
+                parameters,
+                mode,
+                controls,
+            );
+        }
         let _publication_read = self.catalog_publication.read();
+        self.execute_bound_catalog_scoped(
+            session,
+            parsed,
+            sql_fingerprint,
+            parameters,
+            mode,
+            controls,
+        )
+    }
+
+    /// The caller holds the publication read or write guard for this statement.
+    pub(super) fn execute_bound_catalog_scoped(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<Value>, &[i32], bool),
+        mode: ExecutionMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
         let transaction_active = session.is_transaction_active();
         let catalog_statement =
             parsed.statement.family() != crate::sql::ast::StatementFamily::Runtime;

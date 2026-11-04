@@ -4,6 +4,20 @@ use super::{
     ordered_cmp, vector_distance, BinaryOp, QueryError, ScalarValue,
 };
 
+pub(super) fn binary_scalar_with_controls(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<ScalarValue, QueryError> {
+    if super::json_containment::handles(op)
+        && (matches!(left, ScalarValue::Json(_)) || matches!(right, ScalarValue::Json(_)))
+    {
+        return super::json_containment::evaluate_with_controls(op, left, right, controls);
+    }
+    binary_scalar(left, op, right)
+}
+
 pub(super) fn binary_scalar(
     left: &ScalarValue,
     op: &BinaryOp,

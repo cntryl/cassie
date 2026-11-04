@@ -65,17 +65,26 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         && (is_json_typed_input(row, left, &left_value)
             || is_json_typed_input(row, right, &right_value))
     {
-        let left_value = if is_json_typed_input(row, left, &left_value) {
+        let left_value = if is_json_typed_input(row, left, &left_value)
+            && !matches!(left_value, ScalarValue::Json(_) | ScalarValue::Null)
+        {
             json_concat::as_json_document(&left_value)?
         } else {
             left_value
         };
-        let right_value = if is_json_typed_input(row, right, &right_value) {
+        let right_value = if is_json_typed_input(row, right, &right_value)
+            && !matches!(right_value, ScalarValue::Json(_) | ScalarValue::Null)
+        {
             json_concat::as_json_document(&right_value)?
         } else {
             right_value
         };
-        return json_containment::evaluate(op, &left_value, &right_value);
+        let controls = context.controls.or_else(|| {
+            context
+                .session
+                .and_then(crate::app::CassieSession::statement_execution_controls)
+        });
+        return json_containment::evaluate_with_controls(op, &left_value, &right_value, controls);
     }
     if *op == BinaryOp::Concat {
         let left_is_json = is_json_typed_input(row, left, &left_value);

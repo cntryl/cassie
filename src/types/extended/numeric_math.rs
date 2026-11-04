@@ -8,6 +8,10 @@ use super::{pow10, Numeric, TypeInputError, MAX_DISPLAY_SCALE, MAX_DSCALE};
 /// `NUMERIC_MIN_SIG_DIGITS`.
 const MIN_SIG_DIGITS: i64 = 16;
 
+/// PostgreSQL `exp_var` bounds its original argument independently of display
+/// scale: three times `NUMERIC_MAX_RESULT_SCALE` (twice the display-scale cap).
+const MAX_EXP_ARGUMENT: u32 = MAX_DISPLAY_SCALE * 6;
+
 fn error(sqlstate: &'static str, message: &str) -> TypeInputError {
     TypeInputError {
         sqlstate,
@@ -633,12 +637,19 @@ pub fn exp(value: &Numeric) -> Result<Numeric, TypeInputError> {
             other => other.clone(),
         });
     };
-    let approximate_weight =
-        (approximate(value) * std::f64::consts::LOG10_E).clamp(-2000.0, 2000.0);
-    if approximate_weight > 131_072.0 * 0.999 {
+    let approximate_input = approximate(value);
+    if approximate_input >= f64::from(MAX_EXP_ARGUMENT) {
         return Err(error("22003", "value overflows numeric format"));
     }
-    let weight = approximate_weight.trunc().to_i64().unwrap_or_default();
+    if approximate_input <= -f64::from(MAX_EXP_ARGUMENT) {
+        return Ok(Numeric::finite(BigInt::zero(), MAX_DISPLAY_SCALE));
+    }
+    // Guard the original input before choosing working precision. Clamping
+    // this weight for display-scale selection loses integer result digits.
+    let weight = (approximate_input * std::f64::consts::LOG10_E)
+        .trunc()
+        .to_i64()
+        .unwrap_or_default();
     let result_scale = clamp_scale((MIN_SIG_DIGITS - weight).max(i64::from(*scale)));
     let work = Fixed {
         value: BigInt::zero(),

@@ -6,6 +6,144 @@ fn numeric(text: &str) -> Numeric {
 }
 
 #[test]
+fn should_reject_finite_numeric_exponential_overflow_before_fixed_point_construction() {
+    // Arrange
+    let cases = ["6000", "6000.00", "1e400"];
+
+    // Act
+    let results = cases.map(|input| exp(&numeric(input)));
+
+    // Assert
+    for result in results {
+        assert_eq!(result.expect_err("PostgreSQL EXP bound").sqlstate, "22003");
+    }
+}
+
+#[test]
+fn should_preserve_finite_exponential_underflow_scale_and_special_infinity_identity() {
+    // Arrange
+    let cases = ["-6000", "-1e400"];
+    let expected_zero = format!("0.{}", "0".repeat(1000));
+
+    // Act
+    let results = cases.map(|input| exp(&numeric(input)).expect("finite underflow").to_string());
+    let infinity_zero = exp(&numeric("-Infinity")).expect("negative infinity");
+
+    // Assert
+    assert_eq!(results, [expected_zero.clone(), expected_zero]);
+    assert_eq!(infinity_zero.to_string(), "0");
+}
+
+#[test]
+fn should_preserve_integer_power_range_when_bounded_workspace_uses_an_exponential_fallback() {
+    // Arrange
+    let base = numeric(&format!("10.{}", "0".repeat(100)));
+    let exponent = numeric("3000");
+    let expected = format!("1{}.{}", "0".repeat(3000), "0".repeat(100));
+
+    // Act
+    let integer_result = power(&base, &exponent).expect("INT32 exponent range");
+    let general_result = power(&numeric("1e4"), &numeric("1000.5"));
+
+    // Assert
+    assert_eq!(integer_result.to_string(), expected);
+    assert_eq!(
+        general_result
+            .expect_err("general exponential bound")
+            .sqlstate,
+        "22003"
+    );
+}
+
+#[test]
+fn should_preserve_all_integer_digits_of_a_supported_large_numeric_exponential() {
+    // Arrange
+    let expected = include_str!("../../../tests/fixtures/math/exp-5000-pg18.6.txt").trim();
+    let input = numeric("5000");
+
+    // Act
+    let result = exp(&input).expect("supported finite exponential");
+
+    // Assert
+    assert_eq!(result.to_string(), expected);
+}
+
+#[test]
+fn should_refine_power_precision_after_an_extreme_exponent_amplifies_a_near_unity_base() {
+    // Arrange
+    let base = numeric(&format!("1.{}1", "0".repeat(399)));
+    let cases = [
+        (
+            "1e403",
+            include_str!("../../../tests/fixtures/math/power-near-one-positive-pg18.6.txt"),
+        ),
+        (
+            "-1e403",
+            include_str!("../../../tests/fixtures/math/power-near-one-negative-pg18.6.txt"),
+        ),
+    ];
+
+    // Act
+    let results = cases.map(|(exponent, _)| {
+        power(&base, &numeric(exponent))
+            .expect("finite power")
+            .to_string()
+    });
+
+    // Assert
+    assert_eq!(results, cases.map(|(_, expected)| expected.trim()));
+}
+
+#[test]
+fn should_preserve_reciprocal_scale_and_sign_in_the_bounded_integer_power_fallback() {
+    // Arrange
+    let magnitude = format!("10.{}", "0".repeat(1000));
+    let cases = [
+        (
+            magnitude.clone(),
+            "-200",
+            format!("0.{}1{}", "0".repeat(199), "0".repeat(800)),
+        ),
+        (
+            format!("-{magnitude}"),
+            "-201",
+            format!("-0.{}1{}", "0".repeat(200), "0".repeat(799)),
+        ),
+    ];
+
+    // Act
+    let results = cases.each_ref().map(|(base, exponent, _)| {
+        power(&numeric(base), &numeric(exponent))
+            .expect("finite reciprocal")
+            .to_string()
+    });
+
+    // Assert
+    assert_eq!(results, cases.map(|(_, _, expected)| expected));
+}
+
+#[test]
+fn should_apply_the_upstream_float8_guard_to_corrected_near_boundary_exponential_arguments() {
+    // Arrange
+    let near_one = numeric(&format!("1.{}1", "0".repeat(399)));
+    let below_but_rounded_to_boundary = numeric("5999.99999999999999999999");
+
+    // Act
+    let direct = exp(&below_but_rounded_to_boundary);
+    let general = power(&near_one, &numeric("6e403"));
+
+    // Assert
+    assert_eq!(
+        direct.expect_err("upstream FLOAT8 boundary").sqlstate,
+        "22003"
+    );
+    assert_eq!(
+        general.expect_err("corrected product boundary").sqlstate,
+        "22003"
+    );
+}
+
+#[test]
 fn should_reject_undefined_numeric_powers_with_infinite_operands() {
     // Arrange
     let cases = [("-Infinity", "0.5"), ("0", "-Infinity")];

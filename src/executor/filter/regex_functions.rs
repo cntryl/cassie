@@ -1,6 +1,6 @@
 //! Bounded PostgreSQL regular-expression scalar functions.
 
-use regex_automata::{util::captures::Captures, Anchored, Input, Match, MatchKind};
+use regex_automata::{Anchored, Input, Match, MatchKind};
 
 use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
@@ -36,7 +36,13 @@ mod pattern_arguments;
 #[path = "regex_workspace.rs"]
 mod workspace;
 
-use bounded::Regex;
+#[path = "regex_constraints.rs"]
+mod constraints;
+
+#[path = "regex_matcher.rs"]
+mod matcher;
+
+use matcher::{Captures, Regex};
 
 pub(super) fn evaluate_expression<R: crate::executor::batch::RowAccess + ?Sized>(
     function: &crate::sql::ast::FunctionCall,
@@ -103,7 +109,7 @@ fn regexp_like_text(
     check_interruption(controls)?;
     let regex = compiler::compile(pattern, flags, controls)?;
     check_interruption(controls)?;
-    let matched = regex.is_match(input);
+    let matched = regex.is_match(input, controls)?;
     regex_search_completed(controls, matched)?;
     check_interruption(controls)?;
     Ok(matched)
@@ -143,7 +149,8 @@ fn regexp_count(
     let mut search_start = byte_start;
     loop {
         check_interruption(controls)?;
-        let Some(matched) = find_leftmost_longest(&regex, &longest_regex, input, search_start)
+        let Some(matched) =
+            find_leftmost_longest(&regex, &longest_regex, input, search_start, controls)?
         else {
             break;
         };
@@ -216,6 +223,7 @@ fn regexp_replace(
         start: start_byte,
         occurrence,
         replace_all,
+        controls,
     };
     let mut check = || check_interruption(controls);
 
@@ -256,12 +264,18 @@ fn find_leftmost_longest(
     longest: &Regex,
     input: &str,
     search_start: usize,
-) -> Option<Match> {
-    let first = leftmost.find(Input::new(input).range(search_start..input.len()))?;
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Option<Match>, QueryError> {
+    let Some(first) =
+        leftmost.find(Input::new(input).range(search_start..input.len()), controls)?
+    else {
+        return Ok(None);
+    };
     longest.find(
         Input::new(input)
             .range(first.start()..input.len())
             .anchored(Anchored::Yes),
+        controls,
     )
 }
 
@@ -272,6 +286,7 @@ struct ReplacementWalk<'a> {
     start: usize,
     occurrence: usize,
     replace_all: bool,
+    controls: Option<&'a QueryExecutionControls>,
 }
 
 impl ReplacementWalk<'_> {
@@ -280,7 +295,7 @@ impl ReplacementWalk<'_> {
         check: &mut impl FnMut() -> Result<(), QueryError>,
         mut visit: impl FnMut(&Captures, std::ops::Range<usize>) -> Result<(), QueryError>,
     ) -> Result<usize, QueryError> {
-        let mut captures = self.longest.create_captures();
+        let mut captures = self.longest.create_captures(self.controls)?;
         let mut search_start = self.start;
         let mut output_cursor = 0_usize;
         let mut found = 0_usize;
@@ -292,7 +307,9 @@ impl ReplacementWalk<'_> {
                 self.input,
                 search_start,
                 &mut captures,
-            ) else {
+                self.controls,
+            )?
+            else {
                 break;
             };
             found = found
@@ -320,15 +337,21 @@ fn find_leftmost_longest_captures(
     input: &str,
     search_start: usize,
     captures: &mut Captures,
-) -> Option<Match> {
-    let first = leftmost.find(Input::new(input).range(search_start..input.len()))?;
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Option<Match>, QueryError> {
+    let Some(first) =
+        leftmost.find(Input::new(input).range(search_start..input.len()), controls)?
+    else {
+        return Ok(None);
+    };
     longest.search_captures(
         &Input::new(input)
             .range(first.start()..input.len())
             .anchored(Anchored::Yes),
         captures,
-    );
-    captures.get_match()
+        controls,
+    )?;
+    Ok(captures.get_match())
 }
 
 fn advance_after_match(input: &str, matched: Match) -> Option<usize> {
@@ -632,9 +655,12 @@ mod tests {
             .expect("longest regex compiles");
 
         // Act
-        let first = find_leftmost_longest(&leftmost, &longest, input, 0).expect("first match");
-        let second =
-            find_leftmost_longest(&leftmost, &longest, input, first.end()).expect("second match");
+        let first = find_leftmost_longest(&leftmost, &longest, input, 0, None)
+            .expect("search succeeds")
+            .expect("first match");
+        let second = find_leftmost_longest(&leftmost, &longest, input, first.end(), None)
+            .expect("search succeeds")
+            .expect("second match");
 
         // Assert
         assert_eq!(second.start()..second.end(), 2..3);
@@ -649,8 +675,8 @@ mod tests {
         let observations = depths.map(|depth| {
             let pattern = format!("{}a{}", "[^".repeat(depth), "]".repeat(depth));
             (
-                compile(&pattern, "w").map(|regex| regex.is_match("b")),
-                compile(&pattern, "n").map(|regex| regex.is_match("b")),
+                compile(&pattern, "w").and_then(|regex| regex.is_match("b", None)),
+                compile(&pattern, "n").and_then(|regex| regex.is_match("b", None)),
             )
         });
 
@@ -713,7 +739,12 @@ mod tests {
     #[test]
     fn should_report_the_completed_regex_match_before_active_cancellation() {
         // Arrange
-        let cases = [("b", true), ("z", false)];
+        let cases = [
+            ("b", true),
+            ("z", false),
+            ("(?=b)b", true),
+            (r"(b)\1", false),
+        ];
 
         for (pattern, expected) in cases {
             let (guard, selected, resume) = crate::runtime::pause_next_query_after_regex_search();
@@ -788,6 +819,7 @@ mod tests {
             start: 0,
             occurrence: 0,
             replace_all: true,
+            controls: None,
         };
 
         // Act

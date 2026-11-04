@@ -5,8 +5,8 @@ use regex_automata::{util::syntax, MatchKind};
 use crate::runtime::QueryExecutionControls;
 
 use super::{
-    bounded::Regex, invalid_regular_expression, newline_classes, pattern_memory::PatternText,
-    regex_assertions, resource_limit, QueryError,
+    bounded, constraints, invalid_regular_expression, matcher::Regex, newline_classes,
+    pattern_memory::PatternText, regex_assertions, resource_limit, QueryError,
 };
 
 pub(super) fn compile(
@@ -44,6 +44,34 @@ fn compile_with_options(
     match_kind: Option<MatchKind>,
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Regex, QueryError> {
+    match compile_native(pattern, options, match_kind, controls) {
+        Ok(regex) => Ok(Regex::Native(regex)),
+        Err(error) if matches!(&error, QueryError::Cassie(crate::app::CassieError::Diagnostic(diagnostic)) if diagnostic.sql_state == "2201B") =>
+        {
+            let (prepared, quoted, advanced) = source_pattern(pattern, options, controls)?;
+            if quoted {
+                return Err(error);
+            }
+            let syntax = syntax_config(options, false);
+            constraints::Regex::build(
+                prepared,
+                advanced,
+                syntax,
+                options.newlines.excludes_class_newline(),
+                controls,
+            )?
+            .map(Regex::Constraint)
+            .ok_or(error)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn source_pattern(
+    pattern: &str,
+    options: RegexOptions,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<(PatternText, bool, bool), QueryError> {
     let (pattern, quoted, advanced) = if matches!(options.syntax, PatternSyntax::Quoted) {
         (escape(pattern, controls)?, true, false)
     } else if let Some(literal) = pattern.strip_prefix("***=") {
@@ -63,6 +91,16 @@ fn compile_with_options(
             matches!(options.syntax, PatternSyntax::Advanced),
         )
     };
+    Ok((pattern, quoted, advanced))
+}
+
+fn compile_native(
+    pattern: &str,
+    options: RegexOptions,
+    match_kind: Option<MatchKind>,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<bounded::Regex, QueryError> {
+    let (pattern, quoted, advanced) = source_pattern(pattern, options, controls)?;
     let expanded = !quoted && matches!(options.whitespace, WhitespaceMode::Expanded);
     let pattern = if quoted {
         pattern
@@ -78,18 +116,22 @@ fn compile_with_options(
     } else {
         pattern
     };
-    let mut syntax = syntax::Config::new()
-        .case_insensitive(matches!(options.case, CaseMode::Insensitive))
-        .multi_line(options.newlines.multi_line())
-        .dot_matches_new_line(options.newlines.dot_matches_new_line())
-        .ignore_whitespace(expanded);
+    let mut syntax = syntax_config(options, quoted);
     if corrected_classes {
         // The original AST already passed the default nesting limit. Each
         // negated class adds one bracket node and one intersection node to
         // the same path, which the backend's nesting visitor counts separately.
         syntax = syntax.nest_limit(syntax.get_nest_limit().saturating_mul(3));
     }
-    Regex::build(pattern.as_str(), syntax, match_kind, controls)
+    bounded::Regex::build(pattern.as_str(), syntax, match_kind, controls)
+}
+
+fn syntax_config(options: RegexOptions, quoted: bool) -> syntax::Config {
+    syntax::Config::new()
+        .case_insensitive(matches!(options.case, CaseMode::Insensitive))
+        .multi_line(options.newlines.multi_line())
+        .dot_matches_new_line(options.newlines.dot_matches_new_line())
+        .ignore_whitespace(!quoted && matches!(options.whitespace, WhitespaceMode::Expanded))
 }
 
 #[derive(Clone, Copy)]

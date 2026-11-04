@@ -200,10 +200,13 @@ fn should_admit_character_array_envelope_conversion_before_native_decoding() {
         &crate::config::CassieRuntimeLimits::default(),
         Instant::now(),
     );
-    let bytes = padding_bytes(&input, &target, &sizing).expect("native envelope bound");
-
-    // Act
-    for (budget, accepted) in [(bytes - 1, false), (bytes, true)] {
+    for accepted in [false, true] {
+        // Arrange
+        let mut value = input.clone();
+        // Owned JSON admission includes actual buffer capacities. Measure the
+        // carrier being executed because cloning can shrink those capacities.
+        let bytes = padding_bytes(&value, &target, &sizing).expect("native envelope bound");
+        let budget = if accepted { bytes } else { bytes - 1 };
         let controls = QueryExecutionControls::from_limits(
             &crate::config::CassieRuntimeLimits {
                 query_memory_budget_bytes: budget,
@@ -211,12 +214,16 @@ fn should_admit_character_array_envelope_conversion_before_native_decoding() {
             },
             Instant::now(),
         );
-        let mut value = input.clone();
         let mut memory = controls.reserve_query_memory(0).expect("native scratch");
         DECODED.with(|count| count.set(0));
+        // Act
         let result = hydrate_value(&mut value, &target, &controls, &mut memory);
         // Assert
-        assert_eq!(result.is_ok(), accepted);
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "budget={budget}, required={bytes}, result={result:?}"
+        );
         assert_eq!(DECODED.with(std::cell::Cell::get), usize::from(accepted));
         if accepted {
             let Value::Array(array) = value else {

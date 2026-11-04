@@ -185,5 +185,7 @@ mod fetch_boundaries;
 #[path = "protocol/fetch_names.rs"]
 mod fetch_names;
 
+#[path = "ddl/concurrent_table_creation.rs"]
+mod ddl_concurrent_table_creation;
 #[path = "protocol/fetch_global.rs"]
 mod fetch_global;

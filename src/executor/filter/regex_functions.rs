@@ -1,10 +1,6 @@
 //! Bounded PostgreSQL regular-expression scalar functions.
 
-use regex_automata::{
-    meta::Regex,
-    util::{captures::Captures, syntax},
-    Anchored, Input, Match, MatchKind,
-};
+use regex_automata::{util::captures::Captures, Anchored, Input, Match, MatchKind};
 
 use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
@@ -16,6 +12,17 @@ use super::QueryError;
 #[path = "regex_newline_classes.rs"]
 mod newline_classes;
 
+#[path = "regex_compiler.rs"]
+mod compiler;
+
+#[path = "regex_bounded.rs"]
+mod bounded;
+
+#[path = "similar_pattern.rs"]
+mod similar_pattern;
+
+use bounded::Regex;
+
 pub(super) fn evaluate(
     function: FunctionId,
     arguments: &[Value],
@@ -23,6 +30,7 @@ pub(super) fn evaluate(
 ) -> Option<Result<Value, QueryError>> {
     match function {
         FunctionId::RegexpLike => Some(regexp_like(arguments, controls)),
+        FunctionId::SimilarToEscape => Some(similar_pattern::evaluate(arguments, controls)),
         FunctionId::RegexpCount => Some(regexp_count(arguments, controls)),
         FunctionId::RegexpReplace => Some(regexp_replace(arguments, controls)),
         _ => None,
@@ -40,7 +48,7 @@ fn regexp_like(
     let pattern = text_argument("regexp_like", arguments, 1)?;
     let flags = optional_text_argument("regexp_like", arguments, 2)?.unwrap_or_default();
     check_interruption(controls)?;
-    let regex = compile(pattern, flags)?;
+    let regex = compiler::compile(pattern, flags, controls)?;
     check_interruption(controls)?;
     let matched = regex.is_match(input);
     regex_search_completed(controls, matched)?;
@@ -66,8 +74,9 @@ fn regexp_count(
         .into());
     }
     check_interruption(controls)?;
-    let regex = compile(pattern, flags)?;
-    let longest_regex = compile_with_match_kind(pattern, flags, Some(MatchKind::All))?;
+    let regex = compiler::compile(pattern, flags, controls)?;
+    let longest_regex =
+        compiler::compile_with_match_kind(pattern, flags, Some(MatchKind::All), controls)?;
     check_interruption(controls)?;
     let start = usize::try_from(start - 1).unwrap_or(usize::MAX);
     let byte_start = if let Some((byte, _)) = input.char_indices().nth(start) {
@@ -140,7 +149,7 @@ fn regexp_replace(
     }
 
     check_interruption(controls)?;
-    let (leftmost, longest, global_flag) = compile_for_replace(pattern, flags)?;
+    let (leftmost, longest, global_flag) = compiler::compile_for_replace(pattern, flags, controls)?;
     check_interruption(controls)?;
     let Some(start_byte) = character_start(input, start, controls)? else {
         return copy_input(input, controls);
@@ -187,72 +196,6 @@ fn increment_match_count(count: &mut i32) -> Result<(), QueryError> {
         .checked_add(1)
         .ok_or_else(|| CassieError::Execution("integer out of range".into()))?;
     Ok(())
-}
-
-fn compile(pattern: &str, flags: &str) -> Result<Regex, QueryError> {
-    compile_with_match_kind(pattern, flags, None)
-}
-
-fn compile_with_match_kind(
-    pattern: &str,
-    flags: &str,
-    match_kind: Option<MatchKind>,
-) -> Result<Regex, QueryError> {
-    let options = RegexOptions::parse(flags, false)?;
-    compile_with_options(pattern, options, match_kind)
-}
-
-fn compile_for_replace(pattern: &str, flags: &str) -> Result<(Regex, Regex, bool), QueryError> {
-    let options = RegexOptions::parse(flags, true)?;
-    let leftmost = compile_with_options(pattern, options, None)?;
-    let longest = compile_with_options(pattern, options, Some(MatchKind::All))?;
-    Ok((leftmost, longest, options.global))
-}
-
-fn compile_with_options(
-    pattern: &str,
-    options: RegexOptions,
-    match_kind: Option<MatchKind>,
-) -> Result<Regex, QueryError> {
-    let (pattern, quoted) = if matches!(options.syntax, PatternSyntax::Quoted) {
-        (escape(pattern), true)
-    } else if let Some(literal) = pattern.strip_prefix("***=") {
-        (escape(literal), true)
-    } else if let Some(advanced) = pattern.strip_prefix("***:") {
-        (advanced.to_owned(), false)
-    } else {
-        let pattern = match options.syntax {
-            PatternSyntax::Basic => basic_to_extended(pattern),
-            PatternSyntax::Extended | PatternSyntax::Quoted => pattern.to_owned(),
-        };
-        (pattern, false)
-    };
-    let expanded = !quoted && matches!(options.whitespace, WhitespaceMode::Expanded);
-    let corrected_classes = !quoted && options.newlines.excludes_class_newline();
-    let pattern = if corrected_classes {
-        newline_classes::exclude_newlines(&pattern, expanded)?
-    } else {
-        pattern
-    };
-    let mut syntax = syntax::Config::new()
-        .case_insensitive(matches!(options.case, CaseMode::Insensitive))
-        .multi_line(options.newlines.multi_line())
-        .dot_matches_new_line(options.newlines.dot_matches_new_line())
-        .ignore_whitespace(expanded);
-    if corrected_classes {
-        // The original AST already passed the default nesting limit. Each
-        // negated class adds one bracket node and one intersection node to
-        // the same path, which the backend's nesting visitor counts separately.
-        syntax = syntax.nest_limit(syntax.get_nest_limit().saturating_mul(3));
-    }
-    let mut builder = Regex::builder();
-    builder.syntax(syntax);
-    if let Some(match_kind) = match_kind {
-        builder.configure(Regex::config().match_kind(match_kind));
-    }
-    builder
-        .build(&pattern)
-        .map_err(|error| invalid_regular_expression(&error.to_string()))
 }
 
 fn find_leftmost_longest(
@@ -564,145 +507,6 @@ fn regex_search_completed(
     Ok(())
 }
 
-#[derive(Clone, Copy)]
-struct RegexOptions {
-    case: CaseMode,
-    newlines: NewlineMode,
-    whitespace: WhitespaceMode,
-    syntax: PatternSyntax,
-    global: bool,
-}
-
-impl RegexOptions {
-    fn parse(flags: &str, allow_global: bool) -> Result<Self, QueryError> {
-        let mut options = Self {
-            case: CaseMode::Sensitive,
-            newlines: NewlineMode::Default,
-            whitespace: WhitespaceMode::Tight,
-            syntax: PatternSyntax::Extended,
-            global: false,
-        };
-        for flag in flags.chars() {
-            match flag {
-                'b' => options.syntax = PatternSyntax::Basic,
-                'e' => options.syntax = PatternSyntax::Extended,
-                'q' => options.syntax = PatternSyntax::Quoted,
-                'i' => options.case = CaseMode::Insensitive,
-                'c' => options.case = CaseMode::Sensitive,
-                'n' | 'm' => options.newlines = NewlineMode::NewlineSensitive,
-                'p' => options.newlines = NewlineMode::PartialNewlineSensitive,
-                'w' => options.newlines = NewlineMode::InversePartialNewlineSensitive,
-                's' => options.newlines = NewlineMode::NonNewlineSensitive,
-                't' => options.whitespace = WhitespaceMode::Tight,
-                'x' => options.whitespace = WhitespaceMode::Expanded,
-                'g' if allow_global => options.global = true,
-                _ => {
-                    return Err(invalid_regular_expression(&format!(
-                        "invalid regular expression flag '{flag}'"
-                    )));
-                }
-            }
-        }
-        if matches!(options.syntax, PatternSyntax::Quoted)
-            && (options.newlines.multi_line()
-                || options.newlines.excludes_class_newline()
-                || matches!(options.whitespace, WhitespaceMode::Expanded))
-        {
-            return Err(invalid_regular_expression(
-                "invalid argument to regex function",
-            ));
-        }
-        Ok(options)
-    }
-}
-
-#[derive(Clone, Copy)]
-enum PatternSyntax {
-    Basic,
-    Extended,
-    Quoted,
-}
-
-#[derive(Clone, Copy)]
-enum CaseMode {
-    Sensitive,
-    Insensitive,
-}
-
-#[derive(Clone, Copy)]
-enum NewlineMode {
-    Default,
-    NewlineSensitive,
-    PartialNewlineSensitive,
-    InversePartialNewlineSensitive,
-    NonNewlineSensitive,
-}
-
-impl NewlineMode {
-    const fn multi_line(self) -> bool {
-        matches!(
-            self,
-            Self::NewlineSensitive | Self::InversePartialNewlineSensitive
-        )
-    }
-
-    const fn dot_matches_new_line(self) -> bool {
-        matches!(
-            self,
-            Self::Default | Self::InversePartialNewlineSensitive | Self::NonNewlineSensitive
-        )
-    }
-
-    const fn excludes_class_newline(self) -> bool {
-        matches!(self, Self::NewlineSensitive | Self::PartialNewlineSensitive)
-    }
-}
-
-#[derive(Clone, Copy)]
-enum WhitespaceMode {
-    Tight,
-    Expanded,
-}
-
-fn escape(pattern: &str) -> String {
-    let mut escaped = String::with_capacity(pattern.len());
-    for character in pattern.chars() {
-        if matches!(
-            character,
-            '\\' | '.' | '^' | '$' | '|' | '?' | '*' | '+' | '(' | ')' | '[' | ']' | '{' | '}'
-        ) {
-            escaped.push('\\');
-        }
-        escaped.push(character);
-    }
-    escaped
-}
-
-fn basic_to_extended(pattern: &str) -> String {
-    let mut converted = String::with_capacity(pattern.len());
-    let mut characters = pattern.chars();
-    while let Some(character) = characters.next() {
-        if character == '\\' {
-            if let Some(next) = characters.next() {
-                if matches!(next, '+' | '?' | '|' | '(' | ')' | '{' | '}') {
-                    converted.push(next);
-                } else {
-                    converted.push('\\');
-                    converted.push(next);
-                }
-            } else {
-                converted.push('\\');
-            }
-        } else {
-            if matches!(character, '+' | '?' | '|' | '(' | ')' | '{' | '}') {
-                converted.push('\\');
-            }
-            converted.push(character);
-        }
-    }
-    converted
-}
-
 fn invalid_regular_expression(message: &str) -> QueryError {
     CassieError::Diagnostic(Box::new(crate::app::DiagnosticError::new(
         "2201B",
@@ -714,14 +518,26 @@ fn invalid_regular_expression(message: &str) -> QueryError {
 #[cfg(test)]
 mod tests {
     use super::{
-        compile, compile_with_match_kind, find_leftmost_longest, increment_match_count,
-        regexp_count, regexp_like, regexp_replace, ReplacementWalk,
+        find_leftmost_longest, increment_match_count, regexp_count, regexp_like, regexp_replace,
+        ReplacementWalk,
     };
     use crate::app::CassieError;
     use crate::executor::filter::QueryError;
     use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
     use crate::types::Value;
     use regex_automata::MatchKind;
+
+    fn compile(pattern: &str, flags: &str) -> Result<super::Regex, QueryError> {
+        super::compiler::compile(pattern, flags, None)
+    }
+
+    fn compile_with_match_kind(
+        pattern: &str,
+        flags: &str,
+        kind: Option<MatchKind>,
+    ) -> Result<super::Regex, QueryError> {
+        super::compiler::compile_with_match_kind(pattern, flags, kind, None)
+    }
 
     fn cancelled_controls() -> (QueryExecutionControls, QueryCancellationHandle) {
         let cancellation = QueryCancellationHandle::new();
@@ -731,6 +547,27 @@ mod tests {
             cancellation.clone(),
         );
         (controls, cancellation)
+    }
+
+    #[test]
+    fn should_reject_regex_automata_outside_the_query_memory_budget() {
+        // Arrange
+        let limits = crate::config::CassieRuntimeLimits {
+            query_memory_budget_bytes: 1,
+            ..crate::config::CassieRuntimeLimits::default()
+        };
+        let controls = QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
+        let arguments = [Value::String("x".into()), Value::String("x".into())];
+
+        // Act
+        let result = regexp_like(&arguments, Some(&controls));
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+        ));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 
     #[test]

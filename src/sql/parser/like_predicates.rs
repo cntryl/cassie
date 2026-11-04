@@ -185,45 +185,6 @@ fn regex_predicate(expression: Expr, pattern: Expr, case_insensitive: bool) -> E
     function("regexp_like", arguments)
 }
 
-fn similar_pattern(pattern: &str, escape: Option<&str>) -> Result<String, SqlError> {
-    let escape = escape.unwrap_or("\\");
-    let mut escape_chars = escape.chars();
-    let escape = escape_chars.next();
-    if escape_chars.next().is_some() {
-        return Err(SqlError::syntax("invalid escape string".into()));
-    }
-
-    let mut translated = String::from("^(?:");
-    let mut chars = pattern.chars();
-    while let Some(character) = chars.next() {
-        if Some(character) == escape {
-            let escaped = chars.next().ok_or_else(|| {
-                SqlError::syntax("SIMILAR TO pattern must not end with the escape character".into())
-            })?;
-            push_regex_literal(&mut translated, escaped);
-        } else {
-            match character {
-                '%' => translated.push_str("(?s:.*)"),
-                '_' => translated.push_str("(?s:.)"),
-                '.' | '$' | '^' | '?' | '{' | '}' | '[' | ']' | '\\' => {
-                    translated.push('\\');
-                    translated.push(character);
-                }
-                _ => translated.push(character),
-            }
-        }
-    }
-    translated.push_str(")$");
-    Ok(translated)
-}
-
-fn push_regex_literal(target: &mut String, character: char) {
-    if ".^$*+?{}[]\\|()".contains(character) {
-        target.push('\\');
-    }
-    target.push(character);
-}
-
 pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
     let Some((left, right, operator)) = split_predicate(raw) else {
         return Ok(None);
@@ -268,39 +229,42 @@ pub(super) fn parse(raw: &str) -> Result<Option<Expr>, SqlError> {
                 } else {
                     (right.trim(), None)
                 };
-            let pattern = parse_comparison_expression(pattern)?;
-            if matches!(pattern, Expr::Null) {
-                return Ok(Some(negate(
-                    regex_predicate(expression, Expr::Null, false),
-                    operator.negated,
-                )));
+            let mut arguments = vec![parse_comparison_expression(pattern)?];
+            if let Some(escape) = escape {
+                arguments.push(parse_comparison_expression(escape)?);
             }
-            let Expr::StringLiteral(pattern) = pattern else {
-                return Err(SqlError::unsupported(
-                    "SIMILAR TO currently requires a literal pattern".into(),
-                ));
-            };
-            let escape = match escape.map(parse_comparison_expression).transpose()? {
-                Some(Expr::Null) => {
-                    return Ok(Some(negate(
-                        regex_predicate(expression, Expr::Null, false),
-                        operator.negated,
-                    )));
-                }
-                Some(Expr::StringLiteral(value)) => Some(value),
-                Some(_) => {
-                    return Err(SqlError::unsupported(
-                        "SIMILAR TO currently requires a literal escape".into(),
-                    ));
-                }
-                None => None,
-            };
-            regex_predicate(
-                expression,
-                Expr::StringLiteral(similar_pattern(&pattern, escape.as_deref())?),
-                false,
-            )
+            regex_predicate(expression, function("similar_to_escape", arguments), false)
         }
     };
     Ok(Some(negate(predicate, operator.negated)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse;
+    use crate::sql::ast::Expr;
+
+    #[test]
+    fn should_lower_dynamic_similar_with_existing_function_calls() {
+        // Arrange
+        let sql = "$1 SIMILAR TO $2 ESCAPE $3";
+
+        // Act
+        let expression = parse(sql)
+            .expect("dynamic predicate parses")
+            .expect("pattern expression");
+
+        // Assert
+        let Expr::Function(predicate) = expression else {
+            panic!("regex predicate function");
+        };
+        assert_eq!(predicate.name, "regexp_like");
+        assert!(matches!(predicate.args[0], Expr::Param(0)));
+        let Expr::Function(helper) = &predicate.args[1] else {
+            panic!("existing nested FunctionCall");
+        };
+        assert_eq!(helper.name, "similar_to_escape");
+        assert!(matches!(helper.args[0], Expr::Param(1)));
+        assert!(matches!(helper.args[1], Expr::Param(2)));
+    }
 }

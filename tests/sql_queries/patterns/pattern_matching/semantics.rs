@@ -13,3 +13,5 @@ include!("semantics/similar_dynamic.rs");
 include!("semantics/quantified_patterns.rs");
 
 include!("semantics/are_assertions.rs");
+
+include!("semantics/are_constraints.rs");

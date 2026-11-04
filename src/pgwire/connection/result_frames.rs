@@ -38,7 +38,9 @@ impl<'a> QueryResultFrames<'a> {
         let memory = result.admission().try_sibling(scratch)?;
         let bytes = frame_buffer(capacity)?;
         // The SELECT tag can allocate; admit it together with the frame buffers first.
-        let command = select_command_tag(result.command(), rows.len());
+        let returned_rows =
+            (!result.columns().is_empty() || result.row_count() != 0).then_some(rows.len());
+        let command = select_command_tag(result.command(), returned_rows);
         Ok(Self {
             bytes,
             command,

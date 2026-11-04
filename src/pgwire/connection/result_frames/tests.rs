@@ -158,3 +158,46 @@ fn should_admit_expanded_jsonb_encoder_buffers_given_short_exponents_when_encodi
     // binary framing adds the versioned output while canonical text is still live.
     assert!(bound.scratch >= encoded.capacity() * 3);
 }
+#[test]
+fn should_preserve_effect_counts_without_changing_result_page_counts() {
+    // Arrange
+    let cases = [
+        ("SELECT 7", false, 0, 0, "SELECT 7"),
+        ("SELECT", false, 0, 0, "SELECT 0"),
+        ("SELECT 7", true, 3, 1, "SELECT 1"),
+        ("SELECT", true, 0, 0, "SELECT 0"),
+        ("SELECT 7", false, 3, 1, "SELECT 1"),
+        ("CREATE TABLE", false, 0, 0, "CREATE TABLE"),
+    ];
+    for (command, schema, stored_rows, emitted_rows, expected) in cases {
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+        let mut builder = QueryResult::try_builder(&controls).expect("result owner");
+        if schema {
+            builder
+                .try_push_column(&ColumnMeta::text("value"))
+                .expect("output schema");
+        }
+        for _ in 0..stored_rows {
+            let values = if schema {
+                vec![Value::String("v".into())]
+            } else {
+                vec![]
+            };
+            builder.try_push_row(&values).expect("result row");
+        }
+        builder.try_set_command(command).expect("operator command");
+        let result = builder.finish().expect("managed result");
+
+        // Act
+        let mut frames = QueryResultFrames::try_new(&result, &result.rows()[..emitted_rows], &[])
+            .expect("frame admission");
+        frames.completion(false).expect("command completion");
+
+        // Assert
+        assert_eq!(frames.bytes()[0], b'C');
+        let payload = &frames.bytes()[5..];
+        assert_eq!(payload.last(), Some(&0));
+        assert_eq!(&payload[..payload.len() - 1], expected.as_bytes());
+    }
+}

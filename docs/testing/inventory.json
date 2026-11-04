@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1580,
+    "files": 1584,
     "rust_files": 1548,
-    "rust_test_declarations": 8371,
+    "rust_test_declarations": 8372,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8499,
+    "registered_rust_instances": 8500,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -78204,11 +78204,42 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_return_numeric_exponential_range_errors_without_publishing_prior_rows",
+      "name": "should_return_numeric_exponential_range_errors_without_publishing_prior_rows",
+      "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
+      "line": 9,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::functions_math_overload_errors::should_return_numeric_exponential_range_errors_without_publishing_prior_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "functions/math",
+        "directory": "tests/pgwire_extended/functions/math",
+        "file": "tests/pgwire_extended/functions/math/overload_errors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_reject_undefined_infinite_numeric_powers_without_partial_output",
       "name": "should_reject_undefined_infinite_numeric_powers_without_partial_output",
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "line": 9,
-      "end_line": 50,
+      "line": 55,
+      "end_line": 96,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -78238,8 +78269,8 @@
       "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
       "name": "should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "line": 116,
-      "end_line": 190,
+      "line": 162,
+      "end_line": 236,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -78269,8 +78300,8 @@
       "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
       "name": "should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "line": 193,
-      "end_line": 238,
+      "line": 239,
+      "end_line": 284,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -266551,6 +266582,58 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/fixtures/math/README.md",
+      "role": "external_client_fixture",
+      "action": "keep",
+      "lines": 15,
+      "sha256": "dc78423f49d4311817cbd7dc3881d981c47df6e6af60ce082447624c233828da",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/fixtures/math/README.md"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/fixtures/math/exp-5000-pg18.6.txt",
+      "role": "external_client_fixture",
+      "action": "keep",
+      "lines": 1,
+      "sha256": "6bba12faa0ad86479fdf6675d954e0c2ed70cd59e26ecb706b84c51aac9b9fc6",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/fixtures/math/exp-5000-pg18.6.txt"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/fixtures/math/power-near-one-negative-pg18.6.txt",
+      "role": "external_client_fixture",
+      "action": "keep",
+      "lines": 1,
+      "sha256": "c8847e4971d42af0e06c9c579db35fa35bb66514f3638a92f7d4c8a04b7d1524",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/fixtures/math/power-near-one-negative-pg18.6.txt"
+      ],
+      "line_limit": null
+    },
+    {
+      "current_file": "tests/fixtures/math/power-near-one-positive-pg18.6.txt",
+      "role": "external_client_fixture",
+      "action": "keep",
+      "lines": 1,
+      "sha256": "3b346ba14b46270afcca0288c734ed0fbc3fee5c73ce5d6816a032057f7c3536",
+      "test_declarations": 0,
+      "registered_suites": [],
+      "destinations": [
+        "tests/fixtures/math/power-near-one-positive-pg18.6.txt"
+      ],
+      "line_limit": null
+    },
+    {
       "current_file": "tests/fixtures/sqlx_probe/Cargo.lock",
       "role": "external_client_fixture",
       "action": "keep",
@@ -269838,9 +269921,9 @@
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 238,
-      "sha256": "85d10b951ac0dd9ecaf865cc36c1451c9f20f3ab4068286e59ffd62a1daeb988",
-      "test_declarations": 3,
+      "lines": 284,
+      "sha256": "120caac9175bc8057247339e259dbe4d6113efee6bb03d2cf7c28a73eeb5f585",
+      "test_declarations": 4,
       "registered_suites": [
         "pgwire_extended"
       ],

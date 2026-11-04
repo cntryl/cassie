@@ -174,6 +174,8 @@ publication guard, with interruption checks while waiting. The guard stays on
 the synchronous execution worker and does not cross a network await. Commit
 precedes this standalone statement's `CommandComplete` in both Simple Query and
 extended execution. `CREATE TABLE AS` keeps its separate existing execution path.
+This ownership decision is made at the top-level wire entry. CTAS's internal
+table creation and other nested bound operations retain their enclosing owner.
 
 An unchanged catalog snapshot with no staged storage metadata does not publish,
 advance the schema epoch or conflict merely because another session published

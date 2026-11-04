@@ -16,6 +16,18 @@ fn fixture() -> Cassie {
     cassie
 }
 
+fn execute_wire(
+    cassie: &Cassie,
+    session: &CassieSession,
+    sql: &str,
+) -> Result<QueryResult, CassieError> {
+    cassie.execute_pgwire_sql_with_cancellation(
+        session,
+        (sql, sql),
+        &QueryCancellationHandle::new(),
+    )
+}
+
 #[test]
 fn should_publish_implicit_table_creation_before_returning_its_command() {
     // Arrange
@@ -26,19 +38,20 @@ fn should_publish_implicit_table_creation_before_returning_its_command() {
         .expect("implicit owner");
 
     // Act
-    let result = cassie
-        .execute_sql(&session, CREATE, vec![])
-        .expect("create");
+    let result = execute_wire(&cassie, &session, CREATE).expect("standalone wire create");
     let observer = cassie.create_session("observer", None);
     let visible = cassie.execute_sql(&observer, "SELECT * FROM startup_checkpoint", vec![]);
 
     // Assert
     assert_eq!(result.command(), "CREATE TABLE");
     assert_eq!(session.transaction_status(), "idle");
-    assert!(visible
-        .expect("committed table visible before command")
-        .rows()
-        .is_empty());
+    let empty: &[Vec<Value>] = &[];
+    assert_eq!(
+        visible
+            .expect("committed table visible before command")
+            .rows(),
+        empty
+    );
 }
 
 #[test]
@@ -59,7 +72,7 @@ fn should_serialize_concurrent_idempotent_table_creation() {
                         .begin_implicit_transaction()
                         .expect("implicit owner");
                     start.wait();
-                    let result = cassie.execute_sql(&session, CREATE, vec![]);
+                    let result = execute_wire(cassie, &session, CREATE);
                     if result.is_ok() && session.is_implicit_transaction() {
                         cassie.commit_transaction(&session)?;
                     }
@@ -101,9 +114,7 @@ fn should_preserve_schema_epoch_after_an_implicit_noop() {
         .expect("implicit owner");
 
     // Act
-    cassie
-        .execute_sql(&session, CREATE, vec![])
-        .expect("no-op create");
+    execute_wire(&cassie, &session, CREATE).expect("standalone wire no-op");
     if session.is_implicit_transaction() {
         cassie.commit_transaction(&session).expect("finish no-op");
     }
@@ -309,10 +320,13 @@ fn should_admit_implicit_table_output_before_mutation() {
     let epoch = cassie.midge.schema_epoch().expect("schema epoch");
 
     // Act
-    let result = cassie.execute_sql_with_controls(
+    let parsed = crate::sql::parse_statement(CREATE).expect("parsed table statement");
+    let fingerprint = crate::runtime::sql_fingerprint(&parsed);
+    let result = cassie.execute_pgwire_statement_core(
         &session,
-        CREATE,
-        vec![],
+        parsed,
+        fingerprint,
+        (vec![], &[]),
         ExecutionMode::SimpleQuery,
         &controls,
     );
@@ -326,4 +340,45 @@ fn should_admit_implicit_table_output_before_mutation() {
     assert!(cassie.catalog.get_schema("startup_checkpoint").is_none());
     assert_eq!(cassie.midge.schema_epoch().expect("unchanged epoch"), epoch);
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_keep_internal_table_creation_owned_by_ctas() {
+    // Arrange
+    let cassie = fixture();
+    let session = cassie.create_session("tester", None);
+    session
+        .begin_implicit_transaction()
+        .expect("outer wire owner");
+    let observer = cassie.create_session("observer", None);
+
+    // Act
+    let created = execute_wire(
+        &cassie,
+        &session,
+        "CREATE TABLE owned_ctas AS SELECT 1 AS n",
+    )
+    .expect("CTAS result");
+    let still_owned = session.is_implicit_transaction();
+    let private = cassie.catalog.get_schema("owned_ctas").is_none();
+    if still_owned {
+        cassie
+            .commit_transaction(&session)
+            .expect("outer CTAS commit");
+    }
+    let rows = cassie
+        .execute_sql(&observer, "SELECT n FROM owned_ctas", vec![])
+        .expect("published CTAS rows");
+
+    // Assert
+    assert_eq!(created.command(), "SELECT 1");
+    assert!(
+        still_owned,
+        "nested CREATE does not commit its outer operation"
+    );
+    assert!(
+        private,
+        "nested metadata stays private until the outer commit"
+    );
+    assert_eq!(rows.rows(), &[vec![Value::Int64(1)]]);
 }

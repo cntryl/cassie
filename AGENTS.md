@@ -125,9 +125,9 @@ Tier config overridable via `BENCH_TIER*` env vars (see `benches/support/criteri
 ## Containers
 
 Multi-arch image published to `ghcr.io/cntryl/cassie`. The publishing workflow
-is configured in `.github/workflows/containers.yml`, but GitHub Actions are
-disabled by user direction; do not enable or dispatch it until the user
-explicitly changes that direction. When authorized, it builds:
+is configured in `.github/workflows/containers.yml`. GitHub Actions should remain
+enabled; normal push and pull-request workflows are authorized. The publishing
+workflow builds:
 `linux/amd64` and `linux/arm64`, tagged with the Cargo.toml SemVer (`main` builds use the stable
 version; branch builds add a `-<branch>.<run>` prerelease suffix).
 
@@ -163,14 +163,14 @@ Create GitHub issues and pull requests as durable engineering records. Use real 
 - Include these sections: `Type`, `Linked issue`, `Summary`, `User/operator impact`, `Current and expected behavior`, `Scope`, `Evidence and support status`, `Validation`, `Acceptance criteria`, and `Status`.
 - Record red/green TDD evidence where code changes are made. List the exact validation commands and distinguish passed, running, cancelled, and blocked checks; never report a pending check as passed.
 - State whether the PR changes runtime behavior, documentation/readiness only, or operational process. Record blockers and the next action when a PR cannot proceed.
-- Before merge, verify title, label, issue link, body formatting, acceptance criteria, available checks, and review status. Do not enable or dispatch workflows to manufacture hosted evidence; while Actions is disabled, record hosted checks as blocked and do not claim them passed. Use squash merge for completed slices when merge is requested.
+- Before merge, verify title, label, issue link, body formatting, acceptance criteria, available checks, and review status. GitHub Actions should remain enabled. Wait for the available required checks on the final PR head and record their actual outcomes; never claim pending, cancelled, failed, or unavailable checks passed. Use squash merge for completed slices when merge is requested.
 
 ## Agentic Workflow
 
 Agents must work from the current repository source of truth, not from ad hoc architectural judgment.
 Use `gh` CLI to read the current GitHub backlog, issue dependencies, PRs, reviews, checks, and repository settings. Follow documented priority and dependency order, using the user request plus `docs/product-roadmap.md`, `docs/production-readiness.md`, `docs/performance-contracts.md`, and subsystem docs. Use Jev at semantic decision gates and for focused review of substantial diffs; skip it when code or tests determine the answer. Treat its judgments as leads and verify them against source, executable evidence, and current GitHub state.
 
-GitHub Actions are disabled in repository settings by user direction. Do not enable, dispatch, or otherwise start workflows until the user explicitly changes that direction. Continue with authorized local work; report hosted workflow evidence as unavailable or blocked, never as passed.
+GitHub Actions should be enabled by user direction. Normal push and pull-request workflows are authorized. Use `gh` to verify repository settings and final-head checks, and wait for required checks before merge. Report pending, cancelled, failed, and unavailable workflow evidence accurately; never claim it passed.
 
 Do not create, edit, rename, or delete CI, release, or versioning configuration (`.github/workflows/**`, `GitVersion.yml`, and similar) unless the user explicitly asks for that change in the current request. If a fix seems to need one, say so and stop instead of changing it.
 
@@ -189,9 +189,9 @@ Jev is TypeSafe's System One model. It returns typed judgments and probabilities
 
 ### Bundling and local validation
 
-Work one PR at a time. Bundle a substantial set of related issues when they share implementation context or observable behavior, and define the bundle before coding. Implement each behavior as a small local red → green → refactor increment. Run the complete validation once the coherent bundle is ready, then open the PR, perform adversarial review, refine, verify the final PR head, and squash merge. Read back the merged commit and issue closures before selecting the next bundle.
+Use stacked PRs and parallel isolated worktrees for independent work. Bundle related issues when they share implementation context or observable behavior, and define each bundle before coding. A child PR may start from its parent branch while the parent is still in review; complete or implement its prerequisites before dependent runtime work. Implement each behavior as a small local red → green → refactor increment. Run the complete validation for each coherent bundle, open its PR against the appropriate parent, and perform adversarial review. Merge in dependency order after final-head checks and review pass. Rebase children as needed, repeat affected validation and review on their final heads, and read back each merged commit and issue closure. Keep build artifacts isolated between worktrees.
 
-Use local tests and analyzers for iteration; avoid repeatedly pushing tiny changes just to wait for GitHub workflows. If an issue is already fixed, verify the acceptance criteria locally and close it with evidence instead of opening a standalone PR that changes no runtime behavior. Track test-latency findings through the backlog and preserve required checks. GitHub Actions remain disabled under the current user direction; do not re-enable or dispatch them without a new explicit instruction.
+Use local tests and analyzers for iteration; avoid repeatedly pushing tiny changes just to wait for GitHub workflows. If an issue is already fixed, verify the acceptance criteria locally and close it with evidence instead of opening a standalone PR that changes no runtime behavior. Track test-latency findings through the backlog and preserve required checks. GitHub Actions should remain enabled; use normal PR workflows for final-head hosted validation after the coherent local bundle is ready.
 
 Required loop:
 

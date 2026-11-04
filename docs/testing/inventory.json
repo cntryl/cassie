@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1578,
-    "rust_files": 1546,
-    "rust_test_declarations": 8365,
+    "files": 1580,
+    "rust_files": 1548,
+    "rust_test_declarations": 8371,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8493,
+    "registered_rust_instances": 8499,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -55267,8 +55267,8 @@
       "id": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs::should_cancel_boolean_aggregate_query_without_publishing_partial_output",
       "name": "should_cancel_boolean_aggregate_query_without_publishing_partial_output",
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs",
-      "line": 86,
-      "end_line": 189,
+      "line": 8,
+      "end_line": 17,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -55277,6 +55277,37 @@
         {
           "suite": "pgwire_extended",
           "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_aggregate_cancellation::should_cancel_boolean_aggregate_query_without_publishing_partial_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/boolean",
+        "directory": "tests/pgwire_extended/aggregates/boolean",
+        "file": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs::should_cancel_native_boolean_aggregate_query_after_input_is_retained",
+      "name": "should_cancel_native_boolean_aggregate_query_after_input_is_retained",
+      "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs",
+      "line": 20,
+      "end_line": 33,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_aggregate_errors::boolean_aggregate_cancellation::should_cancel_native_boolean_aggregate_query_after_input_is_retained"
         }
       ],
       "attributes": [
@@ -78173,11 +78204,42 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_reject_undefined_infinite_numeric_powers_without_partial_output",
+      "name": "should_reject_undefined_infinite_numeric_powers_without_partial_output",
+      "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
+      "line": 9,
+      "end_line": 50,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::functions_math_overload_errors::should_reject_undefined_infinite_numeric_powers_without_partial_output"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "functions/math",
+        "directory": "tests/pgwire_extended/functions/math",
+        "file": "tests/pgwire_extended/functions/math/overload_errors.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
       "name": "should_return_overload_errors_given_supported_math_controls_when_undefined_signatures_are_prepared",
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "line": 72,
-      "end_line": 146,
+      "line": 116,
+      "end_line": 190,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -78207,8 +78269,8 @@
       "id": "tests/pgwire_extended/functions/math/overload_errors.rs::should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
       "name": "should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero",
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
-      "line": 149,
-      "end_line": 194,
+      "line": 193,
+      "end_line": 238,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -79912,8 +79974,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_describe_temporal_function_results_with_postgresql_types",
       "name": "should_describe_temporal_function_results_with_postgresql_types",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 13,
-      "end_line": 51,
+      "line": 12,
+      "end_line": 50,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -79943,8 +80005,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_describe_timezone_overloads_with_postgresql_result_types",
       "name": "should_describe_timezone_overloads_with_postgresql_result_types",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 54,
-      "end_line": 89,
+      "line": 53,
+      "end_line": 88,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -79974,8 +80036,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_return_null_for_temporal_function_results",
       "name": "should_return_null_for_temporal_function_results",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 92,
-      "end_line": 117,
+      "line": 91,
+      "end_line": 116,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80005,8 +80067,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_bind_temporal_function_parameters_with_postgresql_types",
       "name": "should_bind_temporal_function_parameters_with_postgresql_types",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 120,
-      "end_line": 172,
+      "line": 119,
+      "end_line": 171,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80036,8 +80098,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_refresh_statement_timestamp_when_reusing_prepared_statement",
       "name": "should_refresh_statement_timestamp_when_reusing_prepared_statement",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 175,
-      "end_line": 234,
+      "line": 174,
+      "end_line": 233,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80067,8 +80129,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_reformat_prepared_timestamptz_after_session_timezone_changes",
       "name": "should_reformat_prepared_timestamptz_after_session_timezone_changes",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 237,
-      "end_line": 325,
+      "line": 236,
+      "end_line": 324,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80098,8 +80160,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_report_invalid_calendar_constructor_input",
       "name": "should_report_invalid_calendar_constructor_input",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 328,
-      "end_line": 347,
+      "line": 327,
+      "end_line": 346,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80129,8 +80191,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_report_invalid_formatted_date_input",
       "name": "should_report_invalid_formatted_date_input",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 350,
-      "end_line": 369,
+      "line": 349,
+      "end_line": 368,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80160,8 +80222,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_reject_calendar_units_in_date_bin_stride",
       "name": "should_reject_calendar_units_in_date_bin_stride",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 372,
-      "end_line": 391,
+      "line": 371,
+      "end_line": 390,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80191,8 +80253,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_reject_zero_date_bin_stride",
       "name": "should_reject_zero_date_bin_stride",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 394,
-      "end_line": 413,
+      "line": 393,
+      "end_line": 412,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80222,8 +80284,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_return_postgresql_date_bin_timestamptz_output",
       "name": "should_return_postgresql_date_bin_timestamptz_output",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 416,
-      "end_line": 453,
+      "line": 415,
+      "end_line": 452,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80253,8 +80315,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_reject_invalid_formatted_timestamp_input",
       "name": "should_reject_invalid_formatted_timestamp_input",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 456,
-      "end_line": 475,
+      "line": 455,
+      "end_line": 474,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80284,8 +80346,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_accept_make_time_hour_24",
       "name": "should_accept_make_time_hour_24",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 478,
-      "end_line": 501,
+      "line": 477,
+      "end_line": 500,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80315,8 +80377,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_bind_date_add_parameters_with_dst_zone",
       "name": "should_bind_date_add_parameters_with_dst_zone",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 512,
-      "end_line": 588,
+      "line": 503,
+      "end_line": 579,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80346,8 +80408,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_bind_date_subtract_parameters_with_dst_zone",
       "name": "should_bind_date_subtract_parameters_with_dst_zone",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 591,
-      "end_line": 667,
+      "line": 582,
+      "end_line": 658,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80377,8 +80439,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_cancel_pg_sleep_for",
       "name": "should_cancel_pg_sleep_for",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 670,
-      "end_line": 729,
+      "line": 661,
+      "end_line": 670,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -80408,8 +80470,8 @@
       "id": "tests/pgwire_extended/functions/temporal/temporal_function.rs::should_cancel_pg_sleep_until",
       "name": "should_cancel_pg_sleep_until",
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
-      "line": 732,
-      "end_line": 791,
+      "line": 673,
+      "end_line": 682,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -222261,6 +222323,130 @@
       }
     },
     {
+      "id": "tests/sql_queries/functions/temporal/edges/semantics.rs::should_preserve_exact_microseconds_when_extracting_large_interval_epochs",
+      "name": "should_preserve_exact_microseconds_when_extracting_large_interval_epochs",
+      "current_file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+      "line": 67,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_temporal_functions::residual_edges::should_preserve_exact_microseconds_when_extracting_large_interval_epochs"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/temporal/edges",
+        "directory": "tests/sql_queries/functions/temporal/edges",
+        "file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/temporal/edges/semantics.rs::should_reject_dates_outside_timestamp_range_when_formatting",
+      "name": "should_reject_dates_outside_timestamp_range_when_formatting",
+      "current_file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+      "line": 99,
+      "end_line": 133,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_temporal_functions::residual_edges::should_reject_dates_outside_timestamp_range_when_formatting"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/temporal/edges",
+        "directory": "tests/sql_queries/functions/temporal/edges",
+        "file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/temporal/edges/semantics.rs::should_return_null_when_formatting_infinite_temporal_values",
+      "name": "should_return_null_when_formatting_infinite_temporal_values",
+      "current_file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+      "line": 136,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_temporal_functions::residual_edges::should_return_null_when_formatting_infinite_temporal_values"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/temporal/edges",
+        "directory": "tests/sql_queries/functions/temporal/edges",
+        "file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/functions/temporal/edges/semantics.rs::should_match_postgresql_interval_quarters_at_signed_month_boundaries",
+      "name": "should_match_postgresql_interval_quarters_at_signed_month_boundaries",
+      "current_file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+      "line": 164,
+      "end_line": 194,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_temporal_functions::residual_edges::should_match_postgresql_interval_quarters_at_signed_month_boundaries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "functions/temporal/edges",
+        "directory": "tests/sql_queries/functions/temporal/edges",
+        "file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/functions/temporal/temporal_functions.rs::should_bind_current_time_expressions_to_transaction_start",
       "name": "should_bind_current_time_expressions_to_transaction_start",
       "current_file": "tests/sql_queries/functions/temporal/temporal_functions.rs",
@@ -268392,9 +268578,9 @@
       "current_file": "tests/pgwire_extended/aggregates/boolean/boolean_aggregate_cancellation.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 189,
-      "sha256": "016baa93e9bf3fbe1340847e1ab18288907cd8b4d7b70b742d0c3631d03e6371",
-      "test_declarations": 1,
+      "lines": 33,
+      "sha256": "eab2ca13bb6d46f7f8117e9610addc0016c566c9e008396bb2ea2b5cd1b94717",
+      "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -269652,9 +269838,9 @@
       "current_file": "tests/pgwire_extended/functions/math/overload_errors.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 194,
-      "sha256": "caf39941b0b5535634180b0f0573d1226cb4aa088b8b987f783f872f45bdd3e8",
-      "test_declarations": 2,
+      "lines": 238,
+      "sha256": "85d10b951ac0dd9ecaf865cc36c1451c9f20f3ab4068286e59ffd62a1daeb988",
+      "test_declarations": 3,
       "registered_suites": [
         "pgwire_extended"
       ],
@@ -269982,8 +270168,8 @@
       "current_file": "tests/pgwire_extended/functions/temporal/temporal_function.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 791,
-      "sha256": "55e17ff42289fc508cbc5c75acd5ac638133e7f4df09fa25022cfa748485be68",
+      "lines": 682,
+      "sha256": "cb34c231b63af09063d7dd0e0efd258762738ad5061195b4e4882cb03ff6e1e6",
       "test_declarations": 17,
       "registered_suites": [
         "pgwire_extended"
@@ -275900,8 +276086,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 665,
-      "sha256": "d82337a49030908e32e41e6a06e74550e111bbbf9de8ebd729000725edbc4036",
+      "lines": 669,
+      "sha256": "c57f50bf92ab3597083d6009d9dbc2ad78ea28ffa892c37c5b25e02a3d93be73",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -280355,9 +280541,9 @@
       "current_file": "tests/sql_queries/functions/temporal/edges/semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 64,
-      "sha256": "34af493e3eaea163525ec442bb8aa9bbb26b05ad21f8c1af2a6287587188d7aa",
-      "test_declarations": 3,
+      "lines": 194,
+      "sha256": "7864afd98f8300ef1db6d4d19b8a86268c814822ff64853246970cb23bb70734",
+      "test_declarations": 7,
       "registered_suites": [
         "sql_queries"
       ],
@@ -282240,6 +282426,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/support/boolean_aggregate_cancellation.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 216,
+      "sha256": "972a3b9ebb51d95348c76c73658859897b7e4199798113f8a6589eadaf89142c",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/boolean_aggregate_cancellation.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/support/bytea_cast_planning.rs",
       "role": "shared_support",
       "action": "keep",
@@ -283356,6 +283557,21 @@
       ],
       "destinations": [
         "tests/support/temp_dirs.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/temporal_cancellation.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 74,
+      "sha256": "a76563926bbb677dd86e8ddc8a002b1c567d0dc7dc32f6534f66bf3b2a6367f3",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/temporal_cancellation.rs"
       ],
       "line_limit": 1000
     },

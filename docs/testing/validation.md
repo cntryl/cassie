@@ -5810,3 +5810,18 @@ stages were not reached. The coherent test-only correction uses owned
 were also rewritten around their single invariant after the parallel scalar
 lane's analyzer identified `_and_` action-name false positives; assertions and
 fixtures remain intact. The corrected exact head requires the ordered gate.
+
+The second frozen RO gate at `5bcc57116b8aa9805dfb40d751a8cfeb4ef76aa5`
+passed build (0.33 s). Full tests compiled and ran the library suite, where
+1,437 tests passed and the new index-identity fixture failed: it incorrectly
+assumed logical SQL `Catalog` index records contain native storage IDs. No
+integration-suite, clippy, formatting or analyzer pass is claimed for this run.
+Source confirms `schema_creation.rs` propagates the returned Midge collection ID
+into `CollectionMeta`, while scalar scan resolution fetches old Data index IDs
+when logical IDs are absent. The correction compares nonzero current/retained
+collection identity plus the borrowed read definition; explicit current index
+IDs still require matching retained IDs. Jev selected this rule at 1.00. Its
+0.53 recreation lead requires new same-name table/index recreation and changed
+index-definition controls. A positive native-seek counter covers both logical
+and persisted/hydrated catalog shapes. The corrected head requires the complete
+ordered gate; no probe pass is inferred from advisory selection.

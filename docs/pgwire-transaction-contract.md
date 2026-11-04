@@ -399,9 +399,12 @@ Runtime scalar access paths also respect the retained view. A current index
 descriptor can refer to a prefix created after the data snapshot, so scalar
 selection, bounded indexed joins, and full-text scalar prefilters must decline
 that index and use their existing row or exact fallback. Eligibility compares
-borrowed name/collection/kind and stable relation/storage identities in the
-admitted catalog owner; it does not replace current binding or shared plan-cache
-inputs. Jev selected this narrow eligibility contract at 0.99. The 0.60 identity
+borrowed read definitions and the current/retained nonzero collection identity.
+When current index IDs are present they must match the retained IDs; logical
+SQL catalog entries can omit them, in which case the existing native resolver
+loads both from retained Data metadata. Identical names/definitions are not
+sufficient for a newly recreated table with a different collection identity.
+This does not replace current binding or shared plan-cache inputs. Jev selected this narrow eligibility contract at 0.99. The 0.60 identity
 lead is covered by authored unchanged/replaced/renamed, REINDEX, and drop/recreate
 controls, pending the frozen executable gate. Existing column-batch,
 time-series, full-text artifact, and ANN readers have separate missing-artifact

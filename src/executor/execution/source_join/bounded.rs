@@ -124,7 +124,7 @@ fn try_execute_indexed_bounded_inner_join_with_context(
 
     if env
         .session
-        .is_some_and(|session| !session.transaction_index_visible(&plan.index))
+        .is_some_and(|session| !session.transaction_index_visible(&plan.index, &env.cassie.catalog))
     {
         return Ok(None);
     }

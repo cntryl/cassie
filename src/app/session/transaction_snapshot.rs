@@ -85,13 +85,17 @@ impl CassieSession {
         Ok(Some(Arc::clone(&owner.data)))
     }
 
-    pub(crate) fn transaction_index_visible(&self, index: &crate::catalog::IndexMeta) -> bool {
+    pub(crate) fn transaction_index_visible(
+        &self,
+        index: &crate::catalog::IndexMeta,
+        current: &crate::catalog::Catalog,
+    ) -> bool {
         let transaction = self.transaction.lock();
         transaction.repeatable_read.as_ref().is_none_or(|owner| {
             owner
                 .catalog
                 .catalog()
-                .contains_index_storage_identity(index)
+                .contains_index_read_identity(current, index)
         })
     }
 

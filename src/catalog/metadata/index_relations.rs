@@ -131,20 +131,40 @@ impl Catalog {
     }
 
     #[must_use]
-    pub(crate) fn contains_index_storage_identity(&self, index: &IndexMeta) -> bool {
-        let (Some(relation_id), Some(storage_id)) = (index.relation_id(), index.storage_id())
-        else {
+    pub(crate) fn contains_index_read_identity(&self, current: &Self, index: &IndexMeta) -> bool {
+        let collection_id = |catalog: &Self| {
+            catalog
+                .collections
+                .read()
+                .values()
+                .find(|collection| name_matches(&collection.name, &index.collection))
+                .map(|collection| collection.storage_id)
+                .filter(|identity| *identity != 0)
+        };
+        let Some(current_relation) = collection_id(current) else {
             return false;
         };
+        if collection_id(self) != Some(current_relation) {
+            return false;
+        }
         self.indexes.read().values().any(|stored| {
             name_matches(&stored.collection, &index.collection)
                 && name_matches(&stored.name, &index.name)
-                && stored.kind == index.kind
-                && stored.relation_id() == Some(relation_id)
-                && stored.storage_id() == Some(storage_id)
+                && stored.read_definition_matches(index)
+                && match (index.relation_id(), index.storage_id()) {
+                    (Some(relation), Some(storage)) => {
+                        relation == current_relation
+                            && stored.relation_id() == Some(relation)
+                            && stored.storage_id() == Some(storage)
+                    }
+                    // SQL's logical cache can omit IDs. The existing native
+                    // resolver then takes both IDs from retained Data metadata.
+                    _ => true,
+                }
         })
     }
 
+    #[must_use]
     pub fn list_indexes(&self, collection: &str) -> Vec<IndexMeta> {
         let lookup_collection = self
             .materialized_view_output_collection(collection)

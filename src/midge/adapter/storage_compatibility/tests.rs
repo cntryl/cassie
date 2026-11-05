@@ -356,12 +356,13 @@ fn should_recheck_recovery_at_marker_publication_gate() {
                     std::time::Instant::now(),
                     crate::runtime::QueryCancellationHandle::new(),
                 );
-                let _scope =
-                    crate::midge::adapter::publication::PublicationControlScope::enter(Some(
-                        &controls,
-                    ));
+                let _scope = crate::midge::adapter::publication::PublicationControlScope::enter(
+                    Some(&controls),
+                );
                 let _observer = Midge::observe_next_publication_wait_for_test(move || {
-                    waiting_tx.send(()).expect("marker reached publication gate");
+                    waiting_tx
+                        .send(())
+                        .expect("marker reached publication gate");
                 });
                 worker_store.require_storage_layout_version(V2)
             });

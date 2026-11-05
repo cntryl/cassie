@@ -262,7 +262,7 @@ mod tests {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
     #[test]
-    fn should_admit_literal_parameter_and_column_pattern_copies_at_their_boundary() {
+    fn should_admit_direct_pattern_copies_at_their_boundary() {
         // Arrange
         let text = "a".repeat(256);
         let baseline = QueryExecutionControls::from_limits(

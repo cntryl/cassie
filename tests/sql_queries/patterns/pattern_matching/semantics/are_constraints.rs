@@ -97,7 +97,7 @@ fn should_preserve_greedy_are_capture_priorities() {
 }
 
 #[test]
-fn should_share_are_constraints_with_count_replace_and_quantifiers() {
+fn should_share_are_constraints_across_pattern_consumers() {
     // Arrange
     let fixture = sql_fixture("issue-799-shared-constraints", &[]);
 
@@ -145,7 +145,7 @@ fn should_reject_unselected_ast_erased_constraint_notations() {
 }
 
 #[test]
-fn should_preserve_ignored_and_escaped_constraint_notation_contexts() {
+fn should_preserve_contextual_constraint_notation() {
     // Arrange
     let fixture = sql_fixture("issue-799-constraint-source-context", &[]);
     let cases = [

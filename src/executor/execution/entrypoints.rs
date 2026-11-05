@@ -56,6 +56,9 @@ fn run_with_execution_breakdown_controls(
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
     let _publication_controls =
         crate::midge::adapter::PublicationControlScope::enter(Some(controls));
+    if plan.logical.command.is_none() {
+        crate::sql::pagination::guard_plan_depth(&plan.logical, controls)?;
+    }
     check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
@@ -117,6 +120,9 @@ pub(crate) fn run_with_session_controls(
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
     let _publication_controls =
         crate::midge::adapter::PublicationControlScope::enter(Some(controls));
+    if plan.logical.command.is_none() {
+        crate::sql::pagination::guard_plan_depth(&plan.logical, controls)?;
+    }
     check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, session, &plan.logical);

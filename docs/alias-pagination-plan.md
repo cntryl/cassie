@@ -390,6 +390,15 @@ malformed-tail probes pass, including the original CROSS JOIN ON rejection.
 Queued vector test naming and empty-result diagnostic refinements are included
 before the next coherent immutable complete run.
 
+## Direct-plan depth admission (2026-11-05)
+
+Direct SELECT plans receive the existing structural pagination depth check before
+constant folding, including nested expressions and subqueries. This preserves
+the 128-level envelope without depending on compiler optimization to avoid a
+stack overflow. Out-of-envelope plans can fail depth admission before a folding
+error; within the envelope, folding still precedes pagination type validation.
+The guard neither evaluates bounds nor reserves a cloned plan.
+
 ## Local validation closeout (2026-10-07)
 
 This closeout supersedes earlier pending local-validation and independent-review

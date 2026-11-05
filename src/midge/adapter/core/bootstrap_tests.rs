@@ -154,14 +154,14 @@ fn should_initialize_once_for_concurrent_first_callers() {
         BEFORE_GATE.with(|slot| {
             *slot.borrow_mut() = Some(Box::new(move || {
                 waiting_tx.send(()).expect("second reached gate");
-            }))
+            }));
         });
         INITIALIZING.with(|slot| {
             *slot.borrow_mut() = Some(Box::new(move || {
                 duplicate_tx
                     .send(())
                     .expect("unexpected second initialization");
-            }))
+            }));
         });
         second_store.create_database("concurrent", None)
     });

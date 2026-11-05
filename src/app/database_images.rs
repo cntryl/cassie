@@ -101,37 +101,7 @@ impl DatabaseBackupStream {
 
         while self.pending.len() < IMAGE_CHUNK_BYTES {
             match self.phase {
-                BackupPhase::Header => {
-                    self.pending.extend(DATABASE_IMAGE_MAGIC.iter().copied());
-                    let protected = self.storage_layout_version != V1_LAYOUT_VERSION;
-                    let header = DatabaseImageHeader {
-                        image_version: if protected {
-                            PROTECTED_DATABASE_IMAGE_VERSION
-                        } else {
-                            DATABASE_IMAGE_VERSION
-                        },
-                        source_database: self.source_database.clone(),
-                        source_physical_family: self.source_physical_family.clone(),
-                        storage_layout_version: self.storage_layout_version.to_string(),
-                        schema_epoch: self.schema_epoch,
-                        data_epoch: self.data_epoch,
-                        integrity: if protected {
-                            V2_INTEGRITY
-                        } else {
-                            V1_INTEGRITY
-                        }
-                        .to_string(),
-                    };
-                    let payload = serde_json::to_vec(&header).map_err(|error| {
-                        CassieError::Parse(format!("encode database image header: {error}"))
-                    })?;
-                    if protected {
-                        self.hasher.update([FRAME_HEADER]);
-                        self.hasher.update(&payload);
-                    }
-                    self.enqueue_frame(FRAME_HEADER, &payload);
-                    self.phase = BackupPhase::Catalog;
-                }
+                BackupPhase::Header => self.enqueue_header_frame()?,
                 BackupPhase::Catalog => {
                     if let Some((key, value)) = self.catalog_entries.get(self.catalog_index) {
                         let frame = encode_entry_frame(key, value)?;
@@ -229,6 +199,39 @@ impl DatabaseBackupStream {
             .midge
             .get_database(&self.source_database)?
             .is_some_and(|metadata| metadata.physical_family == self.source_physical_family))
+    }
+
+    fn enqueue_header_frame(&mut self) -> Result<(), CassieError> {
+        self.pending.extend(DATABASE_IMAGE_MAGIC.iter().copied());
+        let protected = self.storage_layout_version != V1_LAYOUT_VERSION;
+        let header = DatabaseImageHeader {
+            image_version: if protected {
+                PROTECTED_DATABASE_IMAGE_VERSION
+            } else {
+                DATABASE_IMAGE_VERSION
+            },
+            source_database: self.source_database.clone(),
+            source_physical_family: self.source_physical_family.clone(),
+            storage_layout_version: self.storage_layout_version.to_string(),
+            schema_epoch: self.schema_epoch,
+            data_epoch: self.data_epoch,
+            integrity: if protected {
+                V2_INTEGRITY
+            } else {
+                V1_INTEGRITY
+            }
+            .to_string(),
+        };
+        let payload = serde_json::to_vec(&header).map_err(|error| {
+            CassieError::Parse(format!("encode database image header: {error}"))
+        })?;
+        if protected {
+            self.hasher.update([FRAME_HEADER]);
+            self.hasher.update(&payload);
+        }
+        self.enqueue_frame(FRAME_HEADER, &payload);
+        self.phase = BackupPhase::Catalog;
+        Ok(())
     }
 
     fn enqueue_frame(&mut self, tag: u8, payload: &[u8]) {

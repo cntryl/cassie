@@ -3,12 +3,8 @@
 
 #[path = "support/environment.rs"]
 mod support_environment;
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_pgwire;
+use cassie_test_support::support_sql;
 
 // Formerly tests/sprint01_runtime_baseline.rs.
 #[path = "configuration_isolated/configuration/runtime_baseline.rs"]

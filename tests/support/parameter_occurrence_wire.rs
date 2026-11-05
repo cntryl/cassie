@@ -11,11 +11,19 @@ pub enum Step {
     ThroughReadyWithin(Cycle, std::time::Duration),
 }
 
+/// # Panics
+///
+/// Panics if fixture setup, protocol I/O, or an expected test invariant fails.
+#[must_use]
 pub fn run_script(label: &str, steps: Vec<Step>) -> Vec<Frames> {
     let config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     run_script_with_config(label, steps, config)
 }
 
+/// # Panics
+///
+/// Panics if fixture setup, protocol I/O, or an expected test invariant fails.
+#[must_use]
 pub fn run_script_with_config(
     label: &str,
     steps: Vec<Step>,

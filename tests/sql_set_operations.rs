@@ -1,12 +1,8 @@
 // Integration suite: set operations (UNION, INTERSECT, EXCEPT) and the
 // statements that embed them.
 
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/sql_fixture.rs"]
-mod support_sql_fixture;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_sql_fixture;
 
 #[path = "sql_set_operations/set_operations/set_operation_views.rs"]
 mod set_operation_views;

@@ -8,6 +8,10 @@ pub type Frames = Vec<(u8, Vec<u8>)>;
 
 pub type Cycle = Vec<Vec<u8>>;
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
+#[must_use]
 pub fn run_cycles(label: &str, setup: &[(&str, Vec<Value>)], cycles: Vec<Cycle>) -> Vec<Frames> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -52,6 +56,9 @@ pub fn run_cycles(label: &str, setup: &[(&str, Vec<Value>)], cycles: Vec<Cycle>)
     batches
 }
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_success(frames: &[(u8, Vec<u8>)]) {
     assert_eq!(
         wire::error_code(frames),

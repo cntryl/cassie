@@ -32,6 +32,7 @@ pub struct Expected {
     field: Option<&'static [u8]>,
 }
 
+#[must_use]
 pub fn setup_queries(prefix: &str, cases: &[CodecCase]) -> Vec<String> {
     cases
         .iter()
@@ -44,6 +45,7 @@ pub fn setup_queries(prefix: &str, cases: &[CodecCase]) -> Vec<String> {
         .collect()
 }
 
+#[must_use]
 pub fn setup_refs(statements: &[String]) -> Vec<(&str, Vec<Value>)> {
     statements
         .iter()
@@ -51,6 +53,7 @@ pub fn setup_refs(statements: &[String]) -> Vec<(&str, Vec<Value>)> {
         .collect()
 }
 
+#[must_use]
 pub fn populated_cycles(
     prefix: &str,
     cases: &'static [CodecCase],
@@ -99,6 +102,7 @@ fn value_expectation(case: &'static CodecCase, format: i16, text: &'static [u8])
     }
 }
 
+#[must_use]
 pub fn descriptor_cycles(
     prefix: &str,
     cases: &'static [CodecCase],
@@ -125,6 +129,10 @@ pub fn descriptor_cycles(
     (cycles, expected)
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
+#[must_use]
 pub fn empty_array_cycles(prefix: &str) -> (Vec<wire_fixture::Cycle>, Vec<Expected>) {
     let mut cycles = Vec::new();
     let mut expected = Vec::new();
@@ -166,6 +174,9 @@ pub fn empty_array_cycles(prefix: &str) -> (Vec<wire_fixture::Cycle>, Vec<Expect
     (cycles, expected)
 }
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_batches(frames: &[wire_fixture::Frames], expected: &[Expected]) {
     assert_eq!(frames.len(), expected.len());
     for (index, (frames, expected)) in frames.iter().zip(expected).enumerate() {

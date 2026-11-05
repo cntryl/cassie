@@ -35,6 +35,7 @@ pub fn use_local_storage() {
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
+#[must_use]
 pub fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::sweep_stale_once();
     let mut path = std::env::temp_dir();
@@ -42,6 +43,9 @@ pub fn data_dir(label: &str) -> String {
     path.to_string_lossy().to_string()
 }
 
+/// # Panics
+///
+/// Panics if fixture setup, protocol I/O, or an expected test invariant fails.
 pub async fn spawn_server(cassie: Cassie) -> PgwireServer {
     let config = CassieRuntimeConfig::from_env().expect("runtime config");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -58,6 +62,10 @@ pub async fn spawn_server(cassie: Cassie) -> PgwireServer {
     PgwireServer { addr, handle }
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
+#[must_use]
 pub fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(&0x0003_0000_i32.to_be_bytes());
@@ -79,6 +87,7 @@ pub fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+#[must_use]
 pub fn cancel_request_frame(process_id: i32, secret_key: i32) -> Vec<u8> {
     let mut frame = Vec::with_capacity(16);
     frame.extend_from_slice(&16_i32.to_be_bytes());
@@ -88,6 +97,7 @@ pub fn cancel_request_frame(process_id: i32, secret_key: i32) -> Vec<u8> {
     frame
 }
 
+#[must_use]
 pub fn simple_query_frame(sql: &str) -> Vec<u8> {
     let mut payload = Vec::with_capacity(sql.len() + 1);
     payload.extend_from_slice(sql.as_bytes());
@@ -95,14 +105,17 @@ pub fn simple_query_frame(sql: &str) -> Vec<u8> {
     frontend_frame(b'Q', &payload)
 }
 
+#[must_use]
 pub fn copy_data_frame(payload: &[u8]) -> Vec<u8> {
     frontend_frame(b'd', payload)
 }
 
+#[must_use]
 pub fn copy_done_frame() -> Vec<u8> {
     frontend_frame(b'c', &[])
 }
 
+#[must_use]
 pub fn copy_fail_frame(message: &str) -> Vec<u8> {
     let mut payload = Vec::with_capacity(message.len() + 1);
     payload.extend_from_slice(message.as_bytes());
@@ -110,10 +123,12 @@ pub fn copy_fail_frame(message: &str) -> Vec<u8> {
     frontend_frame(b'f', &payload)
 }
 
+#[must_use]
 pub fn flush_frame() -> Vec<u8> {
     frontend_frame(b'H', &[])
 }
 
+#[must_use]
 pub fn password_message(password: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(password.as_bytes());
@@ -122,10 +137,15 @@ pub fn password_message(password: &str) -> Vec<u8> {
     frontend_frame(b'p', &payload)
 }
 
+#[must_use]
 pub fn parse_frame(statement_name: &str, sql: &str) -> Vec<u8> {
     parse_frame_with_types(statement_name, sql, &[])
 }
 
+/// # Panics
+///
+/// Panics if the supplied wire payload is malformed or exceeds the protocol length limit.
+#[must_use]
 pub fn parse_frame_with_types(statement_name: &str, sql: &str, parameter_types: &[i32]) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(statement_name.as_bytes());
@@ -144,6 +164,7 @@ pub fn parse_frame_with_types(statement_name: &str, sql: &str, parameter_types: 
     frontend_frame(b'P', &payload)
 }
 
+#[must_use]
 pub fn bind_frame(portal_name: &str, statement_name: &str, params: &[&str]) -> Vec<u8> {
     let params = params
         .iter()
@@ -152,6 +173,10 @@ pub fn bind_frame(portal_name: &str, statement_name: &str, params: &[&str]) -> V
     bind_frame_with_formats(portal_name, statement_name, &[0], &params, &[])
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
+#[must_use]
 pub fn bind_frame_with_formats(
     portal_name: &str,
     statement_name: &str,
@@ -202,18 +227,22 @@ pub fn bind_frame_with_formats(
     frontend_frame(b'B', &payload)
 }
 
+#[must_use]
 pub fn describe_statement_frame(statement_name: &str) -> Vec<u8> {
     describe_frame(b'S', statement_name)
 }
 
+#[must_use]
 pub fn describe_portal_frame(portal_name: &str) -> Vec<u8> {
     describe_frame(b'P', portal_name)
 }
 
+#[must_use]
 pub fn execute_frame(portal_name: &str) -> Vec<u8> {
     execute_limited_frame(portal_name, 0)
 }
 
+#[must_use]
 pub fn execute_limited_frame(portal_name: &str, limit: i32) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(portal_name.as_bytes());
@@ -222,14 +251,17 @@ pub fn execute_limited_frame(portal_name: &str, limit: i32) -> Vec<u8> {
     frontend_frame(b'E', &payload)
 }
 
+#[must_use]
 pub fn close_statement_frame(statement_name: &str) -> Vec<u8> {
     close_frame(b'S', statement_name)
 }
 
+#[must_use]
 pub fn close_portal_frame(portal_name: &str) -> Vec<u8> {
     close_frame(b'P', portal_name)
 }
 
+#[must_use]
 pub fn sync_frame() -> Vec<u8> {
     frontend_frame(b'S', &[])
 }
@@ -241,6 +273,9 @@ pub async fn complete_startup(
     let _ = complete_startup_with_backend_key(reader, writer).await;
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub async fn transaction_control(
     reader: &mut (impl AsyncRead + Unpin),
     writer: &mut (impl AsyncWrite + Unpin),
@@ -286,6 +321,9 @@ async fn complete_startup_with_password_and_backend_key(
     complete_startup_as(reader, writer, "root", "postgres", password).await
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub async fn complete_startup_as(
     reader: &mut (impl AsyncRead + Unpin),
     writer: &mut (impl AsyncWrite + Unpin),
@@ -328,6 +366,9 @@ pub async fn complete_startup_as(
     }
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub async fn write_frames(writer: &mut (impl AsyncWrite + Unpin), frames: Vec<Vec<u8>>) {
     // A cycle is one client write. Tests of fragmented transport write their
     // fragments explicitly; ordinary protocol tests need only frame ordering.
@@ -336,6 +377,9 @@ pub async fn write_frames(writer: &mut (impl AsyncWrite + Unpin), frames: Vec<Ve
     writer.flush().await.expect("flush frames");
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub async fn read_wire_frame(reader: &mut (impl AsyncRead + Unpin)) -> (u8, Vec<u8>) {
     let mut tag = [0u8; 1];
     reader.read_exact(&mut tag).await.expect("read frame tag");
@@ -380,6 +424,9 @@ pub async fn read_frames_until_ready(reader: &mut (impl AsyncRead + Unpin)) -> V
 
 /// Reads frames through `ReadyForQuery`, panicking instead of hanging when the
 /// backend stops answering (a desynchronised connection never sends `Z`).
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub async fn read_frames_until_ready_within(
     reader: &mut (impl AsyncRead + Unpin),
     limit: Duration,
@@ -389,6 +436,7 @@ pub async fn read_frames_until_ready_within(
         .expect("backend should answer with ReadyForQuery before the timeout")
 }
 
+#[must_use]
 pub fn error_code(frames: &[(u8, Vec<u8>)]) -> Option<String> {
     frames
         .iter()
@@ -401,6 +449,7 @@ pub fn error_code(frames: &[(u8, Vec<u8>)]) -> Option<String> {
         })
 }
 
+#[must_use]
 pub fn parse_row_description(payload: &[u8]) -> Vec<RowDescription> {
     let mut cursor = 0usize;
     let field_count = read_i16(payload, &mut cursor);
@@ -435,6 +484,7 @@ fn auth_request_code(payload: &[u8]) -> Option<i32> {
         .map(i32::from_be_bytes)
 }
 
+#[must_use]
 pub fn parse_parameter_description(payload: &[u8]) -> Vec<i32> {
     let mut cursor = 0usize;
     let parameter_count = read_i16(payload, &mut cursor);
@@ -447,6 +497,10 @@ pub fn parse_parameter_description(payload: &[u8]) -> Vec<i32> {
     parameters
 }
 
+/// # Panics
+///
+/// Panics if the supplied wire payload is malformed or exceeds the protocol length limit.
+#[must_use]
 pub fn parse_data_row(payload: &[u8]) -> Vec<Option<String>> {
     let mut cursor = 0usize;
     let field_count = read_i16(payload, &mut cursor);
@@ -468,6 +522,7 @@ pub fn parse_data_row(payload: &[u8]) -> Vec<Option<String>> {
     values
 }
 
+#[must_use]
 pub fn row_description_names(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
     frames
         .iter()
@@ -481,6 +536,7 @@ pub fn row_description_names(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
         .unwrap_or_default()
 }
 
+#[must_use]
 pub fn data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<String>>> {
     frames
         .iter()
@@ -489,6 +545,7 @@ pub fn data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<String>>> {
         .collect()
 }
 
+#[must_use]
 pub fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     let mut cursor = 0usize;
     let mut fields = Vec::new();

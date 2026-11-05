@@ -8,10 +8,27 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
-from test_inventory import clean_name, is_test_inventory_file, render_planned_tests
+from test_inventory import cargo_test_roots, clean_name, is_test_inventory_file, render_planned_tests
 
 
 class InventoryNameTests(unittest.TestCase):
+    def should_inventory_workspace_fixture_tests_without_including_production_units(self):
+        # Arrange
+        fixture = ROOT / "tests/support/pgwire_helpers/lib.rs"
+        integration = ROOT / "tests/pgwire_extended.rs"
+        metadata = {"packages": [{"targets": [
+            {"name": "cassie", "src_path": str(ROOT / "src/lib.rs"), "test": True, "kind": ["lib"]},
+            {"name": "cassie_test_support", "src_path": str(fixture), "test": True, "kind": ["lib"]},
+            {"name": "pgwire_extended", "src_path": str(integration), "test": True, "kind": ["test"]},
+            {"name": "disabled", "src_path": str(fixture), "test": False, "kind": ["lib"]},
+        ]}]}
+
+        # Act
+        roots = cargo_test_roots(metadata)
+
+        # Assert
+        self.assertEqual(roots, {"cassie_test_support": fixture, "pgwire_extended": integration})
+
     def should_exclude_python_bytecode_from_the_test_file_inventory(self):
         # Arrange
         bytecode = ROOT / "tests/test_inventory/__pycache__/test_names.cpython-312.pyc"

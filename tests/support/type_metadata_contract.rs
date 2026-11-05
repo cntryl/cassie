@@ -14,6 +14,9 @@ mod queries;
 pub use bind::{data_row_payloads, execute_cycle};
 pub use queries::{assert_success, run_cycles, Cycle, Frames};
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_unsupported_before_metadata(frames: &[(u8, Vec<u8>)]) {
     assert_eq!(wire::error_code(frames).as_deref(), Some("0A000"));
     assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'E').count(), 1);
@@ -30,6 +33,9 @@ pub fn assert_unsupported_before_metadata(frames: &[(u8, Vec<u8>)]) {
     );
 }
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_single_column_descriptors(
     frames: &[(u8, Vec<u8>)],
     expected: (i32, i16, i32),
@@ -60,6 +66,10 @@ pub fn assert_single_column_descriptors(
     }
 }
 
+/// # Panics
+///
+/// Panics if the supplied wire payload is malformed or exceeds the protocol length limit.
+#[must_use]
 pub fn one_field_row(field: &[u8]) -> Vec<u8> {
     let mut bytes = vec![0, 1];
     bytes.extend_from_slice(
@@ -71,6 +81,7 @@ pub fn one_field_row(field: &[u8]) -> Vec<u8> {
     bytes
 }
 
+#[must_use]
 pub fn vector_array_setup() -> Vec<(&'static str, Vec<Value>)> {
     vec![
         (
@@ -100,6 +111,10 @@ pub fn vector_array_setup() -> Vec<(&'static str, Vec<Value>)> {
     ]
 }
 
+/// # Panics
+///
+/// Panics if fixture setup, protocol I/O, or an expected test invariant fails.
+#[must_use]
 pub fn run_cycles_across_restart(
     label: &str,
     setup: &[(&str, Vec<Value>)],

@@ -4,12 +4,12 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1623 |
-| Rust files | 1587 |
+| Files under `tests/` | 1630 |
+| Rust files | 1593 |
 | Rust test declarations | 8577 |
-| Python test declarations | 21 |
-| Static Rust registration instances | 8705 |
-| Cargo test targets | 32 |
+| Python test declarations | 22 |
+| Static Rust registration instances | 8577 |
+| Cargo test targets | 36 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
@@ -19,7 +19,7 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 | Existing files over their line limit | 0 |
 | Destination name conflicts | 0 |
 
-Shared support tests compile into several Cargo suites, so registration instances exceed physical source declarations. `cfg` expressions are not evaluated.
+Registration instances count each executable owner of a source declaration. Shared fixture self-tests have one library owner; `cfg` expressions are not evaluated.
 
 ## Existing tests by owner
 
@@ -42,8 +42,11 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [null_safe_predicates](inventory/null_safe_predicates.md) | 42 | 0 |
 | [parser_types](inventory/parser_types.md) | 402 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
+| [pgwire_catalogs](inventory/pgwire_catalogs.md) | 605 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 3696 | 8 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 915 | 0 |
+| [pgwire_grammar](inventory/pgwire_grammar.md) | 1224 | 8 |
+| [pgwire_types](inventory/pgwire_types.md) | 952 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 124 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 76 | 0 |
@@ -59,7 +62,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [storage_indexes](inventory/storage_indexes.md) | 187 | 0 |
 | [support](inventory/support.md) | 8 | 0 |
 | [temporal_predicate_literals](inventory/temporal_predicate_literals.md) | 1 | 0 |
-| [test_inventory](inventory/test_inventory.md) | 5 | 0 |
+| [test_inventory](inventory/test_inventory.md) | 6 | 0 |
 | [time_series_float_partitions](inventory/time_series_float_partitions.md) | 1 | 0 |
 | [vector_embeddings](inventory/vector_embeddings.md) | 169 | 0 |
 
@@ -72,6 +75,7 @@ Each suite's Cargo target and source root are recorded here.
 | `analytics` | `tests/analytics.rs` |
 | `bench_diagnostics` | `tests/bench_diagnostics.rs` |
 | `bench_operations` | `tests/bench_operations.rs` |
+| `cassie_test_support` | `tests/support/pgwire_helpers/lib.rs` |
 | `catalog_security` | `tests/catalog_security.rs` |
 | `compatibility` | `tests/compatibility.rs` |
 | `configuration_isolated` | `tests/configuration_isolated.rs` |
@@ -83,8 +87,11 @@ Each suite's Cargo target and source root are recorded here.
 | `metrics` | `tests/metrics.rs` |
 | `null_safe_predicates` | `tests/null_safe_predicates.rs` |
 | `parser_types` | `tests/parser_types.rs` |
+| `pgwire_catalogs` | `tests/pgwire_catalogs.rs` |
 | `pgwire_core` | `tests/pgwire_core.rs` |
 | `pgwire_extended` | `tests/pgwire_extended.rs` |
+| `pgwire_grammar` | `tests/pgwire_grammar.rs` |
+| `pgwire_types` | `tests/pgwire_types.rs` |
 | `planner_controls` | `tests/planner_controls.rs` |
 | `query_scan_controls` | `tests/query_scan_controls.rs` |
 | `relational_qualification` | `tests/relational_qualification.rs` |

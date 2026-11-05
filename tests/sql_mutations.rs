@@ -16,10 +16,8 @@ mod support_mixed_numeric_dml;
 mod support_data_dir;
 #[path = "support/local_storage.rs"]
 mod support_local_storage;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 
 #[path = "sql_mutations/mutations/boolean_adapters.rs"]
 mod sql_boolean_adapters;
@@ -29,8 +27,7 @@ mod sql_boolean_checks;
 mod sql_boolean_ddl_predicates;
 #[path = "sql_mutations/mutations/boolean_contexts.rs"]
 mod sql_boolean_mutations;
-#[path = "support/sql_fixture.rs"]
-mod support_sql_fixture;
+use cassie_test_support::support_sql_fixture;
 
 #[path = "sql_mutations/types/json/json_array_copy.rs"]
 mod type_json_array_copy;

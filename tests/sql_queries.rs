@@ -25,18 +25,13 @@ mod sql_coalesce_promotion;
 // Consolidated integration suite: sql_queries.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
+use cassie_test_support::support_pgwire;
 #[path = "support/regex_cancellation.rs"]
 mod support_regex_cancellation;
 #[path = "support/relational_evidence.rs"]
 mod support_relational_evidence;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/sql_fixture.rs"]
-mod support_sql_fixture;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_sql_fixture;
 #[path = "support/wire_queries.rs"]
 mod support_type_metadata_contract;
 

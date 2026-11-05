@@ -45,6 +45,7 @@ impl Drop for FixtureDirectory {
 /// # Panics
 ///
 /// Panics when the instance cannot be created or a setup statement fails.
+#[must_use]
 pub fn sql_fixture(label: &str, setup: &[&str]) -> SqlFixture {
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     if config.password.is_empty() {
@@ -58,6 +59,7 @@ pub fn sql_fixture(label: &str, setup: &[&str]) -> SqlFixture {
 /// # Panics
 ///
 /// Panics when the instance cannot be created or a setup statement fails.
+#[must_use]
 pub fn sql_fixture_with_config(
     label: &str,
     setup: &[&str],
@@ -72,6 +74,7 @@ pub fn sql_fixture_with_config(
 /// # Panics
 ///
 /// Panics when construction or a setup statement fails.
+#[must_use]
 pub fn local_sql_fixture_with_config(
     label: &str,
     setup: &[&str],
@@ -119,6 +122,7 @@ impl SqlFixture {
     /// # Panics
     ///
     /// Panics when the statement fails.
+    #[must_use]
     pub fn rows(&self, sql: &str) -> Vec<Vec<Value>> {
         let Ok(result) = self.execute(sql) else {
             panic!("query failed: {sql}");
@@ -131,6 +135,7 @@ impl SqlFixture {
     /// # Panics
     ///
     /// Panics when the statement succeeds.
+    #[must_use]
     pub fn error(&self, sql: &str) -> CassieError {
         match self.execute(sql) {
             Ok(_) => panic!("query should fail: {sql}"),

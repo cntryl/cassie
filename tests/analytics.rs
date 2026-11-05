@@ -1,10 +1,8 @@
 // Consolidated integration suite: analytics.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 
 // Formerly tests/aggregate_acceleration.rs.
 #[path = "analytics/aggregates/aggregate_acceleration.rs"]

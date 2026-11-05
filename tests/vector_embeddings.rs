@@ -3,10 +3,7 @@
 
 #[path = "support/retrieval.rs"]
 mod support_retrieval;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
 
 #[path = "vector_embeddings/vectors/ann_candidate_exhaustion.rs"]
 mod ann_candidate_exhaustion;

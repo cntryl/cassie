@@ -7,10 +7,7 @@ mod graph_completeness;
 mod support_graph;
 #[path = "support/graph_neighbors.rs"]
 mod support_graph_neighbors;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
 #[path = "support/time_series_evidence.rs"]
 mod support_time_series_evidence;
 
@@ -51,8 +48,7 @@ mod support_read_equivalence;
 
 #[path = "domain_models/time_series/rollups/boolean_predicates.rs"]
 mod rollup_boolean_predicates;
-#[path = "support/sql_fixture.rs"]
-mod support_sql_fixture;
+use cassie_test_support::support_sql_fixture;
 
 #[path = "domain_models/time_series/queries/column_time_series_read_equivalence.rs"]
 mod column_time_series_read_equivalence;

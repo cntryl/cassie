@@ -24,9 +24,12 @@ subprocess tests must retain their existing module paths in every executable
 that owns the fixture.
 
 This is a measured experiment, not a compilation performance claim. Keep the
-existing optimization profile and compiler checks. The approved CI command
-compiles every target with `cargo test --all-targets --no-run`, then executes
-the full workspace correctness suite, including doctests. Performance sampling remains
+existing optimization profile and compiler checks. The approved CI workflow
+checks quality alongside two package-owned test jobs. Each test job compiles
+every package target with `cargo test --all-targets --no-run`, then runs that
+package's complete correctness suite, including doctests. The two packages cover
+the full workspace. The aggregate `backend` gate requires quality and both test
+jobs to succeed; each job retains its 20-minute limit. Performance sampling remains
 under the documented benchmark commands; it is not run by the correctness job.
 Compare
 Cargo timing reports with the same job count and warm dependency artifacts,
@@ -72,8 +75,13 @@ The one-way package trial with all test code optimized took 443.71 seconds; one
 sample does not establish a general end-to-end speedup. The selected integration
 profile rebuilt all integration/fixture targets in 30.61 seconds while reusing
 unchanged optimized production artifacts; that is not a cold-build comparison.
-The matching fresh-workspace comparison and hosted results are retained in the
-closing PR for [issue #1189](https://github.com/cntryl/cassie/issues/1189).
+The matching fresh-workspace comparison completed in 335.07 seconds, versus
+458.84 seconds for the baseline (27.0% faster in these local runs). Both used two
+Cargo jobs, warm registry dependencies and rebuilt workspace artifacts, with no
+competing Rust build. Verbose invocations confirm 39 production/unit/benchmark
+units at level 1 and 37 integration/library units at level 0. Hosted outcomes are
+retained in the closing PR for [issue #1189](https://github.com/cntryl/cassie/issues/1189);
+these Mac timings are not a Linux forecast.
 
 The selected source passed 10,360 tests with zero failures and 12 inherited
 ignores. The baseline had 10,488 passing instances: exactly 128 redundant fixture
@@ -98,3 +106,15 @@ versions and external manifest paths, parallel production/unit compilation, and
 the full suite including deep direct-plan, CTE and parser witnesses. Final
 isolation and coverage gap judgments were 0.16 and 0.13. These are review leads;
 the source/registration comparisons and executable gates are the evidence.
+
+The first serial hosted revision completed test compilation in 8m45s, versus the
+older revision still compiling when cancelled after 12m48s, but exhausted its
+20-minute job budget during correctness execution after roughly seven minutes
+of prior quality/build work. This prompted the package-owned jobs above. Quality
+and test dependencies use separate cache keys for their dev/test profiles. No
+check, test, target compilation or benchmark assertion was removed; benchmark
+sampling remains a separately invoked workload.
+
+The aggregate `backend` shell condition was exercised for all 16 combinations
+of success/failure/cancelled/skipped upstream outcomes. Only success/success
+passes. Package metadata confirms the two test jobs own every workspace target.

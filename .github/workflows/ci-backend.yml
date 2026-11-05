@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 jobs:
-  backend:
+  quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     
@@ -36,7 +36,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "ci"
+          shared-key: "ci-quality"
 
       - name: Install Rust components
         run: rustup component add rustfmt clippy
@@ -62,8 +62,45 @@ jobs:
       - name: Cargo build
         run: cargo build --workspace --all-targets --all-features
 
-      - name: Compile test and benchmark targets
-        run: cargo test --workspace --all-targets --all-features --no-run
 
-      - name: Cargo correctness tests
-        run: cargo test --workspace --all-features
+  tests:
+    name: tests (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [cassie, cassie-integration-tests]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci-tests"
+
+      - name: Compile package targets
+        run: cargo test --locked --package "${{ matrix.package }}" --all-targets --all-features --no-run
+
+      - name: Run package correctness tests
+        run: cargo test --locked --package "${{ matrix.package }}" --all-features
+
+  backend:
+    needs: [quality, tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Require every backend gate
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TEST_RESULT: ${{ needs.tests.result }}
+        run: |
+          if [ "$QUALITY_RESULT" != success ] || [ "$TEST_RESULT" != success ]; then
+            echo "Backend validation did not pass: quality=$QUALITY_RESULT tests=$TEST_RESULT"
+            exit 1
+          fi

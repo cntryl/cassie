@@ -69,10 +69,7 @@ impl Midge {
         tests::before_marker_lock();
         let _marker_guard = self.compatibility_gate.lock();
         self.publication.ensure_recovered()?;
-        let mut transaction = self
-            .engine
-            .begin_tx(schema, TransactionMode::ReadWrite)
-            .map_err(CassieError::from)?;
+        let mut transaction = self.begin_raw_adapter_tx(schema, TransactionMode::ReadWrite)?;
         let key = key_encoding::layout_marker_key();
         let marker = transaction
             .get(&key)

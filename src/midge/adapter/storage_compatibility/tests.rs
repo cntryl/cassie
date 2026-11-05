@@ -337,3 +337,50 @@ fn should_recheck_recovery_after_waiting_for_marker_admission() {
     );
     assert_eq!(retained, V1.as_bytes());
 }
+
+#[test]
+fn should_recheck_recovery_at_marker_publication_gate() {
+    // Arrange
+    let store = Arc::new(memory_store());
+    let schema = store.ensure_families_ready().expect("layout").schema.id();
+    let gate = store.publication.family(schema);
+    let (waiting_tx, waiting_rx) = std::sync::mpsc::sync_channel(1);
+    let worker_store = Arc::clone(&store);
+
+    // Act
+    let worker = gate
+        .with_current_operation(|| {
+            let worker = std::thread::spawn(move || {
+                let controls = crate::runtime::QueryExecutionControls::with_cancellation(
+                    &crate::config::CassieRuntimeLimits::default(),
+                    std::time::Instant::now(),
+                    crate::runtime::QueryCancellationHandle::new(),
+                );
+                let _scope =
+                    crate::midge::adapter::publication::PublicationControlScope::enter(Some(
+                        &controls,
+                    ));
+                let _observer = Midge::observe_next_publication_wait_for_test(move || {
+                    waiting_tx.send(()).expect("marker reached publication gate");
+                });
+                worker_store.require_storage_layout_version(V2)
+            });
+            waiting_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .expect("marker waited at publication gate");
+            store.latch_storage_recovery_required_for_test();
+            Ok(worker)
+        })
+        .expect("hold schema publication gate");
+    let result = worker.join().expect("marker worker");
+
+    // Assert
+    assert_eq!(
+        result
+            .expect_err("recovery latched before publication")
+            .descriptor()
+            .sql_state,
+        "58030"
+    );
+    assert_eq!(raw_marker_after_quarantine(&store), V1.as_bytes());
+}

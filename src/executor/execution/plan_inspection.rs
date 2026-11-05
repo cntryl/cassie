@@ -724,8 +724,22 @@ fn collect_fulltext_fields_from_select_item(
     item: &crate::sql::ast::SelectItem,
     fields: &mut HashSet<String>,
 ) {
-    if let crate::sql::ast::SelectItem::Function { function, .. } = item {
-        collect_fulltext_fields_from_function(function, fields);
+    match item {
+        SelectItem::Function { function, .. } => {
+            collect_fulltext_fields_from_function(function, fields);
+        }
+        SelectItem::WindowFunction { function, .. } => {
+            for expression in function
+                .args
+                .iter()
+                .chain(function.filter.as_deref())
+                .chain(&function.partition_by)
+                .chain(function.order_by.iter().map(|order| &order.expr))
+            {
+                collect_fulltext_fields_from_expr(expression, fields);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -827,6 +841,25 @@ fn execution_source_name(source: &QuerySource) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_find_search_field_used_only_in_window_filter() {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n) FILTER (WHERE search(body, 'needle')) OVER () FROM records",
+        )
+        .expect("window aggregate syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let fields = fulltext_query_fields(&plan);
+
+        // Assert
+        assert_eq!(fields, HashSet::from(["body".to_owned()]));
+    }
 
     #[test]
     fn should_find_routine_used_only_in_window_filter() {

@@ -383,9 +383,14 @@ fn select_item_needs_user_functions(item: &SelectItem) -> bool {
     match item {
         SelectItem::Function { function, .. } => function_needs_user_functions(function),
         SelectItem::Expr { expr, .. } => expr_needs_user_functions(expr),
-        SelectItem::Column { .. } | SelectItem::Wildcard | SelectItem::WindowFunction { .. } => {
-            false
-        }
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(expr_needs_user_functions),
+        SelectItem::Column { .. } | SelectItem::Wildcard => false,
     }
 }
 
@@ -837,9 +842,11 @@ mod tests {
 
         // Act
         let uses_filter = plan_uses_function(&plan, "custom_filter");
+        let needs_routines = plan_needs_user_functions(&plan);
 
         // Assert
         assert!(uses_filter);
+        assert!(needs_routines);
         assert!(!plan_uses_function(&plan, "absent_routine"));
     }
 

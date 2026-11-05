@@ -389,10 +389,12 @@ fn should_retain_validated_restore_ownership_after_storage_requires_recovery() {
     // Arrange
     for layout in [V1, V2] {
         let cassie = fixture();
-        let image = with_layout(
-            &collect(cassie.begin_database_backup("postgres").expect("backup")),
-            layout,
-        );
+        let image = if layout == V2 {
+            v2_image()
+        } else {
+            collect(cassie.begin_database_backup("postgres").expect("backup"))
+        };
+        assert_eq!(header_layout(&image), layout);
         let mut restore = cassie
             .begin_database_restore("quarantined_restore")
             .expect("staging");

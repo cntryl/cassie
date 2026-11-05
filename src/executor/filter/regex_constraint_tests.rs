@@ -1,11 +1,9 @@
+use super::super::super::{compiler, matcher};
 use super::{search, Directory, Input, Regex, Walk};
 use crate::{
     app::CassieError,
     config::CassieRuntimeLimits,
-    executor::filter::{
-        regex_functions::{compiler, matcher},
-        QueryError,
-    },
+    executor::filter::QueryError,
     runtime::{QueryCancellationHandle, QueryExecutionControls},
 };
 

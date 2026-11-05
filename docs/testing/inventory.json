@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1616,
-    "rust_files": 1580,
-    "rust_test_declarations": 8543,
+    "files": 1623,
+    "rust_files": 1587,
+    "rust_test_declarations": 8577,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8671,
+    "registered_rust_instances": 8705,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -122038,6 +122038,37 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/patterns/quantified_parameters.rs::should_describe_quantified_pattern_text_array_parameters",
+      "name": "should_describe_quantified_pattern_text_array_parameters",
+      "current_file": "tests/pgwire_extended/patterns/quantified_parameters.rs",
+      "line": 7,
+      "end_line": 62,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_text_compat::quantified_parameters::should_describe_quantified_pattern_text_array_parameters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "patterns",
+        "directory": "tests/pgwire_extended/patterns",
+        "file": "tests/pgwire_extended/patterns/quantified_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/patterns/query/parameters.rs::should_bind_like_escape_parameters_over_pgwire",
       "name": "should_bind_like_escape_parameters_over_pgwire",
       "current_file": "tests/pgwire_extended/patterns/query/parameters.rs",
@@ -122066,6 +122097,68 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/patterns/similar_parameters.rs::should_describe_dynamic_similar_parameters_with_boolean_text_results",
+      "name": "should_describe_dynamic_similar_parameters_with_boolean_text_results",
+      "current_file": "tests/pgwire_extended/patterns/similar_parameters.rs",
+      "line": 7,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_text_compat::similar_parameters::should_describe_dynamic_similar_parameters_with_boolean_text_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "patterns",
+        "directory": "tests/pgwire_extended/patterns",
+        "file": "tests/pgwire_extended/patterns/similar_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/patterns/similar_parameters.rs::should_preserve_dynamic_similar_escape_error_hint_after_null_left_input",
+      "name": "should_preserve_dynamic_similar_escape_error_hint_after_null_left_input",
+      "current_file": "tests/pgwire_extended/patterns/similar_parameters.rs",
+      "line": 67,
+      "end_line": 107,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::postgresql18_text_compat::similar_parameters::should_preserve_dynamic_similar_escape_error_hint_after_null_left_input"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "patterns",
+        "directory": "tests/pgwire_extended/patterns",
+        "file": "tests/pgwire_extended/patterns/similar_parameters.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -136828,8 +136921,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_describe_ilike_parameter_types",
       "name": "should_describe_ilike_parameter_types",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 12,
-      "end_line": 52,
+      "line": 16,
+      "end_line": 56,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -136859,8 +136952,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_bind_text_values_to_ilike_operands",
       "name": "should_bind_text_values_to_ilike_operands",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 55,
-      "end_line": 88,
+      "line": 59,
+      "end_line": 92,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -136890,8 +136983,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_describe_regex_text_parameters_with_boolean_result_metadata",
       "name": "should_describe_regex_text_parameters_with_boolean_result_metadata",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 91,
-      "end_line": 126,
+      "line": 95,
+      "end_line": 130,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -136921,8 +137014,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_return_postgres_invalid_regex_sqlstate_on_the_wire",
       "name": "should_return_postgres_invalid_regex_sqlstate_on_the_wire",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 129,
-      "end_line": 155,
+      "line": 133,
+      "end_line": 159,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -136952,8 +137045,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_bind_case_insensitive_regex_to_boolean_binary_result",
       "name": "should_bind_case_insensitive_regex_to_boolean_binary_result",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 158,
-      "end_line": 224,
+      "line": 162,
+      "end_line": 228,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -136983,8 +137076,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_bound_global_regexp_replace_output_expansion",
       "name": "should_bound_global_regexp_replace_output_expansion",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 227,
-      "end_line": 272,
+      "line": 231,
+      "end_line": 276,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -137014,8 +137107,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_reject_valid_c_backed_text_search_parser_with_0a000",
       "name": "should_reject_valid_c_backed_text_search_parser_with_0a000",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 275,
-      "end_line": 303,
+      "line": 279,
+      "end_line": 307,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -137045,8 +137138,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_reject_valid_c_backed_text_search_template_with_0a000",
       "name": "should_reject_valid_c_backed_text_search_template_with_0a000",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 306,
-      "end_line": 332,
+      "line": 310,
+      "end_line": 336,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -137076,8 +137169,8 @@
       "id": "tests/pgwire_extended/protocol/text.rs::should_report_invalid_regular_expression_function_sqlstate",
       "name": "should_report_invalid_regular_expression_function_sqlstate",
       "current_file": "tests/pgwire_extended/protocol/text.rs",
-      "line": 335,
-      "end_line": 361,
+      "line": 339,
+      "end_line": 365,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -231871,6 +231964,68 @@
       }
     },
     {
+      "id": "tests/sql_queries/patterns/pattern_matching/cancellation.rs::should_cancel_active_regex_work_before_output_publication",
+      "name": "should_cancel_active_regex_work_before_output_publication",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
+      "line": 17,
+      "end_line": 44,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_cancel_active_regex_work_before_output_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns/pattern_matching",
+        "directory": "tests/sql_queries/patterns/pattern_matching",
+        "file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/cancellation.rs::should_cancel_active_are_constraint_work_before_output_publication",
+      "name": "should_cancel_active_are_constraint_work_before_output_publication",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
+      "line": 47,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_cancel_active_are_constraint_work_before_output_publication"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns/pattern_matching",
+        "directory": "tests/sql_queries/patterns/pattern_matching",
+        "file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/patterns/pattern_matching/nulls.rs::should_preserve_null_results_for_ilike_predicates",
       "name": "should_preserve_null_results_for_ilike_predicates",
       "current_file": "tests/sql_queries/patterns/pattern_matching/nulls.rs",
@@ -232147,6 +232302,378 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs::should_match_selected_are_word_assertions",
+      "name": "should_match_selected_are_word_assertions",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs",
+      "line": 2,
+      "end_line": 46,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_match_selected_are_word_assertions"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_assertions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs::should_use_are_assertions_in_count_replacement",
+      "name": "should_use_are_assertions_in_count_replacement",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs",
+      "line": 49,
+      "end_line": 65,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_use_are_assertions_in_count_replacement"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_assertions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs::should_reject_are_constraints_inside_bracket_classes",
+      "name": "should_reject_are_constraints_inside_bracket_classes",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs",
+      "line": 68,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_reject_are_constraints_inside_bracket_classes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_assertions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs::should_preserve_are_comment_bracket_director_contexts",
+      "name": "should_preserve_are_comment_bracket_director_contexts",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs",
+      "line": 91,
+      "end_line": 125,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_are_comment_bracket_director_contexts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_assertions.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_match_closed_numeric_are_backreferences",
+      "name": "should_match_closed_numeric_are_backreferences",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 2,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_match_closed_numeric_are_backreferences"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_evaluate_are_lookarounds_in_full_input_context",
+      "name": "should_evaluate_are_lookarounds_in_full_input_context",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 32,
+      "end_line": 59,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_evaluate_are_lookarounds_in_full_input_context"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_preserve_greedy_are_capture_priorities",
+      "name": "should_preserve_greedy_are_capture_priorities",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 62,
+      "end_line": 97,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_greedy_are_capture_priorities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_share_are_constraints_with_count_replace_and_quantifiers",
+      "name": "should_share_are_constraints_with_count_replace_and_quantifiers",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 100,
+      "end_line": 111,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_share_are_constraints_with_count_replace_and_quantifiers"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_reject_unclosed_or_constraint_local_are_backreferences",
+      "name": "should_reject_unclosed_or_constraint_local_are_backreferences",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 114,
+      "end_line": 128,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_reject_unclosed_or_constraint_local_are_backreferences"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_reject_unselected_ast_erased_constraint_notations",
+      "name": "should_reject_unselected_ast_erased_constraint_notations",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 131,
+      "end_line": 145,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_reject_unselected_ast_erased_constraint_notations"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_preserve_ignored_and_escaped_constraint_notation_contexts",
+      "name": "should_preserve_ignored_and_escaped_constraint_notation_contexts",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 148,
+      "end_line": 172,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_ignored_and_escaped_constraint_notation_contexts"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_preserve_pg_empty_progress_backreference_results",
+      "name": "should_preserve_pg_empty_progress_backreference_results",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "line": 175,
+      "end_line": 196,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_pg_empty_progress_backreference_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/are_constraints.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -232708,6 +233235,161 @@
       }
     },
     {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs::should_match_quantified_like_regex_operator_forms",
+      "name": "should_match_quantified_like_regex_operator_forms",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs",
+      "line": 2,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_match_quantified_like_regex_operator_forms"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/quantified_patterns.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs::should_preserve_quantified_pattern_null_empty_identities",
+      "name": "should_preserve_quantified_pattern_null_empty_identities",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs",
+      "line": 30,
+      "end_line": 52,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_quantified_pattern_null_empty_identities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/quantified_patterns.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs::should_stop_quantified_regex_after_a_decisive_element",
+      "name": "should_stop_quantified_regex_after_a_decisive_element",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs",
+      "line": 55,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_stop_quantified_regex_after_a_decisive_element"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/quantified_patterns.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs::should_reject_quantified_pattern_escape_clauses",
+      "name": "should_reject_quantified_pattern_escape_clauses",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs",
+      "line": 74,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_reject_quantified_pattern_escape_clauses"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/quantified_patterns.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs::should_reject_direct_internal_quantified_helper_calls",
+      "name": "should_reject_direct_internal_quantified_helper_calls",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs",
+      "line": 93,
+      "end_line": 113,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_reject_direct_internal_quantified_helper_calls"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/quantified_patterns.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_match_posix_patterns_without_implicit_anchors",
       "name": "should_match_posix_patterns_without_implicit_anchors",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
@@ -232894,11 +233576,197 @@
       }
     },
     {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_match_newlines_with_the_default_regular_expression_mode",
+      "name": "should_match_newlines_with_the_default_regular_expression_mode",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
+      "line": 112,
+      "end_line": 134,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_match_newlines_with_the_default_regular_expression_mode"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/regex_core.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_exclude_newlines_from_negated_classes_in_sensitive_regex_modes",
+      "name": "should_exclude_newlines_from_negated_classes_in_sensitive_regex_modes",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
+      "line": 137,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_exclude_newlines_from_negated_classes_in_sensitive_regex_modes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/regex_core.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_preserve_regex_class_quoting_while_excluding_newlines",
+      "name": "should_preserve_regex_class_quoting_while_excluding_newlines",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
+      "line": 164,
+      "end_line": 184,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_regex_class_quoting_while_excluding_newlines"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/regex_core.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_reject_incompatible_modes_for_quoted_regex_patterns",
+      "name": "should_reject_incompatible_modes_for_quoted_regex_patterns",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
+      "line": 187,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_reject_incompatible_modes_for_quoted_regex_patterns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/regex_core.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_treat_regex_directors_as_literal_text_in_quoted_mode",
+      "name": "should_treat_regex_directors_as_literal_text_in_quoted_mode",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
+      "line": 207,
+      "end_line": 228,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_treat_regex_directors_as_literal_text_in_quoted_mode"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/regex_core.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_accept_quoted_regex_modes_after_conflicting_flags_are_reset",
+      "name": "should_accept_quoted_regex_modes_after_conflicting_flags_are_reset",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
+      "line": 231,
+      "end_line": 245,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_accept_quoted_regex_modes_after_conflicting_flags_are_reset"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/regex_core.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_match_postgres_are_option_director_forms",
       "name": "should_match_postgres_are_option_director_forms",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 112,
-      "end_line": 136,
+      "line": 248,
+      "end_line": 272,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -232928,8 +233796,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_match_posix_bre_ere_modes",
       "name": "should_match_posix_bre_ere_modes",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 139,
-      "end_line": 152,
+      "line": 275,
+      "end_line": 288,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -232959,8 +233827,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_apply_postgres_regex_quoted_case_flags",
       "name": "should_apply_postgres_regex_quoted_case_flags",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 155,
-      "end_line": 170,
+      "line": 291,
+      "end_line": 306,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -232990,8 +233858,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_apply_postgres_regex_newline_sensitive_flag",
       "name": "should_apply_postgres_regex_newline_sensitive_flag",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 173,
-      "end_line": 185,
+      "line": 309,
+      "end_line": 321,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233021,8 +233889,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_apply_postgres_regex_multiline_alias_flag",
       "name": "should_apply_postgres_regex_multiline_alias_flag",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 188,
-      "end_line": 200,
+      "line": 324,
+      "end_line": 336,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233052,8 +233920,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_apply_postgres_regex_non_newline_sensitive_flag",
       "name": "should_apply_postgres_regex_non_newline_sensitive_flag",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 203,
-      "end_line": 215,
+      "line": 339,
+      "end_line": 351,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233083,8 +233951,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_apply_postgres_regex_partial_newline_flag",
       "name": "should_apply_postgres_regex_partial_newline_flag",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 218,
-      "end_line": 230,
+      "line": 354,
+      "end_line": 366,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233114,8 +233982,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_apply_postgres_regex_inverse_partial_newline_flag",
       "name": "should_apply_postgres_regex_inverse_partial_newline_flag",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 233,
-      "end_line": 247,
+      "line": 369,
+      "end_line": 383,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -233145,8 +234013,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs::should_match_postgres_regex_newline_flag_matrix",
       "name": "should_match_postgres_regex_newline_flag_matrix",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
-      "line": 250,
-      "end_line": 275,
+      "line": 386,
+      "end_line": 411,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -234010,11 +234878,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_modes_and_counts.rs::should_reject_postgres_are_backreferences_outside_the_selected_regex_profile",
-      "name": "should_reject_postgres_are_backreferences_outside_the_selected_regex_profile",
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_modes_and_counts.rs::should_match_postgres_are_backreferences_in_the_selected_regex_profile",
+      "name": "should_match_postgres_are_backreferences_in_the_selected_regex_profile",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_modes_and_counts.rs",
       "line": 312,
-      "end_line": 326,
+      "end_line": 323,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -234022,7 +234890,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_pattern_matching::should_reject_postgres_are_backreferences_outside_the_selected_regex_profile"
+          "name": "sql_queries::postgresql18_pattern_matching::should_match_postgres_are_backreferences_in_the_selected_regex_profile"
         }
       ],
       "attributes": [
@@ -234044,8 +234912,8 @@
       "id": "tests/sql_queries/patterns/pattern_matching/semantics/regex_modes_and_counts.rs::should_reject_nonpositive_regexp_count_start_positions",
       "name": "should_reject_nonpositive_regexp_count_start_positions",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_modes_and_counts.rs",
-      "line": 329,
-      "end_line": 341,
+      "line": 326,
+      "end_line": 338,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -234066,6 +234934,192 @@
         "category": "patterns",
         "directory": "tests/sql_queries/patterns",
         "file": "tests/sql_queries/patterns/regex_modes_and_counts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs::should_translate_bound_similar_patterns_with_unicode_escape",
+      "name": "should_translate_bound_similar_patterns_with_unicode_escape",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs",
+      "line": 2,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_translate_bound_similar_patterns_with_unicode_escape"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/similar_dynamic.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs::should_evaluate_similar_patterns_from_columns",
+      "name": "should_evaluate_similar_patterns_from_columns",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs",
+      "line": 25,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_evaluate_similar_patterns_from_columns"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/similar_dynamic.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs::should_return_oracle_similar_translation_text",
+      "name": "should_return_oracle_similar_translation_text",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs",
+      "line": 46,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_return_oracle_similar_translation_text"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/similar_dynamic.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs::should_match_selected_similar_repetition_classes",
+      "name": "should_match_selected_similar_repetition_classes",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs",
+      "line": 71,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_match_selected_similar_repetition_classes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/similar_dynamic.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs::should_preserve_strict_similar_helper_nulls",
+      "name": "should_preserve_strict_similar_helper_nulls",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs",
+      "line": 86,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_strict_similar_helper_nulls"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/similar_dynamic.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs::should_report_similar_escape_errors_before_null_left_results",
+      "name": "should_report_similar_escape_errors_before_null_left_results",
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs",
+      "line": 101,
+      "end_line": 130,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_pattern_matching::should_report_similar_escape_errors_before_null_left_results"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "patterns",
+        "directory": "tests/sql_queries/patterns",
+        "file": "tests/sql_queries/patterns/similar_dynamic.rs",
         "basis": "focused_source_module",
         "review": "recommended",
         "migration": "preserve_module_alias_and_fixture_scope"
@@ -277518,6 +278572,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/patterns/quantified_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 62,
+      "sha256": "7cf1e6d164d8d4d6d76147a7cd11e940dd6171372b374b608bef74d36486a959",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/patterns/quantified_parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/patterns/query/parameters.rs",
       "role": "test_module",
       "action": "keep",
@@ -277529,6 +278598,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/patterns/query/parameters.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/patterns/similar_parameters.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 107,
+      "sha256": "065e1b3fd5715e82f5c45af0d46217561fcbd89b1702e27c56b943b5f97b9874",
+      "test_declarations": 2,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/patterns/similar_parameters.rs"
       ],
       "line_limit": 1000
     },
@@ -278153,8 +279237,8 @@
       "current_file": "tests/pgwire_extended/protocol/text.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 381,
-      "sha256": "660317cfccf0e4508ee324f0c62b4520d6fc877f7bfd54cf9466741ce43afa9f",
+      "lines": 385,
+      "sha256": "7cfaf1c7bf8b559a566c2459f261db3bc14a3fe1860a64fb27b7479b39deb2af",
       "test_declarations": 9,
       "registered_suites": [
         "pgwire_extended"
@@ -286586,9 +287670,9 @@
       "current_file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 14,
-      "sha256": "2b863f002dd1aac6b352e3a05b75c97582f14e042e6beae3ef4329397fc6a36b",
-      "test_declarations": 1,
+      "lines": 65,
+      "sha256": "f9f9073b05fe1a97887e2dee4d42e7a9febfd43e17b18a418ef51bf9df414139",
+      "test_declarations": 3,
       "registered_suites": [
         "sql_queries"
       ],
@@ -286628,6 +287712,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_assertions.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 125,
+      "sha256": "7ca77ed7dc0a9a96f35e5004bd1f8f81c2245cb2d090982d8981cc31720e9f0b",
+      "test_declarations": 4,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/patterns/are_assertions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 196,
+      "sha256": "7ee1d1304aa2527e4381c8cbe699ed9c41273286af3b9a0228fc59ec8c91c1c6",
+      "test_declarations": 8,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/patterns/are_constraints.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/like_similar.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
@@ -286658,12 +287772,27 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/quantified_patterns.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 113,
+      "sha256": "830ddb035cb5b1285d38a150574c595dc4bdf40946adac7fcef77b6cf714b349",
+      "test_declarations": 5,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/patterns/quantified_patterns.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_core.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 276,
-      "sha256": "113f1db88107ad259b77ae203da635546ea294d2ba8f7fb69af5d81fa7b67e0d",
-      "test_declarations": 15,
+      "lines": 412,
+      "sha256": "b4aaee2b1201fa6a9275e99caba0290c04b8ab927678f4054255049542d9cb2e",
+      "test_declarations": 21,
       "registered_suites": [
         "sql_queries"
       ],
@@ -286691,8 +287820,8 @@
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/regex_modes_and_counts.rs",
       "role": "test_module",
       "action": "move_with_module_alias",
-      "lines": 342,
-      "sha256": "8606722d34192a6f8c1f84eb44616c7aef8d2ad9106feec2600b6cfde38545bf",
+      "lines": 339,
+      "sha256": "067b41c9a44e86683a43e17ee90e4483c373b617ac6be5f1c88c1bd76c82e85a",
       "test_declarations": 20,
       "registered_suites": [
         "sql_queries"
@@ -286703,11 +287832,26 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/similar_dynamic.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 130,
+      "sha256": "7992bf12b0706422dfc14364822fac6966588759f479ca102ba763e08b66adf4",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/patterns/similar_dynamic.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 9,
-      "sha256": "e05291054dd36ade40ad3c4d8479bd7244f65e9439a409fadcda0277999dd699",
+      "lines": 17,
+      "sha256": "52444b02281abde627e8a016e8fab60b23d30ef3513417acf1891a22fcd16b28",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -287528,8 +288672,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 307,
-      "sha256": "fddd26e085dd3b649471488df4da8d51a156ced031a2d4dda520b647f41a182f",
+      "lines": 309,
+      "sha256": "45166ff4bc7e465d57cd722356d091a63be44490c30a88b4a056da6dae38f9b7",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -288957,6 +290101,21 @@
       ],
       "destinations": [
         "tests/support/read_equivalence.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/regex_cancellation.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 114,
+      "sha256": "d0c2fb51ca80f45df1e4b96b76b68486f81bbc07b62e5489f1f737444f1ce61e",
+      "test_declarations": 0,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/support/regex_cancellation.rs"
       ],
       "line_limit": 1000
     },

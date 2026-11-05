@@ -107,7 +107,7 @@ fn evaluate<R: RowAccess + ?Sized>(
         _ => {
             // Other scalar producers retain their existing pre-allocation
             // contract. Adopt their returned backing before native work and
-            // retain it through the enclosing pattern call (#849 qualification).
+            // retain it through the enclosing pattern call (#799 qualification).
             let value = crate::executor::filter::functions::text_selection::literal_argument(
                 &function.name,
                 index,
@@ -260,5 +260,70 @@ mod tests {
         assert!(retained >= 13);
         assert_eq!(after_match, retained);
         assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    #[test]
+    fn should_admit_literal_parameter_and_column_pattern_copies_at_their_boundary() {
+        // Arrange
+        let text = "a".repeat(256);
+        let baseline = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits::default(),
+            std::time::Instant::now(),
+        );
+        let directory = super::Arguments::new(2, Some(&baseline)).expect("argument directory");
+        let directory_bytes = baseline.current_query_memory_bytes();
+        drop(directory);
+        let functions = std::collections::HashMap::new();
+        let row = BatchRow::new(vec![("input".into(), Value::String(text.clone()))]);
+        let params = [Value::String(text.clone())];
+        for input in [
+            Expr::StringLiteral(text.clone()),
+            Expr::Param(0),
+            Expr::Column("input".into()),
+        ] {
+            let function = FunctionCall {
+                name: "regexp_like".into(),
+                args: vec![input, Expr::StringLiteral("a".into())],
+                ..Default::default()
+            };
+            for (budget, accepted) in [
+                (directory_bytes + text.len() - 1, false),
+                (directory_bytes + text.len() + 1, true),
+            ] {
+                let limits = CassieRuntimeLimits {
+                    query_memory_budget_bytes: budget,
+                    ..CassieRuntimeLimits::default()
+                };
+                let controls =
+                    QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
+                let context = EvalContext {
+                    params: &params,
+                    search_context: None,
+                    user_functions: &functions,
+                    local_args: None,
+                    session: None,
+                    exists: None,
+                    controls: Some(&controls),
+                    memory: None,
+                };
+
+                // Act
+                let result = collect(&function, &row, context, Some(&controls));
+
+                // Assert
+                if accepted {
+                    let arguments = result.expect("exact argument backing fits");
+                    assert!(controls.current_query_memory_bytes() >= text.len());
+                    drop(arguments);
+                } else {
+                    assert!(matches!(
+                        result,
+                        Err(crate::executor::filter::QueryError::Cassie(
+                            crate::app::CassieError::ResourceLimit(_)
+                        ))
+                    ));
+                }
+                assert_eq!(controls.current_query_memory_bytes(), 0);
+            }
+        }
     }
 }

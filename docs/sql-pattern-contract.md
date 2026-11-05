@@ -99,7 +99,8 @@ through native matching and admit literal/parameter/column copies before
 allocation. Prepared pattern strings retain private leases across translation
 and compilation. Public `Value` and its persistent/client representation remain
 unchanged; generic scalar producer ownership is still governed by its existing
-executor contract and the broader #849 qualification. Parser/HIR/native compiler
+executor contract. The historical #849 tracking issue is closed; remaining
+producer pre-allocation qualification stays explicitly open under #799. Parser/HIR/native compiler
 auxiliary envelopes must receive separate source-backed preflight qualification
 before any whole regex-resource acceptance claim. Jev selected these private
 owners and the finite native-assertion adapter before implementation. All newly
@@ -165,3 +166,9 @@ interruption while scanning scalars. Jev selected this architecture and parser
 with probability 1.0. Its 0.73 capture-priority concern produced pinned repeated
 capture and greedy-prefix probes before code. Executable qualification remains
 deferred to the frozen coherent bundle; these decisions are not test results.
+
+The 2026-11-05 delivery review localized the argument-ownership lead (Jev 0.70)
+to the generic scalar-producer fallback: it adopts returned backing after the
+producer's own evaluation. The literal/parameter/column copy path reserves
+before copying, and its just-below/at-capacity probe is part of this slice.
+This does not complete generic producer allocation qualification or close #799.

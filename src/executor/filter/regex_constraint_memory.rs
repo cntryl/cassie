@@ -5,7 +5,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use super::{check_interruption, pattern_memory::reserve, resource_limit, QueryError};
+use super::super::pattern_memory::reserve;
+use super::{check_interruption, resource_limit, QueryError};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 pub(super) struct Directory<T> {

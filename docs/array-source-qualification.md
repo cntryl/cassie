@@ -2,8 +2,10 @@
 
 This records the finite #807/#808 implementation bundle against the selected
 [Type Contract](type-contract.md) and [source contract](set-returning-sources.md).
-Midge remains the published `cntryl-midge` 0.5.1 dependency. No engine source,
-storage layout or public value representation changes belong to this bundle.
+The original bundle used published `cntryl-midge` 0.5.1; the combined #1184
+candidate uses the published 0.5.2 dependency. No engine source, storage layout
+or public value representation changes belong to this bundle. Earlier evidence
+does not qualify the combined candidate or its dependency upgrade.
 
 ## Existing prerequisites
 

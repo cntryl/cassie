@@ -80,8 +80,11 @@ pending. No blanket old-reader compatibility is claimed from serde defaults.
 
 ## Implementation checkpoint status
 
-The user changed priority before this bundle was frozen. The source checkpoint
-contains partial implementation and authored regressions; final source/API review,
-traversal audit, pedantic cleanup, native gates and inventory are unfinished. It
-must not be integrated or described as a completed #806 slice. No Rust build,
-test, compiler harness or Clippy process was launched for this bundle.
+The original checkpoint was partial and did not complete source/API review,
+traversal audit, pedantic cleanup, native gates or inventory. Its changes have
+since been incorporated into the combined #1184 candidate, where further
+traversal omissions were found and corrected. The combined source is still being
+reviewed and is not qualified by the earlier checkpoint or the separate bundle
+results. Compilation and tests are deferred until all open work is consolidated;
+the complete ordered gate and final-head hosted checks remain pending. Do not
+describe this as a completed #806 slice until its acceptance criteria are proved.

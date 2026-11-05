@@ -1,8 +1,10 @@
 # Selected array and series table sources
 
 This is the finite #808 contract for Cassie's read-model query sources. It uses
-existing selected types and the existing Midge 0.5.1 storage interface. It adds
-no storage abstraction, layout, durable type representation or public batch API.
+existing selected types and the published Midge storage interface. The original
+contract was written against 0.5.1; the combined candidate uses 0.5.2 and awaits
+qualification. It adds no storage abstraction, layout, durable type
+representation or public batch API.
 The existing array shape and wire identities remain governed by the
 [Type Contract](type-contract.md).
 
@@ -113,7 +115,7 @@ produced. LIMIT zero does not invoke the source. Aliases and lateral source
 composition must preserve this pull boundary. Blocking sort, grouping, window,
 DISTINCT or explicitly materialized query boundaries may collect admitted rows.
 Schema-backed collection inputs use the existing Cassie `SessionRowCursor`
-transport one row at a time; the current published Midge0.5.1 API remains fixed.
+transport one row at a time; no new Midge API is assumed.
 
 Do not allocate a complete expanded row set before the consumer asks for it.
 Admit retained arguments and row buffers before growth, check cancellation at

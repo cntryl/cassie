@@ -8,6 +8,23 @@ pub(super) fn arguments(name: &str, body: &str) -> Result<Option<(String, Vec<Ex
     let Some(function) = crate::sql::functions::function(name) else {
         return Ok(None);
     };
+    if function.id == crate::sql::functions::FunctionId::QuantifiedPattern {
+        return Err(SqlError::undefined_function(
+            "internal quantified pattern function is not callable".into(),
+        ));
+    }
+    if function.id == crate::sql::functions::FunctionId::SimilarToEscape {
+        if super::expr::split_csv(body)
+            .iter()
+            .any(|argument| split_named_argument(argument).is_some())
+        {
+            return Err(SqlError::undefined_function(format!(
+                "function {} with named arguments does not exist",
+                function.name
+            )));
+        }
+        return Ok(None);
+    }
     let argument_names: &[&str] = match function.id {
         crate::sql::functions::FunctionId::RegexpLike => &["string", "pattern", "flags"],
         crate::sql::functions::FunctionId::RegexpCount => &["string", "pattern", "start", "flags"],
@@ -137,6 +154,38 @@ fn split_named_argument(raw: &str) -> Option<(&str, &str)> {
 mod tests {
     use super::arguments;
     use crate::sql::ast::Expr;
+
+    #[test]
+    fn should_reject_direct_private_pattern_calls_in_all_identifier_cases() {
+        // Arrange
+        let names = [
+            "__cassie_quantified_pattern",
+            "__CASSIE_QUANTIFIED_PATTERN",
+            "__Cassie_Quantified_Pattern",
+        ];
+
+        // Act
+        let results = names.map(|name| arguments(name, "'x', ARRAY['x'], 'like', FALSE, FALSE"));
+
+        // Assert
+        for result in results {
+            let error = result.expect_err("private function identity cannot be called directly");
+            assert_eq!(error.kind(), crate::sql::SqlErrorKind::UndefinedFunction);
+        }
+    }
+
+    #[test]
+    fn should_reject_named_similar_helper_arguments_without_catalog_names() {
+        // Arrange
+        let body = "pattern => 'x'";
+
+        // Act
+        let error =
+            arguments("similar_to_escape", body).expect_err("helper has no named arguments");
+
+        // Assert
+        assert_eq!(error.kind(), crate::sql::SqlErrorKind::UndefinedFunction);
+    }
 
     #[test]
     fn should_order_named_regexp_count_arguments_by_signature() {

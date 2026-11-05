@@ -193,6 +193,10 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         }
         FunctionId::Overlay => Some(FunctionInputSignature::Positional(&[25, 25, 23, 23])),
         FunctionId::Chr => Some(FunctionInputSignature::Positional(&[23])),
+        FunctionId::QuantifiedPattern => {
+            Some(FunctionInputSignature::Positional(&[25, 1009, 25, 16, 16]))
+        }
+        FunctionId::SimilarToEscape => Some(FunctionInputSignature::Positional(&[25, 25])),
         FunctionId::RegexpLike => Some(FunctionInputSignature::Positional(&[25, 25, 25])),
         FunctionId::RegexpCount => Some(FunctionInputSignature::Positional(&[25, 25, 23, 25])),
         FunctionId::RegexpReplace => Some(FunctionInputSignature::RegexpReplace),

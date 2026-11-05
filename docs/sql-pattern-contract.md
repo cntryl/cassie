@@ -172,3 +172,8 @@ to the generic scalar-producer fallback: it adopts returned backing after the
 producer's own evaluation. The literal/parameter/column copy path reserves
 before copying, and its just-below/at-capacity probe is part of this slice.
 This does not complete generic producer allocation qualification or close #799.
+
+The native matcher wrapper admits its boxed payload before allocation. The box
+retires before its separate narrow lease; failed wrapper admission drops the
+already compiled native engine and its backing leases. Exact and one-byte-short
+wrapper budgets have a dedicated ownership probe.

@@ -180,7 +180,8 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Trim
         | FunctionId::Ltrim
         | FunctionId::Rtrim
-        | FunctionId::Strpos => Some(FunctionInputSignature::Positional(&[25, 25])),
+        | FunctionId::Strpos
+        | FunctionId::SimilarToEscape => Some(FunctionInputSignature::Positional(&[25, 25])),
         FunctionId::SplitPart => Some(FunctionInputSignature::Positional(&[25, 25, 23])),
         FunctionId::Replace | FunctionId::Translate => {
             Some(FunctionInputSignature::Positional(&[25, 25, 25]))
@@ -196,7 +197,6 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::QuantifiedPattern => {
             Some(FunctionInputSignature::Positional(&[25, 1009, 25, 16, 16]))
         }
-        FunctionId::SimilarToEscape => Some(FunctionInputSignature::Positional(&[25, 25])),
         FunctionId::RegexpLike => Some(FunctionInputSignature::Positional(&[25, 25, 25])),
         FunctionId::RegexpCount => Some(FunctionInputSignature::Positional(&[25, 25, 23, 25])),
         FunctionId::RegexpReplace => Some(FunctionInputSignature::RegexpReplace),

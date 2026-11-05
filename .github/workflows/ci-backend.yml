@@ -62,5 +62,8 @@ jobs:
       - name: Cargo build
         run: cargo build --workspace --all-targets --all-features
 
-      - name: Cargo test
-        run: cargo test --workspace --all-targets --all-features
+      - name: Compile test and benchmark targets
+        run: cargo test --workspace --all-targets --all-features --no-run
+
+      - name: Cargo correctness tests
+        run: cargo test --workspace --all-features

@@ -3,6 +3,7 @@ name = "cassie"
 version = "0.1.0"
 edition = "2021"
 publish = false
+autotests = false
 license-file = "LICENSE"
 
 [dependencies]
@@ -217,6 +218,15 @@ debug = "line-tables-only"
 [profile.test]
 opt-level = 1
 debug = "line-tables-only"
+
+# Optimize the database under test; keep fixture/assertion compilation inexpensive.
+[profile.test.package.cassie-integration-tests]
+opt-level = 0
+
+[workspace]
+members = ["tests"]
+default-members = [".", "tests"]
+resolver = "2"
 
 [workspace.lints.clippy]
 pedantic = "warn"

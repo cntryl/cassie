@@ -28,7 +28,7 @@ cargo fmt --all -- --check
 | `src/search/` | BM25 full-text search, inverted index |
 | `src/types/` | Value types, schema, row encoding |
 | `src/hybrid/` | Hybrid text+vector scoring |
-| `tests/` | 18 flat integration suites plus shared fixtures in `tests/support/` |
+| `tests/` | Subsystem integration suites plus a shared fixture library in `tests/support/` |
 | `benches/` | Tiered benchmarks: tier1 (micro), tier2 (subsystem), tier3 (system), tier4 (integration) |
 
 ## File Organization

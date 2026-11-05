@@ -9,12 +9,8 @@ mod support_data_dir;
 mod support_executor;
 #[path = "support/local_storage.rs"]
 mod support_local_storage;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/sql_fixture.rs"]
-mod support_sql_fixture;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 
 #[path = "support/database_image_generation.rs"]
 mod support_database_image_generation;

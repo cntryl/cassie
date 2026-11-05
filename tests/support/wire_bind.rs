@@ -37,6 +37,7 @@ pub fn execute_cycle(
     frames
 }
 
+#[must_use]
 pub fn data_row_payloads(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<u8>> {
     frames
         .iter()

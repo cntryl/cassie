@@ -17,17 +17,13 @@ mod support_catalog_policy;
 mod support_data_dir;
 #[path = "support/executor.rs"]
 mod support_executor;
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_pgwire;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 #[path = "support/wire_queries.rs"]
 mod support_wire_queries;
 
-#[path = "support/sql_fixture.rs"]
-mod support_sql_fixture;
+use cassie_test_support::support_sql_fixture;
 #[path = "catalog_security/catalogs/types/catalog_discovery/metadata.rs"]
 mod type_catalog_discovery;
 

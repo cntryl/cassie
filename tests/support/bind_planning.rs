@@ -3,6 +3,7 @@ use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 use crate::support_type_metadata_contract as fixture;
 
+#[must_use]
 pub fn failures(label: &str, cases: &[(&str, &str)]) -> Vec<fixture::Frames> {
     let mut steps = Vec::new();
     for result_format in [None, Some(0), Some(1)] {
@@ -45,6 +46,9 @@ pub fn failures(label: &str, cases: &[(&str, &str)]) -> Vec<fixture::Frames> {
     run_script(label, steps)
 }
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_failures(batches: &[fixture::Frames], cases: &[(&str, &str)]) {
     assert_eq!(batches.len(), cases.len() * 3 * 7);
     for (i, batch) in batches.as_chunks::<7>().0.iter().enumerate() {
@@ -79,10 +83,12 @@ pub fn assert_failures(batches: &[fixture::Frames], cases: &[(&str, &str)]) {
     }
 }
 
+#[must_use]
 pub fn pruned(label: &str, sql: &str) -> Vec<fixture::Frames> {
     pruned_with_setup(label, sql, &[])
 }
 
+#[must_use]
 pub fn pruned_with_setup(label: &str, sql: &str, setup: &[&str]) -> Vec<fixture::Frames> {
     let mut steps = setup
         .iter()
@@ -118,6 +124,9 @@ pub fn pruned_with_setup(label: &str, sql: &str, setup: &[&str]) -> Vec<fixture:
     batches
 }
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_pruned(batches: &[fixture::Frames], oid: i32, text: &str) {
     assert_eq!(batches.len(), 10);
     for (i, batch) in batches.as_chunks::<5>().0.iter().enumerate() {

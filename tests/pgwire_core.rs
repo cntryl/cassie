@@ -1,12 +1,9 @@
 // Consolidated integration suite: pgwire_core.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_pgwire;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 #[path = "support/wire_queries.rs"]
 mod support_type_metadata_contract;
 #[path = "support/wire_bind.rs"]

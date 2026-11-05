@@ -868,3 +868,25 @@ part of Cassie's guard. #1188 retains that broader published-API investigation;
 an Internal WAL failure remains an error, never a retry license. Synchronized
 native-call exclusion and recovery-quarantine probes qualify the adapter repair
 before the concurrent local-storage/restart gate is rerun.
+
+### Bootstrap lifetime and lifecycle replay
+
+The public `bootstrap_families` and `ensure_families_ready` methods initialize
+storage at most once per Midge instance. Initial callers serialize through one
+bootstrap gate and retry after a failed initialization; initialization publishes
+no cached layout on failure. Lifecycle journal replay runs only in that initial
+phase, before ordinary database operations can be admitted. A later public
+`bootstrap_families` call returns the initialized schema, default-data and temp
+handles plus a fresh snapshot of the current database-family registry; it does
+not replay journals belonging to live operations. Closing and reopening the
+instance begins a new recovery phase. This is an instance-local boundary, not a
+Midge WAL quiescence guarantee; #1188 remains open.
+
+Jev selected one-time replay with fresh registry snapshots (choice 0.99). Its
+0.53 residual-gap assessment requires synchronized probes of repeated bootstrap
+while a database creation is staged, concurrent first admission, and retry after
+failed initialization. The selected behavior is supported only after those
+probes and the complete ordered gate execute successfully.
+An interim adversarial review returned 0.51 for retry after partial initialization
+and 0.44 for live create admission before initialization; authored probes exercise
+both boundaries. These probes remain unexecuted until the integrated gate.

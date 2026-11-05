@@ -20,8 +20,9 @@ combines admitted array/series sources, character array coercion, JSON conversio
 windows, typed SEARCH/CYCLE lineage, retained catalogs, repeatable-read command
 views and row validation, storage compatibility and recovery admission.
 
-PR #1180 separately carries pattern predicates and the builtin registry split.
-It follows #1184 in dependency order and requires its own final qualification.
+PR #1184 also carries the pattern predicates and builtin registry split from
+PR #1180. The combined tree requires a new complete qualification; earlier
+results on either individual candidate do not qualify the combined tree.
 
 Midge remains the direct and only storage layer. No engine source or CI,
 release or version configuration is changed. The selected finite contracts in

@@ -380,6 +380,7 @@ impl Cassie {
             &user_functions,
             controls,
         )?;
+        let _completion = crate::midge::adapter::PublicationControlScope::terminal_completion();
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(result)
     }

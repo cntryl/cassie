@@ -182,7 +182,7 @@ fn parse_window_function_with_named_windows(
     raw: &str,
     named_windows: &NamedWindows,
 ) -> Result<Option<WindowFunctionCall>, SqlError> {
-    let Some((function_raw, over_raw)) = split_top_level(raw, " over ") else {
+    let Some((function_raw, over_raw)) = split_top_level(raw, " over") else {
         return Ok(None);
     };
     let function = super::aggregate_call::parse_function_for_window(function_raw.trim())?
@@ -215,7 +215,7 @@ pub(super) type NamedWindows = HashMap<String, WindowSpec>;
 pub(super) fn parse_named_windows(raw: &str) -> Result<NamedWindows, SqlError> {
     let mut windows = NamedWindows::new();
     for definition in split_csv(raw) {
-        let (name_raw, specification_raw) = split_top_level(definition, " as ")
+        let (name_raw, specification_raw) = split_top_level(definition, " as")
             .ok_or_else(|| SqlError::syntax("WINDOW definitions require AS".into()))?;
         let name = parse_window_name(name_raw.trim())?;
         if windows.contains_key(&name) {

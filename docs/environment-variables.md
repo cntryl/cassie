@@ -125,6 +125,7 @@ never receives Midge's local-only `sync` or `buffered` policies.
 | `CASSIE_MAX_RESULT_ROWS` | Unsigned integer | `100000` | Maximum rows returned by a query. |
 | `CASSIE_CTE_RECURSION_DEPTH` | Unsigned integer | `64` | Recursive CTE depth limit. |
 | `CASSIE_QUERY_MEMORY_BUDGET_BYTES` | Unsigned bytes | `10485760` | Accounted memory budget for one query. |
+| `CASSIE_REPEATABLE_READ_HISTORY_MEMORY_BUDGET_BYTES` | Unsigned bytes | `10485760` | Independent accounted stage-key and retained mutation-history budget per physical database family; exhaustion rejects before publication. |
 | `CASSIE_MAX_QUERY_WORKERS` | Integer, minimum `1` | `64` | Global concurrent query-worker budget. |
 | `CASSIE_PARALLEL_SCAN_WORKERS` | Unsigned integer | `1` | Scan worker setting used by eligible plans. |
 | `CASSIE_PARALLEL_SCORING_WORKERS` | Unsigned integer | `1` | Vector/full-text scoring worker setting used by eligible plans. |

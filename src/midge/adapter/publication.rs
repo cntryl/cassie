@@ -359,6 +359,13 @@ impl PublicationControlScope {
         })
     }
 
+    /// Retire request cancellation/deadline authority only for terminal cleanup
+    /// or completion after a confirmed publication. Storage quarantine remains
+    /// enforced independently by every publishing path.
+    pub(crate) fn terminal_completion() -> Self {
+        Self::replace(None)
+    }
+
     fn replace(controls: Option<PublicationWaitControls>) -> Self {
         Self {
             previous: CURRENT_CONTROLS.with(|slot| slot.replace(controls)),

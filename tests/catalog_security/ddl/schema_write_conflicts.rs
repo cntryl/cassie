@@ -186,11 +186,10 @@ fn should_preserve_concurrent_database_creates_across_retry_restart() {
     let workers = ["database_conflict_alpha", "database_conflict_beta"].map(|database| {
         let worker_cassie = Arc::clone(&cassie);
         std::thread::spawn(move || {
-            let _worker_guard = schema_write_conflict_worker_guard();
-            (
-                database,
-                worker_cassie.midge.create_database(database, None),
-            )
+            let worker_guard = schema_write_conflict_worker_guard();
+            let result = worker_cassie.midge.create_database(database, None);
+            worker_guard.complete(SchemaWritePausePoint::DatabaseCreateFinalize);
+            (database, result)
         })
     });
     ready.wait();

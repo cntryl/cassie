@@ -390,6 +390,9 @@ fn full_directory_update(budget: usize) -> Result<usize, CassieError> {
     publication
         .publish_rows_current(staged, || Ok(()))
         .map_err(CassieError::from)?;
+    publication
+        .publish_rows_current(keys(&publication, &Midge::row_key(17, "one")), || Ok(()))
+        .map_err(CassieError::from)?;
     let required_peak = publication
         .row_history
         .state
@@ -398,9 +401,6 @@ fn full_directory_update(budget: usize) -> Result<usize, CassieError> {
         .as_ref()
         .expect("admitted tracker")
         .tracker_peak_bytes();
-    publication
-        .publish_rows_current(keys(&publication, &Midge::row_key(17, "one")), || Ok(()))
-        .map_err(CassieError::from)?;
     Ok(required_peak)
 }
 

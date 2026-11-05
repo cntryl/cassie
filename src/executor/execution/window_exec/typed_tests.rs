@@ -79,8 +79,15 @@ fn scalar_oracle_on(mut rows: Vec<BatchRow>, projection: &[SelectItem]) -> Vec<B
         )
         .expect("existing scalar frame authority");
     }
+    let expected = rows
+        .iter()
+        .map(|row| {
+            BatchRow::new(row.entries().to_vec()).with_optional_data_types(row.shared_data_types())
+        })
+        .collect();
+    drop(rows);
     assert_eq!(controls.current_query_memory_bytes(), 0);
-    rows
+    expected
 }
 
 fn assert_selected(projection: &[SelectItem], path: &'static str) {

@@ -687,8 +687,9 @@ transaction's own staged row. Keep the old-present native final written-row
 fence as a separate first-committer-wins authority. RR conflict-intent resolution
 must not take READ COMMITTED's fresh-target retry path.
 
-A dedicated bounded budget per physical database family, derived from the
-existing configured query-memory allowance, owns stage-key logs, history keys,
+A dedicated bounded budget per physical database family, configured with
+`CASSIE_REPEATABLE_READ_HISTORY_MEMORY_BUDGET_BYTES` (default 10 MiB), owns
+stage-key logs, history keys,
 container backing, active registrations and publication preparation overlap
 (Jev 0.86). It retains no request cancellation/deadline. Exhaustion returns
 `54000` before staging/publication; no required live history is evicted. Sequence
@@ -837,3 +838,11 @@ rejects an old fork after rollback and a new BEGIN, even when the row/catalog
 before-images happen to match. This candidate is enabled for executable
 qualification, with no passing support or issue-closure claim before the
 complete ordered native gate.
+
+The 2026-11-05 integration gate exposed ordinary projector writes consuming the
+per-query numeric allowance through this independent shared tracker. The selected
+amendment separates its explicit limit from `CASSIE_QUERY_MEMORY_BUDGET_BYTES`
+(Jev choice 1.00). Snapshot/catalog ownership still reserves against each query's
+budget, and shared history still rejects before publication when its own limit
+is exhausted. This preserves writers staged before the first RR capture without
+changing the memory limit of a bounded read or allocating unadmitted keys.

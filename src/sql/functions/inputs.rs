@@ -77,7 +77,7 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
 
 pub(crate) fn has_distinct_equality(data_type: &DataType) -> bool {
     match data_type {
-        DataType::Json | DataType::Jsonb => false,
+        DataType::Json => false,
         DataType::Array(element) => has_distinct_equality(element),
         _ => true,
     }

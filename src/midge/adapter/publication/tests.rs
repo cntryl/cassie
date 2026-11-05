@@ -460,6 +460,8 @@ fn should_capture_matching_assertion_and_read_views_while_a_publisher_waits() {
                         waiting_tx.send(()).expect("writer reached capture gate");
                     }));
                 });
+                let request = controls(QueryCancellationHandle::new());
+                let _scope = PublicationControlScope::enter(Some(&request));
                 let mut writer = other
                     .begin_raw_database_adapter_tx(
                         "postgres",

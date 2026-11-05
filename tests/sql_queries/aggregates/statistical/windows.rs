@@ -30,6 +30,7 @@ fn number(value: &Value) -> Option<f64> {
         Value::Null => None,
         Value::Float64(value) => Some(*value),
         Value::Typed(TypedValue::Numeric(value)) => Some(value.to_f64()),
+        Value::String(value) => Some(value.parse().expect("public NUMERIC result text")),
         other => panic!("numeric result: {other:?}"),
     }
 }

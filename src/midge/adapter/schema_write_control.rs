@@ -29,6 +29,15 @@ pub struct SchemaWriteConflictWorkerGuard {
     previous: bool,
 }
 
+impl SchemaWriteConflictWorkerGuard {
+    /// Join the configured test boundary when an operation returned before its commit phase.
+    /// A worker already resumed by the controller observes the cleared configuration.
+    pub fn complete(self, pause_point: SchemaWritePausePoint) {
+        pause_before_schema_write_commit(pause_point);
+        drop(self);
+    }
+}
+
 impl Drop for SchemaWriteConflictWorkerGuard {
     fn drop(&mut self) {
         SCHEMA_WRITE_CONFLICT_WORKER.set(self.previous);

@@ -230,7 +230,7 @@ fn should_preserve_jsonb_identity_from_a_lateral_outer_column() {
     // Act
     let result = fixture.execute(
         "SELECT count(*) FROM (SELECT DISTINCT nested.payload \
-        FROM (VALUES ('1.0'::JSONB),('1.00'::JSONB)) AS outer_docs(payload), \
+        FROM (VALUES ('1.0'::JSONB),('1.00'::JSONB)) AS outer_docs(payload) CROSS JOIN \
         LATERAL (SELECT outer_docs.payload AS payload) AS nested) AS unique_docs",
     );
     // Assert

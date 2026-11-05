@@ -214,11 +214,9 @@ fn json_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         ScalarValue::Null => return Ok(ScalarValue::Null),
         _ => return Err(QueryError::General("cannot cast value to JSON text".into())),
     };
-    let document = serde_json::from_str::<serde_json::Value>(text)
+    serde_json::from_str::<serde_json::Value>(text)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    crate::types::jsonb::format(&document)
-        .map(ScalarValue::Str)
-        .map_err(|error| crate::app::CassieError::TypeInput(error).into())
+    Ok(ScalarValue::Str(text.clone()))
 }
 
 fn format_array_text(

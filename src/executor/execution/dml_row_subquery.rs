@@ -244,10 +244,9 @@ mod tests {
     #[test]
     fn should_substitute_outer_reference_in_window_filter() {
         // Arrange
-        let parsed = crate::sql::parse_statement(
-            "SELECT SUM(1) FILTER (WHERE target.id = 1) OVER ()",
-        )
-        .expect("window aggregate query");
+        let parsed =
+            crate::sql::parse_statement("SELECT SUM(1) FILTER (WHERE target.id = 1) OVER ()")
+                .expect("window aggregate query");
         let QueryStatement::Select(mut select) = parsed.statement else {
             panic!("SELECT statement");
         };

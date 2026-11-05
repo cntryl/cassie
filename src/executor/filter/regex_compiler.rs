@@ -45,7 +45,9 @@ fn compile_with_options(
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Regex, QueryError> {
     match compile_native(pattern, options, match_kind, controls) {
-        Ok(regex) => Ok(Regex::Native(regex)),
+        Ok(regex) => Ok(Regex::Native(super::matcher::NativeRegex::new(
+            regex, controls,
+        )?)),
         Err(error) if matches!(&error, QueryError::Cassie(crate::app::CassieError::Diagnostic(diagnostic)) if diagnostic.sql_state == "2201B") =>
         {
             let (prepared, quoted, advanced) = source_pattern(pattern, options, controls)?;

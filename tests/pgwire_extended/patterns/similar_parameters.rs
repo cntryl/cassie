@@ -100,7 +100,7 @@ fn should_preserve_dynamic_similar_escape_error_hint_after_null_left_input() {
         .iter()
         .any(|(kind, value)| *kind == 'H'
             && value == "Escape string must be empty or one character."));
-    assert!(wire::data_rows(rejected).is_empty());
+    assert_eq!(wire::data_rows(rejected), Vec::<Vec<Option<String>>>::new());
     assert!(!rejected.iter().any(|frame| frame.0 == b'C'));
     assert_eq!(wire::error_code(retry), None);
     assert_eq!(wire::data_rows(retry), vec![vec![Some("t".into())]]);

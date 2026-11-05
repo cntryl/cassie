@@ -1,6 +1,6 @@
 use super::{
     build_logical_plan, check_timeout, execute_plan, row_signature, BatchRow, Cassie,
-    CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap, HashSet, QueryError,
+    CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap, QueryError,
     QueryExecutionControls, Value,
 };
 use crate::executor::semantic::SemanticKey;

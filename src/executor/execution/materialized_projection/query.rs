@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    catalog, virtual_views, Cassie, Expr, FunctionCall, FunctionMeta, HashMap, ProjectionBuildPlan,
+    QueryError, QuerySource, QueryStatement, SelectItem,
+};
 
 pub(super) fn plan_projection_query(
     cassie: &Cassie,

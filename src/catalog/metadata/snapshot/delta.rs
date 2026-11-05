@@ -76,10 +76,7 @@ impl Catalog {
             controls,
             &mut observer,
         )?;
-        let owner = Arc::new(ControlledCatalogSnapshot {
-            catalog,
-            _memory: memory,
-        });
+        let owner = Arc::new(ControlledCatalogSnapshot { catalog, memory });
         controls.check_interruption()?;
         Ok(owner)
     }

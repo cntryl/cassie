@@ -5,7 +5,7 @@ pub(super) struct SessionSchemaContext {
     catalog: Catalog,
     write_catalog: Catalog,
     publication_catalog: Catalog,
-    _owner: Option<std::sync::Arc<crate::catalog::ControlledCatalogSnapshot>>,
+    owner: Option<std::sync::Arc<crate::catalog::ControlledCatalogSnapshot>>,
     default_database: String,
     /// Weak so a session that outlives its `Cassie` does not keep the
     /// storage (and its writer lease) open.
@@ -53,7 +53,7 @@ impl CassieSession {
             catalog: app.catalog.clone(),
             write_catalog: app.metadata_write_catalog.clone(),
             publication_catalog: app.publication_catalog.clone(),
-            _owner: app.catalog_owner.clone(),
+            owner: app.catalog_owner.clone(),
             default_database: app.default_database.clone(),
             midge: std::sync::Arc::downgrade(&app.midge),
         });
@@ -65,7 +65,7 @@ impl CassieSession {
         if let Some(scope) = self.schema_context.lock().as_mut() {
             scope.catalog = scope.publication_catalog.clone();
             scope.write_catalog = scope.publication_catalog.clone();
-            scope._owner = None;
+            scope.owner = None;
         }
     }
 

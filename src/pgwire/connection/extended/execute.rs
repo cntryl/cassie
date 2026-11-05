@@ -19,24 +19,7 @@ pub(super) async fn handle_execute(
     max_rows: i32,
 ) -> Result<(), ExtendedQueryError> {
     runtime.record_pgwire_extended_query();
-    let quarantined = cassie.check_storage_recovery_required().is_err();
-    if quarantined {
-        let parsed = state
-            .portals
-            .get(&portal_name)
-            .and_then(|portal| state.prepared_statements.get(&portal.statement_name))
-            .and_then(|prepared| prepared.parsed.as_ref())
-            .ok_or_else(|| {
-                ExtendedQueryError::cassie(
-                    &cassie
-                        .check_storage_recovery_required()
-                        .expect_err("latched recovery requirement"),
-                )
-            })?;
-        cassie
-            .check_storage_statement_admission(&parsed.statement)
-            .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    }
+    let quarantined = admit_recovery_execute(&cassie, state, &portal_name)?;
     let (max_rows, first_execute) =
         transaction_boundary::prepare_execute(state, session, &portal_name, max_rows)?;
     let (portal, suspended) = take_portal_execution(state, &portal_name)
@@ -124,4 +107,30 @@ pub(super) async fn handle_execute(
         state.clear_all_portals(runtime);
     }
     result
+}
+
+fn admit_recovery_execute(
+    cassie: &Cassie,
+    state: &SessionState,
+    portal_name: &str,
+) -> Result<bool, ExtendedQueryError> {
+    let quarantined = cassie.check_storage_recovery_required().is_err();
+    if quarantined {
+        let parsed = state
+            .portals
+            .get(portal_name)
+            .and_then(|portal| state.prepared_statements.get(&portal.statement_name))
+            .and_then(|prepared| prepared.parsed.as_ref())
+            .ok_or_else(|| {
+                ExtendedQueryError::cassie(
+                    &cassie
+                        .check_storage_recovery_required()
+                        .expect_err("latched recovery requirement"),
+                )
+            })?;
+        cassie
+            .check_storage_statement_admission(&parsed.statement)
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    }
+    Ok(quarantined)
 }

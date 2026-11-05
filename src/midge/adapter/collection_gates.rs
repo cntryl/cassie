@@ -74,7 +74,7 @@ fn admitted_names(
 fn lock<'a>(
     gate: &'a ReentrantMutex<()>,
     controls: &QueryExecutionControls,
-    _boundary: WaitBoundary,
+    boundary: WaitBoundary,
 ) -> Result<ReentrantMutexGuard<'a, ()>, CassieError> {
     loop {
         PublicationControlScope::check_interruption(controls)?;
@@ -82,10 +82,16 @@ fn lock<'a>(
             PublicationControlScope::check_interruption(controls)?;
             return Ok(guard);
         }
-        #[cfg(test)]
-        tests::observe_wait(_boundary);
+        observe_wait_boundary(boundary);
     }
 }
+
+#[cfg(test)]
+fn observe_wait_boundary(boundary: WaitBoundary) {
+    tests::observe_wait(boundary);
+}
+#[cfg(not(test))]
+fn observe_wait_boundary(_: WaitBoundary) {}
 
 #[cfg(test)]
 mod tests;

@@ -16,10 +16,12 @@ expansion or blanket closure of the linked milestone issues.
 
 The bundle retains current main's Midge 0.5.2 dependency, scalar corrections,
 startup DDL ownership, explicit NULL parsing and CTAS completion behavior. It
-combines admitted array/series sources, character array coercion, pattern
-predicates, JSON conversion/containment and semantic keys, statistical FILTER
+combines admitted array/series sources, character array coercion, JSON conversion/containment and semantic keys, statistical FILTER
 windows, typed SEARCH/CYCLE lineage, retained catalogs, repeatable-read command
 views and row validation, storage compatibility and recovery admission.
+
+PR #1180 separately carries pattern predicates and the builtin registry split.
+It follows #1184 in dependency order and requires its own final qualification.
 
 Midge remains the direct and only storage layer. No engine source or CI,
 release or version configuration is changed. The selected finite contracts in

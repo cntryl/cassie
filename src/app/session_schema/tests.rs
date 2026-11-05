@@ -71,7 +71,7 @@ fn should_retire_the_schema_context_read_owner_at_transaction_end() {
             .lock()
             .as_ref()
             .expect("canonical context")
-            ._owner
+            .owner
             .is_none());
     }
 }

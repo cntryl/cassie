@@ -1,16 +1,14 @@
 //! Global DISTINCT and per-aggregate ordering on the controlled scalar fallback.
 
+use crate::types::semantic_index::KeyedSet;
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::mem::size_of;
 
 use crate::app::CassieError;
 
 use crate::executor::batch::BatchRow;
 use crate::executor::filter;
-use crate::executor::retained_memory::{
-    add, hash_table_bytes, mul, serialized_json_bytes, value_clone_bytes,
-};
+use crate::executor::retained_memory::{add, mul, serialized_json_bytes, value_clone_bytes};
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::{Expr, FunctionCall, NullsOrder, SortDirection};
@@ -20,16 +18,14 @@ use super::state::AggregateAccumulator;
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
 struct Seen {
-    keys: HashSet<Vec<SemanticValue>>,
-    table_bytes: usize,
+    keys: KeyedSet<Vec<SemanticValue>>,
     memory: QueryMemoryReservation,
 }
 
 impl Seen {
     fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
         Ok(Self {
-            keys: HashSet::new(),
-            table_bytes: 0,
+            keys: KeyedSet::new(Some(controls))?,
             memory: controls.reserve_query_memory(0)?,
         })
     }
@@ -52,24 +48,8 @@ impl Seen {
         if self.keys.contains(&key) {
             return Ok(false);
         }
-        let growing = self.keys.len() == self.keys.capacity();
-        let extra = if growing {
-            hash_table_bytes::<Vec<SemanticValue>>(mul(self.keys.capacity().max(2), 2)?)?
-        } else {
-            0
-        };
-        self.memory.try_grow(extra)?;
-        if growing {
-            self.keys
-                .try_reserve(1)
-                .map_err(|error| allocation_error("DISTINCT aggregate keys", &error))?;
-        }
-        self.keys.insert(key);
+        self.keys.insert(key)?;
         self.memory.absorb(candidate);
-        let table = hash_table_bytes::<Vec<SemanticValue>>(self.keys.capacity())?;
-        self.memory
-            .shrink_to(add(self.memory.bytes() - extra - self.table_bytes, table)?);
-        self.table_bytes = table;
         check_timeout(controls)?;
         Ok(true)
     }

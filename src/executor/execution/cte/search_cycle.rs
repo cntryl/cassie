@@ -338,11 +338,11 @@ fn reserve_expansion(
                 let Value::String(json) = value else {
                     return Ok::<_, QueryError>(bytes);
                 };
-                Ok(bytes
+                bytes
                     .checked_add(crate::runtime::accounted::json::serialized_decode_bytes(
                         json.len(),
                     )?)
-                    .ok_or_else(allocation_overflow)?)
+                    .ok_or_else(allocation_overflow)
             })?;
         let allowance = row_bytes
             .checked_mul(if cycle.is_some() { 5 } else { 4 })

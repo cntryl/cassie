@@ -134,7 +134,7 @@ impl Context<'_> {
                     prepared_memory.bytes(),
                     write_memory.bytes(),
                     self.controls.current_query_memory_bytes(),
-                ))
+                ));
             });
             BEFORE_REWRITE.with(|slot| {
                 if let Some(cancellation) = slot.borrow_mut().take() {

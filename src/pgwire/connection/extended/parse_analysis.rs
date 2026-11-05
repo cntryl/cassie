@@ -26,7 +26,7 @@ pub(super) fn admit(
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let catalog_overlay = session.transaction_catalog_overlay();
     let mut scoped_cassie = cassie.clone();
-    scoped_cassie.catalog_owner = descriptor_owner.clone();
+    scoped_cassie.catalog_owner.clone_from(&descriptor_owner);
     scoped_cassie.metadata_write_catalog = session
         .transaction_catalog_overlay()
         .unwrap_or_else(|| cassie.publication_catalog.clone());

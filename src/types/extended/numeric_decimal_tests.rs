@@ -56,8 +56,7 @@ fn should_preserve_numeric_syntax_errors_ahead_of_format_range_checks() {
     assert!(errors.iter().all(|error| error.sqlstate == "22P02"));
 }
 
-#[path = "../jsonb_numeric_cases.rs"]
-mod fixture;
+use crate::types::jsonb_numeric_cases as fixture;
 
 #[test]
 fn should_preserve_pinned_numeric_display_scale_across_decimal_weight_regimes() {

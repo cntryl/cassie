@@ -124,6 +124,7 @@ impl Ord for JsonbKey {
     }
 }
 
+#[derive(Clone, Copy)]
 enum Work<'a> {
     Value(&'a serde_json::Value),
     Field(&'a str),
@@ -145,7 +146,9 @@ impl<'a> Builder<'a> {
         if self.pending.len() == self.pending.capacity() {
             let extra = self.pending.capacity().max(4);
             self.admit(mul(extra, size_of::<Work<'_>>())?)?;
-            self.pending.try_reserve_exact(extra).map_err(allocation)?;
+            self.pending
+                .try_reserve_exact(extra)
+                .map_err(|error| allocation(&error))?;
         }
         self.pending.push(work);
         Ok(())
@@ -154,7 +157,9 @@ impl<'a> Builder<'a> {
         if self.tokens.len() == self.tokens.capacity() {
             let extra = self.tokens.capacity().max(4);
             self.admit(mul(extra, size_of::<Token>())?)?;
-            self.tokens.try_reserve_exact(extra).map_err(allocation)?;
+            self.tokens
+                .try_reserve_exact(extra)
+                .map_err(|error| allocation(&error))?;
         }
         self.tokens.push(token);
         Ok(())
@@ -169,7 +174,9 @@ impl<'a> Builder<'a> {
         }
         self.admit(text.len())?;
         let mut output = String::new();
-        output.try_reserve_exact(text.len()).map_err(allocation)?;
+        output
+            .try_reserve_exact(text.len())
+            .map_err(|error| allocation(&error))?;
         output.push_str(text);
         Ok(output)
     }
@@ -213,7 +220,7 @@ impl<'a> Builder<'a> {
                     let mut ordered = Vec::new();
                     ordered
                         .try_reserve_exact(fields.len())
-                        .map_err(allocation)?;
+                        .map_err(|error| allocation(&error))?;
                     for (key, value) in fields {
                         check(self.controls)?;
                         ordered.push((key.as_str(), value));
@@ -266,7 +273,7 @@ fn mul(left: usize, right: usize) -> Result<usize, CassieError> {
 fn overflow() -> CassieError {
     CassieError::ResourceLimit("JSONB semantic key accounting overflow".into())
 }
-fn allocation(error: std::collections::TryReserveError) -> CassieError {
+fn allocation(error: &std::collections::TryReserveError) -> CassieError {
     CassieError::ResourceLimit(format!("JSONB semantic key allocation: {error}"))
 }
 

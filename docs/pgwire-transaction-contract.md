@@ -846,3 +846,20 @@ amendment separates its explicit limit from `CASSIE_QUERY_MEMORY_BUDGET_BYTES`
 budget, and shared history still rejects before publication when its own limit
 is exhausted. This preserves writers staged before the first RR capture without
 changing the memory limit of a bounded read or allocating unadmitted keys.
+
+### Physical database-family publication authority
+
+The 2026-11-05 source comparison found a Cassie coordination gap: schema
+transactions participate in the new schema-family publication guard, while
+physical database-family create/drop calls bypassed that same authority. These
+lifecycle calls must acquire the existing schema-family guard with current
+request controls and latch an unknown native outcome before releasing it. The
+bootstrap path resolves the already-created schema family directly and must not
+recurse through `ensure_families_ready`.
+
+Jev selected this bounded participation repair at 1.00. It does not establish
+engine-wide WAL quiescence or make unobserved native writers/background work
+part of Cassie's guard. #1188 retains that broader published-API investigation;
+an Internal WAL failure remains an error, never a retry license. Synchronized
+native-call exclusion and recovery-quarantine probes qualify the adapter repair
+before the concurrent local-storage/restart gate is rerun.

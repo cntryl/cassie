@@ -22,7 +22,7 @@ pub(super) fn before_transition(controls: &QueryExecutionControls) {
         state
             .borrow_mut()
             .before
-            .push(controls.current_query_memory_bytes())
+            .push(controls.current_query_memory_bytes());
     });
 }
 pub(super) fn after_transition() {

@@ -201,11 +201,10 @@ impl StatisticalAccumulator {
         }
         match input {
             Some(Value::Typed(TypedValue::Numeric(value))) => {
-                units = add(units, numeric_work_units(value)?)?
+                units = add(units, numeric_work_units(value)?)?;
             }
             Some(Value::Int64(_)) => units = add(units, 64)?,
-            Some(_) if !matches!(self.moments, Moments::Exact(_)) => return Ok(0),
-            None if !matches!(self.moments, Moments::Exact(_)) => return Ok(0),
+            Some(_) | None if !matches!(self.moments, Moments::Exact(_)) => return Ok(0),
             _ => {}
         }
         Ok(mul(units, 64)?)

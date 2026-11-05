@@ -1,5 +1,6 @@
+use crate::types::semantic_index::KeyedMap;
 use std::cmp::Ordering as CmpOrdering;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
@@ -169,7 +170,7 @@ fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
         .saturating_add(batch::row_type_bytes(rows))
 }
 
-fn window_partition_bytes(partitions: &BTreeMap<SemanticKey, Vec<usize>>) -> usize {
+fn window_partition_bytes(partitions: &KeyedMap<SemanticKey, Vec<usize>>) -> usize {
     partitions
         .iter()
         .map(|(key, indices)| {
@@ -224,12 +225,12 @@ fn partition_window_rows(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     context: &WindowExecutionContext<'_>,
-) -> Result<BTreeMap<SemanticKey, Vec<usize>>, QueryError> {
-    let mut partitions = BTreeMap::<SemanticKey, Vec<usize>>::new();
+) -> Result<KeyedMap<SemanticKey, Vec<usize>>, QueryError> {
+    let mut partitions = KeyedMap::<SemanticKey, Vec<usize>>::new(Some(context.controls))?;
     for (index, row) in rows.iter().enumerate() {
         check_timeout(context.controls)?;
         let key = partition_key(row, function, context)?;
-        partitions.entry(key).or_default().push(index);
+        partitions.entry(key)?.or_default().push(index);
     }
     Ok(partitions)
 }
@@ -278,7 +279,7 @@ fn evaluate_window_values(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     function_name: &str,
-    partitions: &mut BTreeMap<SemanticKey, Vec<usize>>,
+    partitions: &mut KeyedMap<SemanticKey, Vec<usize>>,
     context: &WindowExecutionContext<'_>,
 ) -> Result<(Vec<Value>, crate::runtime::QueryMemoryReservation), QueryError> {
     let memory = filter::EvaluationMemory::new(context.controls)?;

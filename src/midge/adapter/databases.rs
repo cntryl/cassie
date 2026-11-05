@@ -580,24 +580,22 @@ impl Midge {
     }
 
     fn create_physical_family(&self, name: &str) -> Result<ColumnFamilyHandle, CassieError> {
-        if let Some(handle) = self.engine.get_column_family(name) {
-            return Ok(handle);
-        }
+        self.create_physical_family_with(name, || self.engine.create_column_family(name))
+    }
+
+    fn create_physical_family_with(
+        &self,
+        name: &str,
+        create: impl FnOnce() -> Result<ColumnFamilyHandle, cntryl_midge::MidgeError>,
+    ) -> Result<ColumnFamilyHandle, CassieError> {
         self.with_schema_publication(|| {
             self.publication.ensure_recovered()?;
-            match self
-                .publication
-                .observe_native(self.engine.create_column_family(name))
-            {
-                Ok(handle) => Ok(handle),
-                Err(error @ cntryl_midge::MidgeError::OutcomeUnknown(_)) => {
-                    Err(CassieError::from(error))
-                }
-                Err(error) => self
-                    .engine
-                    .get_column_family(name)
-                    .ok_or_else(|| CassieError::from(error)),
+            if let Some(handle) = self.engine.get_column_family(name) {
+                return Ok(handle);
             }
+            self.publication
+                .observe_native(create())
+                .map_err(CassieError::from)
         })
     }
 

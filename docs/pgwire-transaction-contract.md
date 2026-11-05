@@ -890,3 +890,12 @@ probes and the complete ordered gate execute successfully.
 An interim adversarial review returned 0.51 for retry after partial initialization
 and 0.44 for live create admission before initialization; authored probes exercise
 both boundaries. These probes remain unexecuted until the integrated gate.
+
+A physical family already visible under the schema publication gate may be
+reused without issuing a create. Once a native create has been submitted, its
+error remains an error even if a family with that name becomes visible. Midge
+0.5.2 uses `InvalidArgument` for both duplicate and invalid names and supplies
+no typed duplicate-create outcome that licenses converting a failed create to
+success. An unknown outcome continues to latch recovery; an internal error is
+not a retry or success signal. This rule also applies to initial fixed-family
+creation.

@@ -60,6 +60,15 @@ fn with_layout(image: &[u8], layout: &str) -> Vec<u8> {
     })
 }
 
+fn v2_image() -> Vec<u8> {
+    let source = fixture();
+    source
+        .midge
+        .require_storage_layout_version(V2)
+        .expect("upgrade source");
+    collect(source.begin_database_backup("postgres").expect("backup"))
+}
+
 fn header_layout(image: &[u8]) -> String {
     let start = DATABASE_IMAGE_MAGIC.len();
     let length = usize::try_from(u32::from_be_bytes(
@@ -108,6 +117,44 @@ fn should_export_the_actual_upgraded_store_requirement() {
 }
 
 #[test]
+fn should_reject_an_image_whose_layout_requirement_was_downgraded() {
+    // Arrange
+    let source = fixture();
+    source
+        .midge
+        .require_storage_layout_version(V2)
+        .expect("upgrade source");
+    let image = collect(source.begin_database_backup("postgres").expect("backup"));
+    for change_version in [false, true] {
+        let changed = rewrite_frame(&image, b'H', |header| {
+            header["storage_layout_version"] = V1.into();
+            if change_version {
+                header["image_version"] = 1.into();
+                header["integrity"] = "sha256(catalog-and-data-frame-payloads)".into();
+            }
+        });
+        let target = fixture();
+        let mut restore = target.begin_database_restore("rejected").expect("staging");
+
+        // Act
+        let pushed = restore.push_chunk(&changed);
+        let finished = restore.finish();
+
+        // Assert
+        assert!(
+            pushed.is_err() || finished.is_err(),
+            "a changed compatibility requirement must fail integrity validation"
+        );
+        assert_eq!(target.midge.storage_layout_version().expect("version"), V1);
+        assert!(target
+            .midge
+            .get_database("rejected")
+            .expect("target")
+            .is_none());
+    }
+}
+
+#[test]
 fn should_reject_a_marker_transition_after_an_actual_backup_chunk() {
     // Arrange
     let cassie = fixture();
@@ -140,10 +187,7 @@ fn should_reject_a_marker_transition_after_an_actual_backup_chunk() {
 fn should_require_v2_before_publishing_a_validated_restore() {
     // Arrange
     let cassie = fixture();
-    let image = with_layout(
-        &collect(cassie.begin_database_backup("postgres").expect("backup")),
-        V2,
-    );
+    let image = v2_image();
     let mut restore = cassie.begin_database_restore("restored").expect("staging");
     restore
         .push_chunk(&image)
@@ -189,10 +233,7 @@ fn should_require_v2_before_publishing_a_validated_restore() {
 fn should_keep_the_v2_requirement_when_restore_publication_fails() {
     // Arrange
     let cassie = fixture();
-    let image = with_layout(
-        &collect(cassie.begin_database_backup("postgres").expect("backup")),
-        V2,
-    );
+    let image = v2_image();
     let mut restore = cassie.begin_database_restore("contested").expect("staging");
     restore.push_chunk(&image).expect("validated image");
     cassie
@@ -226,10 +267,7 @@ fn should_keep_restore_staging_abortable_when_marker_admission_fails() {
     // Arrange
     use crate::midge::adapter::StorageFamily;
     let cassie = fixture();
-    let image = with_layout(
-        &collect(cassie.begin_database_backup("postgres").expect("backup")),
-        V2,
-    );
+    let image = v2_image();
     let mut restore = cassie.begin_database_restore("rejected").expect("staging");
     restore.push_chunk(&image).expect("validated image");
     let key = cassie
@@ -269,10 +307,7 @@ fn should_leave_v1_unchanged_for_incomplete_or_corrupt_v2_images() {
     // Arrange
     for corrupt in [false, true] {
         let cassie = fixture();
-        let complete = with_layout(
-            &collect(cassie.begin_database_backup("postgres").expect("backup")),
-            V2,
-        );
+        let complete = v2_image();
         let image = if corrupt {
             rewrite_frame(&complete, b'F', |footer| {
                 footer["checksum_sha256"] = "0".repeat(64).into();

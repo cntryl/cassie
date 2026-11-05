@@ -7,6 +7,10 @@ use super::{Cassie, CassieError};
 use crate::midge::adapter::StagedDatabaseFamily;
 
 pub const DATABASE_IMAGE_VERSION: u16 = 1;
+const PROTECTED_DATABASE_IMAGE_VERSION: u16 = 2;
+const V1_LAYOUT_VERSION: &str = "cassie-midge-layout-v1-0.1.0";
+const V1_INTEGRITY: &str = "sha256(catalog-and-data-frame-payloads)";
+const V2_INTEGRITY: &str = "sha256(header-and-catalog-and-data-frame-payloads)";
 const DATABASE_IMAGE_MAGIC: &[u8] = b"CASSIEDB";
 const FRAME_HEADER: u8 = b'H';
 const FRAME_CATALOG: u8 = b'C';
@@ -99,21 +103,33 @@ impl DatabaseBackupStream {
             match self.phase {
                 BackupPhase::Header => {
                     self.pending.extend(DATABASE_IMAGE_MAGIC.iter().copied());
+                    let protected = self.storage_layout_version != V1_LAYOUT_VERSION;
                     let header = DatabaseImageHeader {
-                        image_version: DATABASE_IMAGE_VERSION,
+                        image_version: if protected {
+                            PROTECTED_DATABASE_IMAGE_VERSION
+                        } else {
+                            DATABASE_IMAGE_VERSION
+                        },
                         source_database: self.source_database.clone(),
                         source_physical_family: self.source_physical_family.clone(),
                         storage_layout_version: self.storage_layout_version.to_string(),
                         schema_epoch: self.schema_epoch,
                         data_epoch: self.data_epoch,
-                        integrity: "sha256(catalog-and-data-frame-payloads)".to_string(),
+                        integrity: if protected {
+                            V2_INTEGRITY
+                        } else {
+                            V1_INTEGRITY
+                        }
+                        .to_string(),
                     };
-                    self.enqueue_frame(
-                        FRAME_HEADER,
-                        &serde_json::to_vec(&header).map_err(|error| {
-                            CassieError::Parse(format!("encode database image header: {error}"))
-                        })?,
-                    );
+                    let payload = serde_json::to_vec(&header).map_err(|error| {
+                        CassieError::Parse(format!("encode database image header: {error}"))
+                    })?;
+                    if protected {
+                        self.hasher.update([FRAME_HEADER]);
+                        self.hasher.update(&payload);
+                    }
+                    self.enqueue_frame(FRAME_HEADER, &payload);
                     self.phase = BackupPhase::Catalog;
                 }
                 BackupPhase::Catalog => {
@@ -381,14 +397,26 @@ impl DatabaseRestoreSession {
         let header: DatabaseImageHeader = serde_json::from_slice(payload).map_err(|error| {
             CassieError::Parse(format!("invalid database image header: {error}"))
         })?;
-        if header.image_version != DATABASE_IMAGE_VERSION
-            || !crate::midge::adapter::Midge::supports_storage_layout_version(
-                &header.storage_layout_version,
-            )
-        {
+        if !crate::midge::adapter::Midge::supports_storage_layout_version(
+            &header.storage_layout_version,
+        ) || !match header.image_version {
+            DATABASE_IMAGE_VERSION => {
+                header.storage_layout_version == V1_LAYOUT_VERSION
+                    && header.integrity == V1_INTEGRITY
+            }
+            PROTECTED_DATABASE_IMAGE_VERSION => {
+                header.storage_layout_version != V1_LAYOUT_VERSION
+                    && header.integrity == V2_INTEGRITY
+            }
+            _ => false,
+        } {
             return Err(CassieError::Unsupported(
                 "database image version or storage layout is incompatible".to_string(),
             ));
+        }
+        if header.image_version == PROTECTED_DATABASE_IMAGE_VERSION {
+            self.hasher.update([FRAME_HEADER]);
+            self.hasher.update(payload);
         }
         self.header = Some(header);
         self.phase = RestorePhase::Catalog;

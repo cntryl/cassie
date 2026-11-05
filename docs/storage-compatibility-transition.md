@@ -38,7 +38,13 @@ upload. Normal data-write policies retain their existing configuration. Jev
 selected this anchor-only policy (0.71); the deferred gate must verify its
 actual call site and the available local/cloud controls.
 
-Database images retain their existing version and framing. A backup captures
+Version 1 database images remain readable only with a v1 layout requirement;
+their legacy checksum covers catalog and data entries. A v1-layout backup
+continues to use version 1. A v2-layout backup uses image version 2, whose
+checksum also covers the exact encoded header, including the layout marker.
+Readers reject other image-version/layout combinations. This detects accidental
+header changes, including downgrade of both version and marker, but SHA-256 is
+not authentication against intentional image rewriting. A backup captures
 the actual store marker with its source generations and includes it in the
 header. A marker transition invalidates an active stream before its next
 chunk, like an existing source-generation change. A v2 store conservatively

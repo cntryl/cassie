@@ -54,7 +54,10 @@ fn should_cancel_active_are_constraint_work_before_output_publication() {
     // Assert
     let wire = &result.cancelled;
     assert_eq!(crate::support_pgwire::error_code(wire).as_deref(), Some("57014"));
-    assert!(crate::support_pgwire::data_rows(wire).is_empty());
+    assert_eq!(
+        crate::support_pgwire::data_rows(wire),
+        Vec::<Vec<Option<String>>>::new()
+    );
     assert_eq!(wire.iter().filter(|frame| frame.0 == b'C').count(), 0);
     assert_eq!(wire.last().map(|frame| frame.0), Some(b'Z'));
     assert_eq!(wire.last().map(|frame| frame.1.as_slice()), Some(b"I".as_slice()));

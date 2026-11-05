@@ -6,8 +6,10 @@ use sha2::{Digest, Sha256};
 use super::{Cassie, CassieError};
 use crate::midge::adapter::StagedDatabaseFamily;
 
+/// Legacy image version emitted for a v1 storage layout.
 pub const DATABASE_IMAGE_VERSION: u16 = 1;
-const PROTECTED_DATABASE_IMAGE_VERSION: u16 = 2;
+/// Image version with a checksummed header, emitted for a v2 storage layout.
+pub const DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER: u16 = 2;
 const V1_LAYOUT_VERSION: &str = "cassie-midge-layout-v1-0.1.0";
 const V1_INTEGRITY: &str = "sha256(catalog-and-data-frame-payloads)";
 const V2_INTEGRITY: &str = "sha256(header-and-catalog-and-data-frame-payloads)";
@@ -176,7 +178,7 @@ impl DatabaseBackupStream {
         let protected = self.storage_layout_version != V1_LAYOUT_VERSION;
         let header = DatabaseImageHeader {
             image_version: if protected {
-                PROTECTED_DATABASE_IMAGE_VERSION
+                DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER
             } else {
                 DATABASE_IMAGE_VERSION
             },
@@ -407,7 +409,7 @@ impl DatabaseRestoreSession {
                 header.storage_layout_version == V1_LAYOUT_VERSION
                     && header.integrity == V1_INTEGRITY
             }
-            PROTECTED_DATABASE_IMAGE_VERSION => {
+            DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER => {
                 header.storage_layout_version != V1_LAYOUT_VERSION
                     && header.integrity == V2_INTEGRITY
             }
@@ -417,7 +419,7 @@ impl DatabaseRestoreSession {
                 "database image version or storage layout is incompatible".to_string(),
             ));
         }
-        if header.image_version == PROTECTED_DATABASE_IMAGE_VERSION {
+        if header.image_version == DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER {
             self.hasher.update([FRAME_HEADER]);
             self.hasher.update(payload);
         }

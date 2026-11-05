@@ -117,6 +117,35 @@ fn should_export_the_actual_upgraded_store_requirement() {
 }
 
 #[test]
+fn should_report_public_image_versions_for_each_layout() {
+    // Arrange
+    let legacy = fixture();
+    let v1 = collect(legacy.begin_database_backup("postgres").expect("v1 backup"));
+    let v2 = v2_image();
+
+    // Act
+    let version = |image: &[u8]| {
+        let start = DATABASE_IMAGE_MAGIC.len();
+        let length = usize::try_from(u32::from_be_bytes(
+            image[start..start + 4].try_into().expect("length"),
+        ))
+        .expect("frame length");
+        let header: serde_json::Value =
+            serde_json::from_slice(&image[start + 5..start + 4 + length]).expect("header");
+        header["image_version"].as_u64().expect("version")
+    };
+
+    // Assert
+    assert_eq!(crate::app::DATABASE_IMAGE_VERSION, 1);
+    assert_eq!(version(&v1), u64::from(crate::app::DATABASE_IMAGE_VERSION));
+    assert_eq!(crate::app::DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER, 2);
+    assert_eq!(
+        version(&v2),
+        u64::from(crate::app::DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER)
+    );
+}
+
+#[test]
 fn should_reject_an_image_whose_layout_requirement_was_downgraded() {
     // Arrange
     let source = fixture();

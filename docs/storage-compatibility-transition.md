@@ -42,6 +42,10 @@ Version 1 database images remain readable only with a v1 layout requirement;
 their legacy checksum covers catalog and data entries. A v1-layout backup
 continues to use version 1. A v2-layout backup uses image version 2, whose
 checksum also covers the exact encoded header, including the layout marker.
+The existing public `DATABASE_IMAGE_VERSION` constant remains 1 and identifies
+the legacy image version; it is not a universal version for every emitted
+backup. `DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER` identifies version 2.
+The emitted version depends on the store layout requirement.
 Readers reject other image-version/layout combinations. This detects accidental
 header changes, including downgrade of both version and marker, but SHA-256 is
 not authentication against intentional image rewriting. A backup captures

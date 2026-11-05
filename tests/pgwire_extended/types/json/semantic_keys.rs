@@ -57,7 +57,7 @@ fn should_preserve_jsonb_distinct_identity_across_wire_formats() {
         let columns = wire::parse_row_description(&description.1);
         assert_eq!(columns.len(), 1);
         assert_eq!(columns[0].type_oid, 3802);
-        assert_eq!(columns[0].format_code, if index % 2 == 0 { 0 } else { 1 });
+        assert_eq!(columns[0].format_code, i16::from(index % 2 != 0));
         let rows = wire::data_rows(frames);
         assert_eq!(rows.len(), 1);
         let output = rows[0][0].as_deref().expect("nonnull document");

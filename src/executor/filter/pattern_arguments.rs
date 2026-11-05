@@ -230,7 +230,7 @@ mod tests {
         let outer = FunctionCall {
             name: "regexp_like".into(),
             args: vec![
-                Expr::StringLiteral("abc".into()),
+                Expr::StringLiteral("acb".into()),
                 Expr::Function(Box::new(helper)),
             ],
             ..Default::default()

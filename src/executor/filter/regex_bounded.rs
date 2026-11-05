@@ -228,7 +228,9 @@ mod tests {
                 .multi_line(true)
                 .case_insensitive(true),
         ];
-        let controls = controls(1024 * 1024);
+        // This is a semantic parity fixture, not a budget boundary test. Unicode
+        // character classes can require more than 1 MiB of admitted workspace.
+        let controls = controls(64 * 1024 * 1024);
         let mut observations = Vec::new();
 
         // Act

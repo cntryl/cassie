@@ -196,8 +196,10 @@ The latter observes both retained reservations before mutation and requires the
 original row to remain unchanged. It is the focused probe for Jev's retained
 output-owner lead (design 0.55, review 0.45); neither score is native evidence.
 
-This uses existing Cassie-side APIs over published Midge 0.5.1 and changes no
-durable layout or CHAR canonicalization. It does not qualify additional USING
+This checkpoint used existing Cassie-side APIs over published Midge 0.5.1 and
+changes no durable layout or CHAR canonicalization. The combined #1184 candidate
+uses published Midge 0.5.2 and requires its own qualification. This checkpoint does
+not qualify additional USING
 target pairs, staged-row source semantics or full rewrite failure/recovery.
 Those remain pending under #839 and its #833 atomic-publication dependency;
 the existing mutation sequence and its broader storage-error behavior are not

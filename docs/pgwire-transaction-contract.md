@@ -7,6 +7,11 @@ PostgreSQL server parity. The prerequisite #751 is closed. Selection authority:
 [bounded profile](https://github.com/cntryl/cassie/issues/755#issuecomment-5982444561)
 and [atomic handoff](https://github.com/cntryl/cassie/issues/755#issuecomment-5994029199).
 
+The initial sections record the completed #755 baseline; later sections describe
+the selected v0.2 extensions and their qualification status. References to Midge
+0.5.1 in those historical checkpoints describe the dependency at that time.
+The combined #1184 candidate uses published Midge 0.5.2 and requires a new gate.
+
 ## Operation boundaries
 
 Classify parsed statements using existing transaction eligibility, rather than

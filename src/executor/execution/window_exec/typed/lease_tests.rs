@@ -28,6 +28,7 @@ fn should_admit_rebuilt_rich_window_lookup_after_large_prior_alias() {
     let function = WindowFunctionCall {
         name: "rank".into(),
         args: Vec::new(),
+        filter: None,
         partition_by: Vec::new(),
         order_by: vec![crate::sql::ast::OrderExpr {
             expr: Expr::Column("n".into()),
@@ -49,6 +50,7 @@ fn should_admit_rebuilt_rich_window_lookup_after_large_prior_alias() {
         session: None,
         controls: &controls,
         evaluate: None,
+        output_memory: None,
     };
     // Act
     let result = keys(&[row], &function, &selection, &context);

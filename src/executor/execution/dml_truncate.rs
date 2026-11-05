@@ -51,7 +51,7 @@ pub(in crate::executor::execution) fn execute_truncate(
         Ok::<_, QueryError>(())
     })?;
     for table in &tables {
-        rollups::mark_source_rollups_stale(cassie, session, table)?;
+        rollups::mark_source_rollups_stale(cassie, table)?;
     }
     Ok(output)
 }

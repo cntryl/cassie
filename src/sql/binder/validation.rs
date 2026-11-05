@@ -82,7 +82,7 @@ fn validate_select_item_operand_families(
             Ok(())
         }
         SelectItem::WindowFunction { function, .. } => {
-            for argument in &function.args {
+            for argument in function.args.iter().chain(function.filter.as_deref()) {
                 validate_expression_operand_families(argument, field_types)?;
             }
             for expression in &function.partition_by {
@@ -797,6 +797,10 @@ pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
         SelectItem::Expr { expr, .. } => expr_contains_parameters(expr),
         SelectItem::WindowFunction { function, .. } => {
             function.args.iter().any(expr_contains_parameters)
+                || function
+                    .filter
+                    .as_deref()
+                    .is_some_and(expr_contains_parameters)
                 || function.partition_by.iter().any(expr_contains_parameters)
                 || function
                     .order_by

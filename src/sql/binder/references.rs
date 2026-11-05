@@ -85,7 +85,7 @@ pub(super) fn validate_projection_references(
                 validate_expression_in_scope(expr, known_fields, &HashSet::new(), false, scope)?;
             }
             SelectItem::WindowFunction { function, .. } => {
-                for arg in &function.args {
+                for arg in function.args.iter().chain(function.filter.as_deref()) {
                     validate_expression_in_scope(arg, known_fields, &HashSet::new(), false, scope)?;
                 }
                 for expr in &function.partition_by {

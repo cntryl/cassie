@@ -325,6 +325,18 @@ impl Analyzer<'_> {
                             .map(|argument| self.expression(argument, lookup))
                             .transpose()?
                             .unwrap_or_else(|| super::OutputType::fixed(DataType::Text)),
+                        _ if crate::sql::functions::aggregate_window_function(&function.name)
+                            .is_some() =>
+                        {
+                            self.function(
+                                &crate::sql::ast::FunctionCall {
+                                    name: function.name.clone(),
+                                    args: function.args.clone(),
+                                    ..crate::sql::ast::FunctionCall::default()
+                                },
+                                lookup,
+                            )?
+                        }
                         _ => super::OutputType::fixed(DataType::BigInt),
                     };
                     // Matches current inference, including lag/lead's current

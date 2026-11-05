@@ -103,6 +103,7 @@ pub(super) fn validate_item(item: &SelectItem, types: &ResultTypes) -> Result<()
             for expr in function
                 .args
                 .iter()
+                .chain(function.filter.as_deref())
                 .chain(&function.partition_by)
                 .chain(function.order_by.iter().map(|order| &order.expr))
             {
@@ -165,6 +166,7 @@ pub(super) fn coerce_item(item: &mut SelectItem, types: &ResultTypes) {
             function
                 .args
                 .iter_mut()
+                .chain(function.filter.as_deref_mut())
                 .chain(&mut function.partition_by)
                 .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
                 .for_each(|expr| coerce_expression(expr, types));

@@ -1099,7 +1099,7 @@ fn collect_functions_in_select_item(item: &SelectItem, out: &mut Vec<String>) {
         SelectItem::Expr { expr, .. } => collect_functions_in_expr(expr, out),
         SelectItem::WindowFunction { function, .. } => {
             out.push(function.name.clone());
-            for arg in &function.args {
+            for arg in function.args.iter().chain(function.filter.as_deref()) {
                 collect_functions_in_expr(arg, out);
             }
             for expr in &function.partition_by {

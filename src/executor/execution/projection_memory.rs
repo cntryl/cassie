@@ -104,7 +104,15 @@ pub(super) fn state_bytes(
             .count();
         bytes = add(bytes, mul(mul(wildcard_names, wildcards)?, 4)?)?;
         bytes = add(bytes, mul(largest_value, width)?)?;
-        if crate::executor::projection_types::required(row) {
+        if crate::executor::projection_types::required(row)
+            || projection.iter().any(|item| match item {
+                SelectItem::Expr { .. } | SelectItem::Function { .. } => true,
+                SelectItem::Column { name, .. } => row
+                    .column_type(name)
+                    .is_some_and(crate::executor::projection_types::required_type),
+                _ => false,
+            })
+        {
             let largest_type = row.maximum_type_heap_bytes()?;
             bytes = add(bytes, mul(slots, size_of::<DataType>())?)?;
             bytes = add(bytes, mul(largest_type, width)?)?;

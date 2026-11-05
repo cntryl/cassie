@@ -684,3 +684,14 @@ mod parameter_operator_resolution;
 
 #[path = "pgwire_extended/types/review_diagnostics.rs"]
 mod review_diagnostics;
+
+#[path = "pgwire_extended/types/json/semantic_keys.rs"]
+mod jsonb_semantic_keys;
+
+#[path = "pgwire_extended/types/json/numeric_weight_boundaries.rs"]
+mod jsonb_numeric_boundaries;
+#[path = "pgwire_extended/aggregates/windows/statistical_filter.rs"]
+mod statistical_filter_windows;
+
+#[path = "pgwire_extended/types/json/search_cycle_lineage.rs"]
+mod jsonb_search_cycle_lineage;

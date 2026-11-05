@@ -194,6 +194,7 @@ impl Normalizer<'_> {
                     for expr in function
                         .args
                         .iter_mut()
+                        .chain(function.filter.as_deref_mut())
                         .chain(&mut function.partition_by)
                         .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
                     {

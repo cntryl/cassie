@@ -193,6 +193,9 @@ fn strip_select_item(item: &mut SelectItem, qualifiers: &[String]) {
         SelectItem::Expr { expr, .. } => *expr = strip_expr(expr, qualifiers),
         SelectItem::WindowFunction { function, .. } => {
             strip_all(&mut function.args, qualifiers);
+            if let Some(filter) = &mut function.filter {
+                **filter = strip_expr(filter, qualifiers);
+            }
             strip_all(&mut function.partition_by, qualifiers);
             strip_order(&mut function.order_by, qualifiers);
         }

@@ -1,5 +1,5 @@
 //! SQL-to-JSON array construction without the general storage JSON carrier.
-use super::{check, DataType, QueryError, QueryExecutionControls, Value};
+use super::{check, DataType, QueryError, QueryExecutionControls};
 use crate::app::CassieError;
 use crate::executor::retained_memory::{add, mul};
 use crate::types::SqlArray;

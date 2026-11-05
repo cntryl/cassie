@@ -60,7 +60,12 @@ fn select(query: &SelectStatement, depth: usize) -> Result<(), SqlError> {
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expr in function.args.iter().chain(&function.partition_by) {
+                for expr in function
+                    .args
+                    .iter()
+                    .chain(function.filter.as_deref())
+                    .chain(&function.partition_by)
+                {
                     validate(expr, depth + 1)?;
                 }
                 for order in &function.order_by {

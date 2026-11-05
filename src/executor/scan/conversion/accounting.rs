@@ -31,7 +31,7 @@ pub(super) fn identifier_scratch(
             .max()
             .unwrap_or(0),
     };
-    if has_array_metadata(request.schema) {
+    if has_semantic_metadata(request.schema) {
         longest = longest.max(ROW_IDENTITY_COLUMN.len());
         if let Some(schema) = request.schema {
             longest = longest.max(
@@ -155,7 +155,7 @@ fn row_bytes(
             bytes = add(bytes, hash_table_bytes::<String>(seen_count)?)?;
         }
     }
-    if has_array_metadata(schema) {
+    if has_semantic_metadata(schema) {
         bytes = add(bytes, size_of::<Vec<DataType>>() + 2 * size_of::<usize>())?;
         bytes = add(bytes, mul(entries.count, size_of::<DataType>())?)?;
         bytes = add(bytes, mul(entries.count, maximum_type_heap(schema)?)?)?;
@@ -272,12 +272,14 @@ pub(super) fn value_heap(
     }
 }
 
-fn has_array_metadata(schema: Option<&CollectionSchema>) -> bool {
+fn has_semantic_metadata(schema: Option<&CollectionSchema>) -> bool {
     schema.is_some_and(|schema| {
-        schema
-            .fields
-            .iter()
-            .any(|field| matches!(field.data_type, DataType::Array(_)))
+        schema.fields.iter().any(|field| {
+            matches!(
+                field.data_type,
+                DataType::Array(_) | DataType::Jsonb | DataType::Char { .. }
+            )
+        })
     })
 }
 

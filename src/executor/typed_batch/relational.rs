@@ -129,7 +129,8 @@ impl TupleKeys {
                 tuple.push(crate::executor::semantic::typed_value(
                     value,
                     row.data_types().get(column),
-                ));
+                    Some(controls),
+                )?);
             }
             values.push(tuple);
         }
@@ -177,7 +178,8 @@ impl TupleKeys {
                 tuple.push(crate::executor::semantic::typed_value(
                     &row.entries()[column].1,
                     row.data_types().get(column),
-                ));
+                    Some(controls),
+                )?);
             }
             values.push(tuple);
         }

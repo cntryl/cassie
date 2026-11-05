@@ -85,6 +85,17 @@ pub(crate) fn window_function(name: &str) -> Option<&'static WindowFunction> {
         .find(|function| function.name.eq_ignore_ascii_case(local_name))
 }
 
+/// The finite aggregate families admitted by the existing window evaluator.
+pub(crate) fn aggregate_window_function(name: &str) -> Option<&'static super::ScalarFunction> {
+    let function = super::function(name)?;
+    (matches!(
+        function.id,
+        FunctionId::Count | FunctionId::Sum | FunctionId::BoolAnd | FunctionId::BoolOr
+    ) || super::statistical::is_statistical_function(function.id)
+        || super::regression::is_regression_function(function.id))
+    .then_some(function)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::{window_function, FunctionId, WindowArgumentType};

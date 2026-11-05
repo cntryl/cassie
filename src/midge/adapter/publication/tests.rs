@@ -428,3 +428,75 @@ fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
     assert_eq!(origin.current_query_memory_bytes(), 0);
     assert_eq!(request.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_capture_matching_assertion_and_read_views_while_a_publisher_waits() {
+    // Arrange
+    let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory adapter"));
+    midge.ensure_families_ready().expect("families");
+    let key = b"paired-snapshot-row";
+    let mut seed = midge
+        .begin_raw_database_adapter_tx("postgres", cntryl_midge::TransactionMode::ReadWrite)
+        .expect("seed transaction");
+    seed.put(key.to_vec(), b"before".to_vec(), None)
+        .expect("seed");
+    seed.commit(midge.write_options_sync())
+        .expect("seed commit");
+    let request = controls(QueryCancellationHandle::new());
+    let other = Arc::clone(&midge);
+    let (waiting_tx, waiting_rx) = mpsc::channel();
+
+    // Act
+    let (mut fence, read, worker) = midge
+        .with_database_publication("postgres", &request, || {
+            let fence = midge.begin_raw_database_adapter_tx(
+                "postgres",
+                cntryl_midge::TransactionMode::ReadWrite,
+            )?;
+            let worker = std::thread::spawn(move || {
+                NEXT_PUBLICATION.with(|slot| {
+                    *slot.borrow_mut() = Some(Box::new(move |boundary| {
+                        assert!(boundary == PublicationBoundary::WaitingForGate);
+                        waiting_tx.send(()).expect("writer reached capture gate");
+                    }));
+                });
+                let mut writer = other
+                    .begin_raw_database_adapter_tx(
+                        "postgres",
+                        cntryl_midge::TransactionMode::ReadWrite,
+                    )
+                    .expect("competing writer");
+                writer
+                    .put(key.to_vec(), b"after".to_vec(), None)
+                    .expect("competing row");
+                writer
+                    .commit(other.write_options_sync())
+                    .expect("competing commit");
+            });
+            waiting_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("commit boundary");
+            let read = midge.begin_database_readonly_tx("postgres")?;
+            Ok((fence, read, worker))
+        })
+        .expect("paired capture");
+    worker.join().expect("publisher");
+    let visible = read.get(key).expect("retained read").expect("old row");
+    fence.set_conflict_policy(cntryl_midge::ConflictPolicy::LastWriteWins);
+    fence
+        .assert_expected_value(
+            key.to_vec(),
+            &crate::midge::adapter::transactions::ExpectedStorageValue::Present(visible.to_vec()),
+        )
+        .expect("assert retained view");
+    let validation = fence.commit(midge.write_options_sync());
+
+    // Assert
+    assert_eq!(visible.as_ref(), b"before");
+    assert!(matches!(
+        validation,
+        Err(AdapterCommitError::Native(
+            cntryl_midge::MidgeError::WriteConflict(_)
+        ))
+    ));
+}

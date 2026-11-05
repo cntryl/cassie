@@ -53,13 +53,13 @@ fn should_reject_read_write_mode_after_a_repeatable_snapshot() {
     fixture.execute("ROLLBACK").expect("retire failed block");
 
     // Assert
-    assert_eq!(
-        failure
-            .expect_err("mode fixed by snapshot")
-            .descriptor()
-            .sql_state,
-        "25001"
-    );
+    assert!(matches!(
+        failure.expect_err("mode fixed by snapshot"),
+        cassie::app::CassieError::Transaction {
+            kind: cassie::app::TransactionErrorKind::ActiveTransaction,
+            ..
+        }
+    ));
     assert_eq!(fixture.session.transaction_status(), "idle");
 }
 
@@ -162,13 +162,13 @@ fn should_keep_the_row_fence_after_repeatable_writes_are_tightened_to_read_only(
         .expect("winner");
 
     // Assert
-    assert_eq!(
-        failure
-            .expect_err("mode tightening cannot remove FCW")
-            .descriptor()
-            .sql_state,
-        "40001"
-    );
+    assert!(matches!(
+        failure.expect_err("mode tightening cannot remove FCW"),
+        cassie::app::CassieError::Transaction {
+            kind: cassie::app::TransactionErrorKind::SerializationFailure,
+            ..
+        }
+    ));
     assert_eq!(fixture.session.transaction_status(), "idle");
     assert_eq!(visible.rows(), &[vec![cassie::types::Value::Int64(1)]]);
 }
@@ -217,12 +217,12 @@ fn should_retain_write_authority_for_a_restorable_savepoint_mode() {
 
     // Assert
     assert_eq!(own.rows(), &[vec![cassie::types::Value::Int64(2)]]);
-    assert_eq!(
-        failure
-            .expect_err("capture retained its original FCW authority")
-            .descriptor()
-            .sql_state,
-        "40001"
-    );
+    assert!(matches!(
+        failure.expect_err("capture retained its original FCW authority"),
+        cassie::app::CassieError::Transaction {
+            kind: cassie::app::TransactionErrorKind::SerializationFailure,
+            ..
+        }
+    ));
     assert_eq!(fixture.session.transaction_status(), "idle");
 }

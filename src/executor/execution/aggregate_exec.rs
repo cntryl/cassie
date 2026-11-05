@@ -138,7 +138,7 @@ fn aggregate_query_batches_serial(
     for row in rows {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
-        let signature = aggregate_group_signature(&group_values);
+        let signature = aggregate_typed_group_signature(&group_values, &row, context)?;
         let mut added_bytes = group_memory::serial_row_bytes(&row);
         let group = match groups.entry(signature) {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -290,7 +290,7 @@ fn aggregate_partition(
     for row in chunk {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(row, context)?;
-        let signature = aggregate_group_signature(&group_values);
+        let signature = aggregate_typed_group_signature(&group_values, row, context)?;
         let group = match groups.entry(signature) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
@@ -340,6 +340,30 @@ fn aggregate_group_values(
         .collect::<Result<Vec<_>, QueryError>>()
 }
 
+fn aggregate_typed_group_signature(
+    group_values: &[(String, Value)],
+    row: &BatchRow,
+    context: &AggregateExecutionContext<'_>,
+) -> Result<SemanticKey, QueryError> {
+    let keys = context
+        .plan
+        .group_by
+        .iter()
+        .zip(group_values)
+        .map(|(expr, (_, value))| {
+            crate::executor::array_order::key(
+                row,
+                expr,
+                value,
+                context.user_functions,
+                Some(context.controls),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SemanticKey::from_semantic_values(keys))
+}
+
+#[cfg(test)]
 fn aggregate_group_signature(group_values: &[(String, Value)]) -> SemanticKey {
     SemanticKey::from_values(group_values.iter().map(|(_, value)| value))
 }
@@ -558,31 +582,14 @@ fn evaluate_aggregate(
 }
 
 pub(super) fn evaluate_window_aggregate<'a>(
-    function: &FunctionCall,
+    function: &crate::sql::ast::WindowFunctionCall,
     rows: impl IntoIterator<Item = &'a BatchRow>,
     params: &[Value],
-    search_context: Option<&filter::SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
+    output: &filter::EvaluationMemory,
+    evaluate: impl Fn(&BatchRow, &Expr, &filter::EvaluationMemory) -> Result<Value, QueryError>,
 ) -> Result<Value, QueryError> {
-    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
-        crate::sql::functions::regression::is_regression_function(metadata.id)
-    }) {
-        return Err(crate::app::CassieError::Unsupported(
-            "regression aggregate window frames remain pending under #806".into(),
-        )
-        .into());
-    }
-    window::evaluate(
-        function,
-        rows,
-        params,
-        search_context,
-        user_functions,
-        session,
-        controls,
-    )
+    window::evaluate(function, rows, params, controls, output, evaluate)
 }
 
 fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {

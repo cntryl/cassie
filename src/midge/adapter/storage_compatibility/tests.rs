@@ -277,6 +277,7 @@ fn raw_marker_after_quarantine(store: &Midge) -> Vec<u8> {
         .get(&key_encoding::layout_marker_key())
         .expect("stored marker")
         .expect("marker")
+        .to_vec()
 }
 
 #[test]

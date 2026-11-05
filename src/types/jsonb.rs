@@ -89,7 +89,8 @@ pub(crate) fn input_text_len(input: &str) -> Result<usize, TypeInputError> {
             b'-' | b'0'..=b'9' => {
                 let start = index;
                 while index < bytes.len()
-                    && matches!(bytes[index], b'-' | b'+' | b'0'..=b'9' | b'.' | b'e' | b'E')
+                    && !bytes[index].is_ascii_whitespace()
+                    && !matches!(bytes[index], b'[' | b']' | b'{' | b'}' | b':' | b',')
                 {
                     index += 1;
                 }
@@ -118,32 +119,7 @@ fn quoted_len(value: &str) -> Result<usize, TypeInputError> {
 }
 
 fn number_len(value: &str) -> Result<usize, TypeInputError> {
-    let (mantissa, exponent) = value
-        .find(['e', 'E'])
-        .map_or((value, "0"), |index| (&value[..index], &value[index + 1..]));
-    let exponent = exponent.parse::<i64>().map_err(|_| out_of_range())?;
-    let digits = i64::try_from(mantissa.bytes().filter(u8::is_ascii_digit).count())
-        .map_err(|_| out_of_range())?;
-    let fraction = mantissa
-        .find('.')
-        .map_or(0, |index| mantissa.len() - index - 1);
-    let scale = i64::try_from(fraction)
-        .map_err(|_| out_of_range())?
-        .checked_sub(exponent)
-        .ok_or_else(out_of_range)?;
-    let digits = if scale < 0 {
-        digits.checked_sub(scale)
-    } else {
-        Some(digits.max(scale.saturating_add(1)))
-    }
-    .ok_or_else(out_of_range)?;
-    let bytes = digits
-        .checked_add(i64::from(scale > 0) + i64::from(value.starts_with('-')))
-        .ok_or_else(out_of_range)?;
-    if bytes > 147_457 {
-        return Err(out_of_range());
-    }
-    usize::try_from(bytes).map_err(|_| out_of_range())
+    super::extended::numeric::decimal::json_parts(value)?.text_bytes()
 }
 
 fn checked_add(left: usize, right: usize) -> Result<usize, TypeInputError> {
@@ -195,3 +171,7 @@ mod tests {
         assert_eq!(error.sqlstate, "22P05");
     }
 }
+
+#[cfg(test)]
+#[path = "jsonb_numeric_tests.rs"]
+mod numeric_tests;

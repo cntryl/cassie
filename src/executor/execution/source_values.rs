@@ -20,13 +20,32 @@ pub(super) fn execute(
             + 2 * size_of::<usize>(),
         mul(count, size_of::<BatchRow>())?,
     )?)?;
-    let character_types = if count > 0
+    let semantic_types = if count > 0
         && rows.iter().flatten().any(|expr| {
             expr.any_descendant_or_self(&mut |expr| {
+                if let Expr::Function(function) = expr {
+                    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+                        metadata
+                            .return_type
+                            .fixed_type()
+                            .as_ref()
+                            .is_some_and(crate::executor::semantic::jsonb_type)
+                    }) || env
+                        .user_functions
+                        .get(&function.name)
+                        .is_some_and(|metadata| {
+                            crate::executor::semantic::jsonb_type(&metadata.return_type)
+                        })
+                    {
+                        return true;
+                    }
+                }
                 matches!(
                     expr,
                     Expr::Cast {
-                        data_type: crate::types::DataType::Char { .. },
+                        data_type: crate::types::DataType::Char { .. }
+                            | crate::types::DataType::Jsonb
+                            | crate::types::DataType::Array(_),
                         ..
                     }
                 )
@@ -82,7 +101,7 @@ pub(super) fn execute(
         }
         output.push(
             BatchRow::from_projected_values(values)
-                .with_optional_data_types(character_types.clone()),
+                .with_optional_data_types(semantic_types.clone()),
         );
     }
     check_timeout(env.controls)?;

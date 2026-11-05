@@ -318,6 +318,9 @@ impl<'a> Footprint<'a> {
             SelectItem::WindowFunction { function, alias } => {
                 bytes = add(bytes, function.name.len())?;
                 bytes = add(bytes, self.expressions(&function.args, depth + 1)?)?;
+                if let Some(filter) = &function.filter {
+                    bytes = add(bytes, self.expression(filter, depth + 1)?)?;
+                }
                 bytes = add(bytes, self.expressions(&function.partition_by, depth + 1)?)?;
                 for order in &function.order_by {
                     bytes = add(bytes, size_of::<crate::sql::ast::OrderExpr>())?;

@@ -331,6 +331,7 @@ impl ResultTypes {
                 for expr in function
                     .args
                     .iter()
+                    .chain(function.filter.as_deref())
                     .chain(&function.partition_by)
                     .chain(function.order_by.iter().map(|order| &order.expr))
                 {
@@ -738,6 +739,7 @@ fn item_contains_coalesce(item: &SelectItem) -> bool {
         SelectItem::WindowFunction { function, .. } => function
             .args
             .iter()
+            .chain(function.filter.as_deref())
             .chain(&function.partition_by)
             .chain(function.order_by.iter().map(|order| &order.expr))
             .any(expression_contains_coalesce),

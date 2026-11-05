@@ -210,10 +210,11 @@ fn execute_recursive_cte(
         &cte_name,
         cte.search.as_ref(),
         cte.cycle.as_ref(),
+        fields,
         environment.controls,
     )?;
 
-    let mut seen = seen::SeenRows::new(environment.controls)?;
+    let mut seen = seen::SeenRows::new_typed(environment.controls, fields)?;
     if matches!(operator, SetOperator::Union) {
         seen.retain_unique(&mut rows, environment.controls)?;
     }
@@ -276,6 +277,7 @@ fn execute_recursive_cte_steps(
             &cte.name.to_ascii_lowercase(),
             cte.search.as_ref(),
             cte.cycle.as_ref(),
+            working_fields,
             environment.controls,
         )?;
 

@@ -132,11 +132,11 @@
         "file": "tests/vector_embeddings.rs"
       }
     ],
-    "files": 1599,
-    "rust_files": 1563,
-    "rust_test_declarations": 8464,
+    "files": 1616,
+    "rust_files": 1580,
+    "rust_test_declarations": 8543,
     "python_test_declarations": 21,
-    "registered_rust_instances": 8592,
+    "registered_rust_instances": 8671,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -28189,6 +28189,68 @@
       }
     },
     {
+      "id": "tests/compatibility/lifecycle/transactions/repeatable_read.rs::should_retain_repeatable_read_view_from_the_first_query",
+      "name": "should_retain_repeatable_read_view_from_the_first_query",
+      "current_file": "tests/compatibility/lifecycle/transactions/repeatable_read.rs",
+      "line": 6,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::repeatable_read::should_retain_repeatable_read_view_from_the_first_query"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/transactions",
+        "directory": "tests/compatibility/lifecycle/transactions",
+        "file": "tests/compatibility/lifecycle/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/compatibility/lifecycle/transactions/repeatable_read.rs::should_read_historical_rows_through_current_repeatable_read_descriptors",
+      "name": "should_read_historical_rows_through_current_repeatable_read_descriptors",
+      "current_file": "tests/compatibility/lifecycle/transactions/repeatable_read.rs",
+      "line": 106,
+      "end_line": 140,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "compatibility",
+          "name": "compatibility::lifecycle::session_transaction::repeatable_read::should_read_historical_rows_through_current_repeatable_read_descriptors"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "compatibility",
+        "category": "lifecycle/transactions",
+        "directory": "tests/compatibility/lifecycle/transactions",
+        "file": "tests/compatibility/lifecycle/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/compatibility/lifecycle/transactions/session_transaction/errors.rs::should_enforce_read_only_transaction_mode_with_postgres_sqlstate",
       "name": "should_enforce_read_only_transaction_mode_with_postgres_sqlstate",
       "current_file": "tests/compatibility/lifecycle/transactions/session_transaction/errors.rs",
@@ -55791,6 +55853,37 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/aggregates/json_array_conversion.rs::should_preserve_json_array_conversion_across_native_parameter_formats",
+      "name": "should_preserve_json_array_conversion_across_native_parameter_formats",
+      "current_file": "tests/pgwire_extended/aggregates/json_array_conversion.rs",
+      "line": 6,
+      "end_line": 90,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "pgwire_extended::aggregates_json_array_conversion::should_preserve_json_array_conversion_across_native_parameter_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates",
+        "directory": "tests/pgwire_extended/aggregates",
+        "file": "tests/pgwire_extended/aggregates/json_array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs::should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "name": "should_cancel_json_object_agg_without_partial_output_given_retained_entries_when_cancel_request_arrives",
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
@@ -56748,6 +56841,99 @@
         "file": "tests/pgwire_extended/aggregates/temporal/interval_aggregate_metadata.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs::should_preserve_statistical_window_result_identities_across_wire_formats",
+      "name": "should_preserve_statistical_window_result_identities_across_wire_formats",
+      "current_file": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs",
+      "line": 6,
+      "end_line": 61,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "statistical_filter_windows::should_preserve_statistical_window_result_identities_across_wire_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/windows",
+        "directory": "tests/pgwire_extended/aggregates/windows",
+        "file": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs::should_infer_window_filter_parameters_as_boolean_before_argument_evaluation",
+      "name": "should_infer_window_filter_parameters_as_boolean_before_argument_evaluation",
+      "current_file": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs",
+      "line": 64,
+      "end_line": 105,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "statistical_filter_windows::should_infer_window_filter_parameters_as_boolean_before_argument_evaluation"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/windows",
+        "directory": "tests/pgwire_extended/aggregates/windows",
+        "file": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs::should_preserve_selected_statistical_window_error_sqlstates",
+      "name": "should_preserve_selected_statistical_window_error_sqlstates",
+      "current_file": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs",
+      "line": 108,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "statistical_filter_windows::should_preserve_selected_statistical_window_error_sqlstates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "aggregates/windows",
+        "directory": "tests/pgwire_extended/aggregates/windows",
+        "file": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -139863,6 +140049,409 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/transactions/repeatable_own_views.rs::should_retain_bind_own_rows_for_every_portal_page",
+      "name": "should_retain_bind_own_rows_for_every_portal_page",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+      "line": 11,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_own_views::should_retain_bind_own_rows_for_every_portal_page"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_own_views.rs::should_retain_bind_own_catalog_rows_until_execute",
+      "name": "should_retain_bind_own_catalog_rows_until_execute",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+      "line": 52,
+      "end_line": 84,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_own_views::should_retain_bind_own_catalog_rows_until_execute"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_own_views.rs::should_keep_an_extended_ctas_source_on_its_command_catalog",
+      "name": "should_keep_an_extended_ctas_source_on_its_command_catalog",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+      "line": 87,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_own_views::should_keep_an_extended_ctas_source_on_its_command_catalog"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_own_views.rs::should_preserve_bind_own_rows_in_an_insert_source",
+      "name": "should_preserve_bind_own_rows_in_an_insert_source",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+      "line": 112,
+      "end_line": 149,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_own_views::should_preserve_bind_own_rows_in_an_insert_source"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_capture_repeatable_read_at_constant_select",
+      "name": "should_capture_repeatable_read_at_constant_select",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 17,
+      "end_line": 24,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_capture_repeatable_read_at_constant_select"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_capture_repeatable_read_at_parse_in_explicit_transaction",
+      "name": "should_capture_repeatable_read_at_parse_in_explicit_transaction",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 27,
+      "end_line": 34,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_capture_repeatable_read_at_parse_in_explicit_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_capture_repeatable_read_at_bind_in_explicit_transaction",
+      "name": "should_capture_repeatable_read_at_bind_in_explicit_transaction",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 37,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_capture_repeatable_read_at_bind_in_explicit_transaction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_leave_repeatable_read_uncaptured_at_describe",
+      "name": "should_leave_repeatable_read_uncaptured_at_describe",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 52,
+      "end_line": 60,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_leave_repeatable_read_uncaptured_at_describe"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_leave_repeatable_read_uncaptured_at_nonsnapshot_controls",
+      "name": "should_leave_repeatable_read_uncaptured_at_nonsnapshot_controls",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 63,
+      "end_line": 72,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_leave_repeatable_read_uncaptured_at_nonsnapshot_controls"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_capture_repeatable_read_before_nested_session_utilities",
+      "name": "should_capture_repeatable_read_before_nested_session_utilities",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 75,
+      "end_line": 92,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_capture_repeatable_read_before_nested_session_utilities"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_capture_repeatable_read_at_deallocate",
+      "name": "should_capture_repeatable_read_at_deallocate",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 95,
+      "end_line": 103,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_capture_repeatable_read_at_deallocate"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_retain_repeatable_read_for_suspended_direct_cursor_pages",
+      "name": "should_retain_repeatable_read_for_suspended_direct_cursor_pages",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 106,
+      "end_line": 139,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_retain_repeatable_read_for_suspended_direct_cursor_pages"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/transactions/repeatable_read.rs::should_release_repeatable_read_charge_when_the_connection_terminates",
+      "name": "should_release_repeatable_read_charge_when_the_connection_terminates",
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "line": 142,
+      "end_line": 152,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "repeatable_read::should_release_repeatable_read_charge_when_the_connection_terminates"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "transactions",
+        "directory": "tests/pgwire_extended/transactions",
+        "file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/transactions/transaction_boundaries/errors.rs::should_reject_savepoints_in_an_implicit_segment",
       "name": "should_reject_savepoints_in_an_implicit_segment",
       "current_file": "tests/pgwire_extended/transactions/transaction_boundaries/errors.rs",
@@ -161656,6 +162245,37 @@
       }
     },
     {
+      "id": "tests/pgwire_extended/types/json/numeric_weight_boundaries.rs::should_recover_from_true_jsonb_numeric_range_errors_after_accepting_the_boundary",
+      "name": "should_recover_from_true_jsonb_numeric_range_errors_after_accepting_the_boundary",
+      "current_file": "tests/pgwire_extended/types/json/numeric_weight_boundaries.rs",
+      "line": 5,
+      "end_line": 37,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "jsonb_numeric_boundaries::should_recover_from_true_jsonb_numeric_range_errors_after_accepting_the_boundary"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/json",
+        "directory": "tests/pgwire_extended/types/json",
+        "file": "tests/pgwire_extended/types/json/numeric_weight_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/pgwire_extended/types/json/operator_overload/errors.rs::should_report_malformed_json_text_sqlstate",
       "name": "should_report_malformed_json_text_sqlstate",
       "current_file": "tests/pgwire_extended/types/json/operator_overload/errors.rs",
@@ -164998,6 +165618,68 @@
         "category": "types/json",
         "directory": "tests/pgwire_extended/types/json",
         "file": "tests/pgwire_extended/types/json/path_function_native.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/search_cycle_lineage.rs::should_preserve_jsonb_lineage_result_descriptors_for_search_cycle_rows",
+      "name": "should_preserve_jsonb_lineage_result_descriptors_for_search_cycle_rows",
+      "current_file": "tests/pgwire_extended/types/json/search_cycle_lineage.rs",
+      "line": 5,
+      "end_line": 41,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "jsonb_search_cycle_lineage::should_preserve_jsonb_lineage_result_descriptors_for_search_cycle_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/json",
+        "directory": "tests/pgwire_extended/types/json",
+        "file": "tests/pgwire_extended/types/json/search_cycle_lineage.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/pgwire_extended/types/json/semantic_keys.rs::should_preserve_jsonb_distinct_identity_across_wire_formats",
+      "name": "should_preserve_jsonb_distinct_identity_across_wire_formats",
+      "current_file": "tests/pgwire_extended/types/json/semantic_keys.rs",
+      "line": 6,
+      "end_line": 71,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "pgwire_extended",
+          "name": "jsonb_semantic_keys::should_preserve_jsonb_distinct_identity_across_wire_formats"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "pgwire_extended",
+        "category": "types/json",
+        "directory": "tests/pgwire_extended/types/json",
+        "file": "tests/pgwire_extended/types/json/semantic_keys.rs",
         "basis": "canonical_domain_path",
         "review": "recommended",
         "migration": "keep"
@@ -193090,6 +193772,440 @@
       }
     },
     {
+      "id": "tests/sql_mutations/transactions/repeatable_catalog.rs::should_publish_own_catalog_changes_to_the_next_command",
+      "name": "should_publish_own_catalog_changes_to_the_next_command",
+      "current_file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+      "line": 9,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_catalog::should_publish_own_catalog_changes_to_the_next_command"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_catalog.rs::should_exclude_the_ctas_target_from_its_command_source",
+      "name": "should_exclude_the_ctas_target_from_its_command_source",
+      "current_file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+      "line": 46,
+      "end_line": 68,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_catalog::should_exclude_the_ctas_target_from_its_command_source"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_catalog.rs::should_reject_stale_catalog_dependencies_before_every_ddl_attempt",
+      "name": "should_reject_stale_catalog_dependencies_before_every_ddl_attempt",
+      "current_file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+      "line": 71,
+      "end_line": 112,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_catalog::should_reject_stale_catalog_dependencies_before_every_ddl_attempt"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_catalog.rs::should_keep_current_descriptors_separate_from_old_catalog_rows",
+      "name": "should_keep_current_descriptors_separate_from_old_catalog_rows",
+      "current_file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+      "line": 115,
+      "end_line": 155,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_catalog::should_keep_current_descriptors_separate_from_old_catalog_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_catalog.rs::should_share_the_command_catalog_with_a_statement_mutation_fork",
+      "name": "should_share_the_command_catalog_with_a_statement_mutation_fork",
+      "current_file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+      "line": 158,
+      "end_line": 180,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_catalog::should_share_the_command_catalog_with_a_statement_mutation_fork"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_catalog.rs::should_preserve_the_catalog_boundary_for_ctas_after_earlier_own_ddl",
+      "name": "should_preserve_the_catalog_boundary_for_ctas_after_earlier_own_ddl",
+      "current_file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+      "line": 183,
+      "end_line": 204,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_catalog::should_preserve_the_catalog_boundary_for_ctas_after_earlier_own_ddl"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_conflicts.rs::should_reject_changed_repeatable_conflict_targets_before_returning",
+      "name": "should_reject_changed_repeatable_conflict_targets_before_returning",
+      "current_file": "tests/sql_mutations/transactions/repeatable_conflicts.rs",
+      "line": 9,
+      "end_line": 76,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_conflicts::should_reject_changed_repeatable_conflict_targets_before_returning"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "conflicts",
+        "directory": "tests/sql_mutations/conflicts",
+        "file": "tests/sql_mutations/conflicts/repeatable_conflicts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_conflicts.rs::should_allow_a_new_repeatable_row_after_completed_insert_delete",
+      "name": "should_allow_a_new_repeatable_row_after_completed_insert_delete",
+      "current_file": "tests/sql_mutations/transactions/repeatable_conflicts.rs",
+      "line": 79,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_conflicts::should_allow_a_new_repeatable_row_after_completed_insert_delete"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "conflicts",
+        "directory": "tests/sql_mutations/conflicts",
+        "file": "tests/sql_mutations/conflicts/repeatable_conflicts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_conflicts.rs::should_exempt_the_transactions_own_staged_conflict_target",
+      "name": "should_exempt_the_transactions_own_staged_conflict_target",
+      "current_file": "tests/sql_mutations/transactions/repeatable_conflicts.rs",
+      "line": 125,
+      "end_line": 161,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_conflicts::should_exempt_the_transactions_own_staged_conflict_target"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "conflicts",
+        "directory": "tests/sql_mutations/conflicts",
+        "file": "tests/sql_mutations/conflicts/repeatable_conflicts.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_read.rs::should_keep_later_modifying_ctes_on_the_precommand_view",
+      "name": "should_keep_later_modifying_ctes_on_the_precommand_view",
+      "current_file": "tests/sql_mutations/transactions/repeatable_read.rs",
+      "line": 8,
+      "end_line": 49,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_read::should_keep_later_modifying_ctes_on_the_precommand_view"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_read.rs::should_keep_foreign_key_checks_on_live_own_changes",
+      "name": "should_keep_foreign_key_checks_on_live_own_changes",
+      "current_file": "tests/sql_mutations/transactions/repeatable_read.rs",
+      "line": 52,
+      "end_line": 70,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_read::should_keep_foreign_key_checks_on_live_own_changes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_read.rs::should_preserve_precommand_sources_for_sibling_dml_read_boundaries",
+      "name": "should_preserve_precommand_sources_for_sibling_dml_read_boundaries",
+      "current_file": "tests/sql_mutations/transactions/repeatable_read.rs",
+      "line": 73,
+      "end_line": 115,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_read::should_preserve_precommand_sources_for_sibling_dml_read_boundaries"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_read.rs::should_preserve_repeatable_read_command_snapshots_across_own_changes",
+      "name": "should_preserve_repeatable_read_command_snapshots_across_own_changes",
+      "current_file": "tests/sql_mutations/transactions/repeatable_read.rs",
+      "line": 118,
+      "end_line": 206,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_read::should_preserve_repeatable_read_command_snapshots_across_own_changes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/repeatable_read.rs::should_commit_disjoint_repeatable_rows_after_the_shared_epoch_advances",
+      "name": "should_commit_disjoint_repeatable_rows_after_the_shared_epoch_advances",
+      "current_file": "tests/sql_mutations/transactions/repeatable_read.rs",
+      "line": 209,
+      "end_line": 258,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "repeatable_read::should_commit_disjoint_repeatable_rows_after_the_shared_epoch_advances"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/repeatable_read.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_mutations/transactions/restart_publication.rs::should_preserve_transactional_catalog_publication_across_restart",
       "name": "should_preserve_transactional_catalog_publication_across_restart",
       "current_file": "tests/sql_mutations/transactions/restart_publication.rs",
@@ -194299,11 +195415,11 @@
       }
     },
     {
-      "id": "tests/sql_mutations/transactions/transaction_isolation.rs::should_reject_repeatable_read_transaction_isolation",
-      "name": "should_reject_repeatable_read_transaction_isolation",
+      "id": "tests/sql_mutations/transactions/transaction_isolation.rs::should_admit_selected_read_write_repeatable_read_forms",
+      "name": "should_admit_selected_read_write_repeatable_read_forms",
       "current_file": "tests/sql_mutations/transactions/transaction_isolation.rs",
       "line": 7,
-      "end_line": 25,
+      "end_line": 40,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194311,7 +195427,38 @@
       "instances": [
         {
           "suite": "sql_mutations",
-          "name": "postgresql18_transaction_isolation::should_reject_repeatable_read_transaction_isolation"
+          "name": "postgresql18_transaction_isolation::should_admit_selected_read_write_repeatable_read_forms"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/transaction_isolation.rs::should_reject_read_write_mode_after_a_repeatable_snapshot",
+      "name": "should_reject_read_write_mode_after_a_repeatable_snapshot",
+      "current_file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+      "line": 43,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transaction_isolation::should_reject_read_write_mode_after_a_repeatable_snapshot"
         }
       ],
       "attributes": [
@@ -194333,8 +195480,8 @@
       "id": "tests/sql_mutations/transactions/transaction_isolation.rs::should_reject_repeatable_read_set_transaction_before_snapshot",
       "name": "should_reject_repeatable_read_set_transaction_before_snapshot",
       "current_file": "tests/sql_mutations/transactions/transaction_isolation.rs",
-      "line": 28,
-      "end_line": 55,
+      "line": 67,
+      "end_line": 94,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194361,11 +195508,11 @@
       }
     },
     {
-      "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_reject_non_read_committed_begin",
-      "name": "should_reject_non_read_committed_begin",
-      "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 49,
-      "end_line": 66,
+      "id": "tests/sql_mutations/transactions/transaction_isolation.rs::should_preserve_own_rows_when_repeatable_writes_are_tightened_to_read_only",
+      "name": "should_preserve_own_rows_when_repeatable_writes_are_tightened_to_read_only",
+      "current_file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+      "line": 97,
+      "end_line": 127,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194373,7 +195520,100 @@
       "instances": [
         {
           "suite": "sql_mutations",
-          "name": "transaction_semantics::should_reject_non_read_committed_begin"
+          "name": "postgresql18_transaction_isolation::should_preserve_own_rows_when_repeatable_writes_are_tightened_to_read_only"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/transaction_isolation.rs::should_keep_the_row_fence_after_repeatable_writes_are_tightened_to_read_only",
+      "name": "should_keep_the_row_fence_after_repeatable_writes_are_tightened_to_read_only",
+      "current_file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+      "line": 130,
+      "end_line": 174,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transaction_isolation::should_keep_the_row_fence_after_repeatable_writes_are_tightened_to_read_only"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/transaction_isolation.rs::should_retain_write_authority_for_a_restorable_savepoint_mode",
+      "name": "should_retain_write_authority_for_a_restorable_savepoint_mode",
+      "current_file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+      "line": 177,
+      "end_line": 228,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "postgresql18_transaction_isolation::should_retain_write_authority_for_a_restorable_savepoint_mode"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_mutations",
+        "category": "transactions",
+        "directory": "tests/sql_mutations/transactions",
+        "file": "tests/sql_mutations/transactions/transaction_isolation.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_reject_unselected_stronger_begin_modes",
+      "name": "should_reject_unselected_stronger_begin_modes",
+      "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
+      "line": 49,
+      "end_line": 67,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_mutations",
+          "name": "transaction_semantics::should_reject_unselected_stronger_begin_modes"
         }
       ],
       "attributes": [
@@ -194395,8 +195635,8 @@
       "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_allow_explicit_read_committed_begin",
       "name": "should_allow_explicit_read_committed_begin",
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 69,
-      "end_line": 84,
+      "line": 70,
+      "end_line": 85,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194426,8 +195666,8 @@
       "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_reject_set_transaction_in_active_transaction",
       "name": "should_reject_set_transaction_in_active_transaction",
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 87,
-      "end_line": 108,
+      "line": 88,
+      "end_line": 109,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194457,8 +195697,8 @@
       "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_reject_unselected_ddl_in_active_transaction",
       "name": "should_reject_unselected_ddl_in_active_transaction",
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 111,
-      "end_line": 141,
+      "line": 112,
+      "end_line": 142,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194488,8 +195728,8 @@
       "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_publish_transactional_table_in_its_schema",
       "name": "should_publish_transactional_table_in_its_schema",
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 144,
-      "end_line": 214,
+      "line": 145,
+      "end_line": 215,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194519,8 +195759,8 @@
       "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_publish_transactional_scalar_index",
       "name": "should_publish_transactional_scalar_index",
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 217,
-      "end_line": 266,
+      "line": 218,
+      "end_line": 267,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194550,8 +195790,8 @@
       "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_preserve_staged_data_after_ddl_rejection",
       "name": "should_preserve_staged_data_after_ddl_rejection",
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 269,
-      "end_line": 310,
+      "line": 270,
+      "end_line": 311,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -194581,8 +195821,8 @@
       "id": "tests/sql_mutations/transactions/transaction_semantics.rs::should_stage_copy_in_active_transaction",
       "name": "should_stage_copy_in_active_transaction",
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
-      "line": 313,
-      "end_line": 351,
+      "line": 314,
+      "end_line": 352,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -197244,6 +198484,192 @@
       }
     },
     {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_preserve_exact_numeric_array_elements_in_json_construction",
+      "name": "should_preserve_exact_numeric_array_elements_in_json_construction",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 6,
+      "end_line": 27,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_preserve_exact_numeric_array_elements_in_json_construction"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_format_nonfinite_native_array_numbers_as_json_strings",
+      "name": "should_format_nonfinite_native_array_numbers_as_json_strings",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 30,
+      "end_line": 54,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_format_nonfinite_native_array_numbers_as_json_strings"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_preserve_document_identity_inside_native_json_arrays",
+      "name": "should_preserve_document_identity_inside_native_json_arrays",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 57,
+      "end_line": 78,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_preserve_document_identity_inside_native_json_arrays"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_preserve_native_array_shape_when_rendering_json",
+      "name": "should_preserve_native_array_shape_when_rendering_json",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 81,
+      "end_line": 106,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_preserve_native_array_shape_when_rendering_json"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_use_statement_temporal_settings_for_native_json_array_elements",
+      "name": "should_use_statement_temporal_settings_for_native_json_array_elements",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 109,
+      "end_line": 143,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_use_statement_temporal_settings_for_native_json_array_elements"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/json/array_conversion.rs::should_use_logical_padding_for_bounded_stored_character_json_arrays",
+      "name": "should_use_logical_padding_for_bounded_stored_character_json_arrays",
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "line": 146,
+      "end_line": 182,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "sql_queries::postgresql18_aggregate_query_gaps::native_json_array_conversion::should_use_logical_padding_for_bounded_stored_character_json_arrays"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
       "id": "tests/sql_queries/aggregates/json/ordered_json_aggregate_modifiers/semantics.rs::should_preserve_distinct_filter_order_for_json_aggregates",
       "name": "should_preserve_distinct_filter_order_for_json_aggregates",
       "current_file": "tests/sql_queries/aggregates/json/ordered_json_aggregate_modifiers/semantics.rs",
@@ -199263,7 +200689,7 @@
       "name": "should_apply_regression_filter_before_evaluating_both_inputs",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
       "line": 44,
-      "end_line": 65,
+      "end_line": 67,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199293,8 +200719,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_coerce_numeric_regression_inputs_to_float8",
       "name": "should_coerce_numeric_regression_inputs_to_float8",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 68,
-      "end_line": 89,
+      "line": 70,
+      "end_line": 94,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199324,8 +200750,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_return_horizontal_line_regression_results",
       "name": "should_return_horizontal_line_regression_results",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 92,
-      "end_line": 118,
+      "line": 97,
+      "end_line": 123,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199355,8 +200781,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_return_null_results_for_vertical_line_regression",
       "name": "should_return_null_results_for_vertical_line_regression",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 121,
-      "end_line": 142,
+      "line": 126,
+      "end_line": 147,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199386,8 +200812,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_reject_numeric_regression_input_outside_float8_range",
       "name": "should_reject_numeric_regression_input_outside_float8_range",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 145,
-      "end_line": 164,
+      "line": 150,
+      "end_line": 172,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199417,8 +200843,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_propagate_first_row_nonfinite_regression_moments",
       "name": "should_propagate_first_row_nonfinite_regression_moments",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 167,
-      "end_line": 187,
+      "line": 175,
+      "end_line": 197,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199448,8 +200874,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_propagate_later_nonfinite_regression_moments",
       "name": "should_propagate_later_nonfinite_regression_moments",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 190,
-      "end_line": 216,
+      "line": 200,
+      "end_line": 226,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199479,8 +200905,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_reject_distinct_regression_aggregates",
       "name": "should_reject_distinct_regression_aggregates",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 219,
-      "end_line": 231,
+      "line": 229,
+      "end_line": 244,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199510,8 +200936,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_reject_ordered_regression_aggregates",
       "name": "should_reject_ordered_regression_aggregates",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 234,
-      "end_line": 246,
+      "line": 247,
+      "end_line": 262,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199538,11 +200964,11 @@
       }
     },
     {
-      "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_reject_regression_window_aggregates",
-      "name": "should_reject_regression_window_aggregates",
+      "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_return_regression_values_over_the_existing_default_window_frame",
+      "name": "should_return_regression_values_over_the_existing_default_window_frame",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 249,
-      "end_line": 261,
+      "line": 265,
+      "end_line": 280,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199550,7 +200976,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_aggregate_semantic_edges::should_reject_regression_window_aggregates"
+          "name": "sql_queries::postgresql18_aggregate_semantic_edges::should_return_regression_values_over_the_existing_default_window_frame"
         }
       ],
       "attributes": [
@@ -199572,8 +200998,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_return_population_zero_for_singleton_statistics",
       "name": "should_return_population_zero_for_singleton_statistics",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 264,
-      "end_line": 306,
+      "line": 283,
+      "end_line": 325,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199603,8 +201029,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_distinguish_sample_from_population_statistics_for_multiple_values",
       "name": "should_distinguish_sample_from_population_statistics_for_multiple_values",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 309,
-      "end_line": 341,
+      "line": 328,
+      "end_line": 360,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199634,8 +201060,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_preserve_statistical_result_family_from_inputs",
       "name": "should_preserve_statistical_result_family_from_inputs",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 344,
-      "end_line": 393,
+      "line": 363,
+      "end_line": 409,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199665,8 +201091,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_keep_numeric_variance_exact_for_large_shared_offsets",
       "name": "should_keep_numeric_variance_exact_for_large_shared_offsets",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 396,
-      "end_line": 439,
+      "line": 412,
+      "end_line": 455,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199696,8 +201122,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_return_numeric_nan_for_nonfinite_statistical_inputs",
       "name": "should_return_numeric_nan_for_nonfinite_statistical_inputs",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 442,
-      "end_line": 474,
+      "line": 458,
+      "end_line": 490,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199727,8 +201153,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_preserve_numeric_result_family_when_nonfinite_and_finite_rows_mix",
       "name": "should_preserve_numeric_result_family_when_nonfinite_and_finite_rows_mix",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 477,
-      "end_line": 518,
+      "line": 493,
+      "end_line": 534,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199758,8 +201184,8 @@
       "id": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs::should_preserve_statistical_states_per_group",
       "name": "should_preserve_statistical_states_per_group",
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
-      "line": 521,
-      "end_line": 590,
+      "line": 537,
+      "end_line": 612,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -199813,6 +201239,192 @@
         "file": "tests/sql_queries/aggregates/statistical/aggregate_type_and_window_boundaries/semantics.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/statistical/windows.rs::should_filter_each_statistical_window_family_before_its_frame_transition",
+      "name": "should_filter_each_statistical_window_family_before_its_frame_transition",
+      "current_file": "tests/sql_queries/aggregates/statistical/windows.rs",
+      "line": 38,
+      "end_line": 88,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "statistical_windows::should_filter_each_statistical_window_family_before_its_frame_transition"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/statistical",
+        "directory": "tests/sql_queries/aggregates/statistical",
+        "file": "tests/sql_queries/aggregates/statistical/windows.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/statistical/windows.rs::should_fold_all_regression_windows_with_pairwise_null_filtering",
+      "name": "should_fold_all_regression_windows_with_pairwise_null_filtering",
+      "current_file": "tests/sql_queries/aggregates/statistical/windows.rs",
+      "line": 91,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "statistical_windows::should_fold_all_regression_windows_with_pairwise_null_filtering"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/statistical",
+        "directory": "tests/sql_queries/aggregates/statistical",
+        "file": "tests/sql_queries/aggregates/statistical/windows.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/statistical/windows.rs::should_skip_both_window_arguments_given_false_or_null_filters",
+      "name": "should_skip_both_window_arguments_given_false_or_null_filters",
+      "current_file": "tests/sql_queries/aggregates/statistical/windows.rs",
+      "line": 134,
+      "end_line": 149,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "statistical_windows::should_skip_both_window_arguments_given_false_or_null_filters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/statistical",
+        "directory": "tests/sql_queries/aggregates/statistical",
+        "file": "tests/sql_queries/aggregates/statistical/windows.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/statistical/windows.rs::should_return_zero_regression_count_given_an_empty_following_frame",
+      "name": "should_return_zero_regression_count_given_an_empty_following_frame",
+      "current_file": "tests/sql_queries/aggregates/statistical/windows.rs",
+      "line": 152,
+      "end_line": 167,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "statistical_windows::should_return_zero_regression_count_given_an_empty_following_frame"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/statistical",
+        "directory": "tests/sql_queries/aggregates/statistical",
+        "file": "tests/sql_queries/aggregates/statistical/windows.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/statistical/windows.rs::should_apply_exclude_ties_before_statistical_window_filters",
+      "name": "should_apply_exclude_ties_before_statistical_window_filters",
+      "current_file": "tests/sql_queries/aggregates/statistical/windows.rs",
+      "line": 170,
+      "end_line": 186,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "statistical_windows::should_apply_exclude_ties_before_statistical_window_filters"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/statistical",
+        "directory": "tests/sql_queries/aggregates/statistical",
+        "file": "tests/sql_queries/aggregates/statistical/windows.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/aggregates/statistical/windows.rs::should_preserve_nonfinite_regression_results_across_moving_frames",
+      "name": "should_preserve_nonfinite_regression_results_across_moving_frames",
+      "current_file": "tests/sql_queries/aggregates/statistical/windows.rs",
+      "line": 189,
+      "end_line": 202,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "statistical_windows::should_preserve_nonfinite_regression_results_across_moving_frames"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/statistical",
+        "directory": "tests/sql_queries/aggregates/statistical",
+        "file": "tests/sql_queries/aggregates/statistical/windows.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -214821,6 +216433,316 @@
       }
     },
     {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_order_breadth_first_jsonb_search_keys_by_numeric_value",
+      "name": "should_order_breadth_first_jsonb_search_keys_by_numeric_value",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 6,
+      "end_line": 16,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_order_breadth_first_jsonb_search_keys_by_numeric_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_order_depth_first_jsonb_search_keys_by_numeric_value",
+      "name": "should_order_depth_first_jsonb_search_keys_by_numeric_value",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 19,
+      "end_line": 29,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_order_depth_first_jsonb_search_keys_by_numeric_value"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_preserve_null_origins_in_jsonb_search_order",
+      "name": "should_preserve_null_origins_in_jsonb_search_order",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 32,
+      "end_line": 48,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_preserve_null_origins_in_jsonb_search_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_detect_jsonb_numeric_equivalence_in_cycle_lineage",
+      "name": "should_detect_jsonb_numeric_equivalence_in_cycle_lineage",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 51,
+      "end_line": 64,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_detect_jsonb_numeric_equivalence_in_cycle_lineage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_preserve_text_spelling_in_cycle_lineage",
+      "name": "should_preserve_text_spelling_in_cycle_lineage",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 67,
+      "end_line": 81,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_preserve_text_spelling_in_cycle_lineage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_distinguish_sql_null_from_document_null_in_cycle_lineage",
+      "name": "should_distinguish_sql_null_from_document_null_in_cycle_lineage",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 84,
+      "end_line": 98,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_distinguish_sql_null_from_document_null_in_cycle_lineage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_detect_jsonb_array_equivalence_in_cycle_lineage",
+      "name": "should_detect_jsonb_array_equivalence_in_cycle_lineage",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 101,
+      "end_line": 114,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_detect_jsonb_array_equivalence_in_cycle_lineage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_preserve_sql_array_bounds_in_cycle_lineage",
+      "name": "should_preserve_sql_array_bounds_in_cycle_lineage",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 117,
+      "end_line": 131,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_preserve_sql_array_bounds_in_cycle_lineage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_apply_remaining_search_keys_after_jsonb_numeric_equality",
+      "name": "should_apply_remaining_search_keys_after_jsonb_numeric_equality",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 134,
+      "end_line": 148,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_apply_remaining_search_keys_after_jsonb_numeric_equality"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ctes/jsonb_search_cycle.rs::should_preserve_sql_array_null_origins_in_cycle_lineage",
+      "name": "should_preserve_sql_array_null_origins_in_cycle_lineage",
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "line": 151,
+      "end_line": 165,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_search_cycle::should_preserve_sql_array_null_origins_in_cycle_lineage"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_search_cycle.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
       "id": "tests/sql_queries/ctes/modifying_cte_semantics.rs::should_run_an_unreferenced_data_modifying_cte_exactly_once",
       "name": "should_run_an_unreferenced_data_modifying_cte_exactly_once",
       "current_file": "tests/sql_queries/ctes/modifying_cte_semantics.rs",
@@ -228706,6 +230628,471 @@
         "basis": "reviewed_physical_layout",
         "review": "selected",
         "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_order_jsonb_values_by_their_native_type_order",
+      "name": "should_order_jsonb_values_by_their_native_type_order",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 6,
+      "end_line": 22,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_order_jsonb_values_by_their_native_type_order"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_group_jsonb_numeric_equivalents_without_merging_sql_null",
+      "name": "should_group_jsonb_numeric_equivalents_without_merging_sql_null",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 25,
+      "end_line": 40,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_group_jsonb_numeric_equivalents_without_merging_sql_null"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_deduplicate_jsonb_with_exact_decimal_identity",
+      "name": "should_deduplicate_jsonb_with_exact_decimal_identity",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 43,
+      "end_line": 53,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_deduplicate_jsonb_with_exact_decimal_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_use_jsonb_identity_for_set_operation_multiplicity",
+      "name": "should_use_jsonb_identity_for_set_operation_multiplicity",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 56,
+      "end_line": 66,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_use_jsonb_identity_for_set_operation_multiplicity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_partition_windows_by_jsonb_numeric_identity",
+      "name": "should_partition_windows_by_jsonb_numeric_identity",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 69,
+      "end_line": 83,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_partition_windows_by_jsonb_numeric_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_preserve_jsonb_identity_through_computed_projections",
+      "name": "should_preserve_jsonb_identity_through_computed_projections",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 86,
+      "end_line": 96,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_preserve_jsonb_identity_through_computed_projections"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_preserve_text_identity_when_values_look_like_jsonb",
+      "name": "should_preserve_text_identity_when_values_look_like_jsonb",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 99,
+      "end_line": 109,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_preserve_text_identity_when_values_look_like_jsonb"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_preserve_jsonb_array_element_identity",
+      "name": "should_preserve_jsonb_array_element_identity",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 112,
+      "end_line": 122,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_preserve_jsonb_array_element_identity"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_deduplicate_recursive_union_using_declared_jsonb_fields",
+      "name": "should_deduplicate_recursive_union_using_declared_jsonb_fields",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 125,
+      "end_line": 138,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_deduplicate_recursive_union_using_declared_jsonb_fields"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_use_jsonb_identity_for_aggregate_distinct",
+      "name": "should_use_jsonb_identity_for_aggregate_distinct",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 141,
+      "end_line": 154,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_use_jsonb_identity_for_aggregate_distinct"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_compare_jsonb_join_targets_on_the_qualified_scalar_path",
+      "name": "should_compare_jsonb_join_targets_on_the_qualified_scalar_path",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 157,
+      "end_line": 170,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_compare_jsonb_join_targets_on_the_qualified_scalar_path"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_preserve_stored_jsonb_identity_across_native_scan_rows",
+      "name": "should_preserve_stored_jsonb_identity_across_native_scan_rows",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 173,
+      "end_line": 190,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_preserve_stored_jsonb_identity_across_native_scan_rows"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_preserve_jsonb_identity_after_collection_aggregate_projection",
+      "name": "should_preserve_jsonb_identity_after_collection_aggregate_projection",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 193,
+      "end_line": 207,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_preserve_jsonb_identity_after_collection_aggregate_projection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "aggregates/json",
+        "directory": "tests/sql_queries/aggregates/json",
+        "file": "tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_preserve_jsonb_identity_after_value_window_projection",
+      "name": "should_preserve_jsonb_identity_after_value_window_projection",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 210,
+      "end_line": 224,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_preserve_jsonb_identity_after_value_window_projection"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
+      }
+    },
+    {
+      "id": "tests/sql_queries/ordering/jsonb_semantic_keys.rs::should_preserve_jsonb_identity_from_a_lateral_outer_column",
+      "name": "should_preserve_jsonb_identity_from_a_lateral_outer_column",
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "line": 227,
+      "end_line": 241,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_semantic_keys::should_preserve_jsonb_identity_from_a_lateral_outer_column"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/json",
+        "directory": "tests/sql_queries/types/json",
+        "file": "tests/sql_queries/types/json/jsonb_semantic_keys.rs",
+        "basis": "focused_source_module",
+        "review": "recommended",
+        "migration": "preserve_module_alias_and_fixture_scope"
       }
     },
     {
@@ -247336,6 +249723,68 @@
         "file": "tests/sql_queries/types/numeric/high_precision_restart.rs",
         "basis": "reviewed_physical_layout",
         "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs::should_accept_exact_numeric_weight_with_fractional_coefficient_leading_zeroes",
+      "name": "should_accept_exact_numeric_weight_with_fractional_coefficient_leading_zeroes",
+      "current_file": "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs",
+      "line": 6,
+      "end_line": 23,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_numeric_boundaries::should_accept_exact_numeric_weight_with_fractional_coefficient_leading_zeroes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs::should_preserve_zero_jsonb_format_without_expanding_its_exponent",
+      "name": "should_preserve_zero_jsonb_format_without_expanding_its_exponent",
+      "current_file": "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs",
+      "line": 26,
+      "end_line": 43,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "sql_queries",
+          "name": "jsonb_numeric_boundaries::should_preserve_zero_jsonb_format_without_expanding_its_exponent"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "sql_queries",
+        "category": "types/numeric",
+        "directory": "tests/sql_queries/types/numeric",
+        "file": "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs",
+        "basis": "canonical_domain_path",
+        "review": "recommended",
         "migration": "keep"
       }
     },
@@ -267676,8 +270125,8 @@
       "current_file": "tests/compatibility/lifecycle/sessions/session_transaction.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 36,
-      "sha256": "96f5055028a2c8b7a8d0173cfc7c6f636b9bb8ee9ad4ebcdf8ecffe3b6ff55aa",
+      "lines": 39,
+      "sha256": "87b885a0f46d9c891b8d00345ede8b6a9d8c3dcfadd8721913aab2edb356d0dd",
       "test_declarations": 0,
       "registered_suites": [
         "compatibility"
@@ -267939,6 +270388,21 @@
       ],
       "destinations": [
         "tests/compatibility/lifecycle/tables/table_storage_access.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/compatibility/lifecycle/transactions/repeatable_read.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 140,
+      "sha256": "4f070c72a50b7e8efb0dcbc662a9f0a6df5e6a22c636802961739535ea831211",
+      "test_declarations": 2,
+      "registered_suites": [
+        "compatibility"
+      ],
+      "destinations": [
+        "tests/compatibility/lifecycle/transactions/repeatable_read.rs"
       ],
       "line_limit": 1000
     },
@@ -271645,6 +274109,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/aggregates/json_array_conversion.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 90,
+      "sha256": "744c1da72f466c9c8ee9c168e9930d3933003a636f1d238e8333077206b24033",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/aggregates/json_array_conversion.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/aggregates/json_object_agg/resources.rs",
       "role": "test_module",
       "action": "keep",
@@ -271881,6 +274360,21 @@
       ],
       "destinations": [
         "tests/pgwire_extended/aggregates/temporal/interval_aggregate_metadata.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/aggregates/windows/statistical_filter.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 143,
+      "sha256": "09ddc25fe2513a995219ba849d804ce6219f375d57f28bf322ab32c3b4ce70c4",
+      "test_declarations": 3,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/aggregates/windows/statistical_filter.rs"
       ],
       "line_limit": 1000
     },
@@ -274757,8 +277251,8 @@
       "current_file": "tests/pgwire_extended/mod.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 204,
-      "sha256": "24bc3fb006ee69e7b87a5001950012e09de29096b07329ea54e1429a01cfdaae",
+      "lines": 206,
+      "sha256": "c231416edecb5fc32a6d9daa80ed7b0bd61af9f0387903650d2b61eb565444a9",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -276274,6 +278768,36 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/transactions/repeatable_own_views.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 149,
+      "sha256": "5e83bd872483f1054824dc1f536922b5e3a0283f09e99965d37a8f2ab3a243a1",
+      "test_declarations": 4,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/transactions/repeatable_own_views.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/transactions/repeatable_read.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 152,
+      "sha256": "ffeb445e043d5856dc4344a3a5e0ebf7646678532304a57e514395ccebee6ebf",
+      "test_declarations": 9,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/transactions/repeatable_read.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/transactions/transaction_boundaries/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -276308,7 +278832,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 42,
-      "sha256": "6cfcc5dca08640a9f3c5a4afb322f42b223b421b7a9f72685166a5fff8e2649a",
+      "sha256": "3f723ed676fa14d02897bc32602c3740e3ec4b1abc61e3e66a915fe5171ebf91",
       "test_declarations": 1,
       "registered_suites": [
         "pgwire_extended"
@@ -278247,6 +280771,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/pgwire_extended/types/json/numeric_weight_boundaries.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 37,
+      "sha256": "3034385d6260aee6297c123a71d651abee756618d52b20a28b2315f6117b81f5",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/json/numeric_weight_boundaries.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/pgwire_extended/types/json/operator_overload/errors.rs",
       "role": "test_module",
       "action": "keep",
@@ -278511,6 +281050,36 @@
       "registered_suites": [],
       "destinations": [
         "tests/pgwire_extended/types/json/record_table_functions.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/json/search_cycle_lineage.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 41,
+      "sha256": "1c53348d472bc271ce4a362cd0892bcc8f607d3912cdf6464c5ebb6a4b13eabd",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/json/search_cycle_lineage.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/pgwire_extended/types/json/semantic_keys.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 71,
+      "sha256": "e109d0ef4cfb2443a9f96f5b9edf267abd6b9a8ff88c1abb7f235b2c1ca6d2a1",
+      "test_declarations": 1,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/pgwire_extended/types/json/semantic_keys.rs"
       ],
       "line_limit": 1000
     },
@@ -279201,8 +281770,8 @@
       "current_file": "tests/pgwire_extended.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 679,
-      "sha256": "1d2f002c76ad8adcfa4fd97095af27e9c0c4ef23acaa2a4633150e092ab00656",
+      "lines": 697,
+      "sha256": "c80e00a96ca2d00dec71288f0d9c58bf76dcb222af334de1640ee45e6254e563",
       "test_declarations": 0,
       "registered_suites": [
         "pgwire_extended"
@@ -281643,6 +284212,51 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_mutations/transactions/repeatable_catalog.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 204,
+      "sha256": "883295ae0d9484e3a226a420ab8115fbe899e9170cc03bbe1aa2f3af31ae3968",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/transactions/repeatable_catalog.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/transactions/repeatable_conflicts.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 161,
+      "sha256": "ca6b5035844dad82fcd543cb79af725cddc6f4c2c28dae27860f0ff7c9d2182d",
+      "test_declarations": 3,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/conflicts/repeatable_conflicts.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_mutations/transactions/repeatable_read.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 258,
+      "sha256": "a934c6f8fb8418d14df0f9bf13ab770183a5ea274d51a59b2ebbccee02370b30",
+      "test_declarations": 5,
+      "registered_suites": [
+        "sql_mutations"
+      ],
+      "destinations": [
+        "tests/sql_mutations/transactions/repeatable_read.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_mutations/transactions/restart_publication.rs",
       "role": "test_module",
       "action": "keep",
@@ -281811,9 +284425,9 @@
       "current_file": "tests/sql_mutations/transactions/transaction_isolation.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 55,
-      "sha256": "b9e06c35e24d018098eee37f2b4b110f58b13211d0046aaeaa50cf5e01e8be08",
-      "test_declarations": 2,
+      "lines": 228,
+      "sha256": "2ca7c2b67da85fda37648c503a40c23abb98b195ac80c560d49d8438b07823c3",
+      "test_declarations": 6,
       "registered_suites": [
         "sql_mutations"
       ],
@@ -281826,8 +284440,8 @@
       "current_file": "tests/sql_mutations/transactions/transaction_semantics.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 351,
-      "sha256": "0ee20c10eca227d66c3054e830f3be53e9be4519bae3c9fe0c0df92a44b08bb8",
+      "lines": 352,
+      "sha256": "e23515bce41b2c2577de4c31863e0299b5fd75a4a8d12e03cbb430b745c68655",
       "test_declarations": 8,
       "registered_suites": [
         "sql_mutations"
@@ -281989,8 +284603,8 @@
       "current_file": "tests/sql_mutations.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 206,
-      "sha256": "c091e5b5dc8c27bb4b9b099c0843a6103898e4c725bca212675923d79a00ae14",
+      "lines": 215,
+      "sha256": "5b4684f26e11e23132b1ff62a5f43d8db53b54bc296372c56a03fe625483aa8b",
       "test_declarations": 0,
       "registered_suites": [
         "sql_mutations"
@@ -282004,8 +284618,8 @@
       "current_file": "tests/sql_queries/aggregates/aggregate_query_contracts.rs",
       "role": "module_registration",
       "action": "keep",
-      "lines": 79,
-      "sha256": "79179269a0ab45a01eca55e340cfaa3773e3aef299437954ea00cbc5684adfab",
+      "lines": 81,
+      "sha256": "ed404ebafeba27e875c60e482ed708e6e7ca985c9ca807fa73930361f1d66e4d",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -282286,6 +284900,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/aggregates/json/array_conversion.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 182,
+      "sha256": "49c0e3cb1ed34e3913953788d187ff8d65e5e26fdc2abe0f985da9016b790929",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/json/array_conversion.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/aggregates/json/ordered_json_aggregate_modifiers/semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -282305,7 +284934,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 361,
-      "sha256": "3a6c6c3e58dd61e0b23dff237e2e8504e5dd37e92d665926edf5fc22caeb548f",
+      "sha256": "94b6e5f7b6d4d3a6a7241015b10fed995ba073b48c8283d1038d9b7838f3a5b7",
       "test_declarations": 13,
       "registered_suites": [
         "sql_queries"
@@ -282604,8 +285233,8 @@
       "current_file": "tests/sql_queries/aggregates/statistical/aggregate_semantic_edges.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 590,
-      "sha256": "48e6af1b420c0d32d0c8a004f2685895c0c575867390d56d3c8cc0dfc18b6d14",
+      "lines": 612,
+      "sha256": "7bf613bca93ec8c5a4b6d5d3452f416b32bc825cae09ee51ce6b251bf07092c9",
       "test_declarations": 18,
       "registered_suites": [
         "sql_queries"
@@ -282627,6 +285256,21 @@
       ],
       "destinations": [
         "tests/sql_queries/aggregates/statistical/aggregate_type_and_window_boundaries/semantics.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/sql_queries/aggregates/statistical/windows.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 202,
+      "sha256": "0b7d3e1507c17c1ef13abccb9efaa0c218c013bfd89d862e3261cb9e4a77b48f",
+      "test_declarations": 6,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/statistical/windows.rs"
       ],
       "line_limit": 1000
     },
@@ -283247,6 +285891,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/ctes/jsonb_search_cycle.rs",
+      "role": "test_module",
+      "action": "move_with_module_alias",
+      "lines": 165,
+      "sha256": "3b90f2a7669f9616fd4cf45d0a0236f36e042ecf95b3f7a6daa5047e0fd769cc",
+      "test_declarations": 10,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/types/json/jsonb_search_cycle.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/ctes/modifying_cte_semantics.rs",
       "role": "test_module",
       "action": "keep",
@@ -283863,6 +286522,22 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/ordering/jsonb_semantic_keys.rs",
+      "role": "test_module",
+      "action": "split_by_contract",
+      "lines": 241,
+      "sha256": "6b614d00a737a82bbd250a9c75b584d77b6b5ebb8a2bcc4c9ec82d47d45ba1dd",
+      "test_declarations": 15,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/aggregates/json/jsonb_semantic_keys.rs",
+        "tests/sql_queries/types/json/jsonb_semantic_keys.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/ordering/order_by_ordinals.rs",
       "role": "test_module",
       "action": "keep",
@@ -284438,7 +287113,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 136,
-      "sha256": "c17205e954b713e523f444bfea43b2f2aa8991045ea8d4ec18b2ff28034808b8",
+      "sha256": "56161762a5bcfb6b2c838d8fd2b77c0be61289fdf5818c55b86e1c3834f65b8b",
       "test_declarations": 6,
       "registered_suites": [
         "sql_queries"
@@ -284685,6 +287360,21 @@
       "line_limit": 1000
     },
     {
+      "current_file": "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs",
+      "role": "test_module",
+      "action": "keep",
+      "lines": 43,
+      "sha256": "c7bed2cc1326e03ddba3306dae0fa168a916ee5c1033bdb28c4afbdd67e05728",
+      "test_declarations": 2,
+      "registered_suites": [
+        "sql_queries"
+      ],
+      "destinations": [
+        "tests/sql_queries/types/numeric/jsonb_numeric_boundaries.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
       "current_file": "tests/sql_queries/types/numeric/mixed_numeric_comparisons.rs",
       "role": "test_module",
       "action": "keep",
@@ -284838,8 +287528,8 @@
       "current_file": "tests/sql_queries.rs",
       "role": "cargo_target",
       "action": "keep",
-      "lines": 296,
-      "sha256": "4153191473ab959f7ca65befc048e0e42e4ddd1d453f944dca59f6507beed926",
+      "lines": 307,
+      "sha256": "fddd26e085dd3b649471488df4da8d51a156ced031a2d4dda520b647f41a182f",
       "test_declarations": 0,
       "registered_suites": [
         "sql_queries"
@@ -286424,6 +289114,21 @@
       ],
       "destinations": [
         "tests/support/relational_qualification.rs"
+      ],
+      "line_limit": 1000
+    },
+    {
+      "current_file": "tests/support/repeatable_read.rs",
+      "role": "shared_support",
+      "action": "keep",
+      "lines": 186,
+      "sha256": "1281b0b5fcc280ba40d1b9469d34331b6eaa0c8c9e4442ad68c92420ddc6fa3f",
+      "test_declarations": 0,
+      "registered_suites": [
+        "pgwire_extended"
+      ],
+      "destinations": [
+        "tests/support/repeatable_read.rs"
       ],
       "line_limit": 1000
     },

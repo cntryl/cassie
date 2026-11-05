@@ -186,14 +186,7 @@ impl AggregateAccumulator {
         let mut retained_key_bytes = 0;
         for row in rows {
             super::check_timeout(context.controls)?;
-            let selected = accumulator.update_selected(
-                function,
-                row,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-            )?;
+            let selected = accumulator.update_selected(function, row, context)?;
             #[cfg(test)]
             if let Some(observer) = context.after_partition_row {
                 observer(0);
@@ -692,6 +685,24 @@ fn update_sum(
     Ok(())
 }
 
+// Preserve the existing error-key rendering independently of collection output conversion.
+fn duplicate_key_diagnostic_json(value: &Value) -> serde_json::Value {
+    match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Bool(value) => serde_json::Value::Bool(*value),
+        Value::Int64(value) => serde_json::Value::Number((*value).into()),
+        Value::Float64(value) => serde_json::Number::from_f64(*value)
+            .map_or(serde_json::Value::Null, serde_json::Value::Number),
+        Value::String(value) => serde_json::Value::String(value.clone()),
+        Value::Json(value) => value.clone(),
+        Value::Array(value) => value.to_nested_json(),
+        Value::Vector(value) => {
+            serde_json::to_value(value.values.clone()).unwrap_or(serde_json::Value::Null)
+        }
+        Value::Typed(value) => serde_json::Value::String(value.text()),
+    }
+}
+
 fn collection_values_retained_bytes(values: &Vec<(Value, Option<Value>)>) -> usize {
     values
         .iter()
@@ -860,23 +871,4 @@ fn bytea_hex_digits(value: &str) -> Result<&str, QueryError> {
 
 fn non_numeric_input(function: &FunctionCall, value: &Value) -> QueryError {
     QueryError::General(numeric::non_numeric_aggregate_input(&function.name, value))
-}
-
-// Retain the existing duplicate-key diagnostic spelling; result construction uses
-// the admitted, type-aware JSON construction path.
-fn duplicate_key_diagnostic_json(value: &Value) -> serde_json::Value {
-    match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(value) => serde_json::Value::Bool(*value),
-        Value::Int64(value) => serde_json::Value::Number((*value).into()),
-        Value::Float64(value) => serde_json::Number::from_f64(*value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
-        Value::String(value) => serde_json::Value::String(value.clone()),
-        Value::Json(value) => value.clone(),
-        Value::Array(value) => value.to_nested_json(),
-        Value::Vector(value) => {
-            serde_json::to_value(value.values.clone()).unwrap_or(serde_json::Value::Null)
-        }
-        Value::Typed(value) => serde_json::Value::String(value.text()),
-    }
 }

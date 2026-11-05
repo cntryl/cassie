@@ -145,7 +145,12 @@ fn visit_items(
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expr in function.args.iter_mut().chain(&mut function.partition_by) {
+                for expr in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                {
                     visit_expr(expr, visitor, controls)?;
                 }
                 for order in &mut function.order_by {

@@ -98,6 +98,7 @@ mod conditional_types;
 mod context;
 #[path = "binder/inference.rs"]
 mod inference;
+mod window_aggregates;
 #[path = "binder/window_types.rs"]
 mod window_types;
 pub(crate) use window_types::infer_window_return_type;

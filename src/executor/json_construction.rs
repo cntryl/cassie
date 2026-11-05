@@ -262,3 +262,6 @@ pub(super) fn typing_bytes<R: crate::executor::batch::RowAccess + ?Sized>(
     })?;
     Ok(bytes)
 }
+
+#[cfg(test)]
+mod numeric_boundary_tests;

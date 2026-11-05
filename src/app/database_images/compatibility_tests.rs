@@ -174,10 +174,13 @@ fn should_require_v2_before_publishing_a_validated_restore() {
     let rows = cassie
         .execute_sql(&session, "SELECT id::TEXT,body FROM docs", vec![])
         .expect("v1 encoded row in restored v2 store");
-    assert_eq!(rows.rows.len(), 1);
-    assert_eq!(rows.rows[0][0], crate::types::Value::String("7".to_owned()));
+    assert_eq!(rows.rows().len(), 1);
     assert_eq!(
-        rows.rows[0][1],
+        rows.rows()[0][0],
+        crate::types::Value::String("7".to_owned())
+    );
+    assert_eq!(
+        rows.rows()[0][1],
         crate::types::Value::String("v1 row".to_owned())
     );
 }

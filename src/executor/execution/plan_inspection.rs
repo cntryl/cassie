@@ -674,6 +674,10 @@ fn select_item_uses_function(item: &crate::sql::ast::SelectItem, function_name: 
                     .iter()
                     .any(|expr| expr_uses_function(expr, function_name))
                 || function
+                    .filter
+                    .as_deref()
+                    .is_some_and(|expr| expr_uses_function(expr, function_name))
+                || function
                     .partition_by
                     .iter()
                     .any(|expr| expr_uses_function(expr, function_name))
@@ -818,6 +822,26 @@ fn execution_source_name(source: &QuerySource) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_find_routine_used_only_in_window_filter() {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n) FILTER (WHERE custom_filter(flag)) OVER () FROM records",
+        )
+        .expect("window aggregate syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let uses_filter = plan_uses_function(&plan, "custom_filter");
+
+        // Assert
+        assert!(uses_filter);
+        assert!(!plan_uses_function(&plan, "absent_routine"));
+    }
 
     #[test]
     fn should_find_nested_routines_given_aggregate_filter_and_order_when_dependencies_are_inspected(

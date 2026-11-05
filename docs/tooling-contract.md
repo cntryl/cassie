@@ -6,13 +6,20 @@ Cassie consumes `cntryl-tools` directly from the [cntryl/tools GitHub repository
 until that project publishes a release. This is a supported source-pinned dependency, not a
 request to publish or install an unpinned branch build.
 
+## UI Toolchain
+
+The UI requires Node.js `^24.15.0 || >=26.0.0` and npm `12.2.1`. This is the
+intersection of Cassie's supported Node.js major versions and the pinned npm
+release's engine requirement. The UI manifest and lockfile carry the same Node.js
+range; the container and frontend CI install the pinned npm version.
+
 ## Pinned Source
 
-CI and benchmark workflows install the tool with:
+The backend CI workflow installs the tool with:
 
 ```sh
 cargo install --git https://github.com/cntryl/tools \
-  --rev 0cb0d0c8be5951753580a6f8a527f3e47d293466 \
+  --rev bc2d07782cf6873e1a4962fe8fe91396daa81a24 \
   --locked cntryl-tools
 ```
 

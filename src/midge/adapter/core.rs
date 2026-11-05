@@ -16,6 +16,7 @@ pub struct Midge {
     pub(super) engine: Engine,
     write_policy: super::storage_config::WritePolicy,
     compatibility_gate: Mutex<()>,
+    bootstrap_gate: Mutex<()>,
     pub(super) storage_layout: OnceLock<StorageLayout>,
     pub(super) database_families: RwLock<BTreeMap<String, super::DatabaseFamily>>,
     pub(super) default_database: String,
@@ -88,6 +89,7 @@ impl Midge {
             engine: Engine::open(options).map_err(CassieError::from)?,
             write_policy,
             compatibility_gate: Mutex::new(()),
+            bootstrap_gate: Mutex::new(()),
             storage_layout: OnceLock::new(),
             database_families: RwLock::new(BTreeMap::new()),
             default_database: default_database.into(),
@@ -171,6 +173,15 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn bootstrap_families(&self) -> Result<StorageLayout, CassieError> {
+        self.publication.ensure_recovered()?;
+        self.ensure_families_ready()?;
+        self.publication.ensure_recovered()?;
+        self.storage_layout().ok_or_else(|| {
+            CassieError::StorageBootstrap("failed to initialize midge storage families".to_string())
+        })
+    }
+
+    fn bootstrap_families_inner(&self) -> Result<StorageLayout, CassieError> {
         self.check_existing_layout_admission()?;
         let schema = self.get_or_create_family(StorageFamily::Schema)?;
         let temp = self.get_or_create_family(StorageFamily::Temp)?;
@@ -203,8 +214,21 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn ensure_families_ready(&self) -> Result<&StorageLayout, CassieError> {
         if self.storage_layout.get().is_none() {
-            let layout = self.bootstrap_families()?;
-            let _ = self.storage_layout.set(layout);
+            #[cfg(test)]
+            bootstrap_tests::before_bootstrap_gate();
+            let _guard = self.bootstrap_gate.lock();
+            if self.storage_layout.get().is_none() {
+                #[cfg(test)]
+                bootstrap_tests::initializing_bootstrap();
+                let layout = self.bootstrap_families_inner()?;
+                #[cfg(test)]
+                if bootstrap_tests::fail_after_initialization() {
+                    return Err(CassieError::StorageBootstrap(
+                        "controlled failure after persisted initialization".to_owned(),
+                    ));
+                }
+                let _ = self.storage_layout.set(layout);
+            }
         }
 
         self.storage_layout.get().ok_or_else(|| {
@@ -460,3 +484,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "core/bootstrap_tests.rs"]
+mod bootstrap_tests;

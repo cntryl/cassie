@@ -108,6 +108,7 @@ fn should_capture_runtime_feedback_for_selected_index() {
         let index_name = "metrics_feedback_selected_title_idx";
         register_feedback_collection(&cassie, collection);
         let index = IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.to_string(),
             name: index_name.to_string(),
             field: "title".to_string(),

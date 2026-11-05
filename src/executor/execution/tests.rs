@@ -7,6 +7,7 @@ fn plan_for_sql(sql: &str) -> LogicalPlan {
 
 fn scalar_index(collection: &str, name: &str, fields: Vec<&str>) -> catalog::IndexMeta {
     catalog::IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: name.to_string(),
         field: fields.first().copied().unwrap_or_default().to_string(),

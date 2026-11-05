@@ -2,7 +2,7 @@
 
 use super::pattern_memory::{reserve, PatternText};
 use super::{check_interruption, resource_limit, QueryError};
-use crate::executor::filter::EvalContext;
+use crate::executor::filter::{EvalContext, EvaluationMemory};
 use crate::{
     executor::{batch::RowAccess, retained_memory::value_clone_bytes},
     runtime::{QueryExecutionControls, QueryMemoryReservation},
@@ -105,9 +105,15 @@ fn evaluate<R: RowAccess + ?Sized>(
             }
         }
         _ => {
-            // Other scalar producers retain their existing pre-allocation
-            // contract. Adopt their returned backing before native work and
-            // retain it through the enclosing pattern call (#799 qualification).
+            // Retain generic producer scratch through native work. The scalar
+            // evaluator admits copied inputs and producer envelopes before use;
+            // bounded expanding producers also perform their own output admission.
+            let memory = controls.map(EvaluationMemory::new).transpose()?;
+            let context = EvalContext {
+                controls,
+                memory: memory.as_ref().or(context.memory),
+                ..context
+            };
             let value = crate::executor::filter::functions::text_selection::literal_argument(
                 &function.name,
                 index,
@@ -126,7 +132,10 @@ fn evaluate<R: RowAccess + ?Sized>(
             .unwrap_or_else(|| {
                 crate::executor::filter::evaluate_expr_value_with_context(row, expression, context)
             })?;
-            let lease = reserve(controls, value_clone_bytes(&value)?)?;
+            if let Some(memory) = memory.as_ref() {
+                memory.grow(value_clone_bytes(&value)?)?;
+            }
+            let lease = memory.map(EvaluationMemory::into_reservation);
             Ok(Argument { value, lease })
         }
     }
@@ -325,5 +334,53 @@ mod tests {
                 assert_eq!(controls.current_query_memory_bytes(), 0);
             }
         }
+    }
+    #[test]
+    fn should_keep_generic_producer_ownership_through_native_matching() {
+        // Arrange
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits::default(),
+            std::time::Instant::now(),
+        );
+        let functions = std::collections::HashMap::new();
+        let row = BatchRow::new(vec![("input".into(), Value::String("AbCd".into()))]);
+        let function = FunctionCall {
+            name: "regexp_like".into(),
+            args: vec![
+                Expr::Function(Box::new(FunctionCall {
+                    name: "lower".into(),
+                    args: vec![Expr::Column("input".into())],
+                    ..Default::default()
+                })),
+                Expr::StringLiteral("^abcd$".into()),
+            ],
+            ..Default::default()
+        };
+        let context = EvalContext {
+            params: &[],
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+            controls: Some(&controls),
+            memory: None,
+        };
+        // Act
+        let arguments =
+            collect(&function, &row, context, Some(&controls)).expect("generic pattern producer");
+        let retained = controls.current_query_memory_bytes();
+        let matched =
+            super::super::regexp_like(&arguments.values, Some(&controls)).expect("native matching");
+        let after_match = controls.current_query_memory_bytes();
+        drop(arguments);
+        // Assert
+        assert_eq!(matched, Value::Bool(true));
+        assert!(
+            retained > 1024,
+            "nested evaluation scratch remains admitted"
+        );
+        assert_eq!(after_match, retained);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }

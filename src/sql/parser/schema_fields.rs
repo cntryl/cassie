@@ -288,6 +288,7 @@ fn apply_field_constraint(
                 format!("{expression} {remaining}")
             };
             let constraint_check = parse_check_constraint(&expression)?;
+            constraint.definition_semantics_version = 1;
             constraint.check = Some(constraint_check);
             constraint.check_name = pending_constraint_name.take();
             return Ok(true);
@@ -395,6 +396,13 @@ pub(super) fn apply_default_constraint(
         return Ok(());
     }
 
+    if crate::sql::definition_guard::null_safe_default(raw) {
+        constraint.definition_semantics_version = 1;
+        constraint.default_value = None;
+        constraint.default_expression = Some(raw.trim().to_string());
+        constraint.default_sequence = None;
+        return Ok(());
+    }
     constraint.default_value = Some(parse_constant_literal(raw).map_err(|_| {
         SqlError::unsupported(format!(
             "DEFAULT {} is not supported: use a constant, nextval(...), now(), CURRENT_TIMESTAMP, LOCALTIMESTAMP, CURRENT_DATE or gen_random_uuid()",

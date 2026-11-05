@@ -1,3 +1,5 @@
+#[path = "null_safe_comparison.rs"]
+mod null_safe_comparison;
 #[path = "predicate_operands.rs"]
 mod predicate_operands;
 use predicate_operands::{validate_like_expression, validate_truth_operand};
@@ -413,6 +415,7 @@ fn validate_expression(
                     | BinaryOp::Gte
             ) {
                 validate_collation_pair(left, right)?;
+                null_safe_comparison::qualify(op, left, right, types)?;
                 canonicalize_boolean_pair(left, right, types)?;
                 decimal_literals::narrow_pair(left, right, types);
                 coerce_numeric_pair(left, right, types, catalog);

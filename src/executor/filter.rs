@@ -1,6 +1,8 @@
 #[path = "filter/binary_expr.rs"]
 mod binary_expr;
 use binary_expr::eval_binary_expr;
+#[path = "filter/cast_admission.rs"]
+mod cast_admission;
 #[path = "filter/cast_expr.rs"]
 mod cast_expr;
 use cast_expr::eval_cast_expr;
@@ -238,55 +240,9 @@ pub(crate) fn cast_value(value: &Value, target: &DataType) -> Result<Value, Quer
     cast_scalar(&scalar_from_value(value), target, None).map(|value| value.to_value())
 }
 
-pub(crate) fn filter_rows<R>(
-    rows: Vec<R>,
-    expression: &Expr,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-) -> Result<Vec<R>, QueryError>
-where
-    R: RowAccess,
-{
-    let mut out = Vec::with_capacity(rows.len());
-    for row in rows {
-        if eval_filter(
-            &row,
-            expression,
-            params,
-            search_context,
-            user_functions,
-            session,
-        )? {
-            out.push(row);
-        }
-    }
-    Ok(out)
-}
-
-pub(crate) fn filter_batches(
-    batches: Vec<Batch>,
-    expression: &Expr,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-) -> Result<Vec<Batch>, QueryError> {
-    batches
-        .into_iter()
-        .map(|batch| {
-            filter_rows(
-                batch,
-                expression,
-                params,
-                search_context,
-                user_functions,
-                session,
-            )
-        })
-        .collect()
-}
+#[path = "filter/filtering.rs"]
+mod filtering;
+pub(crate) use filtering::{filter_batches, filter_batches_with_controls, filter_rows};
 
 #[path = "filter/evaluation.rs"]
 pub(crate) mod evaluation;
@@ -306,39 +262,20 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
         .map(|session| session.statement_text_scratch(expr))
         .transpose()?;
     match expr {
-        Expr::Param(index) => Ok(context.params.get(*index).cloned().unwrap_or(Value::Null)),
-        Expr::Column(name) => Ok(column_value_ref(row, name, context.local_args)
-            .cloned()
-            .unwrap_or(Value::Null)),
+        Expr::Param(index) => {
+            evaluation::admit_leaf(row, expr, context)?;
+            Ok(context.params.get(*index).cloned().unwrap_or(Value::Null))
+        }
+        Expr::Column(name) => {
+            evaluation::admit_leaf(row, expr, context)?;
+            Ok(column_value_ref(row, name, context.local_args)
+                .cloned()
+                .unwrap_or(Value::Null))
+        }
         Expr::Function(function) => evaluate_function(function, row, context),
         Expr::Subquery(subquery) => subquery_value::value(row, expr, subquery, context),
         _ => Ok(eval_scalar_with_context(row, expr, context)?.to_value()),
     }
-}
-
-fn eval_filter<R: RowAccess + ?Sized>(
-    row: &R,
-    expression: &Expr,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-) -> Result<bool, QueryError> {
-    let value = eval_scalar_with_context(
-        row,
-        expression,
-        EvalContext {
-            params,
-            search_context,
-            user_functions,
-            local_args: None,
-            session,
-            exists: None,
-            controls: None,
-            memory: None,
-        },
-    )?;
-    value.is_true()
 }
 
 pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
@@ -392,6 +329,7 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    evaluation::admit_leaf(row, expr, context)?;
     let _statement_scratch = context
         .session
         .map(|session| session.statement_text_scratch(expr))

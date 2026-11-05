@@ -68,6 +68,7 @@ pub fn fulltext_index(
     options: &[(&str, &str)],
 ) -> IndexMeta {
     IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: name.to_string(),
         field: field.to_string(),

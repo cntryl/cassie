@@ -302,6 +302,7 @@ fn parse_table_constraint_body(
     if starts_with_keyword(raw, "check") {
         let check = parse_check_constraint(raw["check".len()..].trim_start())?;
         let mut constraint = FieldConstraint::new(check.field.clone());
+        constraint.definition_semantics_version = 1;
         constraint.check = Some(check);
         constraint.check_name = constraint_name.map(str::to_string);
         return Ok(vec![constraint]);

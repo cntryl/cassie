@@ -33,6 +33,7 @@ fn primary_key_indexes(
                 && !catalog::is_composite_primary_key_member(constraint, constraints)
         })
         .map(|constraint| catalog::IndexMeta {
+            definition_semantics_version: 0,
             collection: table.to_string(),
             name: constraint
                 .primary_key_name

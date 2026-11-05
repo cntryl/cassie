@@ -17,6 +17,11 @@ fn should_reject_loaded_materialized_projection_rebuild_definition() {
         .catalog
         .get_materialized_projection("loaded_projection")
         .expect("existing materialized definition");
+    metadata
+        .materialized
+        .as_mut()
+        .expect("definition")
+        .definition_semantics_version = 0;
     metadata.materialized.as_mut().expect("definition").query =
         "SELECT n FROM projection_source WHERE n IS DISTINCT FROM NULL".into();
     let prior_versions =
@@ -61,6 +66,7 @@ fn should_reject_loaded_rollup_refresh_definition() {
         .into_iter()
         .next()
         .expect("existing rollup");
+    metadata.definition_semantics_version = 0;
     metadata.filter_expr = Some("n IS DISTINCT FROM NULL".into());
     let prior = metadata.clone();
     fixture.cassie.catalog.register_rollup(metadata);
@@ -109,6 +115,7 @@ fn should_reject_unchecked_stored_index_predicate_maintenance() {
     else {
         panic!("predicate Expr")
     };
+    index.definition_semantics_version = 0;
     index.predicate = Some(serde_json::to_string(&expr).expect("existing encoded Expr"));
     let (key, _) = fixture
         .cassie
@@ -212,6 +219,11 @@ fn should_reject_loaded_materialized_projection_repair_definition() {
         .get_materialized_projection("loaded_repair")
         .expect("verified definition");
     assert!(metadata.integrity.repairable);
+    metadata
+        .materialized
+        .as_mut()
+        .expect("materialized")
+        .definition_semantics_version = 0;
     metadata.materialized.as_mut().expect("materialized").query =
         "SELECT n FROM repair_source WHERE n IS DISTINCT FROM NULL".into();
     let prior = serde_json::to_value(&metadata).expect("original metadata");

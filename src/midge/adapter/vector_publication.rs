@@ -46,6 +46,7 @@ impl Midge {
         let metadata = sql_index.map_or_else(
             || {
                 Ok(IndexMeta {
+                    definition_semantics_version: 0,
                     collection: index.collection.clone(),
                     name: format!("__rest_vector_{publication_id}"),
                     field: index.field.clone(),

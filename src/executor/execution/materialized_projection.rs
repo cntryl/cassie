@@ -165,6 +165,12 @@ fn create_materialized_relation(
         definition_fingerprint: stable_projection_fingerprint(query),
         created_ms: now_ms(),
     });
+    if let Some(definition) = &metadata.materialized {
+        cassie
+            .midge
+            .require_definition_version(definition.definition_semantics_version)
+            .map_err(QueryError::Cassie)?;
+    }
     let output = empty_command(command_tag, controls)?;
     let created = cassie.midge.with_collection_gates(
         &[name.to_string()],
@@ -908,7 +914,10 @@ fn deterministic_row_id(index: usize, payload: &serde_json::Value) -> String {
 }
 
 fn stable_projection_fingerprint(query: &str) -> u64 {
-    fnv1a64(&query.to_ascii_lowercase())
+    fnv1a64(&format!(
+        "definition-semantics-v1:{}",
+        query.to_ascii_lowercase()
+    ))
 }
 
 fn fnv1a64(input: &str) -> u64 {

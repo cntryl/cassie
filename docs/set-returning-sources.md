@@ -2,14 +2,15 @@
 
 This is the finite #808 contract for Cassie's read-model query sources. It uses
 existing selected types and the published Midge storage interface. The original
-contract was written against 0.5.1; the combined candidate uses 0.5.2 and awaits
-qualification. It adds no storage abstraction, layout, durable type
+contract was written against 0.5.1; the unified query/array implementation uses
+0.5.2. It adds no storage abstraction, layout, durable type
 representation or public batch API.
 The existing array shape and wire identities remain governed by the
 [Type Contract](type-contract.md).
 
-The user selected all series signatures below on 2026-11-04. Runtime delivery and
-qualification remain pending under #808; this contract is not a support claim.
+The user selected all series signatures below on 2026-11-04. Their implementation
+is consolidated in the [unified query/array closeout](query-array-closeout-2026-11-05.md),
+which records the actual integrated qualification results and remaining gates.
 
 ## UNNEST and ordinality
 

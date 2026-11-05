@@ -385,3 +385,58 @@ fn should_recheck_recovery_at_marker_publication_gate() {
     );
     assert_eq!(raw_marker_after_quarantine(&store), V1.as_bytes());
 }
+
+#[test]
+fn should_acknowledge_v2_before_publishing_selected_definition_records() {
+    // Arrange
+    let store = memory_store();
+    let mut view = crate::catalog::ViewMeta::new(
+        "versioned_view",
+        "SELECT NULL IS NOT DISTINCT FROM NULL AS same",
+        crate::types::Schema { fields: Vec::new() },
+    );
+    view.definition_semantics_version = 1;
+    assert_eq!(marker(&store), V1.as_bytes());
+    // Act
+    store
+        .put_view(&view)
+        .expect("versioned definition publication");
+    let stored = store
+        .get_view(&view.name)
+        .expect("view readback")
+        .expect("published view");
+    // Assert
+    assert_eq!(marker(&store), V2.as_bytes());
+    assert_eq!(stored.definition_semantics_version, 1);
+}
+
+#[test]
+fn should_stop_definition_publication_when_minimum_reader_admission_fails() {
+    // Arrange
+    let store = memory_store();
+    let mut view = crate::catalog::ViewMeta::new(
+        "unpublished_view",
+        "SELECT NULL IS NOT DISTINCT FROM NULL AS same",
+        crate::types::Schema { fields: Vec::new() },
+    );
+    view.definition_semantics_version = 1;
+    store
+        .raw_put(
+            StorageFamily::Schema,
+            &key_encoding::layout_marker_key(),
+            b"cassie-midge-layout-v99",
+        )
+        .expect("unsupported minimum reader fixture");
+    let before = store
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .expect("before publication");
+    // Act
+    let rejected = store.put_view(&view);
+    let after = store
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .expect("after rejection");
+    // Assert
+    assert!(rejected.is_err());
+    assert_eq!(before, after);
+    assert_eq!(marker(&store), b"cassie-midge-layout-v99");
+}

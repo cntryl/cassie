@@ -33,8 +33,16 @@ fn should_reject_non_boolean_values_at_runtime_predicate_sinks() {
         ];
 
         // Act
-        let results = expressions
-            .map(|expression| eval_filter(&row, &expression, &params, None, &functions, None));
+        let results = expressions.map(|expression| {
+            filter_rows(
+                vec![row.clone()],
+                &expression,
+                &params,
+                None,
+                &functions,
+                None,
+            )
+        });
 
         // Assert
         for result in results {
@@ -50,8 +58,16 @@ fn should_reject_non_boolean_values_at_runtime_predicate_sinks() {
         (Value::Null, false),
     ] {
         assert_eq!(
-            eval_filter(&row, &Expr::Param(0), &[value], None, &functions, None)
-                .expect("Boolean or SQL NULL"),
+            !filter_rows(
+                vec![row.clone()],
+                &Expr::Param(0),
+                &[value],
+                None,
+                &functions,
+                None
+            )
+            .expect("Boolean or SQL NULL")
+            .is_empty(),
             accepted
         );
     }

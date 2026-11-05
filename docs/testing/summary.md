@@ -4,18 +4,18 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1630 |
-| Rust files | 1593 |
-| Rust test declarations | 8577 |
+| Files under `tests/` | 1631 |
+| Rust files | 1594 |
+| Rust test declarations | 8599 |
 | Python test declarations | 22 |
-| Static Rust registration instances | 8577 |
+| Static Rust registration instances | 8599 |
 | Cargo test targets | 36 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
 | Unresolved module paths | 0 |
 | Duplicate registered test identities | 0 |
 | Repeated module registrations | 0 |
-| Files with a reviewed physical placement | 1334 |
+| Files with a reviewed physical placement | 1335 |
 | Existing files over their line limit | 0 |
 | Destination name conflicts | 0 |
 
@@ -39,12 +39,12 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [expression_index_upsert](inventory/expression_index_upsert.md) | 4 | 0 |
 | [json_writes](inventory/json_writes.md) | 20 | 0 |
 | [metrics](inventory/metrics.md) | 58 | 0 |
-| [null_safe_predicates](inventory/null_safe_predicates.md) | 42 | 0 |
+| [null_safe_predicates](inventory/null_safe_predicates.md) | 62 | 0 |
 | [parser_types](inventory/parser_types.md) | 402 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_catalogs](inventory/pgwire_catalogs.md) | 605 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 915 | 0 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 916 | 0 |
 | [pgwire_grammar](inventory/pgwire_grammar.md) | 1224 | 8 |
 | [pgwire_types](inventory/pgwire_types.md) | 952 | 0 |
 | [planner_controls](inventory/planner_controls.md) | 124 | 0 |
@@ -56,7 +56,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
 | [sql_mutations](inventory/sql_mutations.md) | 410 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1840 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 1841 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 187 | 0 |
@@ -122,7 +122,7 @@ These groups already exceed 800 lines of test bodies, before imports and helpers
 | Proposed file | Test body lines | Tests |
 | --- | ---: | ---: |
 | `tests/parser_types/grammar/expressions/semantics.rs` | 816 | 37 |
-| `tests/parser_types/grammar/indexes/semantics.rs` | 880 | 31 |
+| `tests/parser_types/grammar/indexes/semantics.rs` | 881 | 31 |
 | `tests/pgwire_extended/grammar/bytea_functions_parameters.rs` | 895 | 11 |
 | `tests/pgwire_extended/grammar/scalar_batch_09.rs` | 821 | 45 |
 | `tests/pgwire_extended/grammar/values_casts_uuid.rs` | 849 | 24 |

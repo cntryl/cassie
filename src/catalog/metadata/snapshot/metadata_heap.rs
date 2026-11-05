@@ -39,7 +39,9 @@ unit_enum_heap!(crate::catalog::constraints::ConstraintOperator {
     Lte,
     Gt,
     Gte,
-    Like
+    Like,
+    IsDistinctFrom,
+    IsNotDistinctFrom
 });
 
 metadata_heap!(crate::catalog::scope::DatabaseMeta {
@@ -63,6 +65,7 @@ metadata_heap!(crate::catalog::cardinality::FieldCardinalityStats {
 });
 
 metadata_heap!(crate::catalog::constraints::FieldConstraint {
+    definition_semantics_version,
     field,
     primary_key_name,
     primary_key_ordinal,
@@ -147,6 +150,7 @@ unit_enum_heap!(crate::catalog::indexes::IndexKind {
 });
 
 metadata_heap!(crate::catalog::indexes::IndexMeta {
+    definition_semantics_version,
     collection,
     name,
     field,
@@ -169,6 +173,7 @@ metadata_heap!(crate::catalog::maintenance::MaintenanceDebtMeta {
 });
 
 metadata_heap!(crate::catalog::collections::MaterializedProjectionMeta {
+    definition_semantics_version,
     name,
     query,
     options,
@@ -461,6 +466,7 @@ metadata_heap!(crate::catalog::rollups::RollupAggregateMeta {
 });
 
 metadata_heap!(crate::catalog::rollups::RollupMeta {
+    definition_semantics_version,
     name,
     source_collection,
     output_collection,
@@ -531,6 +537,7 @@ unit_enum_heap!(crate::catalog::constraints::UniqueNullPolicy {
 });
 
 metadata_heap!(crate::catalog::programs::ViewMeta {
+    definition_semantics_version,
     name,
     query,
     schema,

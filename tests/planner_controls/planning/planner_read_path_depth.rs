@@ -15,6 +15,7 @@ fn register_collection_fields(catalog: &Catalog, name: &str, schema: Vec<FieldSc
         .iter()
         .filter(|field| !field.nullable)
         .map(|field| FieldConstraint {
+            definition_semantics_version: 0,
             not_null: true,
             ..FieldConstraint::new(field.name.clone())
         })
@@ -38,6 +39,7 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: name.to_string(),
         field: fields.first().cloned().unwrap_or_default(),
@@ -53,6 +55,7 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
 
 fn register_expression_index(catalog: &Catalog, collection: &str, name: &str, expression: &Expr) {
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: name.to_string(),
         field: String::new(),

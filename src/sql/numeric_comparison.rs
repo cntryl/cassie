@@ -31,16 +31,29 @@ impl NumericComparisonDomain {
 /// Explicit SQL casts and arbitrary value expressions retain scalar execution.
 pub(crate) fn equality_columns(expression: &Expr) -> Option<(&str, &str, NumericComparisonDomain)> {
     let Expr::Binary {
-        left,
-        op: BinaryOp::Eq,
-        right,
+        op: BinaryOp::Eq, ..
     } = expression
     else {
         return None;
     };
+    join_equality_columns(expression).map(|(left, right, domain, _)| (left, right, domain))
+}
+
+/// Join-only admission: null-omitting index callers retain the Eq-only extractor.
+pub(crate) fn join_equality_columns(
+    expression: &Expr,
+) -> Option<(&str, &str, NumericComparisonDomain, bool)> {
+    let Expr::Binary { left, op, right } = expression else {
+        return None;
+    };
+    let nulls_equal = match op {
+        BinaryOp::Eq => false,
+        BinaryOp::IsNotDistinctFrom => true,
+        _ => return None,
+    };
     match (left.as_ref(), right.as_ref()) {
         (Expr::Column(left), Expr::Column(right)) => {
-            Some((left, right, NumericComparisonDomain::Exact))
+            Some((left, right, NumericComparisonDomain::Exact, nulls_equal))
         }
         (left, right) => {
             let Expr::Column(left) = super::binder::generated_float_coercion_operand(left)? else {
@@ -50,7 +63,7 @@ pub(crate) fn equality_columns(expression: &Expr) -> Option<(&str, &str, Numeric
             else {
                 return None;
             };
-            Some((left, right, NumericComparisonDomain::Float8))
+            Some((left, right, NumericComparisonDomain::Float8, nulls_equal))
         }
     }
 }

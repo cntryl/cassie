@@ -268,6 +268,7 @@ pub(super) fn alter_column_set_default(
     }
 
     mutate_field_constraint(cassie, table, field, |constraint| {
+        constraint.definition_semantics_version = 1;
         constraint.default_value = default_value;
         constraint.default_expression = default_expression;
         constraint.default_sequence = default_sequence;
@@ -336,6 +337,7 @@ pub(super) fn mutate_field_constraint(
     mutate: impl FnOnce(&mut crate::catalog::FieldConstraint),
 ) -> Result<(), QueryError> {
     let mut constraints = cassie.catalog.get_constraints(table);
+    crate::sql::definition_guard::constraints(&constraints).map_err(QueryError::from)?;
     let position = constraints.iter().position(|constraint| {
         crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
             == crate::sql::ColumnIdentifierPath::stored_field_key(field)

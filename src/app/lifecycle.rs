@@ -324,6 +324,7 @@ mod tests {
             )
             .expect("write buffered-intent document");
         let index = IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.to_string(),
             name: "idx_title".to_string(),
             field: "title".to_string(),

@@ -5337,6 +5337,10 @@
     "tests/vector_embeddings/vectors/vector_write_path.rs": {
       "suite": "vector_embeddings",
       "category": "vectors"
+    },
+    "tests/null_safe_predicates/versioned_definitions.rs": {
+      "suite": "null_safe_predicates",
+      "category": "versioned_definitions"
     }
   }
 }

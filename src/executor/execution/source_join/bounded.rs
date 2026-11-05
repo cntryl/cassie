@@ -119,6 +119,9 @@ fn try_execute_indexed_bounded_inner_join_with_context(
     let Some(keys) = merge_join_keys(spec.on, &left_columns, &right_columns) else {
         return Ok(None);
     };
+    if keys.nulls_equal {
+        return Ok(None);
+    }
     let Some(plan) = indexed_join_plan(env, left_collection, right_collection, &keys) else {
         return Ok(None);
     };
@@ -296,6 +299,9 @@ fn try_execute_streaming_bounded_inner_join_with_context(
     ) else {
         return Ok(None);
     };
+    if spec.keys.nulls_equal {
+        return Ok(None);
+    }
     if should_preemptively_dense_stream(env, spec.left_collection, spec.right_collection)? {
         env.cassie
             .runtime

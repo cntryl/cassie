@@ -2,27 +2,23 @@ use crate::support_sql_fixture::sql_fixture;
 use cassie::app::CassieError;
 
 #[test]
-fn should_reject_persisted_view_null_safe_predicates_before_publication() {
+fn should_publish_selected_persisted_view_null_safe_predicates() {
     // Arrange
-    let fixture = sql_fixture("null_safe_view_guard", &[]);
+    let fixture = sql_fixture("null_safe_view_admission", &[]);
     // Act
-    let results = [
-        "CREATE VIEW forbidden_null_safe AS SELECT NULL IS NOT DISTINCT FROM NULL AS same",
-        "CREATE VIEW forbidden_row_null_safe AS SELECT ROW(NULL) IS NOT DISTINCT FROM ROW(NULL) AS same",
-    ].map(|sql| fixture.execute(sql));
+    for sql in [
+        "CREATE VIEW admitted_scalar AS SELECT NULL IS NOT DISTINCT FROM NULL AS same",
+        "CREATE VIEW admitted_row AS SELECT ROW(NULL) IS NOT DISTINCT FROM ROW(NULL) AS same",
+    ] {
+        fixture.execute(sql).expect("selected versioned definition");
+    }
     // Assert
-    for result in results {
-        assert!(
-            matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-            "existing durable-definition boundary"
+    for name in ["admitted_scalar", "admitted_row"] {
+        assert_eq!(
+            fixture.rows(&format!("SELECT same FROM {name}")),
+            vec![vec![cassie::types::Value::Bool(true)]]
         );
     }
-    assert!(fixture
-        .execute("SELECT * FROM forbidden_null_safe")
-        .is_err());
-    assert!(fixture
-        .execute("SELECT * FROM forbidden_row_null_safe")
-        .is_err());
 }
 
 #[test]
@@ -115,7 +111,7 @@ fn should_reject_sql_routine_null_safe_definitions() {
 }
 
 #[test]
-fn should_reject_remaining_sql_null_safe_definition_carriers() {
+fn should_admit_selected_sql_null_safe_definition_carriers() {
     // Arrange
     let fixture = sql_fixture(
         "null_safe_other_definitions",
@@ -134,11 +130,9 @@ fn should_reject_remaining_sql_null_safe_definition_carriers() {
         .map(|sql| fixture.execute(sql))
         .collect::<Vec<_>>();
     // Assert
-    assert!(
-        results.iter().all(|result| matches!(result,
-        Err(CassieError::Unsupported(message)) if message.contains("persisted definitions"))),
-        "should_reject_remaining_sql_null_safe_definition_carriers should report Unsupported (SQLSTATE 0A000) for persisted definition"
-    );
+    for (statement, result) in statements.iter().zip(results) {
+        assert!(result.is_ok(), "selected carrier {statement}: {result:?}");
+    }
 }
 
 #[test]
@@ -292,6 +286,7 @@ fn should_reject_loaded_index_predicate_use() {
     else {
         panic!("predicate Expr")
     };
+    index.definition_semantics_version = 0;
     index.predicate = Some(serde_json::to_string(&expr).expect("existing Expr carrier"));
     fixture.cassie.catalog.register_index(index);
     // Act
@@ -313,10 +308,8 @@ fn should_reject_nested_default_parser_guard_before_procedure_publication() {
         body: "CREATE TABLE nested_default (n BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))"
             .into(),
     };
-    let parser_error =
-        cassie::sql::parse_statement(&procedure.body).expect_err("selected parser guard");
-    assert_eq!(parser_error.kind(), cassie::sql::SqlErrorKind::Unsupported);
-    assert!(parser_error.message().contains("persisted definitions"));
+    cassie::sql::parse_statement(&procedure.body)
+        .expect("ordinary table definition syntax is selected");
 
     // Act
     let result = fixture.cassie.midge.put_procedure(&procedure);
@@ -344,10 +337,8 @@ fn should_reject_nested_check_parser_guard_before_procedure_publication() {
         args: vec![],
         body: "CREATE TABLE nested_check (n BIGINT CHECK (n IS DISTINCT FROM NULL))".into(),
     };
-    let parser_error =
-        cassie::sql::parse_statement(&procedure.body).expect_err("selected parser guard");
-    assert_eq!(parser_error.kind(), cassie::sql::SqlErrorKind::Unsupported);
-    assert!(parser_error.message().contains("persisted definitions"));
+    cassie::sql::parse_statement(&procedure.body)
+        .expect("ordinary table definition syntax is selected");
 
     // Act
     let result = fixture.cassie.midge.put_procedure(&procedure);

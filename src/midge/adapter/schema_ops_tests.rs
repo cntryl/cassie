@@ -241,6 +241,7 @@ fn should_serialize_index_drop_with_collection_writes() {
         .expect("seed document");
     midge
         .put_index(&IndexMeta {
+            definition_semantics_version: 0,
             collection: "index_drop_gate".to_string(),
             name: "index_drop_gate_value".to_string(),
             field: "value".to_string(),

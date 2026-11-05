@@ -978,6 +978,9 @@ impl Midge {
         tx: &mut crate::midge::adapter::AdapterTransaction,
         metadata: &ProjectionMeta,
     ) -> Result<(), CassieError> {
+        if let Some(definition) = &metadata.materialized {
+            crate::sql::definition_guard::projection(definition)?;
+        }
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::projection_key(&metadata.collection), value, None)

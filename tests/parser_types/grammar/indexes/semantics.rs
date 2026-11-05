@@ -572,6 +572,7 @@ fn should_reject_duplicate_fulltext_index_on_same_field() {
         cassie
             .catalog
             .register_index(IndexMeta {
+                definition_semantics_version: 0,
                 collection: "ft_docs_duplicate".to_string(),
                 name: "idx_ft_docs_duplicate_primary".to_string(),
                 field: "body".to_string(),

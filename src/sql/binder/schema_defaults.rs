@@ -36,6 +36,11 @@ pub(super) fn bind_column_default(
     if default_sequence.is_some() {
         return Ok(());
     }
+    if let Some(expression) = default_expression
+        .filter(|expression| crate::sql::definition_guard::null_safe_default(expression))
+    {
+        *default_value = Some(fold_null_safe_default(expression)?);
+    }
     if let Some(value) = default_value.take() {
         let coerced =
             crate::catalog::coerce_default_literal(data_type, value).map_err(|message| {
@@ -90,4 +95,40 @@ pub(super) fn bind_alter_defaults(
         }
         _ => Ok(()),
     }
+}
+
+/// A literal-only query has no catalog names or effects; reuse the complete
+/// selected expression binder so unknown literals and mixed inputs follow SQL.
+fn fold_null_safe_default(expression: &str) -> Result<serde_json::Value, CassieError> {
+    use crate::sql::ast::{QueryStatement, SelectItem};
+    let parsed =
+        crate::sql::parser::parse_statement(&format!("SELECT {expression} AS default_value"))
+            .map_err(|error| CassieError::InvalidQuery(error.to_string()))?;
+    let bound = crate::sql::binder::bind(parsed, &crate::catalog::Catalog::default())?;
+    let QueryStatement::Select(select) = bound.statement.statement else {
+        return Err(CassieError::InvalidQuery(
+            "DEFAULT must bind a scalar constant".into(),
+        ));
+    };
+    let Some(SelectItem::Expr { expr, .. }) = select.projection.first() else {
+        return Err(CassieError::InvalidQuery(
+            "DEFAULT must bind a scalar constant".into(),
+        ));
+    };
+    let value = crate::executor::filter::evaluate_expr_value(
+        &crate::executor::batch::BatchRow::new(Vec::new()),
+        expr,
+        &[],
+        None,
+        &std::collections::HashMap::new(),
+        None,
+        None,
+    )
+    .map_err(CassieError::from)?;
+    let crate::types::Value::Bool(value) = value else {
+        return Err(CassieError::InvalidQuery(
+            "null-safe DEFAULT must produce BOOLEAN".into(),
+        ));
+    };
+    Ok(serde_json::Value::Bool(value))
 }

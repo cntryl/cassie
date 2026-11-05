@@ -177,7 +177,7 @@ fn execute_view_source(
 ) -> SourceExecution {
     let parsed = crate::sql::parser::parse_statement(&view.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    crate::sql::definition_guard::statement(&parsed).map_err(QueryError::Cassie)?;
+    crate::sql::definition_guard::view(view).map_err(QueryError::Cassie)?;
     let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;
     let mut view_cte_context = CteContext::new();
     let rows = execute_plan(
@@ -207,6 +207,9 @@ fn execute_materialized_projection_source(
     qualify: bool,
     row_budget: Option<usize>,
 ) -> SourceExecution {
+    if let Some(definition) = &projection.materialized {
+        crate::sql::definition_guard::projection(definition).map_err(QueryError::Cassie)?;
+    }
     let Some(output_collection) = projection.active_output_collection() else {
         let is_materialized_view = projection
             .materialized

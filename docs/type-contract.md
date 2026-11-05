@@ -195,16 +195,18 @@ the existing canonical stored CHAR spelling and array row encoding remain.
 
 This law is source-backed by PostgreSQL18.6 `varchar.c` explicit/input paths and
 a finite 21-query oracle batch, including Unicode, bounds, NULLs, input errors,
-native scalar correspondence and array descriptor typmods. Its implementation,
-resource/lifecycle regressions and full integrated validation remain pending;
-this clarification does not establish general array-cast or assignment parity.
+native scalar correspondence and array descriptor typmods. Its implementation and
+resource/lifecycle regressions are consolidated in the [query/array closeout](query-array-closeout-2026-11-05.md),
+which records integrated qualification. This finite evidence does not establish
+general array-cast or assignment parity.
 
 PostgreSQL 18.6 text-array probes return `{01:02:03.1,NULL}` for TIME
 and `{"2026-10-05 01:00:00",NULL}` for a TIMESTAMP element supplied
 with `+01:00`. Current array normalization and formatting use the internal
 fixed-width temporal carrier, including offset conversion, so these wire
-values remain an unvalidated #807 obligation. The existing fixture asserts
-the oracle values; do not treat the pending implementation as supported.
+values are covered by the retained #807 oracle fixtures and the consolidated
+normalization/formatting implementation. The closeout record owns their fresh
+execution status.
 
 ## Native extended identities
 

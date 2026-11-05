@@ -47,6 +47,7 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: name.to_string(),
         field: fields.first().cloned().unwrap_or_default(),
@@ -72,6 +73,7 @@ fn should_select_scalar_index_for_equality_filter() {
 
     runtime.block_on(async {
         catalog.register_index(cassie::catalog::IndexMeta {
+            definition_semantics_version: 0,
             collection: "planner_index_aware".to_string(),
             name: "planner_index_aware_title_idx".to_string(),
             field: "title".to_string(),
@@ -192,6 +194,7 @@ fn should_mark_include_column_plan_as_covered() {
     let catalog = Catalog::new();
     register_test_collection(&catalog, "planner_include_covering");
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: "planner_include_covering".to_string(),
         name: "planner_include_covering_title_idx".to_string(),
         field: "title".to_string(),
@@ -248,6 +251,7 @@ fn should_select_partial_index_for_exact_predicate() {
             })
             .unwrap();
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: "planner_partial_index".to_string(),
         name: "planner_partial_index_title_idx".to_string(),
         field: "title".to_string(),
@@ -294,6 +298,7 @@ fn should_skip_partial_index_for_unsafe_predicate() {
     let catalog = Catalog::new();
     register_test_collection(&catalog, "planner_partial_fallback");
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: "planner_partial_fallback".to_string(),
         name: "planner_partial_fallback_title_idx".to_string(),
         field: "title".to_string(),
@@ -345,6 +350,7 @@ fn should_select_expression_index_for_matching_predicate() {
     })
     .unwrap();
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: "planner_expression_index".to_string(),
         name: "planner_expression_index_lower_idx".to_string(),
         field: String::new(),
@@ -399,6 +405,7 @@ fn should_skip_expression_index_for_non_equivalent_predicate() {
     })
     .unwrap();
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: "planner_expression_fallback".to_string(),
         name: "planner_expression_fallback_lower_idx".to_string(),
         field: String::new(),

@@ -272,6 +272,7 @@ fn setup_missing_vector_hybrid_fixture(cassie: &Cassie, collection: &str) {
             .collect(),
     );
     let fulltext_index = IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: "sql_hybrid_missing_vector_body_idx".to_string(),
         field: "body".to_string(),
@@ -459,6 +460,7 @@ fn bounded_hybrid_fixture_with_limits(
             .unwrap();
     }
     let fulltext = IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: "fulltext_body_idx".to_string(),
         field: "body".to_string(),

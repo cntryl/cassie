@@ -1,4 +1,4 @@
-//! The finite transient null-safe predicate contract; persisted definitions stay excluded.
+//! Finite null-safe predicates and versioned persisted definition admission.
 
 use cassie_test_support::support_sql;
 use cassie_test_support::support_sql_fixture;
@@ -25,3 +25,6 @@ mod loaded_materializations;
 
 #[path = "null_safe_predicates/native_paths.rs"]
 mod native_paths;
+
+#[path = "null_safe_predicates/versioned_definitions.rs"]
+mod versioned_definitions;

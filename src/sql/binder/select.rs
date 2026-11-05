@@ -593,7 +593,16 @@ pub(super) fn bind_query_source_with_lateral_fields(
             name,
             function,
             lateral,
-        } => bind_table_function(name, function, lateral, catalog, lateral_fields, context),
+            with_ordinality,
+        } => bind_table_function(
+            name,
+            function,
+            lateral,
+            with_ordinality,
+            catalog,
+            lateral_fields,
+            context,
+        ),
         QuerySource::Subquery {
             alias,
             select,
@@ -747,7 +756,7 @@ pub(super) fn source_fields(
         QuerySource::SingleRow => Ok(HashSet::new()),
         QuerySource::TableFunction { name, .. } => Ok(qualified_fields(
             name,
-            table_function_columns(name)
+            table_function_columns(source)
                 .into_iter()
                 .map(|(name, _)| name),
         )),

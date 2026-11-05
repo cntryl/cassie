@@ -23,20 +23,7 @@ pub(super) fn state_bytes(
     {
         return Ok(0);
     }
-    let names = projection.iter().try_fold(0, |bytes, item| {
-        let name = match item {
-            SelectItem::Wildcard => None,
-            SelectItem::Column { name, alias } => Some(alias.as_ref().unwrap_or(name)),
-            SelectItem::Function { function, alias } => {
-                Some(alias.as_ref().unwrap_or(&function.name))
-            }
-            SelectItem::WindowFunction { function, alias } => {
-                Some(alias.as_ref().unwrap_or(&function.name))
-            }
-            SelectItem::Expr { alias, .. } => alias.as_ref(),
-        };
-        add(bytes, name.map_or(0, String::len))
-    })?;
+    let names = output_name_bytes(projection)?;
     let source_names = projection.iter().try_fold(0, |bytes, item| {
         add(
             bytes,
@@ -104,7 +91,15 @@ pub(super) fn state_bytes(
             .count();
         bytes = add(bytes, mul(mul(wildcard_names, wildcards)?, 4)?)?;
         bytes = add(bytes, mul(largest_value, width)?)?;
-        if crate::executor::projection_types::required(row) {
+        if crate::executor::projection_types::required(row)
+            || projection.iter().any(|item| match item {
+                SelectItem::Expr { .. } | SelectItem::Function { .. } => true,
+                SelectItem::Column { name, .. } => row
+                    .column_type(name)
+                    .is_some_and(crate::executor::projection_types::required_type),
+                _ => false,
+            })
+        {
             let largest_type = row.maximum_type_heap_bytes()?;
             bytes = add(bytes, mul(slots, size_of::<DataType>())?)?;
             bytes = add(bytes, mul(largest_type, width)?)?;
@@ -124,4 +119,21 @@ fn entry_slot_peak(width: usize, initial: usize) -> Result<usize, CassieError> {
         capacity = mul(capacity, 2)?.max(4);
     }
     add(capacity, previous)
+}
+
+fn output_name_bytes(projection: &[SelectItem]) -> Result<usize, CassieError> {
+    projection.iter().try_fold(0, |bytes, item| {
+        let name = match item {
+            SelectItem::Wildcard => None,
+            SelectItem::Column { name, alias } => Some(alias.as_ref().unwrap_or(name)),
+            SelectItem::Function { function, alias } => {
+                Some(alias.as_ref().unwrap_or(&function.name))
+            }
+            SelectItem::WindowFunction { function, alias } => {
+                Some(alias.as_ref().unwrap_or(&function.name))
+            }
+            SelectItem::Expr { alias, .. } => alias.as_ref(),
+        };
+        add(bytes, name.map_or(0, String::len))
+    })
 }

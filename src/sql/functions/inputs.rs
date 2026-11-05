@@ -77,7 +77,7 @@ pub(crate) fn aggregate_accepts_input(id: FunctionId, data_type: &DataType) -> b
 
 pub(crate) fn has_distinct_equality(data_type: &DataType) -> bool {
     match data_type {
-        DataType::Json | DataType::Jsonb => false,
+        DataType::Json => false,
         DataType::Array(element) => has_distinct_equality(element),
         _ => true,
     }
@@ -180,6 +180,7 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Trim
         | FunctionId::Ltrim
         | FunctionId::Rtrim
+        | FunctionId::SimilarToEscape
         | FunctionId::Strpos => Some(FunctionInputSignature::Positional(&[25, 25])),
         FunctionId::SplitPart => Some(FunctionInputSignature::Positional(&[25, 25, 23])),
         FunctionId::Replace | FunctionId::Translate => {
@@ -193,6 +194,9 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         }
         FunctionId::Overlay => Some(FunctionInputSignature::Positional(&[25, 25, 23, 23])),
         FunctionId::Chr => Some(FunctionInputSignature::Positional(&[23])),
+        FunctionId::QuantifiedPattern => {
+            Some(FunctionInputSignature::Positional(&[25, 1009, 25, 16, 16]))
+        }
         FunctionId::RegexpLike => Some(FunctionInputSignature::Positional(&[25, 25, 25])),
         FunctionId::RegexpCount => Some(FunctionInputSignature::Positional(&[25, 25, 23, 25])),
         FunctionId::RegexpReplace => Some(FunctionInputSignature::RegexpReplace),

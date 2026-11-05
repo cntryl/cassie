@@ -1,3 +1,5 @@
+#[path = "types/arrays/constructor_contracts.rs"]
+mod array_constructor_contracts;
 #[path = "types/arrays/array_position_start_overloads.rs"]
 mod array_position_start_overloads;
 #[path = "merge/merge_row_images.rs"]
@@ -48,6 +50,10 @@ mod postgresql18_uuid_hash_lsn_compat;
 mod postgresql18_window_function_wire;
 #[path = "subqueries/scalar_subqueries.rs"]
 mod scalar_subqueries;
+#[path = "set_returning/series_contracts.rs"]
+mod series_sources;
+#[path = "types/arrays/unnest_sources.rs"]
+mod unnest_sources;
 
 #[path = "aggregates/ordered_set/arrays.rs"]
 mod aggregates_ordered_set_arrays;
@@ -112,6 +118,11 @@ mod aggregates_array_agg_resources;
 
 #[path = "aggregates/json_agg/resources.rs"]
 mod aggregates_json_agg_resources;
+
+#[path = "aggregates/json_array_conversion.rs"]
+mod aggregates_json_array_conversion;
+#[path = "aggregates/json_typed_conversion.rs"]
+mod aggregates_json_typed_conversion;
 
 #[path = "aggregates/json_object_agg/resources.rs"]
 mod aggregates_json_object_agg_resources;

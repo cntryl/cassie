@@ -240,8 +240,8 @@ impl Scope<'_> {
                 left, right, on, ..
             } => {
                 self.source(left, ctes, outer)?;
-                self.source(right, ctes, outer)?;
                 let mut joined = self.source_scope(left, ctes, outer);
+                self.source(right, ctes, Some(&joined))?;
                 joined
                     .fields
                     .extend(self.source_scope(right, ctes, outer).fields);
@@ -280,7 +280,12 @@ impl Scope<'_> {
                     }
                 }
                 SelectItem::WindowFunction { function, .. } => {
-                    for arg in function.args.iter_mut().chain(&mut function.partition_by) {
+                    for arg in function
+                        .args
+                        .iter_mut()
+                        .chain(function.filter.as_deref_mut())
+                        .chain(&mut function.partition_by)
+                    {
                         self.expr(arg, ctes, scope)?;
                     }
                     for order in &mut function.order_by {
@@ -343,3 +348,7 @@ impl Scope<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "subquery_types_tests.rs"]
+mod tests;

@@ -382,7 +382,7 @@ fn try_execute_persisted_fulltext_filtered_read(
             return Ok(FilteredFulltextSelection::Exact(reason));
         }
     };
-    let scalar_candidates = scalar_prefilter_ids(cassie, spec, params, controls)?;
+    let scalar_candidates = scalar_prefilter_ids(cassie, session, spec, params, controls)?;
     let matched = score_persisted_candidates(
         &persisted,
         scalar_candidates.as_ref().map(|candidates| &candidates.ids),
@@ -654,6 +654,7 @@ struct ControlledScalarCandidates {
 
 fn scalar_prefilter_ids(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     spec: &FulltextFilteredReadSpec,
     params: &[Value],
     controls: &QueryExecutionControls,
@@ -692,6 +693,9 @@ fn scalar_prefilter_ids(
     else {
         return Ok(None);
     };
+    if session.is_some_and(|session| !session.transaction_index_visible(&index, &cassie.catalog)) {
+        return Ok(None);
+    }
     let signed_zero_counterpart = super::super::index_read::signed_zero_probe_counterpart(
         cassie,
         &spec.collection,

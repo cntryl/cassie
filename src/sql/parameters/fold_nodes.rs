@@ -75,7 +75,8 @@ impl<'a> Fold<'a, '_> {
                 Node::Window(window) => match index {
                     0 => Some(Node::WindowArguments(window)),
                     1 => Some(Node::Expressions(&window.partition_by)),
-                    _ => Some(Node::Orders(&window.order_by)),
+                    2 => Some(Node::Orders(&window.order_by)),
+                    _ => window.filter.as_deref().map(Node::Expr),
                 },
                 Node::WindowArguments(window) => window.args.get(index).map(Node::Expr),
             };
@@ -225,10 +226,12 @@ fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
                 2 + usize::from(repeatable.is_some())
             }
             ast::QuerySource::Aliased { .. } | ast::QuerySource::Subquery { .. } => 1,
+            ast::QuerySource::TableFunction { function, .. } => {
+                usize::from(crate::sql::table_sources::is_generated(&function.name))
+            }
             ast::QuerySource::Collection(_)
             | ast::QuerySource::Cte(_)
-            | ast::QuerySource::SingleRow
-            | ast::QuerySource::TableFunction { .. } => 0,
+            | ast::QuerySource::SingleRow => 0,
         },
         Node::Expr(expr) => expression_children(expr),
         Node::Function(function) => function.args.len() + 1,
@@ -244,7 +247,7 @@ fn children(node: Node<'_>) -> Result<usize, ParameterAdmissionError> {
                 2
             }
         }
-        Node::Window(_) => 3,
+        Node::Window(_) => 4,
         Node::WindowArguments(window) => window.args.len(),
     })
 }
@@ -358,10 +361,13 @@ fn source_child(source: &ast::QuerySource, index: usize) -> Option<Node<'_>> {
             1 => Node::Source(right),
             _ => Node::Expr(on),
         }),
+        ast::QuerySource::TableFunction { function, .. } => {
+            crate::sql::table_sources::is_generated(&function.name)
+                .then_some(Node::Function(function))
+        }
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)
-        | ast::QuerySource::SingleRow
-        | ast::QuerySource::TableFunction { .. } => None,
+        | ast::QuerySource::SingleRow => None,
     }
 }
 
@@ -613,22 +619,29 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
                 child.qualified = false;
             }
         }
-        Node::WindowArguments(window) => {
-            let int4_argument = index == 0 && window.name.eq_ignore_ascii_case("ntile")
-                || window_argument_type(window, index) == Some(WindowArgumentType::Int4);
-            if int4_argument {
-                child.expected = Expected::Type(23, true);
+        Node::Window(_) => {
+            if index == 3 {
+                child.expected = Expected::Boolean(BooleanConstruct::Filter);
             }
             child.qualified = false;
         }
+        Node::WindowArguments(window) => qualify_window_argument(window, index, child),
         Node::Expr(
             ast::Expr::Binary { .. }
             | ast::Expr::Between { .. }
             | ast::Expr::InList { .. }
             | ast::Expr::Like { .. },
         )
-        | Node::Window(_)
         | Node::Cte(ast::CteQuery::Recursive { .. }) => child.qualified = false,
         _ => {}
     }
+}
+
+fn qualify_window_argument(window: &ast::WindowFunctionCall, index: usize, child: &mut Child<'_>) {
+    let int4_argument = index == 0 && window.name.eq_ignore_ascii_case("ntile")
+        || window_argument_type(window, index) == Some(WindowArgumentType::Int4);
+    if int4_argument {
+        child.expected = Expected::Type(23, true);
+    }
+    child.qualified = false;
 }

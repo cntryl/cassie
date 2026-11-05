@@ -34,6 +34,7 @@ fn window_function_expressions(function: &WindowFunctionCall) -> Vec<&Expr> {
     function
         .args
         .iter()
+        .chain(function.filter.as_deref())
         .chain(function.partition_by.iter())
         .chain(function.order_by.iter().map(|order| &order.expr))
         .collect()

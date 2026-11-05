@@ -1,3 +1,4 @@
+pub(crate) use statements::parse_terminal_transaction_control;
 use std::fmt;
 
 #[path = "parser/aggregate_call.rs"]
@@ -536,3 +537,7 @@ mod cte_materialization_tests;
 
 #[path = "parser/cte_materialization.rs"]
 mod cte_materialization;
+
+#[cfg(test)]
+#[path = "parser/statistical_window_tests.rs"]
+mod statistical_window_tests;

@@ -6,8 +6,13 @@ use sha2::{Digest, Sha256};
 use super::{Cassie, CassieError};
 use crate::midge::adapter::StagedDatabaseFamily;
 
+/// Legacy image version emitted for a v1 storage layout.
 pub const DATABASE_IMAGE_VERSION: u16 = 1;
-const DATABASE_IMAGE_LAYOUT_VERSION: &str = "cassie-midge-layout-v1-0.1.0";
+/// Image version with a checksummed header, emitted for a v2 storage layout.
+pub const DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER: u16 = 2;
+const V1_LAYOUT_VERSION: &str = "cassie-midge-layout-v1-0.1.0";
+const V1_INTEGRITY: &str = "sha256(catalog-and-data-frame-payloads)";
+const V2_INTEGRITY: &str = "sha256(header-and-catalog-and-data-frame-payloads)";
 const DATABASE_IMAGE_MAGIC: &[u8] = b"CASSIEDB";
 const FRAME_HEADER: u8 = b'H';
 const FRAME_CATALOG: u8 = b'C';
@@ -64,6 +69,7 @@ pub struct DatabaseBackupStream {
     source_physical_family: String,
     schema_epoch: u64,
     data_epoch: u64,
+    storage_layout_version: &'static str,
     catalog_entries: Vec<(Vec<u8>, Vec<u8>)>,
     catalog_index: usize,
     data_cursor: Option<Vec<u8>>,
@@ -97,25 +103,7 @@ impl DatabaseBackupStream {
 
         while self.pending.len() < IMAGE_CHUNK_BYTES {
             match self.phase {
-                BackupPhase::Header => {
-                    self.pending.extend(DATABASE_IMAGE_MAGIC.iter().copied());
-                    let header = DatabaseImageHeader {
-                        image_version: DATABASE_IMAGE_VERSION,
-                        source_database: self.source_database.clone(),
-                        source_physical_family: self.source_physical_family.clone(),
-                        storage_layout_version: DATABASE_IMAGE_LAYOUT_VERSION.to_string(),
-                        schema_epoch: self.schema_epoch,
-                        data_epoch: self.data_epoch,
-                        integrity: "sha256(catalog-and-data-frame-payloads)".to_string(),
-                    };
-                    self.enqueue_frame(
-                        FRAME_HEADER,
-                        &serde_json::to_vec(&header).map_err(|error| {
-                            CassieError::Parse(format!("encode database image header: {error}"))
-                        })?,
-                    );
-                    self.phase = BackupPhase::Catalog;
-                }
+                BackupPhase::Header => self.enqueue_header()?,
                 BackupPhase::Catalog => {
                     if let Some((key, value)) = self.catalog_entries.get(self.catalog_index) {
                         let frame = encode_entry_frame(key, value)?;
@@ -185,6 +173,39 @@ impl DatabaseBackupStream {
         Ok(Some(self.pending.drain(..length).collect()))
     }
 
+    fn enqueue_header(&mut self) -> Result<(), CassieError> {
+        self.pending.extend(DATABASE_IMAGE_MAGIC.iter().copied());
+        let protected = self.storage_layout_version != V1_LAYOUT_VERSION;
+        let header = DatabaseImageHeader {
+            image_version: if protected {
+                DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER
+            } else {
+                DATABASE_IMAGE_VERSION
+            },
+            source_database: self.source_database.clone(),
+            source_physical_family: self.source_physical_family.clone(),
+            storage_layout_version: self.storage_layout_version.to_string(),
+            schema_epoch: self.schema_epoch,
+            data_epoch: self.data_epoch,
+            integrity: if protected {
+                V2_INTEGRITY
+            } else {
+                V1_INTEGRITY
+            }
+            .to_string(),
+        };
+        let payload = serde_json::to_vec(&header).map_err(|error| {
+            CassieError::Parse(format!("encode database image header: {error}"))
+        })?;
+        if protected {
+            self.hasher.update([FRAME_HEADER]);
+            self.hasher.update(&payload);
+        }
+        self.enqueue_frame(FRAME_HEADER, &payload);
+        self.phase = BackupPhase::Catalog;
+        Ok(())
+    }
+
     fn ensure_source_unchanged(&mut self) -> Result<(), CassieError> {
         if self.source_family_matches()?
             && self.cassie.midge.schema_epoch()? == self.schema_epoch
@@ -194,6 +215,7 @@ impl DatabaseBackupStream {
                 .data_epoch_for_database(&self.source_database)?
                 == self.data_epoch
             && self.source_family_matches()?
+            && self.cassie.midge.storage_layout_version()? == self.storage_layout_version
         {
             return Ok(());
         }
@@ -313,6 +335,7 @@ impl DatabaseRestoreSession {
     /// refresh fails, the database has already been committed and cannot be
     /// aborted through this restore session.
     pub fn finish(&mut self) -> Result<(), CassieError> {
+        self.cassie.check_storage_recovery_required()?;
         if matches!(self.phase, RestorePhase::Closed) {
             return Err(CassieError::Execution(
                 "database restore session is already closed".to_string(),
@@ -326,13 +349,17 @@ impl DatabaseRestoreSession {
                 "database image ended before a complete footer".to_string(),
             ));
         }
-        let staged = self.staged.take().ok_or_else(|| {
-            CassieError::Execution("database restore staging is unavailable".to_string())
-        })?;
         let header = self
             .header
             .as_ref()
             .ok_or_else(|| CassieError::Parse("database image header is missing".to_string()))?;
+        self.cassie
+            .midge
+            .require_storage_layout_version(&header.storage_layout_version)?;
+        self.cassie.check_storage_recovery_required()?;
+        let staged = self.staged.take().ok_or_else(|| {
+            CassieError::Execution("database restore staging is unavailable".to_string())
+        })?;
         let result = self
             .cassie
             .midge
@@ -375,12 +402,26 @@ impl DatabaseRestoreSession {
         let header: DatabaseImageHeader = serde_json::from_slice(payload).map_err(|error| {
             CassieError::Parse(format!("invalid database image header: {error}"))
         })?;
-        if header.image_version != DATABASE_IMAGE_VERSION
-            || header.storage_layout_version != DATABASE_IMAGE_LAYOUT_VERSION
-        {
+        if !crate::midge::adapter::Midge::supports_storage_layout_version(
+            &header.storage_layout_version,
+        ) || !match header.image_version {
+            DATABASE_IMAGE_VERSION => {
+                header.storage_layout_version == V1_LAYOUT_VERSION
+                    && header.integrity == V1_INTEGRITY
+            }
+            DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER => {
+                header.storage_layout_version != V1_LAYOUT_VERSION
+                    && header.integrity == V2_INTEGRITY
+            }
+            _ => false,
+        } {
             return Err(CassieError::Unsupported(
                 "database image version or storage layout is incompatible".to_string(),
             ));
+        }
+        if header.image_version == DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER {
+            self.hasher.update([FRAME_HEADER]);
+            self.hasher.update(payload);
         }
         self.header = Some(header);
         self.phase = RestorePhase::Catalog;
@@ -474,6 +515,7 @@ impl Cassie {
             source_physical_family: metadata.physical_family,
             schema_epoch: self.midge.schema_epoch()?,
             data_epoch: self.midge.data_epoch_for_database(database)?,
+            storage_layout_version: self.midge.storage_layout_version()?,
             catalog_entries: self.midge.database_catalog_entries(database)?,
             catalog_index: 0,
             data_cursor: None,
@@ -579,3 +621,7 @@ fn hex_digest(hasher: &Sha256) -> String {
     }
     output
 }
+
+#[cfg(test)]
+#[path = "database_images/compatibility_tests.rs"]
+mod compatibility_tests;

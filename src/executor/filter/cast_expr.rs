@@ -43,7 +43,41 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
             }),
         );
     }
+    if matches!(data_type, DataType::Array(element) if matches!(element.as_ref(), DataType::Text | DataType::Char { .. } | DataType::Varchar { .. }))
+    {
+        if let Some(memory) = context.memory {
+            let input = match expr {
+                Expr::Column(name) => row.get(name),
+                Expr::Param(index) => context.params.get(*index),
+                _ => None,
+            };
+            if let Some(input) = input {
+                memory.grow(crate::executor::retained_memory::mul(
+                    crate::executor::retained_memory::value_clone_bytes(input)?,
+                    4,
+                )?)?;
+            }
+        }
+    }
     let value = eval_scalar_with_context(row, expr, context)?;
+    if let Some(result) = super::character_arrays::cast(
+        &value,
+        data_type,
+        source_type,
+        super::temporal::context_controls(context),
+        context.memory,
+        true,
+    ) {
+        return result;
+    }
+    if let (DataType::Array(_), Some(memory)) = (data_type, context.memory) {
+        if let ScalarValue::Str(text) | ScalarValue::Json(text) = &value {
+            memory.grow(crate::executor::retained_memory::add(
+                crate::executor::retained_memory::mul(text.len(), 128)?,
+                1024,
+            )?)?;
+        }
+    }
     if let Some(cast) = object_ids::catalog_cast(&value, data_type, source_type, context.session)? {
         return Ok(cast);
     }
@@ -53,6 +87,10 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
     {
         numeric_comparison::float_scalar(&value)
     } else {
+        #[cfg(test)]
+        if matches!(data_type, DataType::Array(_)) {
+            ARRAY_CAST_CALLS.with(|count| count.set(count.get() + 1));
+        }
         casts::scalar(
             &value,
             data_type,
@@ -88,13 +126,16 @@ fn collection_aggregate_text_cast<R: RowAccess + ?Sized>(
     else {
         return Ok(None);
     };
-    let ScalarValue::Json(text) = eval_scalar_with_context(row, expr, context)? else {
-        return Ok(None);
-    };
-    let document = serde_json::from_str::<serde_json::Value>(&text)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let formatted = collection_aggregate_json_text(*kind, document)?;
-    Ok(Some(ScalarValue::Str(formatted)))
+    match super::evaluate_expr_value_with_context(row, expr, context)? {
+        // Contextual finalization already preserves JSON input text, member
+        // order and duplicate keys. Re-parsing it would destroy that identity.
+        crate::types::Value::String(text) => Ok(Some(ScalarValue::Str(text))),
+        crate::types::Value::Json(document) => collection_aggregate_json_text(*kind, document)
+            .map(ScalarValue::Str)
+            .map(Some),
+        crate::types::Value::Null => Ok(Some(ScalarValue::Null)),
+        _ => Ok(None),
+    }
 }
 
 fn collection_aggregate_json_text(
@@ -206,4 +247,66 @@ fn percentile_array_expression(expression: &Expr) -> bool {
                 } => true,
                 _ => false,
             })
+}
+
+#[cfg(test)]
+thread_local! { static ARRAY_CAST_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+
+#[cfg(test)]
+mod array_admission_tests {
+    use super::*;
+    use crate::executor::batch::BatchRow;
+    use crate::executor::filter::{evaluate_source_argument, EvaluationMemory};
+    use crate::runtime::QueryExecutionControls;
+    use std::time::Instant;
+
+    #[test]
+    fn should_admit_native_array_text_casts_before_entering_the_array_parser() {
+        // Arrange
+        let expression = Expr::Cast {
+            expr: Box::new(Expr::StringLiteral(format!("{{{}}}", ["1"; 32].join(",")))),
+            data_type: DataType::Array(Box::new(DataType::Int)),
+            source_type: Some(DataType::Text),
+            identity: crate::sql::ast::CastIdentity::Scalar,
+        };
+        let row = BatchRow::from_projected_values(Vec::new());
+        let functions = std::collections::HashMap::new();
+
+        for (budget, accepted, calls) in [(8_192, false, 0), (32_768, true, 1)] {
+            // Arrange
+            let controls = QueryExecutionControls::from_limits(
+                &crate::config::CassieRuntimeLimits {
+                    query_memory_budget_bytes: budget,
+                    ..crate::config::CassieRuntimeLimits::default()
+                },
+                Instant::now(),
+            );
+            let memory = EvaluationMemory::new(&controls).expect("array cast owner");
+            ARRAY_CAST_CALLS.with(|count| count.set(0));
+            // Act
+            let result = evaluate_source_argument(
+                &row,
+                &expression,
+                &[],
+                &functions,
+                None,
+                &controls,
+                &memory,
+            );
+            // Assert
+            assert_eq!(result.is_ok(), accepted);
+            if !accepted {
+                assert!(matches!(
+                    result,
+                    Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                        _
+                    )))
+                ));
+            }
+            assert_eq!(ARRAY_CAST_CALLS.with(std::cell::Cell::get), calls);
+            drop(result);
+            drop(memory);
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
+    }
 }

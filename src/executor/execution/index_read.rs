@@ -43,6 +43,12 @@ pub(super) fn execute_scalar_index_read(
         return Ok(Some(Vec::new()));
     }
 
+    if session
+        .is_some_and(|session| !session.transaction_index_visible(&spec.index, &cassie.catalog))
+    {
+        return Ok(None);
+    }
+
     let hits = cassie
         .midge
         .scan_scalar_index_controlled(&spec.index, &spec.request, controls)
@@ -72,11 +78,8 @@ pub(super) fn execute_scalar_index_read(
             };
             document
         };
-        rows.push(scan::projected_document_to_row(
-            &document,
-            &spec.scan_fields,
-            schema.as_ref(),
-        ));
+        let row = scan::projected_document_to_row(&document, &spec.scan_fields, schema.as_ref());
+        rows.push(scan::hydrate_character_arrays(row, controls)?);
     }
 
     record_scalar_index_read_path(cassie, &spec, rows.len());

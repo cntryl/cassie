@@ -29,12 +29,9 @@ impl CassieSession {
         isolation: Option<TransactionIsolation>,
         modes: TransactionModes,
     ) -> Result<(), CassieError> {
-        if matches!(
-            isolation,
-            Some(TransactionIsolation::RepeatableRead | TransactionIsolation::Serializable)
-        ) {
+        if isolation == Some(TransactionIsolation::Serializable) {
             return Err(CassieError::Unsupported(
-                "only READ COMMITTED transaction isolation is supported".to_string(),
+                "SERIALIZABLE transaction isolation is unsupported".to_string(),
             ));
         }
         let requested_modes = modes;
@@ -50,6 +47,12 @@ impl CassieSession {
                     .unwrap_or_else(|| self.default_transaction_deferrable()),
             ),
         };
+        if isolation == Some(TransactionIsolation::RepeatableRead) && modes.deferrable == Some(true)
+        {
+            return Err(CassieError::Unsupported(
+                "DEFERRABLE REPEATABLE READ is unsupported".to_owned(),
+            ));
+        }
         let session_state = self.session_state_snapshot();
         let mut transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::Failed
@@ -96,8 +99,10 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.repeatable_read = None;
         transaction.catalog_overlay = None;
         transaction.catalog_base_version = None;
+        transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.session_state = Some(session_state);
@@ -227,13 +232,16 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.repeatable_read = None;
         transaction.catalog_overlay = None;
         transaction.catalog_base_version = None;
+        transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         let session_state = transaction.session_state.take();
         let locals = std::mem::take(&mut transaction.local_settings);
         drop(transaction);
+        self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             waits.release_owner(unique_owner_id);
         }
@@ -275,12 +283,15 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.repeatable_read = None;
         transaction.catalog_overlay = None;
         transaction.catalog_base_version = None;
+        transaction.catalog_views = super::catalog_overlay::TransactionCatalogViews::default();
         transaction.storage_overlay =
             Arc::new(Mutex::new(crate::midge::adapter::StorageOverlay::default()));
         transaction.local_settings.clear();
         drop(transaction);
+        self.retire_schema_context();
         if let Some(waits) = self.transaction_unique_waits() {
             waits.release_owner(unique_owner_id);
         }

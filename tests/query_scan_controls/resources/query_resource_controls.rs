@@ -605,7 +605,7 @@ fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
 fn should_reject_expanding_projection_before_building_output() {
     let _hook_guard = query_scan_control_test_guard();
     // Arrange
-    let cassie = configured_cassie(4 * 1_024);
+    let cassie = configured_cassie(5 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

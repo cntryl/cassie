@@ -3,6 +3,9 @@ use super::{
     TransactionErrorKind, TransactionStatement,
 };
 
+#[path = "query_transactions/repeatable_write.rs"]
+mod repeatable_write;
+
 impl CassieError {
     /// `PostgreSQL` 25P02 for work attempted inside a failed transaction block.
     pub(crate) fn failed_transaction() -> Self {
@@ -94,16 +97,27 @@ impl Cassie {
             TransactionAction::Savepoint { .. } => "SAVEPOINT",
             TransactionAction::Release { .. } => "RELEASE",
         };
-        let mut result = QueryResult::try_builder(controls)?;
-        result.try_set_command(command)?;
-        let output = result.finish()?;
+        let output: Result<QueryResult, CassieError> = (|| {
+            let mut result = QueryResult::try_builder(controls)?;
+            result.try_set_command(command)?;
+            result.finish()
+        })();
+        if output.is_err()
+            && matches!(statement.action, TransactionAction::Commit)
+            && session.is_repeatable_read_write()
+        {
+            session.rollback_transaction();
+        }
+        let output = output?;
 
         match &statement.action {
             TransactionAction::Begin => {
                 session.begin_transaction_with_modes(statement.isolation, statement.modes)?;
             }
             TransactionAction::Commit if failed_commit => session.rollback_transaction(),
-            TransactionAction::Commit => self.commit_transaction(session)?,
+            TransactionAction::Commit => {
+                self.commit_transaction_with_controls(session, controls)?;
+            }
             TransactionAction::Rollback => session.rollback_transaction(),
             TransactionAction::Savepoint { name } => session.create_savepoint(name)?,
             TransactionAction::RollbackTo { name } => session.rollback_to_savepoint(name)?,
@@ -116,22 +130,55 @@ impl Cassie {
     }
 
     pub(crate) fn commit_transaction(&self, session: &CassieSession) -> Result<(), CassieError> {
-        self.commit_transaction_using_catalog_guard(session, None)
+        let controls = self.runtime.query_controls(std::time::Instant::now());
+        self.commit_transaction_with_controls(session, &controls)
+    }
+
+    pub(crate) fn commit_transaction_with_controls(
+        &self,
+        session: &CassieSession,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        self.commit_transaction_using_catalog_guard(session, None, controls)
     }
 
     pub(super) fn commit_transaction_holding_catalog<'a>(
         &'a self,
         session: &CassieSession,
         publication: parking_lot::RwLockWriteGuard<'a, ()>,
+        controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
-        self.commit_transaction_using_catalog_guard(session, Some(publication))
+        self.commit_transaction_using_catalog_guard(session, Some(publication), controls)
     }
 
     fn commit_transaction_using_catalog_guard<'a>(
         &'a self,
         session: &CassieSession,
         held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+        controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
+        let repeatable_write = session.is_repeatable_read_write();
+        let result = self.commit_transaction_inner(session, held_publication, controls);
+        if repeatable_write && result.is_err() {
+            session.rollback_transaction();
+        }
+        result
+    }
+
+    fn commit_transaction_inner<'a>(
+        &'a self,
+        session: &CassieSession,
+        held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
+        let _entry_overlay_scope = super::SessionReadScope::enter(None);
+        let _publication_controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(controls));
+        if let Err(error) = self.check_storage_recovery_required() {
+            session.rollback_transaction();
+            return Err(error);
+        }
         if session.is_transaction_failed() {
             return Err(CassieError::failed_transaction());
         }
@@ -152,13 +199,16 @@ impl Cassie {
             .current_database()
             .unwrap_or(&self.default_database)
             .to_owned();
-        let catalog_publication = held_publication.or_else(|| {
-            catalog_overlay
-                .as_ref()
-                .map(|_| self.catalog_publication.write())
-        });
+        let repeatable_write = session.is_repeatable_read_write();
+        let catalog_publication = self.acquire_commit_catalog_guard(
+            catalog_overlay.is_some(),
+            repeatable_write,
+            held_publication,
+            controls,
+        )?;
         if catalog_overlay.is_some()
-            && session.transaction_catalog_base_version() != Some(self.catalog.version())
+            && session.transaction_catalog_base_version()
+                != Some(self.publication_catalog.version())
         {
             session.mark_transaction_failed();
             return Err(CassieError::Transaction {
@@ -170,31 +220,45 @@ impl Cassie {
             .as_ref()
             .map(|_| (database.as_str(), &storage_overlay));
         let (collections, referential) = self.transaction_commit_write_gates(session);
-        let committed = if referential {
+        let publish = || {
+            self.publish_transaction_rows(
+                session,
+                &database,
+                catalog_overlay.as_ref(),
+                &collections,
+                controls,
+                transactional_ddl,
+            )
+        };
+        let committed = if repeatable_write {
+            self.midge
+                .with_transaction_write_gates(&collections, referential, controls, || {
+                    if referential {
+                        self.validate_staged_foreign_keys(session)?;
+                        self.validate_staged_parent_references(session)?;
+                    }
+                    publish()
+                })
+        } else if referential {
             self.midge.with_collection_write_gates(&collections, || {
                 self.validate_staged_foreign_keys(session)?;
                 self.validate_staged_parent_references(session)?;
-                if catalog_overlay.is_some() {
-                    self.bump_transaction_schema_epoch()?;
-                }
-                self.apply_staged_write_batches(session, None, transactional_ddl)
+                publish()
             })
         } else {
-            self.midge.with_collection_gates(&collections, || {
-                if catalog_overlay.is_some() {
-                    self.bump_transaction_schema_epoch()?;
-                }
-                self.apply_staged_write_batches(session, None, transactional_ddl)
-            })
+            self.midge.with_collection_gates(&collections, publish)
         }
         .inspect_err(|_| session.mark_transaction_failed())?;
 
         if let Some(snapshot) = catalog_overlay.as_ref() {
-            self.catalog.publish_transaction_snapshot(snapshot);
+            self.publication_catalog
+                .publish_transaction_snapshot(snapshot);
         }
         session.commit_transaction();
-        drop(catalog_publication);
-        self.finish_staged_write_batches(committed, None);
+        if let Some(publication) = catalog_publication {
+            publication.retire();
+        }
+        self.finish_staged_write_batches(committed, Some(controls));
         Ok(())
     }
 
@@ -214,3 +278,7 @@ impl Cassie {
 #[cfg(test)]
 #[path = "query_transactions/output_admission_tests.rs"]
 mod output_admission_tests;
+
+#[cfg(test)]
+#[path = "query_transactions/repeatable_write_tests.rs"]
+mod repeatable_write_tests;

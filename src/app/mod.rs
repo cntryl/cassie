@@ -94,12 +94,13 @@ pub use error::{
 };
 pub use session::CassieSession;
 pub(crate) use session::{
-    CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
-    MAX_PREPARED_PER_SESSION,
+    BoundReadScope, BoundReadView, CommandCatalogScope, SessionRandom, SessionReadScope,
+    StagedWriteSnapshot, StatementMutationBatch, StatementOverlay, TransactionConflictIntent,
+    TransactionRowChange,
 };
 pub(crate) use session::{
-    SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
-    TransactionConflictIntent, TransactionRowChange,
+    CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
+    MAX_PREPARED_PER_SESSION,
 };
 pub(crate) use session_objects::parameter_type_display as prepared_parameter_type_display;
 pub(crate) use session_objects::SessionObjectError;
@@ -160,7 +161,9 @@ pub(crate) use transaction_unique_waits::{
     collect_unique_keys, collect_upsert_unique_keys, validate_unique_key_candidate,
     TransactionUniqueWaits, UniqueKeyClaim, UniqueTransactionKey,
 };
+mod storage_recovery;
 mod transaction_semantics;
+mod transaction_snapshot;
 pub use transaction_error::TransactionErrorKind;
 pub(crate) use transaction_semantics::implicit_ddl_supported;
 mod vector_helpers;
@@ -169,7 +172,10 @@ pub(crate) use vector_search::VectorSearchInput;
 mod write_refresh;
 
 pub use consistency::ProjectionManifestExportOptions;
-pub use database_images::{DatabaseBackupStream, DatabaseRestoreSession, DATABASE_IMAGE_VERSION};
+pub use database_images::{
+    DatabaseBackupStream, DatabaseRestoreSession, DATABASE_IMAGE_VERSION,
+    DATABASE_IMAGE_VERSION_WITH_PROTECTED_HEADER,
+};
 pub use query_explain::{QueryExplainOutput, QueryExplainPlan};
 #[doc(hidden)]
 pub use replay::{projection_concurrency_test_guard, set_projection_replay_prepare_barriers};

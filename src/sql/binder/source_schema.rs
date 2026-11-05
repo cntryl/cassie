@@ -1,4 +1,4 @@
-//! Output schema of a derived table or CTE used as a `FROM` source.
+//! Output schema of derived, CTE and selected generated `FROM` sources.
 //!
 //! A derived table or CTE is not a catalog object, so its column names and
 //! types come from its body: `(SELECT txt AS uid FROM t) d` exposes a TEXT
@@ -8,9 +8,9 @@
 use super::inference::{infer_cte_schema, infer_source_schema_with_parameters};
 use super::{Catalog, CommonTableExpression, HashMap, QuerySource, Schema};
 
-/// Returns the output schema of `source` when it is a derived table or a CTE
-/// declared in `ctes`, or `None` for any other source or when the body's
-/// schema cannot be inferred.
+/// Returns the output schema of a derived table, CTE declared in `ctes`, or
+/// selected generated source. Returns `None` for other sources or when the
+/// output schema cannot be inferred.
 #[must_use]
 pub(crate) fn derived_source_schema(
     source: &QuerySource,
@@ -42,6 +42,10 @@ pub(crate) fn derived_source_schema_with_parameters(
         } if matches!(
             inner.as_ref(),
             QuerySource::Values { .. } | QuerySource::Subquery { .. }
+        ) || matches!(
+            inner.as_ref(),
+            QuerySource::TableFunction { function, .. }
+                if crate::sql::table_sources::is_generated(&function.name)
         ) =>
         {
             let schema = infer_source_schema_with_parameters(
@@ -54,6 +58,20 @@ pub(crate) fn derived_source_schema_with_parameters(
             )
             .ok()?;
             (alias, schema)
+        }
+        QuerySource::TableFunction { name, function, .. }
+            if crate::sql::table_sources::is_generated(&function.name) =>
+        {
+            let schema = infer_source_schema_with_parameters(
+                source,
+                catalog,
+                &cte_schemas_with_parameters(ctes, catalog, user_functions, parameter_types),
+                user_functions,
+                true,
+                parameter_types,
+            )
+            .ok()?;
+            (name, schema)
         }
         QuerySource::Cte(name) => {
             let schemas =

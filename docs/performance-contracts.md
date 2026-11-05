@@ -15,6 +15,13 @@ Every performance-sensitive query family must prove:
 
 Missing access-path evidence is a failed contract, not permission to infer the intended path from latency.
 
+The selected #808 source consumer has a counted Tier2 owner,
+`tier2_subsystem_generated_sources`, with 2k and 100k logical generator
+cardinalities. Both scenarios consume the same filtered LIMIT16 query under
+disabled result caching and explicit Midge memory mode. They compare source
+domain growth without seeding expanded input rows; artifacts remain pending
+until the substantial source bundle's ordered gate and benchmark batch run.
+
 ## Query Memory and Results
 
 The required end state uses one shared tracker for query-owned materialization: sorts, distinct sets, hash tables, aggregate state, recursive working sets, graph frontiers, search candidates, portal buffers, and execution-result-cache payloads. Operators must reserve before allocation and release on drop. Exceeding the configured query budget returns SQLSTATE `54000`.
@@ -49,9 +56,11 @@ ownership and release acceptance is complete; #849 retains its wider final
 resource/restart qualification.
 
 `query.current_accounted_memory_bytes` observes the latest recorded query's
-tracker through a weak reference. It can remain positive after execution while
-its result or cache owners are live, and follows their actual release. It is not
-a sum of concurrent or previously recorded queries. The cumulative
+tracker through a weak reference. SQL execution registers the tracker at entry
+and completion, making retained work observable while a query is running. It
+can remain positive afterward while result or cache owners are live, and follows
+their actual release. It is not a sum of concurrent or previously recorded
+queries. The cumulative
 `query.peak_accounted_memory_bytes` keeps the largest observed individual-query
 peak, including later frontend buffer growth observed through that tracker.
 

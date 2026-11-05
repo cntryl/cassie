@@ -420,14 +420,15 @@ fn direct_key(
                     )
                 })
                 .flatten();
-            memory.try_grow(accounting::order_conversion_bytes(
+            memory.try_grow(accounting::conversion_bytes(value, data_type.as_ref())?)?;
+            // This borrowed-value bound precedes every rich clone/semantic adaptation.
+            crate::executor::array_order::key(
                 row,
                 &order.expr,
                 value,
-                data_type.as_ref(),
-            )?)?;
-            // This borrowed-value bound precedes every rich clone/semantic adaptation.
-            crate::executor::array_order::key(row, &order.expr, value, eval.user_functions)
+                eval.user_functions,
+                Some(controls),
+            )?
         };
         parts.push(KeyPart {
             value: semantic,

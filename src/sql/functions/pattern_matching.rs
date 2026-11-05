@@ -2,6 +2,8 @@
 
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 
+pub(crate) const QUANTIFIED_PATTERN_FUNCTION: &str = "__cassie_quantified_pattern";
+
 const fn scalar(
     id: FunctionId,
     name: &'static str,
@@ -19,6 +21,24 @@ const fn scalar(
 }
 
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
+    scalar(
+        FunctionId::QuantifiedPattern,
+        QUANTIFIED_PATTERN_FUNCTION,
+        FunctionArity::Exact(5),
+        FunctionReturnType::Boolean,
+    ),
+    scalar(
+        FunctionId::SimilarToEscape,
+        "similar_to_escape",
+        FunctionArity::Range { min: 1, max: 2 },
+        FunctionReturnType::Text,
+    ),
+    scalar(
+        FunctionId::SimilarToEscape,
+        "pg_catalog.similar_to_escape",
+        FunctionArity::Range { min: 1, max: 2 },
+        FunctionReturnType::Text,
+    ),
     scalar(
         FunctionId::RegexpLike,
         "regexp_like",
@@ -60,6 +80,24 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
 #[cfg(test)]
 mod tests {
     use super::{FunctionArity, FunctionId, FunctionReturnType};
+
+    #[test]
+    fn should_register_similar_translation_with_text_identity() {
+        // Arrange
+        let names = ["similar_to_escape", "pg_catalog.similar_to_escape"];
+
+        // Act
+        let functions =
+            names.map(|name| crate::sql::functions::function(name).expect("selected helper"));
+
+        // Assert
+        for function in functions {
+            assert_eq!(function.id, FunctionId::SimilarToEscape);
+            assert_eq!(function.arity, FunctionArity::Range { min: 1, max: 2 });
+            assert_eq!(function.return_type, FunctionReturnType::Text);
+            assert!(!function.is_aggregate);
+        }
+    }
 
     #[test]
     fn should_register_regexp_replace_with_stable_text_identity() {

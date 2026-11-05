@@ -1,16 +1,14 @@
 //! Global DISTINCT and per-aggregate ordering on the controlled scalar fallback.
 
+use crate::types::semantic_index::KeyedSet;
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::mem::size_of;
 
 use crate::app::CassieError;
 
-use crate::executor::batch::{BatchRow, RowAccess};
+use crate::executor::batch::BatchRow;
 use crate::executor::filter;
-use crate::executor::retained_memory::{
-    add, hash_table_bytes, mul, serialized_json_bytes, value_clone_bytes,
-};
+use crate::executor::retained_memory::{add, mul, serialized_json_bytes, value_clone_bytes};
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::{Expr, FunctionCall, NullsOrder, SortDirection};
@@ -20,16 +18,14 @@ use super::state::AggregateAccumulator;
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
 struct Seen {
-    keys: HashSet<Vec<SemanticValue>>,
-    table_bytes: usize,
+    keys: KeyedSet<Vec<SemanticValue>>,
     memory: QueryMemoryReservation,
 }
 
 impl Seen {
     fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
         Ok(Self {
-            keys: HashSet::new(),
-            table_bytes: 0,
+            keys: KeyedSet::new(Some(controls))?,
             memory: controls.reserve_query_memory(0)?,
         })
     }
@@ -52,24 +48,8 @@ impl Seen {
         if self.keys.contains(&key) {
             return Ok(false);
         }
-        let growing = self.keys.len() == self.keys.capacity();
-        let extra = if growing {
-            hash_table_bytes::<Vec<SemanticValue>>(mul(self.keys.capacity().max(2), 2)?)?
-        } else {
-            0
-        };
-        self.memory.try_grow(extra)?;
-        if growing {
-            self.keys
-                .try_reserve(1)
-                .map_err(|error| allocation_error("DISTINCT aggregate keys", &error))?;
-        }
-        self.keys.insert(key);
+        self.keys.insert(key)?;
         self.memory.absorb(candidate);
-        let table = hash_table_bytes::<Vec<SemanticValue>>(self.keys.capacity())?;
-        self.memory
-            .shrink_to(add(self.memory.bytes() - extra - self.table_bytes, table)?);
-        self.table_bytes = table;
         check_timeout(controls)?;
         Ok(true)
     }
@@ -124,10 +104,10 @@ struct PreparedInput {
 
 struct ModifierAccumulator {
     seen: Seen,
-    state_memory: QueryMemoryReservation,
     accumulator: AggregateAccumulator,
-    memory: QueryMemoryReservation,
+    state_memory: QueryMemoryReservation,
     inputs: Vec<OrderedInput>,
+    memory: QueryMemoryReservation,
 }
 
 fn prepare_input(
@@ -175,10 +155,15 @@ fn prepare_input(
         .args
         .first()
         .map(|argument| semantic_key(row, argument, &value, context))
+        .transpose()?
         .filter(|key| {
             matches!(
                 key,
-                SemanticValue::Array(_) | SemanticValue::SqlArray { .. }
+                SemanticValue::Array(_)
+                    | SemanticValue::SqlArray { .. }
+                    | SemanticValue::Jsonb(_)
+                    | SemanticValue::JsonbArray(_)
+                    | SemanticValue::Record(_)
             )
         });
     Ok(PreparedInput {
@@ -300,8 +285,9 @@ impl ModifierAccumulator {
     fn finish(
         mut self,
         function: &FunctionCall,
+        row: Option<&BatchRow>,
         context: &AggregateExecutionContext<'_>,
-    ) -> Result<Value, QueryError> {
+    ) -> Result<super::collection_json::AggregateOutput, QueryError> {
         if !self.inputs.is_empty() {
             let (indices, _sort_memory) = sorted_indices(&self.inputs, function, context.controls)?;
             for index in indices {
@@ -325,7 +311,7 @@ impl ModifierAccumulator {
             }
         }
         check_timeout(context.controls)?;
-        self.accumulator.finish()
+        self.accumulator.finish_with_context(function, row, context)
     }
 }
 
@@ -334,12 +320,20 @@ pub(super) fn evaluate(
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
+    evaluate_owned(function, rows, context).map(super::collection_json::AggregateOutput::into_value)
+}
+
+pub(super) fn evaluate_owned(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    context: &AggregateExecutionContext<'_>,
+) -> Result<super::collection_json::AggregateOutput, QueryError> {
     let mut accumulator = ModifierAccumulator::new(function, context)?;
     for row in rows {
         check_timeout(context.controls)?;
         accumulator.push_row(function, row, context)?;
     }
-    accumulator.finish(function, context)
+    accumulator.finish(function, rows.first(), context)
 }
 
 fn ordered_keys(
@@ -376,7 +370,7 @@ fn ordered_keys(
                 None,
             )?;
             memory.try_grow(add(key_bound(&value)?, 64)?)?;
-            keys.push(semantic_key(row, &order.expr, &value, context));
+            keys.push(semantic_key(row, &order.expr, &value, context)?);
             drop(value);
             drop(temporary);
         }
@@ -487,17 +481,14 @@ fn semantic_key(
     expression: &Expr,
     value: &Value,
     context: &AggregateExecutionContext<'_>,
-) -> SemanticValue {
-    if row.has_array_types()
-        && matches!(
-            crate::executor::array_order::expression_type(row, expression, context.user_functions),
-            Some(crate::types::DataType::Array(_))
-        )
-    {
-        crate::executor::array_order::key(row, expression, value, context.user_functions)
-    } else {
-        scalar_key(value)
-    }
+) -> Result<SemanticValue, QueryError> {
+    Ok(crate::executor::array_order::key(
+        row,
+        expression,
+        value,
+        context.user_functions,
+        Some(context.controls),
+    )?)
 }
 
 fn transition(

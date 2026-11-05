@@ -1,4 +1,8 @@
 #[cfg(test)]
+#[path = "source_rows/jsonb_key_tests.rs"]
+mod jsonb_key_tests;
+
+#[cfg(test)]
 #[path = "source_rows/qualification_tests.rs"]
 mod qualification_tests;
 
@@ -18,7 +22,8 @@ mod typed_tests;
 #[path = "source_rows/operator_memory_tests.rs"]
 mod operator_memory_tests;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use crate::types::semantic_index::{Entry, KeyedMap, KeyedSet};
+use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use crate::catalog::qualifier_variants;
@@ -267,18 +272,18 @@ pub(super) fn distinct_batches(
     }
     // Keep the first occurrence of each row in input order: the input is
     // already sorted by ORDER BY, and DISTINCT must not reorder it.
-    let mut seen = HashSet::<SemanticKey>::new();
+    let mut seen = KeyedSet::<SemanticKey>::new(Some(controls))?;
     let mut rows = Vec::new();
     let mut memory = Vec::new();
     for row in batch::flatten_batches(batches) {
         super::check_timeout(controls)?;
-        let signature = row_signature(&row);
+        let signature = row_signature(&row, controls)?;
         let bytes = signature.estimated_bytes().saturating_add(
             serde_json::to_vec(row.entries())
                 .map(|bytes| bytes.len())
                 .unwrap_or_default(),
         );
-        if seen.insert(signature) {
+        if seen.insert(signature)? {
             memory.push(controls.reserve_query_memory(bytes)?);
             rows.push(row);
         }
@@ -338,7 +343,7 @@ fn scalar_distinct_on_batches(
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
-    let mut seen = HashSet::<SemanticKey>::new();
+    let mut seen = KeyedSet::<SemanticKey>::new(Some(controls))?;
     let mut rows = Vec::new();
     let mut memory = Vec::new();
     for row in batch::flatten_batches(batches) {
@@ -357,9 +362,16 @@ fn scalar_distinct_on_batches(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let key = SemanticKey::from_values(values.iter());
+        let keys = distinct_on
+            .iter()
+            .zip(&values)
+            .map(|(expr, value)| {
+                crate::executor::array_order::key(&row, expr, value, user_functions, Some(controls))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let key = SemanticKey::from_semantic_values(keys);
         let key_bytes = key.estimated_bytes();
-        if seen.insert(key) {
+        if seen.insert(key)? {
             let row_bytes = serde_json::to_vec(row.entries())
                 .map(|bytes| bytes.len())
                 .unwrap_or_default();
@@ -387,62 +399,68 @@ pub(super) fn apply_set_operation(
         SetOperator::IntersectAll | SetOperator::ExceptAll => {
             typed::set(left, right, left_output_names, set.operator, controls)
         }
-        SetOperator::UnionAll => {
-            let mut rows = left;
-            rows.extend(right);
-            rows.sort_by_key(row_signature);
-            super::check_timeout(controls)?;
-            Ok(rows)
-        }
+        SetOperator::UnionAll => sort_union_all_rows(left, right, controls),
         SetOperator::Union => {
             let mut rows = left;
             rows.extend(right);
-            let mut unique = BTreeMap::<SemanticKey, BatchRow>::new();
+            let mut unique = KeyedMap::<SemanticKey, BatchRow>::new(Some(controls))?;
             let mut memory = Vec::new();
             for row in rows {
                 super::check_timeout(controls)?;
-                let signature = row_signature(&row);
+                let signature = row_signature(&row, controls)?;
                 let signature_bytes = signature.estimated_bytes();
-                if let std::collections::btree_map::Entry::Vacant(entry) = unique.entry(signature) {
+                if let Entry::Vacant(entry) = unique.entry(signature)? {
                     memory.push(controls.reserve_query_memory(signature_bytes)?);
                     entry.insert(row);
                 }
             }
-            Ok(unique.into_values().collect())
+            Ok(unique
+                .into_sorted_entries()?
+                .into_iter()
+                .map(|(_, value)| value)
+                .collect())
         }
         SetOperator::Intersect => {
             let (right_signatures, mut memory) = set_signatures(&right, controls)?;
-            let mut unique = BTreeMap::<SemanticKey, BatchRow>::new();
+            let mut unique = KeyedMap::<SemanticKey, BatchRow>::new(Some(controls))?;
             for row in left {
                 super::check_timeout(controls)?;
-                let signature = row_signature(&row);
+                let signature = row_signature(&row, controls)?;
                 if !right_signatures.contains(&signature) {
                     continue;
                 }
                 let signature_bytes = signature.estimated_bytes();
-                if let std::collections::btree_map::Entry::Vacant(entry) = unique.entry(signature) {
+                if let Entry::Vacant(entry) = unique.entry(signature)? {
                     memory.push(controls.reserve_query_memory(signature_bytes)?);
                     entry.insert(row);
                 }
             }
-            Ok(unique.into_values().collect())
+            Ok(unique
+                .into_sorted_entries()?
+                .into_iter()
+                .map(|(_, value)| value)
+                .collect())
         }
         SetOperator::Except => {
             let (right_signatures, mut memory) = set_signatures(&right, controls)?;
-            let mut unique = BTreeMap::<SemanticKey, BatchRow>::new();
+            let mut unique = KeyedMap::<SemanticKey, BatchRow>::new(Some(controls))?;
             for row in left {
                 super::check_timeout(controls)?;
-                let signature = row_signature(&row);
+                let signature = row_signature(&row, controls)?;
                 if right_signatures.contains(&signature) {
                     continue;
                 }
                 let signature_bytes = signature.estimated_bytes();
-                if let std::collections::btree_map::Entry::Vacant(entry) = unique.entry(signature) {
+                if let Entry::Vacant(entry) = unique.entry(signature)? {
                     memory.push(controls.reserve_query_memory(signature_bytes)?);
                     entry.insert(row);
                 }
             }
-            Ok(unique.into_values().collect())
+            Ok(unique
+                .into_sorted_entries()?
+                .into_iter()
+                .map(|(_, value)| value)
+                .collect())
         }
     };
     let output = output?;
@@ -454,17 +472,58 @@ pub(super) fn apply_set_operation(
     Ok(output)
 }
 
+fn sort_union_all_rows(
+    mut left: Vec<BatchRow>,
+    right: Vec<BatchRow>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, QueryError> {
+    use crate::executor::retained_memory::{add, mul};
+    use crate::executor::semantic::SemanticValue;
+    use std::mem::size_of;
+    let count = add(left.len(), right.len())?;
+    let mut bytes = mul(
+        count,
+        add(
+            mul(2, size_of::<(SemanticKey, BatchRow)>())?,
+            size_of::<BatchRow>(),
+        )?,
+    )?;
+    for row in left.iter().chain(&right) {
+        super::check_timeout(controls)?;
+        bytes = add(bytes, mul(row.entries().len(), size_of::<SemanticValue>())?)?;
+        for (index, (_, value)) in row.entries().iter().enumerate() {
+            bytes = add(
+                bytes,
+                crate::executor::sort::accounting::conversion_bytes(
+                    value,
+                    row.data_types().get(index),
+                )?,
+            )?;
+        }
+    }
+    // Admit decorated tuples, key slots and stable-sort scratch before any new backing.
+    let _workspace = controls.reserve_query_memory(bytes)?;
+    left.extend(right);
+    let mut keyed = left
+        .into_iter()
+        .map(|row| Ok((row_signature(&row, controls)?, row)))
+        .collect::<Result<Vec<_>, QueryError>>()?;
+    keyed.sort_by(|(left, _), (right, _)| left.cmp(right));
+    super::check_timeout(controls)?;
+    Ok(keyed.into_iter().map(|(_, row)| row).collect())
+}
+
 fn set_signatures(
     rows: &[BatchRow],
     controls: &QueryExecutionControls,
-) -> Result<(HashSet<SemanticKey>, SetMemory), QueryError> {
-    let mut signatures = HashSet::new();
+) -> Result<(KeyedSet<SemanticKey>, SetMemory), QueryError> {
+    let mut signatures = KeyedSet::new(Some(controls))?;
     let mut memory = Vec::new();
     for row in rows {
         super::check_timeout(controls)?;
-        let signature = row_signature(row);
+        let signature = row_signature(row, controls)?;
         let signature_bytes = signature.estimated_bytes();
-        if signatures.insert(signature) {
+        if signatures.insert(signature)? {
             memory.push(controls.reserve_query_memory(signature_bytes)?);
         }
     }

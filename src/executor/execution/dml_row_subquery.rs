@@ -97,7 +97,18 @@ fn substitute_select(select: &mut SelectStatement, outer: &BatchRow, params: &mu
                     *argument = context.substitute(argument, params);
                 }
             }
-            SelectItem::Wildcard | SelectItem::WindowFunction { .. } => {}
+            SelectItem::WindowFunction { function, .. } => {
+                for expression in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                    .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
+                {
+                    *expression = context.substitute(expression, params);
+                }
+            }
+            SelectItem::Wildcard => {}
         }
     }
     for expr in select
@@ -223,5 +234,33 @@ fn literal(value: Value, params: &mut Vec<Value>) -> Expr {
             params.push(value);
             Expr::Param(params.len() - 1)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_substitute_outer_reference_in_window_filter() {
+        // Arrange
+        let parsed =
+            crate::sql::parse_statement("SELECT SUM(1) FILTER (WHERE target.id = 1) OVER ()")
+                .expect("window aggregate query");
+        let QueryStatement::Select(mut select) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let outer = BatchRow::new(vec![("target.id".into(), Value::Int64(1))]);
+        let mut params = Vec::new();
+
+        // Act
+        substitute_select(&mut select, &outer, &mut params);
+
+        // Assert
+        let SelectItem::WindowFunction { function, .. } = &select.projection[0] else {
+            panic!("window projection");
+        };
+        let filter = function.filter.as_deref().expect("window filter");
+        assert!(!filter.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Column(_))));
     }
 }

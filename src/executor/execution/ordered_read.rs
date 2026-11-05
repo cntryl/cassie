@@ -1,12 +1,16 @@
 use super::{
     batch, check_timeout, compare_query_values, scan, BatchRow, BinaryHeap, BinaryOp, Cassie,
-    CassieSession, CmpOrdering, CollectionSchema, Expr, LogicalPlan, QueryError, SelectItem,
-    SortDirection, Value,
+    CassieSession, CmpOrdering, CollectionSchema, DataType, Expr, LogicalPlan, QueryError,
+    SelectItem, SortDirection, Value,
 };
+use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::midge::adapter::{DocumentRef, OrderedRowBound, RowDecode};
 use crate::runtime::accounted::{Accounted, AccountedVec};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[cfg(test)]
+#[path = "ordered_read/character_array_owners.rs"]
+mod character_array_owners;
 #[cfg(test)]
 mod tests;
 
@@ -155,15 +159,17 @@ fn execute_ordered_row_id_page_with_projection_probe(
         )?;
         rows.try_push_with_result(shape.bytes, || {
             projection_probe()?;
-            Ok(ordered_projection_row(
+            ordered_projection_row(
                 document.document(),
                 projection.as_slice(),
                 schema.as_ref(),
-            ))
+                controls,
+            )
+            .map_err(crate::app::CassieError::from)
         })?;
     }
     check_timeout(controls)?;
-    let (rows, _row_memory) = rows.into_parts();
+    let rows = retain_ordered_rows(rows, controls)?;
     match spec.read_path_mode() {
         OrderedReadPathMode::StorageTopK => cassie
             .runtime
@@ -177,6 +183,21 @@ fn execute_ordered_row_id_page_with_projection_probe(
     }
 
     Ok(Some(rows))
+}
+
+fn retain_ordered_rows(
+    rows: AccountedVec<BatchRow>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let (mut rows, mut row_memory) = rows.into_parts();
+    row_memory.try_grow(
+        std::mem::size_of::<QueryMemoryReservation>() + 2 * std::mem::size_of::<usize>(),
+    )?;
+    let row_memory = std::sync::Arc::new(row_memory);
+    for row in &mut rows {
+        row.attach_operator_memory(controls, std::sync::Arc::clone(&row_memory))?;
+    }
+    Ok(rows)
 }
 
 struct OrderedColumnTopKSpec<'a> {
@@ -227,7 +248,8 @@ fn ordered_projection_row(
     document: &DocumentRef,
     projection: &[OrderedProjectionColumn],
     schema: Option<&CollectionSchema>,
-) -> BatchRow {
+    controls: &QueryExecutionControls,
+) -> Result<BatchRow, QueryError> {
     let projected_fields = projection
         .iter()
         .map(|column| column.name.clone())
@@ -240,7 +262,39 @@ fn ordered_projection_row(
             (column.output_name.clone(), value)
         })
         .collect();
-    BatchRow::from_projected_values(values)
+    let mut output = BatchRow::from_projected_values(values);
+    if let Some(types) = projected.shared_data_types() {
+        let mut bytes = std::mem::size_of::<Vec<DataType>>() + 2 * std::mem::size_of::<usize>();
+        bytes = add(
+            bytes,
+            mul(projection.len(), std::mem::size_of::<DataType>())?,
+        )?;
+        for kind in types.iter() {
+            bytes = add(bytes, data_type_clone_bytes(kind)?)?;
+        }
+        bytes = add(
+            bytes,
+            std::mem::size_of::<crate::runtime::QueryMemoryReservation>()
+                + 2 * std::mem::size_of::<usize>(),
+        )?;
+        let memory = controls.reserve_query_memory(bytes)?;
+        let output_types = projection
+            .iter()
+            .map(|column| {
+                projected
+                    .entries()
+                    .iter()
+                    .position(|(name, _)| name == &column.name)
+                    .and_then(|index| types.get(index))
+                    .cloned()
+                    .unwrap_or(DataType::Null)
+            })
+            .collect();
+        output = output
+            .with_optional_data_types(Some(std::sync::Arc::new(output_types)))
+            .with_query_memory(Some(std::sync::Arc::new(memory)));
+    }
+    Ok(scan::hydrate_character_arrays(output, controls)?)
 }
 
 enum OrderedReadPathMode {
@@ -517,7 +571,7 @@ fn ordered_column_heap(
 struct OrderedColumnCandidate {
     order_value: Value,
     id: String,
-    values: Vec<(String, Value)>,
+    values: BatchRow,
     direction: SortDirection,
     memory: QueryMemoryReservation,
 }

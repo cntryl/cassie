@@ -23,17 +23,7 @@ pub(crate) fn source_field_type_map_with_parameters(
     parameter_types: &[i32],
 ) -> FieldTypeMap {
     match source {
-        ast::QuerySource::Values { rows } => {
-            binder::values::schema(rows, &HashMap::new(), parameter_types)
-                .map(|schema| {
-                    schema
-                        .fields
-                        .into_iter()
-                        .map(|field| (field.name, field.data_type))
-                        .collect()
-                })
-                .unwrap_or_default()
-        }
+        ast::QuerySource::Values { rows } => values_field_type_map(rows, parameter_types),
 
         ast::QuerySource::Aliased {
             source,
@@ -61,6 +51,7 @@ pub(crate) fn source_field_type_map_with_parameters(
                         super::ColumnIdentifierPath::stored_field_key(&field.name)
                     };
                     fields.insert(visible.clone(), field.data_type.clone());
+                    fields.insert(physical.clone(), field.data_type.clone());
                     fields.insert(
                         format!("{visible_qualifier}.{visible}"),
                         field.data_type.clone(),
@@ -112,7 +103,21 @@ pub(crate) fn source_field_type_map_with_parameters(
         )
         .map(|schema| field_type_map(schema.fields.iter()))
         .unwrap_or_default(),
-        ast::QuerySource::TableFunction { .. } | ast::QuerySource::SingleRow => FieldTypeMap::new(),
+        ast::QuerySource::TableFunction { .. } => binder::wildcard_output_shape_with_parameters(
+            source,
+            ctes,
+            catalog,
+            &HashMap::new(),
+            parameter_types,
+        )
+        .map(|(fields, _)| {
+            fields
+                .into_iter()
+                .map(|field| (field.name, field.data_type))
+                .collect()
+        })
+        .unwrap_or_default(),
+        ast::QuerySource::SingleRow => FieldTypeMap::new(),
     }
 }
 
@@ -125,4 +130,16 @@ fn collection_field_type_map(collection: &str, catalog: &crate::catalog::Catalog
             .map(|schema| field_type_map(schema.fields.iter()))
             .unwrap_or_default()
     }
+}
+
+fn values_field_type_map(rows: &[Vec<ast::Expr>], parameter_types: &[i32]) -> FieldTypeMap {
+    binder::values::schema(rows, &HashMap::new(), parameter_types)
+        .map(|schema| {
+            schema
+                .fields
+                .into_iter()
+                .map(|field| (field.name, field.data_type))
+                .collect()
+        })
+        .unwrap_or_default()
 }

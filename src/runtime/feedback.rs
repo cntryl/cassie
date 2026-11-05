@@ -679,6 +679,8 @@ enum NormalizedProjectionShape {
     WindowFunction {
         name: String,
         arity: usize,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        filter: Option<Box<NormalizedExprShape>>,
     },
 }
 
@@ -698,6 +700,10 @@ impl From<&SelectItem> for NormalizedProjectionShape {
             SelectItem::WindowFunction { function, .. } => Self::WindowFunction {
                 name: function.name.to_ascii_lowercase(),
                 arity: function.args.len(),
+                filter: function
+                    .filter
+                    .as_deref()
+                    .map(|filter| Box::new(NormalizedExprShape::from(filter))),
             },
         }
     }

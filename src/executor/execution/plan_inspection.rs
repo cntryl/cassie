@@ -200,6 +200,9 @@ fn select_item_uses_view_function(
                 .args
                 .iter()
                 .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views))
+                || function.filter.as_deref().is_some_and(|expr| {
+                    expr_uses_view_function(expr, function_name, catalog, visited_views)
+                })
                 || function.partition_by.iter().any(|expr| {
                     expr_uses_view_function(expr, function_name, catalog, visited_views)
                 })
@@ -380,9 +383,14 @@ fn select_item_needs_user_functions(item: &SelectItem) -> bool {
     match item {
         SelectItem::Function { function, .. } => function_needs_user_functions(function),
         SelectItem::Expr { expr, .. } => expr_needs_user_functions(expr),
-        SelectItem::Column { .. } | SelectItem::Wildcard | SelectItem::WindowFunction { .. } => {
-            false
-        }
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(function.filter.as_deref())
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .any(expr_needs_user_functions),
+        SelectItem::Column { .. } | SelectItem::Wildcard => false,
     }
 }
 
@@ -671,6 +679,10 @@ fn select_item_uses_function(item: &crate::sql::ast::SelectItem, function_name: 
                     .iter()
                     .any(|expr| expr_uses_function(expr, function_name))
                 || function
+                    .filter
+                    .as_deref()
+                    .is_some_and(|expr| expr_uses_function(expr, function_name))
+                || function
                     .partition_by
                     .iter()
                     .any(|expr| expr_uses_function(expr, function_name))
@@ -712,8 +724,22 @@ fn collect_fulltext_fields_from_select_item(
     item: &crate::sql::ast::SelectItem,
     fields: &mut HashSet<String>,
 ) {
-    if let crate::sql::ast::SelectItem::Function { function, .. } = item {
-        collect_fulltext_fields_from_function(function, fields);
+    match item {
+        SelectItem::Function { function, .. } => {
+            collect_fulltext_fields_from_function(function, fields);
+        }
+        SelectItem::WindowFunction { function, .. } => {
+            for expression in function
+                .args
+                .iter()
+                .chain(function.filter.as_deref())
+                .chain(&function.partition_by)
+                .chain(function.order_by.iter().map(|order| &order.expr))
+            {
+                collect_fulltext_fields_from_expr(expression, fields);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -815,6 +841,47 @@ fn execution_source_name(source: &QuerySource) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_find_search_field_used_only_in_window_filter() {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n) FILTER (WHERE search(body, 'needle')) OVER () FROM records",
+        )
+        .expect("window aggregate syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let fields = fulltext_query_fields(&plan);
+
+        // Assert
+        assert_eq!(fields, HashSet::from(["body".to_owned()]));
+    }
+
+    #[test]
+    fn should_find_routine_used_only_in_window_filter() {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "SELECT SUM(n) FILTER (WHERE custom_filter(flag)) OVER () FROM records",
+        )
+        .expect("window aggregate syntax");
+        let QueryStatement::Select(query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+        let plan = logical_plan_from_select(&query);
+
+        // Act
+        let uses_filter = plan_uses_function(&plan, "custom_filter");
+        let needs_routines = plan_needs_user_functions(&plan);
+
+        // Assert
+        assert!(uses_filter);
+        assert!(needs_routines);
+        assert!(!plan_uses_function(&plan, "absent_routine"));
+    }
 
     #[test]
     fn should_find_nested_routines_given_aggregate_filter_and_order_when_dependencies_are_inspected(

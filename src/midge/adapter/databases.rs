@@ -304,10 +304,7 @@ impl Midge {
             .database_metadata(name)?
             .ok_or_else(|| CassieError::NotFound(format!("database '{name}' does not exist")))?;
         let handle = self.resolve_database_family(&metadata)?.handle;
-        let data_tx = self
-            .engine
-            .begin_tx(handle.id(), TransactionMode::ReadOnly)
-            .map_err(CassieError::from)?;
+        let data_tx = self.begin_raw_adapter_tx(handle.id(), TransactionMode::ReadOnly)?;
         let has_data = collect_scan(data_tx.scan(&Query::new()).map_err(CassieError::from)?)?
             .into_iter()
             .any(|(key, _)| is_database_data_key(&key));
@@ -437,10 +434,7 @@ impl Midge {
         if entries.is_empty() {
             return Ok(());
         }
-        let mut tx = self
-            .engine
-            .begin_tx(staged.handle.id(), TransactionMode::ReadWrite)
-            .map_err(CassieError::from)?;
+        let mut tx = self.begin_raw_adapter_tx(staged.handle.id(), TransactionMode::ReadWrite)?;
         for (key, value) in entries {
             tx.put(key.clone(), value.clone(), None)
                 .map_err(CassieError::from)?;
@@ -477,10 +471,8 @@ impl Midge {
                 staged.metadata.name
             )));
         }
-        let mut data_tx = self
-            .engine
-            .begin_tx(staged.handle.id(), TransactionMode::ReadWrite)
-            .map_err(CassieError::from)?;
+        let mut data_tx =
+            self.begin_raw_adapter_tx(staged.handle.id(), TransactionMode::ReadWrite)?;
         for (key, value) in catalog_entries {
             validate_database_catalog_entry(&key, &value, source_database)?;
             let Some(family) = key_family(&key) else {
@@ -534,6 +526,7 @@ impl Midge {
         &self,
         staged: &StagedDatabaseFamily,
     ) -> Result<(), CassieError> {
+        let _completion = super::PublicationControlScope::terminal_completion();
         self.drop_physical_family_if_present(&staged.metadata.physical_family)?;
         let mut tx = self.begin_schema_rw_tx()?;
         Self::delete_lifecycle_record(&mut tx, &staged.operation_id)?;
@@ -569,42 +562,65 @@ impl Midge {
         })
     }
 
+    fn with_schema_publication<T>(
+        &self,
+        operation: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let schema = self
+            .engine
+            .get_column_family(super::layout::SCHEMA_FAMILY_NAME)
+            .ok_or_else(|| {
+                CassieError::Storage(
+                    "physical database publication requires the schema family".into(),
+                )
+            })?;
+        self.publication
+            .family(schema.id())
+            .with_current_operation(operation)
+    }
+
     fn create_physical_family(&self, name: &str) -> Result<ColumnFamilyHandle, CassieError> {
-        if let Some(handle) = self.engine.get_column_family(name) {
-            return Ok(handle);
-        }
-        self.engine
-            .create_column_family(name)
-            .or_else(|_| {
-                self.engine.get_column_family(name).ok_or_else(|| {
-                    cntryl_midge::MidgeError::InvalidArgument(format!(
-                        "cannot create or resolve database family '{name}'"
-                    ))
-                })
-            })
-            .map_err(CassieError::from)
+        self.create_physical_family_with(name, || self.engine.create_column_family(name))
+    }
+
+    fn create_physical_family_with(
+        &self,
+        name: &str,
+        create: impl FnOnce() -> Result<ColumnFamilyHandle, cntryl_midge::MidgeError>,
+    ) -> Result<ColumnFamilyHandle, CassieError> {
+        self.with_schema_publication(|| {
+            self.publication.ensure_recovered()?;
+            if let Some(handle) = self.engine.get_column_family(name) {
+                return Ok(handle);
+            }
+            self.publication
+                .observe_native(create())
+                .map_err(CassieError::from)
+        })
     }
 
     fn drop_physical_family_if_present(&self, name: &str) -> Result<(), CassieError> {
-        if let Some(handle) = self.engine.get_column_family(name) {
-            // Every caller is aborting an unpublished family or has verified that
-            // the logical database is empty before removing its remaining catalog rows.
-            self.engine
-                .drop_column_family_discarding_unflushed(handle.id())
-                .map_err(CassieError::from)?;
-        }
-        Ok(())
+        self.with_schema_publication(|| {
+            if let Some(handle) = self.engine.get_column_family(name) {
+                // Only unpublished families or logically verified empty databases reach here.
+                self.publication.ensure_recovered()?;
+                self.publication
+                    .observe_native(
+                        self.engine
+                            .drop_column_family_discarding_unflushed(handle.id()),
+                    )
+                    .map_err(CassieError::from)?;
+            }
+            Ok(())
+        })
     }
 
     fn begin_schema_tx_for_handle(
         &self,
         schema: &ColumnFamilyHandle,
         mode: TransactionMode,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        let mut tx = self
-            .engine
-            .begin_tx(schema.id(), mode)
-            .map_err(CassieError::from)?;
+    ) -> Result<super::AdapterTransaction, CassieError> {
+        let mut tx = self.begin_raw_adapter_tx(schema.id(), mode)?;
         if mode == TransactionMode::ReadWrite {
             tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
         }
@@ -621,7 +637,7 @@ impl Midge {
     }
 
     fn write_database_metadata(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         metadata: &DatabaseMeta,
     ) -> Result<(), CassieError> {
         let value =
@@ -642,7 +658,7 @@ impl Midge {
     }
 
     fn write_lifecycle_record(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         record: &DatabaseLifecycleRecord,
     ) -> Result<(), CassieError> {
         let value =
@@ -657,7 +673,7 @@ impl Midge {
     }
 
     fn delete_lifecycle_record(
-        tx: &mut cntryl_midge::Transaction,
+        tx: &mut crate::midge::adapter::AdapterTransaction,
         operation_id: &str,
     ) -> Result<(), CassieError> {
         tx.delete(key_encoding::database_lifecycle_key(operation_id))
@@ -786,3 +802,7 @@ mod tests {
         assert!(role_result.is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "databases/publication_tests.rs"]
+mod publication_tests;

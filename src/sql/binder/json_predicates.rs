@@ -11,7 +11,12 @@ pub(super) fn rewrite_select(select: &mut SelectStatement, fields: &crate::sql::
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expression in function.args.iter_mut().chain(&mut function.partition_by) {
+                for expression in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                {
                     rewrite(expression, fields);
                 }
                 for order in &mut function.order_by {

@@ -116,7 +116,7 @@ pub(super) fn binary_or_scalar(
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     binary_with_controls(left, op, right, controls)
-        .unwrap_or_else(|| super::binary_scalar(left, op, right))
+        .unwrap_or_else(|| super::binary::binary_scalar_with_controls(left, op, right, controls))
 }
 
 fn binary_with_controls(

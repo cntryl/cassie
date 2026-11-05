@@ -15,6 +15,9 @@ use super::TypeInputError;
 #[path = "numeric_math.rs"]
 pub mod math;
 
+#[path = "numeric_decimal.rs"]
+pub(crate) mod decimal;
+
 /// `NUMERIC_MAX_PRECISION`.
 pub const MAX_PRECISION: i32 = 1000;
 /// `NUMERIC_MAX_DISPLAY_SCALE`.
@@ -738,21 +741,22 @@ pub fn parse_text(text: &str) -> Result<Numeric, TypeInputError> {
             }
         }
     };
+    let shape = decimal::shape(integer, fraction, exponent)?;
+    let scale = shape.scale;
+    if shape.significant_digits == 0 {
+        return Ok(Numeric::finite(
+            BigInt::zero(),
+            u32::try_from(scale.max(0)).map_err(|_| overflow())?,
+        ));
+    }
     let digits = format!("{integer}{fraction}");
     let magnitude = BigInt::parse_bytes(digits.as_bytes(), 10).unwrap_or_default();
     let mantissa = if negative { -magnitude } else { magnitude };
-    let scale = i64::try_from(fraction.len()).unwrap_or(i64::MAX) - exponent;
-    if scale > i64::from(MAX_DSCALE) {
-        return Err(overflow());
-    }
     if scale < 0 {
         let shift = u32::try_from(-scale).map_err(|_| overflow())?;
-        if shift as usize + digits.len() > MAX_INTEGER_DIGITS + 1 && !mantissa.is_zero() {
-            return Err(overflow());
-        }
         return Numeric::finite(mantissa * pow10(shift), 0).check_format();
     }
-    Numeric::finite(mantissa, u32::try_from(scale).unwrap_or_default()).check_format()
+    Numeric::finite(mantissa, u32::try_from(scale).map_err(|_| overflow())?).check_format()
 }
 
 /// `numeric_recv`.
@@ -862,3 +866,7 @@ pub fn parse_type_name(lower: &str) -> Option<Result<Option<NumericTypmod>, Stri
     };
     Some(typmod.map(Some).map_err(|error| error.message))
 }
+
+#[cfg(test)]
+#[path = "numeric_decimal_tests.rs"]
+mod decimal_tests;

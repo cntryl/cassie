@@ -160,6 +160,7 @@ fn discard_new_version_output(cassie: &Cassie, name: &str, existing_versions: &H
 }
 
 fn discard_output(cassie: &Cassie, output: &str) {
+    let _cleanup = crate::midge::adapter::PublicationControlScope::terminal_completion();
     if cassie.midge.collection_schema(output).is_some() {
         if let Err(error) = cassie.midge.drop_collection(output) {
             tracing::warn!(
@@ -178,6 +179,7 @@ fn mark_version_failed(
     version_id: &str,
     message: &str,
 ) -> Result<(), QueryError> {
+    let _cleanup = crate::midge::adapter::PublicationControlScope::terminal_completion();
     let mut metadata = sql_materialized_view_metadata(cassie, name)?;
     if let Some(version) = metadata
         .versions

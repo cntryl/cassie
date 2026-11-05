@@ -382,8 +382,10 @@ impl Midge {
                 .filter(|(key, _)| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
                 .collect::<Vec<_>>();
             for chunk in orphaned.chunks(STAGING_BATCH_SIZE) {
-                let mut tx =
-                    self.database_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
+                let mut tx = self.begin_raw_database_adapter_tx(
+                    &database,
+                    cntryl_midge::TransactionMode::ReadWrite,
+                )?;
                 for (key, _) in chunk {
                     tx.delete(key.clone()).map_err(CassieError::from)?;
                 }
@@ -396,8 +398,10 @@ impl Midge {
                 .map(|id| key_encoding::vector_backfill_applied_key(id))
                 .collect::<HashSet<_>>();
             for chunk in markers.chunks(STAGING_BATCH_SIZE) {
-                let mut tx =
-                    self.database_tx(&database, cntryl_midge::TransactionMode::ReadWrite)?;
+                let mut tx = self.begin_raw_database_adapter_tx(
+                    &database,
+                    cntryl_midge::TransactionMode::ReadWrite,
+                )?;
                 for (key, _) in chunk {
                     if !active.contains(key) {
                         tx.delete(key.clone()).map_err(CassieError::from)?;

@@ -49,14 +49,18 @@ fn run_with_execution_breakdown_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
+    cassie
+        .check_storage_recovery_required()
+        .map_err(QueryError::from)?;
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
+    let _publication_controls =
+        crate::midge::adapter::PublicationControlScope::enter(Some(controls));
     check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {
-        let controls = controls.with_statement_read(None);
         let started = Instant::now();
         let result = dml_command::execute_command(
             cassie,
@@ -64,7 +68,7 @@ fn run_with_execution_breakdown_controls(
             command,
             &params,
             &user_functions,
-            &controls,
+            controls,
         )?;
         let breakdown = ExecutionBreakdownDurations {
             result_build: started.elapsed(),
@@ -106,8 +110,13 @@ pub(crate) fn run_with_session_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    cassie
+        .check_storage_recovery_required()
+        .map_err(QueryError::from)?;
     let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
     let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
+    let _publication_controls =
+        crate::midge::adapter::PublicationControlScope::enter(Some(controls));
     check_constants(&plan.logical, controls, &params)?;
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, session, &plan.logical);
@@ -123,14 +132,13 @@ pub(crate) fn run_with_session_controls(
     }
 
     if let Some(command) = plan.logical.command.as_ref() {
-        let controls = controls.with_statement_read(None);
         return dml_command::execute_command(
             cassie,
             session,
             command,
             &params,
             &user_functions,
-            &controls,
+            controls,
         );
     }
 
@@ -253,6 +261,33 @@ pub(super) fn enter_statement_read(
         controls.statement_read().and_then(|owner| owner.overlay()),
     );
     (read_scope, overlay_scope)
+}
+
+/// A data-modifying CTE's working fork inherits the command's original read
+/// map, while the fork's live staged map continues to receive its mutations.
+pub(super) fn working_statement_read_controls(
+    cassie: &Cassie,
+    original: Option<&CassieSession>,
+    working: &CassieSession,
+    controls: &QueryExecutionControls,
+) -> Result<QueryExecutionControls, QueryError> {
+    let database = working
+        .database
+        .as_deref()
+        .unwrap_or(&cassie.default_database);
+    let matching = controls.statement_read().filter(|owner| {
+        owner.matches(&cassie.midge, database)
+            && original.is_some_and(|original| {
+                owner
+                    .overlay()
+                    .is_some_and(|overlay| overlay.matches_session(original))
+            })
+    });
+    let Some(owner) = matching else {
+        return Ok(controls.clone());
+    };
+    let rebound = working.rebind_statement_read(owner, controls)?;
+    Ok(controls.with_statement_read(Some(rebound)))
 }
 
 fn check_constants(

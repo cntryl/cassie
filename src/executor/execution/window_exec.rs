@@ -1,5 +1,6 @@
+use crate::types::semantic_index::KeyedMap;
 use std::cmp::Ordering as CmpOrdering;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
@@ -8,14 +9,19 @@ use crate::executor::filter;
 use crate::executor::semantic::{SemanticKey, SemanticValue};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
-    AggregateQuantifier, FunctionCall, NullsOrder, SelectItem, SortDirection, WindowFrame,
-    WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
+    NullsOrder, SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameExclusion,
+    WindowFrameUnit, WindowFunctionCall,
 };
 use crate::types::Value;
 
 use super::{check_timeout, QueryError};
 
+mod aggregate;
 mod exists;
+mod keys;
+use keys::{
+    compare_window_sort_keys, window_peer_key, window_sort_key, WindowSortKey, WindowSortPart,
+};
 mod ranking;
 mod typed;
 mod value_functions;
@@ -40,6 +46,7 @@ pub(super) fn apply_window_functions(
             session,
             controls,
             evaluate: None,
+            output_memory: None,
         },
     )
 }
@@ -76,6 +83,7 @@ fn apply_scalar_window_functions(
 type PhaseEvaluator<'a> =
     dyn Fn(&BatchRow, &crate::sql::ast::Expr) -> Result<Value, QueryError> + 'a;
 
+#[derive(Clone, Copy)]
 struct WindowExecutionContext<'a> {
     params: &'a [Value],
     search_context: Option<&'a filter::SearchContext>,
@@ -83,6 +91,7 @@ struct WindowExecutionContext<'a> {
     session: Option<&'a CassieSession>,
     controls: &'a QueryExecutionControls,
     evaluate: Option<&'a PhaseEvaluator<'a>>,
+    output_memory: Option<&'a filter::EvaluationMemory>,
 }
 
 fn collect_window_functions(
@@ -114,8 +123,9 @@ fn apply_single_window(
     let _partition_memory = context
         .controls
         .reserve_query_memory(window_partition_bytes(&partitions))?;
-    let values = evaluate_window_values(rows, function, &function_name, &mut partitions, context)?;
-    let _value_memory = context.controls.reserve_query_memory(
+    let (values, mut values_memory) =
+        evaluate_window_values(rows, function, &function_name, &mut partitions, context)?;
+    values_memory.try_grow(
         values.len().saturating_mul(
             std::mem::size_of::<(String, Value)>()
                 .saturating_add(output_name.len())
@@ -133,30 +143,19 @@ fn apply_single_window(
                 crate::executor::array_order::expression_type(row, expr, context.user_functions)
             })
             .unwrap_or(crate::types::DataType::Null),
-        "sum" | "count" | "bool_and" | "bool_or" | "var_pop" | "var_samp" | "variance"
-        | "stddev_pop" | "stddev_samp" | "stddev" => rows
-            .first()
-            .and_then(|row| {
-                let aggregate = FunctionCall {
-                    name: function.name.clone(),
-                    args: function.args.clone(),
-                    quantifier: AggregateQuantifier::Default,
-                    filter: None,
-                    order_by: Vec::new(),
-                };
-                crate::executor::array_order::expression_type(
-                    row,
-                    &crate::sql::ast::Expr::Function(Box::new(aggregate)),
-                    context.user_functions,
-                )
-            })
-            .unwrap_or(match function_name.as_str() {
-                "bool_and" | "bool_or" => crate::types::DataType::Boolean,
-                _ => crate::types::DataType::BigInt,
-            }),
+        _ if aggregate::selected(function) => aggregate::data_type(rows, function, context),
         _ => crate::types::DataType::BigInt,
     };
+    values_memory.try_grow(aggregate::metadata_bytes(rows, &data_type)?)?;
+    values_memory.try_grow(
+        std::mem::size_of::<crate::runtime::QueryMemoryReservation>()
+            + 2 * std::mem::size_of::<usize>(),
+    )?;
+    let values_memory = std::sync::Arc::new(values_memory);
     append_window_values(rows, output_name, output_alias, values, &data_type)?;
+    for row in rows {
+        row.attach_operator_memory(context.controls, std::sync::Arc::clone(&values_memory))?;
+    }
     Ok(())
 }
 
@@ -171,7 +170,7 @@ fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
         .saturating_add(batch::row_type_bytes(rows))
 }
 
-fn window_partition_bytes(partitions: &BTreeMap<SemanticKey, Vec<usize>>) -> usize {
+fn window_partition_bytes(partitions: &KeyedMap<SemanticKey, Vec<usize>>) -> usize {
     partitions
         .iter()
         .map(|(key, indices)| {
@@ -183,6 +182,13 @@ fn window_partition_bytes(partitions: &BTreeMap<SemanticKey, Vec<usize>>) -> usi
 
 fn validated_window_function_name(function: &WindowFunctionCall) -> Result<String, QueryError> {
     let function_name = function.name.to_ascii_lowercase();
+    let function_name = function_name
+        .strip_prefix("pg_catalog.")
+        .unwrap_or(&function_name)
+        .to_owned();
+    if aggregate::selected(function) {
+        return Ok(function_name);
+    }
     if matches!(
         function_name.as_str(),
         "row_number"
@@ -219,12 +225,12 @@ fn partition_window_rows(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     context: &WindowExecutionContext<'_>,
-) -> Result<BTreeMap<SemanticKey, Vec<usize>>, QueryError> {
-    let mut partitions = BTreeMap::<SemanticKey, Vec<usize>>::new();
+) -> Result<KeyedMap<SemanticKey, Vec<usize>>, QueryError> {
+    let mut partitions = KeyedMap::<SemanticKey, Vec<usize>>::new(Some(context.controls))?;
     for (index, row) in rows.iter().enumerate() {
         check_timeout(context.controls)?;
         let key = partition_key(row, function, context)?;
-        partitions.entry(key).or_default().push(index);
+        partitions.entry(key)?.or_default().push(index);
     }
     Ok(partitions)
 }
@@ -252,22 +258,52 @@ fn partition_key(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(SemanticKey::from_values(values.iter()))
+    let keys = function
+        .partition_by
+        .iter()
+        .zip(&values)
+        .map(|(expr, value)| {
+            crate::executor::array_order::key(
+                row,
+                expr,
+                value,
+                context.user_functions,
+                Some(context.controls),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SemanticKey::from_semantic_values(keys))
 }
 
 fn evaluate_window_values(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     function_name: &str,
-    partitions: &mut BTreeMap<SemanticKey, Vec<usize>>,
+    partitions: &mut KeyedMap<SemanticKey, Vec<usize>>,
     context: &WindowExecutionContext<'_>,
-) -> Result<Vec<Value>, QueryError> {
+) -> Result<(Vec<Value>, crate::runtime::QueryMemoryReservation), QueryError> {
+    let memory = filter::EvaluationMemory::new(context.controls)?;
+    memory.grow(crate::executor::retained_memory::mul(
+        rows.len(),
+        std::mem::size_of::<Value>(),
+    )?)?;
+    let context = WindowExecutionContext {
+        output_memory: Some(&memory),
+        ..*context
+    };
     let mut values = vec![Value::Null; rows.len()];
     for indices in partitions.values_mut() {
         check_timeout(context.controls)?;
-        ranking::evaluate_partition(rows, function, function_name, indices, &mut values, context)?;
+        ranking::evaluate_partition(
+            rows,
+            function,
+            function_name,
+            indices,
+            &mut values,
+            &context,
+        )?;
     }
-    Ok(values)
+    Ok((values, memory.into_reservation()))
 }
 
 fn sort_partition(
@@ -378,8 +414,7 @@ fn window_value_at(
             value_position.frame,
             context,
         ),
-        "count" | "sum" | "bool_and" | "bool_or" | "var_pop" | "var_samp" | "variance"
-        | "stddev_pop" | "stddev_samp" | "stddev" => {
+        _ if aggregate::selected(function) => {
             let positions = frame_positions(
                 value_position.position,
                 indices,
@@ -388,21 +423,10 @@ fn window_value_at(
                 value_position.frame,
                 context,
             )?;
-            let aggregate = FunctionCall {
-                name: function.name.clone(),
-                args: function.args.clone(),
-                quantifier: AggregateQuantifier::Default,
-                filter: None,
-                order_by: Vec::new(),
-            };
-            super::aggregate_exec::evaluate_window_aggregate(
-                &aggregate,
+            aggregate::evaluate(
                 positions.iter().map(|position| &rows[indices[*position]]),
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                context.controls,
+                function,
+                context,
             )
         }
         _ => Ok(Value::Null),
@@ -778,7 +802,14 @@ fn append_window_values(
     data_type: &crate::types::DataType,
 ) -> Result<(), QueryError> {
     let types: Option<std::sync::Arc<Vec<crate::types::DataType>>> = rows.first().and_then(|row| {
-        if row.data_types().is_empty() && !matches!(data_type, crate::types::DataType::Array(_)) {
+        if row.data_types().is_empty()
+            && !matches!(
+                data_type,
+                crate::types::DataType::Array(_)
+                    | crate::types::DataType::Jsonb
+                    | crate::types::DataType::Char { .. }
+            )
+        {
             return None;
         }
         let mut types = row.data_types().to_vec();
@@ -829,128 +860,11 @@ fn evaluate_window_expr(
     )
 }
 
-struct WindowPeerKey {
-    key: SemanticKey,
-    _memory: crate::runtime::QueryMemoryReservation,
-}
-
-impl PartialEq for WindowPeerKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-}
-
-fn window_peer_key(
-    row: &BatchRow,
-    order_by: &[crate::sql::ast::OrderExpr],
-    context: &WindowExecutionContext<'_>,
-) -> Result<WindowPeerKey, QueryError> {
-    let parts = order_by
-        .iter()
-        .map(|order| {
-            filter::evaluate_expr_value(
-                row,
-                &order.expr,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                None,
-            )
-            .map(|value| {
-                crate::executor::array_order::key(row, &order.expr, &value, context.user_functions)
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let key = SemanticKey::from_semantic_values(parts);
-    let memory = context
-        .controls
-        .reserve_query_memory(key.estimated_bytes())?;
-    Ok(WindowPeerKey {
-        key,
-        _memory: memory,
-    })
-}
-
-struct WindowSortPart {
-    value: SemanticValue,
-    direction: SortDirection,
-    nulls: Option<NullsOrder>,
-}
-
-struct WindowSortKey {
-    parts: Vec<WindowSortPart>,
-    tie_key: String,
-}
-
-fn window_sort_key(
-    row: &BatchRow,
-    order_by: &[crate::sql::ast::OrderExpr],
-    context: &WindowExecutionContext<'_>,
-) -> Result<WindowSortKey, QueryError> {
-    let parts = order_by
-        .iter()
-        .map(|order| {
-            filter::evaluate_expr_value(
-                row,
-                &order.expr,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                None,
-            )
-            .map(|value| WindowSortPart {
-                value: crate::executor::array_order::key(
-                    row,
-                    &order.expr,
-                    &value,
-                    context.user_functions,
-                ),
-                direction: order.direction.clone(),
-                nulls: order.nulls,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(WindowSortKey {
-        parts,
-        tie_key: batch::row_tie_key(row),
-    })
-}
-
-fn compare_window_sort_keys(left: &WindowSortKey, right: &WindowSortKey) -> CmpOrdering {
-    for (left, right) in left.parts.iter().zip(&right.parts) {
-        let cmp = compare_window_sort_parts(left, right);
-        if cmp != CmpOrdering::Equal {
-            return cmp;
-        }
-    }
-    left.tie_key.cmp(&right.tie_key)
-}
-
-fn compare_window_sort_parts(left: &WindowSortPart, right: &WindowSortPart) -> CmpOrdering {
-    let left_null = left.value.is_null();
-    let right_null = right.value.is_null();
-    if left_null != right_null {
-        let nulls = left.nulls.unwrap_or(match &left.direction {
-            SortDirection::Asc => NullsOrder::Last,
-            SortDirection::Desc => NullsOrder::First,
-        });
-        return match (left_null, nulls) {
-            (true, NullsOrder::First) | (false, NullsOrder::Last) => CmpOrdering::Less,
-            (true, NullsOrder::Last) | (false, NullsOrder::First) => CmpOrdering::Greater,
-        };
-    }
-
-    let cmp = left.value.cmp(&right.value);
-    match &left.direction {
-        SortDirection::Asc => cmp,
-        SortDirection::Desc => cmp.reverse(),
-    }
-}
-
 #[cfg(test)]
 mod typed_tests;
 
 #[cfg(test)]
 mod qualification_tests;
+
+#[cfg(test)]
+mod statistical_tests;

@@ -309,20 +309,17 @@ fn should_report_2201b_for_invalid_regexp_like_flags() {
 }
 
 #[test]
-fn should_reject_postgres_are_backreferences_outside_the_selected_regex_profile() {
+fn should_match_postgres_are_backreferences_in_the_selected_regex_profile() {
     // Arrange
     let fixture = sql_fixture("issue-799-regexp-like-are-boundary", &[]);
 
     // Act
-    let error = fixture
+    let result = fixture
         .execute("SELECT regexp_like('abab', '^(ab)\\1$')")
-        .expect_err("backreferences are outside the selected regex profile");
+        .expect("closed numeric backreference");
 
     // Assert
-    assert!(matches!(
-        error,
-        CassieError::Diagnostic(ref diagnostic) if diagnostic.sql_state == "2201B"
-    ));
+    assert_eq!(result.rows(), &[vec![Value::Bool(true)]]);
 }
 
 #[test]

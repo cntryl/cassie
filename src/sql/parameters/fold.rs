@@ -10,6 +10,8 @@ use super::occurrences::{Occurrences, PrivateParameterTypeInput, Summary};
 use super::ParameterAdmissionError;
 use super::UNKNOWN_PARAMETER_TYPE_OID;
 
+#[path = "fold_array_outputs.rs"]
+mod array_outputs;
 #[path = "fold_bytea_functions.rs"]
 mod bytea_functions;
 #[path = "fold_columns.rs"]
@@ -22,6 +24,10 @@ mod functions;
 mod literal_inputs;
 #[path = "fold_nodes.rs"]
 mod nodes;
+#[path = "fold_subqueries.rs"]
+mod subqueries;
+#[path = "fold_table_sources.rs"]
+mod table_sources;
 
 #[derive(Clone, Copy)]
 enum Expected {
@@ -215,7 +221,7 @@ impl<'a, 'c> Fold<'a, 'c> {
                 | ast::SelectItem::Column { .. }
                 | ast::SelectItem::WindowFunction { .. } => None,
             },
-            Node::Select(_) => {
+            Node::Select(select) => {
                 let start = self.contexts.values[frame.context].target_start;
                 for index in start..self.targets.values.len() {
                     check_controls(self.controls)?;
@@ -223,12 +229,13 @@ impl<'a, 'c> Fold<'a, 'c> {
                     debug_assert_eq!(target.context, frame.context);
                     self.occurrences.finalize_target(&mut target.summary)?;
                 }
+                let output = self.subquery_select_summary(select, frame.context, start);
                 self.targets.values.truncate(start);
                 self.contexts.values.pop();
-                None
+                output
             }
-            Node::Query(_)
-            | Node::Source(_)
+            Node::Query(_) => self.subquery_query_summary(frame),
+            Node::Source(_)
             | Node::Expressions(_)
             | Node::Items(_)
             | Node::Orders(_)
@@ -271,6 +278,31 @@ impl<'a, 'c> Fold<'a, 'c> {
         frame: &Frame<'a>,
         window: &ast::WindowFunctionCall,
     ) -> Result<(), ParameterAdmissionError> {
+        if let Some(metadata) = sql_functions::aggregate_window_function(&window.name) {
+            let regression = sql_functions::regression::is_regression_function(metadata.id);
+            let statistical = sql_functions::statistical::is_statistical_function(metadata.id);
+            if regression || statistical {
+                for summary in self.summaries.values[frame.start..]
+                    .iter_mut()
+                    .take(window.args.len())
+                {
+                    check_controls(self.controls)?;
+                    if !regression && matches!(summary.oid, 0 | 705) {
+                        self.occurrences.ambiguous_function(metadata.name)?;
+                    } else if !matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700) {
+                        self.occurrences.undefined_function(
+                            metadata.name,
+                            window.args.len(),
+                            Some(summary.oid),
+                        )?;
+                    }
+                    if regression {
+                        self.occurrences.coerce(summary, 701, true)?;
+                    }
+                }
+                return Ok(());
+            }
+        }
         let metadata = sql_functions::window_function(&window.name);
         let integer_argument_index = if window.name.eq_ignore_ascii_case("ntile") {
             Some(0)

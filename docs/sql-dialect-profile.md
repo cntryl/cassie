@@ -66,3 +66,12 @@ unselected parity work is not an active release dependency.
 The former full-parity proposal and its dated implementation notes are retained
 in [sql-dialect-profile-history.md](sql-dialect-profile-history.md) for
 provenance. Those historical plans do not override the active profile above.
+
+## Selected array and series sources
+
+The finite [set-returning source contract](set-returning-sources.md) owns #808's
+UNNEST, ordinality and user-selected INT4/INT8/NUMERIC/TIMESTAMP/TIMESTAMPTZ
+series signatures. It defines aliases, lateral scope, strict NULL behavior,
+step/bound errors, exact identities and lazy consumer/resource boundaries.
+Runtime delivery remains pending. `generate_subscripts`, generic `ROWS FROM`
+and projection-list SRFs are not selected by this approval.

@@ -22,10 +22,15 @@ mod grouping_functional_dependency;
 mod numeric_statistical_result_identity;
 #[path = "json/ordered_json_aggregate_modifiers/semantics.rs"]
 mod ordered_json_aggregate_modifiers;
+
+#[path = "json/array_conversion.rs"]
+mod native_json_array_conversion;
 #[path = "grouping/single_grouping_set/semantics.rs"]
 mod single_grouping_set_semantics;
 #[path = "strings/string_agg_bytea/semantics.rs"]
 mod string_agg_bytea_contract;
+#[path = "json/typed_conversion.rs"]
+mod typed_json_collection_conversion;
 #[path = "json/unique_object_aggregate_duplicate_keys/errors.rs"]
 mod unique_object_aggregate_duplicate_keys;
 #[path = "unique_object_filter_nulls.rs"]

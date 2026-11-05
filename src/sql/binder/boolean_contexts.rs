@@ -1,3 +1,7 @@
+#[path = "predicate_operands.rs"]
+mod predicate_operands;
+use predicate_operands::{validate_like_expression, validate_truth_operand};
+
 use super::coalesce_results::ResultTypes;
 use super::{
     BinaryOp, BindingContext, CassieError, Catalog, DataType, Expr, QuerySource, SelectItem,
@@ -6,6 +10,9 @@ use super::{
 
 #[path = "boolean_aggregates.rs"]
 mod boolean_aggregates;
+#[path = "boolean_cast_source.rs"]
+mod cast_source;
+use cast_source::cast_source_type;
 #[path = "decimal_literals.rs"]
 mod decimal_literals;
 #[path = "declared_functions.rs"]
@@ -201,11 +208,13 @@ pub(super) fn validate_select_with_types(
                 for expression in function
                     .args
                     .iter_mut()
+                    .chain(function.filter.as_deref_mut())
                     .chain(&mut function.partition_by)
                     .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
                 {
                     validate_expression(expression, types, catalog, context)?;
                 }
+                super::window_aggregates::validate(function, types)?;
             }
             SelectItem::Wildcard | SelectItem::Column { .. } => {}
         }
@@ -793,59 +802,6 @@ fn validate_case(
     Ok(())
 }
 
-fn cast_source_type(
-    expr: &Expr,
-    target: &DataType,
-    types: &ResultTypes,
-    catalog: &Catalog,
-) -> Option<DataType> {
-    if target.is_json() {
-        return types.expression_type(expr).filter(DataType::is_json);
-    }
-    if matches!(target, DataType::Array(_)) {
-        return types
-            .expression_type(expr)
-            .filter(|source| source == target);
-    }
-    if *target == DataType::Date {
-        return types
-            .expression_type(expr)
-            .filter(|source| *source == DataType::Timestamp);
-    }
-    if *target == DataType::Bytea || crate::types::IntegerWidth::from_data_type(target).is_some() {
-        return types.expression_type(expr).filter(|source| {
-            (*target == DataType::Bytea
-                && crate::types::IntegerWidth::from_data_type(source).is_some())
-                || (*source == DataType::Bytea
-                    && crate::types::IntegerWidth::from_data_type(target).is_some())
-        });
-    }
-    if !matches!(
-        target,
-        DataType::Text | DataType::Varchar { .. } | DataType::Char { length: None }
-    ) {
-        return None;
-    }
-    if matches!(target, DataType::Text | DataType::Varchar { .. }) {
-        if let Some(source @ DataType::Array(_)) = types.expression_type(expr) {
-            return Some(source);
-        }
-    }
-    // These selected output conversions need source identity. Unresolved
-    // NUMERIC carriers must not be relabeled as proven FLOAT8, and no heap
-    // type descriptor is cloned just to annotate an unrelated cast.
-    types.expression_type(expr).filter(|kind| {
-        matches!(
-            kind,
-            DataType::Time
-                | DataType::Timestamp
-                | DataType::Char { .. }
-                | DataType::ObjectId(_)
-                | DataType::Jsonb
-        ) || (*kind == DataType::Float && types.proven_float8(expr, catalog))
-    })
-}
-
 fn coerce_numeric_pair(left: &mut Expr, right: &mut Expr, types: &ResultTypes, catalog: &Catalog) {
     use crate::sql::numeric_comparison::NumericComparisonDomain;
 
@@ -1001,49 +957,4 @@ fn resolve_nested_source(
         | QuerySource::TableFunction { .. } => {}
     }
     Ok(())
-}
-
-fn validate_truth_operand(
-    expr: &mut Expr,
-    truth: crate::sql::ast::TruthValue,
-    negated: bool,
-    types: &ResultTypes,
-) -> Result<(), CassieError> {
-    if let Expr::StringLiteral(text) = expr {
-        let value = crate::types::boolean::parse_text(text).ok_or_else(|| {
-            CassieError::Execution(format!("invalid input syntax for type boolean: {text:?}"))
-        })?;
-        *expr = Expr::BoolLiteral(value);
-    }
-    if let Some(kind) = types.expression_type(expr) {
-        if !matches!(kind, DataType::Boolean | DataType::Null) {
-            return Err(CassieError::Execution(format!(
-                "argument of {} must be type boolean, not type {}",
-                truth.label(negated),
-                boolean_aggregates::type_name(&kind)
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn validate_like_expression(
-    expression: &mut Expr,
-    types: &ResultTypes,
-    catalog: &Catalog,
-    context: &BindingContext,
-) -> Result<(), CassieError> {
-    let Expr::Like {
-        expr,
-        pattern,
-        escape,
-        ..
-    } = expression
-    else {
-        unreachable!("LIKE validation dispatch")
-    };
-    for operand in [&mut **expr, &mut **pattern, &mut **escape] {
-        validate_expression(operand, types, catalog, context)?;
-    }
-    super::like_predicates::validate(expr, pattern, escape, types)
 }

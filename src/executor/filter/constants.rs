@@ -85,7 +85,19 @@ fn cast_constant<R: RowAccess + ?Sized>(
         return super::casts::numeric_literal(input, data_type, *identity, controls).map(Some);
     }
     resolve(child, row, context)?
-        .map(|value| super::casts::scalar(&value, data_type, source_type.as_ref(), controls))
+        .map(|value| {
+            super::character_arrays::cast(
+                &value,
+                data_type,
+                source_type.as_ref(),
+                controls,
+                context.evaluation.memory,
+                true,
+            )
+            .unwrap_or_else(|| {
+                super::casts::scalar(&value, data_type, source_type.as_ref(), controls)
+            })
+        })
         .transpose()
 }
 
@@ -487,7 +499,7 @@ pub(crate) fn constant_scalar_with_parameters(
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<(Option<ScalarValue>, crate::runtime::QueryMemoryReservation), QueryError> {
     use crate::executor::retained_memory::{mul, value_clone_bytes};
-    let memory = std::cell::RefCell::new(controls.reserve_query_memory(0)?);
+    let memory = super::EvaluationMemory::new(controls)?;
     let parameter = |index| {
         controls.check_interruption()?;
         let Some(value) = parameters.get(index) else {
@@ -498,16 +510,12 @@ pub(crate) fn constant_scalar_with_parameters(
         }
         // The lazy semantic walk calls this only for reached parameters.
         // Reserve before copying into scalar/rewritten constant intermediates.
-        memory
-            .borrow_mut()
-            .try_grow(mul(value_clone_bytes(value)?, 4)?)?;
+        memory.grow(mul(value_clone_bytes(value)?, 4)?)?;
         Ok(Some(super::scalar_from_value(value)))
     };
     let admit_cast = |expr: &Expr| {
         controls.check_interruption()?;
-        memory
-            .borrow_mut()
-            .try_grow(super::casts::bytea_literal_scratch(expr)?)?;
+        memory.grow(super::casts::bytea_literal_scratch(expr)?)?;
         Ok(())
     };
     let value = evaluate_constant(
@@ -516,8 +524,9 @@ pub(crate) fn constant_scalar_with_parameters(
         Some(&parameter),
         Some(&admit_cast),
         Some(controls),
+        Some(&memory),
     )?;
-    Ok((value, memory.into_inner()))
+    Ok((value, memory.into_reservation()))
 }
 
 fn evaluate_constant(
@@ -526,6 +535,7 @@ fn evaluate_constant(
     parameter: Option<&ParameterResolver<'_>>,
     admit_cast: Option<&CastAdmission<'_>>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     let functions = super::HashMap::new();
     let row: Vec<(String, super::Value)> = Vec::new();
@@ -541,6 +551,7 @@ fn evaluate_constant(
                 session: None,
                 exists: None,
                 controls,
+                memory,
             },
             parameter,
             admit_cast,

@@ -10,6 +10,7 @@ use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
 use crate::types::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+mod character_casts;
 #[path = "projection/json_object_keys.rs"]
 mod json_object_keys;
 
@@ -70,8 +71,17 @@ where
     R: RowAccess,
 {
     let ops = compile_projection_ops(projection);
+    let retain_cast_memory = character_casts::required(&ops);
+    let evaluation = filter::evaluation::ProjectionValueContext {
+        params,
+        search: search_context,
+        functions: user_functions,
+        session,
+        resolver,
+    };
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
+        let cast_memory = character_casts::Memory::new(retain_cast_memory, session)?;
         let data_types = super::projection_types::projected(&row, &ops, user_functions);
         let mut projected = Vec::with_capacity(ops.len());
         for op in &ops {
@@ -115,42 +125,13 @@ where
                     expr,
                     precomputed_key,
                 } => {
-                    let value = precomputed_key
-                        .as_ref()
-                        .and_then(|precomputed_key| {
-                            row.entries().iter().find_map(|(name, value)| {
-                                (name == precomputed_key).then_some(value)
-                            })
-                        })
-                        .cloned()
-                        .map_or_else(
-                            || {
-                                if let Some(resolver) = resolver {
-                                    filter::evaluate_resolving_exists(
-                                        &row,
-                                        expr,
-                                        filter::ExistsValueContext {
-                                            params,
-                                            search: search_context,
-                                            functions: user_functions,
-                                            session,
-                                            resolver,
-                                        },
-                                    )
-                                } else {
-                                    filter::evaluate_expr_value(
-                                        &row,
-                                        expr,
-                                        params,
-                                        search_context,
-                                        user_functions,
-                                        session,
-                                        None,
-                                    )
-                                }
-                            },
-                            Ok,
-                        )?;
+                    let value = scalar_projection_value(
+                        &row,
+                        expr,
+                        precomputed_key.as_deref(),
+                        &cast_memory,
+                        &evaluation,
+                    )?;
                     projected.push((key.clone(), value));
                 }
                 ProjectionOp::WindowFunction { key, source } => {
@@ -159,14 +140,63 @@ where
             }
         }
         out.push(
-            BatchRow::from_projected_values(projected)
-                .with_optional_data_types(data_types)
-                .with_query_memory(row.query_memory())
-                .with_operator_memory(row.operator_memory()),
+            cast_memory.retain(
+                BatchRow::from_projected_values(projected)
+                    .with_optional_data_types(data_types)
+                    .with_query_memory(row.query_memory())
+                    .with_operator_memory(row.operator_memory()),
+            )?,
         );
     }
 
     Ok(out)
+}
+
+fn scalar_projection_value<R: RowAccess>(
+    row: &R,
+    expr: &Expr,
+    precomputed_key: Option<&str>,
+    cast_memory: &character_casts::Memory<'_>,
+    evaluation: &filter::evaluation::ProjectionValueContext<'_>,
+) -> Result<Value, QueryError> {
+    precomputed_key
+        .and_then(|key| {
+            row.entries()
+                .iter()
+                .find_map(|(name, value)| (name == key).then_some(value))
+        })
+        .cloned()
+        .map_or_else(
+            || {
+                if let Some(result) = cast_memory.evaluate(row, expr, evaluation) {
+                    return result;
+                }
+                if let Some(resolver) = evaluation.resolver {
+                    filter::evaluate_resolving_exists(
+                        row,
+                        expr,
+                        filter::ExistsValueContext {
+                            params: evaluation.params,
+                            search: evaluation.search,
+                            functions: evaluation.functions,
+                            session: evaluation.session,
+                            resolver,
+                        },
+                    )
+                } else {
+                    filter::evaluate_expr_value(
+                        row,
+                        expr,
+                        evaluation.params,
+                        evaluation.search,
+                        evaluation.functions,
+                        evaluation.session,
+                        None,
+                    )
+                }
+            },
+            Ok,
+        )
 }
 
 fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {

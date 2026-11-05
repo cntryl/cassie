@@ -17,9 +17,10 @@ fn should_cancel_jsonb_object_agg_without_partial_output_given_retained_entries_
         &setup_sql,
         control_sql,
         candidate_sql,
+        "SELECT jsonb_object_agg(n::text, n) FILTER (WHERE FALSE) FROM issue_811_jsonb_object_agg_rows",
     );
 
     // Assert
     support::assert_control_and_recovery(&case.control, "3", &case.recovery, "47");
-    support::assert_rejected_without_partial_rows(&case.cancelled, "57014");
+    support::assert_cancelled_without_retained_resources(&case);
 }

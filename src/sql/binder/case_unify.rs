@@ -69,7 +69,12 @@ fn visit_item(item: &mut SelectItem, parameter_type_oids: &[i32]) {
             }
         }
         SelectItem::WindowFunction { function, .. } => {
-            for expression in function.args.iter_mut().chain(&mut function.partition_by) {
+            for expression in function
+                .args
+                .iter_mut()
+                .chain(function.filter.as_deref_mut())
+                .chain(&mut function.partition_by)
+            {
                 visit_expression(expression, parameter_type_oids);
             }
             for order in &mut function.order_by {
@@ -189,6 +194,7 @@ pub(super) fn unify_select_case_results(
             SelectItem::Function { function, .. } => function.expressions_mut().for_each(unify),
             SelectItem::WindowFunction { function, .. } => {
                 function.args.iter_mut().for_each(unify);
+                function.filter.iter_mut().for_each(|filter| unify(filter));
                 function.partition_by.iter_mut().for_each(unify);
                 function
                     .order_by

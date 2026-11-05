@@ -24,12 +24,17 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     }
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
+    let controls = context.controls.or_else(|| {
+        context
+            .session
+            .and_then(crate::app::CassieSession::statement_execution_controls)
+    });
     if *op == BinaryOp::Concat {
         if let Some(result) = super::array_operators::concatenate_operand(
             &left_value,
             &right_value,
-            null_type(left),
-            null_type(right),
+            operand_type(left),
+            operand_type(right),
         ) {
             return result;
         }
@@ -65,17 +70,21 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         && (is_json_typed_input(row, left, &left_value)
             || is_json_typed_input(row, right, &right_value))
     {
-        let left_value = if is_json_typed_input(row, left, &left_value) {
+        let left_value = if is_json_typed_input(row, left, &left_value)
+            && !matches!(left_value, ScalarValue::Json(_) | ScalarValue::Null)
+        {
             json_concat::as_json_document(&left_value)?
         } else {
             left_value
         };
-        let right_value = if is_json_typed_input(row, right, &right_value) {
+        let right_value = if is_json_typed_input(row, right, &right_value)
+            && !matches!(right_value, ScalarValue::Json(_) | ScalarValue::Null)
+        {
             json_concat::as_json_document(&right_value)?
         } else {
             right_value
         };
-        return json_containment::evaluate(op, &left_value, &right_value);
+        return json_containment::evaluate_with_controls(op, &left_value, &right_value, controls);
     }
     if *op == BinaryOp::Concat {
         let left_is_json = is_json_typed_input(row, left, &left_value);
@@ -101,7 +110,7 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     {
         return Ok(result);
     }
-    binary_scalar(&left_value, op, &right_value)
+    super::binary::binary_scalar_with_controls(&left_value, op, &right_value, controls)
 }
 
 fn array_comparison<R: RowAccess + ?Sized>(
@@ -145,11 +154,9 @@ fn array_comparison<R: RowAccess + ?Sized>(
     None
 }
 
-fn null_type(expr: &Expr) -> (bool, bool) {
+fn operand_type(expr: &Expr) -> (bool, bool) {
     match expr {
-        Expr::Cast {
-            expr, data_type, ..
-        } if matches!(expr.as_ref(), Expr::Null) => {
+        Expr::Cast { data_type, .. } => {
             if matches!(data_type, crate::types::DataType::Array(_)) {
                 (true, false)
             } else {

@@ -17,7 +17,10 @@ use crate::types::DataType;
 
 #[path = "metadata/controlled_schema.rs"]
 mod controlled_schema;
+#[path = "metadata/snapshot/mod.rs"]
+mod snapshot;
 use controlled_schema::view_schema_to_collection_schema;
+pub(crate) use snapshot::ControlledCatalogSnapshot;
 #[path = "metadata/explain_metadata.rs"]
 mod explain_metadata;
 #[path = "metadata/function_inputs.rs"]
@@ -95,44 +98,6 @@ impl Catalog {
     #[must_use]
     pub fn version(&self) -> u64 {
         self.version.load(Ordering::SeqCst)
-    }
-
-    /// Creates a private catalog view for one explicit transaction.
-    #[must_use]
-    pub(crate) fn detached_transaction_snapshot(&self) -> Self {
-        Self {
-            databases: Arc::new(RwLock::new(self.databases.read().clone())),
-            collections: Arc::new(RwLock::new(self.collections.read().clone())),
-            namespaces: Arc::new(RwLock::new(self.namespaces.read().clone())),
-            schemas: Arc::new(RwLock::new(self.schemas.read().clone())),
-            projections: Arc::new(RwLock::new(self.projections.read().clone())),
-            constraints: Arc::new(RwLock::new(self.constraints.read().clone())),
-            indexes: Arc::new(RwLock::new(self.indexes.read().clone())),
-            graphs: Arc::new(RwLock::new(self.graphs.read().clone())),
-            functions: Arc::new(RwLock::new(self.functions.read().clone())),
-            procedures: Arc::new(RwLock::new(self.procedures.read().clone())),
-            views: Arc::new(RwLock::new(self.views.read().clone())),
-            roles: Arc::new(RwLock::new(self.roles.read().clone())),
-            sequences: Arc::new(RwLock::new(self.sequences.read().clone())),
-            rollups: Arc::new(RwLock::new(self.rollups.read().clone())),
-            retention_policies: Arc::new(RwLock::new(self.retention_policies.read().clone())),
-            vector_indexes: Arc::new(RwLock::new(self.vector_indexes.read().clone())),
-            cardinality: Arc::new(RwLock::new(self.cardinality.read().clone())),
-            projection_comparison_reports: Arc::new(RwLock::new(
-                self.projection_comparison_reports.read().clone(),
-            )),
-            projection_consistency_reports: Arc::new(RwLock::new(
-                self.projection_consistency_reports.read().clone(),
-            )),
-            projection_repair_reports: Arc::new(RwLock::new(
-                self.projection_repair_reports.read().clone(),
-            )),
-            operational_assignments: Arc::new(RwLock::new(
-                self.operational_assignments.read().clone(),
-            )),
-            maintenance_debts: Arc::new(RwLock::new(self.maintenance_debts.read().clone())),
-            version: Arc::new(AtomicU64::new(self.version())),
-        }
     }
 
     /// Publishes a private transaction snapshot while the caller holds the
@@ -226,6 +191,19 @@ impl Catalog {
         })
     }
 
+    pub(crate) fn collection_storage_id(&self, name: &str) -> Option<u64> {
+        let collections = self.collections.read();
+        collections
+            .get(name)
+            .or_else(|| {
+                collections
+                    .iter()
+                    .find(|(stored, _)| name_matches(stored, name))
+                    .map(|(_, metadata)| metadata)
+            })
+            .map(|metadata| metadata.storage_id)
+    }
+
     #[must_use]
     pub fn collection_storage_mode(&self, name: &str) -> Option<CollectionStorageMode> {
         let base = self.get_collection(name)?.storage_mode;
@@ -254,6 +232,11 @@ impl Catalog {
             collection.name = local_name(&collection.name);
         }
         out
+    }
+
+    /// Cached registration count for storage-independent health probes.
+    pub(crate) fn registered_collection_count(&self) -> usize {
+        self.collections.read().len()
     }
 
     #[must_use]

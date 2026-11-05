@@ -218,7 +218,11 @@ fn rewrite_select_item(item: &mut SelectItem) {
         }
         SelectItem::Expr { expr, .. } => rewrite_expr(expr),
         SelectItem::WindowFunction { function, .. } => {
-            for arg in &mut function.args {
+            for arg in function
+                .args
+                .iter_mut()
+                .chain(function.filter.as_deref_mut())
+            {
                 rewrite_expr(arg);
             }
         }

@@ -146,15 +146,30 @@ impl Analyzer<'_> {
                 Ok(exported_scope(fields, std::slice::from_ref(name)))
             }
             QuerySource::TableFunction { name, .. } => {
-                let fields = super::super::select::table_function_columns(name)
-                    .into_iter()
-                    .map(|(name, data_type)| OutputField {
-                        name,
-                        value: super::OutputType::fixed(data_type),
-                        nullable: true,
-                        wildcard_identity: false,
-                    })
-                    .collect();
+                let outer = outer_fields.map(|fields| crate::types::Schema {
+                    fields: fields
+                        .iter()
+                        .map(|field| crate::types::FieldSchema {
+                            name: field.name.clone(),
+                            data_type: field.value.data_type.clone(),
+                            nullable: field.nullable,
+                        })
+                        .collect(),
+                });
+                let fields = super::super::table_functions::typed_columns(
+                    source,
+                    outer.as_ref(),
+                    self.functions,
+                    self.declared_oids,
+                )?
+                .into_iter()
+                .map(|(name, data_type)| OutputField {
+                    name,
+                    value: super::OutputType::fixed(data_type),
+                    nullable: true,
+                    wildcard_identity: false,
+                })
+                .collect();
                 Ok(exported_scope(fields, std::slice::from_ref(name)))
             }
             QuerySource::Subquery {
@@ -310,6 +325,18 @@ impl Analyzer<'_> {
                             .map(|argument| self.expression(argument, lookup))
                             .transpose()?
                             .unwrap_or_else(|| super::OutputType::fixed(DataType::Text)),
+                        _ if crate::sql::functions::aggregate_window_function(&function.name)
+                            .is_some() =>
+                        {
+                            self.function(
+                                &crate::sql::ast::FunctionCall {
+                                    name: function.name.clone(),
+                                    args: function.args.clone(),
+                                    ..crate::sql::ast::FunctionCall::default()
+                                },
+                                lookup,
+                            )?
+                        }
                         _ => super::OutputType::fixed(DataType::BigInt),
                     };
                     // Matches current inference, including lag/lead's current

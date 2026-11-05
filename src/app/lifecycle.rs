@@ -71,10 +71,17 @@ impl Cassie {
             limits,
             ..
         } = runtime_config;
+        midge.configure_repeatable_history_budget(
+            limits.repeatable_read_history_memory_budget_bytes,
+        )?;
         let runtime = Arc::new(RuntimeState::new(limits));
+        let catalog = Catalog::new();
         Ok(Self {
             midge,
-            catalog: Catalog::new(),
+            publication_catalog: catalog.clone(),
+            metadata_write_catalog: catalog.clone(),
+            catalog_owner: None,
+            catalog,
             catalog_publication: Arc::new(parking_lot::RwLock::new(())),
             transaction_unique_waits: Arc::new(super::TransactionUniqueWaits::default()),
             embedding_provider,

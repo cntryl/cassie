@@ -27,6 +27,8 @@ mod sql_coalesce_promotion;
 
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
+#[path = "support/regex_cancellation.rs"]
+mod support_regex_cancellation;
 #[path = "support/relational_evidence.rs"]
 mod support_relational_evidence;
 #[path = "support/sql.rs"]
@@ -294,3 +296,14 @@ mod bytea_concat;
 
 #[path = "sql_queries/expressions/operators/bytea_functions.rs"]
 mod bytea_functions;
+
+#[path = "sql_queries/ordering/jsonb_semantic_keys.rs"]
+mod jsonb_semantic_keys;
+
+#[path = "sql_queries/types/numeric/jsonb_numeric_boundaries.rs"]
+mod jsonb_numeric_boundaries;
+#[path = "sql_queries/aggregates/statistical/windows.rs"]
+mod statistical_windows;
+
+#[path = "sql_queries/ctes/jsonb_search_cycle.rs"]
+mod jsonb_search_cycle;

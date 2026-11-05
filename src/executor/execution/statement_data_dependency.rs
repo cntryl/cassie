@@ -78,6 +78,7 @@ fn item(item: &SelectItem) -> bool {
         SelectItem::Expr { expr, .. } => expression(expr),
         SelectItem::WindowFunction { function: call, .. } => {
             call.args.iter().any(expression)
+                || call.filter.as_deref().is_some_and(expression)
                 || call.partition_by.iter().any(expression)
                 || call.order_by.iter().any(|order| expression(&order.expr))
         }
@@ -126,6 +127,7 @@ mod tests {
             function: crate::sql::ast::WindowFunctionCall {
                 name: "row_number".into(),
                 args: vec![],
+                filter: None,
                 partition_by: vec![data.clone()],
                 order_by: vec![],
                 frame: None,

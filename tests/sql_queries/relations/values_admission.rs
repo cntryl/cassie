@@ -82,7 +82,7 @@ fn should_release_values_owners_given_result_and_memory_limits_when_follow_up_qu
         "{memory_limit:?}"
     );
     assert!(
-        matches!(array_expansion, Err(CassieError::Unsupported(_))),
+        matches!(array_expansion, Err(CassieError::ResourceLimit(_))),
         "{array_expansion:?}"
     );
     assert_eq!(before, after);
@@ -90,6 +90,56 @@ fn should_release_values_owners_given_result_and_memory_limits_when_follow_up_qu
         recovery.expect("follow up VALUES failure").rows(),
         &[vec![Value::Int64(45)]]
     );
+}
+
+#[test]
+fn should_bound_computed_character_array_projection_memory_until_result_release() {
+    // Arrange
+    let sql = "SELECT array_fill('x'::TEXT, ARRAY[v.n])::CHAR(4096)[] FROM (VALUES (2)) v(n)";
+
+    for (budget, accepted) in [(64 * 1024, false), (512 * 1024, true)] {
+        // Arrange
+        let mut config = CassieRuntimeConfig::from_env().expect("config");
+        config.limits.query_memory_budget_bytes = budget;
+        config.limits.execution_result_cache_enabled =
+            cassie::config::ExecutionResultCacheEnabled::disabled();
+        let fixture = sql_fixture_with_config("computed-character-array-projection", &[], config);
+        // Act
+        let result = fixture.execute(sql);
+        // Assert
+        if accepted {
+            let result = result.expect("admitted character-array projection");
+            let Value::Array(array) = &result.rows()[0][0] else {
+                panic!("native array result");
+            };
+            assert_eq!(array.len(), 2);
+            assert!(array
+                .elements()
+                .iter()
+                .all(|value| matches!(value, Value::String(text) if text.chars().count() == 4096)));
+            assert!(
+                fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"]
+                    .as_u64()
+                    .expect("current query memory")
+                    > 0
+            );
+            drop(result);
+        } else {
+            assert!(
+                matches!(result, Err(CassieError::ResourceLimit(_))),
+                "{result:?}"
+            );
+        }
+        // Observe same-session recovery after releasing the projection.
+        let recovery = fixture.execute("SELECT 19").expect("same-session recovery");
+        // Assert
+        assert_eq!(recovery.rows(), &[vec![Value::Int64(19)]]);
+        drop(recovery);
+        assert_eq!(
+            fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"],
+            serde_json::json!(0)
+        );
+    }
 }
 
 #[test]

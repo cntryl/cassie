@@ -66,6 +66,7 @@ fn scalar_oracle_on(mut rows: Vec<BatchRow>, projection: &[SelectItem]) -> Vec<B
         session: None,
         controls: &controls,
         evaluate: None,
+        output_memory: None,
     };
     for (window_index, function, alias) in collect_window_functions(projection) {
         let output_name = crate::executor::projection::window_value_key(window_index);
@@ -78,8 +79,15 @@ fn scalar_oracle_on(mut rows: Vec<BatchRow>, projection: &[SelectItem]) -> Vec<B
         )
         .expect("existing scalar frame authority");
     }
+    let expected = rows
+        .iter()
+        .map(|row| {
+            BatchRow::new(row.entries().to_vec()).with_optional_data_types(row.shared_data_types())
+        })
+        .collect();
+    drop(rows);
     assert_eq!(controls.current_query_memory_bytes(), 0);
-    rows
+    expected
 }
 
 fn assert_selected(projection: &[SelectItem], path: &'static str) {
@@ -158,6 +166,7 @@ fn should_preserve_unknown_value_argument_descriptor_after_known_input_fields() 
         session: None,
         controls: &oracle_controls,
         evaluate: None,
+        output_memory: None,
     };
     for (window_index, function, alias) in collect_window_functions(&projection) {
         let output_name = crate::executor::projection::window_value_key(window_index);

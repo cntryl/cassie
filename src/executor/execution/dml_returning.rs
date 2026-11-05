@@ -11,17 +11,38 @@ use super::{
     QueryResult, Value,
 };
 use crate::executor::batch::OperatorMemory;
-use crate::executor::retained_memory::{add, mul};
+use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 pub(super) struct ProjectionSchema {
-    schema: Option<CollectionSchema>,
+    pub(super) schema: Option<CollectionSchema>,
     _memory: Option<QueryMemoryReservation>,
 }
 
 pub(super) fn prepare_projection_schema(
     context: &DmlResultContext<'_>,
 ) -> Result<ProjectionSchema, QueryError> {
+    if let Some(schema) = context.returning_schema {
+        let mut bytes = add(size_of::<CollectionSchema>(), schema.collection.capacity())?;
+        bytes = add(
+            bytes,
+            mul(schema.fields.len(), size_of::<crate::catalog::FieldMeta>())?,
+        )?;
+        for field in &schema.fields {
+            bytes = add(
+                bytes,
+                add(
+                    field.name.capacity(),
+                    data_type_clone_bytes(&field.data_type)?,
+                )?,
+            )?;
+        }
+        let memory = context.controls.reserve_query_memory(bytes)?;
+        return Ok(ProjectionSchema {
+            schema: Some(schema.clone()),
+            _memory: Some(memory),
+        });
+    }
     let (schema, memory) = context
         .cassie
         .catalog
@@ -55,23 +76,13 @@ pub(super) fn project(
     projection_schema: &ProjectionSchema,
     mut rows: Vec<BatchRow>,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    if projection_schema.schema.as_ref().is_some_and(|schema| {
-        schema
-            .fields
-            .iter()
-            .any(|field| matches!(field.data_type, DataType::Array(_)))
-    }) {
-        if let Some(first) = rows.first_mut() {
-            scan::attach_row_types(first, projection_schema.schema.as_ref());
-            if let Some(types) = first.shared_data_types() {
-                for row in &mut rows[1..] {
-                    row.set_data_types(types.clone());
-                }
-            }
-        }
-    }
     let capacity = rows.capacity();
-    admit_inputs(&mut rows, capacity, context.controls)?;
+    prepare_inputs(
+        &mut rows,
+        capacity,
+        projection_schema.schema.as_ref(),
+        context.controls,
+    )?;
     let mut batches = vec![rows];
     let (memory, _scratch) =
         ProjectionOutputMemory::admit(context.controls, &batches, context.returning, true, true)?;
@@ -124,6 +135,97 @@ pub(super) fn finish_projected(
         context.user_functions,
     );
     finish(context, affected_count, &columns, rows)
+}
+
+#[cfg(test)]
+#[path = "dml_returning/character_array_inputs_tests.rs"]
+mod character_array_inputs_tests;
+
+#[cfg(test)]
+thread_local! {
+    static METADATA_OWNER: std::cell::RefCell<Option<std::sync::Weak<QueryMemoryReservation>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Raw bodies are admitted before adding typed metadata or logical padding.
+pub(super) fn prepare_inputs(
+    rows: &mut [BatchRow],
+    capacity: usize,
+    schema: Option<&CollectionSchema>,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    admit_inputs(rows, capacity, controls)?;
+    let Some(schema) = schema.filter(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| matches!(field.data_type, DataType::Array(_)))
+    }) else {
+        return Ok(());
+    };
+    for row in rows.iter_mut() {
+        prepare_row_types(row, schema, controls)?;
+    }
+    for row in rows {
+        let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
+        *row = scan::hydrate_character_arrays(owned, controls)?;
+    }
+    Ok(())
+}
+
+fn prepare_row_types(
+    row: &mut BatchRow,
+    schema: &CollectionSchema,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    controls.check_interruption()?;
+    let mut bytes = size_of::<Vec<DataType>>() + 2 * size_of::<usize>();
+    let maximum_type = schema.fields.iter().try_fold(0, |maximum, field| {
+        Ok::<_, crate::app::CassieError>(maximum.max(data_type_clone_bytes(&field.data_type)?))
+    })?;
+    bytes = add(
+        bytes,
+        mul(
+            row.entries().len(),
+            add(size_of::<DataType>(), maximum_type)?,
+        )?,
+    )?;
+    for name in row
+        .entries()
+        .iter()
+        .map(|(name, _)| name)
+        .chain(schema.fields.iter().map(|field| &field.name))
+    {
+        bytes = add(bytes, mul(name.len(), 64)?)?;
+    }
+    bytes = add(
+        bytes,
+        1024 + size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>(),
+    )?;
+    let metadata = Arc::new(controls.reserve_query_memory(bytes)?);
+    #[cfg(test)]
+    METADATA_OWNER.with(|slot| *slot.borrow_mut() = Some(Arc::downgrade(&metadata)));
+    let types = Arc::new(
+        row.entries()
+            .iter()
+            .map(|(name, _)| {
+                schema
+                    .fields
+                    .iter()
+                    .find(|field| field.name == *name)
+                    .or_else(|| {
+                        let reference = crate::sql::ColumnIdentifierPath::parse(name).ok()?;
+                        schema
+                            .fields
+                            .iter()
+                            .find(|field| reference.matches_field_name(&field.name))
+                    })
+                    .map_or(DataType::Null, |field| field.data_type.clone())
+            })
+            .collect(),
+    );
+    row.set_data_types(types);
+    row.attach_operator_memory(controls, metadata)?;
+    Ok(())
 }
 
 fn admit_inputs(

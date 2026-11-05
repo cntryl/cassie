@@ -4,11 +4,11 @@ Generated from `inventory.json`. Counts describe source declarations and static 
 
 | Measure | Count |
 | --- | ---: |
-| Files under `tests/` | 1587 |
-| Rust files | 1551 |
-| Rust test declarations | 8380 |
+| Files under `tests/` | 1623 |
+| Rust files | 1587 |
+| Rust test declarations | 8577 |
 | Python test declarations | 21 |
-| Static Rust registration instances | 8508 |
+| Static Rust registration instances | 8705 |
 | Cargo test targets | 32 |
 | Reconciled backfill names | 131 |
 | Unregistered Rust declarations | 0 |
@@ -31,7 +31,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [bench_diagnostics](inventory/bench_diagnostics.md) | 2 | 0 |
 | [bench_operations](inventory/bench_operations.md) | 16 | 0 |
 | [catalog_security](inventory/catalog_security.md) | 324 | 0 |
-| [compatibility](inventory/compatibility.md) | 404 | 0 |
+| [compatibility](inventory/compatibility.md) | 406 | 0 |
 | [configuration_isolated](inventory/configuration_isolated.md) | 17 | 0 |
 | [constraint_ingress](inventory/constraint_ingress.md) | 3 | 0 |
 | [domain_models](inventory/domain_models.md) | 87 | 0 |
@@ -43,7 +43,7 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [parser_types](inventory/parser_types.md) | 402 | 0 |
 | [pg18_parity](inventory/pg18_parity.md) | 16 | 0 |
 | [pgwire_core](inventory/pgwire_core.md) | 84 | 0 |
-| [pgwire_extended](inventory/pgwire_extended.md) | 3616 | 8 |
+| [pgwire_extended](inventory/pgwire_extended.md) | 3696 | 8 |
 | [planner_controls](inventory/planner_controls.md) | 124 | 0 |
 | [query_scan_controls](inventory/query_scan_controls.md) | 66 | 0 |
 | [relational_qualification](inventory/relational_qualification.md) | 76 | 0 |
@@ -52,8 +52,8 @@ Each declaration appears on one owner page. Shared helper tests appear under `su
 | [sql_contextual_literals](inventory/sql_contextual_literals.md) | 4 | 0 |
 | [sql_derived_sources](inventory/sql_derived_sources.md) | 7 | 0 |
 | [sql_exists_subqueries](inventory/sql_exists_subqueries.md) | 54 | 0 |
-| [sql_mutations](inventory/sql_mutations.md) | 392 | 0 |
-| [sql_queries](inventory/sql_queries.md) | 1743 | 0 |
+| [sql_mutations](inventory/sql_mutations.md) | 410 | 0 |
+| [sql_queries](inventory/sql_queries.md) | 1840 | 0 |
 | [sql_relation_identifiers](inventory/sql_relation_identifiers.md) | 8 | 0 |
 | [sql_set_operations](inventory/sql_set_operations.md) | 8 | 0 |
 | [storage_indexes](inventory/storage_indexes.md) | 187 | 0 |

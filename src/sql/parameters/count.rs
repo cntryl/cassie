@@ -161,6 +161,7 @@ fn parameter_count_select_item(item: &ast::SelectItem) -> usize {
             .args
             .iter()
             .map(parameter_count_expr)
+            .chain(function.filter.as_deref().map(parameter_count_expr))
             .chain(function.partition_by.iter().map(parameter_count_expr))
             .chain(
                 function

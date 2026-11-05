@@ -1,40 +1,52 @@
 //! Existing recursive UNION identity, with admitted candidate and retained key backing.
+use crate::types::semantic_index::KeyedSet;
 use std::mem::size_of;
 
 #[cfg(test)]
 use super::retention_tests;
 use super::{
-    check_timeout, retention, row_signature, HashSet, QueryError, QueryExecutionControls,
-    RetainedRows, SemanticKey, Value,
+    check_timeout, row_signature, QueryError, QueryExecutionControls, RetainedRows, SemanticKey,
+    Value,
 };
-use crate::executor::retained_memory::{add, hash_table_bytes, mul, serialized_json_bytes};
+use crate::executor::retained_memory::{add, mul, serialized_json_bytes};
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::QueryMemoryReservation;
 
-pub(super) struct SeenRows {
-    keys: HashSet<SemanticKey>,
+pub(super) struct SeenRows<'fields> {
+    fields: &'fields [crate::types::FieldSchema],
+    keys: KeyedSet<SemanticKey>,
     memory: QueryMemoryReservation,
-    table_bytes: usize,
 }
 
-impl SeenRows {
+impl<'fields> SeenRows<'fields> {
     #[cfg(test)]
     pub(super) fn capacity_probe(&self) -> (usize, usize, usize) {
-        let actual = hash_table_bytes::<SemanticKey>(self.keys.capacity())
-            .expect("actual test table bound")
+        let actual = self.keys.index_storage_bytes()
             + self
                 .keys
                 .iter()
                 .map(SemanticKey::actual_retained_bytes_for_test)
                 .sum::<usize>();
-        (self.keys.capacity(), self.memory.bytes(), actual)
+        (
+            self.keys.capacity(),
+            self.memory.bytes() + self.keys.index_storage_bytes(),
+            actual,
+        )
     }
 
+    #[cfg(test)]
     pub(super) fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
+        Self::new_typed(controls, &[])
+    }
+
+    pub(super) fn new_typed(
+        controls: &QueryExecutionControls,
+        fields: &'fields [crate::types::FieldSchema],
+    ) -> Result<Self, QueryError> {
         Ok(Self {
-            keys: HashSet::new(),
+            fields,
+            keys: KeyedSet::new(Some(controls))?,
             memory: controls.reserve_query_memory(0)?,
-            table_bytes: 0,
         })
     }
 
@@ -60,30 +72,18 @@ impl SeenRows {
         )?;
         // Integral FLOAT canonicalization/comparison can create a sequential formatter temporary.
         let _candidate_memory = controls.reserve_query_memory(add(key_bytes, 64)?)?;
-        let key = row_signature(row);
+        let key = row_signature(
+            &TypedCteRow {
+                row,
+                fields: self.fields,
+            },
+            controls,
+        )?;
         if self.keys.contains(&key) {
             return Ok(false);
         }
-        let growing = self.keys.len() == self.keys.capacity();
-        let extra_table = if growing {
-            hash_table_bytes::<SemanticKey>(mul(self.keys.capacity().max(2), 2)?)?
-        } else {
-            0
-        };
-        self.memory.try_grow(add(key_bytes, extra_table)?)?;
-        if growing {
-            self.keys
-                .try_reserve(1)
-                .map_err(|error| retention::allocation(&error))?;
-        }
-        self.keys.insert(key);
-        let retained_table = hash_table_bytes::<SemanticKey>(self.keys.capacity())?;
-        let old_plus_new = self.memory.bytes();
-        self.memory.shrink_to(add(
-            old_plus_new - extra_table - self.table_bytes,
-            retained_table,
-        )?);
-        self.table_bytes = retained_table;
+        self.memory.try_grow(key_bytes)?;
+        self.keys.insert(key)?;
         check_timeout(controls)?;
         Ok(true)
     }
@@ -118,5 +118,23 @@ impl SeenRows {
             }
         });
         failure.map_or(Ok(()), Err)
+    }
+}
+
+// Plain recursive working rows retain their declared fields in the CTE context.
+// Borrow those fields for identity; do not copy or reinterpret document-looking TEXT.
+struct TypedCteRow<'a> {
+    row: &'a Vec<(String, Value)>,
+    fields: &'a [crate::types::FieldSchema],
+}
+impl crate::executor::batch::RowAccess for TypedCteRow<'_> {
+    fn get(&self, name: &str) -> Option<&Value> {
+        crate::executor::batch::RowAccess::get(self.row, name)
+    }
+    fn entries(&self) -> &[(String, Value)] {
+        self.row
+    }
+    fn entry_type(&self, index: usize) -> Option<&crate::types::DataType> {
+        self.fields.get(index).map(|field| &field.data_type)
     }
 }

@@ -189,6 +189,27 @@ impl StatisticalAccumulator {
         matches!(self.moments, Moments::Float(_))
     }
 
+    /// Conservative transition/finalization workspace, including decimal
+    /// alignment, coefficient products, division formatting and sqrt temporaries.
+    /// The bound counts coefficient bits as bytes before applying its multiplier.
+    pub(super) fn working_bytes(&self, input: Option<&Value>) -> Result<usize, QueryError> {
+        use crate::executor::retained_memory::{add, mul};
+        let mut units = 128;
+        if let Moments::Exact(state) = &self.moments {
+            units = add(units, numeric_work_units(&state.sum)?)?;
+            units = add(units, numeric_work_units(&state.sum_squares)?)?;
+        }
+        match input {
+            Some(Value::Typed(TypedValue::Numeric(value))) => {
+                units = add(units, numeric_work_units(value)?)?;
+            }
+            Some(Value::Int64(_)) => units = add(units, 64)?,
+            Some(_) | None if !matches!(self.moments, Moments::Exact(_)) => return Ok(0),
+            _ => {}
+        }
+        Ok(mul(units, 64)?)
+    }
+
     pub(super) fn retained_heap_bytes(&self) -> usize {
         match &self.moments {
             Moments::Exact(state) => numeric_heap_bytes(&state.sum)
@@ -362,6 +383,21 @@ fn as_float(moments: Moments) -> FloatMoments {
         Moments::Float(state) => state,
         Moments::Exact(state) => FloatMoments::from_exact(&state),
     }
+}
+
+fn numeric_work_units(value: &Numeric) -> Result<usize, QueryError> {
+    let Numeric::Finite { mantissa, scale } = value else {
+        return Ok(0);
+    };
+    let bits = usize::try_from(mantissa.bits()).map_err(|_| {
+        CassieError::ResourceLimit("statistical numeric coefficient bound overflow".into())
+    })?;
+    Ok(crate::executor::retained_memory::add(
+        bits,
+        usize::try_from(*scale).map_err(|_| {
+            CassieError::ResourceLimit("statistical numeric scale bound overflow".into())
+        })?,
+    )?)
 }
 
 fn numeric_heap_bytes(value: &Numeric) -> usize {

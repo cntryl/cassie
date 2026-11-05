@@ -1,7 +1,18 @@
 #[path = "jsonpath_table.rs"]
 mod jsonpath_table;
+#[cfg(test)]
+#[path = "source_pull_tests.rs"]
+mod pull_tests;
 #[path = "source_options.rs"]
 mod source_options;
+#[path = "source_pull.rs"]
+mod source_pull;
+#[path = "source_series.rs"]
+mod source_series;
+#[path = "source_set_function.rs"]
+pub(super) mod source_set_function;
+#[path = "source_table_function.rs"]
+mod source_table_function;
 #[path = "source_values.rs"]
 mod source_values;
 use super::plan_inspection;
@@ -23,6 +34,8 @@ mod source_join;
 
 #[path = "source_collection.rs"]
 mod source_collection;
+#[path = "source_collection_pull.rs"]
+mod source_collection_pull;
 
 #[path = "source_shape.rs"]
 mod source_shape;
@@ -94,11 +107,9 @@ pub(super) fn execute_query_source(
             qualify,
         ),
         QuerySource::SingleRow => execute_single_row_source(env),
-        QuerySource::TableFunction {
-            name,
-            function,
-            lateral,
-        } => execute_table_function_source(env, name, function, *lateral, outer_row, qualify),
+        QuerySource::TableFunction { .. } => {
+            source_table_function::execute(env, source, outer_row, qualify, row_budget, cte_context)
+        }
         QuerySource::Cte(name) => execute_cte_source(env, cte_context, name, qualify),
         QuerySource::Subquery {
             alias,
@@ -231,166 +242,6 @@ fn execute_single_row_source(env: &SourceExecutionEnv<'_>) -> SourceExecution {
     Ok((batches, Vec::new()))
 }
 
-fn execute_table_function_source(
-    env: &SourceExecutionEnv<'_>,
-    name: &str,
-    function: &crate::sql::ast::FunctionCall,
-    lateral: bool,
-    outer_row: Option<&BatchRow>,
-    qualify: bool,
-) -> SourceExecution {
-    if crate::sql::functions::is_options_table(&function.name) {
-        let batches = source_options::execute(env, &function.args[0], outer_row)?;
-        return finalize_source_batches(env, batches, Vec::new(), qualify, name);
-    }
-    if crate::sql::functions::is_loaded_modules(&function.name) {
-        env.controls.check_interruption()?;
-        // Native plugin loading is absent from the current Cassie profile.
-        return finalize_source_batches(env, Vec::new(), Vec::new(), qualify, name);
-    }
-    if crate::sql::functions::is_pg_input_error_info(&function.name) {
-        return execute_pg_input_error_info(
-            env,
-            name,
-            function,
-            if lateral { outer_row } else { None },
-            qualify,
-        );
-    }
-    if matches!(
-        function.name.to_ascii_lowercase().as_str(),
-        "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"
-    ) {
-        let session = env.session.ok_or_else(|| {
-            QueryError::General("pg_show_all_settings requires a session".to_string())
-        })?;
-        let rows = crate::app::all_session_settings()
-            .iter()
-            .map(|spec| {
-                BatchRow::new(vec![
-                    ("name".to_string(), Value::String(spec.name.to_string())),
-                    (
-                        "setting".to_string(),
-                        Value::String(
-                            session
-                                .setting(spec.name)
-                                .unwrap_or_else(|_| spec.default.to_string()),
-                        ),
-                    ),
-                    ("unit".to_string(), Value::Null),
-                    (
-                        "category".to_string(),
-                        Value::String("Client Connection Defaults".to_string()),
-                    ),
-                    (
-                        "short_desc".to_string(),
-                        Value::String("Cassie compatibility setting".to_string()),
-                    ),
-                    ("extra_desc".to_string(), Value::Null),
-                    (
-                        "context".to_string(),
-                        Value::String(
-                            if spec.kind == crate::app::SettingKind::Mutable {
-                                "user"
-                            } else {
-                                "internal"
-                            }
-                            .to_string(),
-                        ),
-                    ),
-                    ("vartype".to_string(), Value::String("string".to_string())),
-                    ("source".to_string(), Value::String("default".to_string())),
-                    ("min_val".to_string(), Value::Null),
-                    ("max_val".to_string(), Value::Null),
-                    ("enumvals".to_string(), Value::Null),
-                    (
-                        "boot_val".to_string(),
-                        Value::String(spec.default.to_string()),
-                    ),
-                    (
-                        "reset_val".to_string(),
-                        Value::String(spec.default.to_string()),
-                    ),
-                    ("sourcefile".to_string(), Value::Null),
-                    ("sourceline".to_string(), Value::Null),
-                    ("pending_restart".to_string(), Value::Bool(false)),
-                ])
-            })
-            .collect::<Vec<_>>();
-        return finalize_source_batches(
-            env,
-            batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
-            Vec::new(),
-            qualify,
-            name,
-        );
-    }
-    let (rows, _table_memory) = if function.name.eq_ignore_ascii_case("jsonb_path_query")
-        || function.name.eq_ignore_ascii_case("jsonb_path_query_tz")
-    {
-        jsonpath_table::execute(env, function, if lateral { outer_row } else { None })?
-    } else {
-        graph::execute_table_function(env, function, if lateral { outer_row } else { None })?
-            .into_parts()
-    };
-    finalize_source_batches(
-        env,
-        batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
-        Vec::new(),
-        qualify,
-        name,
-    )
-}
-
-fn execute_pg_input_error_info(
-    env: &SourceExecutionEnv<'_>,
-    name: &str,
-    function: &crate::sql::ast::FunctionCall,
-    outer_row: Option<&BatchRow>,
-    qualify: bool,
-) -> SourceExecution {
-    let args = graph::evaluate_args(env, function, outer_row)?;
-    let input = args
-        .first()
-        .ok_or_else(|| QueryError::General("pg_input_error_info requires 2 arguments".into()))?;
-    let type_name = args
-        .get(1)
-        .ok_or_else(|| QueryError::General("pg_input_error_info requires 2 arguments".into()))?;
-    let (Value::String(input), Value::String(type_name)) = (input, type_name) else {
-        return Err(QueryError::General(
-            "pg_input_error_info arguments must be text".into(),
-        ));
-    };
-    let data_type = crate::types::DataType::parse_sql(type_name).map_err(QueryError::General)?;
-    let result = filter::cast_value(&Value::String(input.clone()), &data_type);
-    let rows = match result {
-        Ok(_) => vec![BatchRow::new(vec![
-            ("message".into(), Value::Null),
-            ("detail".into(), Value::Null),
-            ("hint".into(), Value::Null),
-            ("sql_error_code".into(), Value::Null),
-        ])],
-        Err(error) => {
-            let message = error.to_string();
-            let cassie_error = crate::app::CassieError::from(error);
-            let code = cassie_error.descriptor().sql_state;
-            vec![BatchRow::new(vec![
-                ("message".into(), Value::String(message)),
-                ("detail".into(), Value::Null),
-                ("hint".into(), Value::Null),
-                ("sql_error_code".into(), Value::String(code.to_owned())),
-            ])]
-        }
-    };
-    finalize_source_batches(
-        env,
-        batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
-        Vec::new(),
-        qualify,
-        name,
-    )
-}
-
 fn execute_cte_source(
     env: &SourceExecutionEnv<'_>,
     cte_context: &CteContext,
@@ -501,6 +352,9 @@ pub(super) fn execute_source_query_with_outer_row(
     outer_row: Option<&BatchRow>,
 ) -> Result<Vec<BatchRow>, QueryError> {
     check_timeout(env.controls)?;
+    if let Some(rows) = source_pull::try_execute(env, plan, cte_context, outer_row)? {
+        return Ok(rows);
+    }
     let started_at = Instant::now();
     if outer_row.is_none() && plan.filter.is_some() {
         if let Some(rows) =
@@ -983,3 +837,7 @@ mod projection_admission_tests;
 #[cfg(test)]
 #[path = "source_projection_scope_tests.rs"]
 mod projection_scope_tests;
+
+#[cfg(test)]
+#[path = "jsonb_projection_tests.rs"]
+mod jsonb_projection_tests;

@@ -20,13 +20,32 @@ pub(super) fn execute(
             + 2 * size_of::<usize>(),
         mul(count, size_of::<BatchRow>())?,
     )?)?;
-    let character_types = if count > 0
+    let semantic_types = if count > 0
         && rows.iter().flatten().any(|expr| {
             expr.any_descendant_or_self(&mut |expr| {
+                if let Expr::Function(function) = expr {
+                    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+                        metadata
+                            .return_type
+                            .fixed_type()
+                            .as_ref()
+                            .is_some_and(crate::executor::semantic::jsonb_type)
+                    }) || env
+                        .user_functions
+                        .get(&function.name)
+                        .is_some_and(|metadata| {
+                            crate::executor::semantic::jsonb_type(&metadata.return_type)
+                        })
+                    {
+                        return true;
+                    }
+                }
                 matches!(
                     expr,
                     Expr::Cast {
-                        data_type: crate::types::DataType::Char { .. },
+                        data_type: crate::types::DataType::Char { .. }
+                            | crate::types::DataType::Jsonb
+                            | crate::types::DataType::Array(_),
                         ..
                     }
                 )
@@ -65,22 +84,24 @@ pub(super) fn execute(
             let scratch = env
                 .controls
                 .reserve_query_memory(scratch_bytes(expression, env.params)?)?;
-            let value = super::super::filter::evaluate_expr_value(
+            let evaluation = super::filter::EvaluationMemory::new(env.controls)?;
+            let value = super::filter::evaluate_source_argument(
                 &BatchRow::from_projected_values(Vec::new()),
                 expression,
                 env.params,
-                None,
                 env.user_functions,
                 env.session,
-                None,
+                env.controls,
+                &evaluation,
             )?;
             memory.try_grow(value_clone_bytes(&value)?)?;
             values.push((format!("column{}", index + 1), value));
+            drop(evaluation);
             drop(scratch);
         }
         output.push(
             BatchRow::from_projected_values(values)
-                .with_optional_data_types(character_types.clone()),
+                .with_optional_data_types(semantic_types.clone()),
         );
     }
     check_timeout(env.controls)?;
@@ -111,7 +132,13 @@ pub(in crate::executor::execution) fn scratch_bytes(
             })?,
             4,
         )?,
-        Expr::Function(function) if crate::sql::functions::is_temporal_function(&function.name) => {
+        Expr::Function(function)
+            if crate::sql::functions::is_temporal_function(&function.name)
+                || function
+                    .name
+                    .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+                || function.name.eq_ignore_ascii_case("_cassie_array_value") =>
+        {
             64
         }
         // A subquery (`_` below) admits its own rows when it runs.

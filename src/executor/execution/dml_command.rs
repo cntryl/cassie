@@ -599,9 +599,9 @@ fn execute_insert_command(
                 &statement.table,
                 controls,
                 statement.on_conflict.is_none(),
-                |working| {
+                |working_cassie, working, controls| {
                     super::dml::execute_insert(
-                        cassie,
+                        working_cassie,
                         Some(working),
                         statement,
                         params,
@@ -632,9 +632,9 @@ fn execute_update_command(
             &statement.table,
             controls,
             false,
-            |working| {
+            |working_cassie, working, controls| {
                 super::dml::execute_update(
-                    cassie,
+                    working_cassie,
                     Some(working),
                     statement,
                     params,
@@ -664,9 +664,9 @@ fn execute_delete_command(
             &statement.table,
             controls,
             false,
-            |working| {
+            |working_cassie, working, controls| {
                 super::dml::execute_delete(
-                    cassie,
+                    working_cassie,
                     Some(working),
                     statement,
                     params,
@@ -696,9 +696,9 @@ fn execute_merge_command(
             &statement.table,
             controls,
             false,
-            |working| {
+            |working_cassie, working, controls| {
                 super::dml::execute_merge(
-                    cassie,
+                    working_cassie,
                     Some(working),
                     statement,
                     params,
@@ -718,7 +718,11 @@ fn execute_atomic_dml(
     table: &str,
     controls: &QueryExecutionControls,
     wait_for_unique_owner: bool,
-    mut execute: impl FnMut(&CassieSession) -> Result<QueryResult, QueryError>,
+    mut execute: impl FnMut(
+        &Cassie,
+        &CassieSession,
+        &QueryExecutionControls,
+    ) -> Result<QueryResult, QueryError>,
 ) -> Result<QueryResult, QueryError> {
     let collections = cassie.referential_write_collections(table);
     let mut pending_attempt: Option<PendingUniqueInsert> = None;
@@ -739,7 +743,14 @@ fn execute_atomic_dml(
             let batch = cassie
                 .new_statement_batch(session)
                 .map_err(QueryError::from)?;
-            let result = execute(batch.session())?;
+            let statement_controls = super::entrypoints::working_statement_read_controls(
+                cassie,
+                session,
+                batch.session(),
+                controls,
+            )?;
+            let working_cassie = cassie.with_statement_metadata_writer(batch.session());
+            let result = execute(&working_cassie, batch.session(), &statement_controls)?;
             check_timeout(controls)?;
 
             if wait_for_unique_owner {

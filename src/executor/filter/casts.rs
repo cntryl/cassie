@@ -7,7 +7,11 @@ pub(super) fn scalar(
     source: Option<&DataType>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
-    if let Some(value) = text_cast(value, target, source)? {
+    if let Some(value) = super::character_arrays::cast(value, target, source, controls, None, true)
+    {
+        return value;
+    }
+    if let Some(value) = text_cast(value, target, source, controls)? {
         return Ok(value);
     }
     if matches!(target, DataType::Array(_)) && source == Some(target) {
@@ -32,6 +36,7 @@ fn text_cast(
     value: &ScalarValue,
     target: &DataType,
     source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Option<ScalarValue>, QueryError> {
     if source == Some(&DataType::Jsonb)
         && matches!(target, DataType::Text | DataType::Varchar { .. })
@@ -39,7 +44,7 @@ fn text_cast(
         return jsonb_text(value).map(Some);
     }
     if matches!(target, DataType::Text | DataType::Varchar { .. }) {
-        if let Some(formatted) = format_array_text(value, source) {
+        if let Some(formatted) = format_array_text(value, source, controls) {
             return Ok(Some(formatted));
         }
         if matches!(value, ScalarValue::Json(_)) || source == Some(&DataType::Json) {
@@ -90,6 +95,13 @@ fn special_scalar_cast(
     // Explicit typmod casts truncate; assignment and function coercion still
     // use cast_scalar's bounded validation. Format the source before applying
     // the width so CHAR blanks and temporal spellings keep their SQL identity.
+    if let DataType::Char { length } = target {
+        if length.is_none() && matches!(source, Some(DataType::Char { .. })) {
+            return Ok(Some(value.clone()));
+        }
+        let text = scalar(value, &DataType::Text, source, controls)?;
+        return character(&text, *length, controls).map(Some);
+    }
     if let DataType::Varchar {
         length: Some(width),
     } = target
@@ -202,14 +214,16 @@ fn json_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         ScalarValue::Null => return Ok(ScalarValue::Null),
         _ => return Err(QueryError::General("cannot cast value to JSON text".into())),
     };
-    let document = serde_json::from_str::<serde_json::Value>(text)
+    serde_json::from_str::<serde_json::Value>(text)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    crate::types::jsonb::format(&document)
-        .map(ScalarValue::Str)
-        .map_err(|error| crate::app::CassieError::TypeInput(error).into())
+    Ok(ScalarValue::Str(text.clone()))
 }
 
-fn format_array_text(value: &ScalarValue, source: Option<&DataType>) -> Option<ScalarValue> {
+fn format_array_text(
+    value: &ScalarValue,
+    source: Option<&DataType>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Option<ScalarValue> {
     let Some(DataType::Array(element_type)) = source else {
         return None;
     };
@@ -218,9 +232,12 @@ fn format_array_text(value: &ScalarValue, source: Option<&DataType>) -> Option<S
             let array = serde_json::from_str::<serde_json::Value>(input).ok()?;
             crate::types::array::format_text_array(&array, element_type).map(ScalarValue::Str)
         }
-        ScalarValue::Array(array) => {
-            crate::types::array_value::format_text(array, element_type).map(ScalarValue::Str)
-        }
+        ScalarValue::Array(array) => crate::types::array_value::format_text_in(
+            array,
+            element_type,
+            &super::temporal::session_of(controls),
+        )
+        .map(ScalarValue::Str),
         _ => None,
     }
 }
@@ -304,21 +321,57 @@ pub(super) fn numeric_literal(
 pub(super) fn character(
     value: &ScalarValue,
     width: Option<u32>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     let Some(text) = super::cast_to_text(value) else {
         return Ok(ScalarValue::Null);
     };
-    let Some(width) = width else {
+    if width.is_none() {
         return Ok(ScalarValue::Str(text));
-    };
-    let width =
-        usize::try_from(width).map_err(|_| QueryError::General("CHAR width overflow".into()))?;
-    let mut result: String = text.chars().take(width).collect();
-    result.extend(std::iter::repeat_n(
-        ' ',
-        width.saturating_sub(result.chars().count()),
-    ));
+    }
+    let plan = crate::types::char_text::conversion_plan(&text, width, true, true)
+        .map_err(crate::app::CassieError::TypeInput)?;
+    let mut result = String::new();
+    result
+        .try_reserve_exact(plan.output_bytes)
+        .map_err(|error| {
+            crate::app::CassieError::ResourceLimit(format!(
+                "unable to allocate character output: {error}"
+            ))
+        })?;
+    if result.capacity() > plan.output_bytes {
+        return Err(crate::app::CassieError::ResourceLimit(
+            "allocator exceeded admitted character output capacity".into(),
+        )
+        .into());
+    }
+    result.push_str(&text[..plan.prefix_bytes]);
+    let mut remaining = plan.padding;
+    while remaining > 0 {
+        if let Some(controls) = controls {
+            controls.check_interruption()?;
+        }
+        let count = remaining.min(4096);
+        result.extend(std::iter::repeat_n(' ', count));
+        remaining -= count;
+    }
     Ok(ScalarValue::Str(result))
+}
+
+/// Assignment/input VARCHAR keeps its bounded validation rather than explicit truncation.
+pub(super) fn bounded_varchar(
+    value: &ScalarValue,
+    max_length: Option<u32>,
+) -> Result<ScalarValue, QueryError> {
+    let value = super::cast_to_text(value)
+        .filter(|value| {
+            max_length.is_none_or(|max_length| {
+                usize::try_from(max_length)
+                    .is_ok_and(|max_length| value.chars().count() <= max_length)
+            })
+        })
+        .ok_or_else(|| QueryError::General("cannot cast value to VARCHAR".to_string()))?;
+    Ok(ScalarValue::Str(value))
 }
 
 /// Upper bound for simultaneously retained expanding cast intermediates.
@@ -372,3 +425,7 @@ pub(super) fn bytea_literal_scratch(expr: &crate::sql::ast::Expr) -> Result<usiz
         Ok(0)
     }
 }
+
+#[cfg(test)]
+#[path = "casts_character_tests.rs"]
+mod character_tests;

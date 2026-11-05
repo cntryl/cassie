@@ -19,7 +19,8 @@ impl Default for QueryCancellationHandle {
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
             super::aggregate_test_pause::take_next_query_pause()
-                .or_else(super::sleep_test_pause::take_next_query_pause),
+                .or_else(super::sleep_test_pause::take_next_query_pause)
+                .or_else(super::regex_test_pause::take_next_query_pause),
             cancellation_signal,
         )
     }
@@ -139,6 +140,31 @@ pub struct QueryMemoryReservation {
 }
 
 impl QueryMemoryReservation {
+    /// A narrow bounded owner without a request token, deadline or test scope.
+    pub(crate) fn independent_budget(budget: usize, bytes: usize) -> Result<Self, CassieError> {
+        if bytes > budget {
+            return Err(memory_limit_error(budget, bytes));
+        }
+        Ok(Self {
+            tracker: Arc::new(QueryMemoryTracker {
+                budget,
+                used: AtomicUsize::new(bytes),
+                peak: AtomicUsize::new(bytes),
+            }),
+            bytes,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn tracker_peak_bytes(&self) -> usize {
+        self.tracker.peak.load(Ordering::Acquire)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn tracker_used_bytes(&self) -> usize {
+        self.tracker.used.load(Ordering::Acquire)
+    }
+
     /// Creates a separate narrow lease against the same query tracker.
     pub(crate) fn try_sibling(&self, bytes: usize) -> Result<Self, CassieError> {
         reserve_tracker_memory(&self.tracker, bytes)?;
@@ -214,6 +240,13 @@ impl QueryExecutionControls {
     pub(crate) fn sleep_function_entered(&self) -> Result<(), CassieError> {
         if let Some(super::QueryTestPause::Sleep(pause)) = self.cancellation.2.as_deref() {
             pause.reach()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn regex_search_completed(&self, matched: bool) -> Result<(), CassieError> {
+        if let Some(super::QueryTestPause::Regex(pause)) = self.cancellation.2.as_deref() {
+            pause.reach(matched)?;
         }
         Ok(())
     }

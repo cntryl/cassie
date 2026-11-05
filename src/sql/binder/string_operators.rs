@@ -8,6 +8,14 @@ pub(super) fn resolve(
     left: Option<&DataType>,
     right: Option<&DataType>,
 ) -> Result<(), CassieError> {
+    if *op == BinaryOp::Concat
+        && [left, right]
+            .into_iter()
+            .flatten()
+            .any(|kind| matches!(kind, DataType::Array(_)))
+    {
+        return Ok(());
+    }
     if *op == BinaryOp::ByteaConcat {
         if [left, right]
             .into_iter()
@@ -89,6 +97,15 @@ pub(super) fn qualify(
     if *op != BinaryOp::Concat {
         return;
     }
+    let array_type = [left_type, right_type]
+        .into_iter()
+        .flatten()
+        .find(|kind| matches!(kind, DataType::Array(_)));
+    if let Some(array_type) = array_type {
+        qualify_array_operand(left, left_type, array_type);
+        qualify_array_operand(right, right_type, array_type);
+        return;
+    }
     let json_left = left_type.is_some_and(DataType::is_json);
     let json_right = right_type.is_some_and(DataType::is_json);
     let bytea_left = left_type == Some(&DataType::Bytea);
@@ -123,6 +140,21 @@ pub(super) fn qualify(
     {
         cast(right, DataType::Text, Some(DataType::Bytea));
     }
+}
+
+fn qualify_array_operand(expression: &mut Expr, kind: Option<&DataType>, array: &DataType) {
+    let unknown = matches!(expression, Expr::StringLiteral(_) | Expr::Null)
+        || kind.is_none_or(|kind| *kind == DataType::Null);
+    let target = if unknown {
+        array.clone()
+    } else {
+        kind.cloned().unwrap_or_else(|| array.clone())
+    };
+    if matches!(expression, Expr::Cast { data_type, .. } if *data_type == target) {
+        return;
+    }
+    let source = if unknown { None } else { kind.cloned() };
+    cast(expression, target, source);
 }
 
 fn is_json_cast(expression: &Expr) -> bool {

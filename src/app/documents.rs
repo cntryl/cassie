@@ -31,6 +31,11 @@ impl Cassie {
         collection: &str,
         request: controlled::DocumentWriteRequest<'_>,
     ) -> Result<String, CassieError> {
+        self.check_storage_recovery_required()?;
+        let _publication_controls = crate::midge::adapter::PublicationControlScope::for_request(
+            &self.runtime.limits(),
+            request.cancellation,
+        );
         if let Some(session) = session {
             session.ensure_transaction_writable()?;
         }
@@ -207,6 +212,11 @@ impl Cassie {
         id: &str,
         cancellation: Option<&crate::runtime::QueryCancellationHandle>,
     ) -> Result<bool, CassieError> {
+        self.check_storage_recovery_required()?;
+        let _publication_controls = crate::midge::adapter::PublicationControlScope::for_request(
+            &self.runtime.limits(),
+            cancellation,
+        );
         let collections = self.referential_write_collections(collection);
         self.midge.with_collection_write_gates(&collections, || {
             self.delete_document_for_session_with_held_collection_gates(
@@ -224,6 +234,11 @@ impl Cassie {
         id: &str,
         cancellation: &crate::runtime::QueryCancellationHandle,
     ) -> Result<bool, CassieError> {
+        self.check_storage_recovery_required()?;
+        let _publication_controls = crate::midge::adapter::PublicationControlScope::for_request(
+            &self.runtime.limits(),
+            Some(cancellation),
+        );
         let collections = self.referential_write_collections(collection);
         self.midge.with_collection_write_gates(&collections, || {
             controlled::check_document_cancellation(Some(cancellation))?;

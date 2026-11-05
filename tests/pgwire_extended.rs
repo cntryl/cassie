@@ -1,3 +1,10 @@
+#[path = "pgwire_extended/transactions/repeatable_own_views.rs"]
+mod repeatable_own_views;
+#[path = "pgwire_extended/transactions/repeatable_read.rs"]
+mod repeatable_read;
+#[path = "support/repeatable_read.rs"]
+mod support_repeatable_read;
+
 #[path = "pgwire_extended/conflicts/unique_validation_errors.rs"]
 mod unique_validation_errors;
 
@@ -106,6 +113,16 @@ mod pgwire_type_scalar_matrix;
 #[path = "support/type_codec_matrix.rs"]
 mod support_type_codec_matrix;
 
+#[path = "pgwire_extended/types/arrays/character_conditionals.rs"]
+mod character_conditionals;
+#[path = "pgwire_extended/types/arrays/character_logical_values.rs"]
+mod character_logical_values;
+#[path = "pgwire_extended/types/arrays/character_row_images.rs"]
+mod character_row_images;
+#[path = "pgwire_extended/types/arrays/character_using.rs"]
+mod character_using;
+#[path = "pgwire_extended/types/arrays/character_casts.rs"]
+mod pgwire_character_array_casts;
 #[path = "pgwire_extended/types/arrays/aggregate_identity/semantics.rs"]
 mod pgwire_type_array_text_inputs;
 #[path = "pgwire_extended/type_resolution/codec_boundaries.rs"]
@@ -667,3 +684,14 @@ mod parameter_operator_resolution;
 
 #[path = "pgwire_extended/types/review_diagnostics.rs"]
 mod review_diagnostics;
+
+#[path = "pgwire_extended/types/json/semantic_keys.rs"]
+mod jsonb_semantic_keys;
+
+#[path = "pgwire_extended/types/json/numeric_weight_boundaries.rs"]
+mod jsonb_numeric_boundaries;
+#[path = "pgwire_extended/aggregates/windows/statistical_filter.rs"]
+mod statistical_filter_windows;
+
+#[path = "pgwire_extended/types/json/search_cycle_lineage.rs"]
+mod jsonb_search_cycle_lineage;

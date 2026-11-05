@@ -7,6 +7,7 @@ use super::{
 };
 use crate::executor::semantic::SemanticKey;
 use crate::runtime::accounted::AccountedVec;
+use crate::types::semantic_index::KeyedMap;
 
 pub(super) fn execute_left_build_streaming_bounded_inner_join(
     env: &SourceExecutionEnv<'_>,
@@ -28,7 +29,7 @@ pub(super) fn execute_left_build_streaming_bounded_inner_join(
                 spec.keys.domain,
             )?)?;
     retention.before(JoinRetentionPhase::BoundedBuild)?;
-    let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
+    let mut build = KeyedMap::<SemanticKey, Vec<usize>>::new(Some(env.controls))?;
     build
         .try_reserve(accounting::hash_build_capacity(
             left_rows.as_slice(),
@@ -42,7 +43,7 @@ pub(super) fn execute_left_build_streaming_bounded_inner_join(
     for (index, left_row) in left_rows.as_slice().iter().enumerate() {
         check_timeout(env.controls)?;
         if let Some(key) = row_join_key(left_row, &spec.keys.left, spec.keys.domain)? {
-            build.entry(key).or_default().push(index);
+            build.entry(key)?.or_default().push(index);
         }
     }
 
@@ -257,7 +258,7 @@ pub(super) struct StreamingJoinProgress {
 pub(super) fn stream_left_rows_against_right(
     env: &SourceExecutionEnv<'_>,
     spec: &StreamingJoinSpec<'_>,
-    build: &std::collections::HashMap<SemanticKey, Vec<usize>>,
+    build: &KeyedMap<SemanticKey, Vec<usize>>,
     right_rows: &[BatchRow],
     retention: &JoinRetentionContext<'_>,
 ) -> Result<StreamingJoinProgress, QueryError> {
@@ -275,7 +276,7 @@ pub(super) fn stream_left_rows_against_right(
 
 struct StreamBuild<'a> {
     rows: &'a [BatchRow],
-    index: &'a std::collections::HashMap<SemanticKey, Vec<usize>>,
+    index: &'a KeyedMap<SemanticKey, Vec<usize>>,
     left: bool,
 }
 

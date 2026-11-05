@@ -122,6 +122,7 @@ pub(super) struct EvalContext<'a> {
     session: Option<&'a CassieSession>,
     exists: Option<&'a ExistsResolver<'a>>,
     controls: Option<&'a crate::runtime::QueryExecutionControls>,
+    memory: Option<&'a evaluation::EvaluationMemory>,
 }
 
 #[derive(Debug, Clone)]
@@ -287,29 +288,10 @@ pub(crate) fn filter_batches(
         .collect()
 }
 
-pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
-    row: &R,
-    expr: &Expr,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    local_args: Option<&HashMap<String, Value>>,
-) -> Result<Value, QueryError> {
-    evaluate_expr_value_with_context(
-        row,
-        expr,
-        EvalContext {
-            params,
-            search_context,
-            user_functions,
-            local_args,
-            session,
-            exists: None,
-            controls: None,
-        },
-    )
-}
+#[path = "filter/evaluation.rs"]
+pub(crate) mod evaluation;
+pub(crate) use evaluation::evaluate_source_argument_resolving;
+pub(crate) use evaluation::{evaluate_expr_value, evaluate_source_argument, EvaluationMemory};
 
 pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     row: &R,
@@ -353,6 +335,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
             session,
             exists: None,
             controls: None,
+            memory: None,
         },
     )?;
     value.is_true()
@@ -378,12 +361,15 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             session,
             exists: None,
             controls: None,
+            memory: None,
         },
     )
 }
 
 #[path = "filter/casts.rs"]
 mod casts;
+#[path = "filter/character_arrays.rs"]
+pub(crate) mod character_arrays;
 #[path = "filter/constants.rs"]
 mod constants;
 mod like_predicate;
@@ -580,8 +566,8 @@ fn cast_scalar(
             &cast_string_scalar(value),
         ))),
         DataType::Text => Ok(ScalarValue::Str(cast_string_scalar(value))),
-        DataType::Char { length } => casts::character(value, *length),
-        DataType::Varchar { length } => cast_varchar_text(value, *length),
+        DataType::Char { length } => casts::character(value, *length, controls),
+        DataType::Varchar { length } => casts::bounded_varchar(value, *length),
         DataType::Bytea => {
             let value = value
                 .as_str()
@@ -616,7 +602,10 @@ fn cast_scalar(
                 .map(ScalarValue::Json)
                 .map_err(|error| crate::app::CassieError::TypeInput(error).into())
         }
-        DataType::Array(element) => text_arrays::cast(value, element),
+        DataType::Array(element) => {
+            character_arrays::cast(value, data_type, None, controls, None, false)
+                .unwrap_or_else(|| text_arrays::cast(value, element))
+        }
         DataType::Vector(_) => Err(QueryError::General(
             "cannot cast scalar value to VECTOR".to_string(),
         )),
@@ -662,21 +651,6 @@ fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         )),
         ScalarValue::Null => Ok(ScalarValue::Null),
     }
-}
-
-fn cast_varchar_text(
-    value: &ScalarValue,
-    max_length: Option<u32>,
-) -> Result<ScalarValue, QueryError> {
-    let value = cast_to_text(value)
-        .filter(|value| {
-            max_length.is_none_or(|max_length| {
-                usize::try_from(max_length)
-                    .is_ok_and(|max_length| value.chars().count() <= max_length)
-            })
-        })
-        .ok_or_else(|| QueryError::General("cannot cast value to VARCHAR".to_string()))?;
-    Ok(ScalarValue::Str(value))
 }
 
 fn cast_json_text(

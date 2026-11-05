@@ -13,7 +13,6 @@ use super::inference::{
     append_source_qualifiers, infer_projection_schema_with_parameters,
     infer_source_schema_with_outer, relation_output_schema,
 };
-use super::select::table_function_columns;
 use super::{
     CassieError, Catalog, CommonTableExpression, CteQuery, DataType, FieldSchema, HashMap, HashSet,
     QuerySource, Schema, SelectItem, SelectStatement,
@@ -410,14 +409,19 @@ fn source_fields(
             relation_fields(catalog, name)
         }
         QuerySource::SingleRow => Ok(Vec::new()),
-        QuerySource::TableFunction { name, .. } => Ok(table_function_columns(name)
-            .into_iter()
-            .map(|(name, data_type)| FieldSchema {
-                name,
-                data_type,
-                nullable: true,
-            })
-            .collect()),
+        QuerySource::TableFunction { .. } => Ok(super::table_functions::typed_columns(
+            source,
+            outer_fields,
+            user_functions,
+            parameter_types,
+        )?
+        .into_iter()
+        .map(|(name, data_type)| FieldSchema {
+            name,
+            data_type,
+            nullable: true,
+        })
+        .collect()),
         QuerySource::Subquery {
             select, lateral, ..
         } => select_fields(

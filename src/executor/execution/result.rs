@@ -235,16 +235,19 @@ pub(super) fn compare_query_values(left: &Value, right: &Value) -> CmpOrdering {
     compare_values(left, right)
 }
 
-pub(super) fn row_signature(row: &impl RowAccess) -> SemanticKey {
-    SemanticKey::from_semantic_values(
+pub(super) fn row_signature(
+    row: &impl RowAccess,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<SemanticKey, QueryError> {
+    Ok(SemanticKey::from_semantic_values(
         row.entries()
             .iter()
             .enumerate()
             .map(|(index, (_, value))| {
-                crate::executor::semantic::typed_value(value, row.entry_type(index))
+                crate::executor::semantic::typed_value(value, row.entry_type(index), Some(controls))
             })
-            .collect(),
-    )
+            .collect::<Result<Vec<_>, _>>()?,
+    ))
 }
 
 pub(super) fn deduce_text_fields<R: RowAccess>(rows: &[R]) -> Vec<String> {

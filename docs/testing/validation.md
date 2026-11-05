@@ -5748,3 +5748,400 @@ inventory, and run the complete ordered local gate on the combined scalar PR
 head. This focused evidence does not replace that gate or hosted final-head
 checks. #805 closure awaits those checks; remaining regex and other independently
 owned #954 obligations stay open.
+
+## 2026-11-04 — #819 read-only RR implementation work record
+
+This is an interim source/advisory record, not completed support or an issue
+closure. The selected profile is in
+[the wire transaction contract](../pgwire-transaction-contract.md#selected-v02-snapshot-profile-2026-11-04).
+The user directed compilation and test execution to wait for a substantial frozen
+bundle; new regressions below are authored and unexecuted. No Midge engine,
+registry source, dependency version, public API, or workflow was changed.
+
+Earlier executed evidence on the original native dependency:
+
+- `CARGO_BUILD_JOBS=2 cargo test --locked --lib should_reuse_the_statement_view_for_raw_database_reads -- --nocapture`: passed 1 retained point/prefix/page owner proof.
+- `CARGO_BUILD_JOBS=2 cargo test --locked --test compatibility should_retain_repeatable_read_view_from_the_first_query -- --nocapture`: red at `BEGIN ... REPEATABLE READ READ ONLY`, SQLSTATE `0A000`, before runtime implementation.
+- `CARGO_BUILD_JOBS=1 cargo test --locked --lib midge::adapter::transactions::snapshot_proofs:: -- --nocapture`: passed the original 2 published-Midge capability probes: ABA rejection and disjoint row assertion with fresh shared metadata. Two later separate-snapshot/native-escape probes are authored, not included in that passed count.
+
+Pinned PostgreSQL 18.6 raw-wire receipts distinguish first-view acquisition from
+transaction ownership: constant SELECT, explicit-RR Parse and Bind, PREPARE,
+DECLARE, CALL, EXPLAIN and DEALLOCATE capture; SHOW/SAVEPOINT and Describe alone
+do not. The SQL catalog omits a newly created relation while its current name
+resolves against the retained data view. The native scripts, exact upstream
+`REL_18_6` classification sources, and Jev requests/responses are retained under
+the isolated transaction worktree's ignored `target/v020-evidence/` directory.
+They are local receipts, not hosted CI.
+
+New authored regression paths:
+
+- `tests/compatibility/lifecycle/transactions/repeatable_read.rs`: first-view/savepoint/data/catalog visibility, current new-table descriptor, and current rename/add-column descriptors over historical rows.
+- `tests/pgwire_extended/transactions/repeatable_read.rs`, with `tests/support/repeatable_read.rs`: constant/Parse/Bind/Describe/SHOW/SAVEPOINT/utility boundaries and limited direct-cursor pagination. The initially proposed idle-prebound Execute witness was removed after the pinned oracle rejected its phase order, as recorded below.
+- `src/app/transaction_snapshot/tests.rs`: rejected admission and retry, last shared owner release, no second request charge, actual cancelled-query/savepoint recovery, disconnect by final session drop, pre-cancel/deadline, synchronized cancellation while publication is held, and RC/RR descriptor-authority controls.
+- `src/app/transaction_snapshot/tests/indexes.rs`: current-planner late scalar selection with row fallback, bounded indexed-join fallback, unchanged/replaced/renamed storage identities, REINDEX/drop-recreate, and a late full-text scalar prefilter.
+- `src/midge/adapter/transactions/snapshot_proofs.rs`: published API capability boundaries; native assertions do not make independently captured snapshots equivalent.
+
+Read-access sibling source inventory:
+
+| Path | Retained-view eligibility/fallback |
+|---|---|
+| `executor/execution/index_read.rs` | Selected scalar index requires identity in admitted transaction catalog; otherwise existing row fallback. |
+| `executor/execution/source_join/bounded.rs` | Selected bounded join index requires the same identity; otherwise existing join fallback. |
+| `executor/execution/scored/fulltext_read.rs` | Scalar prefilter declines late identity; persisted full-text loader already resolves old `get_index` and returns exact fallback for missing/invalid artifacts. |
+| `midge/adapter/column_batches/validation.rs` | Both controlled and ordinary summary validation resolve old `get_index`; no covering index, metadata or matching generation returns existing fallback. |
+| `midge/adapter/time_series_indexes/controlled.rs` | Old-view missing manifest/integrity returns fallback; executor `time_series_read.rs` uses retained row-backed scan. |
+| `executor/execution/scored/vector_topk/{hnsw,ivfflat}.rs` | `get_vector_index_definition` reads retained Data; absent definition/artifact returns exact fallback, and native candidates require retained source generation. |
+| `executor/execution/scored/hybrid.rs` | Missing retained ANN state or invalid text/vector artifact declines bounded retrieval; source generation checks remain. |
+| `executor/execution/projected_read.rs` | Its separate scalar-selection helpers report diagnostics; native scalar reads route through `index_read.rs`. |
+
+Jev decisions and required actions are advisory, not proof:
+
+- Phase-aware acquisition 0.93; cancellable blocking Parse capture 0.90. Authored wire and held-publication controls await execution.
+- Catalog SQL-row/current-descriptor distinction 0.96; transaction Arc lifetime 1.00; controlled detached catalog approach 0.97. Controlled typed metadata admission is integrated separately before the frozen gate.
+- Initial uncharged clone 0.86 and JSON-length-only estimate 0.94 require complete typed catalog admission and sparse/nested ownership probes in that helper.
+- First implementation review acquisition 0.64, lifecycle 0.42, descriptor 0.42 and Parse 0.46 leads prompted exact boundary, ownership and descriptor controls. Prebound direct Execute was localized at 0.87 and led to a defensive pending-view acquisition on a blocking boundary; the later oracle below rejects that proposed wire witness.
+- Late scalar-prefix omission was localized at 0.58; snapshot-catalog identity eligibility selected at 0.99. Identity gap 0.60 requires the authored replacement/rename/REINDEX controls.
+- Unconditional fresh descriptor lookup would weaken ordinary statement metadata retention (0.88); immutable owner-specific descriptor authority selected at 0.99, with paired RC/RR controls.
+- Read-write integration gap 0.84 selected keeping the explicit read-only increment at 0.99. Native row assertions are available; complete Cassie publication, fresh unique/index/generation/epoch preparation and atomic replay still require a proven integration. Read-write RR remains `0A000`; no whole-database epoch conflict fence is substituted for per-row first-committer-wins.
+
+The final frozen bundle still requires the ordered build, complete locked tests,
+whole-workspace pedantic clippy, formatting and touched-test policy validation.
+These checks have not been run for this candidate head.
+
+The later bounded adversarial pass returned acquisition 0.25, ownership 0.34,
+index-sibling gap 0.29 and descriptor regression 0.29. The ownership lead at
+0.34 requires the newly authored raw-wire Terminate probe: read Ready after
+capture, observe a positive retained charge, send Terminate, await actual EOF
+(after connection-state cleanup), then require zero charge. It uses no sleep
+or scheduling poll. All these new probes remain unexecuted until the frozen
+gate, so the lower probabilities are advisory refinement, not acceptance.
+
+
+
+The subsequent RW design comparison selected investigating assertion-only
+old-start validation plus the existing fresh atomic commit under a complete
+per-database publication gate (0.99). This has not been implemented. PostgreSQL
+18.6 source `AbortCurrentTransaction`/`TBLOCK_END` supports ending a failed COMMIT
+attempt at Idle; Jev selected this new-RW lifetime at 0.88. The conditional
+race/atomicity lead remains 0.74. Two additional authored native probes require
+assertion-only server-side ABA rejection and disjoint validation with no shared
+metadata mutation. Complete locked-window competing-writer probes and the
+production writer/gate inventory remain required before RW enablement.
+
+The native late-apply source narrowed the RW mutex gap: Midge may still publish
+an admitted write after `OutcomeUnknown`. Jev selected instance-wide
+recovery-required quarantine and a private terminal adapter error mapped to the
+existing `58030` storage diagnostic at 1.00 each. The new blocked operation must
+be explicitly not submitted; the prior unknown write still requires recovery and
+reconciliation. Conditional residual race 0.30 requires synchronized quarantine
+and gate lifetime probes in the coherent RW batch. No RW implementation or pass
+is claimed by this design record.
+
+The common Cassie publication/recovery prerequisite is now authored in
+`midge/adapter/publication.rs`, private transaction factories, SQL admission and
+protocol fast paths. RW RR remains disabled. The audit additionally found native
+REST session issuance and Temp query-cache writes; both now use guarded private
+transactions. Existing public native transaction signatures and Midge 0.5.1 are
+unchanged. Fresh native opens check recovery admission, while the documented
+preobtained native transaction escape remains outside SQL guarantees.
+
+The new source-only probes cover unknown latching before gate release, another
+family's blocked publication and snapshot capture, weak-gate retirement, known
+not-applied conflict, synchronized request cancellation before native submission,
+current-request versus retired capture control, nested REST absolute deadline and
+REST cancellation, fresh native read/write admission, local rollback/commit owner
+retirement, owned preexisting cursor completion, new cursor FETCH rejection, low
+budget cleanup, and completed/suspended/empty protocol fast paths. Two more
+native assertion-only ABA/disjoint probes are authored. No new compilation or
+execution has occurred for these RW files under the batching instruction.
+
+Bounded Jev source review selected no shown production publication escape at
+0.76, with nested wait-control gap 0.23 and instance-latch gap 0.19. Admission
+review selected no retained protocol escape at 0.80, cleanup-owner gap 0.12,
+fresh-read gap 0.29 and shared plain terminal grammar at 1.00. The fixed-pair
+REST/SQL controls correct a source-found risk where nested SQL could replace the
+REST deadline. Existing best-effort Temp cache cleanup remains best effort for an
+already accepted owned read (selected 0.77); its guarded native commit still
+latches quarantine and future fresh operations reject. These advisory results
+do not replace the substantial integrated build/full-test/strict-clippy/fmt/test
+policy gate. Parent REST route/worker/health source `06437d45` is the next planned
+integration; its authored tests are not included in any passing count.
+
+
+
+The first frozen RO gate at `67d0f1a1843f36c16d8be76d6331034a01b87e60`
+passed `cargo build --locked` (158.17 s). `cargo test --locked` then stopped in
+integration-test compilation (438.93 s) with three `E0505` errors in the new
+wire fixture: one drop tuple moved borrowed parent sockets together with their
+split halves. No test pass is claimed for that run; clippy, formatting and policy
+stages were not reached. The coherent test-only correction uses owned
+`TcpStream::into_split` halves and drops those halves directly. Seven test names
+were also rewritten around their single invariant after the parallel scalar
+lane's analyzer identified `_and_` action-name false positives; assertions and
+fixtures remain intact. The corrected exact head requires the ordered gate.
+
+
+
+The second frozen RO gate at `5bcc57116b8aa9805dfb40d751a8cfeb4ef76aa5`
+passed build (0.33 s). Full tests compiled and ran the library suite, where
+1,437 tests passed and the new index-identity fixture failed: it incorrectly
+assumed logical SQL `Catalog` index records contain native storage IDs. No
+integration-suite, clippy, formatting or analyzer pass is claimed for this run.
+Source confirms `schema_creation.rs` propagates the returned Midge collection ID
+into `CollectionMeta`, while scalar scan resolution fetches old Data index IDs
+when logical IDs are absent. The correction compares nonzero current/retained
+collection identity plus the borrowed read definition; explicit current index
+IDs still require matching retained IDs. Jev selected this rule at 1.00. Its
+0.53 recreation lead requires new same-name table/index recreation and changed
+index-definition controls. A positive native-seek counter covers both logical
+and persisted/hydrated catalog shapes. The corrected head requires the complete
+ordered gate; no probe pass is inferred from advisory selection.
+
+
+
+The third frozen RO gate at `7d2b1e139cc7a4e31309372a912dadd3ba640524`
+passed build (21.47 s). Full tests ran for 707.60 s and stopped at
+`pgwire_extended`: 3,621 passed and one new fixture failed with SQLSTATE `34000`.
+That fixture incorrectly issued an idle Sync after binding its portal; idle
+Sync intentionally retires portals. The corrected fixture binds the SELECT and
+executes BEGIN in one extended cycle, then synchronizes inside the explicit
+block. It preserves the existing idle cleanup behavior and tests first capture
+at direct Execute. Jev selected this reachable boundary at 0.81. Clippy, fmt
+check and policy stages were not reached in this run.
+
+The retained-admission audit found that `RunningQueryGuard` only owns active
+schema/admission/running-query counters. Snapshot reservations independently
+retain their original `QueryMemoryTracker`; later statements share that original
+admission and use separate budgets for new allocations. The runtime memory
+metric observes the latest recorded tracker rather than summing all idle
+transactions. A new focused probe drops the originating controls and query
+guard, then requires positive retained charge with zero running queries,
+positive shared charge after rollback, positive catalog-only charge after the
+data alias retires, and zero only after the last catalog alias retires. Jev's
+initial 0.37 ownership-gap lead prompted these explicit post-origin and
+post-session alias controls; the bounded follow-up selected no supported false
+release path at 0.68 (remaining individual candidates below 0.30). These
+authored fixes require the next complete ordered gate; no pass is inferred.
+
+
+
+The fourth frozen RO gate at `cc8e201afd2e2854c19a412328329720d62ee247`
+passed build (0.63 s). Full tests ran for 585.94 s, including 1,441 passing
+library tests and 3,622 passing `pgwire_extended` tests, then stopped in
+`sql_mutations` (398 passed, one failed). The inherited isolation test still
+expected read-only RR BEGIN to be rejected. Its negative control now explicitly
+uses READ WRITE, which remains unselected; the selected read-only positive
+controls remain intact. Clippy, fmt check and policy stages were not reached.
+
+The apparent prebound-portal fix in the prior record was a mistaken assumption,
+not an accepted PostgreSQL contract. A pinned PostgreSQL 18.6 raw-wire probe of
+Parse SELECT / Bind SELECT / Parse BEGIN RR / Bind BEGIN / Execute BEGIN / Sync
+returned `25001` (isolation must be set before any query), then Ready `I`; the
+subsequent Execute returned `34000` because the portal was gone. This executable
+oracle supersedes Jev's earlier 0.81 advisory selection. The unsupported wire
+witness and its helper were removed, preserving idle portal cleanup and the
+valid Parse-outside / Bind-inside explicit RR coverage. Direct Execute pending
+view acquisition remains a defensive internal invariant. This slice does not
+add implicit extended-query transaction semantics to manufacture a witness.
+The exact receipt is `pg186-rr-prebound-oracle.json` under the isolated ignored
+evidence directory. The next full test stage uses `--no-fail-fast` to collect
+all suite failures in one frozen-head pass.
+
+
+
+The fifth frozen RO gate at `1bbd1b131b7f462722311a4ca353cd592851f21a`
+passed build (0.23 s) and complete `cargo test --locked --no-fail-fast`
+(613.71 s): 9,933 passed, zero failed, 12 ignored across 35 result summaries.
+Whole-workspace/all-target/all-feature pedantic Clippy then stopped with one
+library finding (159.12 s): new `handle_parse` was 106 lines against the 100-line
+function limit. The correction extracts its existing prepared-name/connection
+limit validation into a small private helper, preserving order and diagnostics.
+No lint suppression or reduced scope is used. Formatting check and touched-test
+policy stages were not reached. The corrected exact head requires the ordered
+gate again; this passing test count belongs only to the recorded fifth head.
+
+
+
+The RW read-owner preparation now separates an admitted immutable native-data
+core from admitted per-command overlays. RW is still rejected. Jev selected the
+shape at 0.97; its 0.63 overlay-law lead prompted four native COW/savepoint,
+identity-rebind, last-owner and denied-admission probes plus the SQL own-write
+CTE/savepoint/disjoint-writer regression. The subsequent exact fork review
+localized a later modifying CTE recapture gap at 0.75 and selected a private
+origin-checked working-session rebind at 0.88. Existing source query boundaries
+receive the rebound controls; constraint and mutation checks retain live own
+writes. A new paired RC/RR parent-CTE/child-VALUES foreign-key control guards that
+distinction. The dedicated simple upsert-wait path participates too.
+
+The final interim review selected passing the rebound owner through existing
+read boundaries at 1.00; retained-core ownership gap was 0.17. Remaining source
+leads of 0.40 for sibling CTE reads and 0.37 for RC/RO authority require focused
+execution in the substantial RW gate. They prompted additional paired RC/RR
+INSERT/ON CONFLICT, UPDATE subquery and DELETE subquery sibling-source probes,
+and a native descriptor-authority pair after a new wrapper shares its core. The
+existing read-only zero-second-request-admission and last-owner tests must also
+run on the integrated source. These new tests have only been authored; no Cargo
+compilation or test execution is claimed for the RW increment. Root startup-DDL
+fix `cd6131b8` is integrated as `ebdea5a1` before future commit-fence wiring.
+
+
+
+The sixth frozen RO gate at `bc46b2353e8dc1b8abe9a3f59418006f790a7589`
+passed build (37.62 s) and complete locked/no-fail-fast tests (843.31 s):
+9,933 passed, zero failed, 12 ignored. Strict full Clippy then stopped in the
+pgwire test target after 55.15 s on `assert_is_empty`. An unchanged-head
+full-scope `cargo clippy --keep-going --workspace --all-targets --all-features --
+-D warnings -D clippy::pedantic` collection pass (105.90 s) found three total
+instances in the new wire/index tests. They now compare typed empty vectors,
+preserving all assertions while showing values on failure. No lint suppression
+or narrowed target is used. No strict Clippy pass is claimed; fmt check and test
+policy were not reached.
+
+Per the user's explicit validation-batching instruction, the lint-only corrected
+head does not trigger another 9,933-test run by itself. Its source/test
+qualification remains pending; the next complete ordered gate will cover the
+substantial combined owner/fence/RW integration. The exact sixth-head runtime
+receipt remains authoritative for that earlier head only.
+
+
+
+### Pending RW row-fence source increment (2026-11-04)
+
+The private retained assertion owner now has authored modern/column/legacy
+same-payload conflict, disjoint-row, old-empty insert/delete, final-row
+cancellation, and one-/two-row input-admission probes. A synchronized native
+publisher probe covers the gate window. The old-empty correction follows six
+pinned PostgreSQL 18.6 successful current-empty insertion controls; it supersedes
+the earlier blanket missing-key assertion design. Existing native internals are
+unchanged. RW mode remains rejected.
+
+This is source-only evidence. Direct Rust formatting/parser and diff checks
+passed; no build or test was run for this increment under the user's batching
+direction. Execute these probes and the full required ordered gate only after
+the substantive RW/history/admission bundle is frozen. The prior RO v6 runtime
+pass does not qualify this newer source.
+
+
+
+### Pending RW early-conflict authority increment (2026-11-04)
+
+Source now includes private instance-exclusive native writable capability
+admission and bounded per-family confirmed mutation history. Authored controls
+cover all six public factories, immutable native read-only capabilities,
+pre-capture staging, modern/column/legacy same-payload writes, public raw point
+writes, same-payload delete/reinsert, known and unknown outcomes, checked sequence
+exhaustion, multiple retained owners, exact retirement/confirmation ordering,
+full directory reuse, complete memory boundaries, and header denial before a
+tracker exists. A confirmation-time pressure owner exhausts the remaining
+history allowance before native success to test infallible installation. The
+24 pinned conflict-target cases, six current-empty insertion controls and own
+savepoint target control are authored as focused SQL tests.
+
+Jev source review reported installation0.21 and retirement0.23 leads; initial
+resource0.35/native-interop0.49 led to directory-growth correction and complete
+factory controls. Follow-up resource0.30 led to lazy tracker pre-admission and
+its negative control (new header lead0.16). The later installation0.41 remains a
+required executable confirmation-pressure probe. These are advisory reviews;
+all new tests remain unexecuted under the user's batching instruction. Direct
+Rust formatting/parser and diff checks are interim source checks only. RW still
+rejects until final commit/catalog/lifecycle integration and the full required
+ordered gate; this increment claims no passing runtime behavior.
+
+
+
+### Pending RW controlled commit window (2026-11-04)
+
+COMMIT now carries its current request controls through a stable current-catalog
+guard, controlled referential/collection gates, the continuous database
+publication window, retained native row assertions and fresh normal publication.
+Entered RW COMMIT failures retire to Idle; READ COMMITTED's existing output
+admission behavior remains covered. Authored controls distinguish retired
+capture cancellation from current COMMIT cancellation, input/output denial,
+same-payload FCW, and cancellation after actual confirmed user publication.
+The last observer is private `cfg(test)` state with scoped restoration.
+
+Source review found a real correction to the old-empty fence: fresh document
+Put replaces a current row with the same physical identity. A fresh same-family
+presence check now rejects a late direct writer with40001 before user
+publication, while preserving the six pinned current-empty insert/delete
+controls. Row/column fixtures derive the actual staged physical ID to exercise
+this path. RR never takes the RC conflict-intent retry; authored late-arbiter
+and nonarbiter cases check40001 versus23505 without changing the winner.
+
+New gate fixtures synchronize at actual collection/referential waits, preserve
+both REST and SQL cancellation, and test exact directory admission. One
+explicitly local native-lifetime fixture retains an escaped writer after Midge
+drop and requires native fencing to block reopen until it retires. Other new
+fixtures use memory storage; the preexisting output-admission fixture was moved
+to memory because it asserts no persistence or recovery behavior.
+
+Jev locking/resource leads were0.25/0.27. Its failure0.78 lead led to the current,
+retired-origin, failure-retirement and confirmed-publication controls; narrowed
+failure candidates were each below0.30. Retry0.38 led to late native-winner and
+nonarbiter controls; its own-target follow-up0.38 led to the concrete same-ID
+upsert audit and fresh-presence correction (selected1.00, error contract0.98).
+All execution remains deferred under the user's batching direction; direct
+Rust parser/formatting and diff checks are interim source checks. Runtime RW
+remains rejected pending own-DDL catalog composition, final integration and the
+full required ordered gate. No new passing support claim is made here.
+
+### Repeatable-read command owners (source checkpoint `87753170`)
+
+The RR source bundle now includes controlled catalog delta helper `820c18a1`,
+command and Bind own-view ownership, current descriptor composition, bounded
+portal retention, and immutable read catalog / mutable metadata writer
+separation. Twenty-two new regression declarations cover CTAS command catalog
+boundaries, stale DDL dependencies, savepoint restoration, statement forks,
+Bind own rows/catalog, exact admission, last-owner retirement, current execution
+cancellation, sequence metadata ownership, and once-only upsert inputs across an
+actual unique-owner wait. The latter synchronizes on the installed owner edge;
+its deadline is only a hang guard.
+
+All eight focused source test-policy checks passed (31 declarations, including
+nine preserved RR protocol tests). Direct Rust formatting/parser checks and
+`git diff --check` passed. Per the user's batching instruction, no build, native
+test, Clippy, complete ordered gate, or regenerated inventory is claimed for
+this source checkpoint. RW admission remained unsupported at `87753170`; the
+enabled candidate below is deliberately admitted for the combined native gate. The nine catalog delta helper tests
+also remain pending native execution.
+
+Jev review receipts are retained under the isolated worktree's ignored
+`target/v020-evidence/rw/` directory. Concrete candidates at or above 0.30 led to
+authored CTAS-after-own-DDL, actual bound INSERT-source, frame-plus-directory
+N-1/N, constant-plan memory, and prepared-default owner-wait probes. Source
+review also found the session catalog alias and runtime metadata mutation
+paths, which now retain read owners and target mutable stages explicitly. The
+final focused source judgments were 0.26 for read-owner gaps, 0.23 for mutation
+fork gaps, and 0.24 for once-only input gaps; these are advisory and do not
+replace execution. The separate newly staged sequence lifecycle gap remains
+open in #839.
+
+
+### Enabled RR owner candidate (native gate pending)
+
+The follow-up source candidate enables default/explicit RW RR BEGIN and a
+pre-snapshot READ ONLY-to-READ WRITE change. Genuinely read-only RR keeps its
+existing direct cursor path; only snapshots with RW authority retain a private
+Bind own-view frame and use bounded portal materialization. New controls prove
+that a read-only owner requires no extra one-byte Bind budget, and that retained
+RW ownership survives legal mode tightening and writable savepoint restoration.
+An old statement fork also cannot publish into a replacement transaction.
+
+Pinned PostgreSQL 18.6 probes passed for RW-to-RO after SELECT or INSERT, and
+for restoring RW by rollback to a savepoint created before RO capture. The
+candidate keys write authority off the immutable retained owner after capture,
+and off current/saved writable modes before capture. Current read-only mode
+continues to prohibit new writes. Serializable, Deferrable, READ UNCOMMITTED
+alias controls, native-writer mutual exclusion and first-committer-wins fences
+remain intact. SET TRANSACTION ISOLATION and the separate new-sequence #839
+lifecycle case remain explicit incomplete acceptance work.
+
+All twelve focused source-policy checks passed (54 declarations). Direct Rust
+format/parser and diff checks passed; no Cargo build, native regression,
+Clippy or complete gate has run for this enabled source. Jev selected RW-only
+Bind ownership at 0.98 and stable captured authority at 1.00. Its mode gap 0.58
+triggered an eight-case native capability/mode transition probe, authored for
+the combined gate; that lead is not declared discharged by test authorship.
+The concrete retired-fork gap narrowed to 0.08 after the generation check and
+focused regression. Build/test/Clippy/fmt/global policy and inventory must now
+qualify the combined head before support is claimed.

@@ -1,3 +1,18 @@
+#[path = "extended/execute.rs"]
+mod execute;
+use execute::handle_execute;
+
+#[path = "extended/prepared_state.rs"]
+mod prepared_state;
+use prepared_state::{
+    normalize_parameter_type_oids, store_prepared_statement, unknown_high_bit_parameter_oid,
+    unknown_high_bit_projection_oid, with_function_input_scope,
+};
+
+#[path = "extended/parse.rs"]
+mod parse;
+use parse::{handle_parse, ParseRequest};
+
 #[path = "extended/bind_planning.rs"]
 mod bind_planning;
 #[path = "extended/parameter_errors.rs"]
@@ -15,6 +30,9 @@ mod parameter_admission_tests;
 #[cfg(test)]
 #[path = "extended/prepared_descriptor_tests.rs"]
 mod prepared_descriptor_tests;
+#[cfg(test)]
+#[path = "extended/storage_recovery_tests.rs"]
+mod storage_recovery_tests;
 
 use std::io;
 use std::str;
@@ -56,7 +74,6 @@ use portal_streaming::{
 use text_parameters::decode_text_parameter;
 
 const OID_UNKNOWN: i32 = 705;
-const MAX_PREPARED_STATEMENTS_PER_CONNECTION: usize = 1_024;
 const MAX_PORTALS_PER_CONNECTION: usize = 1_024;
 
 pub(super) async fn handle_frontend_message(
@@ -92,7 +109,16 @@ pub(super) async fn handle_frontend_message(
                 .get(..5)
                 .is_some_and(|prefix| prefix.eq_ignore_ascii_case("copy "))
     );
-    match dispatch_message(cassie, runtime, write_half, state, session, message).await {
+    match dispatch_message(
+        Arc::clone(&cassie),
+        runtime,
+        write_half,
+        state,
+        session,
+        message,
+    )
+    .await
+    {
         Ok(DispatchOutcome::Continue) => ConnectionStep::Continue(HandshakeState::Ready),
         Ok(DispatchOutcome::Break) => ConnectionStep::Break,
         Err(error) => {
@@ -104,6 +130,12 @@ pub(super) async fn handle_frontend_message(
                 state.clear_all_portals(runtime);
             } else {
                 session.mark_transaction_failed();
+            }
+            if cassie.check_storage_recovery_required().is_err()
+                && !session.is_transaction_active()
+                && !session.is_transaction_failed()
+            {
+                state.clear_all_portals(runtime);
             }
             if super::writers::write_changed_parameter_statuses(
                 write_half,
@@ -240,179 +272,6 @@ async fn dispatch_message(
     Ok(DispatchOutcome::Continue)
 }
 
-struct ParseRequest {
-    name: String,
-    query: String,
-    parameter_type_oids: Vec<i32>,
-}
-
-async fn handle_parse(
-    cassie: Arc<Cassie>,
-    runtime: &RuntimeState,
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    session: &CassieSession,
-    request: ParseRequest,
-) -> Result<(), ExtendedQueryError> {
-    let ParseRequest {
-        name,
-        query,
-        parameter_type_oids,
-    } = request;
-    if !name.is_empty() && state.prepared_statements.contains_key(&name) {
-        return Err(ExtendedQueryError::protocol(format!(
-            "prepared statement '{name}' already exists"
-        )));
-    }
-    if !name.is_empty() && session.has_sql_prepared(&name) {
-        return Err(ExtendedQueryError::cassie(&CassieError::from(
-            crate::app::SessionObjectError::duplicate_prepared(&name),
-        )));
-    }
-    if !state.prepared_statements.contains_key(&name)
-        && state.prepared_statements.len() >= MAX_PREPARED_STATEMENTS_PER_CONNECTION
-    {
-        return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
-            "prepared statement limit exceeded".to_string(),
-        )));
-    }
-    let empty_query = super::simple_query::split_simple_query(&query)
-        .is_ok_and(|statements| statements.is_empty());
-    if empty_query {
-        let parameter_types = normalize_parameter_type_oids(&parameter_type_oids);
-        let id = state.next_prepared_id();
-        store_prepared_statement(
-            runtime,
-            state,
-            PreparedStatement {
-                id,
-                name,
-                query,
-                parsed: None,
-                sql_fingerprint: 0,
-                parameter_count: parameter_types.len(),
-                parameter_types,
-                described: false,
-            },
-        );
-        let _ = write_parse_complete(write_half).await;
-        return Ok(());
-    }
-    if let Some(error) = unsupported_sql_error(&query) {
-        if session.is_authenticated_read_only() {
-            return Err(ExtendedQueryError::cassie(
-                &CassieError::InsufficientPrivilege,
-            ));
-        }
-        return Err(ExtendedQueryError::cassie(&error));
-    }
-
-    runtime.record_sql_parse();
-    let mut parsed = crate::sql::parse_statement(&query).map_err(CassieError::from)?;
-    session
-        .authorize_statement(&parsed.statement)
-        .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    let controls = runtime.query_controls(std::time::Instant::now());
-    let admitted = parse_analysis::admit(
-        &cassie,
-        session,
-        &mut parsed,
-        &parameter_type_oids,
-        &controls,
-    )?;
-    let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
-    let parameter_types = admitted
-        .into_vec()
-        .map_err(|error| ExtendedQueryError::parameter_admission(error, &controls))?;
-    let id = state.next_prepared_id();
-    store_prepared_statement(
-        runtime,
-        state,
-        PreparedStatement {
-            id,
-            name,
-            query,
-            parsed: Some(parsed),
-            sql_fingerprint,
-            parameter_count: parameter_types.len(),
-            parameter_types,
-            described: false,
-        },
-    );
-
-    let _ = write_parse_complete(write_half).await;
-    Ok(())
-}
-
-fn unknown_high_bit_projection_oid(
-    parsed: &crate::sql::ast::ParsedStatement,
-    parameter_type_oids: &[i32],
-) -> Option<i32> {
-    let crate::sql::ast::QueryStatement::Select(select) = &parsed.statement else {
-        return None;
-    };
-    select.projection.iter().find_map(|item| {
-        let crate::sql::ast::SelectItem::Expr {
-            expr: crate::sql::ast::Expr::Param(index),
-            ..
-        } = item
-        else {
-            return None;
-        };
-        let oid = parameter_type_oids.get(*index).copied()?;
-        unknown_high_bit_parameter_oid(oid)
-    })
-}
-
-/// Treat the signed wire slot as its original u32 bits; only unresolved high-bit OIDs are unknown.
-fn unknown_high_bit_parameter_oid(oid: i32) -> Option<i32> {
-    (oid < 0 && crate::sql::binder::parameter_data_type_for_oid(oid).is_none()).then_some(oid)
-}
-
-fn with_function_input_scope<R>(
-    cassie: &Cassie,
-    session: &CassieSession,
-    inspect: impl FnOnce(&crate::catalog::FunctionInputScope<'_>) -> R,
-) -> R {
-    session.with_search_path(|search_path| {
-        let scope = crate::catalog::FunctionInputScope {
-            database: session
-                .current_database()
-                .unwrap_or(&cassie.default_database),
-            search_path,
-            user: &session.user,
-            enforce_database_scope: cassie.database_catalog_enforced(),
-        };
-        inspect(&scope)
-    })
-}
-
-/// Registers `prepared` under its name, closing the portals of any statement
-/// it replaces.
-fn store_prepared_statement(
-    runtime: &RuntimeState,
-    state: &mut SessionState,
-    prepared: PreparedStatement,
-) {
-    let replaced_prepared = state
-        .prepared_statements
-        .get(&prepared.name)
-        .map(|statement| statement.id);
-    if let Some(prepared_id) = replaced_prepared {
-        remove_portals_for_prepared_id(state, runtime, prepared_id);
-        state.prepared_result_descriptors.remove(&prepared_id);
-    }
-    if let Some(session) = state.session.as_ref() {
-        session.register_wire_prepared(&prepared.name, prepared.id, &prepared.query);
-    }
-    state
-        .prepared_statements
-        .insert(prepared.name.clone(), prepared);
-    if replaced_prepared.is_none() {
-        runtime.record_pgwire_prepared_delta(1);
-    }
-}
-
 struct BindRequest {
     portal: String,
     statement: String,
@@ -443,11 +302,13 @@ async fn handle_bind(
         .get(&statement)
         .cloned()
         .ok_or_else(|| missing_statement_error(&statement))?;
+    check_prepared_storage_admission(&cassie, &prepared)?;
     let previous_descriptor = state.prepared_result_descriptors.get(&prepared.id).cloned();
     let catalog_version = current_catalog_version(&cassie, session);
-    let descriptor_is_stale = previous_descriptor
-        .as_ref()
-        .is_some_and(|descriptor| descriptor.catalog_version() != catalog_version);
+    let descriptor_is_stale = previous_descriptor.as_ref().is_some_and(|descriptor| {
+        session.transaction_catalog_overlay().is_some()
+            || descriptor.catalog_version() != catalog_version
+    });
     let columns = if !result_formats.is_empty() || descriptor_is_stale {
         Some(describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?)
     } else {
@@ -490,13 +351,20 @@ async fn handle_bind(
 
     let prepared_id = prepared.id;
     let described = prepared.described;
-    let values = bind_planning::validate(cassie, session, state, prepared, values).await?;
+    let (values, read_view) =
+        bind_planning::validate(cassie, session, state, prepared, values).await?;
 
     let replaced_portal = state.remove_portal(&portal).is_some();
     if !replaced_portal && state.portals.len() >= MAX_PORTALS_PER_CONNECTION {
         return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
             "portal limit exceeded".to_string(),
         )));
+    }
+    if let Some(owner) = read_view {
+        state
+            .portal_reads
+            .insert(&portal, owner, &state.portal_memory_controls)
+            .map_err(|error| ExtendedQueryError::cassie(&error))?;
     }
     state.portals.insert(
         portal.clone(),
@@ -591,97 +459,6 @@ async fn handle_describe(
     Ok(())
 }
 
-async fn handle_execute(
-    cassie: Arc<Cassie>,
-    runtime: &RuntimeState,
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    session: &CassieSession,
-    portal_name: String,
-    max_rows: i32,
-) -> Result<(), ExtendedQueryError> {
-    runtime.record_pgwire_extended_query();
-    let (max_rows, first_execute) =
-        transaction_boundary::prepare_execute(state, session, &portal_name, max_rows)?;
-    let (portal, suspended) = take_portal_execution(state, &portal_name)
-        .ok_or_else(|| missing_portal_error(&portal_name))?;
-
-    if let Some(suspended) = suspended {
-        return resume_suspended_portal(
-            cassie,
-            write_half,
-            SuspendedPortalRequest {
-                state,
-                session,
-                portal_name: &portal_name,
-                portal: &portal,
-                suspended,
-                max_rows,
-            },
-        )
-        .await;
-    }
-    if let Some(command) = portal.completed_command.as_deref() {
-        return write_completed_portal(write_half, command, &state.portal_memory_controls).await;
-    }
-
-    let prepared = prepared_for_portal(state, &portal)?;
-    if let Some(descriptor) = state.prepared_result_descriptors.get(&prepared.id).cloned() {
-        let catalog_version = current_catalog_version(&cassie, session);
-        if descriptor.catalog_version() != catalog_version {
-            let columns =
-                describe_prepared(Arc::clone(&cassie), session.clone(), prepared.clone()).await?;
-            validate_prepared_result_types(Some(&descriptor), &columns)?;
-            descriptor.set_catalog_version(catalog_version);
-        }
-    }
-    let Some(parsed) = prepared.parsed.clone() else {
-        return write_empty_query_response(write_half)
-            .await
-            .map_err(|error| ExtendedQueryError::write_failed(&error));
-    };
-    let standalone = transaction_boundary::admit_statement(
-        state,
-        session,
-        &parsed,
-        &cassie.catalog,
-        first_execute,
-    )?;
-    if streamable_portal_query(&prepared, max_rows) {
-        return execute_streaming_portal_page(
-            cassie,
-            write_half,
-            StreamingPortalPageRequest {
-                state,
-                session,
-                portal_name: &portal_name,
-                portal: &portal,
-                prepared: &prepared,
-                max_rows,
-                rows_emitted: 0,
-                cancellation: None,
-            },
-        )
-        .await;
-    }
-    execute_prepared_portal(
-        cassie,
-        runtime,
-        write_half,
-        state,
-        session,
-        PreparedPortalRequest {
-            portal_name: &portal_name,
-            portal: &portal,
-            prepared: &prepared,
-            parsed,
-            max_rows,
-            standalone,
-        },
-    )
-    .await
-}
-
 struct PreparedPortalRequest<'a> {
     portal_name: &'a str,
     portal: &'a PortalExecution,
@@ -721,10 +498,12 @@ async fn execute_prepared_portal(
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
     let transaction_owner = transaction_boundary::TransactionOwner::capture(session);
+    let bound_read = state.portal_reads.get(portal_name);
     let result = run_pgwire_blocking(
         Arc::clone(&cassie),
         "pgwire_extended_query",
         move |cassie| {
+            let _bound = crate::app::BoundReadScope::enter(bound_read);
             cassie.execute_parsed_sql_with_cancellation(
                 &execution_session,
                 (parsed, &sql),
@@ -825,6 +604,7 @@ async fn describe_prepared(
     session: CassieSession,
     prepared: PreparedStatement,
 ) -> Result<Vec<ColumnMeta>, ExtendedQueryError> {
+    check_prepared_storage_admission(&cassie, &prepared)?;
     let Some(parsed) = prepared.parsed else {
         return Ok(Vec::new());
     };
@@ -837,6 +617,17 @@ async fn describe_prepared(
         )
     })
     .await
+    .map_err(|error| ExtendedQueryError::cassie(&error))
+}
+
+fn check_prepared_storage_admission(
+    cassie: &Cassie,
+    prepared: &PreparedStatement,
+) -> Result<(), ExtendedQueryError> {
+    match &prepared.parsed {
+        Some(parsed) => cassie.check_storage_statement_admission(&parsed.statement),
+        None => cassie.check_storage_recovery_required(),
+    }
     .map_err(|error| ExtendedQueryError::cassie(&error))
 }
 
@@ -980,13 +771,6 @@ fn remove_portals_for_prepared_id(
         let delta = isize::try_from(removed).unwrap_or(isize::MAX);
         runtime.record_pgwire_portal_delta(-delta);
     }
-}
-
-fn normalize_parameter_type_oids(parameter_type_oids: &[i32]) -> Vec<i32> {
-    parameter_type_oids
-        .iter()
-        .map(|oid| if *oid == 0 { OID_UNKNOWN } else { *oid })
-        .collect()
 }
 
 fn validate_format_codes(formats: &[i16], label: &str) -> Result<(), ExtendedQueryError> {

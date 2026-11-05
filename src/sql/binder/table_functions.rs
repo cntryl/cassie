@@ -7,6 +7,39 @@ fn validate_graph_table_function(
     function: &FunctionCall,
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
+    if crate::sql::table_sources::is_series(&function.name) {
+        if !(2..=4).contains(&function.args.len()) || function.has_modifiers() {
+            return Err(crate::sql::series_signature::undefined());
+        }
+        for argument in &function.args {
+            validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
+        }
+        return Ok(());
+    }
+    if crate::sql::table_sources::is_unnest(&function.name) {
+        if function.args.is_empty() || function.has_modifiers() {
+            return Err(CassieError::Execution(
+                "function unnest(...) does not exist".into(),
+            ));
+        }
+        for argument in &function.args {
+            if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
+                return Err(CassieError::AmbiguousFunction(
+                    "function unnest(unknown) is not unique".into(),
+                ));
+            }
+            validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
+        }
+        crate::sql::table_sources::unnest_columns(function, false, |argument| {
+            super::inference::infer_expr_type(
+                argument,
+                &Schema { fields: Vec::new() },
+                &HashMap::new(),
+                &[],
+            )
+        })?;
+        return Ok(());
+    }
     if crate::sql::functions::is_server_file_helper(&function.name) {
         return Err(crate::sql::functions::reject_server_file_access());
     }
@@ -87,7 +120,37 @@ pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
     ]
 }
 
-pub(super) fn columns(name: &str) -> Vec<(String, DataType)> {
+pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
+    let QuerySource::TableFunction {
+        name,
+        function,
+        with_ordinality,
+        ..
+    } = source
+    else {
+        return Vec::new();
+    };
+    if crate::sql::table_sources::is_series(&function.name) {
+        let mut columns = vec![(crate::sql::table_sources::physical_name(0), DataType::Null)];
+        if *with_ordinality {
+            columns.push((
+                crate::sql::table_sources::physical_name(1),
+                DataType::BigInt,
+            ));
+        }
+        return columns;
+    }
+    if crate::sql::table_sources::is_unnest(&function.name) {
+        return crate::sql::table_sources::unnest_columns(function, *with_ordinality, |argument| {
+            super::inference::infer_expr_type(
+                argument,
+                &Schema { fields: Vec::new() },
+                &HashMap::new(),
+                &[],
+            )
+        })
+        .unwrap_or_default();
+    }
     if name.eq_ignore_ascii_case("jsonb_path_query")
         || name.eq_ignore_ascii_case("jsonb_path_query_tz")
     {
@@ -123,15 +186,77 @@ pub(super) fn columns(name: &str) -> Vec<(String, DataType)> {
     graph_table_function_columns()
 }
 
+pub(super) fn typed_columns(
+    source: &QuerySource,
+    outer: Option<&Schema>,
+    functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Result<Vec<(String, DataType)>, CassieError> {
+    if let QuerySource::TableFunction {
+        function,
+        with_ordinality,
+        ..
+    } = source
+    {
+        if crate::sql::table_sources::is_series(&function.name) {
+            let empty = Schema { fields: Vec::new() };
+            let signature = crate::sql::series_signature::resolve(function, |argument| {
+                super::inference::infer_expr_type(
+                    argument,
+                    outer.unwrap_or(&empty),
+                    functions,
+                    parameter_types,
+                )
+            })?;
+            let mut columns = vec![(
+                crate::sql::table_sources::physical_name(0),
+                signature.output,
+            )];
+            if *with_ordinality {
+                columns.push((
+                    crate::sql::table_sources::physical_name(1),
+                    DataType::BigInt,
+                ));
+            }
+            return Ok(columns);
+        }
+        if crate::sql::table_sources::is_unnest(&function.name) {
+            let empty = Schema { fields: Vec::new() };
+            return crate::sql::table_sources::unnest_columns(
+                function,
+                *with_ordinality,
+                |argument| {
+                    super::inference::infer_expr_type(
+                        argument,
+                        outer.unwrap_or(&empty),
+                        functions,
+                        parameter_types,
+                    )
+                },
+            );
+        }
+    }
+    Ok(columns(source))
+}
+
 pub(super) fn bind(
     name: String,
     mut function: FunctionCall,
     lateral: bool,
+    with_ordinality: bool,
     catalog: &Catalog,
     lateral_fields: &HashSet<String>,
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     validate_graph_table_function(&function, lateral_fields)?;
+    if crate::sql::table_sources::is_generated(&function.name) {
+        return Ok(QuerySource::TableFunction {
+            name,
+            function,
+            lateral,
+            with_ordinality,
+        });
+    }
     if crate::sql::functions::is_options_table(&function.name) {
         bind_options_argument(&mut function.args[0])?;
         let modifier = if function.is_distinct() {
@@ -165,6 +290,7 @@ pub(super) fn bind(
         name,
         function,
         lateral,
+        with_ordinality,
     })
 }
 

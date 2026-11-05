@@ -1,5 +1,5 @@
-use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use crate::types::semantic_index::{Entry, KeyedMap};
+use std::collections::HashMap;
 use std::thread;
 
 use crate::app::{Cassie, CassieSession};
@@ -17,6 +17,7 @@ use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 #[path = "aggregate_exec/bitwise.rs"]
 mod bitwise;
 mod boolean;
+mod collection_json;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
 #[path = "aggregate_exec/interval_aggregate.rs"]
@@ -43,6 +44,7 @@ pub(super) mod typed;
 mod window;
 
 use bitwise::BitwiseState;
+use collection_json::AggregateOutput;
 use group_memory::GroupMemory;
 pub(super) use rewrite::{
     contains_aggregate, rewrite_aggregate_expr, rewrite_aggregate_order,
@@ -130,15 +132,17 @@ fn aggregate_query_batches_serial(
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
-    let mut groups = BTreeMap::<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
+    let mut groups = KeyedMap::<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>::new(Some(
+        context.controls,
+    ))?;
     let mut group_memory = GroupMemory::new(context.controls)?;
 
     for row in rows {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
-        let signature = aggregate_group_signature(&group_values);
+        let signature = aggregate_typed_group_signature(&group_values, &row, context)?;
         let mut added_bytes = group_memory::serial_row_bytes(&row);
-        let group = match groups.entry(signature) {
+        let group = match groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 added_bytes = added_bytes
@@ -153,20 +157,18 @@ fn aggregate_query_batches_serial(
     if groups.is_empty() && context.plan.group_by.is_empty() {
         let signature = SemanticKey::default();
         group_memory.add(group_memory::serial_group_bytes(&signature, &[]))?;
-        groups.insert(signature, (Vec::new(), Vec::new()));
+        groups.insert(signature, (Vec::new(), Vec::new()))?;
     }
 
     let mut out = Vec::with_capacity(groups.len());
-    for (_signature, (group_values, group_rows)) in groups {
+    for (_signature, (group_values, group_rows)) in groups.into_sorted_entries()? {
         check_timeout(context.controls)?;
-        let mut values = group_values;
+        let mut output = collection_json::OutputRow::new(group_values, specs, context.controls)?;
         for spec in specs {
             let value = evaluate_aggregate(&spec.function, &group_rows, context)?;
-            for name in &spec.output_names {
-                values.push((name.clone(), value.clone()));
-            }
+            output.append(value, &spec.output_names)?;
         }
-        out.push(BatchRow::new(values));
+        out.push(output.finish());
     }
     drop(group_memory);
 
@@ -187,7 +189,7 @@ fn merge_partial_aggregations(
     check_timeout(context.controls)?;
     let partitions = partials.len();
     let input_rows = rows.len();
-    let mut merged = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
+    let mut merged = KeyedMap::<SemanticKey, PartialAggregateGroup>::new(Some(context.controls))?;
     // Worker reservations stay alive until the merged output is built: groups
     // moved into `merged` are still accounted by the partition that built
     // them, so only growth that happens during the merge is charged here.
@@ -196,9 +198,9 @@ fn merge_partial_aggregations(
     for partial in partials {
         check_timeout(context.controls)?;
         partition_memory.push(partial.memory);
-        for (signature, group) in partial.groups {
+        for (signature, group) in partial.groups.into_sorted_entries()? {
             check_timeout(context.controls)?;
-            match merged.entry(signature) {
+            match merged.entry(signature)? {
                 Entry::Occupied(mut entry) => {
                     let change = entry.get_mut().merge(&group)?;
                     merged_memory.add(change.after.saturating_sub(change.before))?;
@@ -214,7 +216,7 @@ fn merge_partial_aggregations(
         let signature = SemanticKey::default();
         let group = PartialAggregateGroup::new(Vec::new(), specs);
         merged_memory.add(group_memory::partial_group_bytes(&signature, &group))?;
-        merged.insert(signature, group);
+        merged.insert(signature, group)?;
     }
 
     if merged
@@ -226,7 +228,7 @@ fn merge_partial_aggregations(
 
     let group_count = merged.len();
     let mut out = Vec::with_capacity(group_count);
-    for (_signature, group) in merged {
+    for (_signature, group) in merged.into_sorted_entries()? {
         check_timeout(context.controls)?;
         let mut values = group.group_values;
         for (spec, accumulator) in specs.iter().zip(group.accumulators) {
@@ -247,7 +249,7 @@ fn merge_partial_aggregations(
     Ok(Some(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE)))
 }
 
-type PartialGroups = BTreeMap<SemanticKey, PartialAggregateGroup>;
+type PartialGroups = KeyedMap<SemanticKey, PartialAggregateGroup>;
 
 /// One worker's partial groups together with the reservation that accounts
 /// for them; the reservation must outlive the groups it covers.
@@ -283,15 +285,15 @@ fn aggregate_partition(
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<PartialAggregation, QueryError> {
-    let mut groups = PartialGroups::new();
+    let mut groups = PartialGroups::new(Some(context.controls))?;
     let mut group_memory = GroupMemory::new(context.controls)?;
     #[cfg(test)]
     let mut processed_rows = 0;
     for row in chunk {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(row, context)?;
-        let signature = aggregate_group_signature(&group_values);
-        let group = match groups.entry(signature) {
+        let signature = aggregate_typed_group_signature(&group_values, row, context)?;
+        let group = match groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let group = PartialAggregateGroup::new(group_values, specs);
@@ -340,6 +342,30 @@ fn aggregate_group_values(
         .collect::<Result<Vec<_>, QueryError>>()
 }
 
+fn aggregate_typed_group_signature(
+    group_values: &[(String, Value)],
+    row: &BatchRow,
+    context: &AggregateExecutionContext<'_>,
+) -> Result<SemanticKey, QueryError> {
+    let keys = context
+        .plan
+        .group_by
+        .iter()
+        .zip(group_values)
+        .map(|(expr, (_, value))| {
+            crate::executor::array_order::key(
+                row,
+                expr,
+                value,
+                context.user_functions,
+                Some(context.controls),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SemanticKey::from_semantic_values(keys))
+}
+
+#[cfg(test)]
 fn aggregate_group_signature(group_values: &[(String, Value)]) -> SemanticKey {
     SemanticKey::from_values(group_values.iter().map(|(_, value)| value))
 }
@@ -515,10 +541,18 @@ fn evaluate_aggregate(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
-) -> Result<Value, QueryError> {
+) -> Result<AggregateOutput, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if ordered_set::is_ordered_set(function) {
-        return ordered_set::evaluate(function, rows, context);
+        return ordered_set::evaluate(function, rows, context).map(AggregateOutput::from_value);
+    }
+    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::CollectionAggregate(_)
+        )
+    }) {
+        return modifiers::evaluate_owned(function, rows, context);
     }
     let is_string_aggregate = crate::sql::functions::function(&function.name)
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg);
@@ -543,38 +577,21 @@ fn evaluate_aggregate(
             )
         })
     {
-        AggregateAccumulator::evaluate(function, rows, context)
+        AggregateAccumulator::evaluate(function, rows, context).map(AggregateOutput::from_value)
     } else {
-        Ok(Value::Null)
+        Ok(AggregateOutput::from_value(Value::Null))
     }
 }
 
 pub(super) fn evaluate_window_aggregate<'a>(
-    function: &FunctionCall,
+    function: &crate::sql::ast::WindowFunctionCall,
     rows: impl IntoIterator<Item = &'a BatchRow>,
     params: &[Value],
-    search_context: Option<&filter::SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
+    output: &filter::EvaluationMemory,
+    evaluate: impl Fn(&BatchRow, &Expr, &filter::EvaluationMemory) -> Result<Value, QueryError>,
 ) -> Result<Value, QueryError> {
-    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
-        crate::sql::functions::regression::is_regression_function(metadata.id)
-    }) {
-        return Err(crate::app::CassieError::Unsupported(
-            "regression aggregate window frames remain pending under #806".into(),
-        )
-        .into());
-    }
-    window::evaluate(
-        function,
-        rows,
-        params,
-        search_context,
-        user_functions,
-        session,
-        controls,
-    )
+    window::evaluate(function, rows, params, controls, output, evaluate)
 }
 
 fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {

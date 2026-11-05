@@ -394,7 +394,9 @@ pub(super) fn mark_source_rollups_stale(cassie: &Cassie, source: &str) -> Result
                     .midge
                     .put_rollup(&current_rollup)
                     .map_err(|error| QueryError::General(error.to_string()))?;
-                cassie.catalog.register_rollup(current_rollup);
+                cassie
+                    .metadata_write_catalog
+                    .register_rollup(current_rollup);
                 Ok(())
             },
         )?;

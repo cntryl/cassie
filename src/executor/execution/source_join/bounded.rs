@@ -6,6 +6,7 @@ use super::{
     PendingJoinDiagnostic, QueryError, QuerySource, SourceExecutionEnv, Value,
 };
 use crate::executor::semantic::SemanticKey;
+use crate::types::semantic_index::KeyedMap;
 use crate::types::DataType;
 
 #[path = "bounded/source_retention.rs"]
@@ -121,6 +122,13 @@ fn try_execute_indexed_bounded_inner_join_with_context(
     let Some(plan) = indexed_join_plan(env, left_collection, right_collection, &keys) else {
         return Ok(None);
     };
+
+    if env
+        .session
+        .is_some_and(|session| !session.transaction_index_visible(&plan.index, &env.cassie.catalog))
+    {
+        return Ok(None);
+    }
 
     execute_indexed_bounded_inner_join(
         env,
@@ -337,7 +345,7 @@ fn execute_right_build_streaming_bounded_inner_join(
                 spec.keys.domain,
             )?)?;
     retention.before(JoinRetentionPhase::BoundedBuild)?;
-    let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
+    let mut build = KeyedMap::<SemanticKey, Vec<usize>>::new(Some(env.controls))?;
     build
         .try_reserve(accounting::hash_build_capacity(
             right_rows.as_slice(),
@@ -351,7 +359,7 @@ fn execute_right_build_streaming_bounded_inner_join(
     for (index, right_row) in right_rows.as_slice().iter().enumerate() {
         check_timeout(env.controls)?;
         if let Some(key) = row_join_key(right_row, &spec.keys.right, spec.keys.domain)? {
-            build.entry(key).or_default().push(index);
+            build.entry(key)?.or_default().push(index);
         }
     }
 

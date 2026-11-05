@@ -15,6 +15,12 @@ impl Fold<'_, '_> {
         function: &ast::FunctionCall,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if let Some(summary) = self.generated_function(function, frame)? {
+            return Ok(summary);
+        }
+        if let Some(summary) = self.array_function_output(function, frame)? {
+            return Ok(summary);
+        }
         if let Some(oid) = functions::hashing::return_type(&function.name)
             .and_then(|kind| i32::try_from(kind.type_oid()).ok())
         {
@@ -96,6 +102,21 @@ impl Fold<'_, '_> {
         if metadata.is_some_and(|metadata| !metadata.is_aggregate) {
             Self::reject_nonaggregate_modifier(function, self.controls)?;
         }
+        self.validate_distinct_function_order(function, metadata)?;
+        if let Some(metadata) = metadata.filter(|metadata| metadata.is_aggregate) {
+            self.validate_aggregate_inputs(function, metadata, frame)?;
+        }
+        if let Some(summary) = self.catalog_input(function, metadata, frame)? {
+            return Ok(summary);
+        }
+        self.apply_input_signature(function, metadata, frame)
+    }
+
+    fn validate_distinct_function_order(
+        &mut self,
+        function: &ast::FunctionCall,
+        metadata: Option<&functions::ScalarFunction>,
+    ) -> Result<(), ParameterAdmissionError> {
         if metadata.is_some_and(|metadata| metadata.is_aggregate)
             && function.is_distinct()
             && function.order_by.iter().any(|order| {
@@ -107,13 +128,7 @@ impl Fold<'_, '_> {
         {
             self.occurrences.invalid_distinct_order()?;
         }
-        if let Some(metadata) = metadata.filter(|metadata| metadata.is_aggregate) {
-            self.validate_aggregate_inputs(function, metadata, frame)?;
-        }
-        if let Some(summary) = self.catalog_input(function, metadata, frame)? {
-            return Ok(summary);
-        }
-        self.apply_input_signature(function, metadata, frame)
+        Ok(())
     }
 
     fn zero_argument_output(function: &ast::FunctionCall) -> Summary {

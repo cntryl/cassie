@@ -19,6 +19,7 @@ fn call(
         session: None,
         exists: None,
         controls: Some(controls),
+        memory: None,
     };
     evaluate(function, &row, args, context).expect("selected JSON constructor")
 }

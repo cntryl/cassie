@@ -14,6 +14,8 @@ use super::projected_read::json_to_query_value;
 
 #[path = "time_series_read/memory.rs"]
 mod memory;
+mod rows;
+use rows::document_to_row;
 
 pub(super) fn try_execute_time_series_read(
     cassie: &Cassie,
@@ -857,51 +859,6 @@ fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<cat
     indexes
         .into_iter()
         .find(|index| index.name == selected && index.kind == catalog::IndexKind::TimeSeries)
-}
-
-fn document_to_row(
-    document: &DocumentRef,
-    fields: &[String],
-    schema: Option<&CollectionSchema>,
-) -> BatchRow {
-    let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
-    let mut values = Vec::with_capacity(fields.len() + 2);
-    crate::executor::scan::push_row_identity(&mut values, &document.id);
-    for field in fields {
-        if crate::types::row_identity::is_identity_reference(field, schema_has_id) {
-            continue;
-        }
-        let value = payload_field(&document.payload, field)
-            .map_or(Value::Null, |value| typed_value(value, schema, field));
-        values.push((field.clone(), value));
-    }
-    BatchRow::from_projected_values(values)
-}
-
-fn typed_value(value: &serde_json::Value, schema: Option<&CollectionSchema>, field: &str) -> Value {
-    match schema
-        .and_then(|schema| {
-            schema.fields.iter().find(|entry| {
-                crate::sql::ColumnIdentifierPath::matches_stored_field(field, &entry.name)
-            })
-        })
-        .map(|entry| &entry.data_type)
-    {
-        Some(DataType::Int | DataType::BigInt) => value
-            .as_i64()
-            .map_or_else(|| json_to_query_value(value), Value::Int64),
-        Some(DataType::Float) => value
-            .as_f64()
-            .map_or_else(|| json_to_query_value(value), Value::Float64),
-        Some(DataType::Boolean) => value
-            .as_bool()
-            .map_or_else(|| json_to_query_value(value), Value::Bool),
-        Some(data_type @ (DataType::Date | DataType::Time | DataType::Timestamp)) => {
-            crate::types::extended::temporal_column_value(value, data_type)
-                .map_or_else(|| json_to_query_value(value), Value::Typed)
-        }
-        _ => json_to_query_value(value),
-    }
 }
 
 fn payload_field<'a>(payload: &'a serde_json::Value, field: &str) -> Option<&'a serde_json::Value> {

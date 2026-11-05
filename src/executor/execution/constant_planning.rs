@@ -247,6 +247,7 @@ impl Folder<'_> {
                 }
                 SelectItem::WindowFunction { function, .. } => {
                     self.check_all(&function.args)?;
+                    self.check_all(function.filter.as_deref())?;
                     self.check_all(&function.partition_by)?;
                     self.check_all(function.order_by.iter().map(|order| &order.expr))?;
                 }

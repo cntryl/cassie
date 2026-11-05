@@ -101,7 +101,8 @@ survey labels are narrower historical observations, not whole-family parity.
 | Array functions | Absent | #807 |
 | JSON functions, SQL/JSON constructors and query functions | Absent | #810 |
 | JSON table functions, JSON_TABLE | Absent | #829 |
-| UNNEST, generate_series, generate_subscripts, ROWS FROM | Absent | #808 |
+| Selected UNNEST, generate_series and WITH ORDINALITY | Absent; selected finite contract in [table sources](set-returning-sources.md) | #808 |
+| generate_subscripts, generic ROWS FROM and projection-list SRFs | Unselected neighboring forms; former grouping under #808 was planning inventory | Separate scope decision required; not #808 acceptance |
 | bytea, hashing, encoding, UUID functions | Absent | #816 |
 | Text search functions (`to_tsvector`, `@@`, `ts_rank`, …) | Absent (Cassie `search()` instead) | #799 |
 | Sequence functions (nextval, currval, setval, lastval) | DEFAULT-only nextval | #841 |

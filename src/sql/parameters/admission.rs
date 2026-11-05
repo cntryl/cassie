@@ -436,7 +436,7 @@ impl Node<'_> {
             Self::Item(item) => match item {
                 ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => 0,
                 ast::SelectItem::Function { .. } | ast::SelectItem::Expr { .. } => 1,
-                ast::SelectItem::WindowFunction { .. } => 3,
+                ast::SelectItem::WindowFunction { .. } => 4,
             },
             Self::Cte(cte) => match cte {
                 ast::CteQuery::Simple(_) => 1,
@@ -708,7 +708,8 @@ fn item_child(item: &ast::SelectItem, index: usize) -> Option<Node<'_>> {
         ast::SelectItem::WindowFunction { function, .. } => Some(match index {
             0 => Node::Expressions(&function.args),
             1 => Node::Expressions(&function.partition_by),
-            _ => Node::Orders(&function.order_by),
+            2 => Node::Orders(&function.order_by),
+            _ => return function.filter.as_deref().map(Node::Expr),
         }),
     }
 }

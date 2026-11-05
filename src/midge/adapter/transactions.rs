@@ -1,3 +1,4 @@
+use super::publication::{AdapterCommitError, DatabasePublication};
 use super::{
     collect_scan, CassieError, ColumnFamilyHandle, FamilyScope, Midge, Query, RawStorageEntry,
     StorageFamily, TransactionMode, WriteOptions, DEFAULT_FAMILY_NAME,
@@ -13,6 +14,15 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
+
+#[path = "transactions/mutation_error.rs"]
+mod mutation_error;
+use mutation_error::AdapterMutationError;
+
+#[path = "transactions/row_fence/mod.rs"]
+mod row_fence;
+pub(super) use row_fence::admitted_row_keys;
+pub(crate) use row_fence::RetainedRowFence;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct StorageOverlay {
@@ -73,6 +83,8 @@ pub(crate) struct AdapterTransaction {
     stage_writes: bool,
     suppress_commit: bool,
     local_changes: BTreeMap<Vec<u8>, StorageMutation>,
+    publication: Option<Arc<DatabasePublication>>,
+    row_keys: Option<super::publication::MutationKeys>,
 }
 
 impl AdapterTransaction {
@@ -83,6 +95,8 @@ impl AdapterTransaction {
             stage_writes: false,
             suppress_commit: false,
             local_changes: BTreeMap::new(),
+            publication: None,
+            row_keys: None,
         }
     }
 
@@ -98,6 +112,8 @@ impl AdapterTransaction {
             stage_writes,
             suppress_commit,
             local_changes: BTreeMap::new(),
+            publication: None,
+            row_keys: None,
         }
     }
 
@@ -161,7 +177,8 @@ impl AdapterTransaction {
         key: Vec<u8>,
         value: Vec<u8>,
         ttl_seconds: Option<u64>,
-    ) -> Result<(), cntryl_midge::MidgeError> {
+    ) -> Result<(), AdapterMutationError> {
+        let row_key = self.prepare_row_mutation(&key)?;
         let expected = if self.stage_writes {
             self.expected_value_before_change(&key)?
         } else {
@@ -169,23 +186,53 @@ impl AdapterTransaction {
         };
         self.inner_mut()
             .put(key.clone(), value.clone(), ttl_seconds)?;
+        self.install_row_mutation(row_key);
         if self.stage_writes {
             self.record_change(key, Some(value), ttl_seconds, expected);
         }
         Ok(())
     }
 
-    pub(crate) fn delete(&mut self, key: Vec<u8>) -> Result<(), cntryl_midge::MidgeError> {
+    pub(crate) fn delete(&mut self, key: Vec<u8>) -> Result<(), AdapterMutationError> {
+        let row_key = self.prepare_row_mutation(&key)?;
         let expected = if self.stage_writes {
             self.expected_value_before_change(&key)?
         } else {
             ExpectedStorageValue::Untracked
         };
         self.inner_mut().delete(key.clone())?;
+        self.install_row_mutation(row_key);
         if self.stage_writes {
             self.record_change(key, None, None, expected);
         }
         Ok(())
+    }
+
+    fn prepare_row_mutation(
+        &mut self,
+        key: &[u8],
+    ) -> Result<Option<super::publication::PreparedKey>, CassieError> {
+        if !super::key_encoding::is_authoritative_row_key(key) {
+            return Ok(None);
+        }
+        if self.row_keys.is_none() {
+            let publication = self.publication.as_ref().ok_or_else(|| {
+                CassieError::Unsupported(
+                    "authoritative row mutation requires an observed publication owner".to_owned(),
+                )
+            })?;
+            self.row_keys = Some(publication.row_history.key_log()?);
+        }
+        self.row_keys
+            .as_mut()
+            .expect("prepared key log")
+            .prepare(key)
+    }
+
+    fn install_row_mutation(&mut self, key: Option<super::publication::PreparedKey>) {
+        if let Some(keys) = &mut self.row_keys {
+            keys.install(key);
+        }
     }
 
     pub(crate) fn scan(
@@ -197,6 +244,14 @@ impl AdapterTransaction {
 
     pub(crate) fn set_conflict_policy(&mut self, policy: ConflictPolicy) {
         self.inner_mut().set_conflict_policy(policy);
+    }
+
+    pub(crate) fn assert_value(
+        &mut self,
+        key: Vec<u8>,
+        expected: Option<Vec<u8>>,
+    ) -> Result<(), cntryl_midge::MidgeError> {
+        self.inner_mut().assert_value(key, expected)
     }
 
     pub(crate) fn assert_expected_value(
@@ -213,7 +268,7 @@ impl AdapterTransaction {
         }
     }
 
-    pub(crate) fn commit(mut self, options: WriteOptions) -> Result<(), cntryl_midge::MidgeError> {
+    pub(crate) fn commit(mut self, options: WriteOptions) -> Result<(), AdapterCommitError> {
         let inner = self.inner.take().expect("commit consumes its transaction");
         if self.suppress_commit {
             drop(inner);
@@ -232,7 +287,15 @@ impl AdapterTransaction {
             drop(inner);
             return Ok(());
         }
-        inner.commit(options)
+        if let Some(publication) = self.publication {
+            if let Some(keys) = self.row_keys {
+                publication.publish_rows_current(keys, || inner.commit(options))
+            } else {
+                publication.publish_current(|| inner.commit(options))
+            }
+        } else {
+            inner.commit(options).map_err(AdapterCommitError::Native)
+        }
     }
 
     pub(crate) fn rollback(mut self) -> Result<(), cntryl_midge::MidgeError> {
@@ -257,12 +320,6 @@ impl std::ops::Deref for AdapterTransaction {
     }
 }
 
-impl std::ops::DerefMut for AdapterTransaction {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.inner_mut()
-    }
-}
-
 impl Midge {
     pub(crate) fn enter_transactional_ddl_scope(
         &self,
@@ -284,6 +341,17 @@ impl Midge {
         family_id: cntryl_midge::ColumnFamilyId,
         mode: TransactionMode,
     ) -> Result<AdapterTransaction, CassieError> {
+        let mut transaction = self.begin_scoped_adapter_tx(family_id, mode)?;
+        transaction.publication = Some(self.publication.family(family_id));
+        Ok(transaction)
+    }
+
+    fn begin_scoped_adapter_tx(
+        &self,
+        family_id: cntryl_midge::ColumnFamilyId,
+        mode: TransactionMode,
+    ) -> Result<AdapterTransaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let active = ACTIVE_STORAGE_SCOPE.with(|current| current.borrow().clone());
         let Some(scope) =
             active.filter(|scope| scope.midge_identity == std::ptr::from_ref(self) as usize)
@@ -361,10 +429,36 @@ impl Midge {
         mode: TransactionMode,
     ) -> Result<AdapterTransaction, CassieError> {
         let family = self.database_family(database)?;
-        self.engine
-            .begin_tx(family.id(), mode)
-            .map(AdapterTransaction::raw)
-            .map_err(CassieError::from)
+        self.begin_raw_adapter_tx(family.id(), mode)
+    }
+
+    pub(super) fn begin_raw_adapter_tx(
+        &self,
+        family_id: cntryl_midge::ColumnFamilyId,
+        mode: TransactionMode,
+    ) -> Result<AdapterTransaction, CassieError> {
+        self.publication.ensure_recovered()?;
+        let inner = self
+            .engine
+            .begin_tx(family_id, mode)
+            .map_err(CassieError::from)?;
+        let mut transaction = AdapterTransaction::raw(inner);
+        transaction.publication = Some(self.publication.family(family_id));
+        Ok(transaction)
+    }
+
+    pub(crate) fn begin_raw_family_adapter_tx(
+        &self,
+        family: StorageFamily,
+        mode: TransactionMode,
+    ) -> Result<AdapterTransaction, CassieError> {
+        let layout = self.ensure_families_ready()?;
+        let family_id = match family {
+            StorageFamily::Schema => layout.schema.id(),
+            StorageFamily::Temp => layout.temp.id(),
+            StorageFamily::Data => self.database_family(&self.default_database)?.id(),
+        };
+        self.begin_raw_adapter_tx(family_id, mode)
     }
 
     pub(crate) fn commit_storage_overlay(
@@ -494,10 +588,9 @@ impl Midge {
         database: &str,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let family = self.database_family(database)?;
-        self.engine
-            .begin_tx(family.id(), mode)
-            .map_err(CassieError::from)
+        self.open_native_transaction(family.id(), mode)
     }
 
     /// # Errors
@@ -588,17 +681,12 @@ impl Midge {
         family: StorageFamily,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let layout = self.ensure_families_ready()?;
         match family {
-            StorageFamily::Schema => self
-                .engine
-                .begin_tx(layout.schema.id(), mode)
-                .map_err(CassieError::from),
+            StorageFamily::Schema => self.open_native_transaction(layout.schema.id(), mode),
             StorageFamily::Data => self.database_tx(&self.default_database, mode),
-            StorageFamily::Temp => self
-                .engine
-                .begin_tx(layout.temp.id(), mode)
-                .map_err(CassieError::from),
+            StorageFamily::Temp => self.open_native_transaction(layout.temp.id(), mode),
         }
     }
 
@@ -607,15 +695,27 @@ impl Midge {
         family: &str,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.ensure_recovered()?;
         let Some(cf) = self.engine.get_column_family(family) else {
             return Err(CassieError::StorageMissingFamily(format!(
                 "required column family '{family}' is missing"
             )));
         };
 
-        self.engine
-            .begin_tx(cf.id(), mode)
-            .map_err(CassieError::from)
+        self.open_native_transaction(cf.id(), mode)
+    }
+
+    fn open_native_transaction(
+        &self,
+        family: cntryl_midge::ColumnFamilyId,
+        mode: TransactionMode,
+    ) -> Result<cntryl_midge::Transaction, CassieError> {
+        self.publication.open_native(mode, || {
+            self.publication.ensure_recovered()?;
+            self.engine
+                .begin_tx(family, mode)
+                .map_err(CassieError::from)
+        })
     }
 
     pub(super) fn get_or_create_family(
@@ -627,13 +727,10 @@ impl Midge {
             return Ok(existing);
         }
 
-        if let Ok(created) = self.engine.create_column_family(name) {
-            return Ok(created);
-        }
-
-        self.engine.get_column_family(name).ok_or_else(|| {
-            CassieError::StorageBootstrap(format!("cannot resolve required column family '{name}'"))
-        })
+        self.publication.ensure_recovered()?;
+        self.publication
+            .observe_native(self.engine.create_column_family(name))
+            .map_err(CassieError::from)
     }
 
     pub(super) fn begin_schema_readonly_tx(&self) -> Result<AdapterTransaction, CassieError> {
@@ -677,6 +774,7 @@ impl Midge {
         if family == StorageFamily::Data {
             return self.begin_database_readonly_tx(&self.default_database);
         }
+        self.publication.ensure_recovered()?;
         self.transaction(family, TransactionMode::ReadOnly)
             .map(AdapterTransaction::raw)
             .map(super::DataReadTransaction::fresh)
@@ -694,6 +792,7 @@ impl Midge {
         if let Some(tx) = self.statement_data_read_for_family(cf.id()) {
             return Ok(tx);
         }
+        self.publication.ensure_recovered()?;
         self.begin_adapter_tx(cf.id(), TransactionMode::ReadOnly)
             .map(super::DataReadTransaction::fresh)
     }
@@ -711,3 +810,7 @@ impl Midge {
         Ok(tx)
     }
 }
+
+#[cfg(test)]
+#[path = "transactions/snapshot_proofs.rs"]
+mod snapshot_proofs;

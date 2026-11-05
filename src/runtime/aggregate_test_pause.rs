@@ -85,8 +85,9 @@ impl Drop for QueryAggregateTestPauseGuard {
 pub fn pause_next_query_after_aggregate_input(
 ) -> (QueryAggregateTestPauseGuard, Receiver<()>, SyncSender<()>) {
     assert!(
-        !super::sleep_test_pause::has_pending_query_pause(),
-        "aggregate and sleep test pauses must not overlap"
+        !super::sleep_test_pause::has_pending_query_pause()
+            && !super::regex_test_pause::has_pending_query_pause(),
+        "aggregate, sleep and regex test pauses must not overlap"
     );
     let (pause, selected, resume) = QueryAggregateTestPause::new();
     let pause = Arc::new(super::QueryTestPause::Aggregate(pause));

@@ -91,7 +91,7 @@ pub(crate) fn infer_expr_type(
     }
 }
 
-fn infer_array_constructor_type(
+pub(super) fn infer_array_constructor_type(
     function: &crate::sql::ast::FunctionCall,
     source_schema: &Schema,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
@@ -99,12 +99,18 @@ fn infer_array_constructor_type(
 ) -> Option<DataType> {
     let mut element_type = DataType::Null;
     for argument in &function.args {
+        if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
+            continue;
+        }
         let argument_type =
             infer_expr_type(argument, source_schema, user_functions, parameter_types)?;
         element_type = common_case_type(element_type, argument_type)?;
     }
     if element_type == DataType::Null {
         element_type = DataType::Text;
+    }
+    while let DataType::Array(element) = element_type {
+        element_type = *element;
     }
     Some(DataType::Array(Box::new(element_type)))
 }
@@ -240,8 +246,14 @@ pub(crate) fn known_expr_type(
         {
             let mut element_type = DataType::Null;
             for argument in &function.args {
+                if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
+                    continue;
+                }
                 element_type =
                     common_case_type(element_type, known_expr_type(argument, field_types)?)?;
+            }
+            while let DataType::Array(element) = element_type {
+                element_type = *element;
             }
             Some(DataType::Array(Box::new(
                 if element_type == DataType::Null {

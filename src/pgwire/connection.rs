@@ -30,6 +30,7 @@ mod copy;
 mod errors;
 #[path = "connection/extended.rs"]
 mod extended;
+mod portal_reads;
 #[path = "connection/readers.rs"]
 mod readers;
 #[path = "connection/result_frames.rs"]
@@ -517,6 +518,11 @@ async fn handle_simple_query(
         }
     };
 
+    if let Some(step) =
+        reject_quarantined_simple_query(&cassie, runtime, write_half, state, &session, &sql).await
+    {
+        return step;
+    }
     state.reset_unnamed_query_objects(runtime);
     state.extended_cycle = transactions::ExtendedCycle::default();
     let statements = match simple_query::split_simple_query(&sql) {
@@ -712,4 +718,29 @@ async fn execute_simple_statement(
                 .map_err(|_| ())
         }
     }
+}
+
+async fn reject_quarantined_simple_query(
+    cassie: &Cassie,
+    runtime: &crate::runtime::RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
+    session: &crate::app::CassieSession,
+    sql: &str,
+) -> Option<ConnectionStep> {
+    if let Err(error) = cassie.check_storage_recovery_required() {
+        if crate::sql::parser::parse_terminal_transaction_control(sql).is_none() {
+            return Some(
+                write_simple_query_error(
+                    runtime,
+                    write_half,
+                    state,
+                    session,
+                    cassie_pg_error(&error),
+                )
+                .await,
+            );
+        }
+    }
+    None
 }

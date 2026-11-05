@@ -25,6 +25,7 @@ pub(super) fn cast(
         |error| -> QueryError {
             match error {
                 TextArrayError::Invalid(message) => CassieError::ArrayInput(message).into(),
+                TextArrayError::TypeInput(error) => CassieError::TypeInput(error).into(),
                 TextArrayError::UnsupportedJsonDocumentNull => {
                     CassieError::Unsupported(error.to_string()).into()
                 }

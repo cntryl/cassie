@@ -84,6 +84,7 @@ pub(super) struct SessionState {
     pub(super) portals: HashMap<String, Portal>,
     pub(super) portal_cursors: HashMap<String, crate::midge::adapter::MidgeRowCursor>,
     pub(super) portal_memory_controls: QueryExecutionControls,
+    pub(super) portal_reads: super::portal_reads::PortalReadOwners,
     pub(super) next_prepared_id: u64,
     /// The session's protocol-statement epoch this connection last applied.
     pub(super) prepared_wire_epoch: u64,
@@ -112,6 +113,7 @@ impl SessionState {
             portals: HashMap::new(),
             portal_cursors: HashMap::new(),
             portal_memory_controls,
+            portal_reads: super::portal_reads::PortalReadOwners::default(),
             next_prepared_id: 1,
             prepared_wire_epoch: 0,
             backend_registration: None,
@@ -142,6 +144,7 @@ impl SessionState {
 
     pub(super) fn remove_portal(&mut self, name: &str) -> Option<Portal> {
         self.clear_portal_execution(name);
+        self.portal_reads.remove(name);
         self.portals.remove(name)
     }
 

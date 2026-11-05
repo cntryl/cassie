@@ -17,6 +17,11 @@ impl Cassie {
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls| {
             let (parsed, sql) = statement;
+            if let Some(result) =
+                self.quarantined_statement_result(session, &parsed.statement, controls)
+            {
+                return result;
+            }
             let execution_session = session.with_statement_text(sql, controls)?;
             self.execute_pgwire_statement_core(
                 &execution_session,
@@ -37,6 +42,9 @@ impl Cassie {
     ) -> Result<QueryResult, CassieError> {
         self.execute_pgwire_query(session, cancellation, |controls| {
             let (sql, frontend_sql) = query;
+            if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
+                return result;
+            }
             let execution_session = session.with_statement_text(frontend_sql, controls)?;
             let session = &execution_session;
             if session.user.is_empty() {
@@ -76,10 +84,19 @@ impl Cassie {
         execute: impl FnOnce(&QueryExecutionControls) -> Result<QueryResult, CassieError>,
     ) -> Result<QueryResult, CassieError> {
         let query_started = Instant::now();
-        let Some(running_guard) = self.runtime.try_begin_running_query() else {
-            return Err(CassieError::Execution(
-                "query admission exhausted".to_string(),
-            ));
+        let running_guard = if self.check_storage_recovery_required().is_err() {
+            None
+        } else if let Some(guard) = self.runtime.try_begin_running_query() {
+            Some(guard)
+        } else {
+            match self.check_storage_recovery_required() {
+                Err(_) => None,
+                Ok(()) => {
+                    return Err(CassieError::Execution(
+                        "query admission exhausted".to_string(),
+                    ))
+                }
+            }
         };
         let mut controls = QueryExecutionControls::with_cancellation(
             &self.runtime.limits(),
@@ -87,6 +104,7 @@ impl Cassie {
             cancellation.clone(),
         );
         session.apply_statement_timeout(&mut controls, query_started);
+        self.runtime.record_query_memory(&controls);
         let result = execute(&controls);
         let elapsed = query_started.elapsed();
         self.runtime.record_query_memory(&controls);
@@ -104,7 +122,9 @@ impl Cassie {
         }
 
         drop(running_guard);
-        let _ = self.run_deferred_schema_cleanup();
+        if self.check_storage_recovery_required().is_ok() {
+            let _ = self.run_deferred_schema_cleanup();
+        }
         result
     }
 }

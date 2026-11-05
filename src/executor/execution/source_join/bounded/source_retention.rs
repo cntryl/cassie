@@ -61,7 +61,10 @@ pub(super) fn project_source_row(
     let _qualification_scratch = qualification_scratch(env, shape.collection)?;
     retention.before(phase)?;
     let row = qualify_row(
-        scan::projected_document_to_row(document, shape.fields, shape.schema),
+        scan::hydrate_character_arrays(
+            scan::projected_document_to_row(document, shape.fields, shape.schema),
+            env.controls,
+        )?,
         shape.collection,
     );
     check_timeout(env.controls)?;

@@ -10,6 +10,7 @@ mod numeric_identity;
 mod object_identity;
 mod ordered_set;
 mod pattern_matching;
+pub(crate) use pattern_matching::QUANTIFIED_PATTERN_FUNCTION;
 mod percentile_identity;
 pub(crate) mod regression;
 mod sequences;
@@ -25,11 +26,15 @@ pub(crate) use runtime::{is_loaded_modules, is_runtime_helper, loaded_modules_co
 pub(crate) use table::{
     catalog_table_columns, is_catalog_table, is_options_table, is_pg_input_error_info,
 };
+mod aggregate_core;
 mod any_value;
+mod arrays;
 mod bitwise;
 mod bytea;
 pub(crate) mod hashing;
 mod inputs;
+mod retrieval;
+mod session_catalog;
 pub(crate) use bytea::{
     bit_input_selection, has_distinct_builtin_arity, is_bytea_function, BitInputSelection,
 };
@@ -53,7 +58,9 @@ pub(crate) use unsupported_server_control::{
 pub(crate) use unsupported_server_files::{
     is_server_file_helper, rejection as reject_server_file_access,
 };
-pub(crate) use window::{window_function, WindowArgumentType, WindowFunction};
+pub(crate) use window::{
+    aggregate_window_function, window_function, WindowArgumentType, WindowFunction,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FunctionId {
@@ -197,6 +204,8 @@ pub enum FunctionId {
     Ascii,
     Chr,
     RegexpLike,
+    SimilarToEscape,
+    QuantifiedPattern,
     RegexpCount,
     RegexpReplace,
     StartsWith,
@@ -342,10 +351,19 @@ pub fn aggregate_arity(name: &str) -> Option<usize> {
     Some(arity)
 }
 
+fn scalar_functions() -> impl Iterator<Item = &'static ScalarFunction> {
+    arrays::FUNCTIONS
+        .iter()
+        .chain(POWER_FUNCTION)
+        .chain(aggregate_core::FUNCTIONS)
+        .chain(retrieval::FUNCTIONS)
+        .chain(session_catalog::FUNCTIONS)
+        .chain(SCALAR_FUNCTIONS)
+}
+
 #[must_use]
 pub fn registry() -> Vec<ScalarFunction> {
-    SCALAR_FUNCTIONS
-        .iter()
+    scalar_functions()
         .chain(any_value::FUNCTIONS)
         .chain(bitwise::FUNCTIONS)
         .chain(ordered_set::FUNCTIONS)
@@ -368,8 +386,7 @@ pub fn registry() -> Vec<ScalarFunction> {
 
 #[must_use]
 pub fn function(name: &str) -> Option<&'static ScalarFunction> {
-    SCALAR_FUNCTIONS
-        .iter()
+    scalar_functions()
         .chain(any_value::FUNCTIONS)
         .chain(bitwise::FUNCTIONS)
         .chain(ordered_set::FUNCTIONS)
@@ -467,8 +484,7 @@ fn qualified_function(name: &str) -> Option<&'static ScalarFunction> {
                     .any(|metadata| metadata.name.eq_ignore_ascii_case(local))
         })
         .and_then(|local| {
-            SCALAR_FUNCTIONS
-                .iter()
+            scalar_functions()
                 .chain(any_value::FUNCTIONS)
                 .chain(bitwise::FUNCTIONS)
                 .chain(statistical::FUNCTIONS)
@@ -489,679 +505,16 @@ fn qualified_function(name: &str) -> Option<&'static ScalarFunction> {
         })
 }
 
+const POWER_FUNCTION: &[ScalarFunction] = &[ScalarFunction {
+    id: FunctionId::Power,
+    name: "power",
+    arity: FunctionArity::Exact(2),
+    return_type: FunctionReturnType::Float,
+    is_aggregate: false,
+    bypass_arity_validation: false,
+}];
+
 const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
-    ScalarFunction {
-        id: FunctionId::Cardinality,
-        name: "cardinality",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayLength,
-        name: "array_length",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayCat,
-        name: "array_cat",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayAppend,
-        name: "array_append",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayPrepend,
-        name: "array_prepend",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayFill,
-        name: "array_fill",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayToString,
-        name: "array_to_string",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::StringToArray,
-        name: "string_to_array",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::TextArray,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayDims,
-        name: "array_dims",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayLower,
-        name: "array_lower",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayUpper,
-        name: "array_upper",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayPosition,
-        name: "array_position",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayPositions,
-        name: "array_positions",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::IntArray,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayNdims,
-        name: "array_ndims",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayReverse,
-        name: "array_reverse",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArraySort,
-        name: "array_sort",
-        arity: FunctionArity::Range { min: 1, max: 3 },
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArrayShuffle,
-        name: "array_shuffle",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ArraySample,
-        name: "array_sample",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::TrimArray,
-        name: "trim_array",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Power,
-        name: "power",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Count,
-        name: "count",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::BigInt,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Sum,
-        name: "sum",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::SumArgument,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Avg,
-        name: "avg",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Min,
-        name: "min",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Max,
-        name: "max",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::FirstNonNullArgument,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::StringAgg,
-        name: "string_agg",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::BoolAnd,
-        name: "bool_and",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::BoolAnd,
-        name: "pg_catalog.bool_and",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::BoolOr,
-        name: "bool_or",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::BoolOr,
-        name: "pg_catalog.bool_or",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::BoolAnd,
-        name: "every",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::BoolAnd,
-        name: "pg_catalog.every",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: true,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Search,
-        name: "search",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::SearchScore,
-        name: "search_score",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::VectorDistance,
-        name: "vector_distance",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::VectorScore,
-        name: "vector_score",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CosineDistance,
-        name: "cosine_distance",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::DotProduct,
-        name: "dot_product",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::HybridScore,
-        name: "hybrid_score",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Snippet,
-        name: "snippet",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Version,
-        name: "version",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::Version,
-        name: "pg_catalog.version",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CassieVersion,
-        name: "cassie_version",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentSetting,
-        name: "current_setting",
-        arity: FunctionArity::Range { min: 1, max: 2 },
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentSetting,
-        name: "pg_catalog.current_setting",
-        arity: FunctionArity::Range { min: 1, max: 2 },
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::SetConfig,
-        name: "set_config",
-        arity: FunctionArity::Exact(3),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::SetConfig,
-        name: "pg_catalog.set_config",
-        arity: FunctionArity::Exact(3),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgEncodingToChar,
-        name: "pg_encoding_to_char",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgEncodingToChar,
-        name: "pg_catalog.pg_encoding_to_char",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::HasDatabasePrivilege,
-        name: "has_database_privilege",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::HasDatabasePrivilege,
-        name: "pg_catalog.has_database_privilege",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgBackendPid,
-        name: "pg_backend_pid",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgBackendPid,
-        name: "pg_catalog.pg_backend_pid",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Int,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentSchema,
-        name: "current_schema",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentSchema,
-        name: "pg_catalog.current_schema",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentSchemas,
-        name: "current_schemas",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::NameArray,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentSchemas,
-        name: "pg_catalog.current_schemas",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::NameArray,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentDatabase,
-        name: "current_database",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Name,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentCatalog,
-        name: "current_catalog",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Name,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgClientEncoding,
-        name: "pg_client_encoding",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Name,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgClientEncoding,
-        name: "pg_catalog.pg_client_encoding",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Name,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentUser,
-        name: "current_user",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Name,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::SessionUser,
-        name: "session_user",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Name,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::CurrentRole,
-        name: "current_role",
-        arity: FunctionArity::Exact(0),
-        return_type: FunctionReturnType::Name,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::QuoteIdent,
-        name: "quote_ident",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::QuoteIdent,
-        name: "pg_catalog.quote_ident",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::FormatType,
-        name: "format_type",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::FormatType,
-        name: "pg_catalog.format_type",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetExpr,
-        name: "pg_get_expr",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetExpr,
-        name: "pg_catalog.pg_get_expr",
-        arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetIndexDef,
-        name: "pg_get_indexdef",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetIndexDef,
-        name: "pg_catalog.pg_get_indexdef",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetViewDef,
-        name: "pg_get_viewdef",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetViewDef,
-        name: "pg_catalog.pg_get_viewdef",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetUserById,
-        name: "pg_get_userbyid",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgGetUserById,
-        name: "pg_catalog.pg_get_userbyid",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ObjDescription,
-        name: "obj_description",
-        arity: FunctionArity::Range { min: 1, max: 2 },
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::ObjDescription,
-        name: "pg_catalog.obj_description",
-        arity: FunctionArity::Range { min: 1, max: 2 },
-        return_type: FunctionReturnType::Text,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::HasSchemaPrivilege,
-        name: "has_schema_privilege",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::HasSchemaPrivilege,
-        name: "pg_catalog.has_schema_privilege",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::HasTablePrivilege,
-        name: "has_table_privilege",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::HasTablePrivilege,
-        name: "pg_catalog.has_table_privilege",
-        arity: FunctionArity::Range { min: 2, max: 3 },
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgTableIsVisible,
-        name: "pg_table_is_visible",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
-    ScalarFunction {
-        id: FunctionId::PgTableIsVisible,
-        name: "pg_catalog.pg_table_is_visible",
-        arity: FunctionArity::Exact(1),
-        return_type: FunctionReturnType::Boolean,
-        is_aggregate: false,
-        bypass_arity_validation: false,
-    },
     ScalarFunction {
         id: FunctionId::Length,
         name: "length",

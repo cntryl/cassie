@@ -15,7 +15,18 @@ pub(super) fn projected<R: RowAccess>(
     ops: &[ProjectionOp],
     functions: &HashMap<String, FunctionMeta>,
 ) -> Option<Arc<Vec<DataType>>> {
-    if !required(row) {
+    if !required(row)
+        && !ops.iter().any(|op| match op {
+            ProjectionOp::ScalarFunction { .. } => true,
+            ProjectionOp::Column { source, .. } | ProjectionOp::WindowFunction { source, .. } => {
+                row.column_type(source).is_some_and(required_type)
+            }
+            ProjectionOp::AggregateFunction { lookups, .. } => lookups
+                .iter()
+                .any(|name| row.column_type(name).is_some_and(required_type)),
+            ProjectionOp::Wildcard => false,
+        })
+    {
         return None;
     }
     let mut types = Vec::new();
@@ -65,16 +76,28 @@ pub(super) fn projected<R: RowAccess>(
     }
     types
         .iter()
-        .any(|data_type| matches!(data_type, DataType::Array(_) | DataType::Char { .. }))
+        .any(|data_type| {
+            matches!(
+                data_type,
+                DataType::Array(_) | DataType::Char { .. } | DataType::Jsonb
+            )
+        })
         .then(|| types.into())
 }
 
-/// Both array ordering and bpchar equality require declared column identity.
 pub(super) fn required(row: &impl RowAccess) -> bool {
     row.has_array_types()
-        || row
-            .entries()
-            .iter()
-            .enumerate()
-            .any(|(index, _)| matches!(row.entry_type(index), Some(DataType::Char { .. })))
+        || (0..row.entries().len()).any(|index| {
+            matches!(
+                row.entry_type(index),
+                Some(DataType::Char { .. } | DataType::Jsonb)
+            )
+        })
+}
+
+pub(super) fn required_type(data_type: &DataType) -> bool {
+    matches!(
+        data_type,
+        DataType::Array(_) | DataType::Char { .. } | DataType::Jsonb
+    )
 }

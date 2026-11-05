@@ -74,8 +74,9 @@ not define a signing envelope, key format, trust store, or certificate profile.
    `RESTORE DATABASE ... FROM STDIN`.
 6. Retain the signature and verification record with the restore evidence.
 
-Cassie's image checksum is still checked during `RESTORE`; that proves transfer and framing
-integrity, while the detached signature and trusted identity establish provenance.
+Cassie's image checksum is still checked during `RESTORE`. Version 1 checksums cover
+catalog and data entries; version 2 also covers the encoded header. The detached
+signature and trusted identity establish provenance and protect the entire image.
 
 Snapshots do not change query planning and do not add distributed execution, cross-node reads, replication, consensus, or automatic repair.
 

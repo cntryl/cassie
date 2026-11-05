@@ -109,7 +109,8 @@ fn put_temp_json<T: Serialize>(
 ) -> Result<(), CassieError> {
     let ttl_seconds = ttl_seconds.max(1);
     let raw = serde_json::to_vec(value).map_err(|error| CassieError::Parse(error.to_string()))?;
-    let mut tx = midge.temp_tx(TransactionMode::ReadWrite)?;
+    let mut tx =
+        midge.begin_raw_family_adapter_tx(StorageFamily::Temp, TransactionMode::ReadWrite)?;
     tx.put(key, raw, Some(ttl_seconds))
         .map_err(CassieError::from)?;
     tx.commit(midge.write_options_sync())
@@ -119,7 +120,8 @@ fn put_temp_json<T: Serialize>(
 }
 
 fn delete_temp_key(midge: &Midge, runtime: &RuntimeState, key: Vec<u8>) -> Result<(), CassieError> {
-    let mut tx = midge.temp_tx(TransactionMode::ReadWrite)?;
+    let mut tx =
+        midge.begin_raw_family_adapter_tx(StorageFamily::Temp, TransactionMode::ReadWrite)?;
     tx.delete(key).map_err(CassieError::from)?;
     tx.commit(midge.write_options_sync())
         .map_err(CassieError::from)?;

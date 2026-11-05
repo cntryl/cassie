@@ -931,6 +931,7 @@ fn select_item_expansion_weight(item: &SelectItem) -> usize {
         SelectItem::WindowFunction { function, .. } => function
             .args
             .iter()
+            .chain(function.filter.as_deref())
             .chain(&function.partition_by)
             .chain(function.order_by.iter().map(|order| &order.expr))
             .map(expression_expansion_weight)

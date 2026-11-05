@@ -11,6 +11,17 @@ pub(super) struct CommittedWriteBatch {
 }
 
 impl Cassie {
+    /// A statement's metadata side effects join its working catalog stage;
+    /// descriptor reads keep the caller's separately retained immutable view.
+    pub(crate) fn with_statement_metadata_writer(&self, working: &CassieSession) -> Self {
+        let mut scoped = self.clone();
+        scoped.metadata_write_catalog = working
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| self.publication_catalog.clone());
+        working.attach_schema_context(&scoped);
+        scoped
+    }
+
     pub(crate) fn new_statement_batch(
         &self,
         session: Option<&CassieSession>,
@@ -85,9 +96,14 @@ impl Cassie {
         };
         let reports = match initial {
             Ok(reports) => reports,
-            Err(CassieError::UniqueViolation { .. })
+            Err(error @ CassieError::UniqueViolation { .. })
                 if !staging.transaction_conflict_intents().is_empty() =>
             {
+                if staging.is_repeatable_read_write() {
+                    return Err(crate::executor::repeatable_conflict_failure(
+                        self, staging, error, controls,
+                    ));
+                }
                 crate::executor::resolve_transaction_conflict_intents(self, staging, controls)
                     .map_err(CassieError::from)?;
                 writes = transaction_write_batches(staging);

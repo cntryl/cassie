@@ -66,6 +66,10 @@ impl Cassie {
         parameter_type_oids: &[i32],
         wire_output: bool,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        self.check_storage_statement_admission(&parsed.statement)?;
+        if self.check_storage_recovery_required().is_err() {
+            return Ok(Vec::new());
+        }
         if let Some(session) = session {
             self.ensure_session_database_access(session)?;
         }
@@ -75,10 +79,20 @@ impl Cassie {
         if let crate::sql::ast::QueryStatement::SessionObject(statement) = &parsed.statement {
             return self.describe_session_object(session, statement, wire_output);
         }
-        let (scoped_cassie, can_use_shared_plan_cache) = self.catalog_scope_for_session(session);
-        let controls = scoped_cassie
-            .runtime
-            .query_controls(std::time::Instant::now());
+        let controls = self.runtime.query_controls(std::time::Instant::now());
+        let _publication = self.catalog_publication.read();
+        let descriptor_owner = session
+            .map(|session| {
+                session.command_descriptor_snapshot(&self.publication_catalog, &controls)
+            })
+            .transpose()?
+            .flatten();
+        let (mut scoped_cassie, can_use_shared_plan_cache) =
+            self.catalog_scope_for_session(session);
+        if let Some(owner) = &descriptor_owner {
+            scoped_cassie.catalog = owner.catalog().clone();
+        }
+        scoped_cassie.catalog_owner.clone_from(&descriptor_owner);
         let admitted = super::query_parameters::admit_parameter_types(
             &scoped_cassie,
             session,
@@ -89,17 +103,8 @@ impl Cassie {
         let parameter_type_oids = admitted
             .as_ref()
             .map_or(parameter_type_oids, |types| types.types());
-        if matches!(
-            parsed.statement,
-            crate::sql::ast::QueryStatement::Explain(_)
-        ) {
-            return Ok(vec![crate::executor::ColumnMeta::text("QUERY PLAN")]);
-        }
-        if matches!(
-            parsed.statement,
-            crate::sql::ast::QueryStatement::Transaction(_)
-        ) {
-            return Ok(Vec::new());
+        if let Some(columns) = describe_utility_columns(&parsed) {
+            return Ok(columns);
         }
 
         if controls.is_timed_out() {
@@ -168,6 +173,7 @@ impl Cassie {
     fn catalog_scope_for_session(&self, session: Option<&super::CassieSession>) -> (Self, bool) {
         let catalog_overlay = session.and_then(super::CassieSession::transaction_catalog_overlay);
         let mut scoped_cassie = self.clone();
+        scoped_cassie.catalog = self.publication_catalog.clone();
         if let Some(catalog) = catalog_overlay.as_ref() {
             scoped_cassie.catalog = catalog.clone();
         }
@@ -416,4 +422,16 @@ fn describe_plan_cache_key(
         database,
         &search_path,
     ))
+}
+
+fn describe_utility_columns(
+    parsed: &crate::sql::ast::ParsedStatement,
+) -> Option<Vec<crate::executor::ColumnMeta>> {
+    match parsed.statement {
+        crate::sql::ast::QueryStatement::Explain(_) => {
+            Some(vec![crate::executor::ColumnMeta::text("QUERY PLAN")])
+        }
+        crate::sql::ast::QueryStatement::Transaction(_) => Some(Vec::new()),
+        _ => None,
+    }
 }

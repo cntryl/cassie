@@ -505,7 +505,7 @@ fn should_preserve_active_output_given_cancellation_before_activation_publicatio
 }
 
 #[test]
-fn should_complete_refresh_given_cancellation_after_final_activation_check() {
+fn should_complete_refresh_given_cancellation_after_confirmed_activation() {
     // Arrange
     let (cassie, session, previous_version) = materialized_view_with_unique_index();
     cassie
@@ -517,8 +517,9 @@ fn should_complete_refresh_given_cancellation_after_final_activation_check() {
         .expect("change source row before refresh");
     let cancellation = QueryCancellationHandle::new();
     let _cancel_after_final_check =
-        super::super::materialized_projection::test_support::
-            cancel_after_activation_interruption_check(cancellation.clone());
+        super::super::materialized_projection::test_support::cancel_after_activation_publication(
+            cancellation.clone(),
+        );
 
     // Act
     let result = cassie
@@ -528,7 +529,7 @@ fn should_complete_refresh_given_cancellation_after_final_activation_check() {
             vec![],
             &cancellation,
         )
-        .expect("activation already passed its final interruption check");
+        .expect("activation metadata commit was confirmed");
     let metadata = cassie
         .catalog
         .get_materialized_projection("concurrent_refresh_cancel_view")
@@ -558,4 +559,46 @@ fn should_complete_refresh_given_cancellation_after_final_activation_check() {
             .len(),
         1
     );
+}
+
+#[test]
+fn should_reject_terminal_refresh_cleanup_while_storage_requires_recovery() {
+    // Arrange
+    let (cassie, _, previous_version) = materialized_view_with_unique_index();
+    let cancellation = QueryCancellationHandle::new();
+    cancellation.cancel();
+    let controls = crate::runtime::QueryExecutionControls::with_cancellation(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+        cancellation,
+    );
+    let _request = crate::midge::adapter::PublicationControlScope::enter(Some(&controls));
+    cassie.midge.latch_storage_recovery_required_for_test();
+
+    // Act
+    let result = super::mark_version_failed(
+        &cassie,
+        "concurrent_refresh_cancel_view",
+        &previous_version,
+        "cancelled refresh",
+    );
+    let retained = cassie
+        .catalog
+        .get_materialized_projection("concurrent_refresh_cancel_view")
+        .expect("retained metadata");
+
+    // Assert
+    assert!(result
+        .expect_err("quarantine still forbids diagnostic publication")
+        .to_string()
+        .contains("storage recovery required"));
+    assert_eq!(
+        retained.active_version.as_deref(),
+        Some(previous_version.as_str())
+    );
+    assert!(retained
+        .versions
+        .iter()
+        .any(|version| version.version_id == previous_version
+            && version.state == ProjectionVersionState::Active));
 }

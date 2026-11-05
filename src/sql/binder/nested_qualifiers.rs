@@ -47,9 +47,14 @@ fn item_exprs(items: &mut [SelectItem]) -> impl Iterator<Item = &mut Expr> {
     items.iter_mut().flat_map(|item| match item {
         SelectItem::Expr { expr, .. } => vec![expr],
         SelectItem::Function { function, .. } => function.expressions_mut().collect(),
-        SelectItem::Wildcard | SelectItem::Column { .. } | SelectItem::WindowFunction { .. } => {
-            Vec::new()
-        }
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter_mut()
+            .chain(function.filter.as_deref_mut())
+            .chain(&mut function.partition_by)
+            .chain(function.order_by.iter_mut().map(|order| &mut order.expr))
+            .collect(),
+        SelectItem::Wildcard | SelectItem::Column { .. } => Vec::new(),
     })
 }
 
@@ -183,5 +188,33 @@ fn shadows(source: &QuerySource, name: &str) -> bool {
         QuerySource::Join { left, right, .. } => shadows(left, name) || shadows(right, name),
         QuerySource::TableSample { source, .. } => shadows(source, name),
         QuerySource::Values { .. } | QuerySource::SingleRow => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_rename_target_alias_in_window_filter() {
+        // Arrange
+        let parsed =
+            crate::sql::parse_statement("SELECT SUM(1) FILTER (WHERE target.id = 1) OVER ()")
+                .expect("window aggregate query");
+        let QueryStatement::Select(mut query) = parsed.statement else {
+            panic!("SELECT statement");
+        };
+
+        // Act
+        select(&mut query, "target", "records");
+
+        // Assert
+        let SelectItem::WindowFunction { function, .. } = &query.projection[0] else {
+            panic!("window projection");
+        };
+        let filter = function.filter.as_deref().expect("window filter");
+        assert!(filter.any_descendant_or_self(&mut |expr| {
+            matches!(expr, Expr::Column(name) if name == "records.id")
+        }));
     }
 }

@@ -1,8 +1,17 @@
 //! Scalar functions over the native SQL array value.
 use super::{QueryError, Value};
 use std::fmt::Write as _;
+#[path = "array_admission.rs"]
+mod admission;
 
-pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
+pub(super) fn evaluate(
+    name: &str,
+    args: &[Value],
+    context: super::EvalContext<'_>,
+) -> Option<Result<Value, QueryError>> {
+    if let Err(error) = admission::admit(name, args, context) {
+        return Some(Err(error));
+    }
     match name {
         "_cassie_array_value" => Some(array_value(args)),
         "cardinality" => Some(cardinality(args)),
@@ -101,10 +110,6 @@ fn append_or_prepend(
                 .length
                 .checked_add(1)
                 .ok_or_else(|| invalid_call(function))?;
-            first.lower_bound = first
-                .lower_bound
-                .checked_sub(1)
-                .ok_or_else(|| invalid_call(function))?;
         } else {
             dimensions.push(crate::types::ArrayDimension {
                 length: 1,
@@ -134,7 +139,7 @@ fn array_fill(args: &[Value]) -> Result<Value, QueryError> {
     let [fill, dimensions, lower_bounds @ ..] = args else {
         return Err(invalid_call("array_fill"));
     };
-    if fill.is_null() || dimensions.is_null() || lower_bounds.iter().any(Value::is_null) {
+    if dimensions.is_null() || lower_bounds.iter().any(Value::is_null) {
         return Ok(Value::Null);
     }
     let Value::Array(shape) = dimensions else {
@@ -191,6 +196,12 @@ fn array_fill(args: &[Value]) -> Result<Value, QueryError> {
             lower_bound,
         })
         .collect::<Vec<_>>();
+    if dimensions.len() > 6 {
+        return Err(crate::app::CassieError::ResourceLimit(
+            "number of array dimensions exceeds the maximum allowed (6)".into(),
+        )
+        .into());
+    }
     let count = dimensions
         .iter()
         .try_fold(1_usize, |count, dimension| {
@@ -203,6 +214,9 @@ fn array_fill(args: &[Value]) -> Result<Value, QueryError> {
                 "array_fill dimensions exceed supported size".into(),
             )
         })?;
+    if dimensions.is_empty() || count == 0 {
+        return Ok(Value::Array(crate::types::SqlArray::empty()));
+    }
     let mut elements = Vec::new();
     elements.try_reserve_exact(count).map_err(|_| {
         crate::app::CassieError::ArrayInput("array_fill dimensions exceed available memory".into())

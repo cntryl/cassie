@@ -28,6 +28,11 @@ pub(super) fn limits_from_env(
             "CASSIE_QUERY_MEMORY_BUDGET_BYTES",
             defaults.query_memory_budget_bytes,
         ),
+        repeatable_read_history_memory_budget_bytes: parse_usize_from(
+            env_reader,
+            "CASSIE_REPEATABLE_READ_HISTORY_MEMORY_BUDGET_BYTES",
+            defaults.repeatable_read_history_memory_budget_bytes,
+        ),
         execution_result_cache_enabled: if parse_bool_from(
             env_reader,
             "CASSIE_EXECUTION_RESULT_CACHE_ENABLED",

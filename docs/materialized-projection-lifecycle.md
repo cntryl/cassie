@@ -103,3 +103,18 @@ measured operation. These observations are environment-labelled capacity evidenc
 latency guarantees. The promotion record retains the 100k refresh, replay, full-verification, and
 hash-repair owners; replay throughput on hosted runners is diagnostic only, and 250k rows are not
 yet retained capacity evidence. See [Production Readiness](production-readiness.md).
+
+## Cancellation at publication
+
+Concurrent refresh remains cancellable through its database publication guard,
+including waiting for that guard. Cancellation before the activation metadata
+commit preserves the previous active output, removes unpublished output, and
+records the failed version. Terminal cleanup uses an independent scope without
+the cancelled request token; storage recovery quarantine still applies, so an
+unknown outcome is never treated as a confirmed failed write. A confirmed
+activation metadata commit remains authoritative if cancellation arrives later.
+
+The 2026-11-05 integration review selected the native publication boundary
+(Jev choice probability 1.00), with independent terminal diagnostic cleanup
+(Noul 0.83). Executable before-publication, after-confirmation and restart
+regressions qualify this contract; the model judgment alone does not.

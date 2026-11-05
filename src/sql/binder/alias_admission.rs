@@ -284,7 +284,12 @@ impl Walk<'_> {
                     }
                 }
                 SelectItem::WindowFunction { function, .. } => {
-                    for expr in function.args.iter().chain(&function.partition_by) {
+                    for expr in function
+                        .args
+                        .iter()
+                        .chain(function.filter.as_deref())
+                        .chain(&function.partition_by)
+                    {
                         self.expression(expr, visible, active)?;
                     }
                     for order in &function.order_by {

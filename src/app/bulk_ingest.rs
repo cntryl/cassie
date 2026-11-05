@@ -87,6 +87,11 @@ impl Cassie {
         payload: &[u8],
         cancellation: Option<&QueryCancellationHandle>,
     ) -> Result<usize, CassieError> {
+        self.check_storage_recovery_required()?;
+        let _publication_controls = crate::midge::adapter::PublicationControlScope::for_request(
+            &self.runtime.limits(),
+            cancellation,
+        );
         let mut rows = parse_csv_payload(payload)?;
         if statement.header && !rows.is_empty() {
             rows.remove(0);
@@ -113,6 +118,11 @@ impl Cassie {
         cancellation: Option<&QueryCancellationHandle>,
         options: CopyIngestOptions<'_>,
     ) -> Result<CopyIngestResult, CassieError> {
+        self.check_storage_recovery_required()?;
+        let _publication_controls = crate::midge::adapter::PublicationControlScope::for_request(
+            &self.runtime.limits(),
+            cancellation,
+        );
         let transactional = session.is_transaction_active();
         let result = self.copy_from_rows_inner(session, statement, rows, cancellation, options);
         if result.is_err() && transactional {
@@ -509,6 +519,9 @@ fn copy_value_to_json(
                 let message = format!("field '{}' expects array: {error}", field.name);
                 match error {
                     crate::types::array::TextArrayError::Invalid(_) => CassieError::Parse(message),
+                    crate::types::array::TextArrayError::TypeInput(error) => {
+                        CassieError::TypeInput(error)
+                    }
                     crate::types::array::TextArrayError::UnsupportedJsonDocumentNull => {
                         CassieError::Unsupported(message)
                     }

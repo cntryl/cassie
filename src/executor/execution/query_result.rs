@@ -10,6 +10,9 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::Value;
 
 use super::types::ColumnMeta;
+#[path = "result_rendering.rs"]
+mod rendering;
+pub(crate) use rendering::bound as native_result_text_bound;
 
 #[derive(Debug, serde::Serialize)]
 struct QueryResultPayload {
@@ -22,6 +25,8 @@ struct QueryResultPayload {
     /// Columns whose direct text protocol output uses PostgreSQL array text.
     #[serde(skip)]
     postgres_array_text_columns: Vec<usize>,
+    #[serde(skip)]
+    temporal: Option<Arc<crate::types::extended::temporal::TemporalSession>>,
     #[serde(skip)]
     memory: QueryMemoryReservation,
 }
@@ -67,6 +72,12 @@ impl QueryResult {
 
     pub(crate) fn postgres_array_text_columns(&self) -> &[usize] {
         &self.payload.postgres_array_text_columns
+    }
+    pub(crate) fn temporal_context(&self) -> &crate::types::extended::temporal::TemporalSession {
+        self.payload
+            .temporal
+            .as_deref()
+            .unwrap_or_else(|| crate::types::extended::temporal::default_session())
     }
 
     #[must_use]
@@ -285,11 +296,12 @@ impl QueryResultBuilder<'_> {
     {
         self.controls.check_interruption()?;
         let temporal = crate::executor::filter::temporal::session_of(Some(self.controls));
+        let _rendering_memory = rendering::admit(values.clone(), self.controls, &temporal)?;
         let (count, variable_bytes) =
             values.clone().try_fold((0, 0), |(count, bytes), value| {
                 self.controls.check_interruption()?;
                 let value_bytes = match value {
-                    Value::Typed(typed) => typed.text_in(&temporal).len(),
+                    Value::Typed(typed) => rendering::format(typed, &temporal).capacity(),
                     other => value_clone_bytes(other)?,
                 };
                 Ok::<_, CassieError>((add(count, 1)?, add(bytes, value_bytes)?))
@@ -306,9 +318,16 @@ impl QueryResultBuilder<'_> {
             self.controls.check_interruption()?;
             // Natively represented types publish their PostgreSQL text output.
             pending.values.push(match value {
-                Value::Typed(typed) => Value::String(typed.text_in(&temporal)),
+                Value::Typed(typed) => Value::String(rendering::format(typed, &temporal)),
                 other => other.clone(),
             });
+        }
+        let actual_heap = pending
+            .values
+            .iter()
+            .try_fold(0, |bytes, value| add(bytes, value_clone_bytes(value)?))?;
+        if actual_heap > pending.heap.bytes() {
+            pending.heap.try_grow(actual_heap - pending.heap.bytes())?;
         }
         self.rows.push(pending.values);
         self.memory.absorb(pending.slots);
@@ -383,8 +402,22 @@ impl QueryResultBuilder<'_> {
 
     /// # Errors
     /// Returns cancellation or a deadline error without publishing a result.
-    pub fn finish(self) -> Result<QueryResult, CassieError> {
+    pub fn finish(mut self) -> Result<QueryResult, CassieError> {
         self.controls.check_interruption()?;
+        let temporal = if self.columns.iter().any(|column| {
+            u32::try_from(column.type_oid)
+                .ok()
+                .and_then(crate::catalog::builtin_identity::builtin_array_element_oid)
+                .is_some()
+        }) {
+            let temporal = self.controls.temporal_session();
+            if let Some(snapshot) = &temporal {
+                self.memory.try_grow(rendering::context_bytes(snapshot)?)?;
+            }
+            temporal
+        } else {
+            None
+        };
         Ok(QueryResult {
             payload: Arc::new(QueryResultPayload {
                 columns: self.columns,
@@ -392,6 +425,7 @@ impl QueryResultBuilder<'_> {
                 command: self.command,
                 object_oids: self.object_oids,
                 postgres_array_text_columns: self.postgres_array_text_columns,
+                temporal,
                 memory: self.memory,
             }),
             exposure: None,

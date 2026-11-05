@@ -7,6 +7,8 @@ pub(crate) use expressions::{
 #[path = "inference_types.rs"]
 mod types;
 pub(crate) use types::common_case_type;
+#[path = "inference_aliases.rs"]
+mod aliases;
 #[path = "inference_set.rs"]
 mod set;
 
@@ -113,16 +115,13 @@ pub(super) fn infer_select_schema_with_outer(
         parameter_types,
         outer_fields,
     )?;
-    let lookup = if let Some(outer) = outer_fields {
-        let mut lookup = source_schema.clone();
-        append_source_qualifiers(&select.source, catalog, &mut lookup)?;
+    let mut lookup = source_schema.clone();
+    append_source_qualifiers(&select.source, catalog, &mut lookup)?;
+    if let Some(outer) = outer_fields {
         // The inner source owns unqualified names; explicit outer names remain
         // available only in this inference lookup, never in wildcard output.
         lookup.fields.extend(outer.fields.iter().cloned());
-        lookup
-    } else {
-        source_schema.clone()
-    };
+    }
     let cte_scope = cte_schemas
         .iter()
         .map(|(name, schema)| {
@@ -361,15 +360,20 @@ pub(super) fn infer_source_schema_with_outer(
             .cloned()
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?,
         QuerySource::SingleRow => Schema { fields: Vec::new() },
-        QuerySource::TableFunction { name, .. } => Schema {
-            fields: super::select::table_function_columns(name)
-                .into_iter()
-                .map(|(name, data_type)| FieldSchema {
-                    name,
-                    data_type,
-                    nullable: true,
-                })
-                .collect(),
+        QuerySource::TableFunction { .. } => Schema {
+            fields: super::table_functions::typed_columns(
+                source,
+                outer_fields,
+                user_functions,
+                parameter_types,
+            )?
+            .into_iter()
+            .map(|(name, data_type)| FieldSchema {
+                name,
+                data_type,
+                nullable: true,
+            })
+            .collect(),
         },
         QuerySource::Subquery {
             alias,
@@ -477,6 +481,7 @@ pub(super) fn append_source_qualifiers(
             append_source_qualifiers(left, catalog, schema)?;
             append_source_qualifiers(right, catalog, schema)?;
         }
+        QuerySource::Aliased { .. } => aliases::append_visible_fields(source, schema),
         _ => {}
     }
     Ok(())
@@ -705,6 +710,42 @@ pub(crate) fn infer_function_return_type(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
 ) -> Option<DataType> {
+    if function
+        .name
+        .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+    {
+        return expressions::infer_array_constructor_type(
+            function,
+            source_schema,
+            user_functions,
+            parameter_types,
+        );
+    }
+    let result =
+        infer_function_result_type(function, source_schema, user_functions, parameter_types)?;
+    // These SQL conditional constructs have their own argument-derived type
+    // policy; they are not ordinary PostgreSQL FuncExpr result descriptors.
+    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::Coalesce
+                | crate::sql::functions::FunctionId::NullIf
+                | crate::sql::functions::FunctionId::Greatest
+                | crate::sql::functions::FunctionId::Least
+        )
+    }) {
+        Some(result)
+    } else {
+        Some(super::array_outputs::unmodified_result(result))
+    }
+}
+
+fn infer_function_result_type(
+    function: &FunctionCall,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
     if let Some(data_type) =
         types::temporal_function_type(function, source_schema, user_functions, parameter_types)
@@ -759,6 +800,19 @@ fn infer_registered_function_return_type(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
 ) -> Option<DataType> {
+    if super::array_outputs::is_array_result(metadata.id) {
+        let arguments = function
+            .args
+            .iter()
+            .map(|argument| {
+                infer_expr_type(argument, source_schema, user_functions, parameter_types)
+                    .unwrap_or(DataType::Null)
+            })
+            .collect::<Vec<_>>();
+        if let Some(kind) = super::array_outputs::result_type(metadata.id, &arguments) {
+            return Some(kind);
+        }
+    }
     if let Some(data_type) = selected_ordered_set_return_type(
         function,
         metadata.id,
@@ -824,23 +878,16 @@ fn infer_function_policy_return_type(
             )
         }
         crate::sql::functions::FunctionReturnType::FirstNonNullArgument => {
-            let argument_types = function
+            let arguments = function
                 .args
                 .iter()
-                .filter_map(|arg| {
-                    infer_expr_type(arg, source_schema, user_functions, parameter_types)
+                .map(|argument| {
+                    infer_expr_type(argument, source_schema, user_functions, parameter_types)
                 })
-                .filter(|data_type| !matches!(data_type, DataType::Null))
                 .collect::<Vec<_>>();
-            // Any argument may supply the value (COALESCE), so the result is
-            // their common type; incompatible arguments keep the first type.
-            argument_types
-                .iter()
-                .cloned()
-                .try_fold(DataType::Null, common_case_type)
-                .filter(|data_type| !matches!(data_type, DataType::Null))
-                .or_else(|| argument_types.first().cloned())
-                .or(Some(DataType::Text))
+            Some(super::array_outputs::first_non_null_result(
+                name, &arguments,
+            ))
         }
         crate::sql::functions::FunctionReturnType::NumericArgument => function
             .args
@@ -903,64 +950,9 @@ fn primitive_cast_return_type(
     .then_some(target.data_type)
 }
 
-fn selected_ordered_set_return_type(
-    function: &FunctionCall,
-    id: crate::sql::functions::FunctionId,
-    source_schema: &Schema,
-    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
-    parameter_types: &[i32],
-) -> Option<DataType> {
-    if !matches!(
-        id,
-        crate::sql::functions::FunctionId::Mode
-            | crate::sql::functions::FunctionId::PercentileCont
-            | crate::sql::functions::FunctionId::PercentileDisc
-    ) {
-        return None;
-    }
-    ordered_set_return_type(function, id, source_schema, user_functions, parameter_types)
-}
-
-fn ordered_set_return_type(
-    function: &FunctionCall,
-    id: crate::sql::functions::FunctionId,
-    source_schema: &Schema,
-    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
-    parameter_types: &[i32],
-) -> Option<DataType> {
-    let order_type = function.order_by.first().and_then(|order| {
-        infer_expr_type(&order.expr, source_schema, user_functions, parameter_types)
-    })?;
-    if id == crate::sql::functions::FunctionId::Mode {
-        return Some(order_type);
-    }
-    let result_element = match id {
-        crate::sql::functions::FunctionId::PercentileCont
-            if matches!(
-                order_type,
-                DataType::Extended(crate::types::extended::ExtendedType::Interval { .. })
-            ) =>
-        {
-            order_type
-        }
-        crate::sql::functions::FunctionId::PercentileCont => DataType::Float,
-        crate::sql::functions::FunctionId::PercentileDisc => order_type,
-        _ => return None,
-    };
-    let fraction_is_array = function.args.first().is_some_and(|fraction| {
-        matches!(
-            fraction,
-            Expr::Subquery(subquery)
-                if matches!(subquery.kind, crate::sql::ast::SubqueryKind::Array)
-        ) || infer_expr_type(fraction, source_schema, user_functions, parameter_types)
-            .is_some_and(|data_type| matches!(data_type, DataType::Array(_)))
-    });
-    Some(if fraction_is_array {
-        DataType::Array(Box::new(result_element))
-    } else {
-        result_element
-    })
-}
+#[path = "inference_ordered_set.rs"]
+mod ordered_set;
+use ordered_set::selected_ordered_set_return_type;
 
 fn preserve_alias_identity(source: &QuerySource, catalog: &Catalog, schema: &mut Schema) {
     if let QuerySource::Collection(name) = source {
@@ -982,44 +974,5 @@ fn preserve_alias_identity(source: &QuerySource, catalog: &Catalog, schema: &mut
 }
 
 #[cfg(test)]
-mod tests {
-    use super::infer_select_schema;
-    use crate::catalog::Catalog;
-    use crate::sql::QueryStatement;
-    use crate::types::DataType;
-
-    #[test]
-    fn should_infer_qualified_wildcard_shape_from_unbound_select() {
-        // Arrange
-        let catalog = Catalog::new();
-        catalog.register_collection(
-            "inference_qualified_star_source",
-            vec![
-                ("id".to_owned(), DataType::BigInt),
-                ("label".to_owned(), DataType::Text),
-            ],
-        );
-        let parsed = crate::sql::parse_statement(
-            "SELECT inference_qualified_star_source.* FROM inference_qualified_star_source",
-        )
-        .expect("qualified wildcard SQL parses");
-        let QueryStatement::Select(select) = parsed.statement else {
-            panic!("qualified wildcard is a SELECT");
-        };
-
-        // Act
-        let schema = infer_select_schema(&select, &catalog).expect("infer SELECT schema");
-
-        // Assert
-        assert_eq!(
-            schema
-                .fields
-                .iter()
-                .map(|field| field.name.as_str())
-                .collect::<Vec<_>>(),
-            ["id", "label"]
-        );
-        assert_eq!(schema.fields[0].data_type, DataType::BigInt);
-        assert_eq!(schema.fields[1].data_type, DataType::Text);
-    }
-}
+#[path = "inference_tests.rs"]
+mod tests;

@@ -82,8 +82,8 @@ pub(super) fn columns(
             return columns(source, aliases, catalog, scope);
         }
         QuerySource::Subquery { select, .. } => (subquery_names(select, catalog, scope)?, false),
-        QuerySource::TableFunction { name, .. } => (
-            super::select::table_function_columns(name)
+        QuerySource::TableFunction { .. } => (
+            super::select::table_function_columns(source)
                 .into_iter()
                 .map(|(name, _)| name)
                 .collect(),
@@ -525,7 +525,12 @@ pub(super) fn lower_select(
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
-                for expr in function.args.iter_mut().chain(&mut function.partition_by) {
+                for expr in function
+                    .args
+                    .iter_mut()
+                    .chain(function.filter.as_deref_mut())
+                    .chain(&mut function.partition_by)
+                {
                     rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
                 }
                 for order in &mut function.order_by {
@@ -620,6 +625,7 @@ fn select_contains_exists(select: &SelectStatement) -> bool {
                 function
                     .args
                     .iter()
+                    .chain(function.filter.as_deref())
                     .chain(&function.partition_by)
                     .any(has_exists)
                     || function

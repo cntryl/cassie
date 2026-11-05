@@ -245,7 +245,11 @@ fn should_release_transferred_catalog_publication_before_the_next_query() {
 
     // Act
     cassie
-        .commit_transaction_holding_catalog(&session, publication)
+        .commit_transaction_holding_catalog(
+            &session,
+            publication,
+            &cassie.runtime.query_controls(std::time::Instant::now()),
+        )
         .expect("commit with transferred guard");
     let available = cassie.catalog_publication.try_write().is_some();
     let result = cassie.execute_sql(&session, "SELECT revision FROM startup_checkpoint", vec![]);

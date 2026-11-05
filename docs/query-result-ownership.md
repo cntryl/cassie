@@ -249,6 +249,8 @@ conversion failure and cancellation release their actual owners exactly once.
 `query.current_accounted_memory_bytes` observes the live tracker of the latest
 recorded query through a weak reference. It follows later owner retirement rather
 than copying a completion-time value, and does not retain the tracker or request.
+SQL execution records the tracker at entry and completion so active retained
+work is observable before the query finishes.
 It is not a sum across concurrent queries or all cached producer payloads. A zero
 latest-requester value can coexist with an older cache producer's live physical
 allocation. `query.peak_accounted_memory_bytes` retains the maximum observed
@@ -321,3 +323,29 @@ ownership acceptance. Its criteria do not replace the current SQL-profile and
 workload-readiness owners #848/#849. Issue #904 is closed and retained only as
 historical provenance; the former #791–#793 issues are also closed as superseded.
 The original parameter occurrence/coercion gaps are outside this bundle.
+
+## Leased semantic records and immutable indexes
+
+The 2026-11-05 strict gate found that JSONB, SQL-array and SEARCH semantic
+records own narrow memory leases. Those leases contain tracker atomics and must
+not become standard map/set keys. The selected private representation indexes
+immutable randomized fingerprints and retains the complete leased semantic
+record in each bucket's values. Every fingerprint collision is resolved by the
+existing exact equality operation. Ordered consumers drain to an admitted buffer
+and use the existing semantic ordering; fingerprint order is never SQL order.
+
+Jev selected this representation at 0.97 and required exact collision checks
+(Noul 0.87). Index backing, collision directories and ordered-drain overlap are
+admitted before allocation. Their leases follow their buffers, independently
+of the semantic record's last-owner lease. No tracker is erased or hidden to
+suppress lint analysis, and no memory admission is removed. Forced-collision,
+ordered-drain and last-owner probes precede the implementation gate. This is a
+private relational container change, not a storage abstraction or persisted
+format change.
+
+Hash builds with a known input bound preadmit the full fingerprint table and
+collision-directory replacement overlap before constructing any build key. The
+index retains that lease; caller scratch and row-list leases exclude index
+backing to avoid double charging. Incremental consumers admit each directory
+replacement before allocation. Exact equality still resolves fingerprint
+collisions, including collisions that fill the entire prepaid build.

@@ -1,3 +1,5 @@
+#[path = "query_window_function.rs"]
+mod window_function;
 use super::clauses::{find_top_level_keyword, split_top_level, strip_parentheses};
 use super::expr::{parse_alias, parse_expression, parse_function, parse_order_by, split_csv};
 use super::identifiers::parse_relation_path_prefix;
@@ -5,9 +7,7 @@ use super::{
     parse_statement, CommonTableExpression, Expr, HashMap, HashSet, JoinKind, OrderExpr,
     ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
-use crate::sql::ast::{
-    AggregateQuantifier, WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
-};
+use crate::sql::ast::{WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit};
 
 #[path = "query_select.rs"]
 mod query_select;
@@ -19,6 +19,8 @@ mod relation_alias;
 mod query_cte;
 #[path = "query_table_sample.rs"]
 mod query_table_sample;
+#[path = "set_function_source.rs"]
+mod set_function_source;
 use query_cte::parse_cte_definitions;
 pub(super) use query_cte::parse_enclosed_parenthesized;
 
@@ -128,6 +130,15 @@ pub(super) fn parse_projection_item_with_named_windows(
     }
 
     if let Some(function) = parse_window_function_with_named_windows(expr_raw, named_windows)? {
+        let alias = alias.or_else(|| {
+            crate::sql::functions::aggregate_window_function(&function.name).and_then(|_| {
+                function
+                    .name
+                    .get(..11)
+                    .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
+                    .map(|_| function.name[11..].to_ascii_lowercase())
+            })
+        });
         return Ok(SelectItem::WindowFunction { function, alias });
     }
 
@@ -171,33 +182,12 @@ fn parse_window_function_with_named_windows(
     raw: &str,
     named_windows: &NamedWindows,
 ) -> Result<Option<WindowFunctionCall>, SqlError> {
-    let Some((function_raw, over_raw)) = split_top_level(raw, " over ") else {
+    let Some((function_raw, over_raw)) = split_top_level(raw, " over") else {
         return Ok(None);
     };
     let function = super::aggregate_call::parse_function_for_window(function_raw.trim())?
         .ok_or_else(|| SqlError::new("window function requires function call".into()))?;
-    let function_name = function.name.to_ascii_lowercase();
-    let aggregate_window = matches!(
-        function_name.as_str(),
-        "count" | "sum" | "bool_and" | "bool_or"
-    );
-    let function = if aggregate_window {
-        if function.is_distinct() || !function.order_by.is_empty() {
-            return Err(SqlError::unsupported(
-                "DISTINCT and aggregate-local ORDER BY are not supported on window aggregates"
-                    .into(),
-            ));
-        }
-        lower_window_filter(function, &function_name)?
-    } else {
-        if function.has_modifiers() {
-            return Err(SqlError::unsupported(
-                "aggregate modifiers on window functions are not yet supported".into(),
-            ));
-        }
-        function
-    };
-    validate_window_function(&function, &function_name, aggregate_window)?;
+    let function = window_function::prepare(function)?;
 
     let (partition_by, order_by, frame) =
         if let Some(over_body) = strip_parentheses(over_raw.trim()) {
@@ -212,126 +202,11 @@ fn parse_window_function_with_named_windows(
     Ok(Some(WindowFunctionCall {
         name: function.name,
         args: function.args,
+        filter: function.filter,
         partition_by,
         order_by,
         frame,
     }))
-}
-
-fn validate_window_function(
-    function: &super::FunctionCall,
-    function_name: &str,
-    aggregate_window: bool,
-) -> Result<(), SqlError> {
-    let registered_window_function: Option<&crate::sql::functions::WindowFunction> =
-        crate::sql::functions::window_function(function_name);
-    if !matches!(
-        function_name,
-        "row_number"
-            | "rank"
-            | "dense_rank"
-            | "percent_rank"
-            | "cume_dist"
-            | "ntile"
-            | "lag"
-            | "lead"
-            | "first_value"
-            | "last_value"
-            | "nth_value"
-            | "count"
-            | "sum"
-            | "bool_and"
-            | "bool_or"
-            | "var_pop"
-            | "var_samp"
-            | "variance"
-            | "stddev_pop"
-            | "stddev_samp"
-            | "stddev"
-    ) && registered_window_function.is_none()
-    {
-        return Err(SqlError::new(format!(
-            "unsupported window function '{}'",
-            function.name
-        )));
-    }
-    if matches!(
-        function_name,
-        "row_number" | "rank" | "dense_rank" | "percent_rank" | "cume_dist"
-    ) && !function.args.is_empty()
-    {
-        return Err(SqlError::new(format!(
-            "{} window function expects no args",
-            function.name
-        )));
-    }
-    if function_name == "ntile" && function.args.len() != 1 {
-        return Err(SqlError::new(
-            "ntile window function expects one arg".into(),
-        ));
-    }
-    if matches!(function_name, "first_value" | "last_value") && function.args.len() != 1 {
-        return Err(SqlError::new(format!(
-            "{} window function expects one arg",
-            function.name
-        )));
-    }
-    if let Some(metadata) = registered_window_function {
-        if !metadata.arity.matches(function.args.len()) {
-            let expected = match metadata.id {
-                crate::sql::functions::FunctionId::Lag
-                | crate::sql::functions::FunctionId::Lead => "one to three args",
-                crate::sql::functions::FunctionId::NthValue => "two args",
-                _ => unreachable!("only registered value window functions use this path"),
-            };
-            return Err(SqlError::new(format!(
-                "{} window function expects {expected}",
-                function.name
-            )));
-        }
-    }
-    if aggregate_window
-        && (function.args.len() != 1
-            || (matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*")
-                && function_name != "count"))
-    {
-        return Err(SqlError::syntax(format!(
-            "{} window aggregate expects one valid argument",
-            function.name
-        )));
-    }
-    Ok(())
-}
-
-fn lower_window_filter(
-    mut function: super::FunctionCall,
-    function_name: &str,
-) -> Result<super::FunctionCall, SqlError> {
-    let count_star = function_name == "count"
-        && matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*");
-    let Some(predicate) = function.filter.take() else {
-        if count_star {
-            function.args = vec![Expr::IntegerLiteral(1)];
-        }
-        return Ok(function);
-    };
-    let value = match function.args.as_slice() {
-        [Expr::Column(name)] if name == "*" && count_star => Expr::IntegerLiteral(1),
-        [argument] => argument.clone(),
-        _ => {
-            return Err(SqlError::syntax(format!(
-                "{} window aggregate expects one argument",
-                function.name
-            )));
-        }
-    };
-    function.args = vec![Expr::Case {
-        operand: None,
-        branches: vec![(*predicate, value)],
-        else_expr: Some(Box::new(Expr::Null)),
-    }];
-    function.quantifier = AggregateQuantifier::Default;
-    Ok(function)
 }
 
 pub(super) type WindowSpec = (Vec<Expr>, Vec<OrderExpr>, Option<WindowFrame>);
@@ -340,7 +215,7 @@ pub(super) type NamedWindows = HashMap<String, WindowSpec>;
 pub(super) fn parse_named_windows(raw: &str) -> Result<NamedWindows, SqlError> {
     let mut windows = NamedWindows::new();
     for definition in split_csv(raw) {
-        let (name_raw, specification_raw) = split_top_level(definition, " as ")
+        let (name_raw, specification_raw) = split_top_level(definition, " as")
             .ok_or_else(|| SqlError::syntax("WINDOW definitions require AS".into()))?;
         let name = parse_window_name(name_raw.trim())?;
         if windows.contains_key(&name) {
@@ -774,10 +649,16 @@ pub(super) fn mark_source_lateral(source: QuerySource) -> QuerySource {
             kind,
             on,
         },
-        QuerySource::TableFunction { name, function, .. } => QuerySource::TableFunction {
+        QuerySource::TableFunction {
+            name,
+            function,
+            with_ordinality,
+            ..
+        } => QuerySource::TableFunction {
             name,
             function,
             lateral: true,
+            with_ordinality,
         },
         other => other,
     }
@@ -852,6 +733,9 @@ fn parse_parenthesized_query_source(raw: &str, lateral: bool) -> Result<QuerySou
 }
 
 fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, SqlError> {
+    if let Some(source) = set_function_source::parse(raw)? {
+        return Ok(source);
+    }
     if let Some(source) = parse_jsonpath_table_function(raw, lateral)? {
         return Ok(source);
     }
@@ -887,6 +771,7 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
                     name,
                     function,
                     lateral,
+                    with_ordinality: false,
                 },
                 &raw[close + 1..],
             );
@@ -913,6 +798,7 @@ fn parse_non_subquery_source(raw: &str, lateral: bool) -> Result<QuerySource, Sq
                 name: lower_name,
                 function,
                 lateral,
+                with_ordinality: false,
             });
         }
     }
@@ -941,6 +827,7 @@ fn parse_jsonpath_table_function(
             name,
             function,
             lateral,
+            with_ordinality: false,
         },
         &raw[close + 1..],
     )

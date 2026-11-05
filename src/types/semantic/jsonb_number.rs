@@ -135,7 +135,7 @@ fn coefficient_integer(
             .fold(0_u32, |value, byte| value * 10 + u32::from(byte - b'0'))
     };
     let mut value = BigInt::from(chunk_value(head));
-    for chunk in tail.chunks_exact(9) {
+    for chunk in tail.as_chunks::<9>().0 {
         check(controls)?;
         value *= 1_000_000_000_u32;
         value += chunk_value(chunk);

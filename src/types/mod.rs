@@ -37,3 +37,8 @@ pub use schema::{DataType, FieldSchema, Schema};
 pub use size_input::SizeInputError;
 pub use value::Value;
 pub use vector::Vector;
+
+pub(crate) mod semantic_index;
+
+#[cfg(test)]
+mod jsonb_numeric_cases;

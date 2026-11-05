@@ -93,7 +93,7 @@ fn should_reject_retained_portal_output_after_storage_requires_recovery() {
             result.expect_err("new Execute rejected").pg_error.code,
             "58030"
         );
-        assert!(writer.is_empty());
+        assert_eq!(writer.as_slice(), &[] as &[u8]);
         let portal = state
             .portals
             .get("retained")
@@ -130,7 +130,7 @@ fn should_reject_bind_before_retaining_a_new_portal_after_quarantine() {
     assert_eq!(result.expect_err("Bind rejected").pg_error.code, "58030");
     assert!(!state.portals.contains_key("new"));
     assert!(state.prepared_result_descriptors.is_empty());
-    assert!(writer.is_empty());
+    assert_eq!(writer.as_slice(), &[] as &[u8]);
 }
 
 #[test]
@@ -178,5 +178,5 @@ fn should_reject_empty_parse_after_quarantine() {
     // Assert
     assert_eq!(result.expect_err("Parse rejected").pg_error.code, "58030");
     assert!(!state.prepared_statements.contains_key("empty"));
-    assert!(writer.is_empty());
+    assert_eq!(writer.as_slice(), &[] as &[u8]);
 }

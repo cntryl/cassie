@@ -181,7 +181,7 @@ impl Cassie {
         scoped_cassie.metadata_write_catalog = session
             .transaction_catalog_overlay()
             .unwrap_or_else(|| self.publication_catalog.clone());
-        scoped_cassie.catalog_owner = descriptor_owner.clone();
+        scoped_cassie.catalog_owner.clone_from(&descriptor_owner);
         scoped_cassie.catalog = catalog;
         let _storage_scope = if transaction_active {
             Some(self.midge.enter_transactional_ddl_scope(

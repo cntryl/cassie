@@ -1,3 +1,4 @@
+use crate::types::semantic_index::{KeyedMap, KeyedSet};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Cassie, CassieError, CassieSession, FieldConstraint};
@@ -19,7 +20,7 @@ struct ForeignKeyReference {
 /// it was first seen, so a batch of child rows checks every parent key only once.
 #[derive(Debug, Default)]
 pub(crate) struct ForeignKeyReferences {
-    seen: BTreeSet<(String, String, crate::types::semantic::SemanticKey)>,
+    seen: KeyedSet<(String, String, crate::types::semantic::SemanticKey)>,
     references: Vec<ForeignKeyReference>,
 }
 
@@ -59,7 +60,7 @@ impl ForeignKeyReferences {
                 continue;
             }
             let key = (table.to_string(), field.to_string(), value_key);
-            if self.seen.insert(key) {
+            if self.seen.insert(key)? {
                 self.references.push(ForeignKeyReference {
                     column: constraint.field.clone(),
                     constraint_name: constraint.foreign_key_name.clone(),
@@ -144,17 +145,21 @@ impl Cassie {
         }
         let mut pending_by_table = BTreeMap::<
             &str,
-            BTreeMap<(&str, crate::types::semantic::SemanticKey), Vec<usize>>,
+            KeyedMap<(&str, crate::types::semantic::SemanticKey), Vec<usize>>,
         >::new();
         for (index, reference) in references.references.iter().enumerate() {
             let value = self.canonical_referenced_value(reference);
-            pending_by_table
-                .entry(reference.referenced_table.as_str())
-                .or_default()
+            let pending = match pending_by_table.entry(reference.referenced_table.as_str()) {
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::btree_map::Entry::Vacant(entry) => entry.insert(KeyedMap::new(
+                    session.and_then(CassieSession::statement_execution_controls),
+                )?),
+            };
+            pending
                 .entry((
                     reference.referenced_column.as_str(),
                     foreign_key_value_key(&value),
-                ))
+                ))?
                 .or_default()
                 .push(index);
         }

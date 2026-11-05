@@ -23,20 +23,7 @@ pub(super) fn state_bytes(
     {
         return Ok(0);
     }
-    let names = projection.iter().try_fold(0, |bytes, item| {
-        let name = match item {
-            SelectItem::Wildcard => None,
-            SelectItem::Column { name, alias } => Some(alias.as_ref().unwrap_or(name)),
-            SelectItem::Function { function, alias } => {
-                Some(alias.as_ref().unwrap_or(&function.name))
-            }
-            SelectItem::WindowFunction { function, alias } => {
-                Some(alias.as_ref().unwrap_or(&function.name))
-            }
-            SelectItem::Expr { alias, .. } => alias.as_ref(),
-        };
-        add(bytes, name.map_or(0, String::len))
-    })?;
+    let names = output_name_bytes(projection)?;
     let source_names = projection.iter().try_fold(0, |bytes, item| {
         add(
             bytes,
@@ -132,4 +119,21 @@ fn entry_slot_peak(width: usize, initial: usize) -> Result<usize, CassieError> {
         capacity = mul(capacity, 2)?.max(4);
     }
     add(capacity, previous)
+}
+
+fn output_name_bytes(projection: &[SelectItem]) -> Result<usize, CassieError> {
+    projection.iter().try_fold(0, |bytes, item| {
+        let name = match item {
+            SelectItem::Wildcard => None,
+            SelectItem::Column { name, alias } => Some(alias.as_ref().unwrap_or(name)),
+            SelectItem::Function { function, alias } => {
+                Some(alias.as_ref().unwrap_or(&function.name))
+            }
+            SelectItem::WindowFunction { function, alias } => {
+                Some(alias.as_ref().unwrap_or(&function.name))
+            }
+            SelectItem::Expr { alias, .. } => alias.as_ref(),
+        };
+        add(bytes, name.map_or(0, String::len))
+    })
 }

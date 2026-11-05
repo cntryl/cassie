@@ -191,7 +191,7 @@ impl HistoryState {
             // request control scope or cancellation authority is constructed.
             let admission = QueryMemoryReservation::independent_budget(
                 self.budget,
-                size_of::<RowHistory>() + 8 * size_of::<usize>(),
+                size_of::<RowHistory>() + size_of::<[usize; 8]>(),
             )?;
             self.active_memory = Some(admission.try_sibling(0)?);
             self.entries_memory = Some(admission.try_sibling(0)?);
@@ -228,12 +228,11 @@ impl MutationKeys {
         &mut self,
         key: &[u8],
     ) -> Result<Option<PreparedKey>, CassieError> {
-        let index = match self
+        let Err(index) = self
             .values
             .binary_search_by(|entry| entry.value.as_slice().cmp(key))
-        {
-            Ok(_) => return Ok(None),
-            Err(index) => index,
+        else {
+            return Ok(None);
         };
         let (mut value, memory) = try_reserve_vec(key.len(), &self.memory)?;
         value.extend_from_slice(key);
@@ -292,8 +291,7 @@ impl RetainedRowHistory {
             if state
                 .entries
                 .binary_search_by(|entry| entry.key.value.as_slice().cmp(key))
-                .ok()
-                .is_some_and(|index| state.entries[index].sequence > self.sequence)
+                .is_ok_and(|index| state.entries[index].sequence > self.sequence)
             {
                 return Err(CassieError::Transaction {
                     kind: crate::app::TransactionErrorKind::SerializationFailure,

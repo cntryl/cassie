@@ -286979,7 +286979,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 165,
-      "sha256": "3b90f2a7669f9616fd4cf45d0a0236f36e042ecf95b3f7a6daa5047e0fd769cc",
+      "sha256": "6f0f76df7f5ff92307a458ad44e9d162b05b86d62d469121a5b9098bcf9cc72a",
       "test_declarations": 10,
       "registered_suites": [
         "sql_queries"
@@ -288508,7 +288508,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 43,
-      "sha256": "c7bed2cc1326e03ddba3306dae0fa168a916ee5c1033bdb28c4afbdd67e05728",
+      "sha256": "ebb781c48d0b6269b819f27a7d74210eb660417186945c3be953bc4715afe8db",
       "test_declarations": 2,
       "registered_suites": [
         "sql_queries"

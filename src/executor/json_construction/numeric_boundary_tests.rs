@@ -36,7 +36,7 @@ fn should_admit_expanded_jsonb_numeric_output_at_its_measured_boundary() {
     let denied = build("0.01e131073", &scarce);
     // Assert
     let output = admitted.expect("exact pre-admitted boundary");
-    assert!(matches!(&output.0,Value::String(text) if text.len()==131072));
+    assert!(matches!(&output.0,Value::String(text) if text.len()==131_072));
     assert!(matches!(
         denied,
         Err(QueryError::Cassie(CassieError::ResourceLimit(_)))

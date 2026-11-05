@@ -1,5 +1,5 @@
-use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, HashMap};
+use crate::types::semantic_index::{Entry, KeyedMap};
+use std::collections::HashMap;
 use std::thread;
 
 use crate::app::{Cassie, CassieSession};
@@ -132,7 +132,9 @@ fn aggregate_query_batches_serial(
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
-    let mut groups = BTreeMap::<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
+    let mut groups = KeyedMap::<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>::new(Some(
+        context.controls,
+    ))?;
     let mut group_memory = GroupMemory::new(context.controls)?;
 
     for row in rows {
@@ -140,7 +142,7 @@ fn aggregate_query_batches_serial(
         let group_values = aggregate_group_values(&row, context)?;
         let signature = aggregate_typed_group_signature(&group_values, &row, context)?;
         let mut added_bytes = group_memory::serial_row_bytes(&row);
-        let group = match groups.entry(signature) {
+        let group = match groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 added_bytes = added_bytes
@@ -155,11 +157,11 @@ fn aggregate_query_batches_serial(
     if groups.is_empty() && context.plan.group_by.is_empty() {
         let signature = SemanticKey::default();
         group_memory.add(group_memory::serial_group_bytes(&signature, &[]))?;
-        groups.insert(signature, (Vec::new(), Vec::new()));
+        groups.insert(signature, (Vec::new(), Vec::new()))?;
     }
 
     let mut out = Vec::with_capacity(groups.len());
-    for (_signature, (group_values, group_rows)) in groups {
+    for (_signature, (group_values, group_rows)) in groups.into_sorted_entries()? {
         check_timeout(context.controls)?;
         let mut output = collection_json::OutputRow::new(group_values, specs, context.controls)?;
         for spec in specs {
@@ -187,7 +189,7 @@ fn merge_partial_aggregations(
     check_timeout(context.controls)?;
     let partitions = partials.len();
     let input_rows = rows.len();
-    let mut merged = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
+    let mut merged = KeyedMap::<SemanticKey, PartialAggregateGroup>::new(Some(context.controls))?;
     // Worker reservations stay alive until the merged output is built: groups
     // moved into `merged` are still accounted by the partition that built
     // them, so only growth that happens during the merge is charged here.
@@ -196,9 +198,9 @@ fn merge_partial_aggregations(
     for partial in partials {
         check_timeout(context.controls)?;
         partition_memory.push(partial.memory);
-        for (signature, group) in partial.groups {
+        for (signature, group) in partial.groups.into_sorted_entries()? {
             check_timeout(context.controls)?;
-            match merged.entry(signature) {
+            match merged.entry(signature)? {
                 Entry::Occupied(mut entry) => {
                     let change = entry.get_mut().merge(&group)?;
                     merged_memory.add(change.after.saturating_sub(change.before))?;
@@ -214,7 +216,7 @@ fn merge_partial_aggregations(
         let signature = SemanticKey::default();
         let group = PartialAggregateGroup::new(Vec::new(), specs);
         merged_memory.add(group_memory::partial_group_bytes(&signature, &group))?;
-        merged.insert(signature, group);
+        merged.insert(signature, group)?;
     }
 
     if merged
@@ -226,7 +228,7 @@ fn merge_partial_aggregations(
 
     let group_count = merged.len();
     let mut out = Vec::with_capacity(group_count);
-    for (_signature, group) in merged {
+    for (_signature, group) in merged.into_sorted_entries()? {
         check_timeout(context.controls)?;
         let mut values = group.group_values;
         for (spec, accumulator) in specs.iter().zip(group.accumulators) {
@@ -247,7 +249,7 @@ fn merge_partial_aggregations(
     Ok(Some(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE)))
 }
 
-type PartialGroups = BTreeMap<SemanticKey, PartialAggregateGroup>;
+type PartialGroups = KeyedMap<SemanticKey, PartialAggregateGroup>;
 
 /// One worker's partial groups together with the reservation that accounts
 /// for them; the reservation must outlive the groups it covers.
@@ -283,7 +285,7 @@ fn aggregate_partition(
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<PartialAggregation, QueryError> {
-    let mut groups = PartialGroups::new();
+    let mut groups = PartialGroups::new(Some(context.controls))?;
     let mut group_memory = GroupMemory::new(context.controls)?;
     #[cfg(test)]
     let mut processed_rows = 0;
@@ -291,7 +293,7 @@ fn aggregate_partition(
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(row, context)?;
         let signature = aggregate_typed_group_signature(&group_values, row, context)?;
-        let group = match groups.entry(signature) {
+        let group = match groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let group = PartialAggregateGroup::new(group_values, specs);

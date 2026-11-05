@@ -482,7 +482,6 @@ fn compare_integer_float(integer: i64, float: f64) -> Ordering {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
 
     use super::*;
 
@@ -507,13 +506,13 @@ mod tests {
         let float = SemanticKey::single(&Value::Float64(1.0));
         let positive_zero = SemanticKey::single(&Value::Float64(0.0));
         let negative_zero = SemanticKey::single(&Value::Float64(-0.0));
-        let mut numeric_keys = HashSet::new();
+        let mut numeric_keys = crate::types::semantic_index::KeyedSet::new(None).expect("index");
 
         // Act
         let integral_equal = integer == float;
         let zeros_equal = positive_zero == negative_zero;
-        let inserted_integer = numeric_keys.insert(integer);
-        let inserted_equal_float = numeric_keys.insert(float);
+        let inserted_integer = numeric_keys.insert(integer).expect("integer");
+        let inserted_equal_float = numeric_keys.insert(float).expect("equal float");
 
         // Assert
         assert!(integral_equal);

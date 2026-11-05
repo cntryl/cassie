@@ -251,7 +251,7 @@ fn observe_marker_lock(callback: impl FnOnce() + 'static) -> MarkerLockObserver 
 }
 
 pub(super) fn before_marker_lock() {
-    if let Some(callback) = BEFORE_MARKER_LOCK.with(|slot| slot.take()) {
+    if let Some(callback) = BEFORE_MARKER_LOCK.with(std::cell::RefCell::take) {
         callback();
     }
 }

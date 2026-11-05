@@ -10,7 +10,7 @@ fn should_bound_jsonb_numeric_weight_from_significant_digits() {
     let value_bound = text_len(&document).expect("borrowed number bound");
     let rendered = canonical(input).expect("canonical exact boundary");
     // Assert
-    assert_eq!(rendered.len(), 131079);
+    assert_eq!(rendered.len(), 131_079);
     assert!(text_bound >= rendered.len());
     assert!(value_bound >= rendered.len());
 }
@@ -47,8 +47,7 @@ fn should_preserve_malformed_jsonb_numeric_token_errors_during_pre_admission() {
     assert!(errors.iter().all(|error| error.sqlstate == "22P02"));
 }
 
-#[path = "jsonb_numeric_cases.rs"]
-mod fixture;
+use crate::types::jsonb_numeric_cases as fixture;
 
 #[test]
 fn should_cover_pinned_jsonb_output_bytes_across_decimal_weight_regimes() {

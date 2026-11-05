@@ -134,14 +134,7 @@ impl PendingUpsert {
         let input_session = session.unwrap_or_else(|| {
             anonymous_session.get_or_insert_with(|| cassie.create_session("root", None))
         });
-        let current_owner = input_session.transaction_unique_owner_id();
-        if owner.is_some_and(|owner| owner != current_owner) {
-            return Err(crate::app::CassieError::Execution(
-                "transaction changed while upsert waited".into(),
-            )
-            .into());
-        }
-        *owner = Some(current_owner);
+        let current_owner = retain_waiting_owner(owner, input_session)?;
         // Default/identity expressions execute once before the working base is
         // captured. A wait reuses these candidates and never repeats inputs.
         if prepared.is_none() {
@@ -229,4 +222,19 @@ enum Attempt {
         blocker: uuid::Uuid,
         owner: uuid::Uuid,
     },
+}
+
+fn retain_waiting_owner(
+    owner: &mut Option<uuid::Uuid>,
+    session: &CassieSession,
+) -> Result<uuid::Uuid, QueryError> {
+    let current = session.transaction_unique_owner_id();
+    if owner.is_some_and(|owner| owner != current) {
+        return Err(crate::app::CassieError::Execution(
+            "transaction changed while upsert waited".into(),
+        )
+        .into());
+    }
+    *owner = Some(current);
+    Ok(current)
 }

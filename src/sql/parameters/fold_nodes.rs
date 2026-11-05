@@ -625,14 +625,7 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
             }
             child.qualified = false;
         }
-        Node::WindowArguments(window) => {
-            let int4_argument = index == 0 && window.name.eq_ignore_ascii_case("ntile")
-                || window_argument_type(window, index) == Some(WindowArgumentType::Int4);
-            if int4_argument {
-                child.expected = Expected::Type(23, true);
-            }
-            child.qualified = false;
-        }
+        Node::WindowArguments(window) => qualify_window_argument(window, index, child),
         Node::Expr(
             ast::Expr::Binary { .. }
             | ast::Expr::Between { .. }
@@ -642,4 +635,13 @@ fn qualify_child(parent: Node<'_>, index: usize, child: &mut Child<'_>) {
         | Node::Cte(ast::CteQuery::Recursive { .. }) => child.qualified = false,
         _ => {}
     }
+}
+
+fn qualify_window_argument(window: &ast::WindowFunctionCall, index: usize, child: &mut Child<'_>) {
+    let int4_argument = index == 0 && window.name.eq_ignore_ascii_case("ntile")
+        || window_argument_type(window, index) == Some(WindowArgumentType::Int4);
+    if int4_argument {
+        child.expected = Expected::Type(23, true);
+    }
+    child.qualified = false;
 }

@@ -194,10 +194,7 @@ impl DatabasePublication {
         operation: impl FnOnce() -> Result<(), cntryl_midge::MidgeError>,
     ) -> Result<(), AdapterCommitError> {
         let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
-        self.publish_with_wait_observer(controls.as_ref(), operation, |_boundary| {
-            #[cfg(test)]
-            tests::observe_publication(_boundary);
-        })
+        self.publish_with_wait_observer(controls.as_ref(), operation, observe_publication_boundary)
     }
 
     pub(super) fn publish_rows_current(
@@ -218,10 +215,7 @@ impl DatabasePublication {
                 }
                 result
             },
-            |_boundary| {
-                #[cfg(test)]
-                tests::observe_publication(_boundary);
-            },
+            observe_publication_boundary,
         )
     }
 
@@ -279,6 +273,17 @@ impl DatabasePublication {
             observer(PublicationBoundary::RecoveryLatched);
         }
         result
+    }
+
+    pub(super) fn with_current_operation<T>(
+        &self,
+        operation: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let controls = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
+        let _guard = self
+            .lock(controls.as_ref(), &mut observe_publication_boundary)
+            .map_err(CassieError::from)?;
+        operation()
     }
 
     fn with_operation<T>(
@@ -386,6 +391,13 @@ impl Midge {
     }
 
     #[cfg(test)]
+    pub(crate) fn observe_next_publication_wait_for_test(
+        callback: impl FnOnce() + 'static,
+    ) -> impl Drop {
+        tests::next_wait(callback)
+    }
+
+    #[cfg(test)]
     pub(crate) fn observe_next_row_commit_for_test(callback: impl FnOnce() + 'static) -> impl Drop {
         tests::next_confirmation(callback)
     }
@@ -425,6 +437,13 @@ impl Midge {
         gate.with_operation(controls, operation)
     }
 }
+
+#[cfg(test)]
+fn observe_publication_boundary(boundary: PublicationBoundary) {
+    tests::observe_publication(boundary);
+}
+#[cfg(not(test))]
+fn observe_publication_boundary(_: PublicationBoundary) {}
 
 #[cfg(test)]
 mod tests;

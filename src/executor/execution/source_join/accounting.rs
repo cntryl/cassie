@@ -2,8 +2,8 @@ use std::mem::size_of;
 
 use crate::app::CassieError;
 use crate::executor::retained_memory::{
-    add, data_type_clone_bytes, grown_capacity, hash_table_bytes, lookup_bytes, mul,
-    serialized_json_bytes, value_clone_bytes,
+    add, data_type_clone_bytes, grown_capacity, lookup_bytes, mul, serialized_json_bytes,
+    value_clone_bytes,
 };
 use crate::executor::semantic::{SemanticKey, SemanticValue};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
@@ -258,7 +258,10 @@ pub(super) fn hash_build_bytes<T>(
             bytes = add(bytes, key_bytes)?;
         }
     }
-    bytes = add(bytes, hash_table_bytes::<(SemanticKey, Vec<T>)>(count)?)?;
+    bytes = add(
+        bytes,
+        crate::types::semantic_index::KeyedMap::<SemanticKey, Vec<T>>::build_storage_bytes(count)?,
+    )?;
     add(bytes, mul(mul(count, 4)?, size_of::<T>())?)
 }
 

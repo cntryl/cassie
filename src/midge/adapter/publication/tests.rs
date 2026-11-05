@@ -8,8 +8,10 @@ use super::*;
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryCancellationHandle;
 
+type PublicationCallback = Box<dyn FnOnce(PublicationBoundary)>;
+
 thread_local! {
-    static NEXT_PUBLICATION: std::cell::RefCell<Option<Box<dyn FnOnce(PublicationBoundary)>>> = const {
+    static NEXT_PUBLICATION: std::cell::RefCell<Option<PublicationCallback>> = const {
         std::cell::RefCell::new(None)
     };
 }
@@ -373,7 +375,7 @@ fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
                     *slot.borrow_mut() = Some(Box::new(move |boundary| {
                         assert!(boundary == PublicationBoundary::WaitingForGate);
                         waiting_tx.send(()).expect("native commit is waiting");
-                    }))
+                    }));
                 });
                 let current = controls(QueryCancellationHandle::new());
                 let _scope = PublicationControlScope::enter(Some(&current));
@@ -430,7 +432,7 @@ fn should_keep_a_competing_document_publisher_out_of_the_validation_window() {
 }
 
 #[test]
-fn should_capture_matching_assertion_and_read_views_while_a_publisher_waits() {
+fn should_capture_matching_validation_views_while_a_publisher_waits() {
     // Arrange
     let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory adapter"));
     midge.ensure_families_ready().expect("families");
@@ -501,4 +503,19 @@ fn should_capture_matching_assertion_and_read_views_while_a_publisher_waits() {
             cntryl_midge::MidgeError::WriteConflict(_)
         ))
     ));
+}
+
+pub(super) fn next_wait(callback: impl FnOnce() + 'static) -> impl Drop {
+    struct Restore(Option<PublicationCallback>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            drop(NEXT_PUBLICATION.with(|slot| slot.replace(self.0.take())));
+        }
+    }
+    Restore(NEXT_PUBLICATION.with(|slot| {
+        slot.replace(Some(Box::new(move |boundary| {
+            assert!(boundary == PublicationBoundary::WaitingForGate);
+            callback();
+        })))
+    }))
 }

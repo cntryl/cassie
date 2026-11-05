@@ -116,7 +116,7 @@ impl Cassie {
             }
             TransactionAction::Commit if failed_commit => session.rollback_transaction(),
             TransactionAction::Commit => {
-                self.commit_transaction_with_controls(session, controls)?
+                self.commit_transaction_with_controls(session, controls)?;
             }
             TransactionAction::Rollback => session.rollback_transaction(),
             TransactionAction::Savepoint { name } => session.create_savepoint(name)?,

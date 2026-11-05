@@ -92,7 +92,7 @@ metadata_heap!(crate::types::FieldSchema {
 
 pub(crate) struct ControlledCatalogSnapshot {
     catalog: Catalog,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl ControlledCatalogSnapshot {
@@ -101,7 +101,7 @@ impl ControlledCatalogSnapshot {
     }
 
     pub(crate) const fn accounted_bytes(&self) -> usize {
-        self._memory.bytes()
+        self.memory.bytes()
     }
 }
 
@@ -191,10 +191,7 @@ impl Catalog {
         observer(CaptureBoundary::BeforeClone);
         controls.check_interruption()?;
         let catalog = guards.clone_catalog(self.version(), controls, &mut observer)?;
-        let owner = Arc::new(ControlledCatalogSnapshot {
-            catalog,
-            _memory: memory,
-        });
+        let owner = Arc::new(ControlledCatalogSnapshot { catalog, memory });
         controls.check_interruption()?;
         Ok(owner)
     }

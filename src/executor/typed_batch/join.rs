@@ -1,9 +1,9 @@
 //! Finite INNER/LEFT typed payload hash join with bounded match batches.
-use std::collections::HashMap;
+use crate::types::semantic_index::KeyedMap;
 use std::mem::size_of;
 
 use super::{check_controls, invalid, Column, QueryError, TypedBatch};
-use crate::executor::retained_memory::{add, data_type_clone_bytes, hash_table_bytes, mul};
+use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::numeric_comparison::NumericComparisonDomain;
@@ -17,7 +17,7 @@ pub(crate) struct HashJoin<'a> {
     outer: bool,
     batch_size: usize,
     controls: QueryExecutionControls,
-    build: HashMap<SemanticValue, (usize, usize)>,
+    build: KeyedMap<SemanticValue, (usize, usize)>,
     next: Vec<Option<usize>>,
     build_rows: usize,
     left_lane: usize,
@@ -50,18 +50,12 @@ impl<'a> HashJoin<'a> {
         }
         // One key is normalized at a time. This live scratch reservation also
         // covers temporary FLOAT8 integer formatting before the inline semantic key.
-        let bytes = add(
-            add(
-                64,
-                hash_table_bytes::<(SemanticValue, (usize, usize))>(right.len())?,
-            )?,
-            mul(right.len(), size_of::<Option<usize>>())?,
-        )?;
+        let bytes = add(64, mul(right.len(), size_of::<Option<usize>>())?)?;
         let memory = controls.reserve_query_memory(bytes)?;
-        let mut build = HashMap::<SemanticValue, (usize, usize)>::new();
-        build
-            .try_reserve(right.len())
-            .map_err(|error| allocation_error(&error))?;
+        let mut build = KeyedMap::<SemanticValue, (usize, usize)>::with_prepaid_capacity(
+            controls,
+            right.len(),
+        )?;
         let mut next = Vec::new();
         next.try_reserve_exact(right.len())
             .map_err(|error| allocation_error(&error))?;
@@ -77,7 +71,7 @@ impl<'a> HashJoin<'a> {
                     next[*tail] = Some(lane);
                     *tail = lane;
                 } else {
-                    build.insert(key, (lane, lane));
+                    build.insert(key, (lane, lane))?;
                 }
             }
         }

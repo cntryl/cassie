@@ -30,7 +30,7 @@ struct StatementDataSnapshot {
 pub(crate) struct StatementDataRead {
     snapshot: Arc<StatementDataSnapshot>,
     overlay: Option<Arc<crate::app::StatementOverlay>>,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl std::fmt::Debug for StatementDataRead {
@@ -47,7 +47,7 @@ impl StatementDataRead {
     /// is shared with the transaction owner and is admitted there once.
     pub(crate) fn command_accounted_bytes(&self) -> Result<usize, CassieError> {
         crate::executor::retained_memory::add(
-            self._memory.bytes(),
+            self.memory.bytes(),
             self.overlay
                 .as_ref()
                 .map_or(0, |owner| owner.accounted_bytes()),
@@ -94,7 +94,7 @@ impl StatementDataRead {
         Ok(Arc::new(Self {
             snapshot: Arc::clone(&retained.snapshot),
             overlay,
-            _memory: memory,
+            memory,
         }))
     }
 
@@ -173,7 +173,7 @@ impl StatementDataRead {
         Ok(Arc::new(Self {
             snapshot,
             overlay,
-            _memory: command_memory,
+            memory: command_memory,
         }))
     }
 }

@@ -24,12 +24,12 @@ pub(crate) struct StatementOverlay {
     active_transaction: bool,
     identity: Weak<Mutex<SessionTransactionState>>,
     generation: u64,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl StatementOverlay {
     pub(crate) const fn accounted_bytes(&self) -> usize {
-        self._memory.bytes()
+        self.memory.bytes()
     }
 
     pub(crate) fn matches_session(&self, session: &CassieSession) -> bool {
@@ -152,7 +152,7 @@ impl CassieSession {
             active_transaction,
             identity: Arc::downgrade(&self.transaction),
             generation,
-            _memory: memory,
+            memory,
         }))
     }
 

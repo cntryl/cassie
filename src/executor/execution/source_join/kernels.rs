@@ -6,6 +6,7 @@ use super::{
 };
 use crate::executor::semantic::SemanticKey;
 use crate::runtime::QueryMemoryReservation;
+use crate::types::semantic_index::KeyedMap;
 
 pub(super) fn execute_nested_loop_join(
     env: &SourceExecutionEnv<'_>,
@@ -104,22 +105,15 @@ pub(super) fn execute_vectorized_join(
         return Ok(VectorizedJoinOutcome::executed(joined));
     }
     let _build_memory = reserve_hash_build_memory(env, &spec)?;
-    let mut build = std::collections::HashMap::<SemanticKey, Vec<&BatchRow>>::new();
-    build
-        .try_reserve(accounting::hash_build_capacity(
-            spec.right_rows,
-            &spec.keys.right,
-        ))
-        .map_err(|error| {
-            crate::app::CassieError::ResourceLimit(format!(
-                "unable to retain hash join build: {error}"
-            ))
-        })?;
+    let mut build = KeyedMap::<SemanticKey, Vec<&BatchRow>>::with_prepaid_capacity(
+        env.controls,
+        accounting::hash_build_capacity(spec.right_rows, &spec.keys.right),
+    )?;
     for right in spec.right_rows {
         check_timeout(env.controls)?;
         retention.before(JoinRetentionPhase::HashBuild)?;
         if let Some(key) = row_join_key(right, &spec.keys.right, spec.keys.domain)? {
-            build.entry(key).or_default().push(right);
+            build.entry(key)?.or_default().push(right);
         }
     }
 
@@ -201,11 +195,13 @@ fn reserve_hash_build_memory(
     env: &SourceExecutionEnv<'_>,
     spec: &VectorizedJoinSpec<'_>,
 ) -> Result<QueryMemoryReservation, QueryError> {
-    Ok(env
-        .controls
-        .reserve_query_memory(accounting::hash_build_bytes::<&BatchRow>(
+    Ok(env.controls.reserve_query_memory(
+        accounting::hash_build_bytes::<&BatchRow>(
             spec.right_rows,
             &spec.keys.right,
             spec.keys.domain,
-        )?)?)
+        )? - KeyedMap::<SemanticKey, Vec<&BatchRow>>::build_storage_bytes(
+            accounting::hash_build_capacity(spec.right_rows, &spec.keys.right),
+        )?,
+    )?)
 }

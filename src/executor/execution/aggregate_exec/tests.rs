@@ -92,7 +92,15 @@ fn should_account_serial_aggregate_groups_without_rescanning_buffered_rows() {
     assert!(output.iter().all(|entries| entries
         .iter()
         .any(|(_, value)| value == &Value::Int64(per_group))));
-    assert_eq!(controls.peak_query_memory_bytes(), expected_peak);
+    let peak = controls.peak_query_memory_bytes();
+    assert!(
+        peak >= expected_peak,
+        "retained groups and rows stay accounted"
+    );
+    assert!(
+        peak < expected_peak + 16 * 1024,
+        "four group index records and their ordered drain have bounded overhead"
+    );
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

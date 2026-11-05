@@ -29,7 +29,7 @@ impl Cassie {
         let descriptor_owner =
             session.command_descriptor_snapshot(&self.publication_catalog, controls)?;
         let mut scoped = self.clone();
-        scoped.catalog_owner = descriptor_owner.clone();
+        scoped.catalog_owner.clone_from(&descriptor_owner);
         scoped.metadata_write_catalog = session
             .transaction_catalog_overlay()
             .unwrap_or_else(|| self.publication_catalog.clone());

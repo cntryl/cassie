@@ -127,7 +127,7 @@ impl BoundReadScope {
         midge: &Arc<Midge>,
         database: &str,
     ) -> Result<Option<Arc<BoundReadView>>, CassieError> {
-        let owner = PENDING.with(|slot| slot.take());
+        let owner = PENDING.with(std::cell::RefCell::take);
         if let Some(owner) = &owner {
             if !owner.matches(session, midge)
                 || owner

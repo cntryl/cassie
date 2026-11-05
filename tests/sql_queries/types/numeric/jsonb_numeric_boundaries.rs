@@ -15,9 +15,9 @@ fn should_accept_exact_numeric_weight_with_fractional_coefficient_leading_zeroes
     assert_eq!(
         result.expect("exact format boundary").rows(),
         &[vec![
-            Value::Int64(131072),
-            Value::Int64(131072),
-            Value::Int64(131073)
+            Value::Int64(131_072),
+            Value::Int64(131_072),
+            Value::Int64(131_073)
         ]]
     );
 }

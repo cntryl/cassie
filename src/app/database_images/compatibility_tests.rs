@@ -56,7 +56,7 @@ fn rewrite_frame(image: &[u8], tag: u8, change: impl FnOnce(&mut serde_json::Val
 
 fn with_layout(image: &[u8], layout: &str) -> Vec<u8> {
     rewrite_frame(image, b'H', |header| {
-        header["storage_layout_version"] = layout.into()
+        header["storage_layout_version"] = layout.into();
     })
 }
 
@@ -275,7 +275,7 @@ fn should_leave_v1_unchanged_for_incomplete_or_corrupt_v2_images() {
         );
         let image = if corrupt {
             rewrite_frame(&complete, b'F', |footer| {
-                footer["checksum_sha256"] = "0".repeat(64).into()
+                footer["checksum_sha256"] = "0".repeat(64).into();
             })
         } else {
             complete[..complete.len() - 1].to_vec()

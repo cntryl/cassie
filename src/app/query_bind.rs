@@ -85,7 +85,7 @@ impl Cassie {
             session.command_descriptor_snapshot(&self.publication_catalog, controls)?;
         let catalog_overlay = session.transaction_catalog_overlay();
         let mut scoped_cassie = self.clone();
-        scoped_cassie.catalog_owner = descriptor_owner.clone();
+        scoped_cassie.catalog_owner.clone_from(&descriptor_owner);
         scoped_cassie.metadata_write_catalog = session
             .transaction_catalog_overlay()
             .unwrap_or_else(|| self.publication_catalog.clone());

@@ -1,3 +1,4 @@
+use crate::types::semantic_index::KeyedSet;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::foreign_key_checks::{foreign_key_value_key, ForeignKeyReferences};
@@ -11,7 +12,7 @@ type RemovedParentKeys = BTreeMap<
     (String, String),
     (
         FieldConstraint,
-        BTreeSet<crate::types::semantic::SemanticKey>,
+        KeyedSet<crate::types::semantic::SemanticKey>,
     ),
 >;
 
@@ -135,13 +136,15 @@ impl Cassie {
                 let Some(referenced_column) = constraint.references_field.as_deref() else {
                     continue;
                 };
-                let orphaned = values
-                    .iter()
-                    .filter(|value| {
-                        !remaining.contains(&(referenced_column.to_string(), (*value).clone()))
-                    })
-                    .cloned()
-                    .collect::<BTreeSet<_>>();
+                let orphaned = KeyedSet::try_from_iter(
+                    values
+                        .iter()
+                        .filter(|value| {
+                            !remaining.contains(&(referenced_column.to_string(), (*value).clone()))
+                        })
+                        .cloned(),
+                    session.statement_execution_controls(),
+                )?;
                 if orphaned.is_empty() {
                     continue;
                 }
@@ -219,11 +222,21 @@ impl Cassie {
                     }
                 };
                 if key_removed {
-                    removed
-                        .entry((child_table.clone(), constraint.field.clone()))
-                        .or_insert_with(|| (constraint.clone(), BTreeSet::new()))
-                        .1
-                        .insert(foreign_key_value_key(old_value));
+                    let entry = removed.entry((child_table.clone(), constraint.field.clone()));
+                    let values = match entry {
+                        std::collections::btree_map::Entry::Occupied(entry) => {
+                            &mut entry.into_mut().1
+                        }
+                        std::collections::btree_map::Entry::Vacant(entry) => {
+                            &mut entry
+                                .insert((
+                                    constraint.clone(),
+                                    KeyedSet::new(session.statement_execution_controls())?,
+                                ))
+                                .1
+                        }
+                    };
+                    values.insert(foreign_key_value_key(old_value))?;
                 }
             }
         }
@@ -237,12 +250,12 @@ impl Cassie {
         session: &CassieSession,
         collection: &str,
         removed: &RemovedParentKeys,
-    ) -> Result<BTreeSet<(String, crate::types::semantic::SemanticKey)>, CassieError> {
+    ) -> Result<KeyedSet<(String, crate::types::semantic::SemanticKey)>, CassieError> {
         let columns = removed
             .values()
             .filter_map(|(constraint, _)| constraint.references_field.clone())
             .collect::<BTreeSet<_>>();
-        let mut remaining = BTreeSet::new();
+        let mut remaining = KeyedSet::new(session.statement_execution_controls())?;
         let batches = self.scan_documents_batched_for_session(
             Some(session),
             collection,
@@ -251,7 +264,7 @@ impl Cassie {
         for document in batches.into_iter().flatten() {
             for column in &columns {
                 if let Some(value) = document.payload.get(column) {
-                    remaining.insert((column.clone(), foreign_key_value_key(value)));
+                    remaining.insert((column.clone(), foreign_key_value_key(value)))?;
                 }
             }
         }
@@ -263,7 +276,7 @@ impl Cassie {
         session: &CassieSession,
         child_table: &str,
         child_field: &str,
-        values: &BTreeSet<crate::types::semantic::SemanticKey>,
+        values: &KeyedSet<crate::types::semantic::SemanticKey>,
     ) -> Result<bool, CassieError> {
         let batches = self.scan_documents_batched_for_session(
             Some(session),

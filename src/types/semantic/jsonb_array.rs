@@ -48,14 +48,14 @@ impl JsonbArrayKey {
         let mut dimensions = Vec::new();
         dimensions
             .try_reserve_exact(array.dimensions().len())
-            .map_err(allocation)?;
+            .map_err(|error| allocation(&error))?;
         for dimension in array.dimensions() {
             dimensions.push((dimension.length, dimension.lower_bound));
         }
         let mut elements = Vec::new();
         elements
             .try_reserve_exact(array.elements().len())
-            .map_err(allocation)?;
+            .map_err(|error| allocation(&error))?;
         for value in array.elements() {
             if let Some(controls) = controls {
                 controls.check_interruption()?;
@@ -96,6 +96,6 @@ impl Ord for JsonbArrayKey {
         )
     }
 }
-fn allocation(error: std::collections::TryReserveError) -> CassieError {
+fn allocation(error: &std::collections::TryReserveError) -> CassieError {
     CassieError::ResourceLimit(format!("JSONB array key allocation: {error}"))
 }

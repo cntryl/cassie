@@ -526,6 +526,7 @@ impl Midge {
         &self,
         staged: &StagedDatabaseFamily,
     ) -> Result<(), CassieError> {
+        let _completion = super::PublicationControlScope::terminal_completion();
         self.drop_physical_family_if_present(&staged.metadata.physical_family)?;
         let mut tx = self.begin_schema_rw_tx()?;
         Self::delete_lifecycle_record(&mut tx, &staged.operation_id)?;
@@ -561,39 +562,59 @@ impl Midge {
         })
     }
 
+    fn with_schema_publication<T>(
+        &self,
+        operation: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let schema = self
+            .engine
+            .get_column_family(super::layout::SCHEMA_FAMILY_NAME)
+            .ok_or_else(|| {
+                CassieError::Storage(
+                    "physical database publication requires the schema family".into(),
+                )
+            })?;
+        self.publication
+            .family(schema.id())
+            .with_current_operation(operation)
+    }
+
     fn create_physical_family(&self, name: &str) -> Result<ColumnFamilyHandle, CassieError> {
         if let Some(handle) = self.engine.get_column_family(name) {
             return Ok(handle);
         }
-        self.publication.ensure_recovered()?;
-        match self
-            .publication
-            .observe_native(self.engine.create_column_family(name))
-        {
-            Ok(handle) => Ok(handle),
-            Err(error @ cntryl_midge::MidgeError::OutcomeUnknown(_)) => {
-                Err(CassieError::from(error))
+        self.with_schema_publication(|| {
+            self.publication.ensure_recovered()?;
+            match self
+                .publication
+                .observe_native(self.engine.create_column_family(name))
+            {
+                Ok(handle) => Ok(handle),
+                Err(error @ cntryl_midge::MidgeError::OutcomeUnknown(_)) => {
+                    Err(CassieError::from(error))
+                }
+                Err(error) => self
+                    .engine
+                    .get_column_family(name)
+                    .ok_or_else(|| CassieError::from(error)),
             }
-            Err(error) => self
-                .engine
-                .get_column_family(name)
-                .ok_or_else(|| CassieError::from(error)),
-        }
+        })
     }
 
     fn drop_physical_family_if_present(&self, name: &str) -> Result<(), CassieError> {
-        if let Some(handle) = self.engine.get_column_family(name) {
-            // Every caller is aborting an unpublished family or has verified that
-            // the logical database is empty before removing its remaining catalog rows.
-            self.publication.ensure_recovered()?;
-            self.publication
-                .observe_native(
-                    self.engine
-                        .drop_column_family_discarding_unflushed(handle.id()),
-                )
-                .map_err(CassieError::from)?;
-        }
-        Ok(())
+        self.with_schema_publication(|| {
+            if let Some(handle) = self.engine.get_column_family(name) {
+                // Only unpublished families or logically verified empty databases reach here.
+                self.publication.ensure_recovered()?;
+                self.publication
+                    .observe_native(
+                        self.engine
+                            .drop_column_family_discarding_unflushed(handle.id()),
+                    )
+                    .map_err(CassieError::from)?;
+            }
+            Ok(())
+        })
     }
 
     fn begin_schema_tx_for_handle(
@@ -783,3 +804,7 @@ mod tests {
         assert!(role_result.is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "databases/publication_tests.rs"]
+mod publication_tests;

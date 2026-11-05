@@ -231999,7 +231999,7 @@
       "name": "should_cancel_active_are_constraint_work_before_output_publication",
       "current_file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
       "line": 47,
-      "end_line": 65,
+      "end_line": 68,
       "inline_modules": [],
       "inline_module_lines": 0,
       "language": "rust",
@@ -278606,7 +278606,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 107,
-      "sha256": "065e1b3fd5715e82f5c45af0d46217561fcbd89b1702e27c56b943b5f97b9874",
+      "sha256": "7bc79ea3b0f9bfd0582028fa916573f6c874942c96a0ea0db81e3a096a8af4b9",
       "test_declarations": 2,
       "registered_suites": [
         "pgwire_extended"
@@ -287670,8 +287670,8 @@
       "current_file": "tests/sql_queries/patterns/pattern_matching/cancellation.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 65,
-      "sha256": "f9f9073b05fe1a97887e2dee4d42e7a9febfd43e17b18a418ef51bf9df414139",
+      "lines": 68,
+      "sha256": "5026c92f7c9d790ae9b1d8c87a8340960a288682e074941bf194070031b9254d",
       "test_declarations": 3,
       "registered_suites": [
         "sql_queries"

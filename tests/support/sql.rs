@@ -15,6 +15,7 @@ pub fn test_root_password() -> &'static str {
         .as_str()
 }
 
+#[must_use]
 pub fn with_test_root_password(mut config: CassieRuntimeConfig) -> CassieRuntimeConfig {
     test_root_password().clone_into(&mut config.password);
     config
@@ -36,11 +37,15 @@ pub fn use_local_storage() {
     std::env::set_var("CASSIE_STORAGE_PATH", data_dir("fallback"));
 }
 
+/// # Errors
+///
+/// Returns the underlying Cassie error if executing the fixture query fails.
 pub fn new_in_memory_cassie() -> Result<Cassie, cassie::app::CassieError> {
     let config = with_test_root_password(CassieRuntimeConfig::from_env()?);
     Cassie::new_in_memory_with_config(config)
 }
 
+#[must_use]
 pub fn data_dir(label: &str) -> String {
     crate::support_temp_dirs::sweep_stale_once();
     let mut dir = std::env::temp_dir();
@@ -48,6 +53,7 @@ pub fn data_dir(label: &str) -> String {
     dir.to_string_lossy().to_string()
 }
 
+#[must_use]
 pub fn canonical_test_collection(cassie: &Cassie, collection: &str) -> String {
     cassie
         .catalog
@@ -55,6 +61,7 @@ pub fn canonical_test_collection(cassie: &Cassie, collection: &str) -> String {
         .map_or_else(|| collection.to_string(), |schema| schema.collection)
 }
 
+#[must_use]
 pub fn canonical_test_index(cassie: &Cassie, collection: &str, index_name: &str) -> String {
     let collection = canonical_test_collection(cassie, collection);
     cassie
@@ -63,6 +70,10 @@ pub fn canonical_test_index(cassie: &Cassie, collection: &str, index_name: &str)
         .map_or_else(|| index_name.to_string(), |index| index.name)
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
+#[must_use]
 pub fn openai_runtime_for_vectors() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.embeddings = EmbeddingsRuntimeConfig::OpenAI(OpenAiRuntimeConfig {
@@ -78,6 +89,9 @@ pub fn openai_runtime_for_vectors() -> CassieRuntimeConfig {
     config
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub fn put_legacy_document(
     cassie: &Cassie,
     collection: &str,
@@ -94,6 +108,9 @@ pub fn put_legacy_document(
     tx.commit(WriteOptions::sync()).unwrap();
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
     let prefix = cassie
         .midge
@@ -110,6 +127,10 @@ pub fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str)
     tx.commit(WriteOptions::sync()).unwrap();
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
+#[must_use]
 pub fn time_series_sidecar_records(
     cassie: &Cassie,
     collection: &str,
@@ -139,6 +160,9 @@ pub fn time_series_sidecar_records(
         .collect()
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
 pub fn clear_time_series_sidecars(cassie: &Cassie, collection: &str, index_name: &str) {
     let collection = canonical_test_collection(cassie, collection);
     let index_name = canonical_test_index(cassie, &collection, index_name);
@@ -159,6 +183,10 @@ pub fn clear_time_series_sidecars(cassie: &Cassie, collection: &str, index_name:
     tx.commit(WriteOptions::sync()).unwrap();
 }
 
+/// # Panics
+///
+/// Panics if the supplied test data is invalid or a required fixture operation fails.
+#[must_use]
 pub fn explain_plan_text(result: &cassie::executor::QueryResult) -> &str {
     match &result.rows()[0][0] {
         cassie::types::Value::String(plan) => plan,
@@ -166,6 +194,9 @@ pub fn explain_plan_text(result: &cassie::executor::QueryResult) -> &str {
     }
 }
 
+/// # Panics
+///
+/// Panics if the plan does not contain the requested key and value.
 pub fn assert_explain_contains(plan: &str, key: &str, value: &str) {
     let needle = format!("{key}={value}");
     assert!(

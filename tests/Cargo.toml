@@ -1,0 +1,191 @@
+[package]
+name = "cassie-integration-tests"
+# Keep aligned with Cassie for the existing version-contract assertions.
+version = "0.1.0"
+edition = "2021"
+publish = false
+autotests = false
+
+[lib]
+name = "cassie_test_support"
+path = "support/pgwire_helpers/lib.rs"
+
+[dependencies]
+cassie = { path = ".." }
+num-traits = "0.2.19"
+num-bigint = "0.5.1"
+num-integer = "0.1.47"
+bytes = "1.12"
+chrono = "0.4"
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["tokio"] }
+tokio = { version = "1.54", features = ["full"] }
+tokio-rustls = "0.26"
+rustls = "0.23"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value", "arbitrary_precision"] }
+parking_lot = "0.13"
+thiserror = "2.0"
+uuid = { version = "1.29", features = ["v4", "v7", "serde"] }
+cntryl-midge = "0.5.2"
+cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
+hyper = { version = "1.12", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
+argon2 = "0.6"
+getrandom = "0.4"
+sha2 = "0.11"
+md-5 = "0.11"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+jiff = { version = "0.2.39", default-features = false, features = ["std", "tzdb-bundle-always"] }
+url = "2.5"
+regex-automata = "0.4.18"
+regex-syntax = "0.8.11"
+fancy-regex = { version = "=0.19.2", default-features = false, features = ["std", "unicode"] }
+sql-json-path = "0.2.0"
+
+[dev-dependencies]
+cntryl-stress = "0.5.1"
+rcgen = "0.14"
+tokio-postgres = "0.7"
+
+[[test]]
+name = "analytics"
+path = "analytics.rs"
+
+[[test]]
+name = "bench_diagnostics"
+path = "bench_diagnostics.rs"
+
+[[test]]
+name = "bench_operations"
+path = "bench_operations.rs"
+
+[[test]]
+name = "catalog_security"
+path = "catalog_security.rs"
+
+[[test]]
+name = "compatibility"
+path = "compatibility.rs"
+
+[[test]]
+name = "configuration_isolated"
+path = "configuration_isolated.rs"
+
+[[test]]
+name = "constraint_ingress"
+path = "constraint_ingress.rs"
+
+[[test]]
+name = "domain_models"
+path = "domain_models.rs"
+
+[[test]]
+name = "executor"
+path = "executor.rs"
+
+[[test]]
+name = "expression_index_upsert"
+path = "expression_index_upsert.rs"
+
+[[test]]
+name = "json_writes"
+path = "json_writes.rs"
+
+[[test]]
+name = "metrics"
+path = "metrics.rs"
+
+[[test]]
+name = "null_safe_predicates"
+path = "null_safe_predicates.rs"
+
+[[test]]
+name = "parser_types"
+path = "parser_types.rs"
+
+[[test]]
+name = "pgwire_catalogs"
+path = "pgwire_catalogs.rs"
+
+[[test]]
+name = "pgwire_core"
+path = "pgwire_core.rs"
+
+[[test]]
+name = "pgwire_extended"
+path = "pgwire_extended.rs"
+
+[[test]]
+name = "pgwire_grammar"
+path = "pgwire_grammar.rs"
+
+[[test]]
+name = "pgwire_types"
+path = "pgwire_types.rs"
+
+[[test]]
+name = "planner_controls"
+path = "planner_controls.rs"
+
+[[test]]
+name = "query_scan_controls"
+path = "query_scan_controls.rs"
+
+[[test]]
+name = "relational_qualification"
+path = "relational_qualification.rs"
+
+[[test]]
+name = "rest"
+path = "rest.rs"
+
+[[test]]
+name = "search"
+path = "search.rs"
+
+[[test]]
+name = "sql_contextual_literals"
+path = "sql_contextual_literals.rs"
+
+[[test]]
+name = "sql_derived_sources"
+path = "sql_derived_sources.rs"
+
+[[test]]
+name = "sql_exists_subqueries"
+path = "sql_exists_subqueries.rs"
+
+[[test]]
+name = "sql_mutations"
+path = "sql_mutations.rs"
+
+[[test]]
+name = "sql_queries"
+path = "sql_queries.rs"
+
+[[test]]
+name = "sql_relation_identifiers"
+path = "sql_relation_identifiers.rs"
+
+[[test]]
+name = "sql_set_operations"
+path = "sql_set_operations.rs"
+
+[[test]]
+name = "storage_indexes"
+path = "storage_indexes.rs"
+
+[[test]]
+name = "temporal_predicate_literals"
+path = "temporal_predicate_literals.rs"
+
+[[test]]
+name = "time_series_float_partitions"
+path = "time_series_float_partitions.rs"
+
+[[test]]
+name = "vector_embeddings"
+path = "vector_embeddings.rs"

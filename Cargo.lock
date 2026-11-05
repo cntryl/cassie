@@ -274,6 +274,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "cassie-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "bytes",
+ "cassie",
+ "chrono",
+ "cntryl-lexkey",
+ "cntryl-midge",
+ "cntryl-stress",
+ "fancy-regex",
+ "getrandom 0.4.3",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "jiff",
+ "md-5",
+ "num-bigint 0.5.1",
+ "num-integer",
+ "num-traits",
+ "parking_lot 0.13.0",
+ "rcgen",
+ "regex-automata",
+ "regex-syntax",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sql-json-path",
+ "thiserror",
+ "time",
+ "tokio",
+ "tokio-postgres",
+ "tokio-rustls",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "cc"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,11 +1,9 @@
 // Consolidated integration suite: compatibility.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
+use cassie_test_support::support_pgwire;
 
-#[path = "support/sql.rs"]
-mod support_sql;
+use cassie_test_support::support_sql;
 
 // Formerly tests/compatibility_matrix.rs.
 #[path = "compatibility/clients/tokio_postgres/matrix/mod.rs"]
@@ -25,8 +23,6 @@ mod compatibility_sqlx;
 
 #[path = "support/desktop_trace.rs"]
 mod support_desktop_trace;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
 
 #[path = "compatibility/clients/desktop_traces/desktop_client_trace_replay.rs"]
 mod desktop_client_trace_replay;

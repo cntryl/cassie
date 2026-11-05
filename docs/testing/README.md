@@ -44,7 +44,7 @@ tests/
   pg18_parity/                   Python harness and its tests
 ```
 
-Nested modules stay inside the existing suite. They do not become additional Cargo targets. The current target names and source roots are listed in the summary.
+Focused modules stay inside their subsystem suite. The large wire suite has explicit protocol/lifecycle, type/function, grammar and catalog Cargo targets; their leaves retain their existing paths and module aliases. See [compilation organization](compilation-organization.md) for the measured boundary and shared fixture library. The current target names and source roots are listed in the summary.
 
 ## Ownership rules
 
@@ -55,7 +55,10 @@ Choose the suite from the assertion being made. A SQL statement can appear in se
 | Parser acceptance, rejection, precedence or AST shape | `parser_types/grammar/<feature>/<contract>.rs` |
 | SQL values, bags/order, NULL behavior, expressions or grouping | `sql_queries/<feature>/<contract>.rs` |
 | SQL mutation effects, RETURNING or conflict behavior | `sql_mutations/<feature>/<contract>.rs` |
-| Parse/Describe/Bind/Execute, OIDs/typmods, SQLSTATE, text/binary codecs or cancellation | `pgwire_extended/<feature>/<contract>.rs` |
+| Parse/Describe/Bind/Execute, SQLSTATE, sessions or cancellation | `pgwire_extended` target and matching `pgwire_extended/<feature>/<contract>.rs` |
+| Wire type codecs, type resolution and scalar functions | `pgwire_types` target; existing leaves under `pgwire_extended/{types,type_resolution,functions}/` |
+| SQL grammar through the wire | `pgwire_grammar` target; existing leaves under `pgwire_extended/grammar/` |
+| Wire catalog and routine metadata | `pgwire_catalogs` target; existing leaves under `pgwire_extended/{catalogs,routines}/` |
 | Connection startup, authentication or basic protocol state | `pgwire_core/<feature>/<contract>.rs` |
 | Catalog visibility, lookup or permissions | `catalog_security/catalogs/<object>/<contract>.rs` or `catalog_security/security/<contract>.rs` |
 | Plans, planner controls, estimates or cache invalidation | `planner_controls/<feature>/<contract>.rs` |
@@ -101,7 +104,7 @@ Use one working branch and checkout. Give agents exclusive file sets; the integr
 | Transactions, lifecycle and qualification | `compatibility/`, process-isolated cases and qualification fixtures | Group by object/session contract; preserve subprocess, client and restart boundaries |
 | Integrator | `tests/*.rs`, shared support registrations, inventory tooling and manifests | Check names/counts, register leaves, serialize Cargo validation and review |
 
-The organization pass extracted tests from every Cargo root and moved existing leaves into their behavior directories. At that historical checkpoint, all 32 Cargo target names and CI shard assignments were unchanged, and the compiled binaries listed the same 5,542 test instances as the static registration graph. The backend workflow now runs the full workspace suite; current inventory records Cargo target roots without shard metadata.
+The organization pass extracted tests from every Cargo root and moved existing leaves into their behavior directories. At that historical checkpoint, all 32 Cargo target names and CI shard assignments were unchanged, and the compiled binaries listed the same 5,542 test instances as the static registration graph. The backend workflow compiles all test and benchmark targets before running the full workspace correctness suite; performance sampling uses the benchmark commands. The current inventory records Cargo target roots without shard metadata.
 
 ## What this pass changed
 

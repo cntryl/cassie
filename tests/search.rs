@@ -3,12 +3,8 @@
 
 #[path = "support/executor.rs"]
 mod support_executor;
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 
 // Formerly tests/fulltext_index_completeness.rs.
 #[path = "search/retrieval/fulltext_index_completeness.rs"]

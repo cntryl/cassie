@@ -410,9 +410,24 @@ def is_test_inventory_file(path):
     return path.is_file() and path.suffix != ".pyc" and "__pycache__" not in path.parts
 
 
+def cargo_test_roots(metadata):
+    """Include fixture libraries in tests/, keeping production unit tests out."""
+    return {
+        target["name"]: Path(target["src_path"])
+        for package in metadata["packages"]
+        for target in package["targets"]
+        if target["test"] and (
+            "test" in target["kind"] or (
+                "lib" in target["kind"]
+                and Path(target["src_path"]).is_relative_to(ROOT / "tests")
+            )
+        )
+    }
+
+
 def gather():
     metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"], cwd=ROOT))
-    targets = {t["name"]: Path(t["src_path"]) for p in metadata["packages"] for t in p["targets"] if t["test"] and "test" in t["kind"]}
+    targets = cargo_test_roots(metadata)
     files = sorted(p for p in (ROOT / "tests").rglob("*") if is_test_inventory_file(p))
     parsed = {p.resolve(): rust_declarations(p) for p in files if p.suffix == ".rs"}
     registrations = defaultdict(list)
@@ -589,7 +604,7 @@ def render(data):
         f"| Files with a reviewed physical placement | {summary['reviewed_layout_files']} |",
         f"| Existing files over their line limit | {len(summary['oversized_files'])} |",
         f"| Destination name conflicts | {len(summary['destination_name_conflicts'])} |", "",
-        "Shared support tests compile into several Cargo suites, so registration instances exceed physical source declarations. `cfg` expressions are not evaluated.", "",
+        "Registration instances count each executable owner of a source declaration. Shared fixture self-tests have one library owner; `cfg` expressions are not evaluated.", "",
         "## Existing tests by owner", "",
         "Each declaration appears on one owner page. Shared helper tests appear under `support`; their individual suite instances are retained in the JSON.", "",
         "| Owner | Source declarations | Review required |", "| --- | ---: | ---: |",

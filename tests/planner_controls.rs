@@ -3,14 +3,10 @@
 
 #[path = "support/metrics.rs"]
 mod support_metrics;
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
 #[path = "support/query_evidence.rs"]
 mod support_query_evidence;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
+use cassie_test_support::support_temp_dirs;
 
 #[path = "planner_controls/cache/transaction_qualification.rs"]
 mod cache_transaction_qualification;

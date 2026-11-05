@@ -5,14 +5,11 @@
 mod support_adaptive_evidence;
 #[path = "support/metrics.rs"]
 mod support_metrics;
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
-#[path = "support/sql.rs"]
-mod support_sql;
+use cassie_test_support::support_pgwire;
+use cassie_test_support::support_sql;
 #[path = "support/teardown_evidence.rs"]
 mod support_teardown_evidence;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_temp_dirs;
 
 // Formerly tests/metrics_adaptive.rs.
 #[path = "metrics/adaptive/semantics/mod.rs"]

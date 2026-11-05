@@ -1,7 +1,4 @@
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql;
 
 use cassie::app::{Cassie, CassieSession};
 use cassie::sql::ast::{CopyFormat, CopyStatement};

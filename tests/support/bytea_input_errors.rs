@@ -3,6 +3,7 @@ use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 use crate::support_type_metadata_contract as fixture;
 
+#[must_use]
 pub fn parse(label: &str, sql: &str) -> Vec<fixture::Frames> {
     run_script(
         label,
@@ -14,6 +15,9 @@ pub fn parse(label: &str, sql: &str) -> Vec<fixture::Frames> {
     )
 }
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_parse_result(batches: &[fixture::Frames], state: &str, message: &str) {
     assert_error(&batches[0], state, message);
     fixture::assert_success(&batches[1]);
@@ -21,6 +25,7 @@ pub fn assert_parse_result(batches: &[fixture::Frames], state: &str, message: &s
     assert_eq!(wire::data_rows(&batches[2]), vec![vec![Some("7".into())]]);
 }
 
+#[must_use]
 pub fn parameter(label: &str, input: &[u8], oid: i32) -> Vec<fixture::Frames> {
     let mut steps = Vec::new();
     for format in [0, 1] {
@@ -64,6 +69,9 @@ pub fn parameter(label: &str, input: &[u8], oid: i32) -> Vec<fixture::Frames> {
     run_script(label, steps)
 }
 
+/// # Panics
+///
+/// Panics when the observed wire frames do not match the expected test contract.
 pub fn assert_parameter_result(batches: &[fixture::Frames], oid: i32, state: &str, message: &str) {
     assert_eq!(batches.len(), 16);
     for (format, cycle) in batches.as_chunks::<8>().0.iter().enumerate() {

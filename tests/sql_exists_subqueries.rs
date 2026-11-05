@@ -1,11 +1,6 @@
 // Integration suite: scalar, row, membership, EXISTS, and NOT EXISTS subqueries.
 
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/sql_fixture.rs"]
-mod support_sql_fixture;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_sql_fixture;
 
 #[path = "sql_exists_subqueries/boolean_contexts.rs"]
 mod sql_boolean_exists;

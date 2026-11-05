@@ -112,7 +112,10 @@ fn should_validate_diesel_read_model_probe_when_enabled() {
                 "--quiet",
                 "--locked",
                 "--manifest-path",
-                "tests/fixtures/diesel_probe/Cargo.toml",
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/fixtures/diesel_probe/Cargo.toml"
+                ),
                 "--",
                 &connection,
             ]);

@@ -6,12 +6,8 @@
 mod support_column_store_controls;
 #[path = "support/graph_evidence.rs"]
 mod support_graph_evidence;
-#[path = "support/pgwire.rs"]
-mod support_pgwire;
-#[path = "support/sql.rs"]
-mod support_sql;
-#[path = "support/temp_dirs.rs"]
-mod support_temp_dirs;
+use cassie_test_support::support_pgwire;
+use cassie_test_support::support_sql;
 
 #[path = "query_scan_controls/scans/normalized_query_controls.rs"]
 mod rest_normalized_query_controls;

@@ -181,3 +181,44 @@ outcomes and merge readback. GitHub Actions remain enabled. The independent
 #1188 engine-wide/native-background WAL fence is still unavailable through the
 published API and remains open. Completing these seven selected contracts does
 not complete the v0.2.0 milestone or production readiness.
+
+
+## Review correction before merge
+
+PR #1192 was returned to draft when a new numeric CHECK probe reproduced a
+CheckViolation for BIGINT 7 against literal 7.0. Raw JSON equality was not the
+selected SQL comparison law. Jev selected reuse of the binder/evaluator (1.0).
+Version-one non-NULL simple CHECKs now retain a strictly validated bound
+comparison, with ordinary query coercion and metadata heap/identity accounting.
+The numeric, unknown-literal, JSON-null, prepared-shape, unprepared-admission,
+request-memory and restart probes pass in the focused run. Review leads were
+comparison law 0.76, shape admission 0.14 and ownership 0.30; mandatory focused
+probes remain part of the complete gate. No new general CHECK syntax is selected.
+
+A separate escaped-JSON resource probe reproduced output serialization before
+sufficient admission. The scalar workspace bound now includes exact serialized
+JSON bytes as well as retained document backing; the probe uses both denial and
+admitted controls. The previous head's backend checks passed, while CodeQL flagged
+a generic result debug print in a synthetic resource test. The debug value was
+removed, retaining the same resource assertion. These corrections require fresh
+local and final-head hosted qualification; earlier checks are superseded.
+
+
+## Corrected bundle qualification
+
+The corrected complete `cargo test --locked --no-fail-fast` run passed
+**10,395 tests, zero failed, 12 existing ignored**. The escaped-JSON regression
+was observed RED before its serialized-workspace correction and is GREEN in
+this complete run. All four numeric CHECK oracle cases also pass in isolated
+PostgreSQL 18.6 and in the Cassie regression; prepared CHECK restart recovery
+passes. The three subsequent Clippy style corrections were validated by 22
+affected library tests and all 65 null-safe integration tests; the final empty-
+record assertion change passed its exact integration witness.
+
+The final strict workspace/all-target/all-feature pedantic Clippy and formatting
+checks passed. Test policy passed on all **100** Rust paths touched by the unified
+PR. Static inventory registration and whitespace checks passed. No new ignore,
+reduced lint level, removed correctness assertion, or CI/dependency/version
+configuration change was introduced. The PR's current head must receive fresh
+hosted qualification; the earlier head's successful backend run and flagged
+CodeQL debug print remain superseded evidence.

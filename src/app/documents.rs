@@ -1,3 +1,5 @@
+#[path = "null_safe_checks.rs"]
+mod null_safe_checks;
 use super::vector_helpers::project_payload_fields;
 use super::{
     BTreeMap, Cassie, CassieError, CassieSession, ConstraintCheck, ConstraintOperator, DocumentRef,
@@ -824,6 +826,9 @@ impl Cassie {
             check.operator,
             ConstraintOperator::IsDistinctFrom | ConstraintOperator::IsNotDistinctFrom
         ) {
+            if let Some(expression) = check.bound_expression.as_deref() {
+                return null_safe_checks::evaluate(value, check, expression, value_is_sql_null);
+            }
             let equal = if check.value.is_null() {
                 value_is_sql_null
             } else {

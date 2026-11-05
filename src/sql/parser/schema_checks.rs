@@ -44,6 +44,7 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
         field: left.clone(),
         operator: op,
         value: right,
+        bound_expression: None,
     })
 }
 

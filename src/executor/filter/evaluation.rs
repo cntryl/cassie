@@ -261,7 +261,7 @@ mod tests {
                         _
                     )))
                 ),
-                "{sql}: {result:?}"
+                "{sql}: expected resource denial"
             );
             drop(result);
             drop(memory);
@@ -298,5 +298,57 @@ mod tests {
         .expect("unreached cast");
         // Assert
         assert_eq!(result, Value::String("ok".into()));
+    }
+    #[test]
+    fn should_admit_escaped_json_text_before_scalar_serialization() {
+        // Arrange
+        let document = serde_json::Value::String("\0".repeat(100));
+        let row = crate::executor::batch::BatchRow::new(vec![(
+            "input".into(),
+            Value::Json(document.clone()),
+        )]);
+        let expression = Expr::Cast {
+            expr: Box::new(Expr::Column("input".into())),
+            data_type: crate::types::DataType::Text,
+            source_type: Some(crate::types::DataType::Json),
+            identity: crate::sql::ast::CastIdentity::Scalar,
+        };
+        for (budget, accepted) in [(800, false), (4096, true)] {
+            let controls = QueryExecutionControls::from_limits(
+                &crate::config::CassieRuntimeLimits {
+                    query_memory_budget_bytes: budget,
+                    ..Default::default()
+                },
+                Instant::now(),
+            );
+            let memory = EvaluationMemory::new(&controls).expect("owner");
+            // Act
+            let result = evaluate_source_argument(
+                &row,
+                &expression,
+                &[],
+                &HashMap::new(),
+                None,
+                &controls,
+                &memory,
+            );
+            // Assert
+            if accepted {
+                assert_eq!(
+                    result.as_ref().expect("admitted JSON text"),
+                    &Value::String(serde_json::to_string(&document).expect("JSON text"))
+                );
+            } else {
+                assert!(matches!(
+                    &result,
+                    Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                        _
+                    )))
+                ));
+            }
+            drop(result);
+            drop(memory);
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
     }
 }

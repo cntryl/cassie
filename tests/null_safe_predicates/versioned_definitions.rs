@@ -556,3 +556,82 @@ fn should_maintain_versioned_null_safe_expression_indexes_after_writes() {
                 && index.definition_semantics_version == 1)
     );
 }
+
+#[test]
+fn should_compare_null_safe_numeric_checks_in_the_selected_sql_domain() {
+    // Arrange
+    let fixture = sql_fixture(
+        "null_safe_numeric_check_domain",
+        &[
+            "CREATE TABLE integral_check(n BIGINT CHECK (n IS NOT DISTINCT FROM 7.0))",
+            "CREATE TABLE precise_check(n BIGINT CHECK (n IS DISTINCT FROM 9007199254740992))",
+            "CREATE TABLE floating_check(n FLOAT CHECK (n IS NOT DISTINCT FROM 9007199254740993))",
+            "CREATE TABLE unknown_check(n BIGINT CHECK (n IS NOT DISTINCT FROM '7'))",
+        ],
+    );
+    // Act
+    let integral = fixture.execute("INSERT INTO integral_check VALUES(7)");
+    let precise = fixture.execute("INSERT INTO precise_check VALUES(9007199254740993)");
+    let floating = fixture.execute("INSERT INTO floating_check VALUES(9007199254740992)");
+    let unknown = fixture.execute("INSERT INTO unknown_check VALUES(7)");
+    // Assert
+    for (name, result) in [
+        ("integral", integral),
+        ("precise", precise),
+        ("floating", floating),
+        ("unknown", unknown),
+    ] {
+        assert!(result.is_ok(), "{name}: expected accepted check");
+    }
+    assert_eq!(
+        fixture.rows("SELECT n FROM integral_check"),
+        vec![vec![Value::Int64(7)]]
+    );
+}
+
+#[test]
+fn should_reject_unprepared_non_null_check_metadata() {
+    // Arrange
+    let fixture = sql_fixture(
+        "unprepared_check_metadata",
+        &["CREATE TABLE prepared_source(n BIGINT)"],
+    );
+    let collection =
+        crate::support_sql::canonical_test_collection(&fixture.cassie, "prepared_source");
+    let mut constraint = cassie::catalog::FieldConstraint::new("n");
+    constraint.definition_semantics_version = 1;
+    constraint.check = Some(cassie::catalog::ConstraintCheck {
+        field: "n".into(),
+        operator: cassie::catalog::ConstraintOperator::IsNotDistinctFrom,
+        value: 7.into(),
+        bound_expression: None,
+    });
+    // Act
+    let result = fixture
+        .cassie
+        .midge
+        .save_constraints(&collection, &[constraint]);
+    let stored = fixture
+        .cassie
+        .midge
+        .load_constraints(&collection)
+        .expect("readback");
+    // Assert
+    assert!(matches!(result, Err(CassieError::Unsupported(_))));
+    assert_eq!(stored, Vec::<cassie::catalog::FieldConstraint>::new());
+}
+
+#[test]
+fn should_preserve_document_null_under_prepared_json_checks() {
+    // Arrange
+    let fixture = sql_fixture(
+        "prepared_json_null_check",
+        &["CREATE TABLE prepared_json(j JSON CHECK (j IS NOT DISTINCT FROM 'null'))"],
+    );
+    // Act
+    let document = fixture.execute("INSERT INTO prepared_json VALUES('null')");
+    let sql_null = fixture.execute("INSERT INTO prepared_json VALUES(NULL)");
+    // Assert
+    document.expect("document null is the comparison value");
+    assert!(matches!(sql_null, Err(CassieError::CheckViolation { .. })));
+}

@@ -98,7 +98,7 @@ fn should_preserve_versioned_definition_behavior_after_restart() {
     cassie.startup().expect("initialize scope");
     let session = cassie.create_session("tester", None);
     for sql in [
-        "CREATE TABLE persisted_source (id BIGINT,n BIGINT CHECK (n IS DISTINCT FROM NULL),tenant TEXT,event_at TEXT,same BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))",
+        "CREATE TABLE persisted_source (id BIGINT,n BIGINT CHECK (n IS NOT DISTINCT FROM 7.0),tenant TEXT,event_at TEXT,same BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))",
         "INSERT INTO persisted_source(id,n,tenant,event_at) VALUES(1,7,'a','2026-01-01T00:05:00Z')",
         "CREATE VIEW persisted_view AS SELECT id,same FROM persisted_source WHERE n IS NOT DISTINCT FROM 7",
         "CREATE INDEX persisted_predicate ON persisted_source(n) WHERE n IS DISTINCT FROM NULL",

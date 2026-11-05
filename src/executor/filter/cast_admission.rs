@@ -91,6 +91,7 @@ pub(super) fn numeric_input_bytes(text: &str) -> Result<usize, QueryError> {
 pub(super) fn value_workspace_bytes(value: &Value) -> Result<usize, QueryError> {
     let bytes = value_clone_bytes(value)?;
     let formatted = match value {
+        Value::Json(document) => crate::executor::retained_memory::serialized_json_bytes(document)?,
         Value::Typed(TypedValue::Numeric(numeric::Numeric::Finite { mantissa, scale })) => {
             // Binary bit count bounds decimal digits; display-scale padding is
             // independent of the retained coefficient's allocation.

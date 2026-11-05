@@ -280,3 +280,14 @@ impl ExactMetadataEq for DataType {
         }
     }
 }
+
+impl ExactMetadataEq for crate::sql::ast::Expr {
+    fn exact_eq(
+        &self,
+        other: &Self,
+        controls: &QueryExecutionControls,
+    ) -> Result<bool, CassieError> {
+        controls.check_interruption()?;
+        Ok(crate::sql::check_comparison::exact_eq(self, other))
+    }
+}

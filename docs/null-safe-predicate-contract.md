@@ -228,3 +228,21 @@ ordinary comparison signatures and character trailing-blank rules are unchanged.
 The shared qualifier's Jev gap 0.41 requires the retained both-order, invalid
 BOOLEAN/integer, typed-NULL, unknown-BOOLEAN and wire-recovery probes. Fresh
 PostgreSQL 18.6 signature receipts provide their value/error oracle.
+
+
+### Bound simple CHECK comparisons (review correction)
+
+The numeric CHECK probe exposed a raw-JSON equality mismatch for BIGINT 7 versus
+literal 7.0. Jev selected (1.0) reuse of the ordinary binder and evaluator over a
+prepared simple comparison, preserving the original field/operator/literal
+carrier. Version-one CHECK records may carry an optional boxed bound expression;
+legacy records omit it and retain their bytes. Preparation accepts only the
+existing simple shape. Admission validates the same owning column, literal and
+null-safe operator, with only binder-added casts/private float wrappers; it does
+not admit functions, subqueries, additional fields or general CHECK expressions.
+Non-NULL version-one CHECK metadata requires the prepared comparison. NULL-only
+metadata retains its simple NULL table. New/existing-row enforcement uses the
+same comparator as queries, including exact BIGINT, selected FLOAT input-domain
+coercion and unknown literals. The existing metadata snapshot accounting owns
+the bound tree; evaluation retains reached scratch under the originating request
+controls. No per-row SQL binding or additional storage interface is introduced.

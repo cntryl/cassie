@@ -30,6 +30,7 @@ metadata_heap!(crate::catalog::constraints::ConstraintCheck {
     field,
     operator,
     value,
+    bound_expression,
 });
 
 unit_enum_heap!(crate::catalog::constraints::ConstraintOperator {

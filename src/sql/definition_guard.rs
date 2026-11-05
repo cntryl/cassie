@@ -410,6 +410,23 @@ impl Policy {
         constraints: &[crate::catalog::FieldConstraint],
     ) -> Result<(), CassieError> {
         for constraint in constraints {
+            if let Some(check) = &constraint.check {
+                if self.0 == 0 && check.bound_expression.is_some() {
+                    return Err(CassieError::Unsupported(
+                        "bound CHECK comparisons require versioned definition semantics".into(),
+                    ));
+                }
+                if self.0 == 1
+                    && (check.bound_expression.is_some()
+                        || matches!(
+                            check.operator,
+                            crate::catalog::ConstraintOperator::IsDistinctFrom
+                                | crate::catalog::ConstraintOperator::IsNotDistinctFrom
+                        ))
+                {
+                    super::check_comparison::validate(check)?;
+                }
+            }
             if self.0 == 0
                 && constraint.check.as_ref().is_some_and(|check| {
                     matches!(

@@ -150,9 +150,9 @@
     ],
     "files": 1631,
     "rust_files": 1594,
-    "rust_test_declarations": 8599,
+    "rust_test_declarations": 8602,
     "python_test_declarations": 22,
-    "registered_rust_instances": 8599,
+    "registered_rust_instances": 8602,
     "unregistered_rust_tests": [],
     "unresolved_module_paths": [],
     "repeated_module_registrations": [],
@@ -40277,6 +40277,99 @@
         {
           "suite": "null_safe_predicates",
           "name": "versioned_definitions::should_maintain_versioned_null_safe_expression_indexes_after_writes"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "null_safe_predicates",
+        "category": "versioned_definitions",
+        "directory": "tests/null_safe_predicates",
+        "file": "tests/null_safe_predicates/versioned_definitions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/null_safe_predicates/versioned_definitions.rs::should_compare_null_safe_numeric_checks_in_the_selected_sql_domain",
+      "name": "should_compare_null_safe_numeric_checks_in_the_selected_sql_domain",
+      "current_file": "tests/null_safe_predicates/versioned_definitions.rs",
+      "line": 561,
+      "end_line": 590,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "null_safe_predicates",
+          "name": "versioned_definitions::should_compare_null_safe_numeric_checks_in_the_selected_sql_domain"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "null_safe_predicates",
+        "category": "versioned_definitions",
+        "directory": "tests/null_safe_predicates",
+        "file": "tests/null_safe_predicates/versioned_definitions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/null_safe_predicates/versioned_definitions.rs::should_reject_unprepared_non_null_check_metadata",
+      "name": "should_reject_unprepared_non_null_check_metadata",
+      "current_file": "tests/null_safe_predicates/versioned_definitions.rs",
+      "line": 593,
+      "end_line": 622,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "null_safe_predicates",
+          "name": "versioned_definitions::should_reject_unprepared_non_null_check_metadata"
+        }
+      ],
+      "attributes": [
+        "#[test]"
+      ],
+      "ignored": false,
+      "execution_status": "not_assessed",
+      "placement": {
+        "suite": "null_safe_predicates",
+        "category": "versioned_definitions",
+        "directory": "tests/null_safe_predicates",
+        "file": "tests/null_safe_predicates/versioned_definitions.rs",
+        "basis": "reviewed_physical_layout",
+        "review": "selected",
+        "migration": "keep"
+      }
+    },
+    {
+      "id": "tests/null_safe_predicates/versioned_definitions.rs::should_preserve_document_null_under_prepared_json_checks",
+      "name": "should_preserve_document_null_under_prepared_json_checks",
+      "current_file": "tests/null_safe_predicates/versioned_definitions.rs",
+      "line": 625,
+      "end_line": 637,
+      "inline_modules": [],
+      "inline_module_lines": 0,
+      "language": "rust",
+      "registration": "registered",
+      "instances": [
+        {
+          "suite": "null_safe_predicates",
+          "name": "versioned_definitions::should_preserve_document_null_under_prepared_json_checks"
         }
       ],
       "attributes": [
@@ -273720,7 +273813,7 @@
       "role": "test_module",
       "action": "keep",
       "lines": 236,
-      "sha256": "5b23fc6a9ca3e7a8c5f03d78f8134285e6b598f0e7ce5a3d0ffca9eed8f5c30e",
+      "sha256": "e4efc176189ccbf58cc2adc5bf5139d2bd17e4bb78a623b4e2b1fdd3f33b42e6",
       "test_declarations": 3,
       "registered_suites": [
         "null_safe_predicates"
@@ -273779,9 +273872,9 @@
       "current_file": "tests/null_safe_predicates/versioned_definitions.rs",
       "role": "test_module",
       "action": "keep",
-      "lines": 558,
-      "sha256": "b1a9bb169e4bf2531d678e2bba025ef40e99692fec036624d8c5dc859553cfbe",
-      "test_declarations": 18,
+      "lines": 637,
+      "sha256": "1689abcc904b9e57f89203f55b1086ec50e541915490caf2abe44d96d2cef516",
+      "test_declarations": 21,
       "registered_suites": [
         "null_safe_predicates"
       ],

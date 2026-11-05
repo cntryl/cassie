@@ -728,20 +728,9 @@ impl Midge {
         }
 
         self.publication.ensure_recovered()?;
-        match self
-            .publication
+        self.publication
             .observe_native(self.engine.create_column_family(name))
-        {
-            Ok(created) => Ok(created),
-            Err(error @ cntryl_midge::MidgeError::OutcomeUnknown(_)) => {
-                Err(CassieError::from(error))
-            }
-            Err(_) => self.engine.get_column_family(name).ok_or_else(|| {
-                CassieError::StorageBootstrap(format!(
-                    "cannot resolve required column family '{name}'"
-                ))
-            }),
-        }
+            .map_err(CassieError::from)
     }
 
     pub(super) fn begin_schema_readonly_tx(&self) -> Result<AdapterTransaction, CassieError> {

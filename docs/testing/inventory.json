@@ -232522,8 +232522,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_share_are_constraints_with_count_replace_and_quantifiers",
-      "name": "should_share_are_constraints_with_count_replace_and_quantifiers",
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_share_are_constraints_across_pattern_consumers",
+      "name": "should_share_are_constraints_across_pattern_consumers",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
       "line": 100,
       "end_line": 111,
@@ -232534,7 +232534,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_pattern_matching::should_share_are_constraints_with_count_replace_and_quantifiers"
+          "name": "sql_queries::postgresql18_pattern_matching::should_share_are_constraints_across_pattern_consumers"
         }
       ],
       "attributes": [
@@ -232615,8 +232615,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_preserve_ignored_and_escaped_constraint_notation_contexts",
-      "name": "should_preserve_ignored_and_escaped_constraint_notation_contexts",
+      "id": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs::should_preserve_contextual_constraint_notation",
+      "name": "should_preserve_contextual_constraint_notation",
       "current_file": "tests/sql_queries/patterns/pattern_matching/semantics/are_constraints.rs",
       "line": 148,
       "end_line": 172,
@@ -232627,7 +232627,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_ignored_and_escaped_constraint_notation_contexts"
+          "name": "sql_queries::postgresql18_pattern_matching::should_preserve_contextual_constraint_notation"
         }
       ],
       "attributes": [
@@ -287731,7 +287731,7 @@
       "role": "test_module",
       "action": "move_with_module_alias",
       "lines": 196,
-      "sha256": "7ee1d1304aa2527e4381c8cbe699ed9c41273286af3b9a0228fc59ec8c91c1c6",
+      "sha256": "1a5bdbae76b6446acdb74ed398b465d510bd3ece4588b0f6810e08f494ee8d55",
       "test_declarations": 8,
       "registered_suites": [
         "sql_queries"

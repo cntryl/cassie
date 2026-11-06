@@ -502,11 +502,14 @@ pub(super) fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Sc
     }
 
     if let Some(view) = catalog.get_view(name) {
-        crate::sql::definition_guard::query_sql(&view.query)?;
+        crate::sql::definition_guard::view(&view)?;
         return Ok(view.schema);
     }
 
     if let Some(projection) = catalog.get_materialized_projection(name) {
+        if let Some(definition) = &projection.materialized {
+            crate::sql::definition_guard::projection(definition)?;
+        }
         let materialized = projection.materialized.ok_or_else(|| {
             CassieError::Planner(format!(
                 "materialized projection '{name}' is missing output schema"

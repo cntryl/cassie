@@ -1,5 +1,23 @@
 # Selected pattern translation contract
 
+## Current implementation and qualification (2026-11-05)
+
+The unified [query/array closeout](query-array-closeout-2026-11-05.md) contains
+all selected translation, finite ARE, native compiler workspace and argument
+ownership paths described below. The following sections retain their staged
+design history; references there to pending implementation are historical.
+The closeout qualification record reports completed local execution and the
+unified PR records final-head hosted checks.
+Generic arguments now retain a private evaluator reservation through matching.
+Reached leaves, function envelopes and expanding CHAR, JSONB and NUMERIC casts
+admit before allocation; intrinsic expanding producers keep their existing
+output reservations. Rollup filters receive statement controls explicitly.
+This accounting covers the finite contract's owned backing and source-backed
+workspace bounds; it does not promise a total process RSS cap or interrupt a
+single native compiler/matcher call. Locale-dependent PostgreSQL ARE behavior
+and general POSIX capture parity remain outside the selected native profile.
+
+
 This contract selects the next #799 dynamic `SIMILAR TO` increment. It uses
 PostgreSQL 18.6 as a lexical translation oracle and Cassie's existing finite
 UTF-8/Unicode regex backend as the matcher. It does not select full PostgreSQL

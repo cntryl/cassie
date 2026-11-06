@@ -137,3 +137,69 @@ fn should_infer_int4_parameter_type_for_null_safe_comparison_over_pgwire() {
         vec![16]
     );
 }
+
+#[test]
+fn should_preserve_wire_sessions_after_versioned_definition_errors() {
+    // Arrange
+    let statements = [
+        "CREATE TABLE json_guard(id BIGINT,j JSON CHECK (j IS DISTINCT FROM NULL))",
+        "CREATE TABLE existing_nulls(n BIGINT)",
+        "INSERT INTO existing_nulls VALUES(NULL)",
+        "CREATE TABLE invalid_default(same BOOLEAN DEFAULT (TRUE IS DISTINCT FROM 1))",
+        "INSERT INTO json_guard(id) VALUES(1)",
+        "INSERT INTO json_guard VALUES(2,NULL)",
+        "ALTER TABLE existing_nulls ADD CONSTRAINT non_null_n CHECK (n IS DISTINCT FROM NULL)",
+        "INSERT INTO json_guard VALUES(3,'null')",
+        "SELECT id FROM json_guard",
+        "SELECT TRUE IS DISTINCT FROM 1",
+        "SELECT '7' IS NOT DISTINCT FROM 7",
+        "SELECT 1 IS NOT DISTINCT FROM TRUE",
+        "SELECT CAST(NULL AS TEXT) IS DISTINCT FROM 7",
+        "SELECT 'yes' IS NOT DISTINCT FROM TRUE",
+        "SELECT NULL IS DISTINCT FROM TRUE",
+    ];
+    // Act
+    let batches = run_script(
+        "versioned-definition-errors",
+        statements
+            .into_iter()
+            .map(|sql| Step::ThroughReady(vec![wire::simple_query_frame(sql)]))
+            .collect(),
+    );
+    // Assert
+    for (index, frames) in batches.iter().enumerate() {
+        let expected = match index {
+            3 | 9 | 11 | 12 => Some("42883"),
+            4..=6 => Some("23514"),
+            _ => None,
+        };
+        assert_eq!(
+            wire::error_code(frames).as_deref(),
+            expected,
+            "statement {index}"
+        );
+        assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+        assert_eq!(
+            frames.last().map(|frame| frame.1.as_slice()),
+            Some(b"I".as_slice())
+        );
+        if expected.is_some() {
+            assert_eq!(wire::data_rows(frames), Vec::<Vec<Option<String>>>::new());
+            assert_eq!(frames.iter().filter(|frame| frame.0 == b'C').count(), 0);
+        }
+    }
+    for index in [13, 14] {
+        assert_eq!(
+            wire::data_rows(&batches[index]),
+            vec![vec![Some("t".to_owned())]]
+        );
+    }
+    assert_eq!(
+        wire::data_rows(&batches[10]),
+        vec![vec![Some("t".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[8]),
+        vec![vec![Some("3".to_owned())]]
+    );
+}

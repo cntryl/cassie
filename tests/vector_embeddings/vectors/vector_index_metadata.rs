@@ -441,6 +441,7 @@ fn should_remove_vector_state_when_dropping_vector_field() {
         cassie
             .midge
             .put_index(&IndexMeta {
+                definition_semantics_version: 0,
                 collection: collection.to_string(),
                 name: "drop_vector_field_idx".to_string(),
                 field: "embedding".to_string(),
@@ -600,6 +601,7 @@ fn should_reload_generic_index_registry_after_restart() {
         );
 
         let record = IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.to_string(),
             name: "idx_generic_title".to_string(),
             field: "title".to_string(),
@@ -674,6 +676,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
         );
 
         let expected = IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.to_string(),
             name: "idx_fulltext_body".to_string(),
             field: "body".to_string(),

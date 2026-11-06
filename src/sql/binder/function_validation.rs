@@ -95,7 +95,7 @@ pub(super) fn validate_function_calls(
                 function.args.len()
             )));
         }
-        crate::sql::definition_guard::expression_sql(&metadata.body)?;
+        crate::sql::definition_guard::legacy_expression_sql(&metadata.body)?;
     }
 
     Ok(())

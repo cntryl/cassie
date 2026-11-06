@@ -30,6 +30,41 @@ impl Compatibility {
 }
 
 impl Midge {
+    /// A new pinned expression contract requires a reader that understands it.
+    /// Validate the record before calling; this fence precedes feature mutation.
+    pub(crate) fn require_definition_version(&self, version: u32) -> Result<(), CassieError> {
+        crate::sql::definition_guard::version(version)?;
+        if version == 1 {
+            self.require_storage_layout_version(V020_LAYOUT_VERSION)?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::midge::adapter) fn require_constraint_definitions(
+        &self,
+        constraints: &[crate::catalog::FieldConstraint],
+    ) -> Result<(), CassieError> {
+        crate::sql::definition_guard::constraints(constraints)?;
+        if constraints
+            .iter()
+            .any(|constraint| constraint.definition_semantics_version == 1)
+        {
+            self.require_definition_version(1)?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::midge::adapter) fn require_projection_definition(
+        &self,
+        metadata: &crate::catalog::ProjectionMeta,
+    ) -> Result<(), CassieError> {
+        if let Some(definition) = &metadata.materialized {
+            crate::sql::definition_guard::projection(definition)?;
+            self.require_definition_version(definition.definition_semantics_version)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn supports_storage_layout_marker(marker: &[u8]) -> bool {
         Compatibility::parse(marker).is_some()
     }

@@ -20,6 +20,37 @@ impl EvaluationMemory {
     }
 }
 
+/// Admit copied scalar leaves before allocation. The owner spans the complete
+/// expression, including nested function arguments and enclosing pattern work.
+pub(super) fn admit_leaf<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    context: EvalContext<'_>,
+) -> Result<(), QueryError> {
+    let Some(memory) = context.memory else {
+        return Ok(());
+    };
+    if let Some(controls) = context.controls {
+        controls.check_interruption()?;
+    }
+    let bytes = match expr {
+        Expr::StringLiteral(text) => text.len(),
+        Expr::NumericLiteral(text) => super::cast_admission::numeric_input_bytes(text)?,
+        Expr::Column(name) => super::column_value_ref(row, name, context.local_args)
+            .map(super::cast_admission::value_workspace_bytes)
+            .transpose()?
+            .unwrap_or(0),
+        Expr::Param(index) => context
+            .params
+            .get(*index)
+            .map(super::cast_admission::value_workspace_bytes)
+            .transpose()?
+            .unwrap_or(0),
+        _ => 0,
+    };
+    memory.grow(crate::executor::retained_memory::mul(bytes, 4)?)
+}
+
 pub(crate) struct ProjectionValueContext<'a> {
     pub(crate) params: &'a [Value],
     pub(crate) search: Option<&'a SearchContext>,
@@ -162,5 +193,162 @@ mod tests {
         drop(result);
         drop(memory);
         assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    #[test]
+    fn should_admit_reached_concatenation_leaves_before_copies() {
+        // Arrange
+        let limits = crate::config::CassieRuntimeLimits {
+            query_memory_budget_bytes: 0,
+            ..Default::default()
+        };
+        let controls = QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
+        let memory = EvaluationMemory::new(&controls).expect("empty owner");
+        let row = crate::executor::batch::BatchRow::new(vec![(
+            "input".into(),
+            Value::String("bounded".into()),
+        )]);
+        let expr = crate::sql::parser::parse_expression("input || 'tail'").expect("expression");
+        // Act
+        let result =
+            evaluate_source_argument(&row, &expr, &[], &HashMap::new(), None, &controls, &memory);
+        // Assert
+        assert!(matches!(
+            result,
+            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                _
+            )))
+        ));
+        drop(result);
+        drop(memory);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    #[test]
+    fn should_reject_unadmitted_expanding_casts_before_producing_values() {
+        // Arrange
+        for (sql, input) in [
+            ("CAST(input AS CHAR(512))", "x"),
+            ("CAST(input AS JSONB)", "1e2048"),
+            ("CAST(input AS NUMERIC)", "1e2_048"),
+        ] {
+            let controls = QueryExecutionControls::from_limits(
+                &crate::config::CassieRuntimeLimits {
+                    query_memory_budget_bytes: 1024,
+                    ..Default::default()
+                },
+                Instant::now(),
+            );
+            let memory = EvaluationMemory::new(&controls).expect("owner");
+            let row = crate::executor::batch::BatchRow::new(vec![(
+                "input".into(),
+                Value::String(input.into()),
+            )]);
+            let expression = crate::sql::parser::parse_expression(sql).expect("expanding cast");
+            // Act
+            let result = evaluate_source_argument(
+                &row,
+                &expression,
+                &[],
+                &HashMap::new(),
+                None,
+                &controls,
+                &memory,
+            );
+            // Assert
+            assert!(
+                matches!(
+                    result,
+                    Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                        _
+                    )))
+                ),
+                "{sql}: expected resource denial"
+            );
+            drop(result);
+            drop(memory);
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
+    }
+
+    #[test]
+    fn should_skip_unreached_expanding_casts() {
+        // Arrange
+        let controls = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits {
+                query_memory_budget_bytes: 1024,
+                ..Default::default()
+            },
+            Instant::now(),
+        );
+        let memory = EvaluationMemory::new(&controls).expect("owner");
+        let row = crate::executor::batch::BatchRow::from_projected_values(vec![]);
+        let expression = crate::sql::parser::parse_expression(
+            "CASE WHEN FALSE THEN CAST('x' AS CHAR(512)) ELSE 'ok' END",
+        )
+        .expect("lazy cast");
+        // Act
+        let result = evaluate_source_argument(
+            &row,
+            &expression,
+            &[],
+            &HashMap::new(),
+            None,
+            &controls,
+            &memory,
+        )
+        .expect("unreached cast");
+        // Assert
+        assert_eq!(result, Value::String("ok".into()));
+    }
+    #[test]
+    fn should_admit_escaped_json_text_before_scalar_serialization() {
+        // Arrange
+        let document = serde_json::Value::String("\0".repeat(100));
+        let row = crate::executor::batch::BatchRow::new(vec![(
+            "input".into(),
+            Value::Json(document.clone()),
+        )]);
+        let expression = Expr::Cast {
+            expr: Box::new(Expr::Column("input".into())),
+            data_type: crate::types::DataType::Text,
+            source_type: Some(crate::types::DataType::Json),
+            identity: crate::sql::ast::CastIdentity::Scalar,
+        };
+        for (budget, accepted) in [(800, false), (4096, true)] {
+            let controls = QueryExecutionControls::from_limits(
+                &crate::config::CassieRuntimeLimits {
+                    query_memory_budget_bytes: budget,
+                    ..Default::default()
+                },
+                Instant::now(),
+            );
+            let memory = EvaluationMemory::new(&controls).expect("owner");
+            // Act
+            let result = evaluate_source_argument(
+                &row,
+                &expression,
+                &[],
+                &HashMap::new(),
+                None,
+                &controls,
+                &memory,
+            );
+            // Assert
+            if accepted {
+                assert_eq!(
+                    result.as_ref().expect("admitted JSON text"),
+                    &Value::String(serde_json::to_string(&document).expect("JSON text"))
+                );
+            } else {
+                assert!(matches!(
+                    &result,
+                    Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                        _
+                    )))
+                ));
+            }
+            drop(result);
+            drop(memory);
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
     }
 }

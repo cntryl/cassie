@@ -1,5 +1,5 @@
 use super::{
-    accounting, check_timeout, combine_rows, evaluate_join_on, row_join_key, BatchRow,
+    accounting, check_timeout, combine_rows, evaluate_join_on, row_join_key_with_nulls, BatchRow,
     EquiJoinKeys, JoinKind, JoinResult, JoinRetentionContext, JoinRetentionPhase, JoinRows,
     JoinRowsSpec, NumericComparisonDomain, PendingJoinDiagnostic, QueryError, SourceExecutionEnv,
 };
@@ -17,17 +17,32 @@ pub(super) fn execute_merge_join_with_context(
     keyed_probe: impl FnOnce(),
     retention: &JoinRetentionContext<'_>,
 ) -> Result<JoinResult, QueryError> {
-    let _keyed_memory = env
-        .controls
-        .reserve_query_memory(accounting::keyed_rows_bytes::<KeyedRow>(
-            spec.left_rows,
-            &keys.left,
-            spec.right_rows,
-            &keys.right,
-            keys.domain,
-        )?)?;
-    let mut left_keyed = keyed_rows(env, spec.left_rows, &keys.left, keys.domain, retention)?;
-    let mut right_keyed = keyed_rows(env, spec.right_rows, &keys.right, keys.domain, retention)?;
+    let _keyed_memory =
+        env.controls
+            .reserve_query_memory(accounting::keyed_rows_bytes_with_nulls::<KeyedRow>(
+                spec.left_rows,
+                &keys.left,
+                spec.right_rows,
+                &keys.right,
+                keys.domain,
+                keys.nulls_equal,
+            )?)?;
+    let mut left_keyed = keyed_rows(
+        env,
+        spec.left_rows,
+        &keys.left,
+        keys.domain,
+        keys.nulls_equal,
+        retention,
+    )?;
+    let mut right_keyed = keyed_rows(
+        env,
+        spec.right_rows,
+        &keys.right,
+        keys.domain,
+        keys.nulls_equal,
+        retention,
+    )?;
     keyed_probe();
     check_timeout(env.controls)?;
     // Preserve stable equal-key order; admission includes the native sort scratch.
@@ -163,6 +178,7 @@ fn keyed_rows(
     rows: &[BatchRow],
     key_column: &str,
     domain: NumericComparisonDomain,
+    nulls_equal: bool,
     retention: &JoinRetentionContext<'_>,
 ) -> Result<Vec<KeyedRow>, QueryError> {
     let mut keyed = Vec::new();
@@ -173,7 +189,7 @@ fn keyed_rows(
         check_timeout(env.controls)?;
         retention.before(JoinRetentionPhase::MergeKeyed)?;
         let row = row.clone();
-        let key = row_join_key(&row, key_column, domain)?;
+        let key = row_join_key_with_nulls(&row, key_column, domain, nulls_equal)?;
         keyed.push(KeyedRow { key, row });
     }
     Ok(keyed)

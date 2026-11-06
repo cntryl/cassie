@@ -4,8 +4,9 @@ The user selected this finite #798 query/DML slice on 2026-10-08 under the
 former #792 planning program. That broad program was later closed as superseded.
 PR [#867](https://github.com/cntryl/cassie/pull/867)
 merged its finite implementation at `ad0a001a65fae23726cd184fedf1f973d649e60c`.
-#798 remains open for persisted-definition compatibility and native null-safe
-kernels. The earlier iteration records below remain historical evidence.
+#798 is qualified by the unified query/array closeout for versioned definitions
+and NULL-aware hash/merge keys. The earlier iteration records below remain
+historical evidence; the 2026-11-05 implementation section governs current scope.
 
 ## Grammar and transient API
 
@@ -73,7 +74,8 @@ text, JSON, ARRAY, VECTOR, nonnumeric parameters and binder-inserted mixed
 integer/FLOAT input casts keep the scalar fallback, and mixed predicates keep
 the same read path as their ordinary `=`/`<>` counterparts.
 
-Null-safe equality is not yet a hash, merge or index join key. `JOIN ON
+At the historical transient-only checkpoint, null-safe equality was not a hash,
+merge or index join key. `JOIN ON
 l.n IS NOT DISTINCT FROM r.n` keeps the scalar nested-loop fallback, and no
 index answers a null-safe predicate. Those native join/index kernels remain
 open #798 work.
@@ -82,7 +84,7 @@ Existing query controls, applicable admission, ownership and error ordering
 remain in force. This slice does not claim bounded generic scalar expression
 allocation, native CTE promotion or stronger statement visibility.
 
-## Persisted-definition exclusion
+## Historical persisted-definition exclusion
 
 Reject actual new operators with `CassieError::Unsupported` (SQLSTATE0A000):
 `IS [NOT] DISTINCT FROM is not supported in persisted definitions; compatibility law is not selected`.
@@ -172,3 +174,75 @@ The earlier persisted-definition exclusion describes current runtime behavior.
 Its replacement is selected above, but admission stays rejected until the new
 versioned contract and its create/load/restore/rollback tests are implemented.
 No index key encoding or stored-program execution expansion is selected.
+
+## Unified closeout implementation (2026-11-05)
+
+The selected expansion now has source implementation in the unified query/array
+branch; executable acceptance remains deferred until its complete source and Jev
+review are frozen. Definition records for views, scalar indexes, constraints,
+materialized projections and rollups carry `definition_semantics_version`.
+Missing/zero retains legacy rejection; version 1 admits the selected operators;
+unknown future versions fail closed. Zero is omitted during serialization, so
+legacy record and AST goldens retain their encoding. Direct metadata callers
+explicitly select version 1. This does not promise downgrade support in binaries
+that predate the versioned contract.
+
+Simple field/literal CHECK comparisons admit both operators, distinguish SQL
+NULL from JSON null, and validate existing as well as new rows. Constant DEFAULT
+comparisons fold to the existing literal carrier while retaining their expression
+and version for admission and catalog description. Arbitrary expression defaults
+and general CHECK ASTs retain their independent owners. Table cloning and ALTER
+DEFAULT preserve/select the definition contract; legacy stored procedures still
+reject nested uses of the new operators.
+
+Loaded INNER/LEFT numeric/Boolean hash joins and scalar merge joins carry an
+explicit NULL-matching flag. The NULL bucket retains duplicate multiplicity and
+outer extensions under existing admission and cancellation controls. Ordinary
+`=` retains NULL exclusion. Bounded/index join candidates decline null-safe keys
+before loading; null-omitting indexes keep authoritative residual/fallback reads.
+No index encoding or public AST variant changes are needed.
+
+Every version-1 definition requires the existing v0.2 reader marker before
+publication, including a version-1 body containing only older operators. Public
+metadata writers enforce this independently; SQL creation fences before view
+object IDs or materialized output are allocated. Legacy version-zero metadata
+and merely reopening a v1 store keep their prior behavior. An acknowledged
+marker can remain v2 after later feature failure, as required by the monotonic
+[storage compatibility transition](storage-compatibility-transition.md).
+
+The existing transactional-DDL profile is unchanged: table CHECK/default changes
+and scalar indexes use the current staged catalog/data overlay and roll back
+without retaining their names. CREATE VIEW, materialized-projection and rollup
+commands retain their existing active-transaction rejection; they do not acquire
+new transaction support through this operator expansion. These boundaries and
+the broader #833 owner remain separate from accepting this finite increment.
+Direct version-1 constant-default metadata must supply its bound literal value;
+an unbound expression is rejected before publication instead of silently omitted.
+
+
+Unknown string literals in selected primitive null-safe comparisons inherit the
+numeric or BOOLEAN peer signature before the NULL table is applied. Incompatible
+typed primitive families fail with 42883 even when a typed operand is NULL. This
+qualification is shared by transient queries and constant DEFAULT folding;
+ordinary comparison signatures and character trailing-blank rules are unchanged.
+The shared qualifier's Jev gap 0.41 requires the retained both-order, invalid
+BOOLEAN/integer, typed-NULL, unknown-BOOLEAN and wire-recovery probes. Fresh
+PostgreSQL 18.6 signature receipts provide their value/error oracle.
+
+
+### Bound simple CHECK comparisons (review correction)
+
+The numeric CHECK probe exposed a raw-JSON equality mismatch for BIGINT 7 versus
+literal 7.0. Jev selected (1.0) reuse of the ordinary binder and evaluator over a
+prepared simple comparison, preserving the original field/operator/literal
+carrier. Version-one CHECK records may carry an optional boxed bound expression;
+legacy records omit it and retain their bytes. Preparation accepts only the
+existing simple shape. Admission validates the same owning column, literal and
+null-safe operator, with only binder-added casts/private float wrappers; it does
+not admit functions, subqueries, additional fields or general CHECK expressions.
+Non-NULL version-one CHECK metadata requires the prepared comparison. NULL-only
+metadata retains its simple NULL table. New/existing-row enforcement uses the
+same comparator as queries, including exact BIGINT, selected FLOAT input-domain
+coercion and unknown literals. The existing metadata snapshot accounting owns
+the bound tree; evaluation retains reached scratch under the originating request
+controls. No per-row SQL binding or additional storage interface is introduced.

@@ -109,6 +109,7 @@ fn observe(fixture: &Fixture, dense: bool, reverse: bool) -> Observation {
         left_collection: left,
         right_collection: right,
         keys: EquiJoinKeys {
+            nulls_equal: false,
             left: left_key.to_owned(),
             right: right_key.to_owned(),
             domain,

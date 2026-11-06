@@ -159,6 +159,7 @@ impl Midge {
         require_absent: bool,
         initial: InitialCollectionContents<'_>,
     ) -> Result<(bool, u64), CassieError> {
+        self.admit_initial_definitions(initial)?;
         let name = self.canonical_collection_name(name);
         let write_gate = self.collection_write_gate(&name);
         let _write_guard = write_gate.lock();
@@ -264,6 +265,20 @@ impl Midge {
         Ok((!schema_exists && existing_metadata.is_none(), storage_id))
     }
 
+    fn admit_initial_definitions(
+        &self,
+        initial: InitialCollectionContents<'_>,
+    ) -> Result<(), CassieError> {
+        if let Some(constraints) = initial.constraints {
+            self.require_constraint_definitions(constraints)?;
+        }
+        for index in initial.indexes.unwrap_or(&[]) {
+            crate::sql::definition_guard::index(index)?;
+            self.require_definition_version(index.definition_semantics_version)?;
+        }
+        Ok(())
+    }
+
     fn save_initial_indexes_to_tx(
         tx: &mut crate::midge::adapter::AdapterTransaction,
         name: &str,
@@ -287,9 +302,7 @@ impl Midge {
                         .to_string(),
                 ));
             }
-            for expression in index.expressions.iter().chain(&index.predicate) {
-                crate::sql::definition_guard::encoded_expression(expression)?;
-            }
+            crate::sql::definition_guard::index(&index)?;
             let index_key = Self::index_key(name, &index.name);
             if tx.get(&index_key).map_err(CassieError::from)?.is_some() {
                 return Err(CassieError::CatalogObjectAlreadyExists {

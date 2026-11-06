@@ -73,5 +73,6 @@ The finite [set-returning source contract](set-returning-sources.md) owns #808's
 UNNEST, ordinality and user-selected INT4/INT8/NUMERIC/TIMESTAMP/TIMESTAMPTZ
 series signatures. It defines aliases, lateral scope, strict NULL behavior,
 step/bound errors, exact identities and lazy consumer/resource boundaries.
-Runtime delivery remains pending. `generate_subscripts`, generic `ROWS FROM`
+Implementation is consolidated in the [query/array closeout](query-array-closeout-2026-11-05.md),
+which records its integrated qualification. `generate_subscripts`, generic `ROWS FROM`
 and projection-list SRFs are not selected by this approval.

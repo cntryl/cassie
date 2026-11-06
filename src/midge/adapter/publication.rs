@@ -356,6 +356,14 @@ impl PublicationControlScope {
         Self::replace(Some(controls))
     }
 
+    pub(crate) fn current_query_controls() -> Option<QueryExecutionControls> {
+        CURRENT_CONTROLS.with(|slot| {
+            slot.borrow()
+                .as_ref()
+                .and_then(|controls| controls.query.clone())
+        })
+    }
+
     pub(crate) fn enter(controls: Option<&QueryExecutionControls>) -> Self {
         let current = CURRENT_CONTROLS.with(|slot| slot.borrow().clone());
         Self::replace(match controls {

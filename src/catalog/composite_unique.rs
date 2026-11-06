@@ -156,6 +156,7 @@ pub fn composite_primary_key_indexes(
     composite_primary_key_constraints(constraints)
         .into_iter()
         .map(|composite| IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.to_string(),
             name: composite.name,
             field: composite.fields[0].clone(),
@@ -210,6 +211,7 @@ pub fn composite_unique_indexes(
                 options.extend(first_member.constraint_index_options.clone());
             }
             Some(IndexMeta {
+                definition_semantics_version: 0,
                 collection: collection.to_string(),
                 name: composite.name,
                 field: composite.fields[0].clone(),
@@ -253,6 +255,7 @@ pub fn unique_constraint_indexes(
             }
             options.extend(constraint.constraint_index_options.clone());
             IndexMeta {
+                definition_semantics_version: 0,
                 collection: collection.to_string(),
                 name,
                 field: constraint.field.clone(),

@@ -6,7 +6,7 @@ use super::{
 use crate::executor::semantic::SemanticKey;
 #[cfg(test)]
 use crate::sql::ast::BinaryOp;
-use crate::sql::numeric_comparison::{equality_columns, NumericComparisonDomain};
+use crate::sql::numeric_comparison::{join_equality_columns, NumericComparisonDomain};
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
@@ -63,6 +63,7 @@ struct EquiJoinKeys {
     left: String,
     right: String,
     domain: NumericComparisonDomain,
+    nulls_equal: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -479,8 +480,17 @@ fn row_join_key(
     key_column: &str,
     domain: NumericComparisonDomain,
 ) -> Result<Option<SemanticKey>, QueryError> {
+    row_join_key_with_nulls(row, key_column, domain, false)
+}
+
+fn row_join_key_with_nulls(
+    row: &BatchRow,
+    key_column: &str,
+    domain: NumericComparisonDomain,
+    nulls_equal: bool,
+) -> Result<Option<SemanticKey>, QueryError> {
     row.get(key_column)
-        .filter(|value| !matches!(value, Value::Null))
+        .filter(|value| nulls_equal || !matches!(value, Value::Null))
         .map(|value| {
             let value = filter::comparison_key_value(value, domain)?;
             Ok(SemanticKey::single(value.as_ref()))
@@ -559,7 +569,7 @@ fn merge_join_keys(
     left_columns: &[String],
     right_columns: &[String],
 ) -> Option<EquiJoinKeys> {
-    let (left_name, right_name, domain) = equality_columns(on)?;
+    let (left_name, right_name, domain, nulls_equal) = join_equality_columns(on)?;
 
     if column_belongs_to(left_name, left_columns, right_columns)
         && column_belongs_to(right_name, right_columns, left_columns)
@@ -568,6 +578,7 @@ fn merge_join_keys(
             left: left_name.to_owned(),
             right: right_name.to_owned(),
             domain,
+            nulls_equal,
         });
     }
 
@@ -578,6 +589,7 @@ fn merge_join_keys(
             left: right_name.to_owned(),
             right: left_name.to_owned(),
             domain,
+            nulls_equal,
         });
     }
 

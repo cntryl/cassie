@@ -1,3 +1,4 @@
+pub(crate) mod check_comparison;
 pub(crate) mod literal_inputs;
 pub(crate) mod parse_analysis;
 use std::collections::HashMap;

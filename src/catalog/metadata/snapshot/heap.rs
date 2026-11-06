@@ -175,3 +175,13 @@ impl HeapBytes for DataType {
         }
     }
 }
+
+impl HeapBytes for crate::sql::ast::Expr {
+    fn heap_bytes(&self, controls: &QueryExecutionControls) -> Result<usize, CassieError> {
+        // The clone footprint includes the inline root; Box<T> owns that slot.
+        Ok(
+            crate::sql::parse_analysis::expression_clone_bytes(self, 0, controls)?
+                .saturating_sub(size_of::<Self>()),
+        )
+    }
+}

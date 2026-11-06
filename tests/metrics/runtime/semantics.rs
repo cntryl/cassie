@@ -87,6 +87,7 @@ fn seed_cardinality_metrics_fixture(cassie: &Cassie, collection: &str, index: &s
     cassie
         .midge
         .put_index(&IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.to_string(),
             name: index.to_string(),
             field: "title".to_string(),

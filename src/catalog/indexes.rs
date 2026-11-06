@@ -15,6 +15,12 @@ pub enum IndexKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IndexMeta {
+    /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::sql::definition_guard::is_legacy"
+    )]
+    pub definition_semantics_version: u32,
     pub collection: String,
     pub name: String,
     pub field: String,
@@ -117,7 +123,8 @@ impl IndexMeta {
 
     #[must_use]
     pub(crate) fn read_definition_matches(&self, other: &Self) -> bool {
-        self.field == other.field
+        self.definition_semantics_version == other.definition_semantics_version
+            && self.field == other.field
             && self.fields == other.fields
             && self.expressions == other.expressions
             && self.include_fields == other.include_fields

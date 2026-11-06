@@ -15,7 +15,7 @@ impl Midge {
         next_name: &str,
         constraints: &[crate::catalog::FieldConstraint],
     ) -> Result<IndexMeta, CassieError> {
-        crate::sql::definition_guard::constraints(constraints)?;
+        self.require_constraint_definitions(constraints)?;
         let collection = self.canonical_collection_name(collection);
         let current_key = Midge::index_key(&collection, current_name);
         let next_key = Midge::index_key(&collection, next_name);
@@ -158,9 +158,8 @@ impl Midge {
         &self,
         metadata: &IndexMeta,
     ) -> Result<IndexMeta, CassieError> {
-        for expr in metadata.expressions.iter().chain(&metadata.predicate) {
-            crate::sql::definition_guard::encoded_expression(expr)?;
-        }
+        crate::sql::definition_guard::index(metadata)?;
+        self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let relation_id = self

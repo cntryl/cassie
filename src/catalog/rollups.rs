@@ -5,6 +5,12 @@ use crate::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RollupMeta {
+    /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::sql::definition_guard::is_legacy"
+    )]
+    pub definition_semantics_version: u32,
     pub name: String,
     pub source_collection: String,
     pub output_collection: String,
@@ -63,6 +69,7 @@ impl RollupMeta {
     #[must_use]
     pub fn new(definition: RollupDefinition) -> Self {
         Self {
+            definition_semantics_version: 1,
             output_collection: output_collection_name(&definition.name),
             name: definition.name,
             source_collection: definition.source_collection,

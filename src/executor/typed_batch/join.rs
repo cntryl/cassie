@@ -9,11 +9,18 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::numeric_comparison::NumericComparisonDomain;
 use crate::types::{DataType, Value};
 
+#[derive(Clone, Copy)]
+enum NullEquality {
+    Distinct,
+    NotDistinct,
+}
+
 pub(crate) struct HashJoin<'a> {
     left: &'a TypedBatch,
     right: &'a TypedBatch,
     left_key: usize,
     domain: NumericComparisonDomain,
+    null_equality: NullEquality,
     outer: bool,
     batch_size: usize,
     controls: QueryExecutionControls,
@@ -39,12 +46,17 @@ impl<'a> HashJoin<'a> {
         controls: &QueryExecutionControls,
         left: &'a TypedBatch,
         right: &'a TypedBatch,
-        keys: (usize, usize, NumericComparisonDomain),
+        keys: (usize, usize, NumericComparisonDomain, bool),
         outer: bool,
         batch_size: usize,
         build_probe: impl Fn(usize) -> Result<(), QueryError>,
     ) -> Result<Self, QueryError> {
         check_controls(controls)?;
+        let null_equality = if keys.3 {
+            NullEquality::NotDistinct
+        } else {
+            NullEquality::Distinct
+        };
         if !supports_keys(left, right, (keys.0, keys.1)) {
             return Err(invalid("unsupported typed join key domains"));
         }
@@ -65,7 +77,7 @@ impl<'a> HashJoin<'a> {
             check_controls(controls)?;
             build_probe(lane)?;
             check_controls(controls)?;
-            if let Some(key) = key(right.cell(keys.1, lane)?, keys.2)? {
+            if let Some(key) = key(right.cell(keys.1, lane)?, keys.2, null_equality)? {
                 build_rows += 1;
                 if let Some((_, tail)) = build.get_mut(&key) {
                     next[*tail] = Some(lane);
@@ -80,6 +92,7 @@ impl<'a> HashJoin<'a> {
             right,
             left_key: keys.0,
             domain: keys.2,
+            null_equality,
             outer,
             batch_size: batch_size.max(1),
             controls: controls.clone(),
@@ -130,8 +143,12 @@ impl<'a> HashJoin<'a> {
             probe();
             check_controls(&self.controls)?;
             if !self.probing {
-                self.right_lane = key(self.left.cell(self.left_key, self.left_lane)?, self.domain)?
-                    .and_then(|key| self.build.get(&key).map(|(head, _)| *head));
+                self.right_lane = key(
+                    self.left.cell(self.left_key, self.left_lane)?,
+                    self.domain,
+                    self.null_equality,
+                )?
+                .and_then(|key| self.build.get(&key).map(|(head, _)| *head));
                 self.probing = true;
                 self.matched = self.right_lane.is_some();
             }
@@ -172,8 +189,12 @@ pub(crate) fn supports_keys(left: &TypedBatch, right: &TypedBatch, keys: (usize,
 fn key(
     cell: super::Cell<'_>,
     domain: NumericComparisonDomain,
+    null_equality: NullEquality,
 ) -> Result<Option<SemanticValue>, QueryError> {
     let value = match cell {
+        super::Cell::Null if matches!(null_equality, NullEquality::NotDistinct) => {
+            return Ok(Some(SemanticValue::Null))
+        }
         super::Cell::Integer(value) => Value::Int64(value),
         super::Cell::Float(value) => Value::Float64(value),
         super::Cell::Boolean(value) => Value::Bool(value),

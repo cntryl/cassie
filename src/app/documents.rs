@@ -1,3 +1,5 @@
+#[path = "null_safe_checks.rs"]
+mod null_safe_checks;
 use super::vector_helpers::project_payload_fields;
 use super::{
     BTreeMap, Cassie, CassieError, CassieSession, ConstraintCheck, ConstraintOperator, DocumentRef,
@@ -761,6 +763,7 @@ impl Cassie {
         })?;
         let schema = self.catalog.get_schema(collection);
 
+        crate::sql::definition_guard::constraints(constraints)?;
         for constraint in constraints {
             let existing = object.get(&constraint.field);
 
@@ -790,13 +793,11 @@ impl Cassie {
             }
 
             if let Some(check) = &constraint.check {
-                let Some(value) = existing else {
-                    continue;
-                };
+                let value = existing.unwrap_or(&serde_json::Value::Null);
                 if !Self::satisfies_check_constraint(
                     value,
                     check,
-                    super::field_value_is_sql_null(Some(value), schema.as_ref(), &check.field),
+                    super::field_value_is_sql_null(existing, schema.as_ref(), &check.field),
                 )? {
                     return Err(CassieError::CheckViolation {
                         table: collection.to_string(),
@@ -821,12 +822,33 @@ impl Cassie {
         check: &ConstraintCheck,
         value_is_sql_null: bool,
     ) -> Result<bool, CassieError> {
+        if matches!(
+            check.operator,
+            ConstraintOperator::IsDistinctFrom | ConstraintOperator::IsNotDistinctFrom
+        ) {
+            if let Some(expression) = check.bound_expression.as_deref() {
+                return null_safe_checks::evaluate(value, check, expression, value_is_sql_null);
+            }
+            let equal = if check.value.is_null() {
+                value_is_sql_null
+            } else {
+                !value_is_sql_null && value == &check.value
+            };
+            return Ok(if check.operator == ConstraintOperator::IsNotDistinctFrom {
+                equal
+            } else {
+                !equal
+            });
+        }
         // A CHECK whose comparison evaluates to NULL is satisfied under SQL
         // three-valued logic, so a NULL operand never violates it.
         if value_is_sql_null || check.value.is_null() {
             return Ok(true);
         }
         Ok(match check.operator {
+            ConstraintOperator::IsDistinctFrom | ConstraintOperator::IsNotDistinctFrom => {
+                unreachable!("null-safe checks handled above")
+            }
             ConstraintOperator::Eq => value == &check.value,
             ConstraintOperator::NotEq => value != &check.value,
             ConstraintOperator::Lt => Self::compare_constraint_values(value, &check.value)

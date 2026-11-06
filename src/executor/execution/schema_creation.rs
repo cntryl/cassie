@@ -355,6 +355,8 @@ fn copy_table_like_field(
         copied_constraint
             .default_value
             .clone_from(&source_default.default_value);
+        copied_constraint.definition_semantics_version =
+            source_default.definition_semantics_version;
         copied_constraint
             .default_expression
             .clone_from(&source_default.default_expression);
@@ -474,6 +476,7 @@ fn copy_table_like_key_constraint(
     primary_key_name: &str,
 ) -> FieldConstraint {
     let mut copied = FieldConstraint::new(source.field.clone());
+    copied.definition_semantics_version = source.definition_semantics_version;
     copied.primary_key = source.primary_key;
     copied.primary_key_ordinal = source.primary_key_ordinal;
     if source.primary_key {
@@ -517,6 +520,7 @@ fn copy_table_like_key_constraint(
 
 fn copy_table_like_check_constraint(source: &FieldConstraint) -> FieldConstraint {
     let mut copied = FieldConstraint::new(source.field.clone());
+    copied.definition_semantics_version = source.definition_semantics_version;
     copied.check_name.clone_from(&source.check_name);
     copied.check.clone_from(&source.check);
     copied
@@ -705,6 +709,7 @@ pub(super) fn create_index(
         ));
     }
     let metadata = catalog::IndexMeta {
+        definition_semantics_version: 1,
         collection: storage_table.clone(),
         name: statement.name.clone(),
         field: statement.fields.first().cloned().unwrap_or_default(),

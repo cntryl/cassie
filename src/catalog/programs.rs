@@ -44,6 +44,12 @@ pub struct ProcedureMeta {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewMeta {
+    /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::sql::definition_guard::is_legacy"
+    )]
+    pub definition_semantics_version: u32,
     pub name: String,
     pub query: String,
     pub schema: Schema,
@@ -55,6 +61,7 @@ pub struct ViewMeta {
 impl ViewMeta {
     pub fn new(name: impl Into<String>, query: impl Into<String>, schema: Schema) -> Self {
         Self {
+            definition_semantics_version: 0,
             name: name.into(),
             query: query.into(),
             schema,

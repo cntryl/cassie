@@ -82,9 +82,10 @@ impl Midge {
             .get(&Self::index_key(&collection, name))
             .map_err(CassieError::from)?;
         if let Some(raw) = raw {
-            return serde_json::from_slice(&raw)
-                .map(Some)
-                .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")));
+            let record: IndexMeta = serde_json::from_slice(&raw)
+                .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
+            crate::sql::definition_guard::version(record.definition_semantics_version)?;
+            return Ok(Some(record));
         }
 
         let entries = collect_scan(
@@ -96,6 +97,7 @@ impl Midge {
                 continue;
             };
             if name_matches(&record.collection, &collection) && name_matches(&record.name, name) {
+                crate::sql::definition_guard::version(record.definition_semantics_version)?;
                 return Ok(Some(record));
             }
         }
@@ -111,9 +113,10 @@ impl Midge {
         let mut out = Vec::with_capacity(entries.len());
 
         for (_key, raw_value) in entries {
-            let Ok(record) = serde_json::from_slice(&raw_value) else {
+            let Ok(record) = serde_json::from_slice::<IndexMeta>(&raw_value) else {
                 continue;
             };
+            crate::sql::definition_guard::version(record.definition_semantics_version)?;
             out.push(record);
         }
 
@@ -174,13 +177,8 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_rollup(&self, metadata: &RollupMeta) -> Result<(), CassieError> {
-        for expr in std::iter::once(&metadata.bucket_expr)
-            .chain(&metadata.group_keys)
-            .chain(metadata.aggregates.iter().map(|item| &item.expression))
-            .chain(&metadata.filter_expr)
-        {
-            crate::sql::definition_guard::expression_sql(expr)?;
-        }
+        crate::sql::definition_guard::rollup(metadata)?;
+        self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
         metadata.source_collection = self.canonical_collection_name(&metadata.source_collection);
@@ -202,9 +200,10 @@ impl Midge {
         let entries = self.scan_database_families(&Self::rollup_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
-            let Ok(record) = serde_json::from_slice(&raw_value) else {
+            let Ok(record) = serde_json::from_slice::<RollupMeta>(&raw_value) else {
                 continue;
             };
+            crate::sql::definition_guard::version(record.definition_semantics_version)?;
             out.push(record);
         }
         Ok(out)
@@ -492,7 +491,7 @@ impl Midge {
         collection: &str,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
-        crate::sql::definition_guard::constraints(constraints)?;
+        self.require_constraint_definitions(constraints)?;
         let collection = self.canonical_collection_name(collection);
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
         let value = serde_json::to_vec(constraints)
@@ -517,8 +516,12 @@ impl Midge {
             return Ok(Vec::new());
         };
 
-        serde_json::from_slice(&raw)
-            .map_err(|error| CassieError::Parse(format!("invalid constraint metadata: {error}")))
+        let constraints: Vec<FieldConstraint> = serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid constraint metadata: {error}")))?;
+        for constraint in &constraints {
+            crate::sql::definition_guard::version(constraint.definition_semantics_version)?;
+        }
+        Ok(constraints)
     }
 
     /// # Errors
@@ -653,7 +656,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_function(&self, metadata: &crate::catalog::FunctionMeta) -> Result<(), CassieError> {
-        crate::sql::definition_guard::expression_sql(&metadata.body)?;
+        crate::sql::definition_guard::legacy_expression_sql(&metadata.body)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
         let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
@@ -723,7 +726,7 @@ impl Midge {
         &self,
         metadata: &crate::catalog::ProcedureMeta,
     ) -> Result<(), CassieError> {
-        crate::sql::definition_guard::query_sql(&metadata.body)?;
+        crate::sql::definition_guard::legacy_query_sql(&metadata.body)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
         let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
@@ -790,7 +793,8 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_view(&self, metadata: &crate::catalog::ViewMeta) -> Result<(), CassieError> {
-        crate::sql::definition_guard::query_sql(&metadata.query)?;
+        crate::sql::definition_guard::view(metadata)?;
+        self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.name = self.canonical_collection_name(&metadata.name);
         let mut tx = self.begin_data_rw_tx_for(&metadata.name)?;
@@ -816,9 +820,10 @@ impl Midge {
             return Ok(None);
         };
 
-        serde_json::from_slice(&raw)
-            .map(Some)
-            .map_err(|error| CassieError::Parse(format!("invalid view metadata: {error}")))
+        let record: crate::catalog::ViewMeta = serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid view metadata: {error}")))?;
+        crate::sql::definition_guard::version(record.definition_semantics_version)?;
+        Ok(Some(record))
     }
 
     /// # Errors
@@ -828,9 +833,10 @@ impl Midge {
         let entries = self.scan_database_families(&Self::view_prefix())?;
         let mut out: Vec<crate::catalog::ViewMeta> = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
-            let Ok(record) = serde_json::from_slice(&raw_value) else {
+            let Ok(record) = serde_json::from_slice::<crate::catalog::ViewMeta>(&raw_value) else {
                 continue;
             };
+            crate::sql::definition_guard::version(record.definition_semantics_version)?;
             out.push(record);
         }
         out.sort_by_key(|metadata| metadata.name.to_ascii_lowercase());

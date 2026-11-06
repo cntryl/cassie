@@ -72,6 +72,7 @@ fn seed_database_image_fixture(cassie: &Cassie) {
         .save_constraints(
             &collection,
             &[FieldConstraint {
+                definition_semantics_version: 0,
                 default_value: Some(serde_json::json!("analytics")),
                 ..FieldConstraint::new("value")
             }],
@@ -80,6 +81,7 @@ fn seed_database_image_fixture(cassie: &Cassie) {
     cassie
         .midge
         .put_index(&IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.clone(),
             name: "analytics".to_string(),
             field: "value".to_string(),
@@ -95,6 +97,7 @@ fn seed_database_image_fixture(cassie: &Cassie) {
     cassie
         .midge
         .put_index(&IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.clone(),
             name: "pending_drop".to_string(),
             field: "value".to_string(),

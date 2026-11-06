@@ -12,6 +12,7 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
     identity: crate::sql::ast::CastIdentity,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    super::cast_admission::target(data_type, context)?;
     if let Some(value) = collection_aggregate_text_cast(row, expr, data_type, source_type, context)?
     {
         return Ok(value);
@@ -20,6 +21,7 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
         let document =
             json_concat::as_json_document(&eval_scalar_with_context(row, expr, context)?)?;
         if *data_type == DataType::Jsonb || source_type == Some(&DataType::Jsonb) {
+            super::cast_admission::value(&document, data_type, source_type, context)?;
             if let ScalarValue::Json(text) = document {
                 return crate::types::jsonb::canonical(&text)
                     .map(ScalarValue::Json)
@@ -32,6 +34,7 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
         return Ok(value);
     }
     if let Expr::NumericLiteral(value) = expr {
+        super::evaluation::admit_leaf(row, expr, context)?;
         return casts::numeric_literal(
             value,
             data_type,
@@ -60,6 +63,7 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
         }
     }
     let value = eval_scalar_with_context(row, expr, context)?;
+    super::cast_admission::value(&value, data_type, source_type, context)?;
     if let Some(result) = super::character_arrays::cast(
         &value,
         data_type,

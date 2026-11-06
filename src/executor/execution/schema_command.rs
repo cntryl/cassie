@@ -115,6 +115,11 @@ fn create_view_gated(
     let mut metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
 
+    metadata.definition_semantics_version = 1;
+    cassie
+        .midge
+        .require_definition_version(metadata.definition_semantics_version)
+        .map_err(QueryError::Cassie)?;
     let output = empty_command("CREATE VIEW", controls)?;
     metadata.object_id = cassie
         .midge

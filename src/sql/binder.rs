@@ -1,4 +1,6 @@
 pub(crate) mod array_outputs;
+#[path = "binder/bound_checks.rs"]
+mod bound_checks;
 #[path = "binder/database_commands.rs"]
 mod database_commands;
 use database_commands::{bind_create_database_statement, bind_drop_database_statement};

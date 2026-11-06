@@ -22,6 +22,7 @@ fn index_metadata_fixture() -> (Arc<Midge>, Arc<Catalog>, String, String) {
         )
         .expect("create collection");
     let initial = IndexMeta {
+        definition_semantics_version: 0,
         collection: "index_metadata_publication_order".to_string(),
         name: "index_metadata_publication_order_idx".to_string(),
         field: "payload".to_string(),

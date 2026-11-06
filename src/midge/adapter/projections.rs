@@ -10,9 +10,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_metadata(&self, metadata: &ProjectionMeta) -> Result<(), CassieError> {
-        if let Some(definition) = &metadata.materialized {
-            crate::sql::definition_guard::query_sql(&definition.query)?;
-        }
+        self.require_projection_definition(metadata)?;
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
@@ -30,9 +28,12 @@ impl Midge {
         let entries = self.scan_database_families(&Self::projection_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
         for (_key, raw_value) in entries {
-            let Ok(record) = serde_json::from_slice(&raw_value) else {
+            let Ok(record) = serde_json::from_slice::<ProjectionMeta>(&raw_value) else {
                 continue;
             };
+            if let Some(definition) = &record.materialized {
+                crate::sql::definition_guard::version(definition.definition_semantics_version)?;
+            }
             out.push(record);
         }
         out.sort_by_key(|metadata: &ProjectionMeta| metadata.collection.to_ascii_lowercase());
@@ -155,9 +156,7 @@ impl Midge {
         event_ids: &[&str],
         replay_batch_id: &str,
     ) -> Result<(), CassieError> {
-        if let Some(definition) = &metadata.materialized {
-            crate::sql::definition_guard::query_sql(&definition.query)?;
-        }
+        self.require_projection_definition(metadata)?;
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let mut tx = self.begin_data_rw_tx_for(&metadata.collection)?;
@@ -187,6 +186,7 @@ impl Midge {
         previous: &str,
         metadata: &ProjectionMeta,
     ) -> Result<(), CassieError> {
+        self.require_projection_definition(metadata)?;
         let previous = self.canonical_collection_name(previous);
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);

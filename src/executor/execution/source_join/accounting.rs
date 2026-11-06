@@ -188,7 +188,17 @@ pub(super) fn join_key_bytes(
     column: &str,
     domain: NumericComparisonDomain,
 ) -> Result<usize, CassieError> {
-    let Some(value) = exact_key_value(row, column).filter(|value| !value.is_null()) else {
+    join_key_bytes_with_nulls(row, column, domain, false)
+}
+
+pub(super) fn join_key_bytes_with_nulls(
+    row: &BatchRow,
+    column: &str,
+    domain: NumericComparisonDomain,
+    nulls_equal: bool,
+) -> Result<usize, CassieError> {
+    let Some(value) = exact_key_value(row, column).filter(|value| nulls_equal || !value.is_null())
+    else {
         return Ok(0);
     };
     let heap = match value {
@@ -238,8 +248,18 @@ pub(super) fn key_lookup_scratch_bytes(
 
 /// Exact non-NULL key count bounds the table before any key is constructed.
 pub(super) fn hash_build_capacity(rows: &[BatchRow], column: &str) -> usize {
+    hash_build_capacity_with_nulls(rows, column, false)
+}
+
+pub(super) fn hash_build_capacity_with_nulls(
+    rows: &[BatchRow],
+    column: &str,
+    nulls_equal: bool,
+) -> usize {
     rows.iter()
-        .filter(|row| exact_key_value(row, column).is_some_and(|value| !value.is_null()))
+        .filter(|row| {
+            exact_key_value(row, column).is_some_and(|value| nulls_equal || !value.is_null())
+        })
         .count()
 }
 
@@ -249,10 +269,19 @@ pub(super) fn hash_build_bytes<T>(
     column: &str,
     domain: NumericComparisonDomain,
 ) -> Result<usize, CassieError> {
+    hash_build_bytes_with_nulls::<T>(rows, column, domain, false)
+}
+
+pub(super) fn hash_build_bytes_with_nulls<T>(
+    rows: &[BatchRow],
+    column: &str,
+    domain: NumericComparisonDomain,
+    nulls_equal: bool,
+) -> Result<usize, CassieError> {
     let mut count = 0;
     let mut bytes = key_lookup_scratch_bytes(rows, column)?;
     for row in rows {
-        let key_bytes = join_key_bytes(row, column, domain)?;
+        let key_bytes = join_key_bytes_with_nulls(row, column, domain, nulls_equal)?;
         if key_bytes != 0 {
             count = add(count, 1)?;
             bytes = add(bytes, key_bytes)?;
@@ -266,12 +295,13 @@ pub(super) fn hash_build_bytes<T>(
 }
 
 /// Includes copied rows/keys, both fallible-collect capacities and stable-sort temporary slots.
-pub(super) fn keyed_rows_bytes<T>(
+pub(super) fn keyed_rows_bytes_with_nulls<T>(
     left: &[BatchRow],
     left_column: &str,
     right: &[BatchRow],
     right_column: &str,
     domain: NumericComparisonDomain,
+    nulls_equal: bool,
 ) -> Result<usize, CassieError> {
     let capacity = add(
         grown_capacity(left.len(), 4)?,
@@ -286,7 +316,10 @@ pub(super) fn keyed_rows_bytes<T>(
     for (rows, column) in [(left, left_column), (right, right_column)] {
         for row in rows {
             bytes = add(bytes, cloned_row_bytes(row)? - size_of::<BatchRow>())?;
-            bytes = add(bytes, join_key_bytes(row, column, domain)?)?;
+            bytes = add(
+                bytes,
+                join_key_bytes_with_nulls(row, column, domain, nulls_equal)?,
+            )?;
         }
     }
     Ok(bytes)

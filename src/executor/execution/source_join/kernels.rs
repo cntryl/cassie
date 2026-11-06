@@ -1,5 +1,5 @@
 use super::{
-    accounting, check_timeout, combine_rows, evaluate_join_on, row_join_key,
+    accounting, check_timeout, combine_rows, evaluate_join_on, row_join_key_with_nulls,
     vectorized_join_selection, BatchRow, JoinKind, JoinResult, JoinRetentionContext,
     JoinRetentionPhase, JoinRows, JoinRowsSpec, PendingJoinDiagnostic, QueryError,
     SourceExecutionEnv, VectorizedJoinOutcome, VectorizedJoinSelection, VectorizedJoinSpec,
@@ -105,17 +105,7 @@ pub(super) fn execute_vectorized_join(
         return Ok(VectorizedJoinOutcome::executed(joined));
     }
     let _build_memory = reserve_hash_build_memory(env, &spec)?;
-    let mut build = KeyedMap::<SemanticKey, Vec<&BatchRow>>::with_prepaid_capacity(
-        env.controls,
-        accounting::hash_build_capacity(spec.right_rows, &spec.keys.right),
-    )?;
-    for right in spec.right_rows {
-        check_timeout(env.controls)?;
-        retention.before(JoinRetentionPhase::HashBuild)?;
-        if let Some(key) = row_join_key(right, &spec.keys.right, spec.keys.domain)? {
-            build.entry(key)?.or_default().push(right);
-        }
-    }
+    let build = build_hash_table(env, &spec, retention)?;
 
     let mut probe_rows = 0usize;
     let build_rows = build.values().map(Vec::len).sum::<usize>();
@@ -128,18 +118,28 @@ pub(super) fn execute_vectorized_join(
             check_timeout(env.controls)?;
             probe_rows += 1;
             let _probe_memory = env.controls.reserve_query_memory(
-                accounting::join_key_bytes(left, &spec.keys.left, spec.keys.domain)?
-                    .checked_add(accounting::key_lookup_scratch_bytes(
-                        std::slice::from_ref(left),
-                        &spec.keys.left,
-                    )?)
-                    .ok_or_else(|| {
-                        crate::app::CassieError::ResourceLimit(
-                            "join probe accounting overflow".to_owned(),
-                        )
-                    })?,
+                accounting::join_key_bytes_with_nulls(
+                    left,
+                    &spec.keys.left,
+                    spec.keys.domain,
+                    spec.keys.nulls_equal,
+                )?
+                .checked_add(accounting::key_lookup_scratch_bytes(
+                    std::slice::from_ref(left),
+                    &spec.keys.left,
+                )?)
+                .ok_or_else(|| {
+                    crate::app::CassieError::ResourceLimit(
+                        "join probe accounting overflow".to_owned(),
+                    )
+                })?,
             )?;
-            let key = row_join_key(left, &spec.keys.left, spec.keys.domain)?;
+            let key = row_join_key_with_nulls(
+                left,
+                &spec.keys.left,
+                spec.keys.domain,
+                spec.keys.nulls_equal,
+            )?;
             let right_group = key.as_ref().and_then(|key| build.get(key));
             if let Some(right_group) = right_group {
                 for right in right_group {
@@ -178,6 +178,34 @@ pub(super) fn execute_vectorized_join(
     )))
 }
 
+fn build_hash_table<'a>(
+    env: &SourceExecutionEnv<'_>,
+    spec: &VectorizedJoinSpec<'a>,
+    retention: &JoinRetentionContext<'_>,
+) -> Result<KeyedMap<SemanticKey, Vec<&'a BatchRow>>, QueryError> {
+    let mut build = KeyedMap::<SemanticKey, Vec<&BatchRow>>::with_prepaid_capacity(
+        env.controls,
+        accounting::hash_build_capacity_with_nulls(
+            spec.right_rows,
+            &spec.keys.right,
+            spec.keys.nulls_equal,
+        ),
+    )?;
+    for right in spec.right_rows {
+        check_timeout(env.controls)?;
+        retention.before(JoinRetentionPhase::HashBuild)?;
+        if let Some(key) = row_join_key_with_nulls(
+            right,
+            &spec.keys.right,
+            spec.keys.domain,
+            spec.keys.nulls_equal,
+        )? {
+            build.entry(key)?.or_default().push(right);
+        }
+    }
+    Ok(build)
+}
+
 fn empty_vectorized_join(joined: JoinRows, batch_size: usize) -> VectorizedJoinOutcome {
     VectorizedJoinOutcome::executed(JoinResult::new(
         joined,
@@ -196,12 +224,17 @@ fn reserve_hash_build_memory(
     spec: &VectorizedJoinSpec<'_>,
 ) -> Result<QueryMemoryReservation, QueryError> {
     Ok(env.controls.reserve_query_memory(
-        accounting::hash_build_bytes::<&BatchRow>(
+        accounting::hash_build_bytes_with_nulls::<&BatchRow>(
             spec.right_rows,
             &spec.keys.right,
             spec.keys.domain,
+            spec.keys.nulls_equal,
         )? - KeyedMap::<SemanticKey, Vec<&BatchRow>>::build_storage_bytes(
-            accounting::hash_build_capacity(spec.right_rows, &spec.keys.right),
+            accounting::hash_build_capacity_with_nulls(
+                spec.right_rows,
+                &spec.keys.right,
+                spec.keys.nulls_equal,
+            ),
         )?,
     )?)
 }

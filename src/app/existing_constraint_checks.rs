@@ -9,6 +9,7 @@ impl Cassie {
         collection: &str,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
+        crate::sql::definition_guard::constraints(constraints)?;
         if constraints.iter().all(|constraint| {
             !constraint.primary_key && !constraint.not_null && constraint.check.is_none()
         }) {
@@ -45,11 +46,12 @@ impl Cassie {
                     });
                 }
 
-                if let (Some(check), Some(value)) = (&constraint.check, existing) {
+                if let Some(check) = &constraint.check {
+                    let value = existing.unwrap_or(&serde_json::Value::Null);
                     if !Self::satisfies_check_constraint(
                         value,
                         check,
-                        super::field_value_is_sql_null(Some(value), schema.as_ref(), &check.field),
+                        super::field_value_is_sql_null(existing, schema.as_ref(), &check.field),
                     )? {
                         return Err(CassieError::CheckViolation {
                             table: collection.to_string(),

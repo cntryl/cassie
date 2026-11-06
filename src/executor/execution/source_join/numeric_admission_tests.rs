@@ -40,6 +40,7 @@ fn run_build(
         controls: &controls,
     };
     let keys = EquiJoinKeys {
+        nulls_equal: false,
         left: "unused".into(),
         right: key.into(),
         domain: NumericComparisonDomain::Float8,

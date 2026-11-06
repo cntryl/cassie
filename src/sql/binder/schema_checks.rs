@@ -28,8 +28,17 @@ pub(super) fn bind_create_checks(
             .iter()
             .map(|field| (field.name.as_str(), &field.data_type)),
     );
+    let typed_fields = fields
+        .iter()
+        .map(|field| crate::types::FieldSchema {
+            name: field.name.clone(),
+            data_type: field.data_type.clone(),
+            nullable: true,
+        })
+        .collect::<Vec<_>>();
     for field in fields.iter_mut() {
         bind_checks(&mut field.constraints, &booleans)?;
+        crate::sql::binder::bound_checks::prepare(&mut field.constraints, &typed_fields)?;
     }
     Ok(fields
         .iter()
@@ -64,7 +73,35 @@ pub(super) fn bind_alter_checks(
         }
         _ => return Ok(()),
     };
-    bind_checks(constraints, &booleans)
+    bind_checks(constraints, &booleans)?;
+    let mut fields = schema
+        .fields
+        .iter()
+        .map(|field| crate::types::FieldSchema {
+            name: field.name.clone(),
+            data_type: field.data_type.clone(),
+            nullable: true,
+        })
+        .collect::<Vec<_>>();
+    // ADD COLUMN's new field is not present in the existing schema yet.
+    if let AlterTableOperation::AddColumn {
+        field,
+        data_type,
+        constraints,
+        ..
+    } = operation
+    {
+        fields.push(crate::types::FieldSchema {
+            name: field.clone(),
+            data_type: data_type.clone(),
+            nullable: true,
+        });
+        crate::sql::binder::bound_checks::prepare(constraints, &fields)
+    } else if let AlterTableOperation::AddConstraint { constraints } = operation {
+        crate::sql::binder::bound_checks::prepare(constraints, &fields)
+    } else {
+        Ok(())
+    }
 }
 
 fn boolean_fields<'a>(fields: impl Iterator<Item = (&'a str, &'a DataType)>) -> HashSet<String> {
@@ -82,6 +119,13 @@ fn bind_checks(
         .iter_mut()
         .filter_map(|constraint| constraint.check.as_mut())
     {
+        if matches!(
+            check.operator,
+            crate::catalog::ConstraintOperator::IsDistinctFrom
+                | crate::catalog::ConstraintOperator::IsNotDistinctFrom
+        ) {
+            continue;
+        }
         if !booleans.contains(&crate::sql::ColumnIdentifierPath::stored_field_key(
             &check.field,
         )) && !booleans.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(

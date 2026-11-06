@@ -284,6 +284,12 @@ impl ProjectionVersionState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MaterializedProjectionMeta {
+    /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::sql::definition_guard::is_legacy"
+    )]
+    pub definition_semantics_version: u32,
     pub name: String,
     pub query: String,
     #[serde(default)]
@@ -471,6 +477,7 @@ impl ProjectionMeta {
             freshness: ProjectionFreshness::Rebuilding,
             last_error: None,
             materialized: Some(MaterializedProjectionMeta {
+                definition_semantics_version: 1,
                 name: name.clone(),
                 query: spec.query,
                 options: spec.options,

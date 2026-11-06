@@ -47,6 +47,7 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: name.to_string(),
         field: fields.first().cloned().unwrap_or_default(),

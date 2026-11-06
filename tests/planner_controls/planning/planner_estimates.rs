@@ -47,6 +47,7 @@ fn register_scalar_index(catalog: &Catalog, collection: &str, name: &str, fields
         .map(ToString::to_string)
         .collect::<Vec<_>>();
     catalog.register_index(IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.to_string(),
         name: name.to_string(),
         field: fields.first().cloned().unwrap_or_default(),
@@ -110,6 +111,7 @@ fn should_use_hydrated_cardinality_estimates_for_index_plans() {
         },
     );
     catalog.register_index(cassie::catalog::IndexMeta {
+        definition_semantics_version: 0,
         collection: "planner_cardinality_hydrated".to_string(),
         name: "planner_cardinality_hydrated_title_idx".to_string(),
         field: "title".to_string(),

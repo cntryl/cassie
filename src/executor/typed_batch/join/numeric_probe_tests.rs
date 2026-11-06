@@ -72,7 +72,7 @@ fn observe(budget: usize, reverse: bool, mode: Mode) -> Observation {
         &controls,
         left,
         right,
-        (0, 0, NumericComparisonDomain::Float8),
+        (0, 0, NumericComparisonDomain::Float8, false),
         false,
         2,
         |lane| {

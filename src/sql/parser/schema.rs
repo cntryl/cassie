@@ -13,6 +13,13 @@ use super::{
     SqlError, Value,
 };
 
+#[path = "schema_checks.rs"]
+mod schema_checks;
+use schema_checks::parse_check_constraint;
+#[path = "schema_tokens.rs"]
+mod schema_tokens;
+pub(super) use schema_tokens::tokenize_schema_field;
+
 #[path = "schema_access_methods.rs"]
 mod schema_access_methods;
 #[path = "schema_create_table_as.rs"]
@@ -819,113 +826,6 @@ pub(super) fn split_first_token(raw: &str) -> Option<(String, &str)> {
     }
 
     Some((first.to_string(), parts.next().unwrap_or("").trim_start()))
-}
-
-pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlError> {
-    let expression = raw.trim();
-    let upper = expression.to_ascii_uppercase();
-    if upper.ends_with(" NOT ENFORCED") || upper.ends_with(" ENFORCED") {
-        return Err(SqlError::unsupported(
-            "CHECK constraint enforcement attributes are not supported".into(),
-        ));
-    }
-    if upper.ends_with(" NOT VALID") {
-        return Err(SqlError::unsupported(
-            "NOT VALID CHECK constraints are not supported".into(),
-        ));
-    }
-    if !expression.starts_with('(') || !expression.ends_with(')') {
-        return Err(SqlError::new(
-            "CHECK expression must be parenthesized".to_string(),
-        ));
-    }
-    let inner = strip_parentheses(expression)
-        .ok_or_else(|| SqlError::new("invalid CHECK expression".to_string()))?
-        .trim();
-
-    crate::sql::definition_guard::expression_sql(inner)
-        .map_err(|error| SqlError::unsupported(error.to_string()))?;
-
-    let (left, op, right) = parse_simple_comparison(inner)
-        .ok_or_else(|| SqlError::new("unsupported CHECK expression".to_string()))?;
-
-    if !left
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
-    {
-        return Err(SqlError::new(
-            "CHECK expression field must be an identifier".to_string(),
-        ));
-    }
-
-    Ok(ConstraintCheck {
-        field: left.clone(),
-        operator: op,
-        value: right,
-    })
-}
-
-pub(super) fn parse_simple_comparison(raw: &str) -> Option<(String, ConstraintOperator, Value)> {
-    let candidates = [
-        (" <=", ConstraintOperator::Lte),
-        (" >=", ConstraintOperator::Gte),
-        (" <> ", ConstraintOperator::NotEq),
-        (" != ", ConstraintOperator::NotEq),
-        (" like ", ConstraintOperator::Like),
-        (" < ", ConstraintOperator::Lt),
-        (" > ", ConstraintOperator::Gt),
-        (" = ", ConstraintOperator::Eq),
-    ];
-
-    for (operator, kind) in candidates {
-        let lower = raw.to_lowercase();
-        if let Some(position) = lower.find(operator) {
-            let left = raw[..position].trim();
-            let right = raw[position + operator.len()..].trim();
-            if left.is_empty() || right.is_empty() {
-                continue;
-            }
-
-            if let Ok(value) = parse_constant_literal(right) {
-                return Some((left.to_string(), kind, value));
-            }
-        }
-    }
-
-    None
-}
-
-pub(super) fn tokenize_schema_field(raw: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut in_single = false;
-    let mut in_double = false;
-    let mut depth = 0isize;
-    let mut start = 0usize;
-
-    for (idx, ch) in raw.char_indices() {
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => depth -= 1,
-            ' ' if !in_single && !in_double && depth == 0 => {
-                if start != idx {
-                    out.push(raw[start..idx].to_string());
-                }
-                start = idx + ch.len_utf8();
-            }
-            _ => {}
-        }
-    }
-
-    if start < raw.len() {
-        out.push(raw[start..].to_string());
-    }
-
-    out.into_iter()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .collect()
 }
 
 pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {

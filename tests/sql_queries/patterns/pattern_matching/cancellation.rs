@@ -66,3 +66,26 @@ fn should_cancel_active_are_constraint_work_before_output_publication() {
     assert_eq!(crate::support_pgwire::data_rows(&result.recovery), crate::support_pgwire::data_rows(&result.control));
     assert_eq!(crate::support_pgwire::data_rows(&result.recovery), vec![vec![Some("3".to_owned())]]);
 }
+
+#[test]
+fn should_apply_pattern_producer_limits_to_rollup_filters_before_publication() {
+    // Arrange
+    let mut config = CassieRuntimeConfig::from_env().expect("config");
+    config.limits.query_memory_budget_bytes = 64 * 1024;
+    let fixture = sql_fixture_with_config("rollup-pattern-producer", &[
+        "CREATE TABLE pattern_source(tenant TEXT,event_at TEXT)",
+        "INSERT INTO pattern_source VALUES('a','2026-01-01T00:05:00Z')",
+    ], config);
+    let prefix = "CREATE ROLLUP pattern_rollup ON pattern_source USING time_bucket('1 hour',event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total WHERE ";
+    // Act
+    let rejected = fixture.execute(&format!("{prefix}regexp_like(repeat(tenant,65537),'a')"));
+    let absent = fixture.cassie.catalog.get_rollup("pattern_rollup").is_none();
+    let recovery = fixture.rows("SELECT 1");
+    let retry = fixture.execute(&format!("{prefix}regexp_like(tenant,'a')"));
+    // Assert
+    assert!(matches!(rejected, Err(CassieError::ResourceLimit(_))), "{rejected:?}");
+    assert!(absent);
+    assert_eq!(recovery, vec![vec![Value::Int64(1)]]);
+    retry.expect("bounded retry can reuse the rollup name");
+    assert_eq!(current_accounted_memory_bytes(&fixture), 0);
+}

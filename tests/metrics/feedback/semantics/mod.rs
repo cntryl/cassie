@@ -82,6 +82,7 @@ fn register_operator_feedback_indexes(
 ) {
     for (field, index_name) in [("body", first_index), ("title", second_index)] {
         let index = IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.to_string(),
             name: index_name.to_string(),
             field: field.to_string(),

@@ -27,6 +27,9 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         .iter()
         .enumerate()
         .map(|(index, arg)| {
+            if matches!(arg, super::Expr::StringLiteral(_)) {
+                super::super::evaluation::admit_leaf(row, arg, context)?;
+            }
             let value =
                 text_selection::literal_argument(&name, index, arg, &function.args, context.params)
                     .or_else(|| {
@@ -37,7 +40,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
                     })?;
             if let Some(memory) = context.memory {
                 memory.grow(crate::executor::retained_memory::mul(
-                    crate::executor::retained_memory::value_clone_bytes(&value)?,
+                    super::super::cast_admission::value_workspace_bytes(&value)?,
                     4,
                 )?)?;
             }
@@ -49,7 +52,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
             crate::executor::retained_memory::add(
                 bytes,
                 crate::executor::retained_memory::mul(
-                    crate::executor::retained_memory::value_clone_bytes(value)?,
+                    super::super::cast_admission::value_workspace_bytes(value)?,
                     8,
                 )?,
             )

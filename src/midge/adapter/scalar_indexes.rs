@@ -374,7 +374,6 @@ impl Midge {
             return Ok(Some(values));
         }
 
-        crate::sql::definition_guard::index(index)?;
         let row = payload_to_row(payload, row_schema);
         let user_functions = HashMap::new();
         for raw_expression in expressions {
@@ -428,6 +427,7 @@ impl Midge {
         payload: &serde_json::Value,
         row_schema: &RowSchema,
     ) -> Result<bool, CassieError> {
+        crate::sql::definition_guard::index(index)?;
         let Some(raw_predicate) = index.predicate.as_ref() else {
             return Ok(true);
         };
@@ -437,7 +437,6 @@ impl Midge {
                 index.name
             ))
         })?;
-        crate::sql::definition_guard::expression(&predicate)?;
         let row = payload_to_row(payload, row_schema);
         let matched = !filter::filter_rows(vec![row], &predicate, &[], None, &HashMap::new(), None)
             .map_err(CassieError::from)?
@@ -669,6 +668,7 @@ mod tests {
             )
             .expect("seed collection row");
         let index = IndexMeta {
+            definition_semantics_version: 0,
             collection: "scalar_reindex_gate".to_string(),
             name: "scalar_reindex_gate_value".to_string(),
             field: "value".to_string(),
@@ -747,6 +747,7 @@ mod tests {
             )
             .expect("seed collection row");
         let declared_index = IndexMeta {
+            definition_semantics_version: 0,
             collection: "scalar_reindex_removed_index".to_string(),
             name: "scalar_reindex_removed_index_value".to_string(),
             field: "value".to_string(),

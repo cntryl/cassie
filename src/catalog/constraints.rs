@@ -10,13 +10,17 @@ pub enum ConstraintOperator {
     Gt,
     Gte,
     Like,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConstraintCheck {
     pub field: String,
     pub operator: ConstraintOperator,
     pub value: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bound_expression: Option<Box<crate::sql::ast::Expr>>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -98,6 +102,12 @@ pub enum UniqueNullPolicy {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldConstraint {
+    /// Durable expression contract: zero is legacy; one admits selected null-safe predicates.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::sql::definition_guard::is_legacy"
+    )]
+    pub definition_semantics_version: u32,
     pub field: String,
     #[serde(default)]
     pub primary_key_name: Option<String>,
@@ -180,6 +190,7 @@ impl IdentityGeneration {
 impl FieldConstraint {
     pub fn new(field: impl Into<String>) -> Self {
         Self {
+            definition_semantics_version: 0,
             field: field.into(),
             primary_key_name: None,
             primary_key_ordinal: None,
@@ -305,6 +316,9 @@ fn is_constraint_populated(constraint: &FieldConstraint) -> bool {
 }
 
 fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
+    existing.definition_semantics_version = existing
+        .definition_semantics_version
+        .max(next.definition_semantics_version);
     existing.not_null |= next.not_null;
     if next.not_null_ownership.is_explicit() {
         existing.not_null_ownership = existing.not_null_ownership.with_explicit();
@@ -365,6 +379,19 @@ fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
     }
     if next.foreign_key_on_update.is_some() {
         existing.foreign_key_on_update = next.foreign_key_on_update;
+    }
+}
+
+impl PartialEq for ConstraintCheck {
+    fn eq(&self, other: &Self) -> bool {
+        self.field == other.field
+            && self.operator == other.operator
+            && self.value == other.value
+            && match (&self.bound_expression, &other.bound_expression) {
+                (None, None) => true,
+                (Some(left), Some(right)) => crate::sql::check_comparison::exact_eq(left, right),
+                _ => false,
+            }
     }
 }
 

@@ -45,6 +45,10 @@ fn create_rollup_gated(
 
     let meta = metadata_from_statement(cassie, statement, user_functions)?;
     ensure_current_rollup_format(&meta)?;
+    cassie
+        .midge
+        .require_definition_version(meta.definition_semantics_version)
+        .map_err(QueryError::Cassie)?;
     let source_generation = cassie
         .midge
         .collection_generation(&meta.source_collection)
@@ -696,13 +700,14 @@ fn read_rollup_source_batches(
         ))
     };
     if let Some(filter_expr) = &plan.filter {
-        let filtered = filter::filter_batches(
+        let filtered = filter::filter_batches_with_controls(
             batches,
             filter_expr,
             &[],
             search_context.as_ref(),
             user_functions,
             None,
+            controls,
         )?;
         return Ok((filtered, search_context));
     }

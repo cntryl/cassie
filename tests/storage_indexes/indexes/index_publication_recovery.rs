@@ -41,6 +41,7 @@ fn should_replay_prepared_scalar_index_publication_after_restart() {
             .expect("seed row");
         let collection = canonical_test_collection(&cassie, "index_publication_docs");
         let index = IndexMeta {
+            definition_semantics_version: 0,
             collection: collection.clone(),
             name: "index_publication_docs_title_idx".to_string(),
             field: "title".to_string(),
@@ -114,6 +115,7 @@ fn should_replay_prepared_fulltext_index_publication_after_restart() {
         .expect("seed row");
     let collection = canonical_test_collection(&cassie, "fulltext_index_publication_docs");
     let index = IndexMeta {
+        definition_semantics_version: 0,
         collection: collection.clone(),
         name: "fulltext_index_publication_docs_title_idx".to_string(),
         field: "title".to_string(),

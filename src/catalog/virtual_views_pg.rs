@@ -947,6 +947,7 @@ mod tests {
         // Arrange
         let indexes =
             [IndexKind::Vector, IndexKind::Column, IndexKind::TimeSeries].map(|kind| IndexMeta {
+                definition_semantics_version: 0,
                 collection: "items".to_string(),
                 name: "items_idx".to_string(),
                 field: "value".to_string(),

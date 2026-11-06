@@ -53,4 +53,8 @@ rounding `294276-12-31 23:59:59.9995` with FF3 emits the exclusive upper
 endpoint, although later formatting that value rejects it. Cassie's proposed
 post-round `22008` guard enforces its existing valid timestamp range rather
 than treating that transient native endpoint as a supported value. Focused Jev
-selection of this explicit boundary is pending before final review acceptance.
+selected rejecting the rounded out-of-range instant with `22008` (probability
+0.97). This explicit finite Cassie deviation preserves the exclusive
+`END_TIMESTAMP` invariant. Native direct parsing of the endpoint and
+`to_char` of the transient result both reject it; the scalar rounding probe
+alone is not represented as native `22008` evidence.

@@ -1,7 +1,7 @@
 //! `to_char`, `to_date` and `to_timestamp` templates (`formatting.c`).
 use super::calendar::{
     date2j, days_in_month, iso_week, iso_week_to_julian, iso_year, iso_year_day, j2date, j2day,
-    Fields,
+    Fields, USECS_PER_SEC,
 };
 use super::zone::offset_abbreviation;
 use crate::types::extended::TypeInputError;
@@ -464,6 +464,12 @@ pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
     for (index, node) in nodes.iter().enumerate() {
         match node {
             Node::Literal(text) => {
+                let zone_follows = matches!(
+                    nodes[index + 1..].iter().find(|node| {
+                        !matches!(node, Node::Literal(text) if text.chars().all(char::is_whitespace))
+                    }),
+                    Some(Node::Field { keyword: "tzh" | "of", .. })
+                );
                 for expected in text.chars() {
                     if expected.is_whitespace() || expected.is_ascii_punctuation() {
                         while chars.get(cursor).is_some_and(|c| c.is_whitespace()) {
@@ -472,6 +478,9 @@ pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
                         if chars
                             .get(cursor)
                             .is_some_and(|c| !c.is_alphanumeric() && !c.is_whitespace())
+                            && !(expected.is_whitespace()
+                                && zone_follows
+                                && matches!(chars.get(cursor), Some('+' | '-')))
                         {
                             cursor += 1;
                         }
@@ -484,8 +493,13 @@ pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
                 while chars.get(cursor).is_some_and(|c| c.is_whitespace()) {
                     cursor += 1;
                 }
-                let adjacent = matches!(nodes.get(index + 1), Some(Node::Field { .. }));
-                parse_field(keyword, &chars, &mut cursor, adjacent, &mut builder)?;
+                parse_field(
+                    keyword,
+                    &chars,
+                    &mut cursor,
+                    nodes.get(index + 1),
+                    &mut builder,
+                )?;
             }
         }
     }
@@ -551,6 +565,7 @@ fn parse_zone_or_fraction(
     keyword: &str,
     chars: &[char],
     cursor: &mut usize,
+    adjacent: bool,
     builder: &mut Builder,
 ) -> Result<bool, TypeInputError> {
     {
@@ -578,13 +593,21 @@ fn parse_zone_or_fraction(
                     "us" => 6,
                     other => usize::from(other.as_bytes()[2] - b'0'),
                 };
-                let (value, length) = read_digits(chars, cursor, digits_limit, keyword)?;
-                let scale = if keyword == "ms" { 1000 } else { 1 };
-                let fraction_scale = if keyword == "us" || keyword == "ms" {
-                    1
+                let limit = if !adjacent && matches!(keyword, "ms" | "us") {
+                    chars.len()
                 } else {
-                    10_i64.pow(u32::try_from(6 - length).unwrap_or(0))
+                    digits_limit
                 };
+                let (value, length) = read_digits(chars, cursor, limit, keyword)?;
+                if (keyword == "ms" && !(0..1000).contains(&value))
+                    || (keyword == "us" && !(0..USECS_PER_SEC).contains(&value))
+                {
+                    return Err(field_overflow("date/time field value out of range"));
+                }
+                let scale = if keyword == "ms" { 1000 } else { 1 };
+                let precision = if keyword == "ms" { 3_usize } else { 6 };
+                let fraction_scale =
+                    10_i64.pow(u32::try_from(precision.saturating_sub(length)).unwrap_or(0));
                 builder.micros = value * scale * fraction_scale;
             }
             _ => return Ok(false),
@@ -597,12 +620,34 @@ fn parse_field(
     keyword: &str,
     chars: &[char],
     cursor: &mut usize,
-    adjacent: bool,
+    next: Option<&Node>,
     builder: &mut Builder,
 ) -> Result<(), TypeInputError> {
-    if parse_zone_or_fraction(keyword, chars, cursor, builder)? {
+    let fraction_adjacent = match next {
+        Some(Node::Field { keyword, .. }) => !matches!(
+            *keyword,
+            "am" | "pm"
+                | "a.m."
+                | "p.m."
+                | "ad"
+                | "bc"
+                | "a.d."
+                | "b.c."
+                | "month"
+                | "mon"
+                | "day"
+                | "dy"
+                | "tz"
+                | "tzh"
+                | "of"
+        ),
+        Some(Node::Literal(text)) => text.len() == 1 && text.as_bytes()[0].is_ascii_digit(),
+        None => false,
+    };
+    if parse_zone_or_fraction(keyword, chars, cursor, fraction_adjacent, builder)? {
         return Ok(());
     }
+    let adjacent = matches!(next, Some(Node::Field { .. }));
     let limit = if adjacent { width(keyword) } else { 9 };
     match keyword {
         "month" | "mon" => {
@@ -780,9 +825,10 @@ impl Builder {
                 _ => {}
             }
         }
-        if !(0..=24).contains(&hour)
+        if !(0..24).contains(&hour)
             || !(0..60).contains(&self.minute)
-            || !(0..=60).contains(&self.second)
+            || !(0..60).contains(&self.second)
+            || !(0..USECS_PER_SEC).contains(&self.micros)
         {
             return Err(field_overflow("date/time field value out of range"));
         }

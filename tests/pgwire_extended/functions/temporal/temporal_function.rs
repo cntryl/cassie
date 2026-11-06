@@ -5,6 +5,8 @@ use crate::support_pgwire as wire;
 
 #[path = "clock_observation.rs"]
 mod clock_observation_contracts;
+#[path = "formatted_input.rs"]
+mod formatted_input;
 #[path = "offset_formatting.rs"]
 mod offset_formatting;
 

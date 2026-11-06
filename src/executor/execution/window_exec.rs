@@ -547,26 +547,62 @@ fn frame_positions(
     })
 }
 
+struct PeerGroups {
+    groups: Vec<(usize, usize)>,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+
+impl std::ops::Deref for PeerGroups {
+    type Target = [(usize, usize)];
+
+    fn deref(&self) -> &Self::Target {
+        &self.groups
+    }
+}
+
 fn peer_groups(
     indices: &[usize],
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     context: &WindowExecutionContext<'_>,
-) -> Result<Vec<(usize, usize)>, QueryError> {
+) -> Result<PeerGroups, QueryError> {
+    check_timeout(context.controls)?;
+    let bytes = crate::executor::retained_memory::mul(
+        indices.len(),
+        std::mem::size_of::<(usize, usize)>(),
+    )?;
+    let mut memory = context.controls.reserve_query_memory(bytes)?;
     let mut groups = Vec::new();
+    groups.try_reserve_exact(indices.len()).map_err(|_| {
+        crate::app::CassieError::ResourceLimit("window peer group allocation failed".into())
+    })?;
+    let capacity_bytes = crate::executor::retained_memory::mul(
+        groups.capacity(),
+        std::mem::size_of::<(usize, usize)>(),
+    )?;
+    if capacity_bytes > bytes {
+        memory.try_grow(capacity_bytes - bytes)?;
+    }
     let mut start = 0;
     for position in 1..indices.len() {
+        check_timeout(context.controls)?;
         let previous = window_peer_key(&rows[indices[position - 1]], &function.order_by, context)?;
         let current = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
         if previous != current {
             groups.push((start, position - 1));
             start = position;
         }
+        #[cfg(test)]
+        frame_resource_tests::after_candidate();
     }
+    check_timeout(context.controls)?;
     if !indices.is_empty() {
         groups.push((start, indices.len() - 1));
     }
-    Ok(groups)
+    Ok(PeerGroups {
+        groups,
+        _memory: memory,
+    })
 }
 
 fn frame_group_bounds(

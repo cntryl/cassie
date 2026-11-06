@@ -18,14 +18,95 @@ pub(crate) struct SequenceOwner {
 
 #[derive(Debug, Default)]
 struct CursorState {
-    cursors: BTreeMap<u64, SequenceCursor>,
+    cursors: BTreeMap<(u64, u64), SequenceCursor>,
+    next_epoch: u64,
+    inflight: BTreeMap<(u64, u64), usize>,
     admission: Option<QueryMemoryReservation>,
+}
+
+#[derive(Debug)]
+pub(crate) struct SequenceForkLease {
+    owner: Arc<SequenceOwner>,
+    pairs: Mutex<BTreeMap<(u64, u64), QueryMemoryReservation>>,
+}
+
+impl SequenceForkLease {
+    fn protect(
+        &self,
+        state: &mut CursorState,
+        key: (u64, u64),
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let mut pairs = self.pairs.lock();
+        if pairs.contains_key(&key) {
+            return Ok(());
+        }
+        controls.check_interruption()?;
+        let bytes = CURSOR_BYTES.checked_mul(2).ok_or_else(|| {
+            CassieError::ResourceLimit("sequence fork accounting overflow".into())
+        })?;
+        let _request = controls.reserve_query_memory(bytes)?;
+        if state.admission.is_none() {
+            state.admission = Some(QueryMemoryReservation::independent_budget(
+                controls.query_memory_budget_bytes,
+                0,
+            )?);
+        }
+        let memory = state
+            .admission
+            .as_ref()
+            .expect("owner admitted")
+            .try_sibling(bytes)?;
+        let count = state
+            .inflight
+            .get(&key)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or_else(|| CassieError::ResourceLimit("sequence fork count overflow".into()))?;
+        state.inflight.insert(key, count);
+        pairs.insert(key, memory);
+        Ok(())
+    }
+}
+
+impl Drop for SequenceForkLease {
+    fn drop(&mut self) {
+        let pairs = self.pairs.get_mut();
+        let mut state = self.owner.state.lock();
+        for key in pairs.keys() {
+            if let Some(count) = state.inflight.get_mut(key) {
+                *count -= 1;
+                if *count == 0 {
+                    state.inflight.remove(key);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct EpochSelections {
+    pub(super) epochs: BTreeMap<u64, u64>,
+    _memory: QueryMemoryReservation,
+}
+
+impl StorageOverlay {
+    fn sequence_epoch(&self, identity: u64) -> u64 {
+        self.sequence_epochs
+            .as_ref()
+            .and_then(|owner| owner.epochs.get(&identity))
+            .copied()
+            .unwrap_or(0)
+    }
 }
 
 pub(crate) enum SequenceTarget {
     Private {
         metadata: SequenceMeta,
         owner: Arc<SequenceOwner>,
+        overlay: Arc<Mutex<StorageOverlay>>,
+        epoch: u64,
         scratch: QueryMemoryReservation,
     },
     Native,
@@ -47,7 +128,7 @@ impl Read for CheckingReader<'_> {
         if self.position % 4096 == 0 {
             self.controls
                 .check_interruption()
-                .map_err(io::Error::other)?;
+                .map_err(|_| io::Error::other("query interrupted"))?;
         }
         let until_check = 4096 - self.position % 4096;
         let remaining = &self.bytes[self.position..];
@@ -102,10 +183,12 @@ impl SequenceOwner {
     pub(crate) fn advance<T>(
         &self,
         mut metadata: SequenceMeta,
+        epoch: u64,
+        fork: Option<&SequenceForkLease>,
         update: impl FnOnce(&mut SequenceMeta) -> Result<T, CassieError>,
     ) -> Result<(T, SequenceMeta), CassieError> {
         let mut state = self.state.lock();
-        if let Some(cursor) = state.cursors.get(&metadata.object_id) {
+        if let Some(cursor) = state.cursors.get(&(metadata.object_id, epoch)) {
             metadata.set_cursor(*cursor);
         }
         let controls = super::super::publication::PublicationControlScope::current_query_controls()
@@ -113,7 +196,7 @@ impl SequenceOwner {
                 CassieError::Unsupported("staged sequence requires query controls".into())
             })?;
         controls.check_interruption()?;
-        let is_new = !state.cursors.contains_key(&metadata.object_id);
+        let is_new = !state.cursors.contains_key(&(metadata.object_id, epoch));
         if is_new {
             // Request admission remains separate from the transaction-owned aggregate bound.
             let _request = controls.reserve_query_memory(CURSOR_BYTES)?;
@@ -139,42 +222,142 @@ impl SequenceOwner {
                 return Err(error);
             }
         };
-        state.cursors.insert(metadata.object_id, metadata.cursor());
+        if let Some(fork) = fork {
+            if let Err(error) = fork.protect(&mut state, (metadata.object_id, epoch), &controls) {
+                if is_new {
+                    let admission = state.admission.as_mut().expect("owner admitted");
+                    admission.shrink_to(admission.bytes() - CURSOR_BYTES);
+                }
+                return Err(error);
+            }
+        }
+        state
+            .cursors
+            .insert((metadata.object_id, epoch), metadata.cursor());
         Ok((result, metadata))
     }
 }
 
 impl Midge {
-    /// A catalog ALTER/RESTART cannot replace a private cursor until it has
-    /// transaction-aware restart and savepoint ownership.
-    pub(crate) fn ensure_no_private_cursor_for_catalog_update(
+    /// Whether a catalog mutation is currently staged in this database family.
+    pub(crate) fn private_sequence_catalog_scope(&self) -> bool {
+        ACTIVE_STORAGE_SCOPE.with(|current| {
+            current.borrow().as_ref().is_some_and(|scope| {
+                scope.midge_identity == std::ptr::from_ref(self) as usize && scope.stage_writes
+            })
+        })
+    }
+
+    pub(crate) fn update_private_sequence_transactionally<T>(
         &self,
         name: &str,
-    ) -> Result<(), CassieError> {
-        let active = ACTIVE_STORAGE_SCOPE.with(|current| current.borrow().clone());
-        let Some(scope) = active.filter(|scope| {
-            scope.midge_identity == std::ptr::from_ref(self) as usize && scope.stage_writes
-        }) else {
-            return Ok(());
-        };
-        let overlay = scope.overlay.lock();
-        let state = overlay.sequence_cursors.state.lock();
-        if state.cursors.is_empty() {
-            return Ok(());
-        }
+        expected_identity: u64,
+        expected_epoch: u64,
+        update: impl FnOnce(&mut SequenceMeta) -> Result<T, CassieError>,
+    ) -> Result<(T, SequenceMeta), CassieError> {
+        let scope = ACTIVE_STORAGE_SCOPE
+            .with(|current| current.borrow().clone())
+            .filter(|scope| {
+                scope.midge_identity == std::ptr::from_ref(self) as usize && scope.stage_writes
+            })
+            .ok_or_else(|| {
+                CassieError::Unsupported(
+                    "transaction-owned sequence update lost its storage scope".into(),
+                )
+            })?;
+        let controls = controls()?;
         let key = super::super::key_encoding::sequence_key(&self.canonical_collection_name(name));
-        let Some(raw) = overlay
+        let mut overlay = scope.overlay.lock();
+        let raw = overlay
             .changes
             .get(&key)
             .and_then(|change| change.value.as_ref())
-        else {
-            return Ok(());
-        };
-        let (metadata, _scratch) = decode(raw, &controls()?)?;
-        if state.cursors.contains_key(&metadata.object_id) {
-            return Err(CassieError::Unsupported("ALTER or RESTART of a transaction-owned sequence after advancement is not supported".into()));
+            .ok_or_else(|| {
+                CassieError::Unsupported("transaction-owned sequence disappeared".into())
+            })?;
+        let (mut metadata, _scratch) = decode(raw, &controls)?;
+        if metadata.object_id != expected_identity
+            || overlay.sequence_epoch(expected_identity) != expected_epoch
+        {
+            return Err(CassieError::Unsupported(
+                "transaction-owned sequence changed during update".into(),
+            ));
         }
-        Ok(())
+        let owner = Arc::clone(&overlay.sequence_cursors);
+        let mut state = owner.state.lock();
+        if let Some(cursor) = state.cursors.get(&(expected_identity, expected_epoch)) {
+            metadata.set_cursor(*cursor);
+        }
+        controls.check_interruption()?;
+        let result = update(&mut metadata)?;
+        let epoch = state
+            .next_epoch
+            .checked_add(1)
+            .ok_or_else(|| CassieError::ResourceLimit("sequence epoch exhausted".into()))?;
+        let mut counter = Counter::default();
+        serde_json::to_writer(&mut counter, &metadata)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        let base = controls.reserve_query_memory(0)?;
+        let (mut encoded, _encoded_memory) =
+            crate::runtime::owned_memory::try_reserve_vec(counter.0, &base)?;
+        serde_json::to_writer(&mut encoded, &metadata)
+            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        if encoded.len() != counter.0 {
+            return Err(CassieError::Execution(
+                "sequence serialization changed size".into(),
+            ));
+        }
+        let count = overlay
+            .sequence_epochs
+            .as_ref()
+            .map_or(0, |selection| selection.epochs.len());
+        let selection_bytes = count
+            .checked_add(1)
+            .and_then(|entries| entries.checked_mul(CURSOR_BYTES))
+            .and_then(|bytes| bytes.checked_add(counter.0))
+            .ok_or_else(|| {
+                CassieError::ResourceLimit("sequence epoch accounting overflow".into())
+            })?;
+        let _request = controls.reserve_query_memory(
+            CURSOR_BYTES.checked_add(selection_bytes).ok_or_else(|| {
+                CassieError::ResourceLimit("sequence epoch accounting overflow".into())
+            })?,
+        )?;
+        if state.admission.is_none() {
+            state.admission = Some(QueryMemoryReservation::independent_budget(
+                controls.query_memory_budget_bytes,
+                0,
+            )?);
+        }
+        let admission = state.admission.as_ref().expect("owner admitted");
+        let epoch_memory = admission.try_sibling(CURSOR_BYTES)?;
+        let selection_memory = admission.try_sibling(selection_bytes)?;
+        let mut epochs = overlay
+            .sequence_epochs
+            .as_ref()
+            .map_or_else(BTreeMap::new, |selection| selection.epochs.clone());
+        epochs.insert(expected_identity, epoch);
+        let selection = Arc::new(EpochSelections {
+            epochs,
+            _memory: selection_memory,
+        });
+        controls.check_interruption()?;
+        if let Some(fork) = &overlay.sequence_fork {
+            fork.protect(&mut state, (expected_identity, epoch), &controls)?;
+        }
+        // No fallible operations after publishing the epoch or overlay bytes.
+        state
+            .admission
+            .as_mut()
+            .expect("owner admitted")
+            .absorb(epoch_memory);
+        state
+            .cursors
+            .insert((expected_identity, epoch), metadata.cursor());
+        state.next_epoch = epoch;
+        overlay.changes.get_mut(&key).expect("checked above").value = Some(encoded);
+        overlay.sequence_epochs = Some(selection);
+        Ok((result, metadata))
     }
 
     pub(crate) fn private_sequence_target(
@@ -252,11 +435,44 @@ impl Midge {
                     .into(),
             ));
         }
+        let epoch = overlay.sequence_epoch(metadata.object_id);
         Ok(SequenceTarget::Private {
             metadata,
             owner: Arc::clone(&overlay.sequence_cursors),
+            overlay: Arc::clone(&scope.overlay),
+            epoch,
             scratch,
         })
+    }
+
+    pub(crate) fn advance_private_sequence<T>(
+        &self,
+        original: SequenceMeta,
+        owner: &SequenceOwner,
+        overlay: &Mutex<StorageOverlay>,
+        epoch: u64,
+        update: impl FnOnce(&mut SequenceMeta) -> Result<T, CassieError>,
+    ) -> Result<(T, SequenceMeta), CassieError> {
+        let overlay = overlay.lock();
+        let key = super::super::key_encoding::sequence_key(
+            &self.canonical_collection_name(&original.name),
+        );
+        let raw = overlay
+            .changes
+            .get(&key)
+            .and_then(|change| change.value.as_ref())
+            .ok_or_else(|| {
+                CassieError::Unsupported("transaction-owned sequence disappeared".into())
+            })?;
+        let (metadata, _scratch) = decode(raw, &controls()?)?;
+        if metadata.object_id != original.object_id
+            || overlay.sequence_epoch(metadata.object_id) != epoch
+        {
+            return Err(CassieError::Unsupported(
+                "transaction-owned sequence changed before allocation".into(),
+            ));
+        }
+        owner.advance(metadata, epoch, overlay.sequence_fork.as_deref(), update)
     }
 
     pub(crate) fn is_private_sequence(&self, metadata: &SequenceMeta) -> Result<bool, CassieError> {
@@ -268,6 +484,84 @@ impl Midge {
 }
 
 impl StorageOverlay {
+    pub(crate) fn attach_sequence_fork_lease(
+        &mut self,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<(), CassieError> {
+        let owner = Arc::clone(&self.sequence_cursors);
+        let fork = Arc::new(SequenceForkLease {
+            owner: Arc::clone(&owner),
+            pairs: Mutex::new(BTreeMap::new()),
+        });
+        let mut state = owner.state.lock();
+        let result = if state.cursors.is_empty() {
+            Ok(())
+        } else {
+            let controls = controls.ok_or_else(|| {
+                CassieError::Unsupported("sequence fork requires query controls".into())
+            });
+            controls.and_then(|controls| {
+                let base = controls.reserve_query_memory(0)?;
+                let (mut keys, _memory) =
+                    crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
+                keys.extend(state.cursors.keys().copied());
+                for key in keys {
+                    fork.protect(&mut state, key, controls)?;
+                }
+                Ok(())
+            })
+        };
+        drop(state);
+        result?;
+        self.sequence_fork = Some(fork);
+        Ok(())
+    }
+
+    pub(crate) fn inherit_sequence_fork_lease(
+        &mut self,
+        parent: &StorageOverlay,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<(), CassieError> {
+        let Some(fork) = &parent.sequence_fork else {
+            self.sequence_fork = None;
+            return Ok(());
+        };
+        let mut state = self.sequence_cursors.state.lock();
+        if !state.cursors.is_empty() {
+            let controls = controls.ok_or_else(|| {
+                CassieError::Unsupported("nested sequence fork requires query controls".into())
+            })?;
+            let base = controls.reserve_query_memory(0)?;
+            let (mut keys, _memory) =
+                crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
+            keys.extend(state.cursors.keys().copied());
+            for key in keys {
+                fork.protect(&mut state, key, controls)?;
+            }
+        }
+        drop(state);
+        self.sequence_fork = Some(Arc::clone(fork));
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn clear_sequence_fork_lease(&mut self) {
+        self.sequence_fork = None;
+    }
+
+    #[cfg(test)]
+    fn advance_private_for_test(
+        &self,
+        metadata: SequenceMeta,
+        epoch: u64,
+        _controls: &QueryExecutionControls,
+    ) -> Result<(i64, SequenceMeta), CassieError> {
+        self.sequence_cursors
+            .advance(metadata, epoch, self.sequence_fork.as_deref(), |sequence| {
+                sequence.advance().map_err(Into::into)
+            })
+    }
+
     pub(crate) fn has_sequence_cursors(&self) -> bool {
         !self.sequence_cursors.state.lock().cursors.is_empty()
     }
@@ -278,6 +572,11 @@ impl StorageOverlay {
         protected: impl Iterator<Item = &'a StorageOverlay>,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
+        // A fork cannot enumerate identities added to the parent after the
+        // fork was captured. Only the transaction's owning overlay may prune.
+        if self.sequence_fork.is_some() {
+            return Ok(());
+        }
         let mut state = self.sequence_cursors.state.lock();
         if state.cursors.is_empty() {
             return Ok(());
@@ -298,11 +597,19 @@ impl StorageOverlay {
                     continue;
                 };
                 let (metadata, _scratch) = decode(raw, controls)?;
-                if state.cursors.contains_key(&metadata.object_id)
-                    && !live.contains(&metadata.object_id)
-                {
-                    live.push(metadata.object_id);
+                let key = (
+                    metadata.object_id,
+                    overlay.sequence_epoch(metadata.object_id),
+                );
+                if state.cursors.contains_key(&key) && !live.contains(&key) {
+                    live.push(key);
                 }
+            }
+        }
+        for key in state.inflight.keys() {
+            controls.check_interruption()?;
+            if state.cursors.contains_key(key) && !live.contains(key) {
+                live.push(*key);
             }
         }
         live.sort_unstable();
@@ -326,6 +633,7 @@ impl StorageOverlay {
             return Ok((leases, directory));
         }
         let prefix = super::super::key_encoding::sequence_prefix();
+        let selections = self.sequence_epochs.clone();
         for (index, (key, change)) in self.changes.iter_mut().enumerate() {
             if index % 128 == 0 {
                 controls.check_interruption()?;
@@ -337,7 +645,14 @@ impl StorageOverlay {
                 continue;
             };
             let (mut metadata, _scratch) = decode(raw, controls)?;
-            if let Some(cursor) = state.cursors.get(&metadata.object_id) {
+            if let Some(cursor) = state.cursors.get(&(
+                metadata.object_id,
+                selections
+                    .as_ref()
+                    .and_then(|owner| owner.epochs.get(&metadata.object_id))
+                    .copied()
+                    .unwrap_or(0),
+            )) {
                 metadata.set_cursor(*cursor);
                 let mut counter = Counter::default();
                 serde_json::to_writer(&mut counter, &metadata)
@@ -387,7 +702,10 @@ impl StorageOverlay {
                 continue;
             };
             let (mut metadata, scratch) = decode(raw, controls)?;
-            if let Some(cursor) = state.cursors.get(&metadata.object_id) {
+            if let Some(cursor) = state
+                .cursors
+                .get(&(metadata.object_id, self.sequence_epoch(metadata.object_id)))
+            {
                 if prepared.len() == prepared.capacity() {
                     return Err(CassieError::Unsupported(
                         "duplicate staged sequence identity".into(),
@@ -407,206 +725,5 @@ impl StorageOverlay {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{decode, CheckingReader, StorageOverlay, CURSOR_BYTES};
-    use crate::catalog::SequenceMeta;
-    use crate::config::CassieRuntimeLimits;
-    use crate::midge::adapter::PublicationControlScope;
-    use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
-    use crate::types::DataType;
-    use std::time::Instant;
-
-    fn controls() -> QueryExecutionControls {
-        QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits {
-                query_memory_budget_bytes: CURSOR_BYTES,
-                ..CassieRuntimeLimits::default()
-            },
-            Instant::now(),
-        )
-    }
-
-    #[test]
-    fn should_bound_and_retire_transaction_cursor_owners_across_statements() {
-        // Arrange
-        let overlay = StorageOverlay::default();
-        let owner = &overlay.sequence_cursors;
-        let mut first = SequenceMeta::new("first", DataType::BigInt);
-        first.object_id = 11;
-        let mut second = SequenceMeta::new("second", DataType::BigInt);
-        second.object_id = 12;
-        let statement_one = controls();
-        let statement_two = controls();
-
-        // Act
-        let first_value = {
-            let _scope = PublicationControlScope::enter(Some(&statement_one));
-            owner.advance(first, |sequence| sequence.advance().map_err(Into::into))
-        };
-        let rejected = {
-            let _scope = PublicationControlScope::enter(Some(&statement_two));
-            owner.advance(second.clone(), |sequence| {
-                sequence.advance().map_err(Into::into)
-            })
-        };
-        {
-            let _scope = PublicationControlScope::enter(Some(&statement_two));
-            overlay
-                .prune_sequence_cursors_with(std::iter::empty(), &statement_two)
-                .expect("prune retired identity");
-        }
-        let second_value = {
-            let _scope = PublicationControlScope::enter(Some(&statement_two));
-            owner.advance(second, |sequence| sequence.advance().map_err(Into::into))
-        };
-        let retained = owner
-            .state
-            .lock()
-            .admission
-            .as_ref()
-            .expect("transaction admission")
-            .bytes();
-        {
-            let _scope = PublicationControlScope::enter(Some(&statement_two));
-            overlay
-                .prune_sequence_cursors_with(std::iter::empty(), &statement_two)
-                .expect("retire final identity");
-        }
-        let released = owner
-            .state
-            .lock()
-            .admission
-            .as_ref()
-            .expect("stable admission")
-            .bytes();
-
-        // Assert
-        assert_eq!(first_value.expect("first cursor").0, 1);
-        assert!(rejected.is_err());
-        assert_eq!(second_value.expect("second cursor").0, 1);
-        assert_eq!(retained, CURSOR_BYTES);
-        assert_eq!(released, 0);
-        assert_eq!(statement_one.current_query_memory_bytes(), 0);
-        assert_eq!(statement_two.current_query_memory_bytes(), 0);
-    }
-
-    #[test]
-    fn should_admit_and_interrupt_sequence_metadata_decode_at_its_boundary() {
-        // Arrange
-        let metadata = SequenceMeta::new("sequence", DataType::BigInt);
-        let raw = serde_json::to_vec(&metadata).expect("sequence metadata");
-        let bytes = crate::runtime::accounted::json::serialized_decode_bytes(raw.len())
-            .expect("decode bound");
-        let limits = |budget| CassieRuntimeLimits {
-            query_memory_budget_bytes: budget,
-            ..CassieRuntimeLimits::default()
-        };
-        let below = QueryExecutionControls::from_limits(&limits(bytes - 1), Instant::now());
-        let exact = QueryExecutionControls::from_limits(&limits(bytes), Instant::now());
-        let cancellation = QueryCancellationHandle::new();
-        let interrupted = QueryExecutionControls::with_cancellation(
-            &limits(bytes),
-            Instant::now(),
-            cancellation.clone(),
-        );
-        cancellation.cancel();
-
-        // Act
-        let rejected = decode(&raw, &below);
-        let admitted = decode(&raw, &exact);
-        let cancelled = decode(&raw, &interrupted);
-        let held = exact.current_query_memory_bytes();
-        drop(admitted);
-
-        // Assert
-        assert!(rejected.is_err());
-        assert!(matches!(
-            cancelled,
-            Err(crate::app::CassieError::QueryCancelled)
-        ));
-        assert_eq!(held, bytes);
-        assert_eq!(exact.current_query_memory_bytes(), 0);
-    }
-
-    #[test]
-    fn should_keep_a_cursor_referenced_only_by_a_retained_savepoint() {
-        // Arrange
-        let controls = QueryExecutionControls::from_limits(
-            &CassieRuntimeLimits {
-                query_memory_budget_bytes: 1024 * 1024,
-                ..CassieRuntimeLimits::default()
-            },
-            Instant::now(),
-        );
-        let mut current = StorageOverlay::default();
-        let mut sequence = SequenceMeta::new("saved", DataType::BigInt);
-        sequence.object_id = 91;
-        let _scope = PublicationControlScope::enter(Some(&controls));
-        let first = current.sequence_cursors.advance(sequence.clone(), |value| {
-            value.advance().map_err(Into::into)
-        });
-        let key = super::super::super::key_encoding::sequence_key("saved");
-        current.changes.insert(
-            key,
-            super::super::StorageMutation {
-                value: Some(serde_json::to_vec(&sequence).expect("sequence metadata")),
-                ttl_seconds: None,
-                expected: super::super::ExpectedStorageValue::Missing,
-            },
-        );
-        let savepoint = current.clone();
-        current.changes.clear();
-
-        // Act
-        current
-            .prune_sequence_cursors_with(std::iter::once(&savepoint), &controls)
-            .expect("preserve savepoint");
-        let second = current
-            .sequence_cursors
-            .advance(sequence, |value| value.advance().map_err(Into::into));
-        current
-            .prune_sequence_cursors_with(std::iter::empty(), &controls)
-            .expect("retire released owner");
-        let retained = current
-            .sequence_cursors
-            .state
-            .lock()
-            .admission
-            .as_ref()
-            .expect("owner")
-            .bytes();
-
-        // Assert
-        assert_eq!(first.expect("first").0, 1);
-        assert_eq!(second.expect("savepoint cursor").0, 2);
-        assert_eq!(retained, 0);
-    }
-
-    #[test]
-    fn should_interrupt_metadata_reader_at_a_deterministic_chunk_boundary() {
-        // Arrange
-        use std::io::Read;
-        let cancellation = QueryCancellationHandle::new();
-        let controls = QueryExecutionControls::with_cancellation(
-            &CassieRuntimeLimits::default(),
-            Instant::now(),
-            cancellation.clone(),
-        );
-        let input = vec![b'x'; 4097];
-        let mut reader = CheckingReader {
-            bytes: &input,
-            position: 0,
-            controls: &controls,
-        };
-        let mut chunk = [0; 4096];
-        reader.read_exact(&mut chunk).expect("first chunk");
-        cancellation.cancel();
-
-        // Act
-        let result = reader.read(&mut [0]);
-
-        // Assert
-        assert!(result.is_err());
-        assert_eq!(reader.position, 4096);
-    }
-}
+#[path = "sequence_owner_tests.rs"]
+mod tests;

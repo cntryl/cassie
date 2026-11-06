@@ -102,8 +102,10 @@ impl Midge {
             super::transactions::sequence_owner::SequenceTarget::Private {
                 metadata,
                 owner,
+                overlay,
+                epoch,
                 scratch: _scratch,
-            } => return owner.advance(metadata, update),
+            } => return self.advance_private_sequence(metadata, &owner, &overlay, epoch, update),
             super::transactions::sequence_owner::SequenceTarget::Native => {}
         }
         const MAX_ATTEMPTS: usize = 64;
@@ -127,7 +129,26 @@ impl Midge {
         name: &str,
         update: impl FnOnce(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
     ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
-        self.ensure_no_private_cursor_for_catalog_update(name)?;
+        let update = if self.private_sequence_catalog_scope() {
+            match self.private_sequence_target(name)? {
+                super::transactions::sequence_owner::SequenceTarget::Private {
+                    metadata,
+                    epoch,
+                    scratch: _scratch,
+                    ..
+                } => {
+                    return self.update_private_sequence_transactionally(
+                        name,
+                        metadata.object_id,
+                        epoch,
+                        update,
+                    )
+                }
+                super::transactions::sequence_owner::SequenceTarget::Native => update,
+            }
+        } else {
+            update
+        };
         let stored_name = self
             .get_sequence(name)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {

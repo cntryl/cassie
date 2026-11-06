@@ -245,6 +245,7 @@ impl Cassie {
                 &statement.table,
                 serde_json::Value::Object(input.payload),
                 &input.explicit_json_nulls,
+                Some(staging),
             )?;
             let (prepared, constraints) = self.prepare_document_write_deferring_foreign_keys(
                 Some(staging),

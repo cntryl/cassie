@@ -147,3 +147,196 @@ fn should_preserve_bind_own_rows_in_an_insert_source() {
     );
     assert_eq!(wire::data_rows(&frames[5]), vec![vec![Some("3".into())]]);
 }
+
+#[test]
+fn should_preserve_staged_sequence_advances_across_savepoint_rollback() {
+    // Arrange
+    for begin in [
+        "BEGIN ISOLATION LEVEL READ COMMITTED",
+        "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+    ] {
+        let script = vec![
+            query(begin),
+            query("CREATE TABLE staged_sequence_savepoint (id SERIAL PRIMARY KEY, payload TEXT)"),
+            query("SELECT nextval('staged_sequence_savepoint_id_seq')"),
+            query("SAVEPOINT sequence_point"),
+            query("SELECT nextval('staged_sequence_savepoint_id_seq')"),
+            query("ROLLBACK TO sequence_point"),
+            query("SELECT nextval('staged_sequence_savepoint_id_seq')"),
+            query("SAVEPOINT insert_point"),
+            query(
+                "INSERT INTO staged_sequence_savepoint(payload) VALUES ('temporary') RETURNING id",
+            ),
+            query("ROLLBACK TO insert_point"),
+            query("SELECT nextval('staged_sequence_savepoint_id_seq')"),
+            query("COMMIT"),
+            query("SELECT nextval('staged_sequence_savepoint_id_seq')"),
+        ];
+
+        // Act
+        let frames = run_own_script(&[], script);
+
+        // Assert
+        for (index, value) in [(2, "1"), (4, "2"), (6, "3"), (8, "4"), (10, "5"), (12, "6")] {
+            assert_eq!(wire::error_code(&frames[index]), None);
+            assert_eq!(
+                wire::data_rows(&frames[index]),
+                vec![vec![Some(value.into())]]
+            );
+        }
+    }
+}
+
+#[test]
+fn should_restart_a_rolled_back_staged_sequence_with_a_recreated_identity() {
+    // Arrange
+    let script = vec![
+        query("BEGIN"),
+        query("SAVEPOINT before_create"),
+        query("CREATE TABLE staged_sequence_recreated (id SERIAL)"),
+        query("SELECT nextval('staged_sequence_recreated_id_seq')"),
+        query("ROLLBACK TO before_create"),
+        query("CREATE TABLE staged_sequence_recreated (id SERIAL)"),
+        query("SAVEPOINT before_currval"),
+        query("SELECT currval('staged_sequence_recreated_id_seq')"),
+        query("ROLLBACK TO before_currval"),
+        query("SELECT nextval('staged_sequence_recreated_id_seq')"),
+        query("ROLLBACK"),
+    ];
+
+    // Act
+    let frames = run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(wire::error_code(&frames[7]).as_deref(), Some("55000"));
+    for index in [3, 9] {
+        assert_eq!(wire::error_code(&frames[index]), None);
+        assert_eq!(
+            wire::data_rows(&frames[index]),
+            vec![vec![Some("1".into())]]
+        );
+    }
+}
+
+#[test]
+fn should_keep_staged_sequence_advance_after_a_failed_statement() {
+    // Arrange
+    let script = vec![
+        query("BEGIN"),
+        query("CREATE TABLE staged_sequence_error (id SERIAL)"),
+        query("SAVEPOINT before_error"),
+        query("SELECT nextval('staged_sequence_error_id_seq') + 10/(2-n) FROM generate_series(1,2) AS s(n)"),
+        query("ROLLBACK TO before_error"),
+        query("SELECT currval('staged_sequence_error_id_seq')"),
+        query("SELECT nextval('staged_sequence_error_id_seq')"),
+        query("ROLLBACK"),
+    ];
+
+    // Act
+    let frames = run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(wire::error_code(&frames[3]).as_deref(), Some("22012"));
+    assert_eq!(wire::data_rows(&frames[5]), vec![vec![Some("2".into())]]);
+    assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("3".into())]]);
+}
+
+#[test]
+fn should_keep_published_sequence_advances_after_transactional_ddl_rollback() {
+    // Arrange
+    let script = vec![
+        query("BEGIN"),
+        query("CREATE TABLE staged_sequence_unrelated (n INT)"),
+        query("SELECT nextval('staged_sequence_published_id_seq')"),
+        query("ROLLBACK"),
+        query("SELECT nextval('staged_sequence_published_id_seq')"),
+    ];
+
+    // Act
+    let frames = run_own_script(
+        &["CREATE TABLE staged_sequence_published (id SERIAL)"],
+        script,
+    );
+
+    // Assert
+    assert_eq!(wire::data_rows(&frames[2]), vec![vec![Some("1".into())]]);
+    assert_eq!(wire::data_rows(&frames[4]), vec![vec![Some("2".into())]]);
+}
+
+#[test]
+fn should_record_session_sequence_values_from_insert_defaults() {
+    // Arrange
+    let script = vec![
+        query("BEGIN"),
+        query("CREATE TABLE staged_default_currval (id SERIAL PRIMARY KEY, payload TEXT)"),
+        query("INSERT INTO staged_default_currval(payload) VALUES ('first') RETURNING id"),
+        query("SELECT currval('staged_default_currval_id_seq'), lastval()"),
+        query("SAVEPOINT before_insert"),
+        query("INSERT INTO staged_default_currval(payload) VALUES ('second')"),
+        query("ROLLBACK TO before_insert"),
+        query("SELECT currval('staged_default_currval_id_seq'), lastval()"),
+        query("ROLLBACK"),
+    ];
+
+    // Act
+    let frames = run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(
+        wire::data_rows(&frames[3]),
+        vec![vec![Some("1".into()), Some("1".into())]]
+    );
+    assert_eq!(
+        wire::data_rows(&frames[7]),
+        vec![vec![Some("2".into()), Some("2".into())]]
+    );
+}
+
+#[test]
+fn should_follow_setval_for_the_last_used_sequence_identity() {
+    // Arrange
+    let script = vec![
+        query("BEGIN"),
+        query("CREATE TABLE staged_lastval (id SERIAL)"),
+        query("SELECT nextval('staged_lastval_id_seq')"),
+        query("SELECT setval('staged_lastval_id_seq', 7, true)"),
+        query("SELECT lastval()"),
+        query("SELECT setval('staged_lastval_id_seq', 11, false)"),
+        query("SELECT currval('staged_lastval_id_seq'), lastval()"),
+        query("ROLLBACK"),
+        query("SELECT lastval()"),
+    ];
+
+    // Act
+    let frames = run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(wire::data_rows(&frames[4]), vec![vec![Some("7".into())]]);
+    assert_eq!(
+        wire::data_rows(&frames[6]),
+        vec![vec![Some("7".into()), Some("7".into())]]
+    );
+    assert_eq!(wire::error_code(&frames[8]).as_deref(), Some("55000"));
+}
+
+#[test]
+fn should_reject_restart_of_a_private_sequence_with_a_live_cursor() {
+    // Arrange
+    let script = vec![
+        query("BEGIN"),
+        query("CREATE TABLE staged_restart_guard (id INT GENERATED BY DEFAULT AS IDENTITY)"),
+        query("SELECT nextval('staged_restart_guard_id_seq')"),
+        query("SAVEPOINT before_restart"),
+        query("ALTER TABLE staged_restart_guard ALTER COLUMN id RESTART WITH 1"),
+        query("ROLLBACK TO before_restart"),
+        query("SELECT nextval('staged_restart_guard_id_seq')"),
+        query("ROLLBACK"),
+    ];
+
+    // Act
+    let frames = run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(wire::error_code(&frames[4]).as_deref(), Some("0A000"));
+    assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("2".into())]]);
+}

@@ -59,7 +59,7 @@ pub(in crate::executor::execution) fn execute_insert(
 
     let payloads = source_rows
         .into_iter()
-        .map(|row| cells::payload(cassie, &statement.table, &target_fields, &row));
+        .map(|row| cells::payload(cassie, session, &statement.table, &target_fields, &row));
     execute_insert_payloads(
         cassie,
         session,

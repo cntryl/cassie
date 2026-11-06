@@ -98,6 +98,14 @@ impl Midge {
         name: &str,
         mut update: impl FnMut(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
     ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
+        match self.private_sequence_target(name)? {
+            super::transactions::sequence_owner::SequenceTarget::Private {
+                metadata,
+                owner,
+                scratch: _scratch,
+            } => return owner.advance(metadata, update),
+            super::transactions::sequence_owner::SequenceTarget::Native => {}
+        }
         const MAX_ATTEMPTS: usize = 64;
         let mut attempt = 1;
         loop {
@@ -119,6 +127,7 @@ impl Midge {
         name: &str,
         update: impl FnOnce(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
     ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
+        self.ensure_no_private_cursor_for_catalog_update(name)?;
         let stored_name = self
             .get_sequence(name)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {

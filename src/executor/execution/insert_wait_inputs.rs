@@ -71,8 +71,9 @@ pub(in crate::executor::execution) fn prepare_waiting_insert(
             2,
         )?;
         payloads.try_push_with_result(bound, || {
-            let payload = super::cells::payload(cassie, &statement.table, &fields, &row)
-                .map_err(crate::app::CassieError::from)?;
+            let payload =
+                super::cells::payload(cassie, Some(session), &statement.table, &fields, &row)
+                    .map_err(crate::app::CassieError::from)?;
             cassie.prepare_upsert_candidate(&statement.table, payload)
         })?;
     }

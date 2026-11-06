@@ -6,15 +6,21 @@ maximum 131,072 integer digits and a nonzero fractional part carries into a
 The opposite rounding directions retain an in-range result. Oracle receipts
 are retained in ignored `target/scalar-oracle/adversarial-and-numeric-range.json`.
 
-The existing SQL executor delegates to public Rust helpers that return
-`Numeric` and discard `add`/`subtract` overflow with a truncated fallback.
-Jev selected preserving those existing public function signatures and routing
-SQL through private checked helpers (probability 1.00). This avoids a breaking
-Rust API change while making the PostgreSQL-wire SQL path report the format
-error. The public unchecked helpers retain their existing fallback and cannot
-express overflow; that limitation remains an explicit open #813 obligation.
-Jev's public-helper gap probability was 0.92 and was confirmed in source;
-the owner issue remains open. No persistent format or storage change is made.
+The original public Rust helpers returned `Numeric` and discarded
+`add`/`subtract` overflow with a truncated fallback. An initial Jev choice
+favored a private SQL-only checked path, but its 0.92 probability of retaining
+a public-helper defect was confirmed by source and the native boundary probe.
+Given the user's direction to complete the code, the decision was revisited:
+Jev selected changing both public helpers to return
+`Result<Numeric, TypeInputError>` (0.99), with a source-compatibility impact
+probability of 0.96. This is an intentional Rust source API break for callers
+of `numeric::math::{ceil,floor}`: they must handle the result. There are no
+other in-repository callers beyond the SQL executor. SQL and direct callers
+both receive `22003` on a carry beyond the numeric format. NaN, infinities,
+and in-range opposite-direction rounding remain unchanged. The decision and
+probabilities are advisory; source, the PostgreSQL 18.6 oracle, and the final
+executable gates determine acceptance. No persistent format or storage change
+is made.
 
 The boundary unit and wire regressions were authored before implementation.
 Their execution remains deferred until the assembled gate; no baseline RED or

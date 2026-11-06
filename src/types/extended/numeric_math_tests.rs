@@ -13,10 +13,10 @@ fn should_report_numeric_rounding_carry_overflow() {
     let negative = Numeric::finite(-magnitude, 1);
 
     // Act
-    let ceiling = super::ceil_checked(&positive);
-    let floor = super::floor_checked(&negative);
-    let floor_control = super::floor_checked(&positive);
-    let ceiling_control = super::ceil_checked(&negative);
+    let ceiling = super::ceil(&positive);
+    let floor = super::floor(&negative);
+    let floor_control = super::floor(&positive);
+    let ceiling_control = super::ceil(&negative);
 
     // Assert
     assert_eq!(

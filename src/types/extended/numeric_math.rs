@@ -306,13 +306,10 @@ pub fn trunc(value: &Numeric, scale: i64) -> Numeric {
 }
 
 /// `ceil(numeric)`.
-#[must_use]
-pub fn ceil(value: &Numeric) -> Numeric {
-    ceil_checked(value).unwrap_or_else(|_| value.truncate_to(0))
-}
-
-/// Ceiling with format errors retained for SQL evaluation.
-pub(crate) fn ceil_checked(value: &Numeric) -> Result<Numeric, TypeInputError> {
+///
+/// # Errors
+/// Returns `22003` when the ceiling exceeds the numeric format.
+pub fn ceil(value: &Numeric) -> Result<Numeric, TypeInputError> {
     let truncated = value.truncate_to(0);
     if value.compare(&truncated).is_gt() {
         add(&truncated, &super::one())
@@ -322,13 +319,10 @@ pub(crate) fn ceil_checked(value: &Numeric) -> Result<Numeric, TypeInputError> {
 }
 
 /// `floor(numeric)`.
-#[must_use]
-pub fn floor(value: &Numeric) -> Numeric {
-    floor_checked(value).unwrap_or_else(|_| value.truncate_to(0))
-}
-
-/// Floor with format errors retained for SQL evaluation.
-pub(crate) fn floor_checked(value: &Numeric) -> Result<Numeric, TypeInputError> {
+///
+/// # Errors
+/// Returns `22003` when the floor exceeds the numeric format.
+pub fn floor(value: &Numeric) -> Result<Numeric, TypeInputError> {
     let truncated = value.truncate_to(0);
     if value.compare(&truncated).is_lt() {
         subtract(&truncated, &super::one())

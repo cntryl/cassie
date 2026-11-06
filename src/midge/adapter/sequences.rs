@@ -80,7 +80,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn next_sequence_value(&self, name: &str) -> Result<i64, CassieError> {
-        self.update_sequence(name, |metadata| {
+        self.update_sequence_retrying(name, |metadata| {
             metadata.advance().map_err(CassieError::from)
         })
         .map(|(value, _)| value)

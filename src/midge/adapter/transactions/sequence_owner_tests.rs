@@ -640,3 +640,130 @@ fn should_discard_a_fork_restart_when_the_fork_is_aborted() {
     assert_eq!(next.expect("parent epoch").0, 2);
     assert!(parent.lock().sequence_epochs.is_none());
 }
+
+#[test]
+fn should_interrupt_metadata_writer_at_a_deterministic_chunk_boundary() {
+    // Arrange
+    use std::io::Write;
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let mut output = Vec::with_capacity(4097);
+    let mut writer = super::CheckingWriter {
+        output: &mut output,
+        position: 0,
+        controls: &controls,
+    };
+    let chunk = [b'x'; 4096];
+    writer.write_all(&chunk).expect("first chunk");
+    cancellation.cancel();
+
+    // Act
+    let result = writer.write(&[b'x']);
+
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(writer.position, 4096);
+}
+
+#[test]
+fn should_encode_sequence_metadata_like_the_existing_serde_format() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let mut metadata = SequenceMeta::new("unicode-é-\\\"-\n-\u{1}", DataType::BigInt);
+    metadata.object_id = 999;
+    metadata.owned_by = Some(crate::catalog::SequenceOwner {
+        table: "table\\name".into(),
+        column: "column\t名".into(),
+    });
+    let expected = serde_json::to_vec(&metadata).expect("existing format");
+    let mut actual = Vec::new();
+
+    // Act
+    let result = super::encode_sequence_metadata(&mut actual, &metadata, &controls);
+
+    // Assert
+    result.expect("encode metadata");
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn should_treat_private_next_sequence_api_as_nontransactional_advance() {
+    // Arrange
+    use std::sync::Arc;
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let _controls = PublicationControlScope::enter(Some(&controls));
+    let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
+    midge.ensure_families_ready().expect("families");
+    let parent = Arc::new(parking_lot::Mutex::new(StorageOverlay::default()));
+    let _scope = midge
+        .enter_transactional_ddl_scope("postgres", Arc::clone(&parent), true)
+        .expect("scope");
+    let mut metadata = SequenceMeta::new("public_next_value", DataType::BigInt);
+    metadata.object_id = 119;
+    midge.put_sequence(&metadata).expect("stage sequence");
+    let first = midge
+        .next_sequence_value("public_next_value")
+        .expect("first");
+    let saved = parent.lock().clone();
+    let second = midge
+        .next_sequence_value("public_next_value")
+        .expect("second");
+    *parent.lock() = saved;
+
+    // Act
+    let third = midge
+        .next_sequence_value("public_next_value")
+        .expect("third");
+
+    // Assert
+    assert_eq!((first, second, third), (1, 2, 3));
+}
+
+#[test]
+fn should_interrupt_a_long_unescaped_metadata_name_during_serialization() {
+    // Arrange
+    use std::io::{self, Write};
+    struct CancelAfterFirstChunk {
+        cancellation: QueryCancellationHandle,
+        bytes: usize,
+    }
+    impl Write for CancelAfterFirstChunk {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.bytes += bytes.len();
+            if self.bytes >= 4096 {
+                self.cancellation.cancel();
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let metadata = SequenceMeta::new("x".repeat(8192), DataType::BigInt);
+    let mut writer = CancelAfterFirstChunk {
+        cancellation,
+        bytes: 0,
+    };
+
+    // Act
+    let result = super::encode_sequence_metadata(&mut writer, &metadata, &controls);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+    assert!(writer.bytes < metadata.name.len());
+}

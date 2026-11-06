@@ -164,18 +164,171 @@ fn decode(
     Ok((metadata, memory))
 }
 
-#[derive(Default)]
-struct Counter(usize);
-impl Write for Counter {
+struct Counter<'a> {
+    position: usize,
+    controls: &'a QueryExecutionControls,
+}
+impl Write for Counter<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.0 = self
-            .0
-            .checked_add(bytes.len())
+        self.controls
+            .check_interruption()
+            .map_err(|_| io::Error::other("query interrupted"))?;
+        let count = bytes.len().min(4096);
+        self.position = self
+            .position
+            .checked_add(count)
             .ok_or_else(|| io::Error::other("sequence serialization overflow"))?;
-        Ok(bytes.len())
+        Ok(count)
     }
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+struct CheckingWriter<'a> {
+    output: &'a mut Vec<u8>,
+    position: usize,
+    controls: &'a QueryExecutionControls,
+}
+impl Write for CheckingWriter<'_> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.controls
+            .check_interruption()
+            .map_err(|_| io::Error::other("query interrupted"))?;
+        let count = bytes.len().min(4096);
+        let end = self
+            .output
+            .len()
+            .checked_add(count)
+            .ok_or_else(|| io::Error::other("sequence serialization overflow"))?;
+        if end > self.output.capacity() {
+            return Err(io::Error::other("sequence output exceeded admission"));
+        }
+        self.output.extend_from_slice(&bytes[..count]);
+        self.position += count;
+        Ok(count)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Emit JSON string fragments in bounded scans. serde_json's ordinary string
+/// serializer scans a complete unescaped string before calling its writer.
+fn write_json_string(
+    writer: &mut impl Write,
+    value: &str,
+    controls: &QueryExecutionControls,
+) -> io::Result<()> {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    writer.write_all(b"\"")?;
+    for chunk in value.as_bytes().chunks(4096) {
+        controls
+            .check_interruption()
+            .map_err(|_| io::Error::other("query interrupted"))?;
+        let mut start = 0;
+        for (index, byte) in chunk.iter().copied().enumerate() {
+            let escape: Option<&[u8]> = match byte {
+                b'"' => Some(b"\\\""),
+                b'\\' => Some(b"\\\\"),
+                8 => Some(b"\\b"),
+                9 => Some(b"\\t"),
+                10 => Some(b"\\n"),
+                12 => Some(b"\\f"),
+                13 => Some(b"\\r"),
+                _ => None,
+            };
+            if let Some(escape) = escape {
+                writer.write_all(&chunk[start..index])?;
+                writer.write_all(escape)?;
+                start = index + 1;
+            } else if byte < 32 {
+                writer.write_all(&chunk[start..index])?;
+                writer.write_all(&[
+                    b'\\',
+                    b'u',
+                    b'0',
+                    b'0',
+                    HEX[usize::from(byte >> 4)],
+                    HEX[usize::from(byte & 15)],
+                ])?;
+                start = index + 1;
+            }
+        }
+        writer.write_all(&chunk[start..])?;
+    }
+    writer.write_all(b"\"")
+}
+
+/// Preserve the existing serde JSON representation while bounding every scan.
+fn encode_sequence_metadata(
+    writer: &mut impl Write,
+    metadata: &SequenceMeta,
+    controls: &QueryExecutionControls,
+) -> Result<(), CassieError> {
+    use crate::catalog::SequencePersistence;
+    use crate::types::DataType;
+    let SequenceMeta {
+        name: _,
+        data_type: _,
+        start_value: _,
+        increment_by: _,
+        current_value: _,
+        is_called: _,
+        min_value: _,
+        max_value: _,
+        cache: _,
+        cycle: _,
+        owned_by: _,
+        persistence: _,
+        object_id: _,
+    } = metadata;
+    let data_type = match &metadata.data_type {
+        DataType::SmallInt => "smallint",
+        DataType::Int => "int",
+        DataType::BigInt => "bigint",
+        _ => {
+            return Err(CassieError::Unsupported(
+                "unsupported transaction-owned sequence type".into(),
+            ))
+        }
+    };
+    let persistence = match metadata.persistence {
+        SequencePersistence::Permanent => "permanent",
+        SequencePersistence::Unlogged => "unlogged",
+        SequencePersistence::Temporary => "temporary",
+    };
+    let mut encode = || -> io::Result<()> {
+        writer.write_all(b"{\"name\":")?;
+        write_json_string(writer, &metadata.name, controls)?;
+        write!(writer, ",\"data_type\":\"{data_type}\",\"start_value\":{},\"increment_by\":{},\"current_value\":{},\"is_called\":{},\"min_value\":{},\"max_value\":{},\"cache\":{},\"cycle\":{},\"owned_by\":", metadata.start_value, metadata.increment_by, metadata.current_value, metadata.is_called, metadata.min_value, metadata.max_value, metadata.cache, metadata.cycle)?;
+        if let Some(owner) = &metadata.owned_by {
+            let crate::catalog::SequenceOwner {
+                table: _,
+                column: _,
+            } = owner;
+            writer.write_all(b"{\"table\":")?;
+            write_json_string(writer, &owner.table, controls)?;
+            writer.write_all(b",\"column\":")?;
+            write_json_string(writer, &owner.column, controls)?;
+            writer.write_all(b"}")?;
+        } else {
+            writer.write_all(b"null")?;
+        }
+        write!(
+            writer,
+            ",\"persistence\":\"{persistence}\",\"object_id\":{}}}",
+            metadata.object_id
+        )
+    };
+    match encode() {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            controls.check_interruption()?;
+            Err(CassieError::Parse(format!(
+                "sequence serialization failed: {error}"
+            )))
+        }
     }
 }
 
@@ -294,15 +447,23 @@ impl Midge {
             .next_epoch
             .checked_add(1)
             .ok_or_else(|| CassieError::ResourceLimit("sequence epoch exhausted".into()))?;
-        let mut counter = Counter::default();
-        serde_json::to_writer(&mut counter, &metadata)
-            .map_err(|error| CassieError::Parse(error.to_string()))?;
+        let mut counter = Counter {
+            position: 0,
+            controls: &controls,
+        };
+        encode_sequence_metadata(&mut counter, &metadata, &controls)?;
         let base = controls.reserve_query_memory(0)?;
         let (mut encoded, _encoded_memory) =
-            crate::runtime::owned_memory::try_reserve_vec(counter.0, &base)?;
-        serde_json::to_writer(&mut encoded, &metadata)
-            .map_err(|error| CassieError::Parse(error.to_string()))?;
-        if encoded.len() != counter.0 {
+            crate::runtime::owned_memory::try_reserve_vec(counter.position, &base)?;
+        {
+            let mut writer = CheckingWriter {
+                output: &mut encoded,
+                position: 0,
+                controls: &controls,
+            };
+            encode_sequence_metadata(&mut writer, &metadata, &controls)?;
+        }
+        if encoded.len() != counter.position {
             return Err(CassieError::Execution(
                 "sequence serialization changed size".into(),
             ));
@@ -314,7 +475,7 @@ impl Midge {
         let selection_bytes = count
             .checked_add(1)
             .and_then(|entries| entries.checked_mul(CURSOR_BYTES))
-            .and_then(|bytes| bytes.checked_add(counter.0))
+            .and_then(|bytes| bytes.checked_add(counter.position))
             .ok_or_else(|| {
                 CassieError::ResourceLimit("sequence epoch accounting overflow".into())
             })?;
@@ -654,14 +815,22 @@ impl StorageOverlay {
                     .unwrap_or(0),
             )) {
                 metadata.set_cursor(*cursor);
-                let mut counter = Counter::default();
-                serde_json::to_writer(&mut counter, &metadata)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?;
+                let mut counter = Counter {
+                    position: 0,
+                    controls,
+                };
+                encode_sequence_metadata(&mut counter, &metadata, controls)?;
                 let (mut encoded, memory) =
-                    crate::runtime::owned_memory::try_reserve_vec(counter.0, &base)?;
-                serde_json::to_writer(&mut encoded, &metadata)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?;
-                if encoded.len() != counter.0 {
+                    crate::runtime::owned_memory::try_reserve_vec(counter.position, &base)?;
+                {
+                    let mut writer = CheckingWriter {
+                        output: &mut encoded,
+                        position: 0,
+                        controls,
+                    };
+                    encode_sequence_metadata(&mut writer, &metadata, controls)?;
+                }
+                if encoded.len() != counter.position {
                     return Err(CassieError::Execution(
                         "sequence serialization changed size".into(),
                     ));

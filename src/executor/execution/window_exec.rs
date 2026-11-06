@@ -512,18 +512,9 @@ fn frame_positions(
         .ok_or_else(|| {
             crate::app::CassieError::ResourceLimit("window frame size overflow".into())
         })?;
-    let bytes = crate::executor::retained_memory::mul(count, std::mem::size_of::<usize>())?;
-    let mut memory = context.controls.reserve_query_memory(bytes)?;
+    let admission = context.controls.reserve_query_memory(0)?;
+    let (mut positions, memory) = crate::runtime::owned_memory::try_reserve_vec(count, &admission)?;
     let current_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
-    let mut positions = Vec::new();
-    positions.try_reserve_exact(count).map_err(|_| {
-        crate::app::CassieError::ResourceLimit("window frame allocation failed".into())
-    })?;
-    let capacity_bytes =
-        crate::executor::retained_memory::mul(positions.capacity(), std::mem::size_of::<usize>())?;
-    if capacity_bytes > bytes {
-        memory.try_grow(capacity_bytes - bytes)?;
-    }
     for candidate in start..=end {
         check_timeout(context.controls)?;
         let is_current = candidate == position;
@@ -567,22 +558,9 @@ fn peer_groups(
     context: &WindowExecutionContext<'_>,
 ) -> Result<PeerGroups, QueryError> {
     check_timeout(context.controls)?;
-    let bytes = crate::executor::retained_memory::mul(
-        indices.len(),
-        std::mem::size_of::<(usize, usize)>(),
-    )?;
-    let mut memory = context.controls.reserve_query_memory(bytes)?;
-    let mut groups = Vec::new();
-    groups.try_reserve_exact(indices.len()).map_err(|_| {
-        crate::app::CassieError::ResourceLimit("window peer group allocation failed".into())
-    })?;
-    let capacity_bytes = crate::executor::retained_memory::mul(
-        groups.capacity(),
-        std::mem::size_of::<(usize, usize)>(),
-    )?;
-    if capacity_bytes > bytes {
-        memory.try_grow(capacity_bytes - bytes)?;
-    }
+    let admission = context.controls.reserve_query_memory(0)?;
+    let (mut groups, memory) =
+        crate::runtime::owned_memory::try_reserve_vec(indices.len(), &admission)?;
     let mut start = 0;
     for position in 1..indices.len() {
         check_timeout(context.controls)?;

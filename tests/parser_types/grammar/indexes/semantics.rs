@@ -139,6 +139,25 @@ fn should_parse_create_partial_index_statement() {
 }
 
 #[test]
+fn should_parse_partial_index_after_storage_options() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_active_options ON docs (title) WITH (fillfactor = 80) WHERE status = 'active'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse storage options and partial predicate");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+    assert_eq!(
+        statement.options.get("fillfactor").map(String::as_str),
+        Some("80")
+    );
+    assert!(statement.predicate.is_some());
+}
+
+#[test]
 fn should_parse_create_expression_index_statement() {
     // Arrange
     let sql = "CREATE INDEX idx_docs_lower_title ON docs USING btree (lower(title))";

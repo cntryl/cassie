@@ -61,9 +61,9 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     let (fields, expressions, key_options, remainder) = parse_index_fields(remainder)?;
     let (include_fields, remainder) = parse_index_include_fields(remainder)?;
     let (leading_nulls_policy, remainder) = parse_index_nulls_policy(remainder)?;
-    let (predicate, remainder) = parse_index_predicate(remainder)?;
     let (mut options, remainder) = parse_index_options(remainder)?;
     let (trailing_nulls_policy, remainder) = parse_index_nulls_policy(remainder)?;
+    let (predicate, remainder) = parse_index_predicate(remainder)?;
     if leading_nulls_policy.is_some() && trailing_nulls_policy.is_some() {
         return Err(SqlError::new(
             "CREATE INDEX has more than one NULLS DISTINCT policy".to_string(),
@@ -607,15 +607,16 @@ pub(in crate::sql::parser) fn parse_index_options(
     }
 
     let with_body = raw[4..].trim_start();
-    if !with_body.starts_with('(') || !with_body.ends_with(')') {
+    if !with_body.starts_with('(') {
         return Err(SqlError::new(
             "WITH options must be enclosed in parentheses".to_string(),
         ));
     }
-
-    let body = &with_body[1..with_body.len() - 1];
+    let close = find_matching_paren(with_body, 0)
+        .ok_or_else(|| SqlError::new("WITH options must be enclosed in parentheses".to_string()))?;
+    let body = &with_body[1..close];
     let options = parse_index_option_assignments(body)?;
-    Ok((options, ""))
+    Ok((options, with_body[close + 1..].trim_start()))
 }
 
 fn parse_index_option_assignments(

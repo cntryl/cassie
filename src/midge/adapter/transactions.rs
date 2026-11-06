@@ -30,11 +30,15 @@ pub(crate) use row_fence::RetainedRowFence;
 pub(crate) struct StorageOverlay {
     pub(crate) changes: BTreeMap<Vec<u8>, StorageMutation>,
     sequence_cursors: Arc<sequence_owner::SequenceOwner>,
+    sequence_epochs: Option<Arc<sequence_owner::EpochSelections>>,
+    sequence_fork: Option<Arc<sequence_owner::SequenceForkLease>>,
 }
 
 impl PartialEq for StorageOverlay {
     fn eq(&self, other: &Self) -> bool {
         self.changes == other.changes
+            && self.sequence_epochs.as_deref().map(|owner| &owner.epochs)
+                == other.sequence_epochs.as_deref().map(|owner| &owner.epochs)
     }
 }
 impl Eq for StorageOverlay {}

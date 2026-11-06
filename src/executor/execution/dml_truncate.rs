@@ -43,7 +43,7 @@ pub(in crate::executor::execution) fn execute_truncate(
         check_timeout(controls)?;
         if statement.restart_identity {
             let working_cassie = cassie.with_statement_metadata_writer(batch.session());
-            restart_owned_sequences(&working_cassie, session, &tables)?;
+            restart_owned_sequences(&working_cassie, session, batch.session(), &tables)?;
         }
         cassie
             .publish_statement_batch(session, batch, controls)
@@ -196,6 +196,7 @@ fn owned_sequences(cassie: &Cassie, tables: &[String]) -> Vec<String> {
 fn restart_owned_sequences(
     cassie: &Cassie,
     session: Option<&CassieSession>,
+    working: &CassieSession,
     tables: &[String],
 ) -> Result<(), QueryError> {
     let transaction = session.filter(|session| session.is_transaction_active());
@@ -210,6 +211,29 @@ fn restart_owned_sequences(
         }
     });
     for sequence in owned_sequences(cassie, tables) {
+        let private = cassie
+            .catalog
+            .get_sequence(&sequence)
+            .map(|metadata| cassie.midge.is_private_sequence(&metadata))
+            .transpose()
+            .map_err(QueryError::from)?
+            .unwrap_or(false);
+        let _private_scope = if private {
+            Some(
+                cassie
+                    .midge
+                    .enter_transactional_ddl_scope(
+                        working
+                            .current_database()
+                            .unwrap_or(&cassie.default_database),
+                        working.transaction_storage_overlay(),
+                        true,
+                    )
+                    .map_err(QueryError::from)?,
+            )
+        } else {
+            None
+        };
         let (prior, updated) = cassie
             .midge
             .update_sequence(&sequence, |metadata| {
@@ -221,8 +245,10 @@ fn restart_owned_sequences(
             })
             .map_err(QueryError::from)?;
         cassie.metadata_write_catalog.register_sequence(updated);
-        if let Some(session) = transaction {
-            session.record_sequence_restart(&sequence, prior, &restorer);
+        if !private {
+            if let Some(session) = transaction {
+                session.record_sequence_restart(&sequence, prior, &restorer);
+            }
         }
     }
     Ok(())

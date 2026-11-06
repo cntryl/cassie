@@ -41,6 +41,22 @@ fn should_report_numeric_rounding_carry_overflow() {
     );
 }
 
+#[test]
+fn should_preserve_nonfinite_numeric_rounding_values() {
+    // Arrange
+    let values = [Numeric::NaN, Numeric::Infinity, Numeric::NegInfinity];
+
+    for value in values {
+        // Act
+        let ceiling = super::ceil(&value);
+        let floor = super::floor(&value);
+
+        // Assert
+        assert_eq!(ceiling.expect("nonfinite ceiling"), value);
+        assert_eq!(floor.expect("nonfinite floor"), value);
+    }
+}
+
 fn numeric(text: &str) -> Numeric {
     parse_text(text).expect("valid numeric input")
 }

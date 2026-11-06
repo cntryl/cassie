@@ -469,6 +469,19 @@ fn framed_window_arg_value(
     window_arg_value(Some(indices[*target]), rows, function, context)
 }
 
+struct FramePositions {
+    positions: Vec<usize>,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+
+impl std::ops::Deref for FramePositions {
+    type Target = [usize];
+
+    fn deref(&self) -> &Self::Target {
+        &self.positions
+    }
+}
+
 fn frame_positions(
     position: usize,
     indices: &[usize],
@@ -476,7 +489,8 @@ fn frame_positions(
     function: &WindowFunctionCall,
     frame: &WindowFrame,
     context: &WindowExecutionContext<'_>,
-) -> Result<Vec<usize>, QueryError> {
+) -> Result<FramePositions, QueryError> {
+    check_timeout(context.controls)?;
     let bounds = match frame.unit {
         WindowFrameUnit::Rows => frame_row_bounds(position, indices.len(), frame),
         WindowFrameUnit::Groups => {
@@ -487,11 +501,31 @@ fn frame_positions(
         }
     };
     let Some((start, end)) = bounds else {
-        return Ok(Vec::new());
+        return Ok(FramePositions {
+            positions: Vec::new(),
+            _memory: context.controls.reserve_query_memory(0)?,
+        });
     };
+    let count = end
+        .checked_sub(start)
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(|| {
+            crate::app::CassieError::ResourceLimit("window frame size overflow".into())
+        })?;
+    let bytes = crate::executor::retained_memory::mul(count, std::mem::size_of::<usize>())?;
+    let mut memory = context.controls.reserve_query_memory(bytes)?;
     let current_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
     let mut positions = Vec::new();
+    positions.try_reserve_exact(count).map_err(|_| {
+        crate::app::CassieError::ResourceLimit("window frame allocation failed".into())
+    })?;
+    let capacity_bytes =
+        crate::executor::retained_memory::mul(positions.capacity(), std::mem::size_of::<usize>())?;
+    if capacity_bytes > bytes {
+        memory.try_grow(capacity_bytes - bytes)?;
+    }
     for candidate in start..=end {
+        check_timeout(context.controls)?;
         let is_current = candidate == position;
         let is_peer =
             window_peer_key(&rows[indices[candidate]], &function.order_by, context)? == current_key;
@@ -503,8 +537,14 @@ fn frame_positions(
         } {
             positions.push(candidate);
         }
+        #[cfg(test)]
+        frame_resource_tests::after_candidate();
     }
-    Ok(positions)
+    check_timeout(context.controls)?;
+    Ok(FramePositions {
+        positions,
+        _memory: memory,
+    })
 }
 
 fn peer_groups(
@@ -862,6 +902,9 @@ fn evaluate_window_expr(
 
 #[cfg(test)]
 mod typed_tests;
+
+#[cfg(test)]
+mod frame_resource_tests;
 
 #[cfg(test)]
 mod qualification_tests;

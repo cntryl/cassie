@@ -568,7 +568,7 @@ fn should_reload_explicit_local_fulltext_index_after_restart() {
         cassie.startup().expect("start local Cassie");
         let session = cassie.create_session("tester", None);
         cassie.execute_sql(&session, "CREATE TABLE local_restart_docs (body TEXT)", vec![]).expect("create table");
-        cassie.execute_sql(&session, "INSERT INTO local_restart_docs (body) VALUES ('alpha beta')", vec![]).expect("insert document");
+        cassie.execute_sql(&session, "INSERT INTO local_restart_docs (body) VALUES ('alpha beta'), ('bravo'), ('charlie')", vec![]).expect("insert documents");
         cassie.execute_sql(&session, "CREATE INDEX local_restart_idx ON local_restart_docs USING fulltext (body)", vec![]).expect("create index");
     }
     let cassie = Cassie::new_local_with_data_dir_and_config(directory.path(), config)
@@ -579,12 +579,15 @@ fn should_reload_explicit_local_fulltext_index_after_restart() {
     let before = cassie.metrics();
 
     // Act
-    let result = cassie.execute_sql(&session, "SELECT body FROM local_restart_docs WHERE search(body, 'alpha')", vec![]);
+    let result = cassie.execute_sql(&session, "SELECT body, search_score(body, 'alpha') AS score FROM local_restart_docs WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1", vec![]);
     let after = cassie.metrics();
 
     // Assert
     assert!(cassie.catalog.get_index(&collection, "local_restart_idx").is_some());
-    assert_eq!(result.expect("query reloaded index").rows(), &[vec![Value::String("alpha beta".into())]]);
+    let result = result.expect("query reloaded index");
+    assert_eq!(result.rows().len(), 1);
+    assert_eq!(result.rows()[0][0], Value::String("alpha beta".into()));
+    assert!(matches!(result.rows()[0][1], Value::Float64(score) if score > 0.0));
     assert!(after["search"]["posting_reads_total"].as_u64().unwrap() > before["search"]["posting_reads_total"].as_u64().unwrap());
     assert_eq!(after["search"]["row_scan_fallback_total"].as_u64(), before["search"]["row_scan_fallback_total"].as_u64());
 }

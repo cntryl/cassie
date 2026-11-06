@@ -16,6 +16,9 @@ these virtual rows deterministically, but implicit relation order is not part of
 the compatibility contract. An unavailable virtual view is an undefined relation and pgwire returns
 SQLSTATE `42P01`; Cassie does not synthesize undocumented PostgreSQL-internal rows.
 
+The current v0.2 dependency-owned catalog field inventory and remaining selection
+work are recorded in [v0.2 catalog inventory](catalog-v020-inventory-2026-11-06.md).
+
 ## Stable named-client subset
 
 ### `information_schema.tables`

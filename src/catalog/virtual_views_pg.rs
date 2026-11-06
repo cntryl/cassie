@@ -393,8 +393,27 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
                 .is_none_or(|database| relation_belongs_to_database(&view.name, database))
         })
         .flat_map(|view| view.schema.fields.into_iter().map(|field| field.data_type));
+    let materialized_view_types = catalog
+        .list_projection_metadata()
+        .into_iter()
+        .filter(|projection| {
+            projection.kind == crate::catalog::ProjectionKind::Materialized
+                && current_database.is_none_or(|database| {
+                    relation_belongs_to_database(&projection.collection, database)
+                })
+        })
+        .filter_map(|projection| projection.materialized)
+        .filter(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        .flat_map(|materialized| {
+            materialized
+                .output_schema
+                .fields
+                .into_iter()
+                .map(|field| field.data_type)
+        });
     let dimensions = collection_types
         .chain(view_types)
+        .chain(materialized_view_types)
         .filter_map(|data_type| match data_type {
             DataType::Vector(dimensions)
                 if crate::types::schema::vector_dimensions_for_oid(data_type.type_oid())

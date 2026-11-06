@@ -634,3 +634,107 @@ fn should_support_regdictionary_text_io() {
         vec![vec![Value::String("simple".to_owned())]]
     );
 }
+
+#[test]
+fn should_discover_unpopulated_materialized_view_vector_type_until_drop() {
+    // Arrange
+    let fixture = sql_fixture("catalog-matview-vector-type-lifecycle", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE TABLE mv_type_source (id INTEGER)")
+        .expect("source table");
+    fixture.execute(
+        "CREATE MATERIALIZED VIEW mv_type_projection AS SELECT CAST(NULL AS VECTOR(11)) AS embedding, CAST(NULL AS VECTOR(11)) AS duplicate FROM mv_type_source WITH NO DATA",
+    ).expect("unpopulated materialized view with repeated vector identity");
+
+    // Act
+    let types = fixture.execute(
+        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(11)' ORDER BY oid",
+    ).expect("materialized view vector type");
+    let attributes = fixture.execute(
+        "SELECT attname, atttypid FROM pg_catalog.pg_attribute WHERE attrelid = 'mv_type_projection' ORDER BY attnum",
+    ).expect("materialized view attribute identities");
+    fixture
+        .execute("DROP MATERIALIZED VIEW mv_type_projection")
+        .expect("drop materialized view");
+    let after_drop = fixture.execute(
+        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(11)'",
+    ).expect("registry after dropping the only reference");
+
+    // Assert
+    assert_eq!(types.rows(), vec![type_row(100_011, "vector(11)", -1, 0)]);
+    assert_eq!(
+        attributes.rows(),
+        vec![
+            vec![
+                Value::String("embedding".to_string()),
+                Value::Int64(100_011)
+            ],
+            vec![
+                Value::String("duplicate".to_string()),
+                Value::Int64(100_011)
+            ],
+        ]
+    );
+    assert_eq!(after_drop.rows(), &[] as &[Vec<Value>]);
+}
+
+#[test]
+fn should_scope_unpopulated_materialized_view_vector_types_to_current_database() {
+    // Arrange
+    let fixture = sql_fixture("catalog-matview-vector-type-database", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE DATABASE mv_type_tenant")
+        .expect("tenant database");
+    let tenant = fixture
+        .cassie
+        .create_session("tester", Some("mv_type_tenant".to_string()));
+    fixture
+        .cassie
+        .execute_sql(&tenant, "CREATE TABLE mv_type_source (id INTEGER)", vec![])
+        .expect("tenant source");
+    fixture.cassie.execute_sql(&tenant, "CREATE MATERIALIZED VIEW mv_type_projection AS SELECT CAST(NULL AS VECTOR(13)) AS embedding FROM mv_type_source WITH NO DATA", vec![]).expect("tenant view");
+    let query =
+        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(13)'";
+
+    // Act
+    let current = fixture.execute(query).expect("original database registry");
+    let other = fixture
+        .cassie
+        .execute_sql(&tenant, query, vec![])
+        .expect("tenant registry");
+
+    // Assert
+    assert_eq!(current.rows(), &[] as &[Vec<Value>]);
+    assert_eq!(other.rows(), vec![type_row(100_013, "vector(13)", -1, 0)]);
+}
+
+#[test]
+fn should_remove_rolled_back_materialized_view_vector_type() {
+    // Arrange
+    let fixture = sql_fixture("catalog-matview-vector-type-rollback", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE TABLE mv_rollback_source (id INTEGER)")
+        .expect("source table");
+    fixture.execute("BEGIN").expect("begin transaction");
+    fixture.execute(
+        "CREATE MATERIALIZED VIEW mv_rollback_projection AS SELECT CAST(NULL AS VECTOR(17)) AS embedding FROM mv_rollback_source WITH NO DATA",
+    ).expect("transaction-owned materialized view");
+    let query =
+        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(17)'";
+
+    // Act
+    let inside = fixture
+        .execute(query)
+        .expect("transaction-owned type identity");
+    fixture
+        .execute("ROLLBACK")
+        .expect("discard transaction-owned view");
+    let after = fixture.execute(query).expect("registry after rollback");
+
+    // Assert
+    assert_eq!(inside.rows(), vec![type_row(100_017, "vector(17)", -1, 0)]);
+    assert_eq!(after.rows(), &[] as &[Vec<Value>]);
+}

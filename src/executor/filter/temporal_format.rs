@@ -2,8 +2,8 @@
 use super::temporal::type_error;
 use super::QueryError;
 use crate::types::extended::temporal::calendar::{
-    date2j, is_valid_timestamp, time_value, timestamp_to_fields, Fields, POSTGRES_EPOCH_JDATE,
-    USECS_PER_DAY, USECS_PER_HOUR, USECS_PER_MINUTE, USECS_PER_SEC,
+    date2j, is_valid_timestamp, round_timestamp, time_value, timestamp_to_fields, Fields,
+    POSTGRES_EPOCH_JDATE, USECS_PER_DAY, USECS_PER_HOUR, USECS_PER_MINUTE, USECS_PER_SEC,
 };
 use crate::types::extended::temporal::format::{self, Moment};
 use crate::types::extended::temporal::ops;
@@ -43,7 +43,8 @@ pub(super) fn evaluate(
                 .ok_or_else(|| type_error(range_error("date out of range")))
         }
         _ => {
-            let parsed = format::parse(&text(&args[0])?, &template).map_err(type_error)?;
+            let (parsed, precision) =
+                format::parse_with_precision(&text(&args[0])?, &template).map_err(type_error)?;
             // The local wall time may be just outside the timestamp range
             // while its UTC instant is valid after applying the displacement.
             let fields = parsed.fields;
@@ -65,6 +66,8 @@ pub(super) fn evaluate(
                 .unwrap_or_else(|| session.zone.offset_for_local(local));
             let instant = local
                 .checked_sub(i64::from(east) * USECS_PER_SEC)
+                .filter(|value| is_valid_timestamp(*value))
+                .map(|value| round_timestamp(value, precision))
                 .filter(|value| is_valid_timestamp(*value))
                 .ok_or_else(|| type_error(range_error("timestamp out of range")))?;
             Ok(Value::Typed(TypedValue::TimestampTz(instant)))

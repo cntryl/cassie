@@ -450,6 +450,7 @@ struct Builder {
     twelve_hour: bool,
     bc: bool,
     zone_east: Option<i32>,
+    ff_precision: Option<u8>,
 }
 
 /// Parses `input` against a `to_date`/`to_timestamp` template.
@@ -457,6 +458,14 @@ struct Builder {
 /// # Errors
 /// Returns `22007` for unmatched input and `22008` for out-of-range fields.
 pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
+    parse_with_precision(input, template).map(|(parsed, _)| parsed)
+}
+
+/// Internal precision metadata leaves the public parsed-fields API unchanged.
+pub(crate) fn parse_with_precision(
+    input: &str,
+    template: &str,
+) -> Result<(Parsed, Option<u8>), TypeInputError> {
     let nodes = parse_template(template);
     let chars: Vec<char> = input.chars().collect();
     let mut cursor = 0;
@@ -503,7 +512,8 @@ pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
             }
         }
     }
-    builder.finish()
+    let precision = builder.ff_precision;
+    builder.finish().map(|parsed| (parsed, precision))
 }
 
 fn read_digits(
@@ -593,15 +603,13 @@ fn parse_zone_or_fraction(
                     "us" => 6,
                     other => usize::from(other.as_bytes()[2] - b'0'),
                 };
-                let limit = if !adjacent && matches!(keyword, "ms" | "us") {
-                    chars.len()
-                } else {
-                    digits_limit
-                };
+                if keyword.starts_with("ff") {
+                    builder.ff_precision = Some(keyword.as_bytes()[2] - b'0');
+                }
+                let limit = if !adjacent { chars.len() } else { digits_limit };
                 let (value, length) = read_digits(chars, cursor, limit, keyword)?;
-                if (keyword == "ms" && !(0..1000).contains(&value))
-                    || (keyword == "us" && !(0..USECS_PER_SEC).contains(&value))
-                {
+                let maximum = if keyword == "ms" { 1000 } else { USECS_PER_SEC };
+                if !(0..maximum).contains(&value) {
                     return Err(field_overflow("date/time field value out of range"));
                 }
                 let scale = if keyword == "ms" { 1000 } else { 1 };

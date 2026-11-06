@@ -71,3 +71,12 @@ change is not qualified until the assembled validation gate completes. The
 pre-existing complete storage-overlay snapshot clone remains a separate
 admission audit obligation; the new epoch-selection and fork-lease allocations
 are accounted independently, including coexistence with retained snapshots.
+
+The pinned serde_json serializer scans a complete unescaped string before it
+calls a writer, so an interruptible writer alone cannot bound that scan. The
+candidate sequence encoder emits the existing JSON field order and escaping
+with bounded string scans, a checking counter and an exactly admitted checking
+output buffer. A focused unexecuted probe compares bytes with serde_json for
+Unicode, quotes, controls and owner fields; another deterministically cancels
+mid-string. The supported sequence data types are the existing smallint,
+integer and bigint set; malformed other types fail closed.

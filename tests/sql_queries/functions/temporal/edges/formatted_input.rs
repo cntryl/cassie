@@ -6,6 +6,81 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_preserve_negative_zero_hour_for_formatted_zone_minutes() {
+    // Arrange
+    let fixture = sql_fixture("formatted-zone-negative-zero", &["SET TIME ZONE 'UTC'"]);
+    let cases = [
+        ("-00:30", "TZH:TZM", "2000-01-01 12:30:00+00"),
+        ("+00:30", "TZH:TZM", "2000-01-01 11:30:00+00"),
+        ("-01:30", "TZH:TZM", "2000-01-01 13:30:00+00"),
+        ("-00:30", "OF", "2000-01-01 12:30:00+00"),
+        ("30 -00", "TZM TZH", "2000-01-01 12:30:00+00"),
+        ("30 -01", "TZM TZH", "2000-01-01 13:30:00+00"),
+        ("+15:59", "TZH:TZM", "1999-12-31 20:01:00+00"),
+        ("-15:59", "OF", "2000-01-02 03:59:00+00"),
+    ];
+
+    for (offset, zone_template, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_timestamp('2000-01-01 12:00:00 {offset}', 'YYYY-MM-DD HH24:MI:SS {zone_template}') = TIMESTAMPTZ '{expected}'"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("formatted offset").rows(),
+            &[vec![Value::Bool(true)]]
+        );
+    }
+}
+
+#[test]
+fn should_reject_out_of_range_formatted_timezone_fields() {
+    // Arrange
+    let fixture = sql_fixture("formatted-zone-field-range", &["SET TIME ZONE 'UTC'"]);
+    let cases = [
+        ("+16:00", "TZH:TZM"),
+        ("-16:00", "TZH:TZM"),
+        ("+01:60", "TZH:TZM"),
+        ("-00:60", "TZH:TZM"),
+        ("+00:-30", "TZH:TZM"),
+        ("+16:00", "OF"),
+        ("+01:60", "OF"),
+    ];
+
+    for function in ["to_date", "to_timestamp"] {
+        for (offset, template) in cases {
+            // Act
+            let result = fixture.execute(&format!(
+                "SELECT {function}('2000-01-01 {offset}', 'YYYY-MM-DD {template}')"
+            ));
+
+            // Assert
+            assert!(
+                matches!(result, Err(CassieError::TypeInput(error)) if error.sqlstate == "22009")
+            );
+        }
+    }
+}
+
+#[test]
+fn should_reject_conflicting_formatted_timezone_fields() {
+    // Arrange
+    let fixture = sql_fixture("formatted-zone-field-conflict", &["SET TIME ZONE 'UTC'"]);
+    let cases = [("-01 +02 30", "TZH TZH TZM"), ("-01 30 15", "TZH TZM TZM")];
+
+    for (offset, template) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_timestamp('2000-01-01 {offset}', 'YYYY-MM-DD {template}')"
+        ));
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::TypeInput(error)) if error.sqlstate == "22007"));
+    }
+}
+
+#[test]
 fn should_reject_invalid_formatted_clock_fields() {
     // Arrange
     let fixture = sql_fixture("formatted-clock-input-range", &["SET TIME ZONE 'UTC'"]);

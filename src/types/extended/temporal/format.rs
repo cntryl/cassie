@@ -6,6 +6,9 @@ use super::calendar::{
 use super::zone::offset_abbreviation;
 use crate::types::extended::TypeInputError;
 
+#[path = "format_zone.rs"]
+mod zone;
+
 const MONTHS: [&str; 12] = [
     "January",
     "February",
@@ -449,7 +452,7 @@ struct Builder {
     pm: Option<bool>,
     twelve_hour: bool,
     bc: bool,
-    zone_east: Option<i32>,
+    zone: zone::ZoneFields,
     ff_precision: Option<u8>,
 }
 
@@ -583,19 +586,16 @@ fn parse_zone_or_fraction(
             "of" | "tzh" => {
                 let negative = chars.get(*cursor) == Some(&'-');
                 let (hours, _) = read_digits(chars, cursor, 2, keyword)?;
-                let mut minutes = 0;
+                builder.zone.set_hours(hours.abs(), negative)?;
                 if keyword == "of" && chars.get(*cursor) == Some(&':') {
                     *cursor += 1;
-                    minutes = read_digits(chars, cursor, 2, keyword)?.0;
+                    let (minutes, _) = read_digits(chars, cursor, 2, keyword)?;
+                    builder.zone.set_minutes(minutes)?;
                 }
-                let sign = if negative { -1 } else { 1 };
-                builder.zone_east = Some(narrow(sign * (hours.abs() * 3600 + minutes * 60))?);
             }
             "tzm" => {
                 let (minutes, _) = read_digits(chars, cursor, 2, keyword)?;
-                let east = builder.zone_east.unwrap_or(0);
-                let sign = if east < 0 { -1 } else { 1 };
-                builder.zone_east = Some(east + sign * narrow(minutes * 60)?);
+                builder.zone.set_minutes(minutes)?;
             }
             "us" | "ms" | "ff1" | "ff2" | "ff3" | "ff4" | "ff5" | "ff6" => {
                 let digits_limit = match keyword {
@@ -846,7 +846,7 @@ impl Builder {
         fields.micros = self.micros;
         Ok(Parsed {
             fields,
-            zone_east: self.zone_east,
+            zone_east: self.zone.offset_east()?,
         })
     }
 }

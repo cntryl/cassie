@@ -2,8 +2,8 @@
 use super::temporal::type_error;
 use super::QueryError;
 use crate::types::extended::temporal::calendar::{
-    date2j, fields_to_timestamp, timestamp_to_fields, Fields, POSTGRES_EPOCH_JDATE, USECS_PER_HOUR,
-    USECS_PER_MINUTE, USECS_PER_SEC,
+    date2j, is_valid_timestamp, time_value, timestamp_to_fields, Fields, POSTGRES_EPOCH_JDATE,
+    USECS_PER_DAY, USECS_PER_HOUR, USECS_PER_MINUTE, USECS_PER_SEC,
 };
 use crate::types::extended::temporal::format::{self, Moment};
 use crate::types::extended::temporal::ops;
@@ -44,12 +44,29 @@ pub(super) fn evaluate(
         }
         _ => {
             let parsed = format::parse(&text(&args[0])?, &template).map_err(type_error)?;
-            let local = fields_to_timestamp(&parsed.fields, None)
+            // The local wall time may be just outside the timestamp range
+            // while its UTC instant is valid after applying the displacement.
+            let fields = parsed.fields;
+            let date =
+                date2j(fields.year, fields.month, fields.day) - i64::from(POSTGRES_EPOCH_JDATE);
+            let local = date
+                .checked_mul(USECS_PER_DAY)
+                .and_then(|date| {
+                    date.checked_add(time_value(
+                        fields.hour,
+                        fields.minute,
+                        fields.second,
+                        fields.micros,
+                    ))
+                })
                 .ok_or_else(|| type_error(range_error("timestamp out of range")))?;
-            let instant = match parsed.zone_east {
-                Some(east) => local - i64::from(east) * USECS_PER_SEC,
-                None => session.zone.local_to_utc(local),
-            };
+            let east = parsed
+                .zone_east
+                .unwrap_or_else(|| session.zone.offset_for_local(local));
+            let instant = local
+                .checked_sub(i64::from(east) * USECS_PER_SEC)
+                .filter(|value| is_valid_timestamp(*value))
+                .ok_or_else(|| type_error(range_error("timestamp out of range")))?;
             Ok(Value::Typed(TypedValue::TimestampTz(instant)))
         }
     }

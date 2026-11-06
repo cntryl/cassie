@@ -1,6 +1,46 @@
 use super::super::{parse_text, Numeric};
 use super::{divide, exp, ln, log, modulo, multiply, power, round, sqrt, trunc};
 
+#[test]
+fn should_report_numeric_rounding_carry_overflow() {
+    // Arrange
+    // A format-boundary value requires all 131,072 integer digits; this is the
+    // smallest precision that can exercise PostgreSQL's numeric weight limit.
+    let magnitude = num_bigint::BigInt::from(10_u8)
+        .pow(u32::try_from(super::super::MAX_INTEGER_DIGITS + 1).expect("format limit"))
+        - 9_u8;
+    let positive = Numeric::finite(magnitude.clone(), 1);
+    let negative = Numeric::finite(-magnitude, 1);
+
+    // Act
+    let ceiling = super::ceil_checked(&positive);
+    let floor = super::floor_checked(&negative);
+    let floor_control = super::floor_checked(&positive);
+    let ceiling_control = super::ceil_checked(&negative);
+
+    // Assert
+    assert_eq!(
+        ceiling.expect_err("positive carry exceeds format").sqlstate,
+        "22003"
+    );
+    assert_eq!(
+        floor.expect_err("negative carry exceeds format").sqlstate,
+        "22003"
+    );
+    assert_eq!(
+        floor_control
+            .expect("positive floor remains in range")
+            .integer_digits(),
+        super::super::MAX_INTEGER_DIGITS
+    );
+    assert_eq!(
+        ceiling_control
+            .expect("negative ceiling remains in range")
+            .integer_digits(),
+        super::super::MAX_INTEGER_DIGITS
+    );
+}
+
 fn numeric(text: &str) -> Numeric {
     parse_text(text).expect("valid numeric input")
 }

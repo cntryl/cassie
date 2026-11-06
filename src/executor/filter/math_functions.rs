@@ -197,8 +197,8 @@ fn numeric_unary(function: MathFunction, value: &Numeric) -> Result<Value, Query
     let result = match function {
         F::Round => math::round(value, 0),
         F::Trunc => Ok(math::trunc(value, 0)),
-        F::Ceil | F::Ceiling => Ok(math::ceil(value)),
-        F::Floor => Ok(math::floor(value)),
+        F::Ceil | F::Ceiling => math::ceil_checked(value),
+        F::Floor => math::floor_checked(value),
         F::Sign => Ok(math::sign(value)),
         F::Sqrt => math::sqrt(value),
         F::Exp => math::exp(value),

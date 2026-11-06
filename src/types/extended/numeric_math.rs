@@ -308,22 +308,32 @@ pub fn trunc(value: &Numeric, scale: i64) -> Numeric {
 /// `ceil(numeric)`.
 #[must_use]
 pub fn ceil(value: &Numeric) -> Numeric {
+    ceil_checked(value).unwrap_or_else(|_| value.truncate_to(0))
+}
+
+/// Ceiling with format errors retained for SQL evaluation.
+pub(crate) fn ceil_checked(value: &Numeric) -> Result<Numeric, TypeInputError> {
     let truncated = value.truncate_to(0);
     if value.compare(&truncated).is_gt() {
-        add(&truncated, &super::one()).unwrap_or(truncated)
+        add(&truncated, &super::one())
     } else {
-        truncated
+        Ok(truncated)
     }
 }
 
 /// `floor(numeric)`.
 #[must_use]
 pub fn floor(value: &Numeric) -> Numeric {
+    floor_checked(value).unwrap_or_else(|_| value.truncate_to(0))
+}
+
+/// Floor with format errors retained for SQL evaluation.
+pub(crate) fn floor_checked(value: &Numeric) -> Result<Numeric, TypeInputError> {
     let truncated = value.truncate_to(0);
     if value.compare(&truncated).is_lt() {
-        subtract(&truncated, &super::one()).unwrap_or(truncated)
+        subtract(&truncated, &super::one())
     } else {
-        truncated
+        Ok(truncated)
     }
 }
 

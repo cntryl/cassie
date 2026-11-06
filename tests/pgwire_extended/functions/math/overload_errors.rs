@@ -6,6 +6,31 @@ use crate::support_pgwire as wire;
 type Frames = Vec<(u8, Vec<u8>)>;
 
 #[test]
+fn should_reject_numeric_ceiling_format_carry_without_partial_rows() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT ceil((repeat('9',131072)||'.1')::numeric)",
+        )]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45")]),
+    ];
+
+    // Act
+    let batches = run_script("numeric-ceiling-carry-overflow", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22003"));
+    assert!(!batches[0]
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'D' | b'C')));
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
 fn should_return_numeric_exponential_range_errors_without_publishing_prior_rows() {
     // Arrange
     let queries = [

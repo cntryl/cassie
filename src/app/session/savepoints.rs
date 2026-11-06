@@ -74,9 +74,25 @@ impl CassieSession {
 
         // Compute and retire only identities absent from the restored savepoint.
         // The shared owner keeps advances for identities that still exist there.
-        transaction.savepoints[index]
+        if transaction.savepoints[index]
             .storage_overlay
-            .prune_sequence_cursors()?;
+            .has_sequence_cursors()
+        {
+            let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
+                .ok_or_else(|| {
+                    CassieError::Unsupported(
+                        "savepoint sequence recovery requires query controls".into(),
+                    )
+                })?;
+            transaction.savepoints[index]
+                .storage_overlay
+                .prune_sequence_cursors_with(
+                    transaction.savepoints[..=index]
+                        .iter()
+                        .map(|savepoint| &savepoint.storage_overlay),
+                    &controls,
+                )?;
+        }
         transaction.modes = transaction.savepoints[index].modes;
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();

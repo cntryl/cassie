@@ -93,3 +93,11 @@ reject unaffected published COPY targets after unrelated DDL and is not selected
 by the coordinator. COPY target ownership and deterministic safe failure remain
 pending #833 work, not a claim of support. Review artifacts and the unexecuted
 probe are preserved under ignored `target/sequence-copy-review/`.
+
+A retained savepoint remains an owner of its visible sequence identities even
+if the current overlay drops them. Cursor pruning scans the union of the live
+overlay and all surviving savepoint overlays, before mutating ownership. On
+rollback-to-savepoint it retains the target and earlier savepoint owners, not
+later discarded owners. PostgreSQL 18.6 confirms create/nextval 1/savepoint/
+drop/intervening SELECT/rollback-to/nextval yields 2. The frozen predecessor
+`f27c6250` failed this source invariant and is superseded.

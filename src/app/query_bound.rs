@@ -112,10 +112,7 @@ impl Cassie {
                 if session.is_transaction_active()
                     && !matches!(&parsed.statement, QueryStatement::Transaction(_))
                 {
-                    session
-                        .transaction_storage_overlay()
-                        .lock()
-                        .prune_sequence_cursors_with(controls)?;
+                    session.prune_transaction_sequence_cursors(controls)?;
                 }
                 Self::mark_statement_transaction_query(session, &parsed.statement);
                 return self.execute_create_table_as(
@@ -232,10 +229,7 @@ impl Cassie {
         if session.is_transaction_active()
             && !matches!(&parsed.statement, QueryStatement::Transaction(_))
         {
-            session
-                .transaction_storage_overlay()
-                .lock()
-                .prune_sequence_cursors_with(controls)?;
+            session.prune_transaction_sequence_cursors(controls)?;
         }
         if let QueryStatement::AlterTable(statement) = &parsed.statement {
             if statement.if_exists && !self.catalog.exists(statement.table.as_str()) {

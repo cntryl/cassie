@@ -6,7 +6,7 @@ use super::{
 use crate::catalog::{SequenceCursor, SequenceMeta};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use std::collections::BTreeMap;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
 // Covers a B-tree node even when a split temporarily retains old and new nodes.
 const CURSOR_BYTES: usize = 2048;
@@ -36,6 +36,28 @@ fn controls() -> Result<QueryExecutionControls, CassieError> {
         .ok_or_else(|| CassieError::Unsupported("staged sequence requires query controls".into()))
 }
 
+struct CheckingReader<'a> {
+    bytes: &'a [u8],
+    position: usize,
+    controls: &'a QueryExecutionControls,
+}
+
+impl Read for CheckingReader<'_> {
+    fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+        if self.position % 4096 == 0 {
+            self.controls
+                .check_interruption()
+                .map_err(io::Error::other)?;
+        }
+        let until_check = 4096 - self.position % 4096;
+        let remaining = &self.bytes[self.position..];
+        let count = remaining.len().min(output.len()).min(until_check);
+        output[..count].copy_from_slice(&remaining[..count]);
+        self.position += count;
+        Ok(count)
+    }
+}
+
 fn decode(
     raw: &[u8],
     controls: &QueryExecutionControls,
@@ -44,9 +66,20 @@ fn decode(
     let memory = controls.reserve_query_memory(
         crate::runtime::accounted::json::serialized_decode_bytes(raw.len())?,
     )?;
-    let metadata = serde_json::from_slice(raw).map_err(|error| {
-        CassieError::Parse(format!("invalid staged sequence metadata: {error}"))
-    })?;
+    let reader = CheckingReader {
+        bytes: raw,
+        position: 0,
+        controls,
+    };
+    let metadata = match serde_json::from_reader(reader) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            controls.check_interruption()?;
+            return Err(CassieError::Parse(format!(
+                "invalid staged sequence metadata: {error}"
+            )));
+        }
+    };
     Ok((metadata, memory))
 }
 
@@ -235,16 +268,14 @@ impl Midge {
 }
 
 impl StorageOverlay {
-    /// Drops cursor owners whose sequence identity is absent from the restored overlay.
-    pub(crate) fn prune_sequence_cursors(&self) -> Result<(), CassieError> {
-        if self.sequence_cursors.state.lock().cursors.is_empty() {
-            return Ok(());
-        }
-        self.prune_sequence_cursors_with(&controls()?)
+    pub(crate) fn has_sequence_cursors(&self) -> bool {
+        !self.sequence_cursors.state.lock().cursors.is_empty()
     }
 
-    pub(crate) fn prune_sequence_cursors_with(
-        &self,
+    /// Retires only identities absent from both the current view and retained savepoints.
+    pub(crate) fn prune_sequence_cursors_with<'a>(
+        &'a self,
+        protected: impl Iterator<Item = &'a StorageOverlay>,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         let mut state = self.sequence_cursors.state.lock();
@@ -255,21 +286,23 @@ impl StorageOverlay {
         let (mut live, _memory) =
             crate::runtime::owned_memory::try_reserve_vec(state.cursors.len(), &base)?;
         let prefix = super::super::key_encoding::sequence_prefix();
-        for (index, (key, change)) in self.changes.iter().enumerate() {
-            if index % 128 == 0 {
-                controls.check_interruption()?;
-            }
-            if !key.starts_with(&prefix) {
-                continue;
-            }
-            let Some(raw) = &change.value else {
-                continue;
-            };
-            let (metadata, _scratch) = decode(raw, controls)?;
-            if state.cursors.contains_key(&metadata.object_id)
-                && !live.contains(&metadata.object_id)
-            {
-                live.push(metadata.object_id);
+        for overlay in std::iter::once(self).chain(protected) {
+            for (index, (key, change)) in overlay.changes.iter().enumerate() {
+                if index % 128 == 0 {
+                    controls.check_interruption()?;
+                }
+                if !key.starts_with(&prefix) {
+                    continue;
+                }
+                let Some(raw) = &change.value else {
+                    continue;
+                };
+                let (metadata, _scratch) = decode(raw, controls)?;
+                if state.cursors.contains_key(&metadata.object_id)
+                    && !live.contains(&metadata.object_id)
+                {
+                    live.push(metadata.object_id);
+                }
             }
         }
         live.sort_unstable();
@@ -375,7 +408,7 @@ impl StorageOverlay {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, StorageOverlay, CURSOR_BYTES};
+    use super::{decode, CheckingReader, StorageOverlay, CURSOR_BYTES};
     use crate::catalog::SequenceMeta;
     use crate::config::CassieRuntimeLimits;
     use crate::midge::adapter::PublicationControlScope;
@@ -419,7 +452,7 @@ mod tests {
         {
             let _scope = PublicationControlScope::enter(Some(&statement_two));
             overlay
-                .prune_sequence_cursors()
+                .prune_sequence_cursors_with(std::iter::empty(), &statement_two)
                 .expect("prune retired identity");
         }
         let second_value = {
@@ -436,7 +469,7 @@ mod tests {
         {
             let _scope = PublicationControlScope::enter(Some(&statement_two));
             overlay
-                .prune_sequence_cursors()
+                .prune_sequence_cursors_with(std::iter::empty(), &statement_two)
                 .expect("retire final identity");
         }
         let released = owner
@@ -493,5 +526,87 @@ mod tests {
         ));
         assert_eq!(held, bytes);
         assert_eq!(exact.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_keep_a_cursor_referenced_only_by_a_retained_savepoint() {
+        // Arrange
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 1024 * 1024,
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let mut current = StorageOverlay::default();
+        let mut sequence = SequenceMeta::new("saved", DataType::BigInt);
+        sequence.object_id = 91;
+        let _scope = PublicationControlScope::enter(Some(&controls));
+        let first = current.sequence_cursors.advance(sequence.clone(), |value| {
+            value.advance().map_err(Into::into)
+        });
+        let key = super::super::super::key_encoding::sequence_key("saved");
+        current.changes.insert(
+            key,
+            super::super::StorageMutation {
+                value: Some(serde_json::to_vec(&sequence).expect("sequence metadata")),
+                ttl_seconds: None,
+                expected: super::super::ExpectedStorageValue::Missing,
+            },
+        );
+        let savepoint = current.clone();
+        current.changes.clear();
+
+        // Act
+        current
+            .prune_sequence_cursors_with(std::iter::once(&savepoint), &controls)
+            .expect("preserve savepoint");
+        let second = current
+            .sequence_cursors
+            .advance(sequence, |value| value.advance().map_err(Into::into));
+        current
+            .prune_sequence_cursors_with(std::iter::empty(), &controls)
+            .expect("retire released owner");
+        let retained = current
+            .sequence_cursors
+            .state
+            .lock()
+            .admission
+            .as_ref()
+            .expect("owner")
+            .bytes();
+
+        // Assert
+        assert_eq!(first.expect("first").0, 1);
+        assert_eq!(second.expect("savepoint cursor").0, 2);
+        assert_eq!(retained, 0);
+    }
+
+    #[test]
+    fn should_interrupt_metadata_reader_at_a_deterministic_chunk_boundary() {
+        // Arrange
+        use std::io::Read;
+        let cancellation = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        let input = vec![b'x'; 4097];
+        let mut reader = CheckingReader {
+            bytes: &input,
+            position: 0,
+            controls: &controls,
+        };
+        let mut chunk = [0; 4096];
+        reader.read_exact(&mut chunk).expect("first chunk");
+        cancellation.cancel();
+
+        // Act
+        let result = reader.read(&mut [0]);
+
+        // Assert
+        assert!(result.is_err());
+        assert_eq!(reader.position, 4096);
     }
 }

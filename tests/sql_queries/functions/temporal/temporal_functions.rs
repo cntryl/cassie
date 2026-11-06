@@ -2,6 +2,8 @@
 
 #[path = "edges/formatted_input.rs"]
 mod formatted_input;
+#[path = "edges/formatted_precision.rs"]
+mod formatted_precision;
 #[path = "edges/semantics.rs"]
 mod residual_edges;
 

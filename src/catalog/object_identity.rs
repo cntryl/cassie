@@ -381,7 +381,7 @@ impl<'a> ObjectScope<'a> {
         normal_oid(role.object_id)
     }
 
-    fn role_name(&self, oid: u32) -> Option<String> {
+    pub(crate) fn role_name(&self, oid: u32) -> Option<String> {
         self.catalog
             .list_roles()
             .into_iter()

@@ -233,9 +233,6 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "pg_get_viewdef" | "pg_catalog.pg_get_viewdef" => {
             Some(evaluate_pg_get_viewdef(name, args, session))
         }
-        "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
-            Some(require_arg_count(name, args, 1).map(|()| Value::String("root".to_string())))
-        }
         "obj_description" | "pg_catalog.obj_description" => {
             Some(require_arg_count_range(name, args, 1..=2).map(|()| Value::Null))
         }

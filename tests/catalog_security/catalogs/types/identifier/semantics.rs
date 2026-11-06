@@ -1,5 +1,3 @@
-
-
 #[test]
 fn should_match_builtin_regcollation_identity() {
     // Arrange
@@ -124,4 +122,63 @@ fn should_encode_regcollation_identity_on_wire() {
             assert_eq!(data_row, &[0, 1, 0, 0, 0, 4, 0, 0, 0, 100]);
         }
     }
+}
+
+#[test]
+fn should_resolve_root_null_unknown_role_oid_values() {
+    // Arrange
+    let fixture = sql_fixture("catalog-userbyid-builtin-unknown", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture.execute(
+        "SELECT pg_catalog.pg_get_userbyid(10::oid), pg_get_userbyid(NULL::oid), pg_get_userbyid(0::oid), pg_get_userbyid(4294967295::oid), pg_get_userbyid(-1)",
+    ).expect("resolve root and unknown role identities");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::String("root".to_owned()),
+            Value::Null,
+            Value::String("unknown (OID=0)".to_owned()),
+            Value::String("unknown (OID=4294967295)".to_owned()),
+            Value::String("unknown (OID=4294967295)".to_owned()),
+        ]]
+    );
+}
+
+#[test]
+fn should_follow_role_catalog_lifecycle_when_resolving_userbyid() {
+    // Arrange
+    let fixture = sql_fixture("catalog-userbyid-role-lifecycle", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE ROLE catalog_userbyid_reader NOLOGIN")
+        .expect("create role");
+    let role = fixture
+        .execute("SELECT to_regrole('catalog_userbyid_reader')::oid")
+        .expect("role OID");
+    let Value::Int64(oid) = &role.rows()[0][0] else {
+        panic!("role OID");
+    };
+    let oid = *oid;
+    let query = format!("SELECT pg_get_userbyid({oid}::oid)");
+
+    // Act
+    let existing = fixture.execute(&query).expect("resolve existing role");
+    fixture
+        .execute("DROP ROLE catalog_userbyid_reader")
+        .expect("drop role");
+    let dropped = fixture.execute(&query).expect("resolve removed role OID");
+
+    // Assert
+    assert_eq!(
+        existing.rows(),
+        vec![vec![Value::String("catalog_userbyid_reader".to_owned())]]
+    );
+    assert_eq!(
+        dropped.rows(),
+        vec![vec![Value::String(format!("unknown (OID={oid})"))]]
+    );
 }

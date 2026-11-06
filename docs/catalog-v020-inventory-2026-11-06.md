@@ -43,3 +43,33 @@ All new probes **have not been executed**. No baseline RED or passing gate is
 claimed. Full locked tests, strict Clippy, formatting,
 test-policy checks and integrated final-head review remain deferred under the
 current assembly-line instruction.
+
+## Role OID name lookup increment
+
+`pg_get_userbyid` is used by the selected catalog-discovery workflow. The old
+implementation returned `root` for every input, including NULL and arbitrary
+other role OIDs. The selected increment resolves known IDs from the same scoped
+catalog used by `to_regrole`, returns SQL NULL for NULL, and renders a missing
+ID as `unknown (OID=<unsigned>)`. OID integer/text conversion uses the existing
+`oid` range rules. The bootstrap role remains `root` at OID 10. A missing
+session catalog returns the existing object-lookup error instead of inventing a
+role. This does not implement role-level privilege enforcement or close #831.
+
+A local PostgreSQL 18.6 oracle returned NULL for `NULL::oid`,
+`unknown (OID=0)` for `0::oid`, `unknown (OID=4294967295)` for both the
+maximum OID and integer `-1`, and the actual login name for its existing role.
+The temporary isolated oracle was stopped. PostgreSQL returns NAME OID 19 for
+this function; Cassie's existing experimental function retains its TEXT result
+descriptor (OID 25), so this increment does not claim descriptor ABI parity.
+The authored root/NULL/unknown and autocommit create/drop regressions were
+written before implementation and **have not been executed**. Role lookup uses
+the attached session catalog rather than directly selecting the current command
+catalog; transaction and command-snapshot visibility have not been established.
+Malformed/overloaded parameter binding and broad lifecycle/privilege
+qualification remain open under #817, #818 and #831.
+
+The registered JSONPATH array identity remains visible in the compatibility
+catalog. That identity does not promise SQL array construction or binary codec
+support; the type contract and codecs separately reject those forms. Removing
+the registered identity would change the existing catalog contract rather than
+implement the unsupported operations.

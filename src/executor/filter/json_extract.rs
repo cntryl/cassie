@@ -54,7 +54,10 @@ pub(super) fn evaluate(
         let next = match selector {
             ScalarValue::Str(key) => extract(&value, key, false)?,
             ScalarValue::Int(index) => {
-                if !value.get().trim_start().starts_with(['{', '[']) && matches!(index, 0 | -1) {
+                if jsonb
+                    && !value.get().trim_start().starts_with(['{', '['])
+                    && matches!(index, 0 | -1)
+                {
                     Some(value)
                 } else {
                     array_element(&value, *index)?

@@ -132,6 +132,21 @@ impl CassieSession {
         self.transaction.lock().catalog_base_version
     }
 
+    pub(crate) fn prune_transaction_sequence_cursors(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let transaction = self.transaction.lock();
+        let overlay = transaction.storage_overlay.lock();
+        overlay.prune_sequence_cursors_with(
+            transaction
+                .savepoints
+                .iter()
+                .map(|savepoint| &savepoint.storage_overlay),
+            controls,
+        )
+    }
+
     pub(crate) fn transaction_storage_overlay(&self) -> Arc<Mutex<StorageOverlay>> {
         Arc::clone(&self.transaction.lock().storage_overlay)
     }

@@ -340,3 +340,27 @@ fn should_reject_restart_of_a_private_sequence_with_a_live_cursor() {
     assert_eq!(wire::error_code(&frames[4]).as_deref(), Some("0A000"));
     assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("2".into())]]);
 }
+
+#[test]
+fn should_retain_a_dropped_private_sequence_reachable_from_a_savepoint() {
+    // Arrange
+    let script = vec![
+        query("BEGIN"),
+        query("CREATE TABLE staged_drop_recover (id SERIAL)"),
+        query("SELECT nextval('staged_drop_recover_id_seq')"),
+        query("SAVEPOINT before_drop"),
+        query("DROP TABLE staged_drop_recover"),
+        query("SELECT 1"),
+        query("ROLLBACK TO before_drop"),
+        query("SELECT nextval('staged_drop_recover_id_seq')"),
+        query("ROLLBACK"),
+    ];
+
+    // Act
+    let frames = run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(wire::data_rows(&frames[2]), vec![vec![Some("1".into())]]);
+    assert_eq!(wire::error_code(&frames[7]), None);
+    assert_eq!(wire::data_rows(&frames[7]), vec![vec![Some("2".into())]]);
+}

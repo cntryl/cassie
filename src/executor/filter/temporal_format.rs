@@ -25,12 +25,15 @@ pub(super) fn evaluate(
     name: &str,
     args: &[Value],
     session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
     let template = text(&args[1])?;
     match name {
         "to_char" => to_char(&args[0], &template, session),
         "to_date" => {
-            let parsed = format::parse(&text(&args[0])?, &template).map_err(type_error)?;
+            let (parsed, _, _) =
+                format::parse_with_precision(&text(&args[0])?, &template, session.abbreviations)
+                    .map_err(type_error)?;
             let fields = parsed.fields;
             let date =
                 date2j(fields.year, fields.month, fields.day) - i64::from(POSTGRES_EPOCH_JDATE);
@@ -43,8 +46,9 @@ pub(super) fn evaluate(
                 .ok_or_else(|| type_error(range_error("date out of range")))
         }
         _ => {
-            let (parsed, precision) =
-                format::parse_with_precision(&text(&args[0])?, &template).map_err(type_error)?;
+            let (parsed, precision, abbreviation) =
+                format::parse_with_precision(&text(&args[0])?, &template, session.abbreviations)
+                    .map_err(type_error)?;
             // The local wall time may be just outside the timestamp range
             // while its UTC instant is valid after applying the displacement.
             let fields = parsed.fields;
@@ -61,9 +65,34 @@ pub(super) fn evaluate(
                     ))
                 })
                 .ok_or_else(|| type_error(range_error("timestamp out of range")))?;
-            let east = parsed
-                .zone_east
-                .unwrap_or_else(|| session.zone.offset_for_local(local));
+            let east = if let Some(abbreviation) = abbreviation {
+                match abbreviation.rule {
+                    format::ZoneRule::Fixed(east) => east,
+                    format::ZoneRule::Dynamic(name) => {
+                        let zone = crate::types::extended::temporal::zone::lookup_zone(name)
+                            .ok_or_else(|| {
+                                type_error(crate::types::extended::TypeInputError {
+                                    sqlstate: "22007",
+                                    message: format!("unavailable time zone: {name}"),
+                                })
+                            })?;
+                        let offset = zone.offset_for_local(local);
+                        let probe = local.saturating_sub(i64::from(offset) * USECS_PER_SEC);
+                        let mut check = || -> Result<(), QueryError> {
+                            if let Some(controls) = controls {
+                                controls.check_interruption()?;
+                            }
+                            Ok(())
+                        };
+                        zone.abbreviation_offset_with_checks(abbreviation.name, probe, &mut check)?
+                            .map_or(offset, |(east, _)| east)
+                    }
+                }
+            } else {
+                parsed
+                    .zone_east
+                    .unwrap_or_else(|| session.zone.offset_for_local(local))
+            };
             let instant = local
                 .checked_sub(i64::from(east) * USECS_PER_SEC)
                 .filter(|value| is_valid_timestamp(*value))

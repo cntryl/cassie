@@ -1,5 +1,6 @@
 //! Formatting-field timezone input retains its sign independently of hours.
 
+use super::catalog::ZoneAbbreviation;
 use crate::types::extended::TypeInputError;
 
 #[derive(Default)]
@@ -8,9 +9,23 @@ pub(super) struct ZoneFields {
     minutes: i64,
     negative: bool,
     present: bool,
+    abbreviation: Option<ZoneAbbreviation>,
 }
 
 impl ZoneFields {
+    pub(super) fn set_abbreviation(&mut self, abbreviation: ZoneAbbreviation) {
+        self.present = false;
+        self.abbreviation = Some(abbreviation);
+    }
+
+    pub(super) fn abbreviation(&self) -> Option<ZoneAbbreviation> {
+        if self.present {
+            None
+        } else {
+            self.abbreviation
+        }
+    }
+
     pub(super) fn set_hours(&mut self, hours: i64, negative: bool) -> Result<(), TypeInputError> {
         self.negative = negative;
         self.present = true;

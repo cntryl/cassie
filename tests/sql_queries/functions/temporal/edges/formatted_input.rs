@@ -6,6 +6,113 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_apply_formatted_timezone_abbreviations_from_the_active_set() {
+    // Arrange
+    let default = sql_fixture("formatted-tz-default", &["SET TIME ZONE 'UTC'"]);
+    let india = sql_fixture(
+        "formatted-tz-india",
+        &[
+            "SET TIME ZONE 'UTC'",
+            "SET timezone_abbreviations = 'India'",
+        ],
+    );
+    let australia = sql_fixture(
+        "formatted-tz-australia",
+        &[
+            "SET TIME ZONE 'UTC'",
+            "SET timezone_abbreviations = 'Australia'",
+        ],
+    );
+    let cases = [
+        (&default, "EST", "2000-01-01 17:00:00+00"),
+        (&default, "EDT", "2000-01-01 16:00:00+00"),
+        (&default, "ESTjunk", "2000-01-01 17:00:00+00"),
+        (&india, "IST", "2000-01-01 06:30:00+00"),
+        (&australia, "EST", "2000-01-01 02:00:00+00"),
+    ];
+
+    for (fixture, input, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_timestamp('2000-01-01 12:00:00 {input}', 'YYYY-MM-DD HH24:MI:SS TZ') = TIMESTAMPTZ '{expected}'"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("formatted timezone abbreviation").rows(),
+            &[vec![Value::Bool(true)]]
+        );
+    }
+}
+
+#[test]
+fn should_resolve_formatted_dynamic_zone_abbreviations_at_the_input_date() {
+    // Arrange
+    let fixture = sql_fixture("formatted-tz-dynamic", &["SET TIME ZONE 'UTC'"]);
+    let cases = [
+        ("1800-01-01 12:00:00 MSK", "1800-01-01 09:00:00+00"),
+        ("2012-01-01 12:00:00 MSK", "2012-01-01 08:00:00+00"),
+        ("2015-01-01 12:00:00 MSK", "2015-01-01 09:00:00+00"),
+        ("2012-01-01 12:00:00 YAKT", "2012-01-01 02:00:00+00"),
+        ("2011-03-27 02:30:00 MSK", "2011-03-26 22:30:00+00"),
+        ("2014-10-26 01:30:00 MSK", "2014-10-25 22:30:00+00"),
+    ];
+
+    for (input, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_timestamp('{input}', 'YYYY-MM-DD HH24:MI:SS TZ') = TIMESTAMPTZ '{expected}'"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("dynamic timezone abbreviation").rows(),
+            &[vec![Value::Bool(true)]]
+        );
+    }
+}
+
+#[test]
+fn should_apply_last_formatted_timezone_field() {
+    // Arrange
+    let fixture = sql_fixture("formatted-tz-order", &["SET TIME ZONE 'UTC'"]);
+    let cases = [
+        ("EST -00:30", "TZ TZH:TZM", "2000-01-01 12:30:00+00"),
+        ("-00:30 EST", "TZH:TZM TZ", "2000-01-01 17:00:00+00"),
+        ("-00:30", "TZ", "2000-01-01 12:30:00+00"),
+    ];
+
+    for (zone, template, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_timestamp('2000-01-01 12:00:00 {zone}', 'YYYY-MM-DD HH24:MI:SS {template}') = TIMESTAMPTZ '{expected}'"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("timezone field precedence").rows(),
+            &[vec![Value::Bool(true)]]
+        );
+    }
+}
+
+#[test]
+fn should_reject_unknown_formatted_timezone_abbreviations() {
+    // Arrange
+    let fixture = sql_fixture("formatted-tz-unknown", &[]);
+
+    for function in ["to_date", "to_timestamp"] {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT {function}('2000-01-01 JUNK', 'YYYY-MM-DD TZ')"
+        ));
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::TypeInput(error)) if error.sqlstate == "22007"));
+    }
+}
+
+#[test]
 fn should_preserve_negative_zero_hour_for_formatted_zone_minutes() {
     // Arrange
     let fixture = sql_fixture("formatted-zone-negative-zero", &["SET TIME ZONE 'UTC'"]);

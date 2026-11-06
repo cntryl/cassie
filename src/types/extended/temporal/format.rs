@@ -6,8 +6,12 @@ use super::calendar::{
 use super::zone::offset_abbreviation;
 use crate::types::extended::TypeInputError;
 
+#[path = "format_zone_catalog.rs"]
+mod catalog;
 #[path = "format_zone.rs"]
 mod zone;
+use super::zone::AbbreviationSet;
+pub(crate) use catalog::{ZoneAbbreviation, ZoneRule};
 
 const MONTHS: [&str; 12] = [
     "January",
@@ -461,14 +465,39 @@ struct Builder {
 /// # Errors
 /// Returns `22007` for unmatched input and `22008` for out-of-range fields.
 pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
-    parse_with_precision(input, template).map(|(parsed, _)| parsed)
+    let (mut parsed, _, abbreviation) =
+        parse_with_precision(input, template, AbbreviationSet::Default)?;
+    if let Some(abbreviation) = abbreviation {
+        parsed.zone_east = match abbreviation.rule {
+            ZoneRule::Fixed(east) => Some(east),
+            ZoneRule::Dynamic(name) => {
+                let local = super::calendar::fields_to_timestamp(&parsed.fields, None)
+                    .ok_or_else(|| field_overflow("timestamp out of range"))?;
+                let zone =
+                    super::zone::lookup_zone(name).ok_or_else(|| invalid_value(name, "tz"))?;
+                let offset = zone.offset_for_local(local);
+                let instant = local.saturating_sub(i64::from(offset) * USECS_PER_SEC);
+                let found =
+                    zone.abbreviation_offset_with_checks(abbreviation.name, instant, &mut || {
+                        Ok::<(), std::convert::Infallible>(())
+                    });
+                Some(
+                    found
+                        .unwrap_or_else(|never| match never {})
+                        .map_or(offset, |(east, _)| east),
+                )
+            }
+        };
+    }
+    Ok(parsed)
 }
 
 /// Internal precision metadata leaves the public parsed-fields API unchanged.
 pub(crate) fn parse_with_precision(
     input: &str,
     template: &str,
-) -> Result<(Parsed, Option<u8>), TypeInputError> {
+    abbreviations: AbbreviationSet,
+) -> Result<(Parsed, Option<u8>, Option<ZoneAbbreviation>), TypeInputError> {
     let nodes = parse_template(template);
     let chars: Vec<char> = input.chars().collect();
     let mut cursor = 0;
@@ -480,7 +509,7 @@ pub(crate) fn parse_with_precision(
                     nodes[index + 1..].iter().find(|node| {
                         !matches!(node, Node::Literal(text) if text.chars().all(char::is_whitespace))
                     }),
-                    Some(Node::Field { keyword: "tzh" | "of", .. })
+                    Some(Node::Field { keyword: "tzh" | "of" | "tz", .. })
                 );
                 for expected in text.chars() {
                     if expected.is_whitespace() || expected.is_ascii_punctuation() {
@@ -511,12 +540,16 @@ pub(crate) fn parse_with_precision(
                     &mut cursor,
                     nodes.get(index + 1),
                     &mut builder,
+                    abbreviations,
                 )?;
             }
         }
     }
     let precision = builder.ff_precision;
-    builder.finish().map(|parsed| (parsed, precision))
+    let abbreviation = builder.zone.abbreviation();
+    builder
+        .finish()
+        .map(|parsed| (parsed, precision, abbreviation))
 }
 
 fn read_digits(
@@ -630,6 +663,7 @@ fn parse_field(
     cursor: &mut usize,
     next: Option<&Node>,
     builder: &mut Builder,
+    abbreviations: AbbreviationSet,
 ) -> Result<(), TypeInputError> {
     let fraction_adjacent = match next {
         Some(Node::Field { keyword, .. }) => !matches!(
@@ -705,8 +739,24 @@ fn parse_field(
             *cursor += if rest.contains('.') { 4 } else { 2 };
         }
         "tz" => {
-            while chars.get(*cursor).is_some_and(char::is_ascii_alphabetic) {
-                *cursor += 1;
+            if chars.get(*cursor).is_some_and(|c| c.is_ascii_alphabetic()) {
+                let (abbreviation, length) =
+                    catalog::find(chars.get(*cursor..).unwrap_or_default(), abbreviations)
+                        .ok_or_else(|| {
+                            invalid_value(
+                                &chars
+                                    .get(*cursor..)
+                                    .unwrap_or_default()
+                                    .iter()
+                                    .take(16)
+                                    .collect::<String>(),
+                                keyword,
+                            )
+                        })?;
+                builder.zone.set_abbreviation(abbreviation);
+                *cursor += length;
+            } else {
+                parse_zone_or_fraction("of", chars, cursor, fraction_adjacent, builder)?;
             }
         }
         "rm" => {

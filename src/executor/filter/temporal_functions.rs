@@ -205,7 +205,7 @@ pub(super) fn evaluate(
     if name != "overlaps" && args.iter().any(|value| matches!(value, Value::Null)) {
         return Some(Ok(Value::Null));
     }
-    Some(dispatch(name, args, &session))
+    Some(dispatch(name, args, &session, controls))
 }
 
 /// Whether `name` with these arguments is a date/time builtin here.
@@ -294,7 +294,12 @@ fn constructor(
     result.map(Some)
 }
 
-fn dispatch(name: &str, args: &[Value], session: &TemporalSession) -> Result<Value, QueryError> {
+fn dispatch(
+    name: &str,
+    args: &[Value],
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
     if let Some(value) = constructor(name, args, session)? {
         return Ok(value);
     }
@@ -343,7 +348,7 @@ fn dispatch(name: &str, args: &[Value], session: &TemporalSession) -> Result<Val
                 .map_err(type_error)
         }
         ("to_timestamp" | "to_date" | "to_char", [_, _]) => {
-            super::temporal_format::evaluate(name, args, session)
+            super::temporal_format::evaluate(name, args, session, controls)
         }
         ("isfinite", [value]) => {
             let value = match value {

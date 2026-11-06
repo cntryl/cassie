@@ -34,7 +34,7 @@ pub(super) fn evaluate(
 fn sequence_name(
     argument: &Value,
     session: &CassieSession,
-) -> Result<(String, String), CassieError> {
+) -> Result<(String, String, u64), CassieError> {
     let (catalog, context, _) = session
         .sequence_context()
         .ok_or_else(|| CassieError::Execution("sequence functions require storage".into()))?;
@@ -53,13 +53,13 @@ fn sequence_name(
         .relation_canonical_name(oid)
         .ok_or_else(|| CassieError::Execution(format!("could not open relation with OID {oid}")))?;
     let display = crate::catalog::local_name(&canonical);
-    if !catalog.sequence_exists(&canonical) {
-        return Err(CassieError::Sequence(SequenceError {
+    let metadata = catalog.get_sequence(&canonical).ok_or_else(|| {
+        CassieError::Sequence(SequenceError {
             sqlstate: "42809",
             message: format!("\"{display}\" is not a sequence"),
-        }));
-    }
-    Ok((canonical, display))
+        })
+    })?;
+    Ok((canonical, display, metadata.object_id))
 }
 
 fn nextval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError> {
@@ -69,14 +69,16 @@ fn nextval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
     if argument.is_null() {
         return Ok(Value::Null);
     }
-    let (sequence, _) = sequence_name(argument, session)?;
+    let (sequence, _, identity) = sequence_name(argument, session)?;
     let (_, _, midge) = session
         .sequence_context()
         .ok_or_else(|| CassieError::Execution("nextval requires storage".into()))?;
     let (value, updated) = midge
         .update_sequence_retrying(&sequence, |metadata| metadata.advance().map_err(Into::into))?;
-    session.publish_sequence_metadata(updated);
-    session.record_sequence_value(&sequence, value, true);
+    session.record_sequence_value(&sequence, identity, value, true);
+    if !midge.is_private_sequence(&updated)? {
+        session.publish_sequence_metadata(updated);
+    }
     Ok(Value::Int64(value))
 }
 
@@ -87,9 +89,9 @@ fn currval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError
     if argument.is_null() {
         return Ok(Value::Null);
     }
-    let (sequence, display) = sequence_name(argument, session)?;
+    let (sequence, display, identity) = sequence_name(argument, session)?;
     session
-        .current_sequence_value(&sequence, &display)
+        .current_sequence_value(&sequence, identity, &display)
         .map(Value::Int64)
 }
 
@@ -110,16 +112,18 @@ fn setval(args: &[Value], session: &CassieSession) -> Result<Value, CassieError>
     let value = value
         .as_i64()
         .ok_or_else(|| CassieError::Execution("setval value must be an integer".into()))?;
-    let (sequence, _) = sequence_name(argument, session)?;
+    let (sequence, _, identity) = sequence_name(argument, session)?;
     let (_, _, midge) = session
         .sequence_context()
         .ok_or_else(|| CassieError::Execution("setval requires storage".into()))?;
     let (value, updated) = midge.update_sequence_retrying(&sequence, |metadata| {
         metadata.assign(value, is_called).map_err(Into::into)
     })?;
-    session.publish_sequence_metadata(updated);
     if is_called {
-        session.record_sequence_value(&sequence, value, false);
+        session.record_sequence_value(&sequence, identity, value, false);
+    }
+    if !midge.is_private_sequence(&updated)? {
+        session.publish_sequence_metadata(updated);
     }
     Ok(Value::Int64(value))
 }

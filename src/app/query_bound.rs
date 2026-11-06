@@ -109,6 +109,14 @@ impl Cassie {
             if statement.as_query.is_some() {
                 self.ensure_session_database_access(session)?;
                 self.ensure_statement_can_execute(session, &parsed, controls)?;
+                if session.is_transaction_active()
+                    && !matches!(&parsed.statement, QueryStatement::Transaction(_))
+                {
+                    session
+                        .transaction_storage_overlay()
+                        .lock()
+                        .prune_sequence_cursors_with(controls)?;
+                }
                 Self::mark_statement_transaction_query(session, &parsed.statement);
                 return self.execute_create_table_as(
                     session,
@@ -192,14 +200,15 @@ impl Cassie {
         } else {
             None
         };
-        scoped_cassie.execute_bound_statement_inner(
+        let result = scoped_cassie.execute_bound_statement_inner(
             session,
             parsed,
             sql_fingerprint,
             parameters,
             mode,
             controls,
-        )
+        );
+        result
     }
 
     fn execute_bound_statement_inner(
@@ -220,6 +229,14 @@ impl Cassie {
             crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         self.ensure_session_database_access(session)?;
         self.ensure_statement_can_execute(session, &parsed, controls)?;
+        if session.is_transaction_active()
+            && !matches!(&parsed.statement, QueryStatement::Transaction(_))
+        {
+            session
+                .transaction_storage_overlay()
+                .lock()
+                .prune_sequence_cursors_with(controls)?;
+        }
         if let QueryStatement::AlterTable(statement) = &parsed.statement {
             if statement.if_exists && !self.catalog.exists(statement.table.as_str()) {
                 let mut result = QueryResult::try_builder(controls)?;

@@ -12,7 +12,7 @@ pub(crate) type SequenceRestorer = Arc<dyn Fn(&str, SequenceCursor) + Send + Syn
 #[derive(Default)]
 pub(crate) struct SessionSequenceValues {
     by_sequence: HashMap<String, i64>,
-    last: Option<(String, i64)>,
+    last: Option<(String, u64)>,
     restarts: Vec<(String, SequenceCursor, SequenceRestorer)>,
 }
 
@@ -27,6 +27,14 @@ impl std::fmt::Debug for SessionSequenceValues {
     }
 }
 
+fn sequence_identity(name: &str, identity: u64) -> String {
+    if identity == 0 {
+        format!("name:{}", name.to_ascii_lowercase())
+    } else {
+        format!("id:{identity}")
+    }
+}
+
 fn not_defined(message: String) -> CassieError {
     CassieError::Sequence(SequenceError {
         sqlstate: "55000",
@@ -36,13 +44,19 @@ fn not_defined(message: String) -> CassieError {
 
 impl CassieSession {
     /// Records a value returned by `nextval` (or `setval`) for `sequence`.
-    pub(crate) fn record_sequence_value(&self, sequence: &str, value: i64, from_nextval: bool) {
+    pub(crate) fn record_sequence_value(
+        &self,
+        sequence: &str,
+        identity: u64,
+        value: i64,
+        from_nextval: bool,
+    ) {
         let mut values = self.sequence_values.lock();
         values
             .by_sequence
-            .insert(sequence.to_ascii_lowercase(), value);
+            .insert(sequence_identity(sequence, identity), value);
         if from_nextval {
-            values.last = Some((sequence.to_ascii_lowercase(), value));
+            values.last = Some((sequence.to_ascii_lowercase(), identity));
         }
     }
 
@@ -53,12 +67,13 @@ impl CassieSession {
     pub(crate) fn current_sequence_value(
         &self,
         sequence: &str,
+        identity: u64,
         display_name: &str,
     ) -> Result<i64, CassieError> {
         self.sequence_values
             .lock()
             .by_sequence
-            .get(&sequence.to_ascii_lowercase())
+            .get(&sequence_identity(sequence, identity))
             .copied()
             .ok_or_else(|| {
                 not_defined(format!(
@@ -78,11 +93,33 @@ impl CassieSession {
     /// # Errors
     /// Returns `55000` before this session called `nextval`.
     pub(crate) fn last_sequence_value(&self) -> Result<i64, CassieError> {
-        self.sequence_values
-            .lock()
+        let values = self.sequence_values.lock();
+        let (name, identity) = values
             .last
             .as_ref()
-            .map(|(_, value)| *value)
+            .ok_or_else(|| not_defined("lastval is not yet defined in this session".to_string()))?;
+        let (catalog, context) = self
+            .object_lookup_context()
+            .ok_or_else(|| not_defined("lastval is not yet defined in this session".to_string()))?;
+        let exists = if *identity == 0 {
+            catalog.sequence_exists(name)
+        } else {
+            crate::catalog::object_identity::normal_oid(*identity)
+                .and_then(|oid| {
+                    crate::catalog::object_identity::ObjectScope::new(&catalog, &context)
+                        .relation_canonical_name(oid)
+                })
+                .is_some_and(|canonical| catalog.sequence_exists(&canonical))
+        };
+        if !exists {
+            return Err(not_defined(
+                "lastval is not yet defined in this session".to_string(),
+            ));
+        }
+        values
+            .by_sequence
+            .get(&sequence_identity(name, *identity))
+            .copied()
             .ok_or_else(|| not_defined("lastval is not yet defined in this session".to_string()))
     }
 

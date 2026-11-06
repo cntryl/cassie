@@ -72,6 +72,11 @@ impl CassieSession {
             return Err(CassieError::missing_savepoint(&normalized));
         };
 
+        // Compute and retire only identities absent from the restored savepoint.
+        // The shared owner keeps advances for identities that still exist there.
+        transaction.savepoints[index]
+            .storage_overlay
+            .prune_sequence_cursors()?;
         transaction.modes = transaction.savepoints[index].modes;
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();

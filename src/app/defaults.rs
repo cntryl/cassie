@@ -1,7 +1,8 @@
-use super::{Cassie, CassieError, FieldConstraint};
+use super::{Cassie, CassieError, CassieSession, FieldConstraint};
 
 pub(super) fn apply_default_values(
     app: &Cassie,
+    session: Option<&CassieSession>,
     payload: &mut serde_json::Value,
     constraints: &[FieldConstraint],
 ) -> Result<(), CassieError> {
@@ -19,7 +20,12 @@ pub(super) fn apply_default_values(
             let (value, updated) = app.midge.update_sequence_retrying(sequence, |metadata| {
                 metadata.advance().map_err(Into::into)
             })?;
-            app.metadata_write_catalog.register_sequence(updated);
+            if let Some(session) = session {
+                session.record_sequence_value(&updated.name, updated.object_id, value, true);
+            }
+            if !app.midge.is_private_sequence(&updated)? {
+                app.metadata_write_catalog.register_sequence(updated);
+            }
             object.insert(
                 constraint.field.clone(),
                 serde_json::Value::Number(value.into()),
@@ -49,6 +55,7 @@ impl Cassie {
         &self,
         collection: &str,
         field: &str,
+        session: Option<&CassieSession>,
     ) -> Result<Option<serde_json::Value>, CassieError> {
         let constraints = self
             .catalog
@@ -57,7 +64,7 @@ impl Cassie {
             .filter(|constraint| constraint.field == field)
             .collect::<Vec<_>>();
         let mut payload = serde_json::Value::Object(serde_json::Map::new());
-        apply_default_values(self, &mut payload, &constraints)?;
+        apply_default_values(self, session, &mut payload, &constraints)?;
         Ok(payload.get(field).cloned())
     }
 }
@@ -73,8 +80,9 @@ impl Cassie {
         &self,
         collection: &str,
         payload: &serde_json::Value,
+        session: Option<&CassieSession>,
     ) -> Result<serde_json::Value, CassieError> {
-        self.apply_insert_defaults(collection, payload.clone(), &[])
+        self.apply_insert_defaults(collection, payload.clone(), &[], session)
     }
 
     /// Applies defaults while treating listed JSON fields as explicit SQL NULL.
@@ -87,6 +95,7 @@ impl Cassie {
         collection: &str,
         mut payload: serde_json::Value,
         explicit_json_nulls: &[&str],
+        session: Option<&CassieSession>,
     ) -> Result<serde_json::Value, CassieError> {
         let object = payload.as_object_mut().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
@@ -96,7 +105,7 @@ impl Cassie {
         }
         let constraints = self.catalog.get_constraints(collection);
         if !constraints.is_empty() {
-            apply_default_values(self, &mut payload, &constraints)?;
+            apply_default_values(self, session, &mut payload, &constraints)?;
         }
         if let Some(object) = payload.as_object_mut() {
             for field in explicit_json_nulls {

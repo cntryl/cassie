@@ -194,9 +194,11 @@ pub(super) fn execute_insert_conflict_update(
         .controls
         .reserve_query_memory(crate::executor::batch::row_type_bytes([&existing_row]))?;
     let proposed = if context.apply_defaults {
-        context
-            .cassie
-            .payload_with_column_defaults(&context.statement.table, payload)?
+        context.cassie.payload_with_column_defaults(
+            &context.statement.table,
+            payload,
+            context.session,
+        )?
     } else {
         payload.clone()
     };
@@ -296,7 +298,7 @@ fn merged_conflict_payload(
         if expr.is_default_assignment() {
             match context
                 .cassie
-                .column_default_json(context.table, field)
+                .column_default_json(context.table, field, context.session)
                 .map_err(QueryError::from)?
             {
                 Some(value) => merged_payload.insert(field.clone(), value),

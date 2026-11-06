@@ -17,6 +17,8 @@ use std::sync::Arc;
 
 #[path = "transactions/mutation_error.rs"]
 mod mutation_error;
+#[path = "transactions/sequence_owner.rs"]
+pub(super) mod sequence_owner;
 use mutation_error::AdapterMutationError;
 
 #[path = "transactions/row_fence/mod.rs"]
@@ -24,9 +26,34 @@ mod row_fence;
 pub(super) use row_fence::admitted_row_keys;
 pub(crate) use row_fence::RetainedRowFence;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct StorageOverlay {
     pub(crate) changes: BTreeMap<Vec<u8>, StorageMutation>,
+    sequence_cursors: Arc<sequence_owner::SequenceOwner>,
+}
+
+impl PartialEq for StorageOverlay {
+    fn eq(&self, other: &Self) -> bool {
+        self.changes == other.changes
+    }
+}
+impl Eq for StorageOverlay {}
+
+impl StorageOverlay {
+    pub(crate) fn with_sequence_cursors(
+        mut self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<
+        (
+            Self,
+            Vec<crate::runtime::QueryMemoryReservation>,
+            crate::runtime::QueryMemoryReservation,
+        ),
+        CassieError,
+    > {
+        let (leases, directory) = self.merge_sequence_cursors(controls)?;
+        Ok((self, leases, directory))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

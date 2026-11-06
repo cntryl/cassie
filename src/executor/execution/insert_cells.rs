@@ -17,6 +17,7 @@ impl InsertValue {
 
 pub(super) fn payload(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     table: &str,
     fields: &[FieldMeta],
     row: &[InsertValue],
@@ -42,5 +43,6 @@ pub(super) fn payload(
         table,
         serde_json::Value::Object(object),
         &explicit_json_nulls,
+        session,
     )?)
 }

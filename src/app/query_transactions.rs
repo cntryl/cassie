@@ -187,7 +187,9 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
-        let storage_overlay = session.transaction_storage_overlay_snapshot();
+        let (storage_overlay, _sequence_buffers, _sequence_directory) = session
+            .transaction_storage_overlay_snapshot()
+            .with_sequence_cursors(controls)?;
         let catalog_overlay = session.transaction_catalog_overlay().filter(|catalog| {
             // A detached but untouched catalog is read authority, not a write.
             // Publishing it would overwrite unrelated newer metadata and make
@@ -195,6 +197,9 @@ impl Cassie {
             session.transaction_catalog_base_version() != Some(catalog.version())
                 || !storage_overlay.changes.is_empty()
         });
+        if let Some(catalog) = &catalog_overlay {
+            storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
+        }
         let database = session
             .current_database()
             .unwrap_or(&self.default_database)

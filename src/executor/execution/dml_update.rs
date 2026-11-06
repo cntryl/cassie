@@ -240,7 +240,7 @@ pub(super) fn updated_payload_from_row(
         if expr.is_default_assignment() {
             match target
                 .cassie
-                .column_default_json(target.table, field)
+                .column_default_json(target.table, field, session)
                 .map_err(QueryError::from)?
             {
                 Some(value) => payload.insert(field.clone(), value),

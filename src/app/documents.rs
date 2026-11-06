@@ -146,7 +146,7 @@ impl Cassie {
 
         let constraints = self.catalog.get_constraints(collection);
         if apply_defaults && !constraints.is_empty() {
-            super::defaults::apply_default_values(self, &mut payload, &constraints)?;
+            super::defaults::apply_default_values(self, session, &mut payload, &constraints)?;
         }
         canonical_values::canonicalize_typed_values(&schema.fields, &mut payload);
 

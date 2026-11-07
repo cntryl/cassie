@@ -151,3 +151,9 @@ unexecuted. Binary typed conversions and COPY WHERE's replacement directory
 remain pending. Search-path canonicalization is bounded and admitted, while
 existing `namespace_exists` and relation-resolution map scans and temporary
 name allocations remain unqualified Cassie-side work.
+
+A COPY frontend tag followed by a malformed length below four or a length above
+the frontend frame limit closes the connection without ReadyForQuery: the body
+boundary cannot be trusted or would exceed the configured framing limit, so
+recovering the connection would reinterpret unread bytes as another message.
+Valid frames rejected for query-memory admission are still drained before 54000.

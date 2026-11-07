@@ -738,7 +738,7 @@ async fn handle_simple_copy_from_stdin(
         {
             CopyReadOutcome::Cancelled => break cassie_pg_error(&CassieError::QueryCancelled),
             CopyReadOutcome::DeadlineIdle => break cassie_pg_error(&CassieError::DeadlineExceeded),
-            CopyReadOutcome::DeadlinePartial => return false,
+            CopyReadOutcome::DeadlinePartial | CopyReadOutcome::FramingInvalid => return false,
             CopyReadOutcome::Resource(error) => break cassie_pg_error(&error),
             CopyReadOutcome::AdmittedMessage(Ok((message, memory))) => (Ok(message), Some(memory)),
             CopyReadOutcome::AdmittedMessage(Err(error)) => (Err(error), None),

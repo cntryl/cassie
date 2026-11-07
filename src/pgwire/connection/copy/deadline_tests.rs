@@ -233,10 +233,7 @@ fn should_reject_malformed_copy_frame_length_without_leaking_admission() {
         // Act
         let outcome = super::read_admitted_copy_message(None, None, &controls, &mut reader).await;
         // Assert
-        assert!(matches!(
-            outcome,
-            CopyReadOutcome::AdmittedMessage(Err(super::HandshakeError::Invalid(_)))
-        ));
+        assert!(matches!(outcome, CopyReadOutcome::FramingInvalid));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     });
 }

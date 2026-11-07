@@ -227,3 +227,202 @@ fn should_cancel_idle_copy_from_stdin_inside_implicit_transaction() {
         );
     });
 }
+
+#[test]
+fn should_cancel_copy_into_a_transaction_owned_table_and_recover_at_savepoint() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("staged_copy_cancel_recovery").await;
+        let (client, connection) = server.connect().await;
+        let socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("wire connection");
+        let (mut reader, mut writer) = socket.into_split();
+        let (process_id, secret_key) =
+            support_pgwire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+        for sql in [
+            "BEGIN",
+            "CREATE TABLE staged_copy_cancelled (id SERIAL PRIMARY KEY, n INT)",
+            "SAVEPOINT before_copy",
+        ] {
+            support_pgwire::write_frames(
+                &mut writer,
+                vec![support_pgwire::simple_query_frame(sql)],
+            )
+            .await;
+            let frames =
+                support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                    .await;
+            assert_eq!(support_pgwire::error_code(&frames), None);
+        }
+        support_pgwire::write_frames(
+            &mut writer,
+            vec![support_pgwire::simple_query_frame(
+                "COPY staged_copy_cancelled (n) FROM STDIN",
+            )],
+        )
+        .await;
+        let (tag, _) = support_pgwire::read_wire_frame(&mut reader).await;
+        assert_eq!(tag, b'G');
+
+        // Act
+        cancel_backend(server.addr, process_id, secret_key).await;
+        let cancelled =
+            support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                .await;
+        support_pgwire::write_frames(
+            &mut writer,
+            vec![support_pgwire::simple_query_frame(
+                "ROLLBACK TO before_copy",
+            )],
+        )
+        .await;
+        let recovered =
+            support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                .await;
+        support_pgwire::write_frames(
+            &mut writer,
+            vec![support_pgwire::simple_query_frame(
+                "SELECT count(*) FROM staged_copy_cancelled",
+            )],
+        )
+        .await;
+        let rows =
+            support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                .await;
+        drop((reader, writer, client));
+        server.shutdown(connection).await;
+
+        // Assert
+        assert_eq!(
+            support_pgwire::error_code(&cancelled).as_deref(),
+            Some("57014")
+        );
+        assert!(!cancelled.iter().any(|(tag, _)| *tag == b'C'));
+        assert_eq!(support_pgwire::error_code(&recovered), None);
+        assert_eq!(
+            support_pgwire::data_rows(&rows),
+            vec![vec![Some("0".into())]]
+        );
+    });
+}
+
+async fn start_timed_staged_copy() -> (
+    tokio::task::JoinHandle<()>,
+    tokio::net::tcp::OwnedReadHalf,
+    tokio::net::tcp::OwnedWriteHalf,
+) {
+    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+    crate::support_sql::test_root_password().clone_into(&mut config.password);
+    config.limits.query_timeout_ms = 1_000;
+    let cassie = cassie::app::Cassie::new_in_memory_with_config(config.clone()).expect("Cassie");
+    cassie.startup().expect("startup");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("listener");
+    let address = listener.local_addr().expect("address");
+    let server = tokio::spawn(async move {
+        let _ = cassie::pgwire::server::run_with_listener(
+            listener,
+            std::sync::Arc::new(cassie),
+            config,
+        )
+        .await;
+    });
+    let socket = tokio::net::TcpStream::connect(address)
+        .await
+        .expect("connect");
+    let (mut reader, mut writer) = socket.into_split();
+    support_pgwire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
+    for sql in [
+        "BEGIN",
+        "CREATE TABLE timed_staged_copy (n INT)",
+        "SAVEPOINT before_copy",
+    ] {
+        support_pgwire::write_frames(&mut writer, vec![support_pgwire::simple_query_frame(sql)])
+            .await;
+        let frames =
+            support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                .await;
+        assert_eq!(support_pgwire::error_code(&frames), None);
+    }
+    support_pgwire::write_frames(
+        &mut writer,
+        vec![support_pgwire::simple_query_frame(
+            "COPY timed_staged_copy FROM STDIN",
+        )],
+    )
+    .await;
+    let (tag, _) = support_pgwire::read_wire_frame(&mut reader).await;
+    assert_eq!(tag, b'G');
+    (server, reader, writer)
+}
+
+#[test]
+fn should_recover_after_idle_staged_copy_deadline() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let (server, mut reader, mut writer) = start_timed_staged_copy().await;
+        // Act
+        let timeout =
+            support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                .await;
+        support_pgwire::write_frames(
+            &mut writer,
+            vec![support_pgwire::simple_query_frame(
+                "ROLLBACK TO before_copy",
+            )],
+        )
+        .await;
+        let recovery =
+            support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                .await;
+        support_pgwire::write_frames(
+            &mut writer,
+            vec![support_pgwire::simple_query_frame(
+                "SELECT count(*) FROM timed_staged_copy",
+            )],
+        )
+        .await;
+        let rows =
+            support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
+                .await;
+        server.abort();
+        // Assert
+        assert_eq!(
+            support_pgwire::error_code(&timeout).as_deref(),
+            Some("57014")
+        );
+        assert_eq!(support_pgwire::error_code(&recovery), None);
+        assert_eq!(
+            support_pgwire::data_rows(&rows),
+            vec![vec![Some("0".into())]]
+        );
+    });
+}
+
+#[test]
+fn should_close_staged_copy_connection_after_deadline_during_partial_frame() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        for prefix in [&[b'd', 0, 0][..], &[b'd', 0, 0, 0, 8, b'x'][..]] {
+            let (server, mut reader, mut writer) = start_timed_staged_copy().await;
+            writer.write_all(prefix).await.expect("partial frame");
+            // Act
+            let mut byte = [0_u8; 1];
+            let received = tokio::time::timeout(Duration::from_secs(5), reader.read(&mut byte))
+                .await
+                .expect("connection closes")
+                .expect("read");
+            server.abort();
+            // Assert
+            assert_eq!(
+                received, 0,
+                "no protocol reply is sent into a partial frame"
+            );
+        }
+    });
+}

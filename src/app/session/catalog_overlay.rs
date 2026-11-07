@@ -111,6 +111,14 @@ impl CassieSession {
         controls: &QueryExecutionControls,
     ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
         let mut transaction = self.transaction.lock();
+        Self::command_descriptor_snapshot_locked(&mut transaction, current, controls)
+    }
+
+    pub(super) fn command_descriptor_snapshot_locked(
+        transaction: &mut super::SessionTransactionState,
+        current: &Catalog,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
         let (Some(base), Some(overlay)) = (
             &transaction.catalog_views.base,
             &transaction.catalog_overlay,

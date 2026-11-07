@@ -72,6 +72,8 @@ use crate::vector::{
 
 mod access;
 mod cache;
+mod copy_csv;
+pub(crate) mod copy_decode;
 mod error;
 mod session;
 mod session_objects;
@@ -88,15 +90,16 @@ use cache::{
     current_time_millis, NormalizedVectorCacheEntry, NormalizedVectorCacheKey, PlanCacheProvenance,
     QueryEmbeddingCacheKey, VectorSearchResultCacheKey,
 };
+pub(crate) use copy_csv::parse_csv_payload as parse_copy_csv_payload_controlled;
 pub(crate) use error::unsupported_sql_error;
 pub use error::{
     CassieError, CatalogObjectKind, DiagnosticError, RetryableStorageError, StorageRetryKind,
 };
 pub use session::CassieSession;
 pub(crate) use session::{
-    BoundReadScope, BoundReadView, CommandCatalogScope, SessionRandom, SessionReadScope,
-    StagedWriteSnapshot, StatementMutationBatch, StatementOverlay, TransactionConflictIntent,
-    TransactionRowChange,
+    BoundReadScope, BoundReadView, CommandCatalogScope, CopyCommandOwner, SessionRandom,
+    SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
+    TransactionConflictIntent, TransactionRowChange,
 };
 pub(crate) use session::{
     CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,
@@ -112,9 +115,7 @@ mod auth;
 pub(crate) use auth::AuthenticatedPrincipal;
 mod auth_rate_limit;
 mod bulk_ingest;
-pub(crate) use bulk_ingest::{
-    copy_columns, parse_copy_csv_payload_with_force, CopyColumn, CopyCsvOptions, CopyIngestOptions,
-};
+pub(crate) use bulk_ingest::{copy_columns, CopyColumn, CopyCsvOptions, CopyIngestOptions};
 mod consistency;
 mod database_images;
 mod databases;

@@ -15,6 +15,10 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
+#[path = "transactions/copy_snapshot.rs"]
+mod copy_snapshot;
+pub(crate) use copy_snapshot::CopyStorageSnapshot;
+
 #[path = "transactions/mutation_error.rs"]
 mod mutation_error;
 #[path = "transactions/sequence_owner.rs"]

@@ -699,7 +699,7 @@ fn should_fail_explicit_transaction_after_partial_copy_body_cancellation() {
 async fn cancel_copy_read_after_partial_frame_prefix(
     prefix: &[u8],
     remaining_frame: &[u8],
-) -> CopyReadOutcome<Result<FrontendMessage, HandshakeError>> {
+) -> CopyReadOutcome {
     let (mut client, server) = tokio::io::duplex(64);
     let (progress_sender, mut progress) = tokio::sync::mpsc::unbounded_channel();
     let cancellation = QueryCancellationHandle::new();

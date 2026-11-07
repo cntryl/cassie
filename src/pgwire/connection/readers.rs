@@ -155,7 +155,7 @@ async fn read_frontend_payload(
     Ok(payload)
 }
 
-async fn read_frontend_payload_bytes(
+pub(super) async fn read_frontend_payload_bytes(
     reader: &mut (impl AsyncRead + Unpin),
     tag: u8,
     payload: &mut [u8],

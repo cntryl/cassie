@@ -1,3 +1,5 @@
+#[path = "schema_ops/copy_identity.rs"]
+mod copy_identity;
 #[path = "schema_ops/descriptor.rs"]
 mod descriptor;
 

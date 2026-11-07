@@ -8,11 +8,19 @@ use super::{
 
 impl CassieSession {
     pub(crate) fn fork_statement_batch(&self) -> Result<StatementMutationBatch, CassieError> {
-        let transaction = self.transaction.lock();
+        self.fork_statement_batch_checked(|_| Ok(()))
+    }
+
+    pub(super) fn fork_statement_batch_checked(
+        &self,
+        validate: impl FnOnce(&mut SessionTransactionState) -> Result<(), CassieError>,
+    ) -> Result<StatementMutationBatch, CassieError> {
+        let mut transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::Failed {
             return Err(CassieError::failed_transaction());
         }
 
+        validate(&mut transaction)?;
         let base_transaction_active = transaction.status == SessionTransactionStatus::InTransaction;
         let working_state = self.statement_fork_state(&transaction)?;
         drop(transaction);

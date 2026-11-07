@@ -34,7 +34,9 @@ pub(crate) use publication::RetainedRowHistory;
 mod raw_ops;
 pub(crate) use publication::PublicationControlScope;
 mod transactions;
-pub(crate) use transactions::{AdapterTransaction, RetainedRowFence, StorageOverlay};
+pub(crate) use transactions::{
+    AdapterTransaction, CopyStorageSnapshot, RetainedRowFence, StorageOverlay,
+};
 
 #[doc(hidden)]
 pub use column_batch_format_v1::{

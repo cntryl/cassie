@@ -92,22 +92,77 @@ impl Cassie {
             &self.runtime.limits(),
             cancellation,
         );
-        let mut rows = parse_csv_payload(payload)?;
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
+            .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
+        let parsed = crate::sql::ast::ParsedStatement {
+            raw_sql: String::new(),
+            statement: crate::sql::ast::QueryStatement::Copy(statement.clone()),
+        };
+        self.prepare_transaction_read_view(session, &parsed, &controls)?;
+        let (owner, owned_context) = if session.is_transaction_active() {
+            let (owner, context) =
+                self.capture_bound_copy_command_owner(session, &statement.table, &controls)?;
+            (Some(owner), Some(context))
+        } else {
+            (None, None)
+        };
+        let fallback_context = owner.is_none().then(|| {
+            let database = session.current_database().unwrap_or(&self.default_database);
+            crate::sql::binder::BindingContext::scoped(database, self.binding_search_path(session))
+        });
+        let context = owned_context
+            .as_ref()
+            .map(|context| context.context())
+            .or(fallback_context.as_ref())
+            .expect("COPY binding context");
+        let scoped = owner.as_ref().map_or_else(
+            || self.clone(),
+            |owner| self.with_copy_command_owner(session, owner),
+        );
+        let mut bound = statement.clone();
+        if let Some(owner) = &owner {
+            bound.table =
+                crate::sql::binder::resolve_relation_name(&bound.table, &scoped.catalog, context)?;
+            if !owner.matches_target(&bound.table) {
+                return Err(CassieError::Execution(
+                    "COPY target changed during binding".into(),
+                ));
+            }
+        }
+        let csv_memory;
+        let mut rows;
+        (rows, csv_memory) = super::parse_copy_csv_payload_controlled(
+            payload,
+            CopyCsvOptions {
+                delimiter: ',',
+                quote: '"',
+                escape: '"',
+                null_marker: COPY_NULL,
+                force_null: &[],
+                force_not_null: &[],
+            },
+            true,
+            &controls,
+        )?;
         if statement.header && !rows.is_empty() {
             rows.remove(0);
         }
-        self.copy_from_rows_inner(
-            session,
-            statement,
-            rows,
-            cancellation,
-            CopyIngestOptions {
-                default_marker: None,
-                on_error_ignore: false,
-                reject_limit: None,
-            },
-        )
-        .map(|result| result.count)
+        let result = scoped
+            .copy_from_rows_inner(
+                session,
+                &bound,
+                rows,
+                cancellation,
+                CopyIngestOptions {
+                    default_marker: None,
+                    on_error_ignore: false,
+                    reject_limit: None,
+                },
+                owner.as_ref(),
+            )
+            .map(|result| result.count);
+        drop(csv_memory);
+        result
     }
 
     pub(crate) fn ingest_copy_rows_with_default_marker(
@@ -117,6 +172,7 @@ impl Cassie {
         rows: Vec<Vec<Option<String>>>,
         cancellation: Option<&QueryCancellationHandle>,
         options: CopyIngestOptions<'_>,
+        owner: Option<&crate::app::CopyCommandOwner>,
     ) -> Result<CopyIngestResult, CassieError> {
         self.check_storage_recovery_required()?;
         let _publication_controls = crate::midge::adapter::PublicationControlScope::for_request(
@@ -124,7 +180,8 @@ impl Cassie {
             cancellation,
         );
         let transactional = session.is_transaction_active();
-        let result = self.copy_from_rows_inner(session, statement, rows, cancellation, options);
+        let result =
+            self.copy_from_rows_inner(session, statement, rows, cancellation, options, owner);
         if result.is_err() && transactional {
             session.mark_transaction_failed();
         }
@@ -138,8 +195,14 @@ impl Cassie {
         rows: Vec<Vec<Option<String>>>,
         cancellation: Option<&QueryCancellationHandle>,
         options: CopyIngestOptions<'_>,
+        owner: Option<&crate::app::CopyCommandOwner>,
     ) -> Result<CopyIngestResult, CassieError> {
         check_copy_cancellation(cancellation)?;
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
+            .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
+        let publication = owner
+            .map(|owner| owner.lock_catalog(&controls))
+            .transpose()?;
         let database = session.current_database().unwrap_or(&self.default_database);
         let context =
             crate::sql::binder::BindingContext::scoped(database, self.binding_search_path(session));
@@ -164,16 +227,20 @@ impl Cassie {
 
         let collections = self.referential_write_collections(&statement.table);
         let (affected, stats, skipped) =
-            self.midge.with_collection_write_gates(&collections, || {
-                self.stage_and_apply_copy_rows(
-                    session,
-                    &statement,
-                    &columns,
-                    rows,
-                    cancellation,
-                    options,
-                )
-            })?;
+            self.midge
+                .with_transaction_write_gates(&collections, true, &controls, || {
+                    self.stage_and_apply_copy_rows(
+                        session,
+                        &statement,
+                        &columns,
+                        rows,
+                        cancellation,
+                        options,
+                        owner,
+                        publication.as_ref(),
+                        &controls,
+                    )
+                })?;
         let Some(stats) = stats else {
             return Ok(CopyIngestResult {
                 count: affected,
@@ -198,6 +265,9 @@ impl Cassie {
         rows: Vec<Vec<Option<String>>>,
         cancellation: Option<&QueryCancellationHandle>,
         options: CopyIngestOptions<'_>,
+        owner: Option<&crate::app::CopyCommandOwner>,
+        publication: Option<&parking_lot::RwLockReadGuard<'_, ()>>,
+        controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<
         (
             usize,
@@ -207,8 +277,24 @@ impl Cassie {
         CassieError,
     > {
         let transactional = session.is_transaction_active();
-        let batch = session.fork_statement_batch()?;
+        let batch = if let Some(owner) = owner {
+            let publication = publication
+                .ok_or_else(|| CassieError::Execution("COPY lost catalog guard".into()))?;
+            session.fork_copy_statement_batch_guarded(owner, controls, publication)?
+        } else {
+            session.fork_statement_batch()?
+        };
         let staging = batch.session();
+        let _storage_scope = if transactional {
+            Some(self.midge.enter_transactional_ddl_scope(
+                session.current_database().unwrap_or(&self.default_database),
+                staging.transaction_storage_overlay(),
+                false,
+            )?)
+        } else {
+            None
+        };
+        let working = self.with_statement_metadata_writer(staging);
         let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
         let schema = self.catalog.get_schema(&statement.table);
         let mut seen_ids = BTreeSet::new();
@@ -241,13 +327,13 @@ impl Cassie {
                 )));
             }
 
-            let payload = self.apply_insert_defaults(
+            let payload = working.apply_insert_defaults(
                 &statement.table,
                 serde_json::Value::Object(input.payload),
                 &input.explicit_json_nulls,
                 Some(staging),
             )?;
-            let (prepared, constraints) = self.prepare_document_write_deferring_foreign_keys(
+            let (prepared, constraints) = working.prepare_document_write_deferring_foreign_keys(
                 Some(staging),
                 &statement.table,
                 payload,
@@ -260,7 +346,7 @@ impl Cassie {
         }
 
         check_copy_cancellation(cancellation)?;
-        self.validate_foreign_key_references(Some(staging), &statement.table, &references)?;
+        working.validate_foreign_key_references(Some(staging), &statement.table, &references)?;
 
         if transactional {
             check_copy_cancellation(cancellation)?;
@@ -571,13 +657,7 @@ fn parse_copy_bool(raw: &str) -> Option<bool> {
     crate::types::boolean::parse_text(raw)
 }
 
-pub(crate) fn parse_copy_csv_payload_with_force(
-    payload: &[u8],
-    options: CopyCsvOptions<'_>,
-) -> Result<Vec<Vec<Option<String>>>, CassieError> {
-    parse_csv_payload_with_null_policy(payload, options, options.null_marker.is_empty())
-}
-
+#[cfg(test)]
 fn parse_csv_payload_with_null_policy(
     payload: &[u8],
     options: CopyCsvOptions<'_>,
@@ -665,6 +745,7 @@ fn parse_csv_payload_with_null_policy(
     Ok(rows)
 }
 
+#[cfg(test)]
 fn push_csv_row(
     rows: &mut Vec<Vec<Option<String>>>,
     row: &mut Vec<Option<String>>,
@@ -684,6 +765,7 @@ fn push_csv_row(
     rows.push(std::mem::take(row));
 }
 
+#[cfg(test)]
 #[derive(Default)]
 struct CsvField {
     value: String,
@@ -691,6 +773,7 @@ struct CsvField {
     quoted: bool,
 }
 
+#[cfg(test)]
 impl CsvField {
     /// PostgreSQL CSV treats only an unquoted null marker as NULL.
     fn push_into(
@@ -714,6 +797,7 @@ impl CsvField {
     }
 }
 
+#[cfg(test)]
 fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieError> {
     parse_csv_payload_with_null_policy(
         payload,

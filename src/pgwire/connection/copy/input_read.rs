@@ -19,6 +19,7 @@ pub(super) enum CopyReadOutcome {
     Cancelled,
     DeadlineIdle,
     DeadlinePartial,
+    FramingInvalid,
     Resource(CassieError),
     AdmittedMessage(Result<(FrontendMessage, QueryMemoryReservation), HandshakeError>),
     #[cfg(test)]
@@ -110,6 +111,9 @@ pub(super) async fn read_admitted_copy_message(
         message = read_admitted_body(reader, tag, controls) => message,
         () = deadline_elapsed(deadline) => return CopyReadOutcome::DeadlinePartial,
     };
+    if matches!(&message, Err(AdmittedBodyError::FramingInvalid)) {
+        return CopyReadOutcome::FramingInvalid;
+    }
     if cancellation.is_some_and(QueryCancellationHandle::is_cancelled) {
         return CopyReadOutcome::Cancelled;
     }
@@ -124,10 +128,12 @@ pub(super) async fn read_admitted_copy_message(
         Ok(message) => CopyReadOutcome::AdmittedMessage(Ok(message)),
         Err(AdmittedBodyError::Wire(error)) => CopyReadOutcome::AdmittedMessage(Err(error)),
         Err(AdmittedBodyError::Resource(error)) => CopyReadOutcome::Resource(error),
+        Err(AdmittedBodyError::FramingInvalid) => CopyReadOutcome::FramingInvalid,
     }
 }
 
 enum AdmittedBodyError {
+    FramingInvalid,
     Wire(HandshakeError),
     Resource(CassieError),
 }
@@ -168,19 +174,11 @@ async fn read_admitted_body(
         .map_err(|error| AdmittedBodyError::Wire(frame_read_error(&error, "length")))?;
     let size = i32::from_be_bytes(length);
     if size < 4 {
-        return Err(AdmittedBodyError::Wire(HandshakeError::Invalid(
-            "invalid frontend message length".into(),
-        )));
+        return Err(AdmittedBodyError::FramingInvalid);
     }
-    let size = usize::try_from(size).map_err(|_| {
-        AdmittedBodyError::Wire(HandshakeError::Invalid(
-            "frontend message length exceeds supported bounds".into(),
-        ))
-    })?;
+    let size = usize::try_from(size).map_err(|_| AdmittedBodyError::FramingInvalid)?;
     if size > super::super::MAX_FRONTEND_MESSAGE_BYTES {
-        return Err(AdmittedBodyError::Wire(HandshakeError::Invalid(
-            "frontend message exceeds supported bounds".into(),
-        )));
+        return Err(AdmittedBodyError::FramingInvalid);
     }
     let bytes = size - 4;
     // CopyFail decoding constructs a string before the input body is released.

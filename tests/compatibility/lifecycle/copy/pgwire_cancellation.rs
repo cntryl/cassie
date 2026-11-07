@@ -426,3 +426,31 @@ fn should_close_staged_copy_connection_after_deadline_during_partial_frame() {
         }
     });
 }
+
+#[test]
+fn should_close_copy_connection_for_untrusted_or_oversized_frame_length() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        for length in [3_i32, i32::MAX] {
+            let (server, mut reader, mut writer) = start_timed_staged_copy().await;
+            // Act
+            writer.write_all(b"d").await.expect("frame tag");
+            writer
+                .write_all(&length.to_be_bytes())
+                .await
+                .expect("frame length");
+            let mut byte = [0_u8; 1];
+            let received = tokio::time::timeout(Duration::from_secs(5), reader.read(&mut byte))
+                .await
+                .expect("connection closes")
+                .expect("read");
+            server.abort();
+            // Assert
+            assert_eq!(
+                received, 0,
+                "invalid framing must not produce ReadyForQuery"
+            );
+        }
+    });
+}

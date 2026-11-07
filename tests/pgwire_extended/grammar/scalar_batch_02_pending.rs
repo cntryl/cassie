@@ -223,3 +223,60 @@ fn should_reject_typed_text_power_arguments_while_accepting_unknown_literals() {
         assert_eq!(wire::error_code(&frames).as_deref(), Some("42883"));
     }
 }
+
+#[test]
+fn should_coerce_invalid_unknown_power_literals_before_strict_null_result() {
+    // Arrange
+    let cases = [
+        "SELECT power('bad', NULL::numeric)",
+        "SELECT 'bad' ^ NULL::numeric",
+        "SELECT NULL::numeric ^ 'bad'",
+        "SELECT power('bad', NULL::float8)",
+    ];
+    let cycles = cases.map(|sql| fixture::execute_cycle(sql, None, 0, true));
+
+    // Act
+    let batches = fixture::run_cycles("power-unknown-null", &[], cycles.into());
+
+    // Assert
+    for frames in batches {
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("22P02"));
+    }
+}
+
+#[test]
+fn should_coerce_invalid_unknown_power_literal_before_null_parameter() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT power('bad', $1::numeric)",
+        Some((1700, 0, None)),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("power-unknown-null-parameter", &[], vec![cycle]);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("22P02"));
+}
+
+#[test]
+fn should_preserve_user_power_routine_precedence_over_builtin_literal_coercion() {
+    // Arrange
+    let setup = [(
+        "CREATE FUNCTION power(x TEXT, y INT) RETURNS INT AS \"99\"",
+        vec![],
+    )];
+    let cycle = fixture::execute_cycle("SELECT power('bad'::text, 3)", None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("power-user-routine", &setup, vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some("99".to_owned())]]
+    );
+}

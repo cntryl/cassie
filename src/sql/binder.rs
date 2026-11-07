@@ -48,6 +48,7 @@ mod bytea_functions;
 mod character_comparison;
 #[path = "binder/extended_inference.rs"]
 mod extended_inference;
+mod power_coercion;
 pub(crate) use boolean_bindings::bind_boolean_parameters;
 use std::collections::{HashMap, HashSet};
 use std::mem;

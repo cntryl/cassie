@@ -141,12 +141,15 @@ fn power(left: &ScalarValue, right: &ScalarValue) -> Result<ScalarValue, QueryEr
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
     }
-    let left = left
-        .to_f64()
-        .ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
-    let right = right
-        .to_f64()
-        .ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
+    let operand = |value: &ScalarValue| match value {
+        ScalarValue::Str(text) => crate::types::float_input::parse(text)
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::FloatInput(error))),
+        _ => value
+            .to_f64()
+            .ok_or_else(|| QueryError::General("power requires numeric inputs".into())),
+    };
+    let left = operand(left)?;
+    let right = operand(right)?;
     Ok(ScalarValue::Float(super::functions::math::power(
         left, right,
     )?))

@@ -92,3 +92,109 @@ fn should_evaluate_numeric_cast_power_function_as_numeric() {
     // Assert
     assert_numeric_power(&batches, sql, "1.0000000000000000");
 }
+
+#[test]
+fn should_resolve_unknown_power_operand_to_numeric_when_the_other_is_numeric() {
+    // Arrange
+    let cases = [
+        "SELECT '2' ^ 3::numeric AS output",
+        "SELECT power('2', 3::numeric) AS output",
+        "SELECT pg_catalog.power(2::numeric, 3) AS output",
+    ];
+
+    // Act
+    let batches = cases.map(|sql| run_power("power-numeric-unknown", sql));
+
+    // Assert
+    for (batch, sql) in batches.iter().zip(cases) {
+        assert_numeric_power(batch, sql, "8.0000000000000000");
+    }
+}
+
+#[test]
+fn should_resolve_mixed_numeric_and_float_power_to_float8() {
+    // Arrange
+    let sql = "SELECT power(2::numeric, 3::float8) AS output";
+
+    // Act
+    let batches = run_power("power-numeric-float", sql);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    fixture::assert_success(&batches[1]);
+    let description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("mixed power RowDescription");
+    assert_eq!(wire::parse_row_description(&description.1)[0].type_oid, 701);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("8".to_owned())]]
+    );
+    fixture::assert_success(&batches[2]);
+}
+
+#[test]
+fn should_infer_power_parameter_from_the_selected_overload() {
+    // Arrange
+    let cases = [
+        ("SELECT $1 ^ 3::numeric", 1700, 1700, "8.0000000000000000"),
+        (
+            "SELECT power($1, 3::numeric)",
+            1700,
+            1700,
+            "8.0000000000000000",
+        ),
+        ("SELECT $1 ^ 3::float8", 701, 701, "8"),
+        ("SELECT power($1, 3::float8)", 701, 701, "8"),
+    ];
+    let cycles = cases
+        .iter()
+        .map(|(sql, _, _, _)| fixture::execute_cycle(sql, Some((0, 0, Some(b"2"))), 0, true))
+        .collect();
+
+    // Act
+    let batches = fixture::run_cycles("power-parameter-overloads", &[], cycles);
+
+    // Assert
+    for (frames, (_, parameter_oid, result_oid, result)) in batches.iter().zip(cases) {
+        fixture::assert_success(frames);
+        let parameters = frames
+            .iter()
+            .find(|(tag, _)| *tag == b't')
+            .expect("parameters");
+        assert_eq!(
+            wire::parse_parameter_description(&parameters.1),
+            vec![parameter_oid]
+        );
+        let description = frames
+            .iter()
+            .find(|(tag, _)| *tag == b'T')
+            .expect("row description");
+        assert_eq!(
+            wire::parse_row_description(&description.1)[0].type_oid,
+            result_oid
+        );
+        assert_eq!(wire::data_rows(frames), vec![vec![Some(result.to_owned())]]);
+    }
+}
+
+#[test]
+fn should_reject_numeric_to_float_overflow_and_underflow_for_mixed_power() {
+    // Arrange
+    let cases = [
+        "SELECT power(1e1000::numeric, 2::float8)",
+        "SELECT power(1e-1000::numeric, 2::float8)",
+        "SELECT 1e1000::numeric ^ 2::float8",
+        "SELECT 1e-1000::numeric ^ 2::float8",
+    ];
+    let cycles = cases.map(|sql| fixture::execute_cycle(sql, None, 0, true));
+
+    // Act
+    let batches = fixture::run_cycles("power-numeric-float-range", &[], cycles.into());
+
+    // Assert
+    for frames in batches {
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("22003"));
+    }
+}

@@ -404,27 +404,9 @@ fn parse_arithmetic_expression_indexed(
         });
     }
     if let Some((left, right)) = super::operators::split_arithmetic(raw, "^") {
-        let operand = |expr: Expr| -> Result<Expr, SqlError> {
-            if crate::sql::functions::has_unselected_numeric(&expr) {
-                return Err(SqlError::unsupported(
-                    "NUMERIC power remains pending under #793/#812; select FLOAT8 explicitly"
-                        .into(),
-                ));
-            }
-            Ok(if matches!(expr, Expr::StringLiteral(_)) {
-                Expr::Cast {
-                    expr: Box::new(expr),
-                    data_type: crate::types::DataType::Float,
-                    identity: crate::sql::ast::CastIdentity::Scalar,
-                    source_type: None,
-                }
-            } else {
-                expr
-            })
-        };
         return Ok(Expr::Binary {
-            left: Box::new(operand(parse_prefix_expression_indexed(left, operators)?)?),
-            right: Box::new(operand(parse_prefix_expression_indexed(right, operators)?)?),
+            left: Box::new(parse_prefix_expression_indexed(left, operators)?),
+            right: Box::new(parse_prefix_expression_indexed(right, operators)?),
             op: BinaryOp::Power,
         });
     }

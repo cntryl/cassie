@@ -464,14 +464,8 @@ impl Fold<'_, '_> {
         oids: impl IntoIterator<Item = i32>,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
-        // `power(numeric, numeric)` is its own overload.
-        if metadata.id == functions::FunctionId::Power
-            && self.summaries.values[frame.start..]
-                .iter()
-                .take(function.args.len())
-                .any(|summary| summary.oid == 1700)
-        {
-            return Ok(Summary::known(1700));
+        if metadata.id == functions::FunctionId::Power && function.args.len() == 2 {
+            return self.power_inputs(frame);
         }
         for (summary, oid) in self.summaries.values[frame.start..].iter_mut().zip(oids) {
             check_controls(self.controls)?;

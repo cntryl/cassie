@@ -93,7 +93,12 @@ fn float_range(value: f64, inputs_finite: bool) -> Result<Value, QueryError> {
 pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
     let metadata = crate::sql::functions::function(name)?;
     let crate::sql::functions::FunctionId::Math(function) = metadata.id else {
-        if matches!(name, "power" | "pow") && args.iter().any(is_numeric) {
+        if matches!(name, "power" | "pow")
+            && args.iter().any(is_numeric)
+            && !args
+                .iter()
+                .any(|value| matches!(value, Value::Float64(_) | Value::Typed(TypedValue::Real(_))))
+        {
             return Some(binary_numeric(args, math::power));
         }
         return None;

@@ -451,6 +451,9 @@ impl Fold<'_, '_> {
         if let Some(summary) = self.shift_binary(op, frame)? {
             return Ok(summary);
         }
+        if matches!(op, ast::BinaryOp::Power) {
+            return self.power_inputs(frame);
+        }
         self.comparison_inputs(frame)?;
         Ok(match op {
             ast::BinaryOp::Concat => Summary::known(25),
@@ -500,6 +503,24 @@ impl Fold<'_, '_> {
                 Summary::known(if *as_text { 25 } else { 114 })
             }
         })
+    }
+
+    pub(super) fn power_inputs(
+        &mut self,
+        frame: &Frame<'_>,
+    ) -> Result<Summary, ParameterAdmissionError> {
+        let args = &mut self.summaries.values[frame.start..];
+        let [left, right] = args else {
+            return Ok(Summary::unqualified());
+        };
+        let selected = crate::types::extended::numeric_types::power_oid(left.oid, right.oid);
+        for summary in [left, right] {
+            check_controls(self.controls)?;
+            if matches!(summary.oid, 0 | 705) {
+                self.occurrences.coerce(summary, selected, true)?;
+            }
+        }
+        Ok(Summary::known(selected))
     }
 
     fn array_concat(

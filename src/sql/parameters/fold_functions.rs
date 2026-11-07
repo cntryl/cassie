@@ -465,7 +465,7 @@ impl Fold<'_, '_> {
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
         if metadata.id == functions::FunctionId::Power && function.args.len() == 2 {
-            return self.power_inputs(frame);
+            return self.power_inputs(frame, "power");
         }
         for (summary, oid) in self.summaries.values[frame.start..].iter_mut().zip(oids) {
             check_controls(self.controls)?;

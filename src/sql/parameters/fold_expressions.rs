@@ -452,7 +452,7 @@ impl Fold<'_, '_> {
             return Ok(summary);
         }
         if matches!(op, ast::BinaryOp::Power) {
-            return self.power_inputs(frame);
+            return self.power_inputs(frame, "^");
         }
         self.comparison_inputs(frame)?;
         Ok(match op {
@@ -508,6 +508,7 @@ impl Fold<'_, '_> {
     pub(super) fn power_inputs(
         &mut self,
         frame: &Frame<'_>,
+        name: &'static str,
     ) -> Result<Summary, ParameterAdmissionError> {
         let args = &mut self.summaries.values[frame.start..];
         let [left, right] = args else {
@@ -516,6 +517,12 @@ impl Fold<'_, '_> {
         let selected = crate::types::extended::numeric_types::power_oid(left.oid, right.oid);
         for summary in [left, right] {
             check_controls(self.controls)?;
+            if summary.qualified
+                && !matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700)
+            {
+                self.occurrences
+                    .undefined_function(name, 2, Some(summary.oid))?;
+            }
             if matches!(summary.oid, 0 | 705) {
                 self.occurrences.coerce(summary, selected, true)?;
             }

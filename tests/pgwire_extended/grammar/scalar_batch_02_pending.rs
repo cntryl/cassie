@@ -198,3 +198,28 @@ fn should_reject_numeric_to_float_overflow_and_underflow_for_mixed_power() {
         assert_eq!(wire::error_code(&frames).as_deref(), Some("22003"));
     }
 }
+
+#[test]
+fn should_reject_typed_text_power_arguments_while_accepting_unknown_literals() {
+    // Arrange
+    let cycles = vec![
+        fixture::execute_cycle("SELECT power('2'::text, 3)", None, 0, true),
+        fixture::execute_cycle("SELECT '2'::text ^ 3::numeric", None, 0, true),
+        fixture::execute_cycle(
+            "SELECT power(value, 3) FROM power_text_values",
+            None,
+            0,
+            true,
+        ),
+        fixture::execute_cycle("SELECT power($1, 3)", Some((25, 0, Some(b"2"))), 0, true),
+    ];
+    let setup = [("CREATE TABLE power_text_values (value TEXT)", vec![])];
+
+    // Act
+    let batches = fixture::run_cycles("power-typed-text", &setup, cycles);
+
+    // Assert
+    for frames in batches {
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("42883"));
+    }
+}

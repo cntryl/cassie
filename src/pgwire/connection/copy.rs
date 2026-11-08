@@ -36,6 +36,10 @@ pub(super) mod cancellation_tests;
 #[path = "copy/payload_limit_tests.rs"]
 mod payload_limit_tests;
 
+#[cfg(test)]
+#[path = "copy/diagnostic_tests.rs"]
+mod diagnostic_tests;
+
 use input_read::{read_admitted_copy_message, CopyReadOutcome};
 #[cfg(test)]
 use input_read::{read_copy_frontend_message, select_copy_read};
@@ -501,17 +505,21 @@ async fn write_copy_error(
     session: &CassieSession,
     error: &PgWireError,
 ) -> SimpleCopyOutcome {
-    if session.is_implicit_transaction() {
-        session.rollback_transaction();
-    } else {
-        session.mark_transaction_failed();
-    }
+    fail_copy_transaction(session);
     if write_error_response(write_half, error).await.is_err()
         || write_ready_for_query(write_half, session).await.is_err()
     {
         SimpleCopyOutcome::ConnectionClosed
     } else {
         SimpleCopyOutcome::Handled
+    }
+}
+
+fn fail_copy_transaction(session: &CassieSession) {
+    if session.is_implicit_transaction() {
+        session.rollback_transaction();
+    } else {
+        session.mark_transaction_failed();
     }
 }
 
@@ -869,14 +877,35 @@ async fn finish_simple_copy(
             SimpleCopyOutcome::Handled
         ),
         Err(filter::CopyWhereError::Undefined(name)) => {
-            let error = match PgWireError::copy_undefined_column(name.name(), &controls_for_error) {
-                Ok(error) => error,
-                Err(error) => cassie_pg_error(&error),
-            };
-            matches!(
-                write_copy_error(write_half, &session, &error).await,
-                SimpleCopyOutcome::Handled
+            write_copy_unknown_column_with_length(
+                write_half,
+                &session,
+                name.name(),
+                name.name().len(),
+                &controls_for_error,
             )
+            .await
         }
     }
+}
+
+async fn write_copy_unknown_column_with_length(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    name: &str,
+    name_len: usize,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> bool {
+    if !PgWireError::copy_undefined_column_fits(name_len) {
+        fail_copy_transaction(session);
+        return false;
+    }
+    let error = match PgWireError::copy_undefined_column(name, controls) {
+        Ok(error) => error,
+        Err(error) => cassie_pg_error(&error),
+    };
+    matches!(
+        write_copy_error(write_half, session, &error).await,
+        SimpleCopyOutcome::Handled
+    )
 }

@@ -10,6 +10,8 @@ mod binary_inet;
 mod binary_name;
 #[path = "input/binary_network.rs"]
 mod binary_network;
+#[path = "input/binary_real.rs"]
+mod binary_real;
 #[path = "input/binary_text.rs"]
 mod binary_text;
 #[path = "input/binary_uuid.rs"]
@@ -287,6 +289,13 @@ pub(super) fn parse_binary_payload(
             }
             if let Some((text, text_memory)) =
                 binary_uuid::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if let Some((text, text_memory)) =
+                binary_real::decode(type_oid, bytes, column_index, controls)?
             {
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

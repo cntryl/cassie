@@ -18,6 +18,8 @@ mod binary_network;
 mod binary_real;
 #[path = "input/binary_text.rs"]
 mod binary_text;
+#[path = "input/binary_time.rs"]
+mod binary_time;
 #[path = "input/binary_uuid.rs"]
 mod binary_uuid;
 
@@ -300,6 +302,13 @@ pub(super) fn parse_binary_payload(
             }
             if let Some((text, text_memory)) =
                 binary_name::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if let Some((text, text_memory)) =
+                binary_time::decode(type_oid, bytes, column_index, controls)?
             {
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

@@ -316,3 +316,11 @@ Parity (0.80), malformed fallback (0.78), error order (0.71), interruption
 Other codecs and malformed diagnostic scratch remain pending. Probes are
 unexecuted. Receipt:
 `target/assembly-review/copy-binary-bits-{request,response}.json`.
+
+Jev selected (0.99) direct admitted binary TIME output (OID 1083) after the
+existing decoder's width, range and error checks. A checked stack clock must
+match `format_time`, including fractional zero trimming and `24:00:00`;
+output and reservation transfer together. Formatting parity (0.80) and owner
+lifetime (0.51) require source checks and focused probes. Other temporal OIDs
+and error diagnostic scratch remain pending. Probes remain unexecuted. Receipt:
+`target/assembly-review/copy-binary-time-{request,response}.json`.

@@ -93,7 +93,8 @@ use cache::{
 pub(crate) use copy_csv::parse_csv_payload as parse_copy_csv_payload_controlled;
 pub(crate) use error::unsupported_sql_error;
 pub use error::{
-    CassieError, CatalogObjectKind, DiagnosticError, RetryableStorageError, StorageRetryKind,
+    CassieError, CatalogObjectKind, DiagnosticError, OwnedNumericLiteralError,
+    RetryableStorageError, StorageRetryKind,
 };
 pub use session::CassieSession;
 pub(crate) use session::{

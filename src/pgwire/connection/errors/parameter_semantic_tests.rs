@@ -477,3 +477,148 @@ fn should_keep_copy_unknown_column_admission_until_write_finishes() {
     assert_eq!(pending, retained);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_hold_owned_numeric_error_and_encoded_frame_through_delivery() {
+    // Arrange
+    let controls = controls(1_048_576);
+    let input = format!("{}é!", "1".repeat(4095));
+    let owned = crate::app::OwnedNumericLiteralError::syntax(&input, &controls)
+        .expect("admitted diagnostic");
+    let source = CassieError::OwnedNumericLiteral(owned);
+
+    // Act
+    let mapped = super::cassie_pg_error(&source);
+    let frame = mapped.encoded_semantic_frame().expect("admitted frame");
+    let original_retained = controls.current_query_memory_bytes();
+    drop(source);
+
+    // Assert
+    assert_eq!(mapped.code, "22P02");
+    assert!(frame.windows(7).any(|field| field == b"C22P02\0"));
+    assert!(controls.current_query_memory_bytes() > 0);
+    assert!(controls.current_query_memory_bytes() < original_retained);
+    drop(mapped);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_fatal_severity_in_owned_numeric_error_frame() {
+    // Arrange
+    let controls = controls(65_536);
+    let source = CassieError::OwnedNumericLiteral(
+        crate::app::OwnedNumericLiteralError::range(&controls).expect("source"),
+    );
+
+    // Act
+    let mapped = PgWireError::from_cassie_error(super::PgWireSeverity::Fatal, &source);
+
+    // Assert
+    assert!(matches!(mapped.severity, super::PgWireSeverity::Fatal));
+    assert!(mapped
+        .encoded_semantic_frame()
+        .expect("frame")
+        .windows(7)
+        .any(|bytes| bytes == b"SFATAL\0"));
+}
+
+#[test]
+fn should_admit_owned_numeric_frame_at_exact_overlap_budget() {
+    // Arrange
+    let input = "invalid".repeat(128);
+    let generous = controls(1_048_576);
+    let source = CassieError::OwnedNumericLiteral(
+        crate::app::OwnedNumericLiteralError::syntax(&input, &generous).expect("source"),
+    );
+    let measured = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        "22P02",
+        match &source {
+            CassieError::OwnedNumericLiteral(error) => error.message(),
+            _ => unreachable!(),
+        },
+        &generous,
+    )
+    .expect("measure");
+    let peak = generous.peak_query_memory_bytes();
+    drop(measured);
+    drop(source);
+    let exact = controls(peak);
+    let below = controls(peak - 1);
+    let exact_source =
+        crate::app::OwnedNumericLiteralError::syntax(&input, &exact).expect("exact source");
+    let below_source =
+        crate::app::OwnedNumericLiteralError::syntax(&input, &below).expect("below source");
+
+    // Act
+    let exact_frame = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        exact_source.sqlstate(),
+        exact_source.message(),
+        &exact,
+    );
+    let below_frame = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        below_source.sqlstate(),
+        below_source.message(),
+        &below,
+    );
+
+    // Assert
+    assert!(exact_frame.is_ok());
+    assert!(matches!(below_frame, Err(CassieError::ResourceLimit(_))));
+    drop(exact_frame);
+    drop(exact_source);
+    drop(below_source);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+    assert_eq!(below.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_numeric_error_frame_on_interruption_during_message_or_frame_copy() {
+    // Arrange
+    use super::parameter_semantic::{admitted_error_frame_observing, FrameCopyPhase};
+    let message = format!(
+        "invalid input syntax for type numeric: \"{}\"",
+        "a".repeat(4096)
+    );
+    for phase in [FrameCopyPhase::Message, FrameCopyPhase::Frame] {
+        let cancellation = QueryCancellationHandle::new();
+        let interrupted_controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        let memory = interrupted_controls
+            .reserve_query_memory(std::mem::size_of::<PgWireError>() + message.len())
+            .expect("message admission");
+        let error = PgWireError::new(super::PgWireSeverity::Fatal, "22P02", message.clone());
+        let mut observed = false;
+
+        // Act
+        let result =
+            admitted_error_frame_observing(error, &interrupted_controls, memory, |current| {
+                if current == phase && !observed {
+                    observed = true;
+                    cancellation.cancel();
+                }
+            });
+
+        // Assert
+        assert!(observed);
+        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert_eq!(interrupted_controls.current_query_memory_bytes(), 0);
+        let recovery_controls = controls(65_536);
+        let recovery = PgWireError::controlled_diagnostic(
+            super::PgWireSeverity::Fatal,
+            "22P02",
+            &message,
+            &recovery_controls,
+        )
+        .expect("subsequent frame");
+        assert!(matches!(recovery.severity, super::PgWireSeverity::Fatal));
+        assert_eq!(recovery.code, "22P02");
+        drop(recovery);
+        assert_eq!(recovery_controls.current_query_memory_bytes(), 0);
+    }
+}

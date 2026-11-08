@@ -25,6 +25,35 @@ pub(crate) fn validate_with_controls(
     if !has_input_law(target, identity) {
         return Ok(());
     }
+    if numeric_input_law(target, identity) {
+        use crate::types::extended::numeric_validation::{validate, ValidationError};
+        return match validate(input, controls) {
+            Ok(()) => Ok(()),
+            Err(ValidationError::Interrupted(error)) => Err(error),
+            Err(ValidationError::Syntax) => match controls {
+                Some(controls) => Err(CassieError::OwnedNumericLiteral(
+                    crate::app::OwnedNumericLiteralError::syntax(input, controls)?,
+                )),
+                None => Err(CassieError::TypeInput(
+                    crate::types::extended::TypeInputError::new(
+                        "22P02",
+                        format!("invalid input syntax for type numeric: \"{input}\""),
+                    ),
+                )),
+            },
+            Err(ValidationError::Range) => match controls {
+                Some(controls) => Err(CassieError::OwnedNumericLiteral(
+                    crate::app::OwnedNumericLiteralError::range(controls)?,
+                )),
+                None => Err(CassieError::TypeInput(
+                    crate::types::extended::TypeInputError::new(
+                        "22003",
+                        "value overflows numeric format".into(),
+                    ),
+                )),
+            },
+        };
+    }
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
@@ -72,9 +101,21 @@ pub(crate) fn has_input_law(target: &DataType, identity: CastIdentity) -> bool {
     // qualify an exact NUMERIC carrier or raw numeric literals.
     identity == CastIdentity::Scalar
         || (identity == CastIdentity::Numeric && *target == DataType::Float)
+        || numeric_input_law(target, identity)
 }
 
-pub(crate) fn rejects_cast(expression: &Expr) -> bool {
+fn numeric_input_law(target: &DataType, identity: CastIdentity) -> bool {
+    identity == CastIdentity::Numeric
+        && matches!(
+            target,
+            DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
+        )
+}
+
+pub(crate) fn rejects_cast_with_controls(
+    expression: &Expr,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<bool, CassieError> {
     let Expr::Cast {
         expr,
         data_type,
@@ -82,19 +123,27 @@ pub(crate) fn rejects_cast(expression: &Expr) -> bool {
         ..
     } = expression
     else {
-        return false;
+        return Ok(false);
     };
     let Expr::StringLiteral(input) = expr.as_ref() else {
-        return false;
+        return Ok(false);
     };
     if !has_input_law(data_type, *identity) {
-        return false;
+        return Ok(false);
     }
-    if *data_type == DataType::Bytea {
+    if numeric_input_law(data_type, *identity) {
+        use crate::types::extended::numeric_validation::{validate, ValidationError};
+        return match validate(input, controls) {
+            Ok(()) => Ok(false),
+            Err(ValidationError::Syntax | ValidationError::Range) => Ok(true),
+            Err(ValidationError::Interrupted(error)) => Err(error),
+        };
+    }
+    Ok(if *data_type == DataType::Bytea {
         crate::types::bytea_input::validate(input).is_err()
     } else {
         diagnostic(input, data_type).is_some()
-    }
+    })
 }
 
 pub(crate) fn diagnostic(input: &str, target: &DataType) -> Option<ScalarLiteralDiagnostic> {
@@ -135,3 +184,7 @@ pub(crate) fn diagnostic(input: &str, target: &DataType) -> Option<ScalarLiteral
 #[cfg(test)]
 #[path = "literal_inputs_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "literal_inputs_numeric_tests.rs"]
+mod numeric_tests;

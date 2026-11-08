@@ -166,7 +166,9 @@ impl<'a> Footprint<'a> {
 
     fn expression(&self, expr: &Expr, depth: usize) -> Result<usize, CassieError> {
         self.check(depth)?;
-        if self.detect_rejected && super::literal_inputs::rejects_cast(expr) {
+        if self.detect_rejected
+            && super::literal_inputs::rejects_cast_with_controls(expr, self.controls)?
+        {
             self.rejected_cast.set(true);
         }
         let mut bytes = size_of::<Expr>();

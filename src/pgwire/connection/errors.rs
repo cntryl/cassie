@@ -94,6 +94,17 @@ impl PgWireError {
     }
 
     pub(super) fn from_cassie_error(severity: PgWireSeverity, error: &CassieError) -> Self {
+        if let CassieError::OwnedNumericLiteral(diagnostic) = error {
+            return match Self::controlled_diagnostic(
+                severity,
+                diagnostic.sqlstate(),
+                diagnostic.message(),
+                diagnostic.controls(),
+            ) {
+                Ok(mapped) => mapped,
+                Err(error) => Self::from_cassie_error(severity, &error),
+            };
+        }
         let descriptor = error.descriptor();
         let mut pg_error = Self::new(severity, descriptor.sql_state, descriptor.message);
         if pg_error.code == "22023" && pg_error.message == "invalid base64 end sequence" {

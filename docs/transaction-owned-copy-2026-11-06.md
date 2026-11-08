@@ -255,3 +255,15 @@ and owner lifetime (0.39) require focused source checks and probes. Float8,
 malformed diagnostic scratch and all other unaddressed binary codecs remain
 pending. Probes are unexecuted. Receipt:
 `target/assembly-review/copy-binary-real-{request,response}.json`.
+
+Jev selected (1.00) a shared stack-backed FLOAT8 formatting core for binary
+COPY OID 701, preserving the existing String adapter and exact shortest,
+midpoint, exponent and special-value behavior for all callers. Replace the
+midpoint mantissa's temporary String with checked digit folding. Parity (0.90),
+existing callers (0.83), parser allocation (0.66), owner lifetime (0.53) and
+digit-fold semantics (0.32) require focused source checks and probes. The
+observed Rust toolchain's formatter and decimal parser use stack-backed paths;
+this is toolchain-specific evidence rather than a guarantee for every possible
+Rust implementation. Error diagnostic scratch and unrelated codecs remain
+pending. Probes are unexecuted. Receipt:
+`target/assembly-review/copy-binary-float8-{request,response}.json`.

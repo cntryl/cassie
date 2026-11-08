@@ -4,6 +4,8 @@ use crate::types::{DataType, Value};
 
 #[path = "input/binary_fixed.rs"]
 mod binary_fixed;
+#[path = "input/binary_float8.rs"]
+mod binary_float8;
 #[path = "input/binary_inet.rs"]
 mod binary_inet;
 #[path = "input/binary_name.rs"]
@@ -261,6 +263,13 @@ pub(super) fn parse_binary_payload(
             let bytes = take(payload, &mut cursor, length)?;
             if let Some((text, text_memory)) =
                 binary_fixed::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if let Some((text, text_memory)) =
+                binary_float8::decode(type_oid, bytes, column_index, controls)?
             {
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

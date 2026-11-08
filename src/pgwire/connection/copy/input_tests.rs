@@ -426,3 +426,93 @@ fn should_admit_uuid_output_at_exact_input_overlap_budget() {
     drop(input);
     assert_eq!(denied.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_match_name_binary_width_utf8_and_nul_behavior() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let mut cases = vec![
+        vec![],
+        b"name".to_vec(),
+        b"a\0b".to_vec(),
+        "é".as_bytes().to_vec(),
+        vec![b'a'; 63],
+        vec![b'a'; 64],
+        vec![b'a'; 80],
+        vec![0xff],
+    ];
+    cases.push(vec![0xc3]);
+    cases.push(format!("{}é", "a".repeat(61)).into_bytes());
+    cases.push(format!("{}é", "a".repeat(62)).into_bytes());
+    let mut overlong_invalid = vec![b'a'; 64];
+    overlong_invalid[0] = 0xff;
+    cases.push(overlong_invalid);
+    for bytes in cases {
+        let original = super::super::super::codecs::binary_to_value(&bytes, 19);
+        // Act
+        let direct = super::binary_name::decode(19, &bytes, 2, &controls);
+        // Assert
+        match original {
+            Ok(value) => {
+                let expected = super::super::super::codecs::value_to_text(&value, 19);
+                let (text, memory) = direct.expect("decode").expect("handled");
+                assert_eq!(text, expected);
+                drop((text, memory));
+            }
+            Err(error) => assert!(
+                matches!(direct, Err(crate::app::CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {error}"))
+            ),
+        }
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_enforce_name_binary_input_output_budget_overlap() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 7,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(4).expect("input");
+    // Act
+    let result = super::binary_name::decode(19, b"name", 0, &controls);
+    // Assert
+    assert!(result.is_err());
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_name_binary_at_exact_budget_and_honor_cancellation() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 8,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(4).expect("input");
+    // Act
+    let (text, memory) = super::binary_name::decode(19, b"name", 0, &controls)
+        .expect("decode")
+        .expect("handled");
+    // Assert
+    assert_eq!(text, "name");
+    assert_eq!(controls.current_query_memory_bytes(), 8);
+    drop((text, memory));
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+    assert!(matches!(
+        super::binary_name::decode(19, b"name", 0, &controls),
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+}

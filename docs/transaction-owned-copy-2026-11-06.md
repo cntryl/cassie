@@ -256,3 +256,11 @@ excess diagnostics. Gap 0.80 requires all short lengths, 16/17/larger lengths,
 zero/ff/mixed lowercase hyphenation, NULL/trailer order and exact/below-budget
 owner lifetime probes. All probes remain unexecuted. Receipt:
 `target/assembly-review/copy-binary-uuid-*.json`.
+
+Jev selected (0.95) bounded NAME binary conversion (OID 19): preserve the
+existing 63-byte and UTF-8 receive rules, including length rejection before
+UTF-8 and the outer codec's 64-byte prefix; copy a valid name once into an
+admitted owner. Gap 0.70 requires UTF-8 boundaries, NUL, invalid/64+/short
+inputs, exact/below budget and lifetime probes; they remain unexecuted. Other
+binary codecs remain pending. Receipt:
+`target/assembly-review/copy-binary-name-network-*.json`.

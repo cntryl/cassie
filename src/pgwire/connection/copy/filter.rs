@@ -29,15 +29,27 @@ pub(super) fn filter_rows(
         .get_schema(&statement.table)
         .ok_or_else(|| CassieError::CollectionNotFound(statement.table.clone()))?;
     let columns = crate::app::copy_columns(statement, &schema.fields)?;
-    let names = columns
-        .iter()
-        .map(|column| match column {
+    let base = controls.reserve_query_memory(0)?;
+    let _names_memory;
+    let mut names;
+    (names, _names_memory) = crate::runtime::owned_memory::try_reserve_vec(columns.len(), &base)?;
+    for column in &columns {
+        controls.check_interruption()?;
+        names.push(match column {
             CopyColumn::Field(field) => field.name.as_str(),
             CopyColumn::RowId => "id",
-        })
-        .collect::<Vec<_>>();
-    let expression = parameterize_columns(predicate, &names)?;
-    let query = format!("SELECT ({expression})");
+        });
+    }
+    let expression_memory;
+    let expression;
+    (expression, expression_memory) = parameterize_columns(predicate, &names, controls)?;
+    let mut query_builder = super::filter_text::WhereText::new(controls)?;
+    query_builder.push("SELECT (", controls)?;
+    query_builder.push(&expression, controls)?;
+    query_builder.push(")", controls)?;
+    let query_memory;
+    let query;
+    (query, query_memory) = query_builder.into_parts();
     let accepted_memory;
     let mut accepted;
     (accepted, accepted_memory) = reserve_filter_rows(rows.len(), controls)?;
@@ -80,6 +92,10 @@ pub(super) fn filter_rows(
             ));
         }
     }
+    drop(query);
+    drop(query_memory);
+    drop(expression);
+    drop(expression_memory);
     Ok((accepted, accepted_memory))
 }
 
@@ -119,17 +135,24 @@ fn copy_parameter(
     Ok((value, controls.reserve_query_memory(0)?))
 }
 
-fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, CassieError> {
+fn parameterize_columns(
+    predicate: &str,
+    columns: &[&str],
+    controls: &QueryExecutionControls,
+) -> Result<(String, QueryMemoryReservation), CassieError> {
     let bytes = predicate.as_bytes();
-    let mut output = String::with_capacity(predicate.len());
+    let mut output = super::filter_text::WhereText::new(controls)?;
     let mut index = 0_usize;
-    let mut parameter = 0_usize;
+    let mut next_check = 0_usize;
+    let mut parameter = false;
     while index < bytes.len() {
+        check_scan(index, &mut next_check, controls)?;
         match bytes[index] {
             b'\'' => {
                 let start = index;
                 index += 1;
                 while index < bytes.len() {
+                    check_scan(index, &mut next_check, controls)?;
                     if bytes[index] == b'\'' {
                         if bytes.get(index + 1) == Some(&b'\'') {
                             index += 2;
@@ -140,17 +163,18 @@ fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, Cas
                     }
                     index += 1;
                 }
-                output.push_str(&predicate[start..index]);
+                output.push(&predicate[start..index], controls)?;
             }
             b'"' => {
                 index += 1;
                 let mut start = index;
-                let mut name = String::new();
+                let mut name = super::filter_text::WhereText::new(controls)?;
                 while index < bytes.len() {
+                    check_scan(index, &mut next_check, controls)?;
                     if bytes[index] == b'"' {
-                        name.push_str(&predicate[start..index]);
+                        name.push(&predicate[start..index], controls)?;
                         if bytes.get(index + 1) == Some(&b'"') {
-                            name.push('"');
+                            name.push("\"", controls)?;
                             index += 2;
                             start = index;
                             continue;
@@ -160,8 +184,10 @@ fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, Cas
                     }
                     index += 1;
                 }
-                output.push_str(&column_parameter(columns, &name)?);
-                parameter += 1;
+                let parameter_index = find_column(columns, name.as_str(), false, controls)?
+                    .ok_or_else(|| CassieError::UndefinedColumn(name.as_str().to_owned()))?;
+                output.push_parameter(parameter_index, controls)?;
+                parameter = true;
             }
             byte if byte.is_ascii_alphabetic() || byte == b'_' => {
                 let start = index;
@@ -171,18 +197,15 @@ fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, Cas
                         || bytes[index] == b'_'
                         || bytes[index] == b'$')
                 {
+                    check_scan(index, &mut next_check, controls)?;
                     index += 1;
                 }
                 let name = &predicate[start..index];
-                if let Some(parameter_index) = columns
-                    .iter()
-                    .position(|column| column.eq_ignore_ascii_case(name))
-                {
-                    output.push('$');
-                    output.push_str(&(parameter_index + 1).to_string());
-                    parameter += 1;
+                if let Some(parameter_index) = find_column(columns, name, true, controls)? {
+                    output.push_parameter(parameter_index, controls)?;
+                    parameter = true;
                 } else {
-                    output.push_str(name);
+                    output.push(name, controls)?;
                 }
             }
             _ => {
@@ -190,23 +213,62 @@ fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, Cas
                     .chars()
                     .next()
                     .expect("index is within predicate");
-                output.push(character);
+                let mut encoded = [0_u8; 4];
+                output.push(character.encode_utf8(&mut encoded), controls)?;
                 index += character.len_utf8();
             }
         }
     }
-    if parameter == 0 {
+    if !parameter {
         return Err(CassieError::Parse(
             "COPY WHERE must reference a copied column".to_string(),
         ));
     }
-    Ok(output)
+    Ok(output.into_parts())
 }
 
-fn column_parameter(columns: &[&str], name: &str) -> Result<String, CassieError> {
-    columns
-        .iter()
-        .position(|column| *column == name)
-        .map(|index| format!("${}", index + 1))
-        .ok_or_else(|| CassieError::UndefinedColumn(name.to_owned()))
+fn check_scan(
+    index: usize,
+    next_check: &mut usize,
+    controls: &QueryExecutionControls,
+) -> Result<(), CassieError> {
+    if index >= *next_check {
+        controls.check_interruption()?;
+        *next_check = index.saturating_add(4096);
+    }
+    Ok(())
+}
+
+fn find_column(
+    columns: &[&str],
+    name: &str,
+    insensitive: bool,
+    controls: &QueryExecutionControls,
+) -> Result<Option<usize>, CassieError> {
+    for (index, column) in columns.iter().enumerate() {
+        controls.check_interruption()?;
+        if column.len() != name.len() {
+            continue;
+        }
+        let mut equal = true;
+        for (left, right) in column
+            .as_bytes()
+            .chunks(4096)
+            .zip(name.as_bytes().chunks(4096))
+        {
+            controls.check_interruption()?;
+            if if insensitive {
+                !left.eq_ignore_ascii_case(right)
+            } else {
+                left != right
+            } {
+                equal = false;
+                break;
+            }
+        }
+        if equal {
+            return Ok(Some(index));
+        }
+    }
+    Ok(None)
 }

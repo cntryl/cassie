@@ -203,3 +203,18 @@ probes for exact matches, quoted dots and doubled quotes, case, malformed and
 trailing components, suffix collisions, duplicates, growth, and cancellation
 during parsing and candidate ordering. Receipt:
 `target/assembly-review/catalog-mixed-corrected-*.json`.
+
+COPY WHERE predicate rewriting uses capacity-coupled string owners for the
+rewritten expression, escaped identifier scratch and final SELECT text; name
+comparison and scanning check interruption at bounded intervals. The expression
+and statement text leases remain live through nested evaluation. The schema
+column descriptor lookup and SQL parser/planner have their existing independent
+admission contracts and are not represented as solved here. Focused unexecuted
+probes cover quoted identifiers, doubled quotes, long literals, admission
+boundaries, cancellation and preservation of query/error behavior.
+
+A quoted WHERE identifier that is not found still constructs the existing
+`UndefinedColumn` error String through its legacy unadmitted diagnostic path.
+That error ownership/cancellation case is explicitly pending; the expression
+buffer work does not qualify diagnostics, schema descriptor cloning or numeric
+cell parsing.

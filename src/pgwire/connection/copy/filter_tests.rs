@@ -160,9 +160,11 @@ fn should_bind_quoted_copy_where_column_as_parameter() {
     // Arrange
     let columns = ["Id"];
     // Act
-    let expression = super::parameterize_columns("\"Id\" > 1", &columns);
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let expression = super::parameterize_columns("\"Id\" > 1", &columns, &controls);
     // Assert
-    assert_eq!(expression.expect("quoted parameter"), "$1 > 1");
+    assert_eq!(expression.expect("quoted parameter").0, "$1 > 1");
 }
 
 #[test]
@@ -195,7 +197,61 @@ fn should_bind_copy_where_quoted_column_with_escaped_quote() {
     // Arrange
     let columns = ["a\"b"];
     // Act
-    let expression = super::parameterize_columns("\"a\"\"b\" = 1", &columns);
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let expression = super::parameterize_columns("\"a\"\"b\" = 1", &columns, &controls);
     // Assert
-    assert_eq!(expression.expect("escaped quoted parameter"), "$1 = 1");
+    assert_eq!(expression.expect("escaped quoted parameter").0, "$1 = 1");
+}
+
+#[test]
+fn should_reject_copy_where_expression_growth_before_allocating_over_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 1,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    // Act
+    let result = super::parameterize_columns("id > 1", &["id"], &controls);
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_stop_copy_where_expression_rewrite_when_cancelled() {
+    // Arrange
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+    // Act
+    let result = super::parameterize_columns("id > 1", &["id"], &controls);
+    // Assert
+    assert!(matches!(
+        result,
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_rewrite_unicode_identifier_across_chunk_boundary() {
+    // Arrange
+    let name = "é".repeat(2050);
+    let predicate = format!("\"{name}\" = 1");
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    // Act
+    let (rewritten, memory) =
+        super::parameterize_columns(&predicate, &[name.as_str()], &controls).expect("identifier");
+    // Assert
+    assert_eq!(rewritten, "$1 = 1");
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop((rewritten, memory));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }

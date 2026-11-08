@@ -11,6 +11,8 @@ use std::collections::HashMap;
 
 #[path = "copy/filter.rs"]
 mod filter;
+#[path = "copy/filter_text.rs"]
+mod filter_text;
 #[path = "copy/input.rs"]
 mod input;
 #[path = "copy/input_read.rs"]

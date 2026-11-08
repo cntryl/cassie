@@ -16,15 +16,43 @@ pub(super) struct AdmittedErrorFrame {
     _memory: QueryMemoryReservation,
 }
 
+const COPY_UNDEFINED_PREFIX: &str = "unresolvable column reference '";
+const COPY_UNDEFINED_SUFFIX: &str = "'; known fields or aliases required";
+
+pub(super) fn copy_unknown_column_frame_sizes(
+    name_len: usize,
+) -> Result<(usize, usize, usize), CassieError> {
+    let message_size = add(
+        add(COPY_UNDEFINED_PREFIX.len(), name_len)?,
+        COPY_UNDEFINED_SUFFIX.len(),
+    )?;
+    let payload_size = add(
+        add(
+            add(1, add(2, PgWireSeverity::Error.as_str().len())?)?,
+            add(2, "42703".len())?,
+        )?,
+        add(2, message_size)?,
+    )?;
+    let frame_length = add(payload_size, 4)?;
+    if frame_length > super::super::writers::MAX_BACKEND_FRAME_BYTES {
+        return Err(CassieError::ResourceLimit(
+            "pgwire backend frame exceeds 16777216 bytes".into(),
+        ));
+    }
+    Ok((message_size, frame_length, add(frame_length, 1)?))
+}
+
 impl PgWireError {
+    pub(in crate::pgwire::connection) fn copy_undefined_column_fits(name_len: usize) -> bool {
+        copy_unknown_column_frame_sizes(name_len).is_ok()
+    }
+
     pub(in crate::pgwire::connection) fn copy_undefined_column(
         name: &str,
         controls: &QueryExecutionControls,
     ) -> Result<Self, CassieError> {
         controls.check_interruption()?;
-        let prefix = "unresolvable column reference '";
-        let suffix = "'; known fields or aliases required";
-        let message_size = add(add(prefix.len(), name.len())?, suffix.len())?;
+        let (message_size, frame_length, frame_size) = copy_unknown_column_frame_sizes(name.len())?;
         let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
         memory.try_grow(message_size)?;
         let mut message = String::new();
@@ -34,7 +62,7 @@ impl PgWireError {
         if message.capacity() > message_size {
             return Err(capacity_error());
         }
-        message.push_str(prefix);
+        message.push_str(COPY_UNDEFINED_PREFIX);
         let mut start = 0;
         while start < name.len() {
             controls.check_interruption()?;
@@ -45,17 +73,9 @@ impl PgWireError {
             message.push_str(&name[start..end]);
             start = end;
         }
-        message.push_str(suffix);
+        message.push_str(COPY_UNDEFINED_SUFFIX);
         let mut error = Self::new(PgWireSeverity::Error, "42703", message);
-        let payload_size = add(
-            add(
-                add(1, add(2, error.severity.as_str().len())?)?,
-                add(2, error.code.len())?,
-            )?,
-            add(2, error.message.len())?,
-        )?;
-        let frame_size = add(payload_size, 5)?;
-        let encoded_length = i32::try_from(add(payload_size, 4)?).map_err(|_| capacity_error())?;
+        let encoded_length = i32::try_from(frame_length).map_err(|_| capacity_error())?;
         controls.check_interruption()?;
         memory.try_grow(frame_size)?;
         let mut bytes = Vec::new();

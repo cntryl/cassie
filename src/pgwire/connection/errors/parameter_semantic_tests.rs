@@ -477,3 +477,21 @@ fn should_keep_copy_unknown_column_admission_until_write_finishes() {
     assert_eq!(pending, retained);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_reject_copy_unknown_column_frame_above_backend_limit_before_admission() {
+    // Arrange
+    let limit = super::super::writers::MAX_BACKEND_FRAME_BYTES;
+    let (_, empty_length, _) =
+        super::parameter_semantic::copy_unknown_column_frame_sizes(0).expect("empty name");
+    let max_name = limit - empty_length;
+    // Act
+    let at_limit =
+        super::parameter_semantic::copy_unknown_column_frame_sizes(max_name).expect("at limit");
+    let above_limit = super::parameter_semantic::copy_unknown_column_frame_sizes(max_name + 1);
+    // Assert
+    assert_eq!(at_limit.1, limit);
+    assert!(
+        matches!(above_limit, Err(CassieError::ResourceLimit(message)) if message == "pgwire backend frame exceeds 16777216 bytes")
+    );
+}

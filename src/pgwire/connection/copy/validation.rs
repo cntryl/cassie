@@ -55,3 +55,14 @@ pub(super) fn copy_response_column_count(cassie: &Cassie, statement: &CopyStatem
         .get_schema(&statement.table)
         .map_or(0, |schema| schema.fields.len())
 }
+
+pub(super) fn copy_target_columns(
+    cassie: &Cassie,
+    statement: &CopyStatement,
+) -> Result<Vec<crate::app::CopyColumn>, CassieError> {
+    let fields = cassie
+        .catalog
+        .get_schema(&statement.table)
+        .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
+    crate::app::copy_columns(statement, &fields.fields)
+}

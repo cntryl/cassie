@@ -1,6 +1,20 @@
 use crate::app::{Cassie, CassieError, CassieSession, CopyColumn};
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::CopyStatement;
 use crate::types::{DataType, Value};
+
+#[cfg(test)]
+#[path = "filter_tests.rs"]
+mod tests;
+
+fn reserve_filter_rows(
+    count: usize,
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CassieError> {
+    controls.check_interruption()?;
+    let base = controls.reserve_query_memory(0)?;
+    crate::runtime::owned_memory::try_reserve_vec(count, &base)
+}
 
 pub(super) fn filter_rows(
     cassie: &Cassie,
@@ -8,7 +22,8 @@ pub(super) fn filter_rows(
     statement: &CopyStatement,
     rows: Vec<Vec<Option<String>>>,
     predicate: &str,
-) -> Result<Vec<Vec<Option<String>>>, CassieError> {
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CassieError> {
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
@@ -23,9 +38,12 @@ pub(super) fn filter_rows(
         .collect::<Vec<_>>();
     let expression = parameterize_columns(predicate, &names)?;
     let query = format!("SELECT ({expression})");
-    let mut accepted = Vec::with_capacity(rows.len());
+    let accepted_memory;
+    let mut accepted;
+    (accepted, accepted_memory) = reserve_filter_rows(rows.len(), controls)?;
 
     for row in rows {
+        controls.check_interruption()?;
         if row.len() != columns.len() {
             return Err(crate::app::DiagnosticError::new(
                 "22P04",
@@ -37,12 +55,20 @@ pub(super) fn filter_rows(
             )
             .into());
         }
-        let values = columns
-            .iter()
-            .zip(&row)
-            .map(|(column, raw)| copy_parameter(column, raw.as_deref()))
-            .collect::<Result<Vec<_>, _>>()?;
-        let result = cassie.execute_sql(session, &query, values)?;
+        let mut parameter_memory = controls.reserve_query_memory(0)?;
+        let directory_memory;
+        let mut values;
+        (values, directory_memory) =
+            crate::runtime::owned_memory::try_reserve_vec(columns.len(), &parameter_memory)?;
+        parameter_memory.absorb(directory_memory);
+        for (column, raw) in columns.iter().zip(&row) {
+            controls.check_interruption()?;
+            let (value, memory) = copy_parameter(column, raw.as_deref(), controls)?;
+            values.push(value);
+            parameter_memory.absorb(memory);
+        }
+        let result = cassie.execute_copy_where_with_controls(session, &query, values, controls)?;
+        drop(parameter_memory);
         let Some(value) = result.rows().first().and_then(|row| row.first()) else {
             continue;
         };
@@ -54,31 +80,43 @@ pub(super) fn filter_rows(
             ));
         }
     }
-    Ok(accepted)
+    Ok((accepted, accepted_memory))
 }
 
-fn copy_parameter(column: &CopyColumn, raw: Option<&str>) -> Result<Value, CassieError> {
+fn copy_parameter(
+    column: &CopyColumn,
+    raw: Option<&str>,
+    controls: &QueryExecutionControls,
+) -> Result<(Value, QueryMemoryReservation), CassieError> {
+    controls.check_interruption()?;
     let Some(raw) = raw else {
-        return Ok(Value::Null);
+        return Ok((Value::Null, controls.reserve_query_memory(0)?));
     };
     let data_type = match column {
         CopyColumn::Field(field) => &field.data_type,
-        CopyColumn::RowId => return Ok(Value::String(raw.to_owned())),
+        CopyColumn::RowId => {
+            let (text, memory) = crate::app::copy_decode::copy_text(raw, controls)?;
+            return Ok((Value::String(text), memory));
+        }
     };
-    match data_type {
+    let value = match data_type {
         DataType::SmallInt | DataType::Int | DataType::BigInt => raw
             .parse::<i64>()
             .map(Value::Int64)
-            .map_err(|error| CassieError::Parse(format!("invalid COPY integer: {error}"))),
+            .map_err(|error| CassieError::Parse(format!("invalid COPY integer: {error}")))?,
         DataType::Float => raw
             .parse::<f64>()
             .map(Value::Float64)
-            .map_err(|error| CassieError::Parse(format!("invalid COPY float: {error}"))),
+            .map_err(|error| CassieError::Parse(format!("invalid COPY float: {error}")))?,
         DataType::Boolean => crate::types::boolean::parse_text(raw)
             .map(Value::Bool)
-            .ok_or_else(|| CassieError::Parse("invalid COPY boolean".to_string())),
-        _ => Ok(Value::String(raw.to_owned())),
-    }
+            .ok_or_else(|| CassieError::Parse("invalid COPY boolean".to_string()))?,
+        _ => {
+            let (text, memory) = crate::app::copy_decode::copy_text(raw, controls)?;
+            return Ok((Value::String(text), memory));
+        }
+    };
+    Ok((value, controls.reserve_query_memory(0)?))
 }
 
 fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, CassieError> {
@@ -106,7 +144,7 @@ fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, Cas
             }
             b'"' => {
                 index += 1;
-                let start = index;
+                let mut start = index;
                 let mut name = String::new();
                 while index < bytes.len() {
                     if bytes[index] == b'"' {
@@ -114,6 +152,7 @@ fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, Cas
                         if bytes.get(index + 1) == Some(&b'"') {
                             name.push('"');
                             index += 2;
+                            start = index;
                             continue;
                         }
                         index += 1;
@@ -122,6 +161,7 @@ fn parameterize_columns(predicate: &str, columns: &[&str]) -> Result<String, Cas
                     index += 1;
                 }
                 output.push_str(&column_parameter(columns, &name)?);
+                parameter += 1;
             }
             byte if byte.is_ascii_alphabetic() || byte == b'_' => {
                 let start = index;

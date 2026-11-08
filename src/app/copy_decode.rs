@@ -54,3 +54,30 @@ pub(crate) fn grow_text_vec<T>(
     memory.absorb(replacement_memory);
     Ok(())
 }
+
+pub(crate) fn copy_text(
+    value: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(String, crate::runtime::QueryMemoryReservation), CassieError> {
+    controls.check_interruption()?;
+    let memory = controls.reserve_query_memory(value.len())?;
+    let mut copy = String::new();
+    copy.try_reserve_exact(value.len())
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    if copy.capacity() > value.len() {
+        return Err(CassieError::ResourceLimit(
+            "allocator exceeded admitted COPY text capacity".into(),
+        ));
+    }
+    let mut start = 0;
+    while start < value.len() {
+        controls.check_interruption()?;
+        let mut end = (start + 4096).min(value.len());
+        while !value.is_char_boundary(end) {
+            end -= 1;
+        }
+        copy.push_str(&value[start..end]);
+        start = end;
+    }
+    Ok((copy, memory))
+}

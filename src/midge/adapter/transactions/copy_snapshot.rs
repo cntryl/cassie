@@ -18,7 +18,7 @@ pub(crate) struct CopyStorageSnapshot {
 fn copy_bytes(bytes: &[u8], controls: &QueryExecutionControls) -> Result<Vec<u8>, CassieError> {
     let mut copy = Vec::new();
     copy.try_reserve_exact(bytes.len())
-        .map_err(crate::runtime::owned_memory::allocation_error)?;
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
     if copy.capacity() > bytes.len() {
         return Err(CassieError::ResourceLimit(
             "allocator exceeded admitted COPY snapshot capacity".into(),

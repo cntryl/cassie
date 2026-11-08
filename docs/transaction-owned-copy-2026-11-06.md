@@ -286,3 +286,12 @@ output and reservation transfer together. Formatting parity (0.80) and owner
 lifetime (0.51) require source checks and focused probes. Other temporal OIDs
 and error diagnostic scratch remain pending. Probes remain unexecuted. Receipt:
 `target/assembly-review/copy-binary-time-{request,response}.json`.
+
+Jev selected (0.99) direct admitted binary DATE output (OID 1082), retaining
+the original decoder's width, range, infinity and error checks. Existing
+`value_to_text` calls `TypedValue::text()` with the default ISO session; the
+checked stack renderer must preserve that ISO year/month/day and BC era output.
+Parity (0.78), owner lifetime (0.55), decoder errors (0.41) and default-session
+selection (0.38) require source checks and focused probes. Other temporal OIDs
+and malformed diagnostic scratch remain pending. Probes remain unexecuted.
+Receipt: `target/assembly-review/copy-binary-date-{request,response}.json`.

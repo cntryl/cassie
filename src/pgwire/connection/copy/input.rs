@@ -4,6 +4,8 @@ use crate::types::{DataType, Value};
 
 #[path = "input/binary_bit.rs"]
 mod binary_bit;
+#[path = "input/binary_date.rs"]
+mod binary_date;
 #[path = "input/binary_fixed.rs"]
 mod binary_fixed;
 #[path = "input/binary_float8.rs"]
@@ -267,6 +269,13 @@ pub(super) fn parse_binary_payload(
             let bytes = take(payload, &mut cursor, length)?;
             if let Some((text, text_memory)) =
                 binary_bit::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if let Some((text, text_memory)) =
+                binary_date::decode(type_oid, bytes, column_index, controls)?
             {
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

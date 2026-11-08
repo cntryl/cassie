@@ -66,6 +66,7 @@ fn unresolved_parameter(expr: &Expr, types: &ResultTypes) -> bool {
         Expr::Param(index) => types
             .parameter_types()
             .get(*index)
+            .copied()
             .is_none_or(|oid| matches!(oid, 0 | 705)),
         _ => false,
     })

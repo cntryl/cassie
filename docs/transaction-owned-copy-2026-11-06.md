@@ -226,3 +226,11 @@ admitted owner. Gap 0.70 requires UTF-8 boundaries, NUL, invalid/64+/short
 inputs, exact/below budget and lifetime probes; they remain unexecuted. Other
 binary codecs remain pending. Receipt:
 `target/assembly-review/copy-binary-name-network-*.json`.
+
+Jev selected (0.95) direct fixed-stack output for binary macaddr (OID 829),
+macaddr8 (774) and pg_lsn (3220) after the existing binary decoder validates
+width and error order. MAC output uses lowercase colon-separated pairs; pg_lsn
+uses unpadded uppercase high/low 32-bit words. Gap 0.59 requires zero/ff/mixed
+MAC, zero/one/high-bit/max LSN, short/excess widths, exact/below budgets and
+lifetime probes. These probes remain unexecuted. Other codecs remain pending.
+Receipt: `target/assembly-review/copy-binary-name-network-*.json`.

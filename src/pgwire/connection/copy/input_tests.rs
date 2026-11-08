@@ -516,3 +516,85 @@ fn should_admit_name_binary_at_exact_budget_and_honor_cancellation() {
         Err(crate::app::CassieError::QueryCancelled)
     ));
 }
+
+#[test]
+fn should_match_binary_mac_and_lsn_text_and_width_errors() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let cases = [
+        (829, vec![0; 6]),
+        (829, vec![0xff; 6]),
+        (829, vec![0, 1, 2, 127, 128, 255]),
+        (774, vec![0; 8]),
+        (774, vec![0xff; 8]),
+        (774, (0_u8..8).collect()),
+        (3220, 0_u64.to_be_bytes().to_vec()),
+        (3220, 1_u64.to_be_bytes().to_vec()),
+        (3220, (1_u64 << 63).to_be_bytes().to_vec()),
+        (3220, u64::MAX.to_be_bytes().to_vec()),
+    ];
+    for (oid, bytes) in cases {
+        let original = super::super::super::codecs::binary_to_value(&bytes, oid).expect("original");
+        let expected = super::super::super::codecs::value_to_text(&original, oid);
+        // Act
+        let (text, memory) = super::binary_network::decode(oid, &bytes, 0, &controls)
+            .expect("decode")
+            .expect("handled");
+        // Assert
+        assert_eq!(text, expected);
+        drop((text, memory));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    for (oid, width) in [(829, 6_usize), (774, 8), (3220, 8)] {
+        for length in (0..width).chain([width + 1, width + 16]) {
+            let bytes = vec![0; length];
+            let original =
+                super::super::super::codecs::binary_to_value(&bytes, oid).expect_err("width");
+            let result = super::binary_network::decode(oid, &bytes, 2, &controls);
+            assert!(
+                matches!(result, Err(crate::app::CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+            );
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
+    }
+}
+
+#[test]
+fn should_enforce_binary_mac_output_overlap_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 23,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(6).expect("input");
+    // Act
+    let (text, memory) = super::binary_network::decode(829, &[0; 6], 0, &controls)
+        .expect("decode")
+        .expect("handled");
+    // Assert
+    assert_eq!(text, "00:00:00:00:00:00");
+    assert_eq!(controls.current_query_memory_bytes(), 23);
+    drop((text, memory));
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_deny_binary_mac_output_below_overlap_budget_and_release() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 22,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(6).expect("input");
+    // Act
+    let result = super::binary_network::decode(829, &[0; 6], 0, &controls);
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 6);
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

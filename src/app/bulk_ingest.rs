@@ -88,12 +88,16 @@ impl Cassie {
         cancellation: Option<&QueryCancellationHandle>,
     ) -> Result<usize, CassieError> {
         self.check_storage_recovery_required()?;
+        let started = Instant::now();
         let _publication_controls = crate::midge::adapter::PublicationControlScope::for_request(
             &self.runtime.limits(),
             cancellation,
         );
-        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
+        let mut controls = crate::midge::adapter::PublicationControlScope::current_query_controls()
             .ok_or_else(|| CassieError::Execution("COPY requires request controls".into()))?;
+        session.apply_statement_timeout(&mut controls, started);
+        let _effective_controls =
+            crate::midge::adapter::PublicationControlScope::enter(Some(&controls));
         let parsed = crate::sql::ast::ParsedStatement {
             raw_sql: String::new(),
             statement: crate::sql::ast::QueryStatement::Copy(statement.clone()),

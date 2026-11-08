@@ -208,11 +208,13 @@ async fn bind_copy_request(
                 session_for_parse.authorize_statement(&parsed.statement)?;
                 Cassie::ensure_transaction_recovery(&session_for_parse, &parsed)?;
                 session_for_parse.ensure_transaction_writable()?;
-                let controls = crate::runtime::QueryExecutionControls::with_cancellation(
+                let started = std::time::Instant::now();
+                let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
                     &cassie.runtime.limits(),
-                    std::time::Instant::now(),
+                    started,
                     cancellation.unwrap_or_default(),
                 );
+                session_for_parse.apply_statement_timeout(&mut controls, started);
                 cassie.prepare_transaction_read_view(&session_for_parse, &parsed, &controls)?;
                 let crate::sql::ast::QueryStatement::Copy(copy) = &parsed.statement else {
                     return Err(CassieError::Parse(
@@ -883,11 +885,12 @@ fn execute_copy_payload(
     let payload = decoded_payload
         .as_ref()
         .map_or(payload, payload_owner::DecodedPayload::as_slice);
-    let target_columns = copy_target_columns(cassie, statement)?;
+    let target_columns = validation::copy_target_columns(cassie, statement)?;
     let force_null = request::CopyRequest::force_indices(&request.force_null, &target_columns);
     let force_not_null =
         request::CopyRequest::force_indices(&request.force_not_null, &target_columns);
     let _decoded_rows_memory;
+    let _filter_rows_memory;
     let mut rows;
     (rows, _decoded_rows_memory) = match request.format {
         CopyWireFormat::Csv => {
@@ -915,10 +918,11 @@ fn execute_copy_payload(
             )?;
             (rows, Some(memory))
         }
-        CopyWireFormat::Binary => (
-            input::parse_binary_payload(payload, cassie, statement)?,
-            None,
-        ),
+        CopyWireFormat::Binary => {
+            let (rows, memory) =
+                input::parse_binary_payload(payload, cassie, statement, &controls)?;
+            (rows, Some(memory))
+        }
     };
     if request.header == CopyHeader::Match && !rows.is_empty() {
         let fields = cassie
@@ -946,7 +950,12 @@ fn execute_copy_payload(
         rows.remove(0);
     }
     if let Some(predicate) = request.where_clause.as_deref() {
-        rows = filter::filter_rows(cassie, session, statement, rows, predicate)?;
+        let (accepted, memory) =
+            filter::filter_rows(cassie, session, statement, rows, predicate, &controls)?;
+        rows = accepted;
+        _filter_rows_memory = Some(memory);
+    } else {
+        _filter_rows_memory = None;
     }
     let result = cassie.ingest_copy_rows_with_default_marker(
         session,
@@ -980,15 +989,4 @@ fn execute_copy_payload(
         command: format!("COPY {}", result.count),
         notices,
     })
-}
-
-fn copy_target_columns(
-    cassie: &Cassie,
-    statement: &CopyStatement,
-) -> Result<Vec<crate::app::CopyColumn>, CassieError> {
-    let fields = cassie
-        .catalog
-        .get_schema(&statement.table)
-        .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
-    crate::app::copy_columns(statement, &fields.fields)
 }

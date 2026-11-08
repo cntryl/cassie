@@ -155,12 +155,24 @@ pub(super) fn parse_binary_payload(
     payload: &[u8],
     cassie: &Cassie,
     statement: &CopyStatement,
-) -> Result<Vec<Vec<Option<String>>>, CassieError> {
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<
+    (
+        Vec<Vec<Option<String>>>,
+        crate::runtime::QueryMemoryReservation,
+    ),
+    CassieError,
+> {
+    controls.check_interruption()?;
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
         .ok_or_else(|| CassieError::CollectionNotFound(statement.table.clone()))?;
-    let column_types = copy_column_types(statement, schema.fields.as_slice())?;
+    let _type_memory;
+    let column_types;
+    (column_types, _type_memory) =
+        copy_column_types(statement, schema.fields.as_slice(), controls)?;
+    drop(schema);
     let mut cursor = 0_usize;
     let signature = take(payload, &mut cursor, BINARY_SIGNATURE.len())?;
     if signature != BINARY_SIGNATURE {
@@ -187,8 +199,10 @@ pub(super) fn parse_binary_payload(
         .map_err(|_| CassieError::Parse("COPY binary extension length is negative".into()))?;
     let _extension = take(payload, &mut cursor, extension_length)?;
 
+    let mut memory = controls.reserve_query_memory(0)?;
     let mut rows = Vec::new();
     loop {
+        controls.check_interruption()?;
         let field_count = i16::from_be_bytes(
             take(payload, &mut cursor, 2)?
                 .try_into()
@@ -200,7 +214,7 @@ pub(super) fn parse_binary_payload(
                     "COPY binary payload has trailing bytes after its trailer".into(),
                 ));
             }
-            return Ok(rows);
+            return Ok((rows, memory));
         }
         if field_count < 0 {
             return Err(CassieError::Parse(
@@ -214,8 +228,11 @@ pub(super) fn parse_binary_payload(
                 "COPY binary row has {field_count} columns but target expects {expected}"
             )));
         }
-        let mut row = Vec::with_capacity(column_types.len());
+        let mut row_memory = controls.reserve_query_memory(0)?;
+        let mut row = Vec::new();
         for (column_index, type_oid) in column_types.iter().copied().enumerate() {
+            controls.check_interruption()?;
+            crate::app::copy_decode::grow_text_vec(&mut row, &mut row_memory, controls)?;
             let length =
                 i32::from_be_bytes(take(payload, &mut cursor, 4)?.try_into().map_err(|_| {
                     CassieError::Parse("COPY binary field length is truncated".into())
@@ -236,44 +253,92 @@ pub(super) fn parse_binary_payload(
                 })?;
             match value {
                 Value::Null => row.push(None),
-                value => row.push(Some(super::super::codecs::value_to_text(&value, type_oid))),
+                value => {
+                    // Existing codec scratch is not yet pre-admitted; retain the
+                    // resulting text under the COPY tracker once its size is known.
+                    let text_memory;
+                    let text;
+                    text = super::super::codecs::value_to_text(&value, type_oid);
+                    text_memory = controls.reserve_query_memory(text.capacity())?;
+                    row.push(Some(text));
+                    row_memory.absorb(text_memory);
+                }
             }
         }
+        crate::app::copy_decode::grow_text_vec(&mut rows, &mut memory, controls)?;
         rows.push(row);
+        memory.absorb(row_memory);
     }
 }
 
 fn copy_column_types(
     statement: &CopyStatement,
     fields: &[crate::catalog::FieldMeta],
-) -> Result<Vec<i64>, CassieError> {
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(Vec<i64>, crate::runtime::QueryMemoryReservation), CassieError> {
+    let count = if statement.columns.is_empty() {
+        fields.len()
+    } else {
+        statement.columns.len()
+    };
+    let base = controls.reserve_query_memory(0)?;
+    let memory;
+    let mut types;
+    (types, memory) = crate::runtime::owned_memory::try_reserve_vec(count, &base)?;
     if statement.columns.is_empty() {
-        return Ok(fields
-            .iter()
-            .map(|field| field.data_type.type_oid())
-            .collect());
+        for field in fields {
+            controls.check_interruption()?;
+            types.push(field.data_type.type_oid());
+        }
+        return Ok((types, memory));
     }
-    let declares_id =
-        crate::types::row_identity::declares_id(fields.iter().map(|field| field.name.as_str()));
-    statement
-        .columns
-        .iter()
-        .map(|column| {
-            if crate::types::row_identity::is_identity_reference(column, declares_id) {
-                return Ok(DataType::Text.type_oid());
+    let mut declares_id = false;
+    for field in fields {
+        controls.check_interruption()?;
+        if crate::types::row_identity::is_legacy_id_column(&field.name) {
+            declares_id = true;
+            break;
+        }
+    }
+    for column in &statement.columns {
+        controls.check_interruption()?;
+        if crate::types::row_identity::is_identity_reference(column, declares_id) {
+            types.push(DataType::Text.type_oid());
+            continue;
+        }
+        let mut matched = None;
+        for field in fields {
+            controls.check_interruption()?;
+            if field.name.len() != column.len() {
+                continue;
             }
-            fields
-                .iter()
-                .find(|field| field.name == *column)
-                .map(|field| field.data_type.type_oid())
-                .ok_or_else(|| {
-                    CassieError::Planner(format!(
-                        "COPY target column '{column}' does not exist in '{}'",
-                        statement.table
-                    ))
-                })
-        })
-        .collect()
+            let mut equal = true;
+            for (left, right) in field
+                .name
+                .as_bytes()
+                .chunks(4096)
+                .zip(column.as_bytes().chunks(4096))
+            {
+                controls.check_interruption()?;
+                if left != right {
+                    equal = false;
+                    break;
+                }
+            }
+            if equal {
+                matched = Some(field);
+                break;
+            }
+        }
+        let field = matched.ok_or_else(|| {
+            CassieError::Planner(format!(
+                "COPY target column '{column}' does not exist in '{}'",
+                statement.table
+            ))
+        })?;
+        types.push(field.data_type.type_oid());
+    }
+    Ok((types, memory))
 }
 
 fn take<'a>(payload: &'a [u8], cursor: &mut usize, length: usize) -> Result<&'a [u8], CassieError> {

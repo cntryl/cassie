@@ -147,8 +147,8 @@ any decoder is claimed complete. Receipt:
 
 The current source draft adds admitted TEXT and shared wire/embedded CSV
 row/cell owners; their leases persist through ingestion and their probes remain
-unexecuted. Binary typed conversions and COPY WHERE's replacement directory
-remain pending. Search-path canonicalization is bounded and admitted, while
+unexecuted. Binary typed conversions and portions of COPY WHERE scratch remain
+pending. Search-path canonicalization is bounded and admitted, while
 existing `namespace_exists` and relation-resolution map scans and temporary
 name allocations remain unqualified Cassie-side work.
 
@@ -157,3 +157,37 @@ the frontend frame limit closes the connection without ReadyForQuery: the body
 boundary cannot be trusted or would exceed the configured framing limit, so
 recovering the connection would reinterpret unread bytes as another message.
 Valid frames rejected for query-memory admission are still drained before 54000.
+
+The COPY WHERE accepted-row directory is separately admitted before allocation
+and remains live through ingestion while the original decoded-row admission
+continues to cover retained cells. Predicate compilation and some per-row
+conversion scratch remain separate pending allocations. This bounded
+increment does not complete COPY WHERE resource accounting.
+
+Each COPY WHERE row's parameter vector and copied string values are separately
+admitted while the decoded input and accepted-output directories remain live.
+Fixed-width scalar parsing, SQL expression compilation/evaluation and its
+result buffers remain governed by their existing execution controls; unbounded
+text parsing and identifier/predicate compilation need their own interruption
+proof and are not claimed complete by this increment.
+
+COPY WHERE predicate evaluation must use the initiating COPY request's original
+cancellation handle, deadline and memory tracker; per-row `execute_sql` creates
+fresh controls and is not sufficient. The selected Cassie-internal route calls
+the existing SQL execution core with the retained controls. A synchronized
+sleep-entry cancellation probe must observe cancellation inside predicate
+execution, rather than merely between rows; it remains unexecuted.
+
+The nested predicate preserves the previous per-row query-admission permit,
+metrics and transaction-failure handling, while `execute_sql_core` receives the
+same COPY controls and publication scope rather than a new tracker or deadline.
+Session `statement_timeout` tightens the initiating COPY controls before capture
+and stream handling. The exhausted/available query-slot probe remains unexecuted.
+
+Binary COPY now admits row and row-directory capacities and retains each output
+String's observed capacity through ingestion. The existing `binary_to_value`
+and `value_to_text` codecs allocate and may scan before those output reservations,
+and column metadata lookup may clone schema before admission. Typed binary
+conversion pre-admission, interruption, and full input/value/output overlap
+remain pending; this incremental directory accounting is not binary resource
+qualification and is distinct from the Midge native-get API limitation.

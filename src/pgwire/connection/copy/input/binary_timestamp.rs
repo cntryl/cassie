@@ -12,6 +12,10 @@ use std::fmt::{self, Write as _};
 #[path = "binary_timestamp_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "binary_timestamptz_tests.rs"]
+mod timestamptz_tests;
+
 struct Output {
     bytes: [u8; 64],
     len: usize,
@@ -29,7 +33,7 @@ impl fmt::Write for Output {
     }
 }
 
-fn render(value: i64, output: &mut Output) -> fmt::Result {
+fn render(value: i64, utc: bool, output: &mut Output) -> fmt::Result {
     match value {
         TIMESTAMP_NOBEGIN => return output.write_str("-infinity"),
         TIMESTAMP_NOEND => return output.write_str("infinity"),
@@ -54,6 +58,9 @@ fn render(value: i64, output: &mut Output) -> fmt::Result {
             output.len -= 1;
         }
     }
+    if utc {
+        output.write_str("+00")?;
+    }
     if fields.year <= 0 {
         output.write_str(" BC")?;
     }
@@ -66,7 +73,7 @@ pub(super) fn decode(
     column: usize,
     controls: &QueryExecutionControls,
 ) -> Result<Option<(String, QueryMemoryReservation)>, CassieError> {
-    if oid != 1114 {
+    if !matches!(oid, 1114 | 1184) {
         return Ok(None);
     }
     controls.check_interruption()?;
@@ -77,16 +84,20 @@ pub(super) fn decode(
         ))
     })?;
     controls.check_interruption()?;
-    let Value::Typed(TypedValue::Timestamp(value)) = value else {
-        return Err(CassieError::Execution(
-            "unexpected binary COPY timestamp value".into(),
-        ));
+    let (value, utc) = match value {
+        Value::Typed(TypedValue::Timestamp(value)) => (value, false),
+        Value::Typed(TypedValue::TimestampTz(value)) => (value, true),
+        _ => {
+            return Err(CassieError::Execution(
+                "unexpected binary COPY timestamp value".into(),
+            ));
+        }
     };
     let mut output = Output {
         bytes: [0; 64],
         len: 0,
     };
-    render(value, &mut output).map_err(|_| {
+    render(value, utc, &mut output).map_err(|_| {
         CassieError::Execution("binary COPY timestamp output exceeded stack".into())
     })?;
     let memory = controls.reserve_query_memory(output.len)?;

@@ -203,7 +203,12 @@ pub(super) fn validate_select_with_types(
                 for argument in function.expressions_mut() {
                     validate_expression(argument, types, catalog, context)?;
                 }
-                super::power_coercion::function(function, types);
+                let changed = super::power_coercion::function(function, types);
+                for (argument, changed) in function.args.iter_mut().zip(changed) {
+                    if changed {
+                        validate_expression(argument, types, catalog, context)?;
+                    }
+                }
                 super::coalesce_coercion::coerce_function(function, types);
                 validate_boolean_aggregate(function, types)?;
             }
@@ -425,7 +430,13 @@ fn validate_expression(
             validate_expression(left, types, catalog, context)?;
             validate_expression(right, types, catalog, context)?;
             if matches!(op, BinaryOp::Power) {
-                super::power_coercion::pair(left, right, types);
+                let [left_changed, right_changed] = super::power_coercion::pair(left, right, types);
+                if left_changed {
+                    validate_expression(left, types, catalog, context)?;
+                }
+                if right_changed {
+                    validate_expression(right, types, catalog, context)?;
+                }
             }
             resolve_integer_operator(left, op, right, types)?;
             super::character_comparison::qualify(op, left, right, types);
@@ -469,7 +480,12 @@ fn validate_expression(
             for argument in function.expressions_mut() {
                 validate_expression(argument, types, catalog, context)?;
             }
-            super::power_coercion::function(function, types);
+            let changed = super::power_coercion::function(function, types);
+            for (argument, changed) in function.args.iter_mut().zip(changed) {
+                if changed {
+                    validate_expression(argument, types, catalog, context)?;
+                }
+            }
             super::coalesce_coercion::coerce_function(function, types);
             validate_boolean_aggregate(function, types)?;
         }

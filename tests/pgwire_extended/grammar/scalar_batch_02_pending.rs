@@ -262,6 +262,33 @@ fn should_coerce_invalid_unknown_power_literal_before_null_parameter() {
 }
 
 #[test]
+fn should_reject_invalid_power_literal_during_parse_even_in_unreachable_case() {
+    // Arrange
+    let cases = [
+        "SELECT power('bad', $1::numeric)",
+        "SELECT CASE WHEN false THEN power('bad', $1::numeric) ELSE 1::numeric END",
+    ];
+
+    // Act
+    let batches = cases.map(|sql| {
+        run_script(
+            "power-invalid-literal-parse",
+            vec![
+                Step::ParseFlush(wire::parse_frame("p", sql)),
+                Step::ThroughReady(vec![wire::sync_frame()]),
+                Step::ThroughReady(vec![wire::simple_query_frame("SELECT 1")]),
+            ],
+        )
+    });
+
+    // Assert
+    for response in batches {
+        assert_eq!(wire::error_code(&response[0]).as_deref(), Some("22P02"));
+        fixture::assert_success(&response[2]);
+    }
+}
+
+#[test]
 fn should_preserve_user_power_routine_precedence_over_builtin_literal_coercion() {
     // Arrange
     let setup = [(

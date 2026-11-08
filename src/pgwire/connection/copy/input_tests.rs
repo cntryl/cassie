@@ -277,3 +277,92 @@ fn should_admit_binary_bytea_output_at_exact_overlap_budget() {
     drop(input);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_match_existing_binary_fixed_width_outputs() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let cases = [
+        (16, vec![0]),
+        (16, vec![1]),
+        (16, vec![255]),
+        (21, i16::MIN.to_be_bytes().to_vec()),
+        (21, i16::MAX.to_be_bytes().to_vec()),
+        (23, i32::MIN.to_be_bytes().to_vec()),
+        (23, i32::MAX.to_be_bytes().to_vec()),
+        (20, i64::MIN.to_be_bytes().to_vec()),
+        (20, i64::MAX.to_be_bytes().to_vec()),
+        (26, u32::MAX.to_be_bytes().to_vec()),
+    ];
+    for (oid, bytes) in cases {
+        let value = super::super::super::codecs::binary_to_value(&bytes, oid).expect("old codec");
+        let expected = super::super::super::codecs::value_to_text(&value, oid);
+        // Act
+        let (text, memory) = super::binary_fixed::decode(oid, &bytes, 0, &controls)
+            .expect("decode")
+            .expect("handled");
+        // Assert
+        assert_eq!(text, expected);
+        drop((text, memory));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_fixed_width_short_and_excess_errors() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    for (oid, bytes) in [
+        (16, vec![]),
+        (16, vec![1, 0]),
+        (21, vec![0]),
+        (21, vec![0, 0, 0]),
+        (23, vec![0; 3]),
+        (23, vec![0; 5]),
+        (20, vec![0; 7]),
+        (20, vec![0; 9]),
+        (26, vec![0; 3]),
+        (26, vec![0; 5]),
+    ] {
+        let original =
+            super::super::super::codecs::binary_to_value(&bytes, oid).expect_err("invalid width");
+        // Act
+        let result = super::binary_fixed::decode(oid, &bytes, 2, &controls);
+        // Assert
+        assert!(
+            matches!(result, Err(crate::app::CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_enforce_binary_fixed_text_overlap_budget_and_cancellation() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 21,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(2).expect("input");
+    // Act
+    let denied = super::binary_fixed::decode(20, &i64::MIN.to_be_bytes(), 0, &controls);
+    // Assert
+    assert!(denied.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 2);
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let cancelled = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+    assert!(matches!(
+        super::binary_fixed::decode(16, &[1], 0, &cancelled),
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+}

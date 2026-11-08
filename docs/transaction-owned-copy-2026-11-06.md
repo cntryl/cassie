@@ -238,3 +238,12 @@ Gap 0.76 requires parity probes for split/invalid/truncated UTF-8, empty and NUL
 text, bytea edge bytes, typmod, exact/below budgets, input/output overlap,
 frame/trailer/NULL ordering and synchronized cancellation. No tests run.
 Receipt: `target/assembly-review/copy-binary-text-*.json`.
+
+Jev selected (1.00) direct admitted stack-decimal output after the existing
+fixed-width binary decoder for OIDs 16, 20, 21, 23 and 26. Preserve the existing
+nonzero bool behavior, signed integers, unsigned OID, short/excess error order,
+and NULL/frame/trailer handling. Gap 0.81 requires all width boundaries,
+i64 min/max, u32 max, bool 0/1/ff, malformed sizes, exact/below budgets,
+input/output overlap and cancellation; probes are unexecuted. Float, JSON,
+array, vector and extended codecs retain existing behavior and remain pending.
+Receipt: `target/assembly-review/copy-binary-fixed-*.json`.

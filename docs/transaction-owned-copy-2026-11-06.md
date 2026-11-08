@@ -283,3 +283,13 @@ lifetime (0.40) require focused source checks and probes. Malformed diagnostic
 scratch and all other unaddressed binary codecs remain pending; these authored
 probes have not been executed. Receipt:
 `target/assembly-review/copy-binary-inet-{request,response}.json`.
+
+Jev selected (0.92) direct admitted binary REAL output (OID 700) using the
+original decoder and stack-backed Rust scientific formatting followed by the
+same `-4..6` exponent threshold and digit placement as `real::format_text`.
+Keep signed zero, infinities, NaN, short/excess binary error ordering and the
+output lease handoff. Formatting parity (0.87), original validation (0.35)
+and owner lifetime (0.39) require focused source checks and probes. Float8,
+malformed diagnostic scratch and all other unaddressed binary codecs remain
+pending. Probes are unexecuted. Receipt:
+`target/assembly-review/copy-binary-real-{request,response}.json`.

@@ -154,3 +154,126 @@ fn should_stop_binary_column_lookup_when_copy_is_cancelled() {
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_decode_binary_text_and_bytea_with_admitted_output() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    for (oid, bytes, expected) in [
+        (25, "é\0".as_bytes(), "é\0"),
+        (1042, b"".as_slice(), ""),
+        (1043, b"alpha".as_slice(), "alpha"),
+        (17, &[0, 0x7f, 0x80, 0xff][..], "\\x007f80ff"),
+    ] {
+        // Act
+        let (text, memory) = super::binary_text::decode(oid, bytes, 0, &controls)
+            .expect("decode")
+            .expect("handled");
+        // Assert
+        assert_eq!(text, expected);
+        assert_eq!(controls.current_query_memory_bytes(), text.capacity());
+        drop((text, memory));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_invalid_binary_text_codec_error() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let bytes = &[0xff];
+    for oid in [25, 1042, 1043] {
+        let original =
+            super::super::super::codecs::binary_to_value(bytes, oid).expect_err("invalid UTF-8");
+        // Act
+        let result = super::binary_text::decode(oid, bytes, 2, &controls);
+        // Assert
+        assert!(
+            matches!(result, Err(crate::app::CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_deny_binary_bytea_output_while_input_uses_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 9,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(4).expect("input");
+    // Act
+    let result = super::binary_text::decode(17, &[0, 0x7f], 0, &controls);
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 4);
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_binary_utf8_at_chunk_boundary_and_reject_truncated_sequence() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let mut bytes = vec![b'a'; 4095];
+    bytes.extend_from_slice("é".as_bytes());
+    // Act
+    let (text, memory) = super::binary_text::decode(25, &bytes, 0, &controls)
+        .expect("decode")
+        .expect("handled");
+    // Assert
+    assert_eq!(text.as_bytes(), bytes);
+    drop((text, memory));
+    bytes.pop();
+    assert!(matches!(
+        super::binary_text::decode(25, &bytes, 0, &controls),
+        Err(crate::app::CassieError::Parse(_))
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_binary_output_when_cancelled_during_conversion() {
+    // Arrange
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    // Act
+    let result =
+        super::binary_text::decode_observed(17, &[0, 1], 0, &controls, || cancellation.cancel());
+    // Assert
+    assert!(matches!(
+        result,
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_binary_bytea_output_at_exact_overlap_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 10,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(4).expect("input");
+    // Act
+    let (output, memory) = super::binary_text::decode(17, &[0, 0x7f], 0, &controls)
+        .expect("decode")
+        .expect("handled");
+    // Assert
+    assert_eq!(output, "\\x007f");
+    assert_eq!(controls.current_query_memory_bytes(), 10);
+    drop((output, memory));
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

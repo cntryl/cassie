@@ -2,6 +2,9 @@ use crate::app::{Cassie, CassieError};
 use crate::sql::ast::CopyStatement;
 use crate::types::{DataType, Value};
 
+#[path = "input/binary_text.rs"]
+mod binary_text;
+
 #[cfg(test)]
 #[path = "input_tests.rs"]
 mod tests;
@@ -244,6 +247,13 @@ pub(super) fn parse_binary_payload(
             let length = usize::try_from(length)
                 .map_err(|_| CassieError::Parse("COPY binary field length is negative".into()))?;
             let bytes = take(payload, &mut cursor, length)?;
+            if let Some((text, text_memory)) =
+                binary_text::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
             let value =
                 super::super::codecs::binary_to_value(bytes, type_oid).map_err(|error| {
                     CassieError::Parse(format!(

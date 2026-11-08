@@ -191,3 +191,12 @@ and column metadata lookup may clone schema before admission. Typed binary
 conversion pre-admission, interruption, and full input/value/output overlap
 remain pending; this incremental directory accounting is not binary resource
 qualification and is distinct from the Midge native-get API limitation.
+
+Jev selected direct, admitted and chunk-checked binary conversion for OIDs 25,
+1042, 1043 and 17 (1.00). The first three preserve the text codec's UTF-8 bytes;
+bytea emits `\\x` followed by lowercase hex. All other accepted OIDs retain the
+existing codec path and are explicitly pending scratch admission/interruption.
+Gap 0.76 requires parity probes for split/invalid/truncated UTF-8, empty and NUL
+text, bytea edge bytes, typmod, exact/below budgets, input/output overlap,
+frame/trailer/NULL ordering and synchronized cancellation. No tests run.
+Receipt: `target/assembly-review/copy-binary-text-*.json`.

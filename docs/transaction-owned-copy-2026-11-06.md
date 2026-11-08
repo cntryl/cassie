@@ -234,3 +234,14 @@ uses unpadded uppercase high/low 32-bit words. Gap 0.59 requires zero/ff/mixed
 MAC, zero/one/high-bit/max LSN, short/excess widths, exact/below budgets and
 lifetime probes. These probes remain unexecuted. Other codecs remain pending.
 Receipt: `target/assembly-review/copy-binary-name-network-*.json`.
+
+Jev selected (0.99) direct admitted binary inet/cidr output (OIDs 869 and 650)
+after the original binary decoder validates the input. A fixed stack formatter
+must preserve existing IPv4/IPv6 compression, equal-run priority, mapped and
+compatible output, and inet/cidr mask rules; output and its lease transfer
+together into the row. The maximum address spelling is 39 bytes plus `/128`.
+Parity (0.91), validation/error precedence (0.53), stack bound (0.30) and lease
+lifetime (0.40) require focused source checks and probes. Malformed diagnostic
+scratch and all other unaddressed binary codecs remain pending; these authored
+probes have not been executed. Receipt:
+`target/assembly-review/copy-binary-inet-{request,response}.json`.

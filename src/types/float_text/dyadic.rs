@@ -24,7 +24,7 @@ fn decimal_dyadic(decimal: &str) -> Option<(u128, i32)> {
         .split_once('.')
         .map_or(0, |(_, fraction)| fraction.len());
     let mut exponent = exponent.parse::<i32>().ok()? - i32::try_from(fraction).ok()?;
-    let mut numerator = mantissa.replace('.', "").parse::<u128>().ok()?;
+    let mut numerator = decimal_digits(mantissa)?;
     while numerator % 10 == 0 {
         numerator /= 10;
         exponent += 1;
@@ -47,6 +47,25 @@ fn decimal_dyadic(decimal: &str) -> Option<(u128, i32)> {
     Some(normalize(numerator, exponent))
 }
 
+fn decimal_digits(mantissa: &str) -> Option<u128> {
+    let mut digits = mantissa.bytes().filter(|byte| *byte != b'.').peekable();
+    if digits.peek() == Some(&b'+') {
+        digits.next();
+    }
+    let mut any = false;
+    let mut value = 0_u128;
+    for byte in digits {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+        any = true;
+        value = value
+            .checked_mul(10)?
+            .checked_add(u128::from(byte - b'0'))?;
+    }
+    any.then_some(value)
+}
+
 fn binary_dyadic(bits: u64) -> (u128, i32) {
     let exponent = u16::try_from(bits >> 52).expect("positive finite exponent");
     let fraction = bits & ((1_u64 << 52) - 1);
@@ -66,4 +85,33 @@ fn normalize(numerator: u128, exponent: i32) -> (u128, i32) {
         numerator >> zeros,
         exponent + i32::try_from(zeros).expect("at most 127 trailing zeros"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decimal_digits;
+
+    #[test]
+    fn should_match_previous_decimal_digit_parsing() {
+        // Arrange
+        let inputs = [
+            "1.234",
+            "+12.3",
+            "-12.3",
+            "1..2",
+            ".",
+            "",
+            "12x",
+            "0001",
+            "340282366920938463463374607431768211456",
+        ];
+        // Act / Assert
+        for input in inputs {
+            assert_eq!(
+                decimal_digits(input),
+                input.replace('.', "").parse::<u128>().ok(),
+                "{input}"
+            );
+        }
+    }
 }

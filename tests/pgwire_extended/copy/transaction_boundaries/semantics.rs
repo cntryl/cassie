@@ -317,3 +317,27 @@ fn should_copy_to_staged_search_path_schema_instead_of_public_collision() {
     assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("7".into())]]);
     assert!(wire::data_rows(&frames[7]).is_empty());
 }
+
+#[test]
+fn should_report_unknown_quoted_copy_where_column_and_recover() {
+    // Arrange
+    let script = vec![
+        vec![wire::simple_query_frame(
+            "CREATE TABLE copy_unknown_where (id INT)",
+        )],
+        vec![
+            wire::simple_query_frame(
+                "COPY copy_unknown_where FROM STDIN WHERE (\"missing_é\" = 1)",
+            ),
+            wire::copy_data_frame(b"1\n"),
+            wire::copy_done_frame(),
+        ],
+        vec![wire::simple_query_frame("SELECT 1")],
+    ];
+    // Act
+    let frames = crate::support_repeatable_read::run_own_script(&[], script);
+    // Assert
+    assert_eq!(wire::error_code(&frames[1]).as_deref(), Some("42703"));
+    assert_eq!(wire::error_code(&frames[2]), None);
+    assert_eq!(wire::data_rows(&frames[2]), vec![vec![Some("1".into())]]);
+}

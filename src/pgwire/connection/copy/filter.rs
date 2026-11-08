@@ -7,6 +7,24 @@ use crate::types::{DataType, Value};
 #[path = "filter_tests.rs"]
 mod tests;
 
+#[derive(Debug)]
+pub(super) enum CopyWhereError {
+    Cassie(CassieError),
+    Undefined(super::filter_text::WhereText),
+}
+
+impl From<CassieError> for CopyWhereError {
+    fn from(error: CassieError) -> Self {
+        Self::Cassie(error)
+    }
+}
+
+impl From<crate::app::DiagnosticError> for CopyWhereError {
+    fn from(error: crate::app::DiagnosticError) -> Self {
+        Self::Cassie(error.into())
+    }
+}
+
 fn reserve_filter_rows(
     count: usize,
     controls: &QueryExecutionControls,
@@ -23,7 +41,7 @@ pub(super) fn filter_rows(
     rows: Vec<Vec<Option<String>>>,
     predicate: &str,
     controls: &QueryExecutionControls,
-) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CassieError> {
+) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CopyWhereError> {
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
@@ -89,7 +107,8 @@ pub(super) fn filter_rows(
         } else if !matches!(value, Value::Bool(false) | Value::Null) {
             return Err(CassieError::Execution(
                 "COPY WHERE expression did not return boolean".to_string(),
-            ));
+            )
+            .into());
         }
     }
     drop(query);
@@ -139,7 +158,7 @@ fn parameterize_columns(
     predicate: &str,
     columns: &[&str],
     controls: &QueryExecutionControls,
-) -> Result<(String, QueryMemoryReservation), CassieError> {
+) -> Result<(String, QueryMemoryReservation), CopyWhereError> {
     let bytes = predicate.as_bytes();
     let mut output = super::filter_text::WhereText::new(controls)?;
     let mut index = 0_usize;
@@ -184,8 +203,10 @@ fn parameterize_columns(
                     }
                     index += 1;
                 }
-                let parameter_index = find_column(columns, name.as_str(), false, controls)?
-                    .ok_or_else(|| CassieError::UndefinedColumn(name.as_str().to_owned()))?;
+                let Some(parameter_index) = find_column(columns, name.as_str(), false, controls)?
+                else {
+                    return Err(CopyWhereError::Undefined(name));
+                };
                 output.push_parameter(parameter_index, controls)?;
                 parameter = true;
             }
@@ -220,9 +241,9 @@ fn parameterize_columns(
         }
     }
     if !parameter {
-        return Err(CassieError::Parse(
-            "COPY WHERE must reference a copied column".to_string(),
-        ));
+        return Err(
+            CassieError::Parse("COPY WHERE must reference a copied column".to_string()).into(),
+        );
     }
     Ok(output.into_parts())
 }

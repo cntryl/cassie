@@ -252,13 +252,14 @@ fn copy_binding_context(
         let _scratch;
         let canonical;
         (canonical, _scratch) = copy_canonical_schema(database, schema, controls)?;
-        if !(crate::catalog::is_system_schema(schema)
+        if !(schema.eq_ignore_ascii_case("pg_catalog")
+            || schema.eq_ignore_ascii_case("information_schema")
             || schema.eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA)
-            || catalog.namespace_exists(&canonical))
+            || catalog.namespace_exists_controlled(&canonical, controls)?)
         {
             continue;
         }
-        let schema = schema.trim();
+        let schema = crate::catalog::trim_catalog_name_controlled(schema, controls)?;
         if schema.is_empty() {
             continue;
         }

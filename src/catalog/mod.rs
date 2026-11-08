@@ -5,6 +5,8 @@ pub mod column_defaults;
 pub mod composite_unique;
 pub mod consistency;
 pub mod constraints;
+mod controlled_name;
+pub(crate) use controlled_name::trim_checked as trim_catalog_name_controlled;
 pub mod function_resolution;
 pub mod graphs;
 pub mod indexes;

@@ -191,3 +191,15 @@ and column metadata lookup may clone schema before admission. Typed binary
 conversion pre-admission, interruption, and full input/value/output overlap
 remain pending; this incremental directory accounting is not binary resource
 qualification and is distinct from the Midge native-get API limitation.
+
+Jev selected a controlled catalog-equivalent lookup (0.98) for COPY namespace
+and target resolution. Preserve existing `name_matches` behavior: whole-string
+ASCII-insensitive equality first; otherwise parse identifier components,
+reject malformed input and compare requested components as an ASCII-insensitive
+suffix, including quoted components. Ambiguity and canonical ordering must
+remain unchanged. Parsing, candidate scanning, result ownership and sorting must
+be bounded, admitted and interruption-aware. Gap 0.80 requires unexecuted
+probes for exact matches, quoted dots and doubled quotes, case, malformed and
+trailing components, suffix collisions, duplicates, growth, and cancellation
+during parsing and candidate ordering. Receipt:
+`target/assembly-review/catalog-mixed-corrected-*.json`.

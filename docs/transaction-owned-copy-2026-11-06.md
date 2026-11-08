@@ -209,3 +209,12 @@ i64 min/max, u32 max, bool 0/1/ff, malformed sizes, exact/below budgets,
 input/output overlap and cancellation; probes are unexecuted. Float, JSON,
 array, vector and extended codecs retain existing behavior and remain pending.
 Receipt: `target/assembly-review/copy-binary-fixed-*.json`.
+
+Jev selected direct UUID binary conversion (OID 2950, 0.96). Valid 16-byte
+input is rendered in a fixed stack buffer and copied once into an exact-capacity
+admitted output. Invalid short input and overlong input use the original codec
+on the short slice or first 17 bytes respectively, preserving invalid versus
+excess diagnostics. Gap 0.80 requires all short lengths, 16/17/larger lengths,
+zero/ff/mixed lowercase hyphenation, NULL/trailer order and exact/below-budget
+owner lifetime probes. All probes remain unexecuted. Receipt:
+`target/assembly-review/copy-binary-uuid-*.json`.

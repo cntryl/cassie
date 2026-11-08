@@ -304,3 +304,13 @@ error ordering (0.60), default session (0.51) and owner lifetime (0.47) require
 focused source checks and probes. TIMESTAMPTZ, other temporal codecs and error
 diagnostic scratch remain pending. Probes are unexecuted. Receipt:
 `target/assembly-review/copy-binary-timestamp-{request,response}.json`.
+
+Jev selected (0.99) direct admitted binary TIMESTAMPTZ output (OID 1184) using
+the original extended decoder, which accepts every complete i64 instead of
+applying native TIMESTAMP range validation. Existing typed text uses the default
+UTC ISO session: append `+00` before ` BC`, preserve infinity sentinels and
+`timestamp_to_fields(None)` fallback. Parity (0.69), owner lifetime (0.51),
+decoder error ordering (0.44) and UTC selection (0.37) require focused source
+checks and probes. Other session-zone output, codecs and malformed diagnostic
+scratch remain pending. Probes are unexecuted. Receipt:
+`target/assembly-review/copy-binary-timestamptz-{request,response}.json`.

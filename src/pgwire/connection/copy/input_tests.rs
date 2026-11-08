@@ -366,3 +366,63 @@ fn should_enforce_binary_fixed_text_overlap_budget_and_cancellation() {
         Err(crate::app::CassieError::QueryCancelled)
     ));
 }
+
+#[test]
+fn should_match_uuid_binary_text_and_length_errors() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    for bytes in [vec![0; 16], vec![0xff; 16], (0_u8..16).collect()] {
+        let original =
+            super::super::super::codecs::binary_to_value(&bytes, 2950).expect("original UUID");
+        let expected = super::super::super::codecs::value_to_text(&original, 2950);
+        // Act
+        let (text, memory) = super::binary_uuid::decode(2950, &bytes, 0, &controls)
+            .expect("decode")
+            .expect("handled");
+        // Assert
+        assert_eq!(text, expected);
+        drop((text, memory));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    for length in (0..16).chain([17, 64]) {
+        let bytes = vec![0; length];
+        let original =
+            super::super::super::codecs::binary_to_value(&bytes, 2950).expect_err("invalid width");
+        let decoded = super::binary_uuid::decode(2950, &bytes, 2, &controls);
+        assert!(
+            matches!(decoded, Err(crate::app::CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_admit_uuid_output_at_exact_input_overlap_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 52,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(16).expect("input");
+    // Act
+    let (text, memory) = super::binary_uuid::decode(2950, &[0; 16], 0, &controls)
+        .expect("decode")
+        .expect("handled");
+    // Assert
+    assert_eq!(text, "00000000-0000-0000-0000-000000000000");
+    assert_eq!(controls.current_query_memory_bytes(), 52);
+    drop((text, memory));
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    let denied_limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 51,
+        ..CassieRuntimeLimits::default()
+    };
+    let denied = QueryExecutionControls::from_limits(&denied_limits, Instant::now());
+    let input = denied.reserve_query_memory(16).expect("input");
+    assert!(super::binary_uuid::decode(2950, &[0; 16], 0, &denied).is_err());
+    drop(input);
+    assert_eq!(denied.current_query_memory_bytes(), 0);
+}

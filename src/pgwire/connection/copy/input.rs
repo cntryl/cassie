@@ -6,6 +6,8 @@ use crate::types::{DataType, Value};
 mod binary_fixed;
 #[path = "input/binary_text.rs"]
 mod binary_text;
+#[path = "input/binary_uuid.rs"]
+mod binary_uuid;
 
 #[cfg(test)]
 #[path = "input_tests.rs"]
@@ -251,6 +253,13 @@ pub(super) fn parse_binary_payload(
             let bytes = take(payload, &mut cursor, length)?;
             if let Some((text, text_memory)) =
                 binary_fixed::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if let Some((text, text_memory)) =
+                binary_uuid::decode(type_oid, bytes, column_index, controls)?
             {
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

@@ -17,6 +17,77 @@ pub(super) struct AdmittedErrorFrame {
 }
 
 impl PgWireError {
+    pub(in crate::pgwire::connection) fn copy_undefined_column(
+        name: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, CassieError> {
+        controls.check_interruption()?;
+        let prefix = "unresolvable column reference '";
+        let suffix = "'; known fields or aliases required";
+        let message_size = add(add(prefix.len(), name.len())?, suffix.len())?;
+        let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
+        memory.try_grow(message_size)?;
+        let mut message = String::new();
+        message
+            .try_reserve_exact(message_size)
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        if message.capacity() > message_size {
+            return Err(capacity_error());
+        }
+        message.push_str(prefix);
+        let mut start = 0;
+        while start < name.len() {
+            controls.check_interruption()?;
+            let mut end = (start + 4096).min(name.len());
+            while !name.is_char_boundary(end) {
+                end -= 1;
+            }
+            message.push_str(&name[start..end]);
+            start = end;
+        }
+        message.push_str(suffix);
+        let mut error = Self::new(PgWireSeverity::Error, "42703", message);
+        let payload_size = add(
+            add(
+                add(1, add(2, error.severity.as_str().len())?)?,
+                add(2, error.code.len())?,
+            )?,
+            add(2, error.message.len())?,
+        )?;
+        let frame_size = add(payload_size, 5)?;
+        let encoded_length = i32::try_from(add(payload_size, 4)?).map_err(|_| capacity_error())?;
+        controls.check_interruption()?;
+        memory.try_grow(frame_size)?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(frame_size)
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        if bytes.capacity() > frame_size {
+            return Err(capacity_error());
+        }
+        bytes.push(b'E');
+        bytes.extend_from_slice(&encoded_length.to_be_bytes());
+        for (tag, value) in [
+            (b'S', error.severity.as_str()),
+            (b'C', error.code),
+            (b'M', error.message.as_str()),
+        ] {
+            bytes.push(tag);
+            for chunk in value.as_bytes().chunks(4096) {
+                controls.check_interruption()?;
+                bytes.extend_from_slice(chunk);
+            }
+            bytes.push(0);
+        }
+        bytes.push(0);
+        controls.check_interruption()?;
+        error.semantic_frame = Some(AdmittedErrorFrame {
+            bytes,
+            _memory: memory,
+        });
+        Ok(error)
+    }
+
     pub(in crate::pgwire::connection) fn parameter_semantic(
         diagnostic: ParameterSemanticDiagnostic,
         controls: &QueryExecutionControls,

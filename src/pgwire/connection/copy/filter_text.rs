@@ -2,6 +2,7 @@
 use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[derive(Debug)]
 pub(super) struct WhereText {
     text: String,
     memory: QueryMemoryReservation,
@@ -13,6 +14,10 @@ impl WhereText {
             text: String::new(),
             memory: controls.reserve_query_memory(0)?,
         })
+    }
+
+    pub(super) fn name(&self) -> &str {
+        &self.text
     }
 
     pub(super) fn as_str(&self) -> &str {

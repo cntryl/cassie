@@ -399,3 +399,81 @@ fn should_prioritize_scalar_literal_cancellation_given_pending_coercion_when_all
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_copy_unknown_column_diagnostic_at_exact_peak() {
+    // Arrange
+    let input = "quoted_é";
+    let generous = controls(65_536);
+    let measured = PgWireError::copy_undefined_column(input, &generous).expect("measure");
+    let peak = generous.peak_query_memory_bytes();
+    drop(measured);
+    let exact = controls(peak);
+    let denied = controls(peak - 1);
+    // Act
+    let admitted = PgWireError::copy_undefined_column(input, &exact).expect("exact peak");
+    let failure = PgWireError::copy_undefined_column(input, &denied);
+    // Assert
+    assert_eq!(admitted.code, "42703");
+    assert_eq!(
+        admitted.message,
+        "unresolvable column reference 'quoted_é'; known fields or aliases required"
+    );
+    let frame = admitted.encoded_semantic_frame().expect("admitted frame");
+    assert!(frame.windows(7).any(|window| window == b"C42703\0"));
+    assert!(frame
+        .windows("M unresolvable".len() - 1)
+        .any(|window| window == b"Munresolvable"));
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(denied.current_query_memory_bytes(), 0);
+    drop(admitted);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_cancelled_copy_unknown_column_diagnostic() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+    // Act
+    let result = PgWireError::copy_undefined_column("name", &controls);
+    // Assert
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_keep_copy_unknown_column_admission_until_write_finishes() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let controls = controls(65_536);
+    let error =
+        Box::new(PgWireError::copy_undefined_column("missing_é", &controls).expect("error"));
+    let retained = controls.current_query_memory_bytes();
+    let mut writer = PendingWrite {
+        pending_flush: false,
+    };
+    let mut send =
+        Box::pin(
+            async move { super::super::writers::write_error_response(&mut writer, &error).await },
+        );
+    // Act
+    runtime.block_on(poll_fn(|context| {
+        assert!(send.as_mut().poll(context).is_pending());
+        Poll::Ready(())
+    }));
+    let pending = controls.current_query_memory_bytes();
+    drop(send);
+    // Assert
+    assert!(retained > 0);
+    assert_eq!(pending, retained);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

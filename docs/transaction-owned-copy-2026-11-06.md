@@ -218,3 +218,14 @@ A quoted WHERE identifier that is not found still constructs the existing
 That error ownership/cancellation case is explicitly pending; the expression
 buffer work does not qualify diagnostics, schema descriptor cloning or numeric
 cell parsing.
+
+Jev selected (0.99) a private COPY diagnostic owner for an unknown quoted
+WHERE column: the admitted identifier remains owned across the blocking-worker
+boundary, and its exact 42703 message and complete error frame are admitted and
+constructed with bounded copying before write. This avoids changing public
+`CassieError`. Input, message and frame reservations overlap until their buffers
+retire; cancellation, budget rejection and write failure must release them.
+The original input-containing SQL identifier parse errors remain a separate
+pending diagnostic boundary. Required exact/just-below budget, UTF-8 unknown
+name, cancellation and frame-lifetime probes are authored but unexecuted.
+Receipt: `target/assembly-review/copy-diagnostic-owner-*.json`.

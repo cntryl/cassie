@@ -16,6 +16,18 @@ pub(super) async fn run_pgwire_blocking<T>(
 where
     T: Send + 'static,
 {
+    run_pgwire_blocking_with_error(cassie, operation_name, operation).await
+}
+
+pub(super) async fn run_pgwire_blocking_with_error<T, E>(
+    cassie: Arc<Cassie>,
+    operation_name: &'static str,
+    operation: impl FnOnce(Arc<Cassie>) -> Result<T, E> + Send + 'static,
+) -> Result<T, E>
+where
+    T: Send + 'static,
+    E: From<CassieError> + Send + 'static,
+{
     let runtime = cassie.runtime.clone();
     let started_at = std::time::Instant::now();
     runtime.record_pgwire_boundary_started(operation_name);
@@ -23,7 +35,7 @@ where
     #[cfg(debug_assertions)]
     if let Some(message) = take_retryable_failure_for_test(&cassie) {
         runtime.record_pgwire_boundary_error(operation_name, started_at.elapsed());
-        return Err(CassieError::StorageRetryable(message.into()));
+        return Err(CassieError::StorageRetryable(message.into()).into());
     }
 
     let cleanup_cassie = Arc::clone(&cassie);
@@ -47,7 +59,8 @@ where
             runtime.record_pgwire_boundary_join_failed(operation_name, started_at.elapsed());
             Err(CassieError::StorageRetryable(
                 format!("pgwire blocking boundary '{operation_name}' failed: {error}").into(),
-            ))
+            )
+            .into())
         }
     }
 }

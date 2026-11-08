@@ -104,7 +104,9 @@ fn should_cancel_copy_where_while_predicate_is_executing() {
     // Assert
     assert!(matches!(
         outcome,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(super::CopyWhereError::Cassie(
+            crate::app::CassieError::QueryCancelled
+        ))
     ));
 }
 
@@ -234,7 +236,9 @@ fn should_stop_copy_where_expression_rewrite_when_cancelled() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(super::CopyWhereError::Cassie(
+            crate::app::CassieError::QueryCancelled
+        ))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -253,5 +257,20 @@ fn should_rewrite_unicode_identifier_across_chunk_boundary() {
     assert_eq!(rewritten, "$1 = 1");
     assert!(controls.current_query_memory_bytes() > 0);
     drop((rewritten, memory));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_retain_unknown_quoted_where_name_until_diagnostic_is_dropped() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    // Act
+    let error = super::parameterize_columns("\"missing_é\" = 1", &["id"], &controls)
+        .expect_err("unknown column");
+    // Assert
+    assert!(matches!(&error, super::CopyWhereError::Undefined(name) if name.name() == "missing_é"));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(error);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

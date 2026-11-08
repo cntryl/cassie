@@ -598,3 +598,174 @@ fn should_deny_binary_mac_output_below_overlap_budget_and_release() {
     drop(input);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+fn network_frame(family: u8, bits: u8, address: &[u8]) -> Vec<u8> {
+    let mut bytes = vec![
+        family,
+        bits,
+        0,
+        u8::try_from(address.len()).expect("address length"),
+    ];
+    bytes.extend_from_slice(address);
+    bytes
+}
+
+#[test]
+fn should_match_binary_inet_and_cidr_formatting_and_errors() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let cases = [
+        (869, network_frame(2, 32, &[192, 0, 2, 1])),
+        (869, network_frame(2, 24, &[192, 0, 2, 1])),
+        (650, network_frame(2, 24, &[192, 0, 2, 0])),
+        (869, network_frame(3, 128, &[0; 16])),
+        (869, network_frame(2, 0, &[192, 0, 2, 1])),
+        (650, network_frame(2, 0, &[0, 0, 0, 0])),
+        (650, network_frame(3, 0, &[0; 16])),
+        (650, network_frame(3, 128, &[0; 16])),
+        (650, network_frame(3, 128, &[255; 16])),
+        (
+            869,
+            network_frame(3, 128, &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 0, 2, 1]),
+        ),
+        (
+            869,
+            network_frame(
+                3,
+                128,
+                &[0x20, 1, 0, 0, 0, 0, 0x20, 2, 0, 0, 0, 0, 0x20, 3, 0x20, 4],
+            ),
+        ),
+        (
+            869,
+            network_frame(3, 128, &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
+        ),
+        (
+            869,
+            network_frame(
+                3,
+                128,
+                &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 192, 0, 2, 1],
+            ),
+        ),
+        (
+            869,
+            network_frame(
+                3,
+                64,
+                &[0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            ),
+        ),
+        (
+            650,
+            network_frame(
+                3,
+                64,
+                &[0x20, 1, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            ),
+        ),
+    ];
+    for (oid, bytes) in cases {
+        let original = super::super::super::codecs::binary_to_value(&bytes, oid).expect("original");
+        let expected = super::super::super::codecs::value_to_text(&original, oid);
+        // Act
+        let (text, memory) = super::binary_inet::decode(oid, &bytes, 0, &controls)
+            .expect("decode")
+            .expect("handled");
+        // Assert
+        assert_eq!(text, expected);
+        drop((text, memory));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    for (oid, bytes) in [
+        (869, vec![]),
+        (869, vec![9, 0, 0, 4, 0, 0, 0, 0]),
+        (869, vec![2, 33, 0, 4, 0, 0, 0, 0]),
+        (869, vec![2, 32, 0, 4, 0, 0, 0]),
+        (869, vec![2, 32, 0, 4, 0, 0, 0, 0, 1]),
+        (650, vec![2, 24, 0, 4, 192, 0, 2, 1]),
+    ] {
+        let original =
+            super::super::super::codecs::binary_to_value(&bytes, oid).expect_err("invalid");
+        let result = super::binary_inet::decode(oid, &bytes, 2, &controls);
+        assert!(
+            matches!(result, Err(crate::app::CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_enforce_binary_inet_output_overlap_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 17,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(8).expect("input");
+    let bytes = network_frame(2, 32, &[192, 0, 2, 1]);
+    // Act
+    let (text, memory) = super::binary_inet::decode(869, &bytes, 0, &controls)
+        .expect("decode")
+        .expect("handled");
+    // Assert
+    assert_eq!(text, "192.0.2.1");
+    assert_eq!(controls.current_query_memory_bytes(), 17);
+    drop((text, memory));
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_deny_binary_inet_below_overlap_budget_and_honor_cancellation() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 16,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let input = controls.reserve_query_memory(8).expect("input");
+    let bytes = network_frame(2, 32, &[192, 0, 2, 1]);
+    // Act
+    let result = super::binary_inet::decode(869, &bytes, 0, &controls);
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 8);
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let cancelled = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+    assert!(matches!(
+        super::binary_inet::decode(869, &bytes, 0, &cancelled),
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+}
+
+#[test]
+fn should_admit_maximum_binary_cidr_spelling_at_exact_budget() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 63,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let bytes = network_frame(3, 128, &[255; 16]);
+    let input = controls.reserve_query_memory(bytes.len()).expect("input");
+    // Act
+    let (text, memory) = super::binary_inet::decode(650, &bytes, 0, &controls)
+        .expect("decode")
+        .expect("handled");
+    // Assert
+    assert_eq!(text, "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128");
+    assert_eq!(controls.current_query_memory_bytes(), 63);
+    drop((text, memory));
+    drop(input);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

@@ -295,3 +295,12 @@ Parity (0.78), owner lifetime (0.55), decoder errors (0.41) and default-session
 selection (0.38) require source checks and focused probes. Other temporal OIDs
 and malformed diagnostic scratch remain pending. Probes remain unexecuted.
 Receipt: `target/assembly-review/copy-binary-date-{request,response}.json`.
+
+Jev selected (1.00) direct admitted binary TIMESTAMP output (OID 1114), after
+the existing decoder validates width, finite range and infinity. The checked
+stack renderer preserves default ISO, BC, fractional seconds and the existing
+`timestamp_to_fields` failure text. Parity (0.90), fields failure (0.64),
+error ordering (0.60), default session (0.51) and owner lifetime (0.47) require
+focused source checks and probes. TIMESTAMPTZ, other temporal codecs and error
+diagnostic scratch remain pending. Probes are unexecuted. Receipt:
+`target/assembly-review/copy-binary-timestamp-{request,response}.json`.

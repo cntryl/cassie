@@ -305,3 +305,14 @@ this is toolchain-specific evidence rather than a guarantee for every possible
 Rust implementation. Error diagnostic scratch and unrelated codecs remain
 pending. Probes are unexecuted. Receipt:
 `target/assembly-review/copy-binary-float8-{request,response}.json`.
+
+Jev selected (0.98) direct admitted binary BIT/VARBIT output (OIDs 1560/1562):
+check the signed bit length and exact `ceil(bits/8)` payload first, then emit
+high bits in order and ignore unused trailing padding, checking interruption
+at bounded intervals. The OID codec's typmod is None; malformed input may use
+the original codec only on branches that reject before allocating bit storage.
+Parity (0.80), malformed fallback (0.78), error order (0.71), interruption
+(0.55) and lease lifetime (0.43) require focused source checks and probes.
+Other codecs and malformed diagnostic scratch remain pending. Probes are
+unexecuted. Receipt:
+`target/assembly-review/copy-binary-bits-{request,response}.json`.

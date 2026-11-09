@@ -34,16 +34,28 @@ proved by a particular increment remain on the legacy path. New admission and
 interruption checks can take precedence over later semantic errors; those
 changes must be identified at each production handoff.
 
-The first production handoff is limited to direct text/integer selectors and
-native path arrays containing only TEXT/NULL. String-backed path literals,
-incompatible native element types and callers without a result owner continue
-through the legacy route. Supported native paths are validated before the
+The first production handoff covers direct text/integer selectors and
+native path arrays containing only TEXT/NULL. Incompatible native element
+types and callers without a result owner continue through the legacy route.
+Supported native paths are validated before the
 document scan; checked validation can surface cancellation before a later
 type or syntax error. Direct selectors scan after `as_json_document` as before.
 Projection detection allocates a result owner for extraction expressions;
 that owner remains attached through the projected row and its clones.
 Existing document cloning, nested expression transformations and other
 consumer handoffs are not qualified by this increment.
+
+A subsequent scoped handoff reuses the admitted flat-brace and JSON-array
+TEXT[] path owners after raw-document validation. Flat parser syntax errors
+select the legacy route so its extraction-specific `ArrayInput` diagnostics
+remain authoritative; memory and interruption failures propagate. The JSON
+arena candidate already distinguishes semantic fallback from control failures.
+Each path owner remains live through selection and output construction. Added
+path admission and a post-parse interruption check can precede later traversal
+errors. Nested/dimensioned brace forms, diagnostic ownership and fallback
+parsing remain pending. Jev selected the scoped handoff (0.50); its precedence,
+grammar, owner and resource leads require the authored probes and source review.
+Receipt: `target/assembly-review/json-extraction-text-path-contract-{request,response}.json`.
 
 Focused probes cover duplicate and escaped-equivalent keys, raw spelling and
 JSONB formatting, JSON null, invalid and negative indexes, scalar 0/-1,

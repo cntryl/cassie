@@ -374,3 +374,55 @@ fn should_preserve_json_array_path_null_error_and_empty_root_order() {
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_release_extraction_path_after_actual_parse_before_selection() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = controls(cancellation.clone());
+    let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
+    let document = ScalarValue::Json(r#"{"a":{"b":"payload"}}"#.into());
+    let path = ScalarValue::Str("{a,b}".into());
+    json_delete::cancel_after_owned_path_once(cancellation.clone());
+    // Act
+    let result =
+        json_delete::controlled_extraction(&document, &path, true, true, false, &controls, &owner);
+    // Assert
+    assert!(cancellation.is_cancelled());
+    assert!(result.is_err());
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_enforce_measured_extraction_path_and_output_overlap_budget() {
+    // Arrange
+    let document = ScalarValue::Json(r#"{"a":{"b":"payload"}}"#.into());
+    let path = ScalarValue::Str(r#"["a","b"]"#.into());
+    let baseline = controls(QueryCancellationHandle::new());
+    let owner = crate::executor::filter::EvaluationMemory::new(&baseline).expect("owner");
+    let value =
+        json_delete::controlled_extraction(&document, &path, true, true, false, &baseline, &owner)
+            .expect("extraction");
+    let peak = baseline.peak_query_memory_bytes();
+    drop(value);
+    drop(owner);
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let limits = CassieRuntimeLimits {
+            query_memory_budget_bytes: budget,
+            query_timeout_ms: 0,
+            ..CassieRuntimeLimits::default()
+        };
+        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+        let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
+        let result = json_delete::controlled_extraction(
+            &document, &path, true, true, false, &controls, &owner,
+        );
+        assert_eq!(result.is_ok(), succeeds);
+        drop(result);
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

@@ -663,3 +663,185 @@ fn should_keep_extraction_owner_live_in_controlled_where() {
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_extract_with_owned_string_backed_paths_and_preserve_legacy_results() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let document = ScalarValue::Json(r#"{"a":{"b":"payload"}}"#.into());
+    let paths = ["{a,b}", r#"["a","b"]"#, "{missing,NULL}", r#"["a",null]"#];
+    // Act / Assert
+    for path in paths {
+        let selector = ScalarValue::Str(path.into());
+        let expected =
+            super::json_extract::evaluate(&document, &selector, true, true, false).expect("legacy");
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        let actual = super::json_delete::controlled_extraction(
+            &document, &selector, true, true, false, &controls, &owner,
+        )
+        .expect("controlled")
+        .expect("owned path");
+        match (&actual, &expected) {
+            (ScalarValue::Null, ScalarValue::Null) => {}
+            (ScalarValue::Str(actual), ScalarValue::Str(expected)) => assert_eq!(actual, expected),
+            _ => panic!("path mismatch: {path}"),
+        }
+        drop(actual);
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_leave_invalid_string_path_diagnostics_to_the_legacy_extractor() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let valid_document = ScalarValue::Json(r#"{"a":1}"#.into());
+    let malformed_document = ScalarValue::Json("[}".into());
+    let malformed_path = ScalarValue::Str("{a,}".into());
+    // Act / Assert
+    assert!(super::json_delete::controlled_extraction(
+        &valid_document,
+        &malformed_path,
+        true,
+        false,
+        false,
+        &controls,
+        &owner
+    )
+    .expect("fallback")
+    .is_none());
+    assert!(
+        super::json_extract::evaluate(&valid_document, &malformed_path, true, false, false)
+            .is_err()
+    );
+    let error = super::json_delete::controlled_extraction(
+        &malformed_document,
+        &malformed_path,
+        true,
+        false,
+        false,
+        &controls,
+        &owner,
+    )
+    .expect_err("document first")
+    .to_string();
+    assert!(error.contains("invalid JSON document"));
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_retain_string_backed_path_extraction_through_expression_handoff() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let row = typed_json_row(serde_json::json!({"a":{"b":"payload"}}));
+    let expression = crate::sql::parser::parse_expression("doc #>> '{a,b}'").expect("expression");
+    let functions = HashMap::new();
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: None,
+        deletion_memory: Some(&owner),
+    };
+    // Act
+    let result = evaluate_expr_value_with_context(&row, &expression, context).expect("extraction");
+    // Assert
+    assert!(matches!(&result, Value::String(text) if text == "payload"));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_string_path_empty_scalar_array_and_sentinel_cases() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let cases = [
+        ("42", "{}", false),
+        ("42", "{0}", true),
+        ("[10,20]", "{-1}", false),
+        ("[10,20]", r#"["  +1"]"#, false),
+        (
+            r#"{"a":7}"#,
+            r#"[{"$serde_json::private::RawValue":"\"a\""}]"#,
+            false,
+        ),
+    ];
+    // Act / Assert
+    for (source, path, jsonb) in cases {
+        let document = ScalarValue::Json(source.into());
+        let selector = ScalarValue::Str(path.into());
+        let expected = super::json_extract::evaluate(&document, &selector, true, false, jsonb)
+            .expect("legacy");
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        let actual = super::json_delete::controlled_extraction(
+            &document, &selector, true, false, jsonb, &controls, &owner,
+        )
+        .expect("controlled")
+        .expect("owned path");
+        match (&actual, &expected) {
+            (ScalarValue::Null, ScalarValue::Null) => {}
+            (ScalarValue::Json(actual), ScalarValue::Json(expected)) => {
+                assert_eq!(actual, expected)
+            }
+            _ => panic!("path mismatch: {source:?} / {path:?}"),
+        }
+        drop(actual);
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_string_path_legacy_diagnostics_at_expression_boundary() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let expression = crate::sql::parser::parse_expression("doc #>> $1").expect("expression");
+    let row = typed_json_row(serde_json::json!({"a":1}));
+    let functions = HashMap::new();
+    for text in ["{a,}", r#"["a",]"#] {
+        let params = [Value::String(text.into())];
+        let legacy = EvalContext {
+            params: &params,
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+            controls: None,
+            memory: None,
+            deletion_memory: None,
+        };
+        let controlled = EvalContext {
+            controls: Some(&controls),
+            deletion_memory: Some(&owner),
+            ..legacy
+        };
+        // Act
+        let expected = evaluate_expr_value_with_context(&row, &expression, legacy)
+            .expect_err("legacy error")
+            .to_string();
+        let actual = evaluate_expr_value_with_context(&row, &expression, controlled)
+            .expect_err("controlled error")
+            .to_string();
+        // Assert
+        assert_eq!(actual, expected, "{text}");
+    }
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

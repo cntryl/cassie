@@ -42,6 +42,51 @@ pub(in crate::executor::filter) fn evaluate(
         return Ok(None);
     };
     if path {
+        if let ScalarValue::Str(text) | ScalarValue::Json(text) = selector {
+            let range = scan(document, controls)
+                .map_err(render::RenderError::from)
+                .map_err(render::RenderError::into_query_error)?;
+            let current = &document[range];
+            let parsed = match super::super::owned_path::parse(text, controls) {
+                Ok(path) => path,
+                Err(crate::executor::QueryError::Cassie(CassieError::ArrayInput(_))) => {
+                    return Ok(None)
+                }
+                Err(error) => return Err(error),
+            };
+            if let Some(path) = parsed {
+                super::super::after_owned_path(controls)?;
+                let values = path.values();
+                let selected = follow(
+                    current,
+                    values.len(),
+                    |index| Ok(values[index].as_deref()),
+                    jsonb,
+                    controls,
+                )?;
+                return match selected {
+                    Some(value) => output(value, as_text, jsonb, controls, owner).map(Some),
+                    None => Ok(Some(ScalarValue::Null)),
+                };
+            }
+            if let Some(path) =
+                crate::runtime::accounted::json_arena::parse_text_array_candidate(text, controls)?
+            {
+                super::super::after_owned_path(controls)?;
+                let selected = follow(
+                    current,
+                    path.len(),
+                    |index| path.get(index),
+                    jsonb,
+                    controls,
+                )?;
+                return match selected {
+                    Some(value) => output(value, as_text, jsonb, controls, owner).map(Some),
+                    None => Ok(Some(ScalarValue::Null)),
+                };
+            }
+            return Ok(None);
+        }
         let ScalarValue::Array(segments) = selector else {
             return Ok(None);
         };
@@ -54,20 +99,23 @@ pub(in crate::executor::filter) fn evaluate(
         let range = scan(document, controls)
             .map_err(render::RenderError::from)
             .map_err(render::RenderError::into_query_error)?;
-        let mut current = &document[range];
-        for segment in segments.elements() {
-            controls.check_interruption()?;
-            let Value::String(segment) = segment else {
-                return Ok(Some(ScalarValue::Null));
-            };
-            let Some(next) = select_validated(current, Selector::Path(segment), jsonb, controls)
-                .map_err(render::RenderError::into_query_error)?
-            else {
-                return Ok(Some(ScalarValue::Null));
-            };
-            current = next;
-        }
-        return output(current, as_text, jsonb, controls, owner).map(Some);
+        let values = segments.elements();
+        let selected = follow(
+            &document[range],
+            values.len(),
+            |index| {
+                Ok(match &values[index] {
+                    Value::String(text) => Some(text.as_str()),
+                    _ => None,
+                })
+            },
+            jsonb,
+            controls,
+        )?;
+        return match selected {
+            Some(value) => output(value, as_text, jsonb, controls, owner).map(Some),
+            None => Ok(Some(ScalarValue::Null)),
+        };
     }
     let selector = match selector {
         ScalarValue::Str(key) => Selector::Key(key),
@@ -83,6 +131,28 @@ pub(in crate::executor::filter) fn evaluate(
         return Ok(Some(ScalarValue::Null));
     };
     output(value, as_text, jsonb, controls, owner).map(Some)
+}
+
+fn follow<'a, 'b>(
+    mut current: &'a str,
+    length: usize,
+    mut segment: impl FnMut(usize) -> Result<Option<&'b str>, CassieError>,
+    jsonb: bool,
+    controls: &QueryExecutionControls,
+) -> Result<Option<&'a str>, crate::executor::QueryError> {
+    for index in 0..length {
+        controls.check_interruption()?;
+        let Some(segment) = segment(index)? else {
+            return Ok(None);
+        };
+        let Some(next) = select_validated(current, Selector::Path(segment), jsonb, controls)
+            .map_err(render::RenderError::into_query_error)?
+        else {
+            return Ok(None);
+        };
+        current = next;
+    }
+    Ok(Some(current))
 }
 
 fn output(

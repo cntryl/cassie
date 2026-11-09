@@ -76,6 +76,58 @@ fn should_cancel_during_reached_json_argument_scan_on_exists_window_path() {
 }
 
 #[test]
+fn should_cancel_during_json_leaf_copy_on_exists_window_path() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
+    let select = select("EXISTS (SELECT 1)");
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    crate::executor::filter::cancel_json_leaf_copy_once(cancel.clone(), 1);
+
+    // Act
+    let result = run(&cassie, &select, &controls);
+
+    // Assert
+    assert!(
+        cancel.is_cancelled(),
+        "actual leaf copy must reach the hook"
+    );
+    assert!(result.is_err());
+    drop(result);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_not_copy_json_leaf_when_exists_window_filter_is_false() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
+    let select = select("FALSE AND EXISTS (SELECT 1)");
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    crate::executor::filter::cancel_json_leaf_copy_once(cancel.clone(), 1);
+
+    // Act
+    let result = run(&cassie, &select, &controls);
+    crate::executor::filter::clear_json_leaf_copy_cancellation();
+
+    // Assert
+    assert!(!cancel.is_cancelled());
+    let output = result.expect("false filter skips argument");
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_skip_the_argument_when_exists_window_filter_is_false_or_null() {
     // Arrange
     let cassie =

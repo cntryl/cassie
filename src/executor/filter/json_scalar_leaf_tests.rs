@@ -90,6 +90,145 @@ fn should_keep_general_owner_and_ownerless_fallbacks_unchanged() {
 }
 
 #[test]
+fn should_retain_compact_json_text_with_a_shared_general_and_deletion_owner() {
+    // Arrange
+    let controls = controls(10 * 1024 * 1024);
+    let foreign = controls(10 * 1024 * 1024);
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let functions = HashMap::new();
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: Some(&owner),
+        deletion_memory: Some(&owner),
+    };
+    let values = [
+        serde_json::json!({"z":"é\n", "a":[1,true,null]}),
+        serde_json::json!({"$serde_json::private::Number":"7"}),
+        serde_json::json!("quote\"\\\0"),
+    ];
+
+    // Act
+    let rejected = from_value(
+        &Value::Json(values[0].clone()),
+        EvalContext {
+            controls: Some(&foreign),
+            ..context
+        },
+    );
+    let outputs = values.map(|json| {
+        let expected = json.to_string();
+        let output = from_value(&Value::Json(json), context).expect("shared owner");
+        (output, expected)
+    });
+    let retained = controls.current_query_memory_bytes();
+
+    // Assert
+    assert!(rejected.is_err());
+    assert_eq!(foreign.current_query_memory_bytes(), 0);
+    for (output, expected) in &outputs {
+        assert!(matches!(output, ScalarValue::Json(text) if text == expected));
+    }
+    assert!(retained > 0);
+    drop(outputs);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_shared_owner_after_actual_compact_copy_cancellation() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let functions = HashMap::new();
+    let value = Value::Json(serde_json::json!("é".repeat(2048)));
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: Some(&owner),
+        deletion_memory: Some(&owner),
+    };
+    super::cancel_copy_once(cancel.clone(), 3);
+
+    // Act
+    let result = from_value(&value, context);
+
+    // Assert
+    assert!(cancel.is_cancelled());
+    assert!(result.is_err());
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_shared_leaf_output_while_general_scratch_is_retained() {
+    // Arrange
+    let value = Value::Json(serde_json::json!(["é".repeat(1024), {"n": 1}]));
+    let functions = HashMap::new();
+    let baseline = controls(10 * 1024 * 1024);
+    let owner = EvaluationMemory::new(&baseline).expect("owner");
+    owner.grow(512).expect("general scratch");
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&baseline),
+        memory: Some(&owner),
+        deletion_memory: Some(&owner),
+    };
+    let output = from_value(&value, context).expect("baseline");
+    let peak = baseline.peak_query_memory_bytes();
+    drop(output);
+    drop(owner);
+
+    // Act
+    let cases = [(peak, true), (peak - 1, false)].map(|(budget, succeeds)| {
+        let controls = controls(budget);
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        owner.grow(512).expect("general scratch");
+        let context = EvalContext {
+            params: &[],
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+            controls: Some(&controls),
+            memory: Some(&owner),
+            deletion_memory: Some(&owner),
+        };
+        let result = from_value(&value, context);
+        let matches = result.is_ok() == succeeds;
+        drop(result);
+        drop(owner);
+        (matches, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
+    assert_eq!(cases, [(true, 0), (true, 0)]);
+}
+
+#[test]
 fn should_release_partial_leaf_after_actual_copy_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();

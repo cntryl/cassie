@@ -50,6 +50,10 @@ mod json_order;
 mod json_path_operator;
 #[path = "filter/json_scalar_leaf.rs"]
 mod json_scalar_leaf;
+#[cfg(test)]
+pub(crate) use json_scalar_leaf::cancel_copy_once as cancel_json_leaf_copy_once;
+#[cfg(test)]
+pub(crate) use json_scalar_leaf::clear_copy_cancellation as clear_json_leaf_copy_cancellation;
 #[path = "filter/quantified_array.rs"]
 mod quantified_array;
 #[path = "filter/subquery_value.rs"]

@@ -301,17 +301,20 @@ fn run_with_budget(budget: usize) -> (bool, usize) {
         after_partition_row: None,
     };
     let rows = [row(Value::String("λ".repeat(512)), true)];
-    let mut peak = 0;
+    let mut copied = false;
     let result =
         evaluate_percentile_owned_observed(&specs[0].function, &rows, &context, |progress, _| {
             if matches!(progress, FractionProgress::StringChunk) {
-                peak = peak.max(controls.current_query_memory_bytes());
+                copied = true;
             }
         });
     let succeeded = result.is_ok();
+    if succeeded {
+        assert!(copied);
+    }
     drop(result);
     assert_eq!(controls.current_query_memory_bytes(), 0);
-    (succeeded, peak)
+    (succeeded, controls.peak_query_memory_bytes())
 }
 
 #[test]

@@ -42,7 +42,7 @@ use crate::sql::ast::{Expr, FunctionCall, SortDirection};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
-use super::collection_json::{null_array_output, AggregateOutput};
+use super::collection_json::{null_array_output, percentile_string_output, AggregateOutput};
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
 struct EvaluatedFractions {
@@ -64,6 +64,7 @@ enum FractionProgress {
     Ready,
     SortComparison,
     ResultElement,
+    StringChunk,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -255,6 +256,21 @@ fn evaluate_percentile_owned_observed(
         let Some(fraction) = fractions.values.first().copied().flatten() else {
             return Ok(AggregateOutput::from_value(Value::Null));
         };
+        if !is_continuous {
+            let row_count = sorted
+                .values
+                .len()
+                .to_f64()
+                .ok_or_else(percentile_rank_overflow)?;
+            let index = percentile_discrete_index(sorted.values.len(), fraction, row_count)?;
+            let value = &sorted.values[index];
+            if let Value::String(text) = value {
+                return percentile_string_output(text, &sorted.memory, context.controls, || {
+                    observe(FractionProgress::StringChunk, sorted.memory.bytes());
+                });
+            }
+            return Ok(AggregateOutput::from_value(value.clone()));
+        }
         return percentile_value(&sorted.values, fraction, is_continuous)
             .map(AggregateOutput::from_value);
     }
@@ -570,11 +586,8 @@ fn percentile_value(
 ) -> Result<Value, QueryError> {
     let row_count = values.len().to_f64().ok_or_else(percentile_rank_overflow)?;
     if !continuous {
-        let index = (fraction * row_count)
-            .ceil()
-            .to_usize()
-            .ok_or_else(percentile_rank_overflow)?;
-        return Ok(values[index.saturating_sub(1).min(values.len() - 1)].clone());
+        let index = percentile_discrete_index(values.len(), fraction, row_count)?;
+        return Ok(values[index].clone());
     }
     let position = fraction
         * (values.len() - 1)
@@ -593,6 +606,18 @@ fn percentile_value(
     }
     let lower_position = lower.to_f64().ok_or_else(percentile_rank_overflow)?;
     continuous_value(&values[lower], &values[upper], position - lower_position)
+}
+
+fn percentile_discrete_index(
+    length: usize,
+    fraction: f64,
+    row_count: f64,
+) -> Result<usize, QueryError> {
+    let index = (fraction * row_count)
+        .ceil()
+        .to_usize()
+        .ok_or_else(percentile_rank_overflow)?;
+    Ok(index.saturating_sub(1).min(length - 1))
 }
 
 fn continuous_value(lower: &Value, upper: &Value, fraction: f64) -> Result<Value, QueryError> {

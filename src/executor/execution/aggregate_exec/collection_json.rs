@@ -66,13 +66,41 @@ pub(super) fn mode_string_output(
     text: &str,
     source: &QueryMemoryReservation,
     controls: &QueryExecutionControls,
+    observe: impl FnMut(),
+) -> Result<AggregateOutput, QueryError> {
+    string_output(
+        text,
+        source,
+        controls,
+        "mode source uses a different query tracker",
+        observe,
+    )
+}
+
+pub(super) fn percentile_string_output(
+    text: &str,
+    source: &QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+    observe: impl FnMut(),
+) -> Result<AggregateOutput, QueryError> {
+    string_output(
+        text,
+        source,
+        controls,
+        "percentile source uses a different query tracker",
+        observe,
+    )
+}
+
+fn string_output(
+    text: &str,
+    source: &QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+    foreign_tracker_message: &'static str,
     mut observe: impl FnMut(),
 ) -> Result<AggregateOutput, QueryError> {
     if !source.belongs_to(controls) {
-        return Err(CassieError::ResourceLimit(
-            "mode source uses a different query tracker".into(),
-        )
-        .into());
+        return Err(CassieError::ResourceLimit(foreign_tracker_message.into()).into());
     }
     let mut pending = PendingModeString {
         value: String::new(),

@@ -11,6 +11,10 @@ use crate::types::{DataType, Value};
 
 use super::{AggregateExecutionContext, AggregateSpec, QueryError};
 
+#[cfg(test)]
+#[path = "output_row_control_tests.rs"]
+mod output_row_control_tests;
+
 /// The value must drop before the reservation covering its allocation.
 #[derive(Debug)]
 pub(super) struct AggregateOutput {
@@ -102,7 +106,13 @@ impl OutputRow {
                 .absorb(memory);
         }
         for name in names {
-            push_output(&mut self.values, &mut self.memory, name, &output.value)?;
+            push_output(
+                &mut self.values,
+                &mut self.memory,
+                &self.controls,
+                name,
+                &output.value,
+            )?;
             after_copy();
             super::check_timeout(&self.controls)?;
         }
@@ -360,38 +370,135 @@ fn row_memory(
         .map_err(Into::into)
 }
 
+#[derive(Clone, Copy)]
+enum OutputProgress {
+    DirectoryMove,
+    NameCopy,
+    ValueCopy,
+}
+
 fn push_output(
     values: &mut Vec<(String, Value)>,
     memory: &mut Option<QueryMemoryReservation>,
+    controls: &QueryExecutionControls,
     name: &str,
     value: &Value,
 ) -> Result<(), QueryError> {
-    if let Some(memory) = memory.as_mut() {
-        let old_capacity = values.capacity();
-        if values.len() == old_capacity {
-            let capacity = values.len().checked_add(1).ok_or_else(|| {
-                CassieError::ResourceLimit("aggregate output capacity overflow".into())
-            })?;
-            let backing = mul(capacity, std::mem::size_of::<(String, Value)>())?;
-            memory.try_grow(backing)?;
-            values.try_reserve_exact(1).map_err(|error| {
-                CassieError::ResourceLimit(format!("unable to allocate aggregate output: {error}"))
-            })?;
-            let actual = mul(values.capacity(), std::mem::size_of::<(String, Value)>())?;
-            if actual > backing {
-                memory.try_grow(actual - backing)?;
-            }
-            memory.shrink_to(
-                memory.bytes() - mul(old_capacity, std::mem::size_of::<(String, Value)>())?,
-            );
+    push_output_observing(values, memory, controls, name, value, &mut |_| {})
+}
+
+fn push_output_observing(
+    values: &mut Vec<(String, Value)>,
+    memory: &mut Option<QueryMemoryReservation>,
+    controls: &QueryExecutionControls,
+    name: &str,
+    value: &Value,
+    progress: &mut impl FnMut(OutputProgress),
+) -> Result<(), QueryError> {
+    let Some(memory) = memory.as_mut() else {
+        values.push((name.to_owned(), value.clone()));
+        return Ok(());
+    };
+    controls.check_interruption()?;
+    let old_capacity = values.capacity();
+    if values.len() == old_capacity {
+        let capacity = values.len().checked_add(1).ok_or_else(output_overflow)?;
+        let backing = mul(capacity, std::mem::size_of::<(String, Value)>())?;
+        struct Replacement {
+            values: Vec<(String, Value)>,
+            memory: QueryMemoryReservation,
         }
-        memory.try_grow(add(
-            name.len(),
-            crate::executor::retained_memory::value_clone_bytes(value)?,
-        )?)?;
+        let mut replacement = Replacement {
+            values: Vec::new(),
+            memory: memory.try_sibling(backing)?,
+        };
+        replacement
+            .values
+            .try_reserve_exact(capacity)
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        if replacement.values.capacity() > capacity {
+            return Err(output_overflow().into());
+        }
+        while let Some(item) = values.pop() {
+            controls.check_interruption()?;
+            replacement.values.push(item);
+            progress(OutputProgress::DirectoryMove);
+            controls.check_interruption()?;
+        }
+        let len = replacement.values.len();
+        for index in 0..len / 2 {
+            controls.check_interruption()?;
+            replacement.values.swap(index, len - index - 1);
+        }
+        controls.check_interruption()?;
+        let old = std::mem::replace(values, replacement.values);
+        drop(old);
+        memory.absorb(replacement.memory);
+        let old_bytes = mul(old_capacity, std::mem::size_of::<(String, Value)>())?;
+        let retained = memory
+            .bytes()
+            .checked_sub(old_bytes)
+            .ok_or_else(output_overflow)?;
+        memory.shrink_to(retained);
     }
-    values.push((name.to_owned(), value.clone()));
+    memory.try_grow(add(
+        name.len(),
+        crate::executor::retained_memory::value_clone_bytes(value)?,
+    )?)?;
+    let name = copy_output_string(
+        name,
+        name.len(),
+        controls,
+        OutputProgress::NameCopy,
+        progress,
+    )?;
+    let value = match value {
+        Value::String(text) => Value::String(copy_output_string(
+            text,
+            text.capacity(),
+            controls,
+            OutputProgress::ValueCopy,
+            progress,
+        )?),
+        _ => value.clone(),
+    };
+    values.push((name, value));
     Ok(())
+}
+
+fn copy_output_string(
+    text: &str,
+    admitted: usize,
+    controls: &QueryExecutionControls,
+    phase: OutputProgress,
+    progress: &mut impl FnMut(OutputProgress),
+) -> Result<String, QueryError> {
+    controls.check_interruption()?;
+    let mut output = String::new();
+    output
+        .try_reserve_exact(text.len())
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    if output.capacity() > admitted {
+        return Err(output_overflow().into());
+    }
+    let mut start = 0;
+    while start < text.len() {
+        controls.check_interruption()?;
+        let mut end = start.saturating_add(1024).min(text.len());
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        output.push_str(&text[start..end]);
+        progress(phase);
+        controls.check_interruption()?;
+        start = end;
+    }
+    controls.check_interruption()?;
+    Ok(output)
+}
+
+fn output_overflow() -> CassieError {
+    CassieError::ResourceLimit("aggregate output exceeded its admitted capacity".into())
 }
 
 fn output_bound(

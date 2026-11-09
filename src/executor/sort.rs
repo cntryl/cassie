@@ -19,12 +19,15 @@ mod numeric_key_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tie_wiring_tests;
+#[cfg(test)]
 mod vector_array_tests;
 
 mod retention;
 use retention::{SortRetentionContext, SortRetentionPhase};
 pub(crate) mod accounting;
 mod exists;
+mod tie;
 mod typed;
 pub(crate) use exists::{requires_resolver, sort_batches_resolving};
 #[cfg(test)]
@@ -526,17 +529,24 @@ impl EvalInput<'_> {
                 nulls: order.nulls,
             });
         }
-        let previous = memory
-            .as_ref()
-            .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
-        if let Some(memory) = memory.as_mut() {
-            memory.try_grow(accounting::tie_bytes(row)?)?;
-        }
-        retention.before(SortRetentionPhase::TieKey)?;
-        let tie_key = row_tie_key(row);
-        if let Some(memory) = memory.as_mut() {
-            memory.shrink_to(add(previous, tie_key.capacity())?);
-        }
+        let tie_key = if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
+            let probe = || retention.before(SortRetentionPhase::TieKey);
+            let tie = tie::serialize_with_probe(row, controls, Some(&probe))?;
+            let (text, tie_memory) = tie.into_parts();
+            if !tie_memory.belongs_to(controls) {
+                drop(text);
+                drop(tie_memory);
+                return Err(crate::app::CassieError::ResourceLimit(
+                    "sort tie owner uses a different query tracker".into(),
+                )
+                .into());
+            }
+            memory.absorb(tie_memory);
+            text
+        } else {
+            retention.before(SortRetentionPhase::TieKey)?;
+            row_tie_key(row)
+        };
         if let Some(controls) = controls {
             check_query_controls(controls)?;
         }

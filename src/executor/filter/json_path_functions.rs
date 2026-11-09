@@ -8,6 +8,10 @@ use crate::{app::CassieError, runtime::QueryExecutionControls};
 #[path = "json_path_result_owner_tests.rs"]
 mod owner_tests;
 
+#[cfg(test)]
+#[path = "json_path_tree_owner_tests.rs"]
+mod tree_owner_tests;
+
 pub(super) fn evaluate(
     name: &str,
     args: &[Value],
@@ -27,7 +31,7 @@ pub(super) fn evaluate(
             | JsonFunction::PathExistsTz
             | JsonFunction::PathQueryArrayTz
             | JsonFunction::PathQueryFirstTz),
-        ) => Some(path_function(kind, args, controls)),
+        ) => Some(path_function(kind, args, controls, owner)),
         FunctionId::Json(JsonFunction::SqlExists) => Some(sql_json_exists(args, controls)),
         _ => None,
     }
@@ -37,6 +41,7 @@ fn path_function(
     kind: JsonFunction,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     if !(2..=4).contains(&args.len()) {
         return Err(QueryError::General(
@@ -110,12 +115,17 @@ fn path_function(
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
-    match result {
-        PathResult::Exists(value) => Ok(Value::Bool(value)),
-        PathResult::Array(values) => Ok(Value::Json(serde_json::Value::Array(values))),
-        PathResult::First(value) => Ok(value.map_or(Value::Null, Value::Json)),
-        PathResult::Match(value) => Ok(value.map_or(Value::Null, Value::Bool)),
-    }
+    drop(path);
+    drop(path_text);
+    drop(variables);
+    drop(document);
+    let value = match result {
+        PathResult::Exists(value) => Value::Bool(value),
+        PathResult::Array(values) => Value::Json(serde_json::Value::Array(values)),
+        PathResult::First(value) => value.map_or(Value::Null, Value::Json),
+        PathResult::Match(value) => value.map_or(Value::Null, Value::Bool),
+    };
+    super::json_result_owner::retain_json_tree(value, reservation, owner, controls)
 }
 
 fn sql_json_exists(

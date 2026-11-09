@@ -119,6 +119,23 @@ execution remain unqualified. `jsonb_path_query_array/first` instead return
 serde Value trees whose physical-capacity coverage is not established by a
 serialized-size estimate; no tree ownership completion is claimed here.
 
+For `jsonb_path_query_array` and `jsonb_path_query_first`, the separately
+selected partial handoff retains their unchanged existing workspace reservation
+when an owned `Value::Json` result leaves the function, provided an expression
+owner exists and the general owner is absent. The owned result precedes the
+reservation in the failure guard; document, variables, parsed path and path
+text are dropped before transfer. The existing estimate then remains charged
+while the caller separately admits the result's compact serialization.
+This only extends the lifetime of an existing estimated lease: serialized
+size is not a proof of actual serde Value tree capacity, node allocations,
+output construction pre-admission, JSONPath interruption or teardown. Boolean,
+NULL, no-owner and general-owner paths stay unchanged. Retaining dead scratch
+can increase budget pressure and a new pre-transfer check can win earlier.
+Jev selected this limited handoff (0.99); receipt:
+`target/assembly-review/jsonpath-tree-lifetime-contract-{request,response}.json`.
+Test-first array/first, source/output overlap, actual post-result cancellation,
+foreign tracker, fallback and projection lifetime probes remain unexecuted.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

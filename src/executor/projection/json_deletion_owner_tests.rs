@@ -157,6 +157,43 @@ fn should_retain_path_function_result_through_the_last_projected_clone() {
 }
 
 #[test]
+fn should_retain_jsonpath_tree_workspace_through_the_last_projected_clone() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let session = CassieSession::new("root".into(), None)
+        .with_statement_text("SELECT 1", &controls)
+        .expect("session");
+    let baseline = controls.current_query_memory_bytes();
+    let parsed = crate::sql::parse_statement(
+        "SELECT jsonb_path_query_array('{\"a\":[\"x\"]}'::JSONB, '$.a[*]') ->> 0 FROM records",
+    )
+    .expect("SQL");
+    let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
+        panic!("SELECT")
+    };
+    // Act
+    let rows = project_rows(
+        vec![BatchRow::new(vec![])],
+        &select.projection,
+        &[],
+        None,
+        &std::collections::HashMap::new(),
+        Some(&session),
+    )
+    .expect("projection");
+    let last = rows[0].clone();
+    drop(rows);
+    // Assert
+    assert!(matches!(&last.entries()[0].1, Value::String(text) if text == "x"));
+    assert!(controls.current_query_memory_bytes() > baseline);
+    drop(last);
+    assert_eq!(controls.current_query_memory_bytes(), baseline);
+    drop(session);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_retain_json_concat_until_last_projection_clone_without_changing_siblings() {
     // Arrange
     let controls =

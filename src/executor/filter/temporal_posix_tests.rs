@@ -39,12 +39,12 @@ fn should_resolve_equal_posix_designations_to_the_standard_offset() {
         ("AAA0AAA-1,M11.1.0,M3.2.0", "AAA", 0),
     ];
 
-    // Act and assert
     for (rule, name, east) in values {
-        assert_eq!(
-            posix_timezone::fixed_duplicate_offset(rule, name),
-            Some(east)
-        );
+        // Act
+        let result = posix_timezone::fixed_duplicate_offset(rule, name);
+
+        // Assert
+        assert_eq!(result, Some(east));
     }
 }
 
@@ -82,9 +82,12 @@ fn should_leave_nonmatching_posix_forms_to_the_legacy_resolver() {
         ),
     ];
 
-    // Act and assert
     for (rule, name) in rules {
-        assert_eq!(posix_timezone::fixed_duplicate_offset(rule, name), None);
+        // Act
+        let result = posix_timezone::fixed_duplicate_offset(rule, name);
+
+        // Assert
+        assert_eq!(result, None);
     }
 }
 

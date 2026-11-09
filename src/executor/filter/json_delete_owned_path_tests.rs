@@ -558,3 +558,22 @@ fn should_handoff_dimensioned_extraction_and_existence_operands() {
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_handoff_dimensioned_text_array_to_deletion_operator() {
+    // Arrange
+    let controls = controls(QueryCancellationHandle::new());
+    let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
+    let document = ScalarValue::Json(r#"{"a":1,"b":2}"#.into());
+    let keys = ScalarValue::Json("[0:0]={a}".into());
+    // Act
+    let result = json_delete::controlled_operator(&document, &keys, &controls, &owner)
+        .expect("deletion")
+        .expect("owned keys");
+    // Assert
+    assert!(matches!(&result, ScalarValue::Json(text) if text == r#"{"b": 2}"#));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

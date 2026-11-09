@@ -10,15 +10,19 @@ thread_local! {
 }
 
 #[cfg(test)]
-pub(super) fn cancel_sort_once(handle: crate::runtime::QueryCancellationHandle) {
+pub(in crate::executor::filter) fn cancel_sort_once(
+    handle: crate::runtime::QueryCancellationHandle,
+) {
     object::cancel_lexical_sort_once(handle);
 }
 #[cfg(test)]
-pub(super) fn cancel_compare_once(handle: crate::runtime::QueryCancellationHandle) {
+pub(in crate::executor::filter) fn cancel_compare_once(
+    handle: crate::runtime::QueryCancellationHandle,
+) {
     CANCEL_COMPARE.with(|slot| *slot.borrow_mut() = Some(handle));
 }
 
-pub(super) fn evaluate(
+pub(in crate::executor::filter) fn evaluate(
     candidate: &str,
     required: &str,
     controls: &QueryExecutionControls,

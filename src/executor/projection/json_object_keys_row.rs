@@ -1,6 +1,7 @@
 //! Pre-admitted result row for a JSON object-key expansion.
-use super::{observe, BatchRow, Progress};
+use super::{observe, Progress};
 use crate::app::CassieError;
+use crate::executor::batch::BatchRow;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::Value;
 

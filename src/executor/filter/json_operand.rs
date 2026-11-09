@@ -17,24 +17,24 @@ fn cancel_copy_once(handle: crate::runtime::QueryCancellationHandle, number: usi
     CANCEL_COPY.with(|slot| *slot.borrow_mut() = Some((handle, number)));
 }
 
-pub(super) struct OwnedOperand {
+pub(in crate::executor::filter) struct OwnedOperand {
     value: ScalarValue,
     _memory: Option<QueryMemoryReservation>,
 }
 
 impl OwnedOperand {
-    pub(super) fn legacy(value: ScalarValue) -> Self {
+    pub(in crate::executor::filter) fn legacy(value: ScalarValue) -> Self {
         Self {
             value,
             _memory: None,
         }
     }
 
-    pub(super) fn value(&self) -> &ScalarValue {
+    pub(in crate::executor::filter) fn value(&self) -> &ScalarValue {
         &self.value
     }
 
-    pub(super) fn convert(
+    pub(in crate::executor::filter) fn convert(
         value: ScalarValue,
         controls: &QueryExecutionControls,
     ) -> Result<Self, QueryError> {

@@ -1,9 +1,10 @@
 use super::{
-    build_array_query, evaluate, retain_builder_output, EvalContext, Expr, FunctionCall, Value,
+    build_array_query, evaluate, retain_builder_output, EvalContext, FunctionCall, Value,
 };
 use crate::config::CassieRuntimeLimits;
 use crate::executor::filter::EvaluationMemory;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+use crate::sql::ast::Expr;
 use crate::types::{DataType, SqlArray};
 use std::{collections::HashMap, time::Instant};
 
@@ -47,7 +48,7 @@ fn should_retain_workspace_for_selected_json_builder_variants() {
         SqlArray::from_elements(vec![Value::String("a".into()), Value::String("b".into())])
             .expect("pairs"),
     );
-    let cases = [
+    let cases: [(&str, Vec<Expr>, Vec<Value>); 6] = [
         (
             "json_build_array",
             vec![Expr::IntegerLiteral(7)],

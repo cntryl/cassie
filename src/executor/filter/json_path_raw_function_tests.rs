@@ -89,7 +89,7 @@ fn should_release_workspace_after_actual_function_document_scan_cancellation() {
         cancel.clone(),
     );
     let owner = EvaluationMemory::new(&controls).expect("owner");
-    super::super::json_delete::cancel_function_path_scan_once(cancel.clone());
+    super::super::super::json_delete::cancel_function_path_scan_once(cancel.clone());
     let args = [
         Value::String(r#"{"a":"payload"}"#.into()),
         Value::String("a".into()),
@@ -118,7 +118,7 @@ fn should_release_both_function_output_and_workspace_after_actual_copy_cancellat
         cancel.clone(),
     );
     let owner = EvaluationMemory::new(&controls).expect("owner");
-    super::super::json_delete::cancel_function_path_copy_once(cancel.clone());
+    super::super::super::json_delete::cancel_function_path_copy_once(cancel.clone());
     let args = [
         Value::String(format!(r#"{{"a":"{}"}}"#, "x".repeat(2_048))),
         Value::String("a".into()),

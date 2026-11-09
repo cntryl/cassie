@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::CassieRuntimeLimits;
+use crate::executor::batch::BatchRow;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use std::time::Instant;
 

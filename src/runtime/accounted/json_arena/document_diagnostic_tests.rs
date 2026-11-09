@@ -17,6 +17,94 @@ fn controls(limit: usize) -> QueryExecutionControls {
 }
 
 #[test]
+fn should_retain_owned_row_diagnostic_and_match_legacy_parse_error_text() {
+    // Arrange
+    let controls = controls(1_048_576);
+    let bytes = b"[}\xff";
+    let expected = serde_json::from_slice::<serde_json::Value>(bytes)
+        .expect_err("legacy")
+        .to_string();
+    let error = match Document::parse_plain_row(bytes, &controls) {
+        Ok(_) => panic!("accepted invalid row"),
+        Err(error) => error,
+    };
+    // Act
+    let diagnostic = super::render_row(&error, &controls).expect("diagnostic");
+    // Assert
+    assert_eq!(
+        diagnostic.as_str(),
+        format!("invalid JSON in row blob: {expected}")
+    );
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(diagnostic);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_row_diagnostic_after_actual_copy_cancellation() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let error = match Document::parse_plain_row(b"[}", &controls) {
+        Ok(_) => panic!("accepted invalid row"),
+        Err(error) => error,
+    };
+    let mut copies = 0;
+    // Act
+    let result = super::render_row_observing(&error, &controls, || {
+        copies += 1;
+        cancel.cancel();
+    });
+    // Assert
+    assert_eq!(copies, 1);
+    assert!(matches!(
+        result,
+        Err(DiagnosticError::Control(CassieError::QueryCancelled))
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_match_legacy_row_diagnostics_across_malformed_non_sentinel_inputs() {
+    // Arrange
+    let controls = controls(1_048_576);
+    let inputs: &[&[u8]] = &[
+        b"",
+        b"[",
+        b"[1,]",
+        b"{\"a\":1,}",
+        b"1e",
+        b"{}\xff",
+        b"{\"a\":\"\xff\\q\"}",
+        b"{\"\xff\\q\":0}",
+        b"\"\xff\"",
+        b"{\n \"a\":0,\n \"\xff\\nX\":1}",
+    ];
+    // Act / Assert
+    for bytes in inputs {
+        let expected = serde_json::from_slice::<serde_json::Value>(bytes)
+            .expect_err("legacy")
+            .to_string();
+        let error = match Document::parse_plain_row(bytes, &controls) {
+            Ok(_) => panic!("accepted malformed row"),
+            Err(error) => error,
+        };
+        let diagnostic = super::render_row(&error, &controls).expect("diagnostic");
+        assert_eq!(
+            diagnostic.as_str(),
+            format!("invalid JSON in row blob: {expected}"),
+            "{bytes:?}"
+        );
+        drop(diagnostic);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
 fn should_render_original_jsonb_copy_diagnostic_for_serde_error_variants() {
     // Arrange
     let controls = controls(1_048_576);

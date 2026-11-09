@@ -15,6 +15,11 @@ Legacy fallback scratch and formatting are unadmitted and uninterruptible,
 diagnostic ownership/message/SQLSTATE and competing error priority remain
 pending. This path is a compatibility probe, not a production-ready solution.
 
+A subsequent test-only increment replaces that fallback with the row-byte
+parser and an admitted owned row diagnostic. Its complete SliceRead parity and
+handoff into public errors remain unqualified; see
+`json-owned-row-diagnostic-proposal-2026-11-09.md`.
+
 Probes cover exact cancellation and resource error variants, malformed raw
 rows whose old decoder also errors, old decoder success when plain parsing
 fails, and owner cleanup. All tests are authored but unexecuted.

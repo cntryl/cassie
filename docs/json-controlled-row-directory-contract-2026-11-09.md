@@ -55,7 +55,7 @@ The isolated prototype also hands the borrowed TYPE_JSON bytes to the
 test-only inline plain cell before the row is released. UTF-8 validation and
 copying occur in checked chunks; JSON preserves raw text and JSONB formats via
 the plain arena. A later test-only error handoff retains directory/control
-errors and uses legacy diagnostics only if legacy decoding also fails; its
-legacy scratch and remaining plain-error diagnostics are unqualified. The
+errors and emits an admitted row diagnostic without the legacy Value reparse;
+its full parser parity and public diagnostic transfer are unqualified. The
 plain parser's existing nesting limit and row-source lifetime integration
 remain pending. It is not a production decoder or a storage migration.

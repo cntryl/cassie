@@ -7,8 +7,7 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::DataType;
 
 use super::super::{
-    decode_directory_value, expected_type_tag, field_bit, Cursor, RowFieldMeta, FORMAT_VERSION,
-    MAGIC, TYPE_JSON,
+    expected_type_tag, field_bit, Cursor, RowFieldMeta, FORMAT_VERSION, MAGIC, TYPE_JSON,
 };
 
 #[derive(Clone, Copy)]
@@ -60,8 +59,6 @@ pub(super) struct Directory<'a> {
 #[derive(Debug)]
 pub(super) enum HandoffError {
     Directory(CassieError),
-    Legacy(CassieError),
-    Plain(crate::runtime::accounted::json_arena::PlainCellError),
     Cell(crate::runtime::accounted::json_arena::PlainCellError),
 }
 
@@ -250,26 +247,7 @@ impl<'a> Directory<'a> {
         };
         PlainCell::parse_bytes_observing(bytes, identity, controls, copied)
             .map(Some)
-            .map_err(|error| match error {
-                error @ (crate::runtime::accounted::json_arena::PlainCellError::Utf8
-                | crate::runtime::accounted::json_arena::PlainCellError::Syntax) => {
-                    legacy_error_or_plain(bytes, error)
-                }
-                other => HandoffError::Cell(other),
-            })
-    }
-}
-
-pub(super) fn legacy_error_or_plain(
-    bytes: &[u8],
-    error: crate::runtime::accounted::json_arena::PlainCellError,
-) -> HandoffError {
-    match decode_directory_value(TYPE_JSON, bytes) {
-        Ok(value) => {
-            drop(value);
-            HandoffError::Plain(error)
-        }
-        Err(error) => HandoffError::Legacy(error),
+            .map_err(HandoffError::Cell)
     }
 }
 

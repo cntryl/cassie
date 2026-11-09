@@ -183,7 +183,7 @@ fn should_validate_utf8_in_a_borrowed_json_field_before_handoff() {
         .expect_err("legacy")
         .to_string();
     assert!(
-        matches!(result, Err(super::controlled_directory::HandoffError::Legacy(error)) if error.to_string() == expected)
+        matches!(result, Err(super::controlled_directory::HandoffError::Cell(crate::runtime::accounted::json_arena::PlainCellError::Syntax(error))) if format!("parse error: {}", error.as_str()) == expected)
     );
     drop(directory);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -210,25 +210,45 @@ fn should_preserve_legacy_syntax_before_later_invalid_utf8() {
     let result = directory.json_cell(&schema.fields[0], &controls);
     // Assert
     assert!(
-        matches!(result, Err(super::controlled_directory::HandoffError::Legacy(error)) if error.to_string() == expected)
+        matches!(result, Err(super::controlled_directory::HandoffError::Cell(crate::runtime::accounted::json_arena::PlainCellError::Syntax(error))) if format!("parse error: {}", error.as_str()) == expected)
     );
     drop(directory);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_never_replace_a_plain_error_with_a_legacy_success_value() {
+fn should_keep_plain_valid_sentinel_even_when_legacy_value_parse_fails() {
     // Arrange
-    let plain_error = crate::runtime::accounted::json_arena::PlainCellError::Syntax;
+    let controls = controls();
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "doc".into(),
+            data_type: DataType::Json,
+            nullable: true,
+        }],
+    });
+    let payload = br#"{"$serde_json::private::Number":"bad"}"#;
+    assert!(decode_directory_value(TYPE_JSON, payload).is_err());
+    let bytes = row(
+        &[(
+            1,
+            TYPE_JSON,
+            0,
+            u32::try_from(payload.len()).expect("length"),
+        )],
+        payload,
+    );
+    let directory = Directory::parse(&bytes, &controls).expect("directory");
     // Act
-    let result = super::controlled_directory::legacy_error_or_plain(b"1", plain_error);
+    let cell = directory
+        .json_cell(&schema.fields[0], &controls)
+        .expect("plain handoff")
+        .expect("cell");
     // Assert
-    assert!(matches!(
-        result,
-        super::controlled_directory::HandoffError::Plain(
-            crate::runtime::accounted::json_arena::PlainCellError::Syntax
-        )
-    ));
+    assert_eq!(cell.text().as_bytes(), payload);
+    drop(cell);
+    drop(directory);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]

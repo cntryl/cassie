@@ -3,7 +3,8 @@ use crate::app::CassieError;
 use crate::runtime::accounted::compact_json::{OwnedJsonText, Progress, Sink};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
-use super::{CursorError, Document, DocumentError, ObjectPolicy, SourceStack, WrappedCause};
+use super::diagnostic::{self, DiagnosticError, OwnedDiagnostic};
+use super::{CursorError, Document, DocumentError, WrappedCause};
 
 #[path = "document_cell_tests.rs"]
 mod tests;
@@ -16,7 +17,7 @@ pub(crate) enum Identity {
 
 #[derive(Debug)]
 pub(crate) enum CellError {
-    Syntax,
+    Syntax(OwnedDiagnostic),
     Utf8,
     Nul,
     Numeric,
@@ -53,21 +54,25 @@ impl Cell {
         controls: &QueryExecutionControls,
         mut copied: impl FnMut(),
     ) -> Result<Self, CellError> {
-        let sources = SourceStack::from_bytes(source, controls).map_err(|error| match error {
-            CursorError::InvalidUtf8 => CellError::Utf8,
-            CursorError::Interrupted(error) => CellError::Control(error),
-            _ => CellError::Syntax,
-        })?;
-        let parsed =
-            Document::parse_sources_with_policy(sources, controls, ObjectPolicy::Plain, |_| {})
-                .map_err(|error| match error {
-                    DocumentError::Control(error)
-                    | DocumentError::Token(CursorError::Interrupted(error))
-                    | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(
-                        error,
-                    ))) => CellError::Control(error),
-                    _ => CellError::Syntax,
-                })?;
+        let parsed = match Document::parse_plain_row(source, controls) {
+            Ok(parsed) => parsed,
+            Err(
+                DocumentError::Control(error)
+                | DocumentError::Token(CursorError::Interrupted(error))
+                | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(error))),
+            ) => {
+                return Err(CellError::Control(error));
+            }
+            Err(error) => {
+                return Err(match diagnostic::render_row(&error, controls) {
+                    Ok(diagnostic) => CellError::Syntax(diagnostic),
+                    Err(DiagnosticError::Control(error)) => CellError::Control(error),
+                    Err(DiagnosticError::NotSemantic) => CellError::Control(
+                        CassieError::Execution("unexpected row JSON diagnostic".into()),
+                    ),
+                });
+            }
+        };
         let output = match identity {
             Identity::Json => {
                 let mut sink = Sink::for_arena(controls).map_err(CellError::Control)?;

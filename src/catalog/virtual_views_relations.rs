@@ -5,58 +5,68 @@ use crate::catalog::{
 };
 use crate::types::{DataType, Value};
 
-pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    Some(match name {
-        "pg_catalog.pg_tables" => vec![
-            name_type("schemaname"),
-            name_type("tablename"),
-            name_type("tableowner"),
-            name_type("tablespace"),
-            boolean("hasindexes"),
-            boolean("hasrules"),
-            boolean("hastriggers"),
-            boolean("rowsecurity"),
-        ],
-        "pg_catalog.pg_views" => vec![
-            name_type("schemaname"),
-            name_type("viewname"),
-            name_type("viewowner"),
-            text("definition"),
-        ],
-        "pg_catalog.pg_matviews" => vec![
-            text("schemaname"),
-            text("matviewname"),
-            text("matviewowner"),
-            text("tablespace"),
-            boolean("hasindexes"),
-            boolean("ispopulated"),
-            text("definition"),
-        ],
-        "pg_catalog.pg_sequences" => vec![
-            text("schemaname"),
-            text("sequencename"),
-            text("sequenceowner"),
-            text("data_type"),
-            bigint("start_value"),
-            bigint("min_value"),
-            bigint("max_value"),
-            bigint("increment_by"),
-            boolean("cycle"),
-            bigint("cache_size"),
-            bigint("last_value"),
-        ],
-        "pg_catalog.pg_sequence" => vec![
-            oid("seqrelid", crate::types::ObjectIdKind::Oid),
-            oid("seqtypid", crate::types::ObjectIdKind::Oid),
-            bigint("seqstart"),
-            bigint("seqincrement"),
-            bigint("seqmax"),
-            bigint("seqmin"),
-            bigint("seqcache"),
-            boolean("seqcycle"),
-        ],
-        _ => return None,
-    })
+pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
+    match name {
+        "pg_catalog.pg_tables" => Some(|| {
+            vec![
+                name_type("schemaname"),
+                name_type("tablename"),
+                name_type("tableowner"),
+                name_type("tablespace"),
+                boolean("hasindexes"),
+                boolean("hasrules"),
+                boolean("hastriggers"),
+                boolean("rowsecurity"),
+            ]
+        }),
+        "pg_catalog.pg_views" => Some(|| {
+            vec![
+                name_type("schemaname"),
+                name_type("viewname"),
+                name_type("viewowner"),
+                text("definition"),
+            ]
+        }),
+        "pg_catalog.pg_matviews" => Some(|| {
+            vec![
+                text("schemaname"),
+                text("matviewname"),
+                text("matviewowner"),
+                text("tablespace"),
+                boolean("hasindexes"),
+                boolean("ispopulated"),
+                text("definition"),
+            ]
+        }),
+        "pg_catalog.pg_sequences" => Some(|| {
+            vec![
+                text("schemaname"),
+                text("sequencename"),
+                text("sequenceowner"),
+                text("data_type"),
+                bigint("start_value"),
+                bigint("min_value"),
+                bigint("max_value"),
+                bigint("increment_by"),
+                boolean("cycle"),
+                bigint("cache_size"),
+                bigint("last_value"),
+            ]
+        }),
+        "pg_catalog.pg_sequence" => Some(|| {
+            vec![
+                oid("seqrelid", crate::types::ObjectIdKind::Oid),
+                oid("seqtypid", crate::types::ObjectIdKind::Oid),
+                bigint("seqstart"),
+                bigint("seqincrement"),
+                bigint("seqmax"),
+                bigint("seqmin"),
+                bigint("seqcache"),
+                boolean("seqcycle"),
+            ]
+        }),
+        _ => None,
+    }
 }
 
 pub(super) fn rows(

@@ -52,6 +52,8 @@ mod virtual_views_projections;
 mod virtual_views_relations;
 #[path = "virtual_views_repair.rs"]
 mod virtual_views_repair;
+#[path = "virtual_views_schema.rs"]
+mod virtual_views_schema;
 #[path = "virtual_views_sequences.rs"]
 mod virtual_views_sequences;
 #[path = "virtual_views_session_objects.rs"]
@@ -63,10 +65,18 @@ mod virtual_views_storage;
 #[path = "virtual_views_timezones.rs"]
 mod virtual_views_timezones;
 
+#[cfg(test)]
+#[path = "virtual_views_schema_tests.rs"]
+mod schema_tests;
+
 #[must_use]
 pub fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    let name = normalize_name(name);
-    information_schema_schema(name.as_str()).or_else(|| pg_catalog_schema(name.as_str()))
+    virtual_views_schema::lookup(&normalize_name(name)).map(virtual_views_schema::Descriptor::build)
+}
+
+#[must_use]
+pub(crate) fn schema_exists(name: &str) -> bool {
+    virtual_views_schema::lookup(&normalize_name(name)).is_some()
 }
 
 #[must_use]
@@ -91,129 +101,6 @@ pub fn rows(
     let current_database = session.and_then(CassieSession::current_database);
     information_schema_rows_for(catalog, name.as_str(), current_database)
         .or_else(|| pg_catalog_rows_for(catalog, name.as_str(), current_database))
-}
-
-fn information_schema_schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    match name {
-        "information_schema.tables" => Some(
-            INFORMATION_SCHEMA_TABLES
-                .iter()
-                .map(|(field, data_type)| ((*field).to_owned(), data_type.clone()))
-                .collect(),
-        ),
-        "information_schema.columns" => Some(vec![
-            text("table_schema"),
-            text("table_name"),
-            text("column_name"),
-            text("data_type"),
-            int("ordinal_position"),
-            text("is_nullable"),
-            text("column_default"),
-            text("udt_catalog"),
-            text("udt_schema"),
-            text("udt_name"),
-            int("character_maximum_length"),
-            int("numeric_precision"),
-            int("numeric_scale"),
-            int("datetime_precision"),
-            text("is_identity"),
-            text("identity_generation"),
-            text("is_generated"),
-        ]),
-        "information_schema.views" => Some(vec![
-            text("table_schema"),
-            text("table_name"),
-            text("view_definition"),
-        ]),
-        "information_schema.schemata" => Some(vec![text("catalog_name"), text("schema_name")]),
-        "information_schema.sequences" => {
-            Some(virtual_views_sequences::information_schema_sequences_schema())
-        }
-        "information_schema.table_constraints" => {
-            Some(virtual_views_constraints::table_constraints_schema())
-        }
-        "information_schema.key_column_usage" => {
-            Some(virtual_views_constraints::key_column_usage_schema())
-        }
-        "information_schema.referential_constraints" => {
-            Some(virtual_views_constraints::referential_constraints_schema())
-        }
-        _ => None,
-    }
-}
-
-fn pg_catalog_schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    pg_catalog_core_schema(name)
-        .or_else(|| virtual_views_empty::schema(name))
-        .or_else(|| virtual_views_relations::schema(name))
-        .or_else(|| virtual_views_projections::schema(name))
-        .or_else(|| pg_catalog_runtime_schema(name))
-        .or_else(|| virtual_views_timezones::schema(name))
-        .or_else(|| virtual_views_session_objects::schema(name))
-}
-
-fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    match name {
-        "pg_catalog.pg_database" => Some(vec![
-            int("oid"),
-            text("datname"),
-            int("datdba"),
-            text("encoding"),
-            text("datcollate"),
-            text("datctype"),
-        ]),
-        "pg_catalog.pg_namespace" => Some(virtual_views_pg::namespace_schema()),
-        "pg_catalog.pg_class" => Some(virtual_views_pg::class_schema()),
-        "pg_catalog.pg_am" => Some(virtual_views_pg::access_method_schema()),
-        "pg_catalog.pg_collation" => Some(virtual_views_pg::collation_schema()),
-        "pg_catalog.pg_attribute" => Some(virtual_views_pg::attribute_schema()),
-        "pg_catalog.pg_indexes" => Some(virtual_views_pg::indexes_schema()),
-        "pg_catalog.pg_index" => Some(virtual_views_pg::index_schema()),
-        "pg_catalog.pg_attrdef" => Some(virtual_views_pg::attrdef_schema()),
-        "pg_catalog.pg_table_storage" => Some(virtual_views_storage::schema()),
-        "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint_schema()),
-        "pg_catalog.pg_depend" => Some(virtual_views_dependencies::schema()),
-        "pg_catalog.pg_shdepend" => Some(virtual_views_shared_dependencies::schema()),
-        "pg_catalog.pg_roles" => Some(vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")]),
-        "pg_catalog.pg_settings" => Some(vec![
-            text("name"),
-            text("setting"),
-            text("unit"),
-            text("category"),
-            text("short_desc"),
-            text("extra_desc"),
-            text("context"),
-            text("vartype"),
-            text("source"),
-            text("min_val"),
-            text("max_val"),
-            text("enumvals"),
-            text("boot_val"),
-            text("reset_val"),
-            text("sourcefile"),
-            int("sourceline"),
-            bool("pending_restart"),
-        ]),
-        "pg_catalog.pg_rollups" => Some(vec![
-            text("rollup_name"),
-            text("source_collection"),
-            text("output_collection"),
-            text("state"),
-            int("lag_rows"),
-            text("bucket_expr"),
-        ]),
-        "pg_catalog.pg_maintenance_debt" => Some(vec![
-            text("collection"),
-            text("artifact"),
-            int("target_generation"),
-            int("retry_count"),
-            text("last_error"),
-            text("fallback_reason"),
-        ]),
-        "pg_catalog.pg_type" => Some(virtual_views_pg::type_schema()),
-        "pg_catalog.pg_proc" => Some(virtual_views_procedures::schema()),
-        _ => None,
-    }
 }
 
 fn pg_settings_rows(session: Option<&CassieSession>) -> Vec<VirtualRow> {
@@ -256,35 +143,6 @@ fn pg_settings_rows(session: Option<&CassieSession>) -> Vec<VirtualRow> {
             ]
         })
         .collect()
-}
-
-fn pg_catalog_runtime_schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    match name {
-        "pg_catalog.pg_operational_assignments" => Some(vec![
-            text("assignment_id"),
-            text("node_id"),
-            text("projection_id"),
-            text("tenant"),
-            text("partition_key"),
-            int("generation"),
-            text("state"),
-            text("routing_hint"),
-            int("updated_ms"),
-        ]),
-        "pg_catalog.pg_retention_policies" => Some(vec![
-            text("policy_name"),
-            text("collection"),
-            text("timestamp_field"),
-            text("retention_duration"),
-            text("enforcement_mode"),
-            text("state"),
-            int("last_enforced_ms"),
-            int("last_deleted_rows"),
-            int("last_skipped_rows"),
-            text("last_error"),
-        ]),
-        _ => None,
-    }
 }
 
 fn information_schema_rows_for(

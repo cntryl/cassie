@@ -422,3 +422,14 @@ It preserves compact Value spelling and adds checked output scans/growth; it
 does not qualify the parser estimate, BTree comparisons, whole-string parser
 validation or recursive input Value drop. Output handoff probes are authored and
 unexecuted. Receipt: `target/assembly-review/json-compact-writer-{request,response}.json`.
+
+Jev selected authoritative lazy virtual-schema descriptors (1.00) to support
+controlled relation resolution without allocating entire virtual column vectors
+for existence checks. Keep every existing name match and branch order as the
+single source of truth; represent the static-field catalog explicitly, and keep
+`schema()` output and Unicode-trim/ASCII-case behavior unchanged. Dispatcher
+parity (0.65) and unrelated callers (0.59) require source and differential
+probes. This descriptor step alone does not qualify controlled identifier
+parsing, name normalization, diagnostics or relation lookup; those remain
+pending. Probes are unexecuted. Receipt:
+`target/assembly-review/copy-virtual-schema-{request,response}.json`.

@@ -311,7 +311,7 @@ pub fn resolve_relation_path(
     } else {
         resolve_unscoped_relation_name(parsed, catalog, context, allow_raw_unqualified_fallback)?
     };
-    if crate::catalog::virtual_views::schema(&resolved).is_some() {
+    if crate::catalog::virtual_views::schema_exists(&resolved) {
         return Ok(resolved);
     }
     // Resolution matches names without regard to case; hand back the stored
@@ -343,7 +343,7 @@ fn resolve_unscoped_relation_name(
                     canonical_relation_name(&context.database, schema, &name)
                 };
                 if catalog.relation_exists(&scoped_candidate)
-                    || crate::catalog::virtual_views::schema(&scoped_candidate).is_some()
+                    || crate::catalog::virtual_views::schema_exists(&scoped_candidate)
                 {
                     return Ok(scoped_candidate);
                 }
@@ -353,7 +353,7 @@ fn resolve_unscoped_relation_name(
             }
             for system_schema in ["pg_catalog", "information_schema"] {
                 let candidate = format!("{system_schema}.{name}");
-                if crate::catalog::virtual_views::schema(&candidate).is_some() {
+                if crate::catalog::virtual_views::schema_exists(&candidate) {
                     return Ok(candidate);
                 }
             }
@@ -369,13 +369,13 @@ fn resolve_unscoped_relation_name(
                 canonical_relation_name(&context.database, &schema, &name)
             };
             if catalog.relation_exists(&candidate)
-                || crate::catalog::virtual_views::schema(&candidate).is_some()
+                || crate::catalog::virtual_views::schema_exists(&candidate)
             {
                 return Ok(candidate);
             }
             let unscoped_candidate = format!("{schema}.{name}");
             if catalog.relation_exists(&unscoped_candidate)
-                || crate::catalog::virtual_views::schema(&unscoped_candidate).is_some()
+                || crate::catalog::virtual_views::schema_exists(&unscoped_candidate)
             {
                 return Ok(unscoped_candidate);
             }
@@ -396,7 +396,7 @@ fn resolve_unscoped_relation_name(
             }
             let candidate = canonical_relation_name(&database, &schema, &name);
             if catalog.relation_exists(&candidate)
-                || crate::catalog::virtual_views::schema(&candidate).is_some()
+                || crate::catalog::virtual_views::schema_exists(&candidate)
             {
                 return Ok(candidate);
             }
@@ -422,7 +422,7 @@ fn resolve_scoped_relation_name(
                     canonical_relation_name(&context.database, schema, &name)
                 };
                 if catalog.relation_exists(&candidate)
-                    || crate::catalog::virtual_views::schema(&candidate).is_some()
+                    || crate::catalog::virtual_views::schema_exists(&candidate)
                 {
                     return Ok(candidate);
                 }
@@ -430,7 +430,7 @@ fn resolve_scoped_relation_name(
 
             for system_schema in ["pg_catalog", "information_schema"] {
                 let candidate = format!("{system_schema}.{name}");
-                if crate::catalog::virtual_views::schema(&candidate).is_some() {
+                if crate::catalog::virtual_views::schema_exists(&candidate) {
                     return Ok(candidate);
                 }
             }
@@ -447,7 +447,7 @@ fn resolve_scoped_relation_name(
                 canonical_relation_name(&context.database, &schema, &name)
             };
             if catalog.relation_exists(&candidate)
-                || crate::catalog::virtual_views::schema(&candidate).is_some()
+                || crate::catalog::virtual_views::schema_exists(&candidate)
             {
                 return Ok(candidate);
             }

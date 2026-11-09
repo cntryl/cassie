@@ -5,18 +5,24 @@ use crate::types::extended::temporal::{session::current_timestamp, zone, Interva
 use crate::types::typed::TypedValue;
 use crate::types::{DataType, Value};
 
-pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    (name == "pg_catalog.pg_timezone_names").then(|| {
-        vec![
-            ("name".to_string(), DataType::Text),
-            ("abbrev".to_string(), DataType::Text),
-            (
-                "utc_offset".to_string(),
-                DataType::Extended(crate::types::extended::ExtendedType::Interval { typmod: -1 }),
-            ),
-            ("is_dst".to_string(), DataType::Boolean),
-        ]
-    })
+pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
+    if name == "pg_catalog.pg_timezone_names" {
+        Some(|| {
+            vec![
+                ("name".to_string(), DataType::Text),
+                ("abbrev".to_string(), DataType::Text),
+                (
+                    "utc_offset".to_string(),
+                    DataType::Extended(crate::types::extended::ExtendedType::Interval {
+                        typmod: -1,
+                    }),
+                ),
+                ("is_dst".to_string(), DataType::Boolean),
+            ]
+        })
+    } else {
+        None
+    }
 }
 
 pub(super) fn rows(name: &str) -> Option<Vec<VirtualRow>> {

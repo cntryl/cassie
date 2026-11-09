@@ -7,95 +7,111 @@ use super::{
 use crate::catalog::Catalog;
 use crate::types::DataType;
 
-pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
+pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
     match name {
-        "pg_catalog.pg_projection_checkpoints" => Some(vec![
-            text("projection_id"),
-            text("collection"),
-            text("kind"),
-            text("source_identity"),
-            text("source_checkpoint"),
-            int("source_position"),
-            text("last_applied_event_id"),
-            text("replay_batch_id"),
-            int("lag"),
-            text("freshness"),
-            text("last_error"),
-        ]),
-        "pg_catalog.pg_materialized_projections" => Some(vec![
-            text("projection_name"),
-            text("state"),
-            text("active_version"),
-            text("output_collection"),
-            text("source_collections"),
-            int("schema_epoch"),
-            text("last_error"),
-        ]),
-        "pg_catalog.pg_projection_versions" => Some(vec![
-            text("projection_name"),
-            text("version_id"),
-            text("output_collection"),
-            text("state"),
-            int("created_ms"),
-            int("activated_ms"),
-            int("retired_ms"),
-            text("last_error"),
-        ]),
-        "pg_catalog.pg_projection_operations" => Some(vec![
-            text("projection_name"),
-            text("kind"),
-            text("active_version"),
-            int("lag"),
-            text("freshness"),
-            text("rebuild_state"),
-            text("verification_state"),
-            text("root_state"),
-            text("last_error"),
-        ]),
-        "pg_catalog.pg_projection_hashes" => Some(vec![
-            text("projection_name"),
-            text("algorithm"),
-            int("digest_length"),
-            int("canonical_encoder_version"),
-            int("hash_version"),
-            text("row_state"),
-            int("row_count"),
-            text("range_state"),
-            int("range_count"),
-            text("root_state"),
-            text("root_digest"),
-        ]),
-        "pg_catalog.pg_projection_integrity_reports" => Some(vec![
-            text("projection_name"),
-            text("state"),
-            text("target"),
-            text("version_id"),
-            text("mode"),
-            int("mismatch_count"),
-            int("missing_count"),
-            int("stale_count"),
-            bool("repairable"),
-            int("elapsed_ms"),
-            text("checked_components"),
-            text("skipped_components"),
-            text("last_error"),
-        ]),
-        "pg_catalog.pg_projection_comparison_reports" => Some(vec![
-            text("report_id"),
-            text("target"),
-            text("target_version_id"),
-            text("state"),
-            text("compatibility_status"),
-            text("root_digest"),
-            text("manifest_digest"),
-            int("mismatch_count"),
-            int("unverifiable_count"),
-            text("diagnostic_sample"),
-            int("created_ms"),
-            text("last_error"),
-        ]),
-        "pg_catalog.pg_projection_consistency_reports" => Some(virtual_views_consistency::schema()),
-        "pg_catalog.pg_projection_repair_reports" => Some(virtual_views_repair::schema()),
+        "pg_catalog.pg_projection_checkpoints" => Some(|| {
+            vec![
+                text("projection_id"),
+                text("collection"),
+                text("kind"),
+                text("source_identity"),
+                text("source_checkpoint"),
+                int("source_position"),
+                text("last_applied_event_id"),
+                text("replay_batch_id"),
+                int("lag"),
+                text("freshness"),
+                text("last_error"),
+            ]
+        }),
+        "pg_catalog.pg_materialized_projections" => Some(|| {
+            vec![
+                text("projection_name"),
+                text("state"),
+                text("active_version"),
+                text("output_collection"),
+                text("source_collections"),
+                int("schema_epoch"),
+                text("last_error"),
+            ]
+        }),
+        "pg_catalog.pg_projection_versions" => Some(|| {
+            vec![
+                text("projection_name"),
+                text("version_id"),
+                text("output_collection"),
+                text("state"),
+                int("created_ms"),
+                int("activated_ms"),
+                int("retired_ms"),
+                text("last_error"),
+            ]
+        }),
+        "pg_catalog.pg_projection_operations" => Some(|| {
+            vec![
+                text("projection_name"),
+                text("kind"),
+                text("active_version"),
+                int("lag"),
+                text("freshness"),
+                text("rebuild_state"),
+                text("verification_state"),
+                text("root_state"),
+                text("last_error"),
+            ]
+        }),
+        "pg_catalog.pg_projection_hashes" => Some(|| {
+            vec![
+                text("projection_name"),
+                text("algorithm"),
+                int("digest_length"),
+                int("canonical_encoder_version"),
+                int("hash_version"),
+                text("row_state"),
+                int("row_count"),
+                text("range_state"),
+                int("range_count"),
+                text("root_state"),
+                text("root_digest"),
+            ]
+        }),
+        "pg_catalog.pg_projection_integrity_reports" => Some(|| {
+            vec![
+                text("projection_name"),
+                text("state"),
+                text("target"),
+                text("version_id"),
+                text("mode"),
+                int("mismatch_count"),
+                int("missing_count"),
+                int("stale_count"),
+                bool("repairable"),
+                int("elapsed_ms"),
+                text("checked_components"),
+                text("skipped_components"),
+                text("last_error"),
+            ]
+        }),
+        "pg_catalog.pg_projection_comparison_reports" => Some(|| {
+            vec![
+                text("report_id"),
+                text("target"),
+                text("target_version_id"),
+                text("state"),
+                text("compatibility_status"),
+                text("root_digest"),
+                text("manifest_digest"),
+                int("mismatch_count"),
+                int("unverifiable_count"),
+                text("diagnostic_sample"),
+                int("created_ms"),
+                text("last_error"),
+            ]
+        }),
+        "pg_catalog.pg_projection_consistency_reports" => {
+            Some(|| virtual_views_consistency::schema())
+        }
+        "pg_catalog.pg_projection_repair_reports" => Some(|| virtual_views_repair::schema()),
         _ => None,
     }
 }

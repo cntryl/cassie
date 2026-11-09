@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::app::CassieError;
 use crate::runtime::{accounted::Accounted, QueryExecutionControls, QueryMemoryReservation};
 
-use super::directory::{Directory, Progress as DirectoryProgress};
+use super::directory::Directory;
 
 #[cfg(test)]
 #[path = "slots_tests.rs"]

@@ -5,7 +5,7 @@ use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 use super::cursor::string::DecodedText;
-use super::directory::{Directory, Progress as DirectoryProgress};
+use super::directory::Directory;
 
 #[cfg(test)]
 #[path = "object_tests.rs"]

@@ -3,7 +3,7 @@ use crate::app::CassieError;
 use crate::runtime::QueryExecutionControls;
 
 use super::cursor::{string::DecodedText, Cursor, CursorError, Position};
-use super::directory::{Directory, Progress as DirectoryProgress};
+use super::directory::Directory;
 
 #[cfg(test)]
 #[path = "sources_tests.rs"]

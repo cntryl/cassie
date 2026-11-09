@@ -544,10 +544,14 @@ pub(super) fn receive_binary(kind: ExtendedType, bytes: &[u8]) -> Result<TypedVa
         }
         ExtendedType::Time { .. } => TypedValue::Time(i64_frame(bytes, "time")?),
         ExtendedType::TimeTz { .. } => TypedValue::TimeTz(temporal::receive_timetz(bytes)?),
-        ExtendedType::Timestamp { .. } => TypedValue::Timestamp(i64_frame(bytes, "timestamp")?),
-        ExtendedType::TimestampTz { .. } => {
-            TypedValue::TimestampTz(i64_frame(bytes, "timestamptz")?)
-        }
+        ExtendedType::Timestamp { .. } => TypedValue::Timestamp(
+            temporal::binary_timestamp::receive(bytes)
+                .map_err(|error| error.public_message("timestamp"))?,
+        ),
+        ExtendedType::TimestampTz { .. } => TypedValue::TimestampTz(
+            temporal::binary_timestamp::receive(bytes)
+                .map_err(|error| error.public_message("timestamptz"))?,
+        ),
         ExtendedType::Interval { .. } => TypedValue::Interval(temporal::receive_interval(bytes)?),
         _ => return Err(format!("invalid binary {} frame", kind.name())),
     })
@@ -593,5 +597,34 @@ mod tests {
             ]
         );
         assert_eq!(parse_type_name("timestamp"), None);
+    }
+
+    #[test]
+    fn should_validate_public_binary_timestamp_receive_bounds() {
+        // Arrange
+        use crate::types::extended::temporal::calendar::{END_TIMESTAMP, MIN_TIMESTAMP};
+        let kinds = [
+            ExtendedType::Timestamp { precision: None },
+            ExtendedType::TimestampTz { precision: None },
+        ];
+        let valid = [i64::MIN, MIN_TIMESTAMP, END_TIMESTAMP - 1, i64::MAX];
+        let invalid = [i64::MIN + 1, MIN_TIMESTAMP - 1, END_TIMESTAMP, i64::MAX - 1];
+
+        // Act / Assert
+        for kind in kinds {
+            for value in valid {
+                assert!(
+                    kind.receive_binary(&value.to_be_bytes()).is_ok(),
+                    "{kind:?} {value}"
+                );
+            }
+            for value in invalid {
+                assert_eq!(
+                    kind.receive_binary(&value.to_be_bytes())
+                        .expect_err("out of range"),
+                    "timestamp out of range"
+                );
+            }
+        }
     }
 }

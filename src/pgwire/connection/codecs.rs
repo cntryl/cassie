@@ -1,3 +1,6 @@
+#[path = "codecs/timestamp_error.rs"]
+mod timestamp_error;
+
 #[path = "codecs/timetz_error.rs"]
 mod timetz_error;
 
@@ -340,6 +343,9 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
             .map(u32::from_be_bytes)
             .map(i64::from)
             .map(Value::Int64),
+        BinaryCodecKind::Extended(crate::types::extended::ExtendedType::TimestampTz { .. }) => {
+            timestamp_error::decode(parameter, true)
+        }
         BinaryCodecKind::Extended(crate::types::extended::ExtendedType::TimeTz { .. }) => {
             crate::types::extended::temporal::receive_timetz_checked(parameter)
                 .map(crate::types::typed::TypedValue::TimeTz)
@@ -397,7 +403,7 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
             .map_err(|_| invalid_data(codec.name)),
         BinaryCodecKind::Date => decode_native(parameter, codec, "date"),
         BinaryCodecKind::Time => decode_native(parameter, codec, "time"),
-        BinaryCodecKind::Timestamp => decode_native(parameter, codec, "timestamp"),
+        BinaryCodecKind::Timestamp => timestamp_error::decode(parameter, false),
     }?;
     if parameter.len() != original_parameter.len() {
         return Err(io::Error::new(
@@ -408,18 +414,17 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
     Ok(value)
 }
 
-/// The native carrier of the existing `date`/`time`/`timestamp` codecs.
+/// The native carrier of the existing `date` and `time` codecs.
 const fn native_temporal(kind: BinaryCodecKind) -> Option<crate::types::extended::ExtendedType> {
     use crate::types::extended::ExtendedType;
     match kind {
         BinaryCodecKind::Date => Some(ExtendedType::Date),
         BinaryCodecKind::Time => Some(ExtendedType::Time { precision: None }),
-        BinaryCodecKind::Timestamp => Some(ExtendedType::Timestamp { precision: None }),
         _ => None,
     }
 }
 
-/// `date_recv`/`time_recv`/`timestamp_recv`, range-checked like PostgreSQL.
+/// `date_recv`/`time_recv`, range-checked like PostgreSQL.
 fn decode_native(
     parameter: &[u8],
     codec: &BinaryCodec,
@@ -436,10 +441,6 @@ fn decode_native(
                 || crate::types::extended::temporal::calendar::is_valid_date(i64::from(*date))
         }
         TypedValue::Time(time) => (0..=86_400_000_000).contains(time),
-        TypedValue::Timestamp(value) => {
-            matches!(*value, i64::MIN | i64::MAX)
-                || crate::types::extended::temporal::calendar::is_valid_timestamp(*value)
-        }
         _ => true,
     };
     if !valid {
@@ -592,8 +593,9 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
             .get(cursor..end)
             .ok_or_else(|| invalid_data("array"))?;
         cursor = end;
-        let value = binary_to_value(bytes, element_oid)
-            .map_err(|error| timetz_error::array_error(error, index))?;
+        let value = binary_to_value(bytes, element_oid).map_err(|error| {
+            timestamp_error::array_error(timetz_error::array_error(error, index), index)
+        })?;
         if matches!(value, Value::Json(ref document) if document.is_null()) {
             document_null_element = true;
         }
@@ -963,7 +965,8 @@ fn temporal_out_of_range(type_name: &'static str) -> io::Error {
 
 pub(super) fn binary_error_sqlstate(error: &io::Error) -> Option<&'static str> {
     let error = error.get_ref()?;
-    if let Some(state) = timetz_error::sqlstate(error) {
+    if let Some(state) = timetz_error::sqlstate(error).or_else(|| timestamp_error::sqlstate(error))
+    {
         Some(state)
     } else if let Some(error) = error.downcast_ref::<crate::types::extended::TypeInputError>() {
         Some(error.sqlstate)
@@ -980,4 +983,10 @@ pub(super) fn timetz_copy_error(
     error: &io::Error,
 ) -> Option<crate::types::extended::TypeInputError> {
     timetz_error::copy_error(error)
+}
+
+pub(super) fn timestamp_copy_error(
+    error: &io::Error,
+) -> Option<crate::types::extended::TypeInputError> {
+    timestamp_error::copy_error(error)
 }

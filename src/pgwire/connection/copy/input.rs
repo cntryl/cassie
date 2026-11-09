@@ -47,6 +47,10 @@ mod tests;
 mod binary_json_owner_tests;
 
 #[cfg(test)]
+#[path = "input/binary_timestamp_bounds_tests.rs"]
+mod binary_timestamp_bounds_tests;
+
+#[cfg(test)]
 #[path = "input/binary_timetz_bounds_tests.rs"]
 mod binary_timetz_bounds_tests;
 
@@ -469,7 +473,9 @@ pub(super) fn parse_binary_payload(
             }
             let value =
                 super::super::codecs::binary_to_value(bytes, type_oid).map_err(|error| {
-                    if let Some(input) = super::super::codecs::timetz_copy_error(&error) {
+                    if let Some(input) = super::super::codecs::timetz_copy_error(&error)
+                        .or_else(|| super::super::codecs::timestamp_copy_error(&error))
+                    {
                         return CassieError::TypeInput(input);
                     }
                     CassieError::Parse(format!(

@@ -134,6 +134,25 @@ pub(super) struct EvalContext<'a> {
 #[path = "filter/json_delete_evaluation_tests.rs"]
 mod json_delete_evaluation_tests;
 
+#[cfg(test)]
+#[path = "filter/json_function_result_owner_tests.rs"]
+mod json_function_result_owner_tests;
+
+#[cfg(test)]
+thread_local! {
+    static JSON_FUNCTION_CALL_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_json_function_call_count() {
+    JSON_FUNCTION_CALL_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn take_json_function_call_count() -> usize {
+    JSON_FUNCTION_CALL_COUNT.with(|count| count.replace(0))
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
     Null,
@@ -804,6 +823,8 @@ fn evaluate_function_scalar<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    #[cfg(test)]
+    JSON_FUNCTION_CALL_COUNT.with(|count| count.set(count.get().saturating_add(1)));
     let value = evaluate_function(function, row, context)?;
     let json_return = context
         .user_functions
@@ -817,12 +838,16 @@ fn evaluate_function_scalar<R: RowAccess + ?Sized>(
             )
         });
     if json_return && !matches!(value, Value::Null) {
-        return match value {
-            Value::String(document) => Ok(ScalarValue::Json(document)),
-            value => json_concat::as_json_document(&scalar_from_value(&value)),
-        };
+        return function_json_result(value, context);
     }
     Ok(scalar_from_value(&value))
+}
+
+fn function_json_result(value: Value, context: EvalContext<'_>) -> Result<ScalarValue, QueryError> {
+    match value {
+        Value::String(document) => Ok(ScalarValue::Json(document)),
+        value => json_concat::into_json_document(json_scalar_leaf::from_value(&value, context)?),
+    }
 }
 
 fn eval_is_null_expr<R: RowAccess + ?Sized>(

@@ -55,6 +55,21 @@ clones, other consumers, source construction, allocator transient excess,
 diagnostics, teardown and private-sentinel storage remain open. All probes
 remain unexecuted pending the consolidated gate.
 
+For a JSON-returning function used as a scalar, retain the existing direct
+move of a raw `Value::String`; for other returned Values use the same scoped
+controlled scalar serializer and then move its JSON carrier. The function is
+still called once, NULL remains NULL, and general-owner/ownerless contexts
+retain the established fallback. The original function-result Value remains
+alive through serialization, but its construction and lease, and the owner
+of direct raw String returns, are separate unqualified boundaries. Jev selected
+this scope (0.99), with metadata/variant/fallback (0.82), overlapping owners and
+failure cleanup (0.76), and call/order/NULL/cancellation (0.41) leads. Receipt:
+`target/assembly-review/json-function-result-owner-contract-{request,response}.json`.
+Authored builtin/user-function, exactly-once, variant/error, actual-copy and
+budget/owner probes are unexecuted. Earlier resource/cancellation errors,
+allocator transients, diagnostics, teardown and sentinel/storage migration
+remain explicit.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

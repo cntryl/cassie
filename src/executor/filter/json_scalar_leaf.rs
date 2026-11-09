@@ -16,7 +16,7 @@ thread_local! {
 }
 
 #[cfg(test)]
-fn cancel_copy_once(handle: crate::runtime::QueryCancellationHandle, number: usize) {
+pub(super) fn cancel_copy_once(handle: crate::runtime::QueryCancellationHandle, number: usize) {
     CANCEL_COPY.with(|slot| *slot.borrow_mut() = Some((handle, number)));
 }
 

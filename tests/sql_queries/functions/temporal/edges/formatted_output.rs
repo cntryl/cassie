@@ -5,6 +5,59 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_reject_postgresql_interval_only_invalid_format_fields() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-invalid-interval-format", &[]);
+    let invalid = [
+        "TZ", "tz", "TZH", "tzh", "TZM", "tzm", "OF", "of", "AD", "ad", "BC", "bc", "A.D.", "a.d.",
+        "B.C.", "b.c.", "MONTH", "Month", "month", "MON", "Mon", "mon", "DAY", "Day", "day", "DY",
+        "Dy", "dy", "D", "d", "ID", "id", "dAy", "DD TZ", "FMDay", "TMTZ", "tZhd", "\\DAY",
+    ];
+
+    for template in invalid {
+        // Act
+        let result = fixture.execute(&format!("SELECT to_char(INTERVAL '1 day', '{template}')"));
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::Diagnostic(error))
+                if error.sql_state == "22007"
+                    && error.message == "invalid format specification for an interval value"
+                    && error.hint.as_deref() == Some("Intervals are not tied to specific calendar dates.")),
+            "PostgreSQL 18.6 invalid interval field: {template}"
+        );
+    }
+
+    // Act
+    let literal = fixture.execute("SELECT to_char(INTERVAL '1 day', '\"DAY\"'), to_char(INTERVAL '1 day', 'DD \"DAY\" HH24'), to_char(INTERVAL 'infinity', 'DAY') IS NULL, to_char(NULL::interval, 'DAY') IS NULL");
+    let mixed_case_timezone = fixture.execute("SELECT to_char(INTERVAL '1 day', 'tZh')");
+    let mixed_case_month = fixture.execute("SELECT to_char(INTERVAL '1 day', 'mOnTh')");
+    let adjacent = fixture.execute("SELECT to_char(INTERVAL '1 day', 'DDDAY')");
+    let earlier_extreme =
+        fixture.execute("SELECT to_char(INTERVAL '2147483647 months 2147483647 days', 'DDD TZ')");
+    let timestamp = fixture.execute("SELECT to_char(TIMESTAMP '2000-01-01', 'DAY')");
+
+    // Assert
+    assert_eq!(
+        literal.expect("literal and null precedence").rows(),
+        &[vec![
+            Value::String("DAY".to_owned()),
+            Value::String("01 DAY 00".to_owned()),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+    // Their existing rendered output is separately unqualified; neither is a PG invalid field.
+    assert!(mixed_case_timezone.is_ok());
+    assert!(mixed_case_month.is_ok());
+    assert!(adjacent.is_ok());
+    assert!(
+        matches!(earlier_extreme, Err(cassie::app::CassieError::Diagnostic(error)) if error.sql_state == "22007")
+    );
+    assert!(timestamp.is_ok());
+}
+
+#[test]
 fn should_format_interval_hours_beyond_the_i32_range() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-wide-hour", &[]);

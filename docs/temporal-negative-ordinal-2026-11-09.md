@@ -65,3 +65,18 @@ hours, nearly full-range microseconds, meridiem and remainders. Jev selected
 the private handoff (0.98); its sign/remainder, public adapter and overflow
 leads are covered by the authored, unexecuted regressions. This does not
 qualify arbitrary public `Moment` values or formatter allocation/cancellation.
+
+PostgreSQL 18.6 rejects interval `to_char` fields for calendar names, weekday,
+era and zone with 22007 `invalid format specification for an interval value`
+and hint `Intervals are not tied to specific calendar dates.` Its template
+lexer recognizes exact case-sensitive keyword spellings; for example `tZh`
+and `mOnTh` are literals but `dAy` starts with the invalid `d` field. Quoted
+text, prefix/postfix handling and backslashes must follow `parse_format` before
+classifying fields. Empty formats, SQL NULL and infinite intervals return NULL
+before this check. Jev selected a separate checked SQL interval scanner (0.88)
+after the case-insensitive existing parser was shown unsafe for this purpose.
+The scanner validates original bytes using the pinned keyword table, checks
+query controls during scanning, and leaves the public infallible formatter and
+timestamp behavior unchanged. Existing mixed-case output discrepancies and the
+subsequent template parser/output and diagnostic allocation/cancellation
+limits remain open. All Cassie probes are unexecuted.

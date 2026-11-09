@@ -11,6 +11,9 @@ use crate::types::extended::temporal::{range_error, TemporalSession};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
+#[path = "temporal_interval_template.rs"]
+mod interval_template;
+
 fn text(value: &Value) -> Result<String, QueryError> {
     match value {
         Value::String(text) => Ok(text.clone()),
@@ -29,7 +32,7 @@ pub(super) fn evaluate(
 ) -> Result<Value, QueryError> {
     let template = text(&args[1])?;
     match name {
-        "to_char" => to_char(&args[0], &template, session),
+        "to_char" => to_char(&args[0], &template, session, controls),
         "to_date" => {
             let (parsed, _, _) =
                 format::parse_with_precision(&text(&args[0])?, &template, session.abbreviations)
@@ -104,12 +107,32 @@ pub(super) fn evaluate(
     }
 }
 
-fn to_char(value: &Value, template: &str, session: &TemporalSession) -> Result<Value, QueryError> {
+fn to_char(
+    value: &Value,
+    template: &str,
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
     let Value::Typed(value) = value else {
         return Ok(Value::Null);
     };
     if template.is_empty() || !ops::is_finite(value) {
         return Ok(Value::Null);
+    }
+    if matches!(value, TypedValue::Interval(_))
+        && interval_template::invalid(template, || {
+            if let Some(controls) = controls {
+                controls.check_interruption()?;
+            }
+            Ok::<(), QueryError>(())
+        })?
+    {
+        let diagnostic = crate::app::DiagnosticError::new(
+            "22007",
+            "invalid format specification for an interval value",
+        )
+        .with_hint("Intervals are not tied to specific calendar dates.");
+        return Err(QueryError::Cassie(diagnostic.into()));
     }
     let out_of_range = || type_error(range_error("timestamp out of range"));
     let (moment, zone_name) = match value {

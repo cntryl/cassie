@@ -92,8 +92,8 @@ fn should_keep_general_owner_and_ownerless_fallbacks_unchanged() {
 #[test]
 fn should_retain_compact_json_text_with_a_shared_general_and_deletion_owner() {
     // Arrange
-    let controls = controls(10 * 1024 * 1024);
     let foreign = controls(10 * 1024 * 1024);
+    let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
     let functions = HashMap::new();
     let context = EvalContext {

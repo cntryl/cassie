@@ -34,11 +34,17 @@ pub(super) fn from_value(
             .session
             .and_then(crate::app::CassieSession::statement_execution_controls)
     });
-    let (Value::Json(json), None, Some(owner), Some(controls)) =
-        (value, context.memory, context.deletion_memory, controls)
+    let (Value::Json(json), Some(owner), Some(controls)) =
+        (value, context.deletion_memory, controls)
     else {
         return Ok(scalar_from_value(value));
     };
+    if context
+        .memory
+        .is_some_and(|general| !std::ptr::eq(general, owner))
+    {
+        return Ok(scalar_from_value(value));
+    }
     if !owner.belongs_to(controls) {
         return Err(CassieError::ResourceLimit(
             "JSON scalar owner uses a different query tracker".into(),

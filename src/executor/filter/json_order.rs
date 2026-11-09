@@ -71,7 +71,7 @@ pub(super) fn evaluate_controlled(
     }))
 }
 
-fn compare_controlled(
+pub(super) fn compare_controlled(
     left: &str,
     right: &str,
     controls: &crate::runtime::QueryExecutionControls,

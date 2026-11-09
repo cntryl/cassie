@@ -291,10 +291,52 @@ pub(super) fn compare<R: RowAccess + ?Sized>(
     functions: &HashMap<String, FunctionMeta>,
     local_args: Option<&HashMap<String, Value>>,
 ) -> Option<Ordering> {
-    if !row.has_array_types() {
-        return None;
+    let (left_type, right_type) = comparison_types(row, left, right, functions, local_args)?;
+    let left = array_value(left.1, &left_type)?;
+    let right = array_value(right.1, &right_type)?;
+    crate::executor::filter::compare_sql_arrays(&left, &right)
+}
+
+pub(super) fn compare_with_controls<R: RowAccess + ?Sized>(
+    row: &R,
+    left: (&Expr, &Value),
+    right: (&Expr, &Value),
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Option<Ordering>, crate::app::CassieError> {
+    let (Some(controls), Value::Array(left_array), Value::Array(right_array)) =
+        (controls, left.1, right.1)
+    else {
+        return Ok(compare(row, left, right, functions, local_args));
+    };
+    let Some((left_type, right_type)) = comparison_types(row, left, right, functions, local_args)
+    else {
+        return Ok(None);
+    };
+    if matches!(
+        (&left_type, &right_type),
+        (DataType::Jsonb, DataType::Jsonb)
+    ) {
+        return crate::executor::filter::compare_sql_arrays_controlled(
+            left_array,
+            right_array,
+            controls,
+        );
     }
-    if matches!(left.1, Value::Null) || matches!(right.1, Value::Null) {
+    let left = left_array.clone();
+    let right = right_array.clone();
+    Ok(crate::executor::filter::compare_sql_arrays(&left, &right))
+}
+
+fn comparison_types<R: RowAccess + ?Sized>(
+    row: &R,
+    left: (&Expr, &Value),
+    right: (&Expr, &Value),
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+) -> Option<(DataType, DataType)> {
+    if !row.has_array_types() || matches!(left.1, Value::Null) || matches!(right.1, Value::Null) {
         return None;
     }
     let scope = ComparisonScope { row, local_args };
@@ -306,19 +348,12 @@ pub(super) fn compare<R: RowAccess + ?Sized>(
     if matches!(right_type, Some(DataType::Array(_))) && parameter_context(left.0) {
         left_type.clone_from(&right_type);
     }
-    if !matches!(left_type, Some(DataType::Array(_)))
-        || !matches!(right_type, Some(DataType::Array(_)))
-    {
-        return None;
-    }
     let (Some(DataType::Array(left_type)), Some(DataType::Array(right_type))) =
         (left_type, right_type)
     else {
         return None;
     };
-    let left = array_value(left.1, &left_type)?;
-    let right = array_value(right.1, &right_type)?;
-    crate::executor::filter::compare_sql_arrays(&left, &right)
+    Some((*left_type, *right_type))
 }
 
 fn array_value(value: &Value, element_type: &DataType) -> Option<crate::types::SqlArray> {

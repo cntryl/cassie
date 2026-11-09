@@ -69,6 +69,13 @@ pub(crate) fn compare_sql_arrays(
 ) -> Option<std::cmp::Ordering> {
     array_operators::compare_arrays(left, right)
 }
+pub(crate) fn compare_sql_arrays_controlled(
+    left: &crate::types::SqlArray,
+    right: &crate::types::SqlArray,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<std::cmp::Ordering>, crate::app::CassieError> {
+    array_operators::compare_arrays_controlled(left, right, controls)
+}
 #[path = "filter/array_subscript.rs"]
 mod array_subscript;
 #[path = "filter/bytea_casts.rs"]
@@ -899,24 +906,31 @@ fn eval_between_expr<R: RowAccess + ?Sized>(
     let value = eval_scalar_with_context(row, expr, context)?;
     let low_value = eval_scalar_with_context(row, low, context)?;
     let high_value = eval_scalar_with_context(row, high, context)?;
-    let in_range = super::array_order::compare(
+    let controls = context.controls.or_else(|| {
+        context
+            .session
+            .and_then(crate::app::CassieSession::statement_execution_controls)
+    });
+    let in_range = super::array_order::compare_with_controls(
         row,
         (expr, &value.to_value()),
         (low, &low_value.to_value()),
         context.user_functions,
         context.local_args,
-    )
+        controls,
+    )?
     .map(|ordering| !ordering.is_lt())
     .or_else(|| ordered_cmp(&value, &low_value, |ordering| !ordering.is_lt()))
     .map_or(PredicateResult::Unknown, bool_to_predicate)
     .and(
-        super::array_order::compare(
+        super::array_order::compare_with_controls(
             row,
             (expr, &value.to_value()),
             (high, &high_value.to_value()),
             context.user_functions,
             context.local_args,
-        )
+            controls,
+        )?
         .map(|ordering| !ordering.is_gt())
         .or_else(|| ordered_cmp(&value, &high_value, |ordering| !ordering.is_gt()))
         .map_or(PredicateResult::Unknown, bool_to_predicate),

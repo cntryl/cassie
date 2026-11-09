@@ -152,7 +152,8 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {
         return result;
     }
-    if let Some(result) = array_comparison(row, left, right, op, &left_value, &right_value, context)
+    if let Some(result) =
+        array_comparison(row, left, right, op, &left_value, &right_value, context)?
     {
         return Ok(result);
     }
@@ -182,7 +183,7 @@ fn array_comparison<R: RowAccess + ?Sized>(
     left_value: &ScalarValue,
     right_value: &ScalarValue,
     context: EvalContext<'_>,
-) -> Option<ScalarValue> {
+) -> Result<Option<ScalarValue>, QueryError> {
     if matches!(
         op,
         BinaryOp::Eq
@@ -194,14 +195,19 @@ fn array_comparison<R: RowAccess + ?Sized>(
             | BinaryOp::Gt
             | BinaryOp::Gte
     ) {
-        if let Some(ordering) = super::super::array_order::compare(
+        if let Some(ordering) = super::super::array_order::compare_with_controls(
             row,
             (left, &left_value.to_value()),
             (right, &right_value.to_value()),
             context.user_functions,
             context.local_args,
-        ) {
-            return Some(ScalarValue::Bool(match op {
+            context.controls.or_else(|| {
+                context
+                    .session
+                    .and_then(crate::app::CassieSession::statement_execution_controls)
+            }),
+        )? {
+            return Ok(Some(ScalarValue::Bool(match op {
                 BinaryOp::Eq | BinaryOp::IsNotDistinctFrom => ordering.is_eq(),
                 BinaryOp::NotEq | BinaryOp::IsDistinctFrom => ordering.is_ne(),
                 BinaryOp::Lt => ordering.is_lt(),
@@ -209,10 +215,10 @@ fn array_comparison<R: RowAccess + ?Sized>(
                 BinaryOp::Gt => ordering.is_gt(),
                 BinaryOp::Gte => !ordering.is_lt(),
                 _ => unreachable!("only comparison operators reach this branch"),
-            }));
+            })));
         }
     }
-    None
+    Ok(None)
 }
 
 fn operand_type(expr: &Expr) -> (bool, bool) {

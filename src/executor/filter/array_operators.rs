@@ -1,7 +1,13 @@
 //! SQL array containment, overlap, and concatenation operators.
+#[path = "jsonb_array_comparison.rs"]
+mod jsonb_array_comparison;
+#[cfg(test)]
+#[path = "jsonb_array_comparison_tests.rs"]
+mod jsonb_array_comparison_tests;
 use super::{BinaryOp, QueryError, ScalarValue};
 use crate::types::extended::TypedOperator;
 use crate::types::{ArrayDimension, SqlArray, Value};
+pub(super) use jsonb_array_comparison::compare_arrays_controlled;
 
 pub(super) fn concatenate_operand(
     left: &ScalarValue,

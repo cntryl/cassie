@@ -5,6 +5,51 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_interval_week_in_month_at_signed_day_boundaries() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-week-in-month", &[]);
+    let cases = [
+        (-2_147_483_648_i64, "306783379|306783379|306783379th"),
+        (-2_147_483_647, "-306783377|-306783377|-306783377th"),
+        (-15, "-1|-1|-1st"),
+        (-14, "-1|-1|-1st"),
+        (-8, "0|0|0th"),
+        (-7, "0|0|0th"),
+        (-1, "1|1|1st"),
+        (0, "1|1|1st"),
+        (1, "1|1|1st"),
+        (7, "1|1|1st"),
+        (8, "2|2|2nd"),
+        (14, "2|2|2nd"),
+        (15, "3|3|3rd"),
+        (2_147_483_647, "306783379|306783379|306783379th"),
+    ];
+
+    for (days, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{days} days', 'W|FMW|Wth')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval week in month").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 interval day: {days}"
+        );
+    }
+
+    // Act
+    let timestamp = fixture.execute("SELECT to_char(TIMESTAMP '2024-02-29', 'W')");
+
+    // Assert
+    assert_eq!(
+        timestamp.expect("timestamp week in month").rows(),
+        &[vec![Value::String("5".to_owned())]]
+    );
+}
+
+#[test]
 fn should_format_interval_roman_months_using_interval_components() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-roman-month", &[]);

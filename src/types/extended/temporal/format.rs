@@ -366,6 +366,7 @@ fn render_field(
             let day = i64::from(j2day(julian()));
             numeric(if day == 0 { 7 } else { day }, 1)
         }
+        "w" if moment.is_interval => numeric(i64::from(fields.day.wrapping_sub(1) / 7 + 1), 1),
         "w" => numeric(i64::from((fields.day - 1) / 7 + 1), 1),
         "ww" if moment.is_interval => interval::span_field(fields, true, fill),
         "ww" => numeric((julian() - date2j(fields.year, 1, 1)) / 7 + 1, 2),

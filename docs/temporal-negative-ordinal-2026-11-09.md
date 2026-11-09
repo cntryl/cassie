@@ -88,3 +88,9 @@ backward from XII. SQL cases cover both sides of a 12-month boundary, padding,
 `FM`, case, quoted text and a timestamp control. Public `Moment` values with
 non-normalized month fields remain outside this parity claim. The probes are
 unexecuted.
+
+For interval `W`, PostgreSQL 18.6 computes `(day - 1) / 7 + 1` with signed
+32-bit wrapping in the pinned `-fwrapv` build. In particular, the minimum day
+value wraps on subtraction and renders `306783379`. Cassie now uses explicit
+wrapping for interval `W`; date/timestamp fields remain unchanged. Boundary,
+negative and positive week, FM and ordinal probes are unexecuted.

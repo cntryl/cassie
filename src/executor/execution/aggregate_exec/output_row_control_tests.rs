@@ -133,3 +133,131 @@ fn should_keep_duplicate_names_and_enforce_output_budget_boundary() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[test]
+fn should_cancel_selected_null_array_during_actual_alias_value_copy() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let bytes = 3 * std::mem::size_of::<serde_json::Value>();
+    let memory = controls.reserve_query_memory(bytes).expect("result owner");
+    let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null; 3]));
+    let result = AggregateOutput::from_owned_null_array(value, memory);
+    let mut output = row(&controls);
+    let mut reached = false;
+
+    // Act
+    let status = output.append_with_progress(result, &["a".to_owned()], || {}, &mut |progress| {
+        if matches!(progress, OutputProgress::ValueCopy) {
+            reached = true;
+            cancellation.cancel();
+        }
+    });
+
+    // Assert
+    assert!(reached);
+    assert!(matches!(
+        status,
+        Err(QueryError::Cassie(CassieError::QueryCancelled))
+    ));
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_selected_null_array_after_partial_alias_cancellation() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let bytes = 2 * std::mem::size_of::<serde_json::Value>();
+    let memory = controls.reserve_query_memory(bytes).expect("result owner");
+    let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null; 2]));
+    let result = AggregateOutput::from_owned_null_array(value, memory);
+    let mut output = row(&controls);
+    let mut copies = 0;
+
+    // Act
+    let status = output.append_with_observer(result, &["a".into(), "b".into()], || {
+        copies += 1;
+        cancellation.cancel();
+    });
+
+    // Assert
+    assert_eq!(copies, 1);
+    assert!(matches!(status, Err(QueryError::General(ref message)) if message == "query canceled"));
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reject_a_null_array_output_from_another_query_tracker() {
+    // Arrange
+    let first =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let second =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let memory = first
+        .reserve_query_memory(std::mem::size_of::<serde_json::Value>())
+        .expect("foreign owner");
+    let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null]));
+    let result = AggregateOutput::from_owned_null_array(value, memory);
+    let mut output = row(&second);
+
+    // Act
+    let status = output.append(result, &["a".to_owned()]);
+
+    // Assert
+    assert!(matches!(
+        status,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert_eq!(first.current_query_memory_bytes(), 0);
+    drop(output);
+    assert_eq!(second.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_enforce_null_array_alias_copy_budget_at_exact_peak() {
+    // Arrange
+    let names = ["a".to_owned(), "b".to_owned()];
+    let make_output = |controls: &QueryExecutionControls| {
+        let memory = controls
+            .reserve_query_memory(2 * std::mem::size_of::<serde_json::Value>())
+            .expect("result owner");
+        let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null; 2]));
+        AggregateOutput::from_owned_null_array(value, memory)
+    };
+    let baseline =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let mut measured = row(&baseline);
+    measured
+        .append(make_output(&baseline), &names)
+        .expect("measure");
+    let peak = baseline.peak_query_memory_bytes();
+    drop(measured);
+
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let mut output = row(&controls);
+        let result = output.append(make_output(&controls), &names);
+        assert_eq!(result.is_ok(), succeeds);
+        drop(output);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
+}

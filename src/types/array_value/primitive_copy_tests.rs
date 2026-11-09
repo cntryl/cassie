@@ -207,3 +207,35 @@ fn should_cancel_during_eligibility_before_later_nonprimitive_fallback() {
     drop(source);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_a_fresh_array_copy_when_source_has_spare_capacity() {
+    // Arrange
+    let mut dimensions = Vec::with_capacity(32);
+    dimensions.push(ArrayDimension {
+        length: 1,
+        lower_bound: -1,
+    });
+    let mut elements = Vec::with_capacity(32);
+    elements.push(Value::Int64(7));
+    let array = SqlArray::new(dimensions, elements).expect("array");
+    let controls = controls(4096);
+    let source = controls.reserve_query_memory(0).expect("source");
+
+    // Act
+    let copy = copy_primitive_array(&array, &source, &controls, |_| {})
+        .expect("copy")
+        .expect("primitive");
+    let (copy, memory) = copy.into_parts();
+
+    // Assert
+    assert_eq!(copy, array);
+    assert_eq!(
+        memory.bytes(),
+        std::mem::size_of::<ArrayDimension>() + std::mem::size_of::<Value>()
+    );
+    drop(copy);
+    drop(memory);
+    drop(source);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

@@ -7,6 +7,9 @@ use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::FunctionCall;
 use crate::sql::functions::CollectionAggregate;
+use crate::types::array_value::primitive_copy::{
+    copy_primitive_array, OwnedPrimitiveArray, PrimitiveCopyProgress,
+};
 use crate::types::{DataType, Value};
 
 use super::{AggregateExecutionContext, AggregateSpec, QueryError};
@@ -28,6 +31,16 @@ enum OutputCopyMode {
     Ordinary,
     NullArray,
     StringArray,
+    PrimitiveArray,
+}
+
+pub(super) fn primitive_array_output(owned: OwnedPrimitiveArray) -> AggregateOutput {
+    let (value, memory) = owned.into_parts();
+    AggregateOutput {
+        value: Value::Array(value),
+        memory: Some(memory),
+        copy_mode: OutputCopyMode::PrimitiveArray,
+    }
 }
 
 impl AggregateOutput {
@@ -652,6 +665,8 @@ fn push_output_mode_observing(
             bytes
         }
         (OutputCopyMode::StringArray, _) => return Err(output_overflow().into()),
+        (OutputCopyMode::PrimitiveArray, Value::Array(_)) => 0,
+        (OutputCopyMode::PrimitiveArray, _) => return Err(output_overflow().into()),
         (OutputCopyMode::Ordinary, _) => {
             crate::executor::retained_memory::value_clone_bytes(value)?
         }
@@ -673,6 +688,20 @@ fn push_output_mode_observing(
                 values, controls, progress,
             )?))
         }
+        (OutputCopyMode::PrimitiveArray, Value::Array(array)) => {
+            let copied = copy_primitive_array(array, memory, controls, |phase| {
+                if matches!(
+                    phase,
+                    PrimitiveCopyProgress::Dimension | PrimitiveCopyProgress::Element
+                ) {
+                    progress(OutputProgress::ValueCopy);
+                }
+            })?
+            .ok_or_else(output_overflow)?;
+            let (array, copied_memory) = copied.into_parts();
+            memory.absorb(copied_memory);
+            Value::Array(array)
+        }
         (OutputCopyMode::Ordinary, Value::String(text)) => Value::String(copy_output_string(
             text,
             text.capacity(),
@@ -683,6 +712,7 @@ fn push_output_mode_observing(
         (OutputCopyMode::Ordinary, _) => value.clone(),
         (OutputCopyMode::NullArray, _) => return Err(output_overflow().into()),
         (OutputCopyMode::StringArray, _) => return Err(output_overflow().into()),
+        (OutputCopyMode::PrimitiveArray, _) => return Err(output_overflow().into()),
     };
     values.push((name, value));
     Ok(())

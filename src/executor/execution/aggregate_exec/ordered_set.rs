@@ -47,12 +47,13 @@ use crate::executor::retained_memory::{add, value_clone_bytes};
 use crate::executor::semantic::compare_values;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::{Expr, FunctionCall, SortDirection};
+use crate::types::array_value::primitive_copy::{copy_primitive_array, PrimitiveCopyProgress};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
 use super::collection_json::{
-    null_array_output, percentile_string_output, string_array_output, AggregateOutput,
-    StringArrayProgress,
+    null_array_output, percentile_string_output, primitive_array_output, string_array_output,
+    AggregateOutput, StringArrayProgress,
 };
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
@@ -78,6 +79,8 @@ enum FractionProgress {
     ResultElement,
     StringChunk,
     ArrayStringChunk,
+    PrimitiveDimension,
+    PrimitiveElement,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -281,6 +284,23 @@ fn evaluate_percentile_owned_observed(
                 return percentile_string_output(text, &sorted.memory, context.controls, || {
                     observe(FractionProgress::StringChunk, sorted.memory.bytes());
                 });
+            }
+            if let Value::Array(array) = value {
+                if let Some(copied) =
+                    copy_primitive_array(array, &sorted.memory, context.controls, |phase| {
+                        match phase {
+                            PrimitiveCopyProgress::Eligibility => {}
+                            PrimitiveCopyProgress::Dimension => {
+                                observe(FractionProgress::PrimitiveDimension, sorted.memory.bytes())
+                            }
+                            PrimitiveCopyProgress::Element => {
+                                observe(FractionProgress::PrimitiveElement, sorted.memory.bytes())
+                            }
+                        }
+                    })?
+                {
+                    return Ok(primitive_array_output(copied));
+                }
             }
             return Ok(AggregateOutput::from_value(value.clone()));
         }

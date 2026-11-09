@@ -2,12 +2,11 @@
 use super::{containment, object, render::RenderError};
 use crate::executor::QueryError;
 use crate::runtime::QueryExecutionControls;
-use serde_json::value::RawValue;
 use std::cmp::Ordering;
 
 pub(in crate::executor::filter) struct ObjectPair {
-    candidate: Box<RawValue>,
-    required: Box<RawValue>,
+    candidate: String,
+    required: String,
     candidate_fields: object::DetachedFields,
     required_fields: object::DetachedFields,
     candidate_index: usize,
@@ -22,14 +21,14 @@ pub(in crate::executor::filter) enum ObjectStep<'a> {
 
 impl ObjectPair {
     pub(in crate::executor::filter) fn build(
-        candidate: Box<RawValue>,
-        required: Box<RawValue>,
+        candidate: String,
+        required: String,
         controls: &QueryExecutionControls,
     ) -> Result<Self, QueryError> {
-        let candidates = object::parse(candidate.get(), controls)
+        let candidates = object::parse(&candidate, controls)
             .map_err(RenderError::from)
             .map_err(RenderError::into_query_error)?;
-        let requirements = object::parse(required.get(), controls)
+        let requirements = object::parse(&required, controls)
             .map_err(RenderError::from)
             .map_err(RenderError::into_query_error)?;
         let candidate_fields = candidates.into_lexical(controls)?.into_detached();
@@ -52,13 +51,13 @@ impl ObjectPair {
             controls.check_interruption()?;
             let Some((key, value)) = self
                 .required_fields
-                .get(self.required.get(), self.required_index)
+                .get(&self.required, self.required_index)
             else {
                 return Ok(ObjectStep::Done);
             };
             let Some((candidate_key, candidate_value)) = self
                 .candidate_fields
-                .get(self.candidate.get(), self.candidate_index)
+                .get(&self.candidate, self.candidate_index)
             else {
                 return Ok(ObjectStep::Missing);
             };

@@ -3,7 +3,6 @@ use super::render::{self, RenderError};
 use crate::app::CassieError;
 use crate::executor::QueryError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use serde_json::value::RawValue;
 use std::ops::Range;
 
 #[cfg(test)]
@@ -93,8 +92,8 @@ impl Directory {
 }
 
 pub(in crate::executor::filter) struct ArrayPair {
-    candidate: Box<RawValue>,
-    required: Box<RawValue>,
+    candidate: String,
+    required: String,
     candidate_ranges: Directory,
     required_ranges: Directory,
     candidate_index: usize,
@@ -109,19 +108,19 @@ pub(in crate::executor::filter) enum ArrayStep<'a> {
 
 impl ArrayPair {
     pub(in crate::executor::filter) fn build(
-        candidate: Box<RawValue>,
-        required: Box<RawValue>,
+        candidate: String,
+        required: String,
         required_is_array: bool,
         controls: &QueryExecutionControls,
     ) -> Result<Self, QueryError> {
         let required_ranges = if required_is_array {
-            parse(required.get(), controls)?
+            parse(&required, controls)?
         } else {
             let mut ranges = Directory::new(controls)?;
-            ranges.push(0..required.get().len(), controls)?;
+            ranges.push(0..required.len(), controls)?;
             ranges
         };
-        let candidate_ranges = parse(candidate.get(), controls)?;
+        let candidate_ranges = parse(&candidate, controls)?;
         Ok(Self {
             candidate,
             required,
@@ -150,8 +149,8 @@ impl ArrayPair {
         };
         self.candidate_index += 1;
         Ok(ArrayStep::Child(
-            &self.candidate.get()[candidate.clone()],
-            &self.required.get()[required.clone()],
+            &self.candidate[candidate.clone()],
+            &self.required[required.clone()],
         ))
     }
 }

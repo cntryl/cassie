@@ -117,7 +117,11 @@ impl JsonKind {
 }
 
 fn kind(value: &RawValue) -> JsonKind {
-    match value.get().trim_start().as_bytes().first() {
+    kind_text(value.get())
+}
+
+fn kind_text(value: &str) -> JsonKind {
+    match value.trim_start().as_bytes().first() {
         Some(b'{') => JsonKind::Object,
         Some(b'[') => JsonKind::Array,
         Some(b'"') => JsonKind::String,
@@ -155,3 +159,7 @@ mod nested_object_tests;
 #[cfg(test)]
 #[path = "json_containment_array_pair_tests.rs"]
 mod array_pair_tests;
+
+#[cfg(test)]
+#[path = "json_containment_raw_token_tests.rs"]
+mod raw_token_tests;

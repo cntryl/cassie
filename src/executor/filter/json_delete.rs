@@ -105,6 +105,20 @@ pub(super) fn controlled_containment_objects(
 }
 
 pub(super) use raw_scan::array_containment::{ArrayPair, ArrayStep};
+pub(super) use raw_scan::containment_token::copy as containment_raw_copy;
+
+#[cfg(test)]
+pub(super) fn cancel_containment_token_scan_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::containment_token::cancel_scan_once(handle);
+}
+
+#[cfg(test)]
+pub(super) fn cancel_containment_token_copy_once(
+    handle: crate::runtime::QueryCancellationHandle,
+    copy_number: usize,
+) {
+    raw_scan::containment_token::cancel_copy_once(handle, copy_number);
+}
 pub(super) use raw_scan::nested_containment::{ObjectPair, ObjectStep};
 
 #[cfg(test)]

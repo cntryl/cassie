@@ -176,3 +176,28 @@ General raw parsing, diagnostic allocation, source/allocator transients,
 teardown and sentinel/storage migration remain outside this increment.
 PostgreSQL 18.6 yields true for `[1] @> [1,1]`, true for `[1,2] @> [2,1]`,
 false for `[1,2] @> 3`, and true for `[] @> []` with JSONB operands.
+
+## Controlled raw comparison tokens
+
+For a controlled containment pair, scan complete candidate then required
+using the checked raw scanner and copy each validated span into a String in
+bounded UTF-8-safe chunks. Each String's admitted capacity is no greater than
+its corresponding input length. Both token buffers precede the existing Pair
+reservation and later move with it into their Frame-owned object/array state.
+The existing `192 * (candidate length + required length) + Frame` lease is
+retained; independently admitted scanner scratch overlaps it. This establishes
+capacity coverage for these two token buffers only, not the 192x estimate for
+other allocations, BTree internals or allocator transients. No additional token
+lease is charged twice. No-controls execution keeps serde `Box<RawValue>`.
+
+Jev selected this approach (0.94), with live allocation attribution (0.75),
+partial source/Frame ownership (0.43) and raw error/cancellation parity (0.84)
+leads. Receipt:
+`target/assembly-review/json-containment-raw-token-accounting-{request,response}.json`.
+Before implementation, author candidate-versus-required syntax/error and
+whitespace probes, deep/raw-sentinel/overload parity, actual scan/copy
+interruption, exact/below overlap and partial-token/Frame cleanup cases. These
+remain unexecuted. Additional scanner admission can change control error
+priority; serde/error formatting, diagnostic allocation, repeated/quadratic
+search and destruction limits remain open. This is not a storage or sentinel
+migration and does not close #809.

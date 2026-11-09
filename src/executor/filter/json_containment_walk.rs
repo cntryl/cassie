@@ -4,7 +4,7 @@ use std::collections::{btree_map, BTreeMap};
 
 use serde_json::value::RawValue;
 
-use super::{json_document, kind, CassieError, JsonKind, QueryError};
+use super::{json_document, kind_text, CassieError, JsonKind, QueryError};
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
@@ -39,9 +39,35 @@ pub(super) fn cancel_after_string_compare_once(handle: crate::runtime::QueryCanc
     CANCEL_AFTER_STRING_COMPARE.with(|slot| *slot.borrow_mut() = Some(handle));
 }
 
+enum RawToken {
+    Legacy(Box<RawValue>),
+    Controlled(String),
+}
+
+impl RawToken {
+    fn get(&self) -> &str {
+        match self {
+            Self::Legacy(value) => value.get(),
+            Self::Controlled(value) => value,
+        }
+    }
+    fn into_controlled(self) -> String {
+        match self {
+            Self::Controlled(value) => value,
+            Self::Legacy(_) => unreachable!("controlled pair"),
+        }
+    }
+    fn into_legacy(self) -> Box<RawValue> {
+        match self {
+            Self::Legacy(value) => value,
+            Self::Controlled(_) => unreachable!("legacy pair"),
+        }
+    }
+}
+
 struct Pair {
-    candidate: Box<RawValue>,
-    required: Box<RawValue>,
+    candidate: RawToken,
+    required: RawToken,
     memory: Option<QueryMemoryReservation>,
 }
 
@@ -70,10 +96,20 @@ impl Work<'_> {
             required.len(),
         )?)?;
         let memory = self.reserve(add(decode, std::mem::size_of::<Frame>())?)?;
-        // RawValue uses an iterative parser without the Value depth limit.
-        // Each child pair is admitted independently before either raw copy.
-        let candidate = json_document::parse_value(candidate)?;
-        let required = json_document::parse_value(required)?;
+        // The existing pair reservation covers both bounded String capacities.
+        let (candidate, required) = if let Some(controls) = self.controls {
+            let candidate = RawToken::Controlled(super::super::json_delete::containment_raw_copy(
+                candidate, controls,
+            )?);
+            let required = RawToken::Controlled(super::super::json_delete::containment_raw_copy(
+                required, controls,
+            )?);
+            (candidate, required)
+        } else {
+            let candidate = RawToken::Legacy(json_document::parse_value(candidate)?);
+            let required = RawToken::Legacy(json_document::parse_value(required)?);
+            (candidate, required)
+        };
         self.check()?;
         Ok(Pair {
             candidate,
@@ -82,17 +118,27 @@ impl Work<'_> {
         })
     }
 
-    fn scalar_equal(&self, candidate: &RawValue, required: &RawValue) -> Result<bool, QueryError> {
+    fn scalar_equal(&self, candidate: &RawToken, required: &RawToken) -> Result<bool, QueryError> {
         self.check()?;
         if let Some(controls) = self.controls {
-            if kind(candidate) == JsonKind::String && kind(required) == JsonKind::String {
+            if kind_text(candidate.get()) == JsonKind::String
+                && kind_text(required.get()) == JsonKind::String
+            {
                 return string_equal(candidate.get(), required.get(), controls);
             }
-            if kind(candidate) == JsonKind::Number && kind(required) == JsonKind::Number {
+            if kind_text(candidate.get()) == JsonKind::Number
+                && kind_text(required.get()) == JsonKind::Number
+            {
                 return numbers::equal(candidate.get(), required.get(), controls);
             }
+            return Ok(candidate.get() == required.get());
         }
-        let _numbers = if kind(candidate) == JsonKind::Number && kind(required) == JsonKind::Number
+        let (RawToken::Legacy(candidate), RawToken::Legacy(required)) = (candidate, required)
+        else {
+            unreachable!("legacy pair")
+        };
+        let _numbers = if kind_text(candidate.get()) == JsonKind::Number
+            && kind_text(required.get()) == JsonKind::Number
         {
             let bound = |value: &RawValue| {
                 if let Ok(bound) = crate::types::jsonb::input_text_len(value.get()) {
@@ -305,12 +351,15 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
         });
         work.check()?;
     }
-    let state = match (kind(&pair.candidate), kind(&pair.required)) {
+    let state = match (
+        kind_text(pair.candidate.get()),
+        kind_text(pair.required.get()),
+    ) {
         (JsonKind::Object, JsonKind::Object) => {
             if let Some(controls) = work.controls {
                 State::ControlledObjects(super::super::json_delete::ObjectPair::build(
-                    pair.candidate,
-                    pair.required,
+                    pair.candidate.into_controlled(),
+                    pair.required.into_controlled(),
                     controls,
                 )?)
             } else {
@@ -327,8 +376,8 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
         {
             if let Some(controls) = work.controls {
                 State::ControlledArrays(super::super::json_delete::ArrayPair::build(
-                    pair.candidate,
-                    pair.required,
+                    pair.candidate.into_controlled(),
+                    pair.required.into_controlled(),
                     required_kind == JsonKind::Array,
                     controls,
                 )?)
@@ -336,7 +385,7 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
                 let required = if required_kind == JsonKind::Array {
                     json_document::parse_array(pair.required.get())?
                 } else {
-                    vec![pair.required]
+                    vec![pair.required.into_legacy()]
                 };
                 State::Arrays {
                     candidate: json_document::parse_array(pair.candidate.get())?,

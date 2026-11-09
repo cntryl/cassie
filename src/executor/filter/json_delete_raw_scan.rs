@@ -15,6 +15,8 @@ pub(super) mod array_containment;
 pub(super) mod concat;
 #[path = "json_containment_raw_object.rs"]
 pub(super) mod containment;
+#[path = "json_containment_raw_token.rs"]
+pub(super) mod containment_token;
 #[path = "json_extract_raw.rs"]
 pub(super) mod extract;
 #[path = "json_containment_nested_object.rs"]

@@ -31,6 +31,10 @@ mod binary_uuid;
 #[path = "input_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "input/binary_timetz_bounds_tests.rs"]
+mod binary_timetz_bounds_tests;
+
 const BINARY_SIGNATURE: &[u8; 11] = b"PGCOPY\n\xff\r\n\0";
 
 pub(super) fn parse_text_payload(
@@ -355,6 +359,9 @@ pub(super) fn parse_binary_payload(
             }
             let value =
                 super::super::codecs::binary_to_value(bytes, type_oid).map_err(|error| {
+                    if let Some(input) = super::super::codecs::timetz_copy_error(&error) {
+                        return CassieError::TypeInput(input);
+                    }
                     CassieError::Parse(format!(
                         "COPY binary field {} is invalid: {error}",
                         column_index + 1

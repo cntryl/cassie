@@ -181,6 +181,10 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
         ast::Expr::IntegerLiteral(2),
     ];
     let no_anchor = [unknown(), unknown(), unknown(), Summary::known(23)];
+    let mut no_anchor_small = no_anchor;
+    no_anchor_small[3] = Summary::known(21);
+    let mut no_anchor_prior = no_anchor;
+    no_anchor_prior[0] = Summary::known(23);
 
     // Act / Assert
     assert_eq!(
@@ -222,6 +226,22 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
     );
     assert_eq!(
         super::mixed_bucket_targets(&no_anchor_args, &no_anchor, &[true, true, true, false]),
+        Some([701, 701, 701, 23])
+    );
+    assert_eq!(
+        super::mixed_bucket_targets(
+            &no_anchor_args,
+            &no_anchor_small,
+            &[true, true, true, false]
+        ),
+        None
+    );
+    assert_eq!(
+        super::mixed_bucket_targets(
+            &no_anchor_args,
+            &no_anchor_prior,
+            &[true, true, true, false]
+        ),
         None
     );
 }

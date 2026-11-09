@@ -897,7 +897,11 @@ fn mixed_bucket_targets(
             return None;
         }
     }
-    let anchor = anchor?;
+    let anchor = match anchor {
+        Some(anchor) => anchor,
+        None if summaries[3].oid == 23 => 701,
+        None => return None,
+    };
     if unknowns == 0 || !summaries[3].qualified {
         return None;
     }

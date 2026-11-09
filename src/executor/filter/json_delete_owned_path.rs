@@ -198,7 +198,7 @@ impl<F: FnMut(Progress)> Cursor<'_, F> {
     }
     fn whitespace(&mut self) -> Result<(), QueryError> {
         while self.peek().is_some_and(char::is_whitespace) {
-            self.next()?;
+            let _consumed = self.next()?;
         }
         Ok(())
     }
@@ -206,7 +206,7 @@ impl<F: FnMut(Progress)> Cursor<'_, F> {
         buffer.append(text, self.controls, &mut self.observe)
     }
     fn quoted(&mut self) -> Result<TextBuffer, QueryError> {
-        self.next()?;
+        let _consumed = self.next()?;
         let mut output = TextBuffer::new(self.controls)?;
         let mut encoded = [0; 4];
         loop {
@@ -236,7 +236,7 @@ impl<F: FnMut(Progress)> Cursor<'_, F> {
                     ))
                 }
                 Some('\\') => {
-                    self.next()?;
+                    let _consumed = self.next()?;
                     self.append(&mut output, &trailing.text)?;
                     trailing.text.clear();
                     let value = self
@@ -245,11 +245,11 @@ impl<F: FnMut(Progress)> Cursor<'_, F> {
                     self.append(&mut output, value.encode_utf8(&mut encoded))?;
                 }
                 Some(value) if value.is_whitespace() => {
-                    self.next()?;
+                    let _consumed = self.next()?;
                     self.append(&mut trailing, value.encode_utf8(&mut encoded))?;
                 }
                 Some(value) => {
-                    self.next()?;
+                    let _consumed = self.next()?;
                     self.append(&mut output, &trailing.text)?;
                     trailing.text.clear();
                     self.append(&mut output, value.encode_utf8(&mut encoded))?;
@@ -315,10 +315,10 @@ fn parse_observing(
     };
     let mut output = OwnedPath::new(controls)?;
     cursor.whitespace()?;
-    cursor.next()?;
+    let _consumed = cursor.next()?;
     cursor.whitespace()?;
     if cursor.peek() == Some('}') {
-        cursor.next()?;
+        let _consumed = cursor.next()?;
     } else {
         loop {
             let quoted = cursor.peek() == Some('"');

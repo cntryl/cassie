@@ -237,18 +237,18 @@ fn parse_observing<'a>(
     if scanner.peek() != Some(b'{') {
         return Err(scanner.error("expected object").into());
     }
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     let mut first = true;
     loop {
         scanner.whitespace()?;
         match scanner.peek() {
             Some(b'}') => {
-                scanner.next()?;
+                let _consumed = scanner.next()?;
                 break;
             }
             None => return Err(scanner.error("EOF while parsing an object").into()),
             Some(b',') if !first => {
-                scanner.next()?;
+                let _consumed = scanner.next()?;
                 scanner.whitespace()?;
                 match scanner.peek() {
                     Some(b'"') => {}
@@ -277,7 +277,7 @@ fn parse_observing<'a>(
         scanner.whitespace()?;
         match scanner.peek() {
             Some(b':') => {
-                scanner.next()?;
+                let _consumed = scanner.next()?;
             }
             None => return Err(scanner.error("EOF while parsing an object").into()),
             Some(_) => return Err(scanner.error("expected `:`").into()),

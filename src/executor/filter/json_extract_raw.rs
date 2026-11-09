@@ -291,11 +291,11 @@ fn array_element<'a>(
         return Ok(None);
     }
     let mut scanner = render::array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     for position in 0..=target {
         scanner.whitespace()?;
         if position > 0 {
-            scanner.next()?;
+            let _consumed = scanner.next()?;
         }
         let range = scanner.value_span()?;
         if position == target {

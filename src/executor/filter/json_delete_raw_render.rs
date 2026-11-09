@@ -223,7 +223,7 @@ pub(in crate::executor::filter) fn render_array_without_index<'a>(
     let count = array_count(source, controls)?;
     let skip = super::super::normalize_array_index(index, count).map(ArraySkip::Index);
     let mut scanner = array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     render_frames(
         Frame::Array {
             source,
@@ -245,7 +245,7 @@ pub(in crate::executor::filter) fn render_array_without_text<'a>(
 ) -> Result<OwnedJsonText, RenderError> {
     array_count(source, controls)?;
     let mut scanner = array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     render_frames(
         Frame::Array {
             source,
@@ -294,7 +294,7 @@ pub(in crate::executor::filter) fn render_array_without_keys<'a>(
         }
     }
     let mut scanner = array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     render_frames(
         Frame::Array {
             source,
@@ -357,7 +357,7 @@ pub(in crate::executor::filter) fn render_array_without_native_keys<'a>(
     let has_key = native_keys_valid(keys, controls)?;
     array_count(source, controls)?;
     let mut scanner = array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     render_frames(
         Frame::Array {
             source,
@@ -406,7 +406,7 @@ pub(in crate::executor::filter) fn render_array_without_arena_keys<'a>(
         }
     }
     let mut scanner = array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     render_frames(
         Frame::Array {
             source,
@@ -477,7 +477,7 @@ fn render_frames<'a>(
                             controls,
                             observe: ignore_scan as fn(ScanProgress),
                         };
-                        scanner.next()?;
+                        let _consumed = scanner.next()?;
                         sink.write("[", &mut report)?;
                         stack.push(
                             Frame::Array {
@@ -574,12 +574,12 @@ fn render_frames<'a>(
             } => {
                 scanner.whitespace()?;
                 if scanner.peek() == Some(b']') {
-                    scanner.next()?;
+                    let _consumed = scanner.next()?;
                     sink.write("]", &mut report)?;
                     continue;
                 }
                 if next > 0 {
-                    scanner.next()?;
+                    let _consumed = scanner.next()?;
                     scanner.whitespace()?;
                 }
                 let span = scanner.value_span()?;
@@ -700,18 +700,18 @@ pub(super) fn array_count(
     controls: &QueryExecutionControls,
 ) -> Result<usize, RenderError> {
     let mut scanner = array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     let mut count = 0_usize;
     loop {
         scanner.whitespace()?;
         match scanner.peek() {
             Some(b']') => {
-                scanner.next()?;
+                let _consumed = scanner.next()?;
                 break;
             }
             None => return Err(scanner.error("EOF while parsing a list").into()),
             Some(b',') if count > 0 => {
-                scanner.next()?;
+                let _consumed = scanner.next()?;
                 scanner.whitespace()?;
                 match scanner.peek() {
                     Some(b']') => return Err(scanner.error("trailing comma").into()),

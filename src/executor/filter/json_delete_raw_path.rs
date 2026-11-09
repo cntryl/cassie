@@ -257,7 +257,7 @@ fn render_view<'a>(
                     break render_frames(Frame::Value(current), controls, |_| {})?;
                 };
                 let mut scanner = array_scanner(current, controls)?;
-                scanner.next()?;
+                let _consumed = scanner.next()?;
                 if last {
                     break render_frames(
                         Frame::Array {
@@ -306,7 +306,7 @@ fn render_view<'a>(
             }
             Ancestor::Array { source, index } => {
                 let mut scanner = array_scanner(source, controls)?;
-                scanner.next()?;
+                let _consumed = scanner.next()?;
                 render_frames(
                     Frame::Array {
                         source,
@@ -333,11 +333,11 @@ fn array_element<'a>(
     controls: &QueryExecutionControls,
 ) -> Result<&'a str, RenderError> {
     let mut scanner = array_scanner(source, controls)?;
-    scanner.next()?;
+    let _consumed = scanner.next()?;
     for current in 0..=index {
         scanner.whitespace()?;
         if current > 0 {
-            scanner.next()?;
+            let _consumed = scanner.next()?;
         }
         let span = scanner.value_span()?;
         if current == index {

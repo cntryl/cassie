@@ -204,7 +204,7 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
                         if matches!(frame, Frame::ArrayValue) {
                             return Err(self.error("expected value"));
                         }
-                        self.next()?;
+                        let _consumed = self.next()?;
                     } else {
                         if matches!(frame, Frame::ArrayFirst) && self.peek().is_none() {
                             return Err(self.error("EOF while parsing a list"));
@@ -215,10 +215,10 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
                 }
                 Frame::ArrayAfter => match self.peek() {
                     Some(b']') => {
-                        self.next()?;
+                        let _consumed = self.next()?;
                     }
                     Some(b',') => {
-                        self.next()?;
+                        let _consumed = self.next()?;
                         stack.push(Frame::ArrayValue, &mut self.observe)?;
                     }
                     Some(_) => return Err(self.error("expected `,` or `]`")),
@@ -229,7 +229,7 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
                         if matches!(frame, Frame::ObjectKey) {
                             return Err(self.error("key must be a string"));
                         }
-                        self.next()?;
+                        let _consumed = self.next()?;
                     } else if self.peek() == Some(b'"') {
                         self.string()?;
                         stack.push(Frame::ObjectColon, &mut self.observe)?;
@@ -241,7 +241,7 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
                 }
                 Frame::ObjectColon => match self.peek() {
                     Some(b':') => {
-                        self.next()?;
+                        let _consumed = self.next()?;
                         stack.push(Frame::ObjectValue, &mut self.observe)?;
                     }
                     None => return Err(self.error("EOF while parsing an object")),
@@ -253,10 +253,10 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
                 }
                 Frame::ObjectAfter => match self.peek() {
                     Some(b'}') => {
-                        self.next()?;
+                        let _consumed = self.next()?;
                     }
                     Some(b',') => {
-                        self.next()?;
+                        let _consumed = self.next()?;
                         stack.push(Frame::ObjectKey, &mut self.observe)?;
                     }
                     None => return Err(self.error("EOF while parsing an object")),
@@ -287,7 +287,7 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
     }
     fn whitespace(&mut self) -> Result<(), ScanError> {
         while matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n')) {
-            self.next()?;
+            let _consumed = self.next()?;
         }
         Ok(())
     }
@@ -308,11 +308,11 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
     fn value(&mut self, stack: &mut Stack<'_>) -> Result<(), ScanError> {
         match self.peek() {
             Some(b'[') => {
-                self.next()?;
+                let _consumed = self.next()?;
                 stack.push(Frame::ArrayFirst, &mut self.observe)?;
             }
             Some(b'{') => {
-                self.next()?;
+                let _consumed = self.next()?;
                 stack.push(Frame::ObjectFirst, &mut self.observe)?;
             }
             Some(b'"') => self.string()?,
@@ -343,7 +343,7 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
         }
     }
     fn string(&mut self) -> Result<(), ScanError> {
-        self.next()?;
+        let _consumed = self.next()?;
         loop {
             if matches!(self.peek(), Some(0..=31)) {
                 return Err(self.error_current(
@@ -376,7 +376,7 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
     }
     fn number(&mut self) -> Result<(), ScanError> {
         if self.peek() == Some(b'-') {
-            self.next()?;
+            let _consumed = self.next()?;
         }
         match self.next()? {
             Some(b'0') => {
@@ -388,16 +388,16 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
             _ => return Err(self.error_current("invalid number")),
         }
         if self.peek() == Some(b'.') {
-            self.next()?;
+            let _consumed = self.next()?;
             if !matches!(self.peek(), Some(b'0'..=b'9')) {
                 return Err(self.error("invalid number"));
             }
             self.digits()?;
         }
         if matches!(self.peek(), Some(b'e' | b'E')) {
-            self.next()?;
+            let _consumed = self.next()?;
             if matches!(self.peek(), Some(b'+' | b'-')) {
-                self.next()?;
+                let _consumed = self.next()?;
             }
             if !matches!(self.next()?, Some(b'0'..=b'9')) {
                 return Err(self.error_current("invalid number"));
@@ -408,7 +408,7 @@ impl<F: FnMut(Progress)> Scanner<'_, F> {
     }
     fn digits(&mut self) -> Result<(), ScanError> {
         while matches!(self.peek(), Some(b'0'..=b'9')) {
-            self.next()?;
+            let _consumed = self.next()?;
         }
         Ok(())
     }

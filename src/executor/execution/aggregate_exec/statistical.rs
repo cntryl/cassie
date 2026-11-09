@@ -401,7 +401,12 @@ fn numeric_work_units(value: &Numeric) -> Result<usize, QueryError> {
 }
 
 fn numeric_heap_bytes(value: &Numeric) -> usize {
-    TypedValue::Numeric(value.clone()).heap_bytes()
+    match value {
+        Numeric::Finite { mantissa, .. } => {
+            usize::try_from(mantissa.bits().div_ceil(8)).unwrap_or(usize::MAX)
+        }
+        Numeric::NaN | Numeric::Infinity | Numeric::NegInfinity => 0,
+    }
 }
 
 fn count_overflow() -> QueryError {

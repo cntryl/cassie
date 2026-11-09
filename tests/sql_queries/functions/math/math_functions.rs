@@ -725,3 +725,49 @@ fn should_preserve_width_bucket_resolution_when_a_distinct_arity_routine_is_visi
         !matches!(result, Err(cassie::app::CassieError::Execution(message)) if message.starts_with("function width_bucket(") && message.ends_with(" does not exist"))
     );
 }
+
+#[test]
+fn should_coerce_unknown_width_bucket_count_literals_as_int4_before_nulls() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-count-literal", &[]);
+
+    // Act
+    let valid = fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, '  +2 '), WIDTH_BUCKET(0.5::numeric, 0::numeric, 1::numeric, '0x2'), WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, '2_0'), WIDTH_BUCKET(0.5::numeric(2,1), 0::numeric(3,1), 1::numeric(4,1), '0x2')");
+    let bad = fixture.execute("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 'bad')");
+    let overflow =
+        fixture.execute("SELECT WIDTH_BUCKET(NULL::numeric, 0::numeric, 1::numeric, '2147483648')");
+
+    // Assert
+    assert_eq!(
+        valid.expect("coerced counts").rows(),
+        &[vec![
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Int64(11),
+            Value::Int64(2)
+        ]]
+    );
+    assert!(
+        matches!(bad, Err(cassie::app::CassieError::Execution(message)) if message == "invalid input syntax for type integer: \"bad\"")
+    );
+    assert!(
+        matches!(overflow, Err(cassie::app::CassieError::Execution(message)) if message == "value \"2147483648\" is out of range for type integer")
+    );
+}
+
+#[test]
+fn should_leave_width_bucket_count_literal_unchanged_for_a_visible_routine() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-literal-visible-routine", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION width_bucket(x INT) RETURNS INT AS "x""#)
+        .expect("create routine");
+
+    // Act
+    let result = fixture.execute("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 'bad')");
+
+    // Assert
+    assert!(
+        !matches!(result, Err(cassie::app::CassieError::Execution(message)) if message == "invalid input syntax for type integer: \"bad\"")
+    );
+}

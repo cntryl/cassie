@@ -1,7 +1,7 @@
 //! Reject selected math overloads PostgreSQL does not define.
 use super::super::coalesce_results::ResultTypes;
 use crate::app::CassieError;
-use crate::sql::ast::FunctionCall;
+use crate::sql::ast::{CastIdentity, Expr, FunctionCall};
 use crate::sql::functions::{FunctionId, MathFunction};
 use crate::types::extended::ExtendedType;
 use crate::types::DataType;
@@ -37,9 +37,20 @@ fn is_unsupported_bucket_count(data_type: Option<DataType>) -> bool {
     )
 }
 
+fn bucket_literal_family(data_type: Option<DataType>) -> Option<bool> {
+    match data_type {
+        Some(DataType::Float) => Some(false),
+        Some(DataType::Extended(ExtendedType::Numeric(_))) => Some(true),
+        _ => None,
+    }
+}
+
 /// `round(double precision, integer)`, `trunc(double precision, integer)` and
 /// `log(double precision, double precision)` do not exist (SQLSTATE 42883).
-pub(super) fn validate(function: &FunctionCall, types: &ResultTypes) -> Result<(), CassieError> {
+pub(super) fn validate(
+    function: &mut FunctionCall,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
     let Some(metadata) = crate::sql::functions::function(&function.name) else {
         return Ok(());
     };
@@ -47,6 +58,36 @@ pub(super) fn validate(function: &FunctionCall, types: &ResultTypes) -> Result<(
         return Ok(());
     };
     if math == MathFunction::WidthBucket && function.args.len() == 4 {
+        if types.declared_function(&function.name).is_none() {
+            let first = bucket_literal_family(types.expression_type(&function.args[0]));
+            if first.is_some()
+                && function.args[1..3]
+                    .iter()
+                    .all(|argument| bucket_literal_family(types.expression_type(argument)) == first)
+            {
+                if let Expr::StringLiteral(input) = &function.args[3] {
+                    if let Some(controls) = types.controls() {
+                        controls.check_interruption()?;
+                    }
+                    let value = match crate::types::integer::parse(
+                        input,
+                        crate::types::IntegerWidth::I32,
+                    ) {
+                        Ok(value) => value,
+                        Err(_) => {
+                            crate::sql::literal_inputs::validate_with_controls(
+                                &function.args[3],
+                                &DataType::Int,
+                                CastIdentity::Scalar,
+                                types.controls(),
+                            )?;
+                            unreachable!("INT4 input validation uses the same parser");
+                        }
+                    };
+                    function.args[3] = Expr::IntegerLiteral(value);
+                }
+            }
+        }
         if types.declared_function(&function.name).is_none()
             && function.args[..3]
                 .iter()

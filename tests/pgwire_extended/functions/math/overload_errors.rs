@@ -390,3 +390,53 @@ fn should_reject_typed_width_bucket_count_overloads_during_parse() {
         );
     }
 }
+
+#[test]
+fn should_validate_unknown_width_bucket_count_literals_during_parse() {
+    // Arrange
+    let cases = [
+        (
+            "bad",
+            "22P02",
+            "invalid input syntax for type integer: \"bad\"",
+        ),
+        (
+            "2147483648",
+            "22003",
+            "value \"2147483648\" is out of range for type integer",
+        ),
+        (
+            "\u{2003}2",
+            "22P02",
+            "invalid input syntax for type integer: \"\u{2003}2\"",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (index, (literal, _, _)) in cases.iter().enumerate() {
+        let sql = format!("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, '{literal}')");
+        steps.push(Step::ParseFlush(wire::parse_frame(
+            &format!("bucket_literal_{index}"),
+            &sql,
+        )));
+        steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, '0x2')",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-count-literal", steps);
+
+    // Assert
+    for (index, (_, state, message)) in cases.iter().enumerate() {
+        let rejected = &batches[index * 3];
+        assert_eq!(rejected.first().map(|frame| frame.0), Some(b'E'));
+        assert_eq!(wire::error_code(rejected).as_deref(), Some(*state));
+        assert!(error_response_fields(rejected)
+            .iter()
+            .any(|(field, value)| *field == 'M' && value == message));
+        let recovered = &batches[index * 3 + 2];
+        assert_eq!(wire::error_code(recovered), None);
+        assert_eq!(wire::data_rows(recovered), vec![vec![Some("2".to_owned())]]);
+    }
+}

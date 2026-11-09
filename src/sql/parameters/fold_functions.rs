@@ -185,6 +185,23 @@ impl Fold<'_, '_> {
         if metadata.is_some_and(|entry| {
             entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
         }) && function.args.len() == 4
+        {
+            let arguments = &self.summaries.values[frame.start..frame.start + 4];
+            let first = arguments[0].oid;
+            if matches!(first, 701 | 1700)
+                && arguments[..3]
+                    .iter()
+                    .all(|argument| argument.qualified && argument.oid == first)
+            {
+                if let ast::Expr::StringLiteral(input) = &function.args[3] {
+                    check_controls(self.controls)?;
+                    self.validate_type_function_literal(input, &DataType::Int)?;
+                }
+            }
+        }
+        if metadata.is_some_and(|entry| {
+            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
+        }) && function.args.len() == 4
             && matches!(function.args[3], ast::Expr::Param(_))
         {
             let arguments = &self.summaries.values[frame.start..frame.start + 4];

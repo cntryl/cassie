@@ -12,11 +12,12 @@ use super::{scan, Progress as ScanProgress, ScanError, Scanner};
 mod tests;
 
 #[path = "json_delete_raw_path.rs"]
-mod path;
+pub(in crate::executor::filter) mod path;
+#[cfg(test)]
 use path::render_path;
 
 #[derive(Debug)]
-enum RenderError {
+pub(in crate::executor::filter) enum RenderError {
     Control(CassieError),
     Scan(ScanError),
     Object(ObjectError),
@@ -27,7 +28,7 @@ enum RenderError {
 }
 
 impl RenderError {
-    fn into_query_error(self) -> crate::executor::QueryError {
+    pub(in crate::executor::filter) fn into_query_error(self) -> crate::executor::QueryError {
         match self {
             Self::Control(error) => error.into(),
             Self::Scan(error) => {
@@ -87,7 +88,9 @@ enum ArraySkip<'a> {
 #[derive(Clone, Copy)]
 enum KeySkip<'a> {
     One(&'a str),
+    #[cfg(test)]
     Many(&'a [Option<String>]),
+    Native(&'a [crate::types::Value]),
 }
 
 enum Frame<'a> {
@@ -184,7 +187,7 @@ impl<'a> Stack<'a> {
     }
 }
 
-fn render_object_without_key<'a>(
+pub(in crate::executor::filter) fn render_object_without_key<'a>(
     source: &'a str,
     key: &'a str,
     controls: &'a QueryExecutionControls,
@@ -212,7 +215,7 @@ fn render_observing<'a>(
     )
 }
 
-fn render_array_without_index<'a>(
+pub(in crate::executor::filter) fn render_array_without_index<'a>(
     source: &'a str,
     index: i64,
     controls: &'a QueryExecutionControls,
@@ -235,7 +238,7 @@ fn render_array_without_index<'a>(
     )
 }
 
-fn render_array_without_text<'a>(
+pub(in crate::executor::filter) fn render_array_without_text<'a>(
     source: &'a str,
     key: &'a str,
     controls: &'a QueryExecutionControls,
@@ -257,6 +260,7 @@ fn render_array_without_text<'a>(
     )
 }
 
+#[cfg(test)]
 fn render_object_without_keys<'a>(
     source: &'a str,
     keys: &'a [Option<String>],
@@ -276,6 +280,7 @@ fn render_object_without_keys<'a>(
     )
 }
 
+#[cfg(test)]
 fn render_array_without_keys<'a>(
     source: &'a str,
     keys: &'a [Option<String>],
@@ -299,6 +304,69 @@ fn render_array_without_keys<'a>(
             next: 0,
             emitted: false,
             skip: has_key.then_some(ArraySkip::Keys(KeySkip::Many(keys))),
+            replace: None,
+        },
+        controls,
+        |_| {},
+    )
+}
+
+pub(in crate::executor::filter) fn native_keys_valid(
+    keys: &[crate::types::Value],
+    controls: &QueryExecutionControls,
+) -> Result<bool, RenderError> {
+    let mut has_key = false;
+    for key in keys {
+        controls.check_interruption()?;
+        match key {
+            crate::types::Value::String(_) => has_key = true,
+            crate::types::Value::Null => {}
+            _ => {
+                return Err(RenderError::Path(
+                    super::super::unsupported_subtraction_operand(),
+                ))
+            }
+        }
+    }
+    Ok(has_key)
+}
+
+pub(in crate::executor::filter) fn render_object_without_native_keys<'a>(
+    source: &'a str,
+    keys: &'a [crate::types::Value],
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
+    native_keys_valid(keys, controls)?;
+    let fields = object::parse(source, controls)?.into_ordered(controls)?;
+    render_frames(
+        Frame::Object {
+            fields,
+            next: 0,
+            emitted: false,
+            skip: Some(KeySkip::Native(keys)),
+            replace: None,
+        },
+        controls,
+        |_| {},
+    )
+}
+
+pub(in crate::executor::filter) fn render_array_without_native_keys<'a>(
+    source: &'a str,
+    keys: &'a [crate::types::Value],
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
+    let has_key = native_keys_valid(keys, controls)?;
+    array_count(source, controls)?;
+    let mut scanner = array_scanner(source, controls)?;
+    scanner.next()?;
+    render_frames(
+        Frame::Array {
+            source,
+            scanner,
+            next: 0,
+            emitted: false,
+            skip: has_key.then_some(ArraySkip::Keys(KeySkip::Native(keys))),
             replace: None,
         },
         controls,
@@ -517,10 +585,22 @@ fn matches_key(
 ) -> Result<bool, CassieError> {
     match keys {
         KeySkip::One(key) => object::equal(value, key, controls),
+        #[cfg(test)]
         KeySkip::Many(keys) => {
             for key in keys {
                 controls.check_interruption()?;
                 if let Some(key) = key {
+                    if object::equal(value, key, controls)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
+        }
+        KeySkip::Native(keys) => {
+            for key in keys {
+                controls.check_interruption()?;
+                if let crate::types::Value::String(key) = key {
                     if object::equal(value, key, controls)? {
                         return Ok(true);
                     }

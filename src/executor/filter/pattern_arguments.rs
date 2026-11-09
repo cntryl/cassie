@@ -207,6 +207,7 @@ mod tests {
             exists: None,
             controls: Some(&controls),
             memory: None,
+            deletion_memory: None,
         };
 
         // Act
@@ -253,6 +254,7 @@ mod tests {
             exists: None,
             controls: Some(&controls),
             memory: None,
+            deletion_memory: None,
         };
 
         // Act
@@ -313,6 +315,7 @@ mod tests {
                     exists: None,
                     controls: Some(&controls),
                     memory: None,
+                    deletion_memory: None,
                 };
 
                 // Act
@@ -365,6 +368,7 @@ mod tests {
             exists: None,
             controls: Some(&controls),
             memory: None,
+            deletion_memory: None,
         };
         // Act
         let arguments =

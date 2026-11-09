@@ -552,6 +552,7 @@ fn evaluate_constant(
                 exists: None,
                 controls,
                 memory,
+                deletion_memory: None,
             },
             parameter,
             admit_cast,

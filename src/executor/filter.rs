@@ -125,7 +125,12 @@ pub(super) struct EvalContext<'a> {
     exists: Option<&'a ExistsResolver<'a>>,
     controls: Option<&'a crate::runtime::QueryExecutionControls>,
     memory: Option<&'a evaluation::EvaluationMemory>,
+    deletion_memory: Option<&'a evaluation::EvaluationMemory>,
 }
+
+#[cfg(test)]
+#[path = "filter/json_delete_evaluation_tests.rs"]
+mod json_delete_evaluation_tests;
 
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
@@ -233,6 +238,18 @@ impl ScalarValue {
             ScalarValue::Array(v) => Value::Array(v.clone()),
         }
     }
+
+    fn into_value(self) -> Value {
+        match self {
+            ScalarValue::Null => Value::Null,
+            ScalarValue::Bool(value) => Value::Bool(value),
+            ScalarValue::Int(value) => Value::Int64(value),
+            ScalarValue::Float(value) => Value::Float64(value),
+            ScalarValue::Str(value) | ScalarValue::Json(value) => Value::String(value),
+            ScalarValue::Typed(value) => Value::Typed(value),
+            ScalarValue::Array(value) => Value::Array(value),
+        }
+    }
 }
 
 /// Casts a value to `target` with the evaluator's `CAST` semantics.
@@ -274,7 +291,7 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
         }
         Expr::Function(function) => evaluate_function(function, row, context),
         Expr::Subquery(subquery) => subquery_value::value(row, expr, subquery, context),
-        _ => Ok(eval_scalar_with_context(row, expr, context)?.to_value()),
+        _ => Ok(eval_scalar_with_context(row, expr, context)?.into_value()),
     }
 }
 
@@ -299,6 +316,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             exists: None,
             controls: None,
             memory: None,
+            deletion_memory: None,
         },
     )
 }

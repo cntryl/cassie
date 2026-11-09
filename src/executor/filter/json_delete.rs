@@ -13,9 +13,111 @@ use serde_json::Value as JsonValue;
 #[path = "json_delete_compatibility_tests.rs"]
 mod compatibility_tests;
 
-#[cfg(test)]
 #[path = "json_delete_raw_scan.rs"]
 mod raw_scan;
+
+fn controlled_head(
+    document: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<char>, QueryError> {
+    for character in document.chars() {
+        controls.check_interruption()?;
+        if !character.is_whitespace() {
+            return Ok(Some(character));
+        }
+    }
+    Ok(None)
+}
+
+fn adopt_output(
+    output: crate::runtime::accounted::compact_json::OwnedJsonText,
+    owner: &super::EvaluationMemory,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<ScalarValue, QueryError> {
+    let (text, memory) = output.into_parts();
+    if !memory.belongs_to(controls) || !owner.belongs_to(controls) {
+        drop(text);
+        drop(memory);
+        return Err(CassieError::ResourceLimit(
+            "JSON deletion owner uses a different query tracker".into(),
+        )
+        .into());
+    }
+    owner.adopt(memory);
+    Ok(ScalarValue::Json(text))
+}
+
+pub(super) fn controlled_operator(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<Option<ScalarValue>, QueryError> {
+    use raw_scan::render;
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(Some(ScalarValue::Null));
+    }
+    reject_multidimensional_array(right)?;
+    let document = json_document(left)?;
+    if !matches!(
+        right,
+        ScalarValue::Str(_) | ScalarValue::Int(_) | ScalarValue::Array(_)
+    ) {
+        return Ok(None);
+    }
+    if let ScalarValue::Array(array) = right {
+        render::native_keys_valid(array.elements(), controls)
+            .map_err(render::RenderError::into_query_error)?;
+    }
+    let head = controlled_head(document, controls)?;
+    let output = match (head, right) {
+        (Some('{'), ScalarValue::Str(key)) => {
+            render::render_object_without_key(document, key, controls)
+        }
+        (Some('['), ScalarValue::Str(key)) => {
+            render::render_array_without_text(document, key, controls)
+        }
+        (Some('['), ScalarValue::Int(index)) => {
+            render::render_array_without_index(document, *index, controls)
+        }
+        (Some('{'), ScalarValue::Int(_)) => {
+            return Err(invalid_parameter(
+                "cannot delete from object using integer index",
+            ))
+        }
+        (Some('{'), ScalarValue::Array(array)) => {
+            render::render_object_without_native_keys(document, array.elements(), controls)
+        }
+        (Some('['), ScalarValue::Array(array)) => {
+            render::render_array_without_native_keys(document, array.elements(), controls)
+        }
+        (_, ScalarValue::Str(_) | ScalarValue::Int(_) | ScalarValue::Array(_)) => {
+            return Err(invalid_parameter("cannot delete from scalar"))
+        }
+        _ => return Ok(None),
+    }
+    .map_err(render::RenderError::into_query_error)?;
+    adopt_output(output, owner, controls).map(Some)
+}
+
+pub(super) fn controlled_path(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(Some(ScalarValue::Null));
+    }
+    reject_multidimensional_array(right)?;
+    let document = json_document(left)?;
+    let ScalarValue::Array(array) = right else {
+        return Ok(None);
+    };
+    let output = raw_scan::render::path::render_native_path(document, array.elements(), controls)
+        .map_err(raw_scan::render::RenderError::into_query_error)?;
+    adopt_output(output, owner, controls).map(Some)
+}
 
 pub(super) fn delete_operator(
     left: &ScalarValue,

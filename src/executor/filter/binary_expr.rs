@@ -49,7 +49,10 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         return json_extract::evaluate(&document, &right_value, *path, *as_text, *jsonb);
     }
     if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
-        && is_json_typed_input(row, left, &left_value)
+        && (is_json_typed_input(row, left, &left_value)
+            || (*op == BinaryOp::Sub
+                && matches!(&left_value, ScalarValue::Json(_))
+                && !matches!(&right_value, ScalarValue::Array(_))))
     {
         if matches!(&left_value, ScalarValue::Null) || matches!(&right_value, ScalarValue::Null) {
             return Ok(ScalarValue::Null);
@@ -59,6 +62,16 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
                 "cannot delete from scalar".into(),
             )
             .into());
+        }
+        if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+            let result = if matches!(op, BinaryOp::JsonbDeletePath) {
+                json_delete::controlled_path(&left_value, &right_value, controls, owner)?
+            } else {
+                json_delete::controlled_operator(&left_value, &right_value, controls, owner)?
+            };
+            if let Some(value) = result {
+                return Ok(value);
+            }
         }
         return if matches!(op, BinaryOp::JsonbDeletePath) {
             json_delete::delete_path(&left_value, &right_value)

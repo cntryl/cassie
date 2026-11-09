@@ -13,10 +13,8 @@ pub(crate) mod jsonb_array_envelope;
 pub(crate) mod jsonb_array_output;
 #[path = "json_arena/object.rs"]
 mod object;
-#[cfg(test)]
 #[path = "json_arena/raw_decode.rs"]
 pub(crate) mod raw_decode;
-#[cfg(test)]
 #[path = "json_arena/raw_number.rs"]
 pub(crate) mod raw_number;
 #[path = "json_arena/slots.rs"]

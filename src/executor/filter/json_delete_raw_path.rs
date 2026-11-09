@@ -14,6 +14,35 @@ enum Ancestor<'a> {
     Array { source: &'a str, index: usize },
 }
 
+#[derive(Clone, Copy)]
+enum PathView<'a> {
+    #[cfg(test)]
+    Owned(&'a [Option<String>]),
+    Native(&'a [crate::types::Value]),
+}
+
+impl<'a> PathView<'a> {
+    fn len(self) -> usize {
+        match self {
+            #[cfg(test)]
+            Self::Owned(values) => values.len(),
+            Self::Native(values) => values.len(),
+        }
+    }
+
+    fn get(self, index: usize) -> Option<Option<&'a str>> {
+        match self {
+            #[cfg(test)]
+            Self::Owned(values) => values.get(index).map(Option::as_deref),
+            Self::Native(values) => values.get(index).map(|value| match value {
+                crate::types::Value::String(text) => Some(text.as_str()),
+                crate::types::Value::Null => None,
+                _ => unreachable!("native path elements were validated"),
+            }),
+        }
+    }
+}
+
 struct Ancestors<'a> {
     values: Vec<Ancestor<'a>>,
     memory: QueryMemoryReservation,
@@ -86,6 +115,7 @@ impl<'a> Ancestors<'a> {
     }
 }
 
+#[cfg(test)]
 pub(super) fn render_path<'a>(
     source: &'a str,
     path: &'a [Option<String>],
@@ -94,9 +124,38 @@ pub(super) fn render_path<'a>(
     render_path_observing(source, path, controls, || {})
 }
 
+#[cfg(test)]
 pub(super) fn render_path_observing<'a>(
     source: &'a str,
     path: &'a [Option<String>],
+    controls: &'a QueryExecutionControls,
+    observe: impl FnMut(),
+) -> Result<OwnedJsonText, RenderError> {
+    render_view(source, PathView::Owned(path), controls, observe)
+}
+
+pub(in crate::executor::filter) fn render_native_path<'a>(
+    source: &'a str,
+    path: &'a [crate::types::Value],
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
+    for value in path {
+        controls.check_interruption()?;
+        if !matches!(
+            value,
+            crate::types::Value::String(_) | crate::types::Value::Null
+        ) {
+            return Err(RenderError::Path(
+                super::super::super::unsupported_subtraction_operand(),
+            ));
+        }
+    }
+    render_view(source, PathView::Native(path), controls, || {})
+}
+
+fn render_view<'a>(
+    source: &'a str,
+    path: PathView<'a>,
     controls: &'a QueryExecutionControls,
     mut observe: impl FnMut(),
 ) -> Result<OwnedJsonText, RenderError> {
@@ -141,7 +200,7 @@ pub(super) fn render_path_observing<'a>(
         let Some(head) = path.get(position) else {
             break render_frames(Frame::Value(current), controls, |_| {})?;
         };
-        let Some(head) = head.as_deref() else {
+        let Some(head) = head else {
             return Err(RenderError::Path(super::super::super::type_input_error(
                 "22004",
                 format!("path element at position {} is null", position + 1),

@@ -177,6 +177,36 @@ fn should_match_text_array_deletion_for_objects_and_arrays() {
 }
 
 #[test]
+fn should_match_borrowed_native_key_arrays_for_both_container_shapes() {
+    // Arrange
+    let controls = controls(QueryCancellationHandle::new());
+    let keys = vec![
+        crate::types::Value::String("a".into()),
+        crate::types::Value::Null,
+        crate::types::Value::String("b".into()),
+    ];
+    let right =
+        ScalarValue::Array(crate::types::SqlArray::from_elements(keys.clone()).expect("keys"));
+    // Act / Assert
+    for source in [r#"{"a":1,"b":2,"c":3}"#, r#"["a",1,"b","c"]"#] {
+        let old = json_delete::delete_operator(&ScalarValue::Json(source.into()), &right)
+            .expect("old deletion");
+        let ScalarValue::Json(expected) = old else {
+            panic!("JSON result")
+        };
+        let result = if source.starts_with('{') {
+            super::render_object_without_native_keys(source, &keys, &controls)
+        } else {
+            super::render_array_without_native_keys(source, &keys, &controls)
+        }
+        .expect("raw deletion");
+        assert_eq!(result.as_str(), expected);
+        drop(result);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
 fn should_preserve_all_null_key_array_survivor_errors() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
@@ -285,6 +315,52 @@ fn should_match_reached_null_and_invalid_index_path_errors() {
         assert_eq!(actual, old);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
+}
+
+#[test]
+fn should_use_borrowed_native_path_values_without_copying_their_strings() {
+    // Arrange
+    let controls = controls(QueryCancellationHandle::new());
+    let source = r#"{"a":{"b":1,"c":2}}"#;
+    let values = vec![
+        crate::types::Value::String("a".into()),
+        crate::types::Value::String("b".into()),
+    ];
+    let path =
+        ScalarValue::Array(crate::types::SqlArray::from_elements(values.clone()).expect("path"));
+    let old = json_delete::delete_path(&ScalarValue::Json(source.into()), &path).expect("old path");
+    let ScalarValue::Json(expected) = old else {
+        panic!("JSON result")
+    };
+    // Act
+    let actual = super::path::render_native_path(source, &values, &controls).expect("native path");
+    // Assert
+    assert_eq!(actual.as_str(), expected);
+    drop(actual);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_validate_native_path_elements_before_scalar_document_rejection() {
+    // Arrange
+    let controls = controls(QueryCancellationHandle::new());
+    let values = vec![crate::types::Value::Int64(1)];
+    let path =
+        ScalarValue::Array(crate::types::SqlArray::from_elements(values.clone()).expect("path"));
+    let old = json_delete::delete_path(&ScalarValue::Json("42".into()), &path);
+    // Act
+    let actual = super::path::render_native_path("42", &values, &controls);
+    // Assert
+    let actual = match actual {
+        Ok(_) => panic!("invalid path accepted"),
+        Err(error) => error.into_query_error().to_string(),
+    };
+    let old = match old {
+        Ok(_) => panic!("old invalid path accepted"),
+        Err(error) => error.to_string(),
+    };
+    assert_eq!(actual, old);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]

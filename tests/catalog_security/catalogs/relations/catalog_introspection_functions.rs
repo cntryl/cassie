@@ -83,3 +83,4 @@ fn should_render_abs_integer_catalog_signatures() {
 }
 
 include!("../system_information/catalog_introspection_functions.rs");
+include!("../namespaces/namespace_descriptors.rs");

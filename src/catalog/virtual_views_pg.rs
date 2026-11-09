@@ -10,7 +10,12 @@ use super::VirtualRow;
 mod index_definitions;
 
 pub(super) fn namespace_schema() -> Vec<(String, DataType)> {
-    vec![int("oid"), text("nspname"), int("nspowner"), text("nspacl")]
+    vec![
+        oid("oid"),
+        ("nspname".to_owned(), DataType::Name),
+        int("nspowner"),
+        text("nspacl"),
+    ]
 }
 
 pub(super) fn class_schema() -> Vec<(String, DataType)> {

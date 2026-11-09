@@ -479,3 +479,111 @@ fn should_reject_string_array_source_from_another_tracker() {
     drop(source);
     assert_eq!(first.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_cancel_primitive_array_during_second_alias_copy() {
+    // Arrange
+    use crate::types::array_value::primitive_copy::copy_primitive_array;
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let source = controls.reserve_query_memory(64).expect("source");
+    let array =
+        crate::types::SqlArray::from_elements(vec![Value::Int64(1), Value::Null]).expect("array");
+    let copied = copy_primitive_array(&array, &source, &controls, |_| {})
+        .expect("copy")
+        .expect("primitive");
+    let result = primitive_array_output(copied);
+    drop(source);
+    let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
+    let completed = std::cell::Cell::new(0);
+    let mut cancelled = false;
+
+    // Act
+    let status = output.append_with_progress(
+        result,
+        &["pct".into(), "alias".into()],
+        || completed.set(completed.get() + 1),
+        &mut |progress| {
+            if completed.get() == 1 && matches!(progress, OutputProgress::ValueCopy) {
+                cancelled = true;
+                cancellation.cancel();
+            }
+        },
+    );
+
+    // Assert
+    assert!(cancelled);
+    assert_eq!(completed.get(), 1);
+    assert_eq!(output.values.len(), 1);
+    assert!(matches!(
+        status,
+        Err(QueryError::Cassie(CassieError::QueryCancelled))
+    ));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reject_forged_nonprimitive_array_before_alias_publication() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let memory = controls.reserve_query_memory(0).expect("owner");
+    let array = crate::types::SqlArray::from_elements(vec![Value::String("not primitive".into())])
+        .expect("array");
+    let forged = AggregateOutput {
+        value: Value::Array(array),
+        memory: Some(memory),
+        copy_mode: OutputCopyMode::PrimitiveArray,
+    };
+    let mut output = row(&controls);
+
+    // Act
+    let result = output.append(forged, &["pct".into()]);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert!(output.values.is_empty());
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_require_row_admission_for_empty_primitive_array() {
+    // Arrange
+    use crate::types::array_value::primitive_copy::copy_primitive_array;
+    let controls = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_memory_budget_bytes: 0,
+            ..CassieRuntimeLimits::default()
+        },
+        Instant::now(),
+    );
+    let source = controls.reserve_query_memory(0).expect("source");
+    let array = crate::types::SqlArray::empty();
+    let copy = copy_primitive_array(&array, &source, &controls, |_| {})
+        .expect("copy")
+        .expect("primitive");
+    let result = primitive_array_output(copy);
+    let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
+
+    // Act
+    let result = output.append(result, &["pct".into()]);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    drop(output);
+    drop(source);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

@@ -9,6 +9,10 @@ use serde_json::Value as JsonValue;
 use super::DataType;
 use super::Value;
 
+#[cfg(test)]
+#[path = "array_value/primitive_copy_tests.rs"]
+mod primitive_copy_tests;
+
 const STORAGE_KEY: &str = "$cassie_array_v1";
 const STORAGE_VERSION: u64 = 1;
 

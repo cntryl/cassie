@@ -22,6 +22,10 @@ mod disc_string_tests;
 mod disc_string_array_tests;
 
 #[cfg(test)]
+#[path = "ordered_set_disc_primitive_array_tests.rs"]
+mod disc_primitive_array_tests;
+
+#[cfg(test)]
 #[path = "ordered_set_sort_control_tests.rs"]
 mod sort_control_tests;
 

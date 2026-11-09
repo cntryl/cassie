@@ -10,6 +10,10 @@ mod single_lookup_tests;
 #[path = "batch/operator_memory_tests.rs"]
 mod operator_memory_tests;
 
+#[cfg(test)]
+#[path = "batch/window_type_accounting_tests.rs"]
+mod window_type_accounting_tests;
+
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::atomic::{AtomicU64, Ordering};

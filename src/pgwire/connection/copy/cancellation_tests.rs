@@ -348,6 +348,26 @@ fn should_prioritize_cancellation_given_a_ready_copy_message() {
     assert!(matches!(outcome, CopyReadOutcome::Cancelled));
 }
 
+#[test]
+fn should_return_a_ready_copy_message_when_not_cancelled() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let cancellation = QueryCancellationHandle::new();
+    let message = future::ready(Ok::<_, HandshakeError>(FrontendMessage::CopyDone));
+
+    // Act
+    let outcome = runtime.block_on(select_copy_read(&cancellation, message));
+
+    // Assert
+    assert!(matches!(
+        outcome,
+        CopyReadOutcome::Message(Ok(FrontendMessage::CopyDone))
+    ));
+}
+
 struct PgwireCopyCancelHarness {
     cassie: std::sync::Arc<Cassie>,
     server: tokio::task::JoinHandle<Result<(), crate::app::CassieError>>,

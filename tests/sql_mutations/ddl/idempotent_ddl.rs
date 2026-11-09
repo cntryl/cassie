@@ -147,13 +147,10 @@ fn should_validate_columns_before_skipping_an_existing_index() {
 
     // Assert
     for result in [key, include, predicate] {
-        assert_eq!(
-            result
-                .expect_err("missing column is validated")
-                .descriptor()
-                .sql_state,
-            "42703"
-        );
+        assert!(matches!(
+            result.expect_err("missing column is validated"),
+            cassie::app::CassieError::UndefinedColumn(_)
+        ));
     }
     assert_eq!(
         valid.expect("valid duplicate is skipped").command(),
@@ -271,6 +268,9 @@ fn should_report_missing_unqualified_predicate_columns_on_either_side() {
         "CREATE INDEX IF NOT EXISTS stable_idx ON indexed_rows (v) WHERE \"MissingQuoted\" = 1",
     ] {
         let error = fixture.execute(sql).expect_err("missing predicate column");
-        assert_eq!(error.descriptor().sql_state, "42703");
+        assert!(matches!(
+            error,
+            cassie::app::CassieError::UndefinedColumn(_)
+        ));
     }
 }

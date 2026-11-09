@@ -6,6 +6,22 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::AsyncWrite;
 
+#[test]
+fn should_encode_internal_char_zero_and_identity_codes() {
+    // Arrange
+    let values = ["", "a", "d", "too long"];
+
+    // Act
+    let encoded =
+        values.map(|value| super::codecs::value_to_binary(&Value::String(value.into()), 18));
+
+    // Assert
+    assert_eq!(encoded[0].as_ref().expect("zero char").as_slice(), &[0]);
+    assert_eq!(encoded[1].as_ref().expect("always").as_slice(), b"a");
+    assert_eq!(encoded[2].as_ref().expect("by default").as_slice(), b"d");
+    assert!(encoded[3].is_err());
+}
+
 #[derive(Default)]
 struct CountingWrite {
     bytes: Vec<u8>,

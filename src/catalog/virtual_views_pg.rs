@@ -457,7 +457,14 @@ fn attribute_row(
         int_value("atttypmod", i64::from(data_type.atttypmod())),
         bool_value("atthasdef", constraint_has_default(constraint)),
         bool_value("attisdropped", false),
-        string("attidentity", ""),
+        string(
+            "attidentity",
+            match constraint.and_then(|item| item.identity) {
+                Some(crate::catalog::IdentityGeneration::Always) => "a",
+                Some(crate::catalog::IdentityGeneration::ByDefault) => "d",
+                None => "",
+            },
+        ),
         string("attgenerated", ""),
         int_value("attcollation", 0),
     ]

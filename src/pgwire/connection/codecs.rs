@@ -212,6 +212,7 @@ fn encode_special_binary_type(
     }
     if type_oid == POSTGRES_INTERNAL_CHAR_OID {
         return Some(match value {
+            Value::String(value) if value.is_empty() => Ok(vec![0]),
             Value::String(value) if value.len() == 1 => Ok(value.as_bytes().to_vec()),
             _ => invalid_value("char"),
         });

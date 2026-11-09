@@ -23,6 +23,11 @@ fn apply_query_output_oids(
     );
     aggregate::apply_void_function_oids(&plan.logical.projection, columns);
     aggregate::apply_pg_type_kind_oid(&plan.logical.source, &plan.logical.projection, columns);
+    aggregate::apply_pg_attribute_identity_oid(
+        &plan.logical.source,
+        &plan.logical.projection,
+        columns,
+    );
     array_text_columns
 }
 

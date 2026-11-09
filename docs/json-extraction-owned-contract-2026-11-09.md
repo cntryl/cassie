@@ -10,6 +10,14 @@ separate ownership obligations. Authored pointer, output/error and owner probes
 are unexecuted until the consolidated gate; moving a non-JSON operand into the
 helper can retire its temporary source earlier after conversion.
 
+The same evaluated-carrier move applies to the JSON-to-JSON cast branch.
+Target admission still precedes expression evaluation, and JSONB-involved
+casts still run their existing value admission and canonicalizer in order.
+The result of that canonicalizer is not qualified by the move, and its serde
+private-sentinel behavior remains an open #809 semantic boundary. Test-first
+pointer, NULL, scalar fallback, JSON/JSONB and canonicalization-error probes
+remain unexecuted until the consolidated gate.
+
 Controlled extraction and typed concatenation also need an owned conversion
 for non-JSON scalars. The selected candidate keeps each converted value before
 its own reservation, retaining the left operand while converting the right

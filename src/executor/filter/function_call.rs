@@ -1,9 +1,28 @@
 //! Scalar call evaluation preserves argument order and context-owned scratch.
+#[cfg(test)]
+#[path = "json_object_keys_argument_tests.rs"]
+mod json_object_keys_argument_tests;
+
 use super::{
     array_functions, datum_size, evaluate_builtin_function, evaluate_coalesce,
     evaluate_user_defined_function, json_builders, text_selection, EvalContext, FunctionCall,
     QueryError, RowAccess, Value,
 };
+
+#[cfg(test)]
+thread_local! {
+    static INPUT_VALUE_CLONES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(in crate::executor::filter) fn record_input_value_clone(present: bool) {
+    if present {
+        INPUT_VALUE_CLONES.with(|count| count.set(count.get().saturating_add(1)));
+    }
+}
+#[cfg(test)]
+fn take_input_value_clone_count() -> usize {
+    INPUT_VALUE_CLONES.with(|count| count.replace(0))
+}
 
 pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -19,6 +38,9 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     }
 
     if let Some(result) = super::regex_functions::evaluate_expression(function, row, context) {
+        return result;
+    }
+    if let Some(result) = borrowed_object_keys_argument(&name, function, row, context) {
         return result;
     }
 
@@ -98,4 +120,49 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
 
     evaluate_builtin_function(&name, function, row, &args, context)
         .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))
+}
+
+fn borrowed_object_keys_argument<R: RowAccess + ?Sized>(
+    name: &str,
+    function: &FunctionCall,
+    row: &R,
+    context: EvalContext<'_>,
+) -> Option<Result<Value, QueryError>> {
+    if !matches!(name, "json_object_keys" | "jsonb_object_keys") || context.memory.is_some() {
+        return None;
+    }
+    let [argument @ (super::Expr::Column(_) | super::Expr::Param(_))] = function.args.as_slice()
+    else {
+        return None;
+    };
+    let owner = context.deletion_memory?;
+    let controls = context.controls.or_else(|| {
+        context
+            .session
+            .and_then(super::CassieSession::statement_execution_controls)
+    })?;
+    Some((|| {
+        let argument_scratch = context
+            .session
+            .map(|session| session.statement_text_scratch(argument))
+            .transpose()?;
+        super::super::evaluation::admit_leaf(row, argument, context)?;
+        let null = Value::Null;
+        let value = match argument {
+            super::Expr::Column(name) => {
+                super::super::column_value_ref(row, name, context.local_args)
+            }
+            super::Expr::Param(index) => context.params.get(*index),
+            _ => unreachable!("direct argument selected above"),
+        }
+        .unwrap_or(&null);
+        drop(argument_scratch);
+        super::json_functions::evaluate_with_owner(
+            name,
+            std::slice::from_ref(value),
+            Some(controls),
+            Some(owner),
+        )
+        .expect("selected JSON object-key builtin")
+    })())
 }

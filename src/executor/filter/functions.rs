@@ -57,6 +57,8 @@ mod toast_identity;
 #[path = "function_call.rs"]
 mod call;
 pub(super) use call::evaluate_function;
+#[cfg(test)]
+pub(super) use call::record_input_value_clone;
 
 fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     name: &str,

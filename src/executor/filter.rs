@@ -319,13 +319,17 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     match expr {
         Expr::Param(index) => {
             evaluation::admit_leaf(row, expr, context)?;
-            Ok(context.params.get(*index).cloned().unwrap_or(Value::Null))
+            let value = context.params.get(*index);
+            #[cfg(test)]
+            functions::record_input_value_clone(value.is_some());
+            Ok(value.cloned().unwrap_or(Value::Null))
         }
         Expr::Column(name) => {
             evaluation::admit_leaf(row, expr, context)?;
-            Ok(column_value_ref(row, name, context.local_args)
-                .cloned()
-                .unwrap_or(Value::Null))
+            let value = column_value_ref(row, name, context.local_args);
+            #[cfg(test)]
+            functions::record_input_value_clone(value.is_some());
+            Ok(value.cloned().unwrap_or(Value::Null))
         }
         Expr::Function(function) => evaluate_function(function, row, context),
         Expr::Subquery(subquery) => subquery_value::value(row, expr, subquery, context),

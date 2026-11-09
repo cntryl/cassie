@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "owned_rows_foundation_tests.rs"]
+mod owned_rows_foundation_tests;
+
 use std::cmp::Ordering as CmpOrdering;
 use std::collections::{BTreeMap, BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;

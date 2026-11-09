@@ -356,6 +356,15 @@ impl std::ops::Deref for AdapterTransaction {
 }
 
 impl Midge {
+    pub(super) fn has_active_transactional_ddl_scope(&self) -> bool {
+        ACTIVE_STORAGE_SCOPE.with(|current| {
+            current
+                .borrow()
+                .as_ref()
+                .is_some_and(|scope| scope.midge_identity == std::ptr::from_ref(self) as usize)
+        })
+    }
+
     pub(crate) fn enter_transactional_ddl_scope(
         &self,
         database: &str,

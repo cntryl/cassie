@@ -1,13 +1,13 @@
 use super::{key_encoding, CassieError, IndexKind, Midge, Uuid};
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
     pub cleanup_id: String,
     pub blocked_by_epoch: u64,
     pub action: PendingSchemaCleanupAction,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum PendingSchemaCleanupAction {
     #[serde(rename = "DropTable")]
     Table { table: String, relation_id: u64 },
@@ -188,7 +188,7 @@ impl Midge {
                 }
             }
             PendingSchemaCleanupAction::Index { table, index } => {
-                self.complete_drop_index_cleanup(table, index)?;
+                return self.complete_current_index_cleanup(cleanup, table, index);
             }
             PendingSchemaCleanupAction::View { view } => {
                 self.delete_view(view)?;
@@ -202,6 +202,43 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
+    }
+
+    fn complete_current_index_cleanup(
+        &self,
+        cleanup: &PendingSchemaCleanup,
+        table: &str,
+        index: &str,
+    ) -> Result<(), CassieError> {
+        if self.has_active_transactional_ddl_scope() {
+            return Err(CassieError::Unsupported(
+                "deferred index cleanup requires a nontransactional storage scope".to_owned(),
+            ));
+        }
+        let canonical = self.canonical_collection_name(table);
+        let gate = self.collection_write_gate(&canonical);
+        let _guard = gate.lock();
+        let database = crate::catalog::relation_database_name(&canonical)
+            .unwrap_or_else(|| self.default_database.clone());
+        let read =
+            self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?;
+        let key = Self::schema_cleanup_key(&canonical, &cleanup.cleanup_id);
+        let Some(raw) = read.get(&key).map_err(CassieError::from)? else {
+            return Ok(());
+        };
+        let current: PendingSchemaCleanup = serde_json::from_slice(&raw).map_err(|error| {
+            CassieError::Parse(format!("invalid pending schema cleanup: {error}"))
+        })?;
+        if &current != cleanup {
+            return Ok(());
+        }
+        drop(read);
+        self.complete_drop_index_cleanup(table, index)?;
+        let mut tx =
+            self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadWrite)?;
+        tx.delete(key).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     fn complete_drop_index_cleanup(&self, table: &str, index: &str) -> Result<(), CassieError> {
@@ -249,7 +286,84 @@ impl Midge {
 #[cfg(test)]
 mod tests {
     use super::{key_encoding, Midge, Uuid};
+    use crate::catalog::{IndexKind, IndexMeta};
     use crate::midge::adapter::StorageFamily;
+
+    #[test]
+    fn should_ignore_a_stale_cleanup_record_after_a_name_is_reused() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("create Midge");
+        midge
+            .create_collection(
+                "cleanup_stale",
+                crate::types::Schema {
+                    fields: vec![crate::types::FieldSchema {
+                        name: "id".to_string(),
+                        data_type: crate::types::DataType::Int,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("create collection");
+        let index = IndexMeta {
+            definition_semantics_version: 0,
+            collection: "cleanup_stale".to_string(),
+            name: "cleanup_stale_idx".to_string(),
+            field: "id".to_string(),
+            fields: vec!["id".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
+        midge.put_index(&index).expect("first index");
+        midge
+            .defer_drop_index(&index.collection, &index.name, 0)
+            .expect("defer");
+        let stale = midge
+            .pending_schema_cleanups()
+            .expect("scan")
+            .pop()
+            .expect("cleanup");
+        let overlay = std::sync::Arc::new(parking_lot::Mutex::new(
+            crate::midge::adapter::StorageOverlay::default(),
+        ));
+        let scoped = {
+            let _scope = midge
+                .enter_transactional_ddl_scope("postgres", overlay, true)
+                .expect("scope");
+            midge.complete_pending_schema_cleanup(&stale)
+        };
+        assert!(scoped.is_err(), "cleanup cannot mix scoped and raw writes");
+        assert_eq!(
+            midge
+                .pending_schema_cleanups()
+                .expect("marker still present")
+                .len(),
+            1
+        );
+        assert!(midge
+            .get_index(&index.collection, &index.name)
+            .expect("read original")
+            .is_some());
+        midge
+            .complete_pending_schema_cleanup(&stale)
+            .expect("first cleanup");
+        midge.put_index(&index).expect("reuse name after cleanup");
+
+        // Act
+        midge
+            .complete_pending_schema_cleanup(&stale)
+            .expect("stale cleanup is a no-op");
+
+        // Assert
+        assert!(midge
+            .get_index(&index.collection, &index.name)
+            .expect("read")
+            .is_some());
+    }
 
     #[test]
     fn should_store_pending_schema_cleanup_in_database_family() {

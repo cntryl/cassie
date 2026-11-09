@@ -80,9 +80,10 @@ fn should_recover_jsonb_binary_copy_error_in_implicit_and_explicit_transactions(
             "SELECT count(*) FROM jsonb_copy_recovery",
         )]);
         // Act
-        let frames = crate::support_repeatable_read::run_own_script(
+        let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
             &["CREATE TABLE jsonb_copy_recovery (value JSONB)"],
             script,
+            &[(copy_index, "42601")],
         );
         // Assert
         assert_eq!(
@@ -136,9 +137,10 @@ fn should_recover_jsonb_array_binary_copy_error_in_implicit_and_explicit_transac
             "SELECT count(*) FROM jsonb_array_copy_recovery",
         )]);
         // Act
-        let frames = crate::support_repeatable_read::run_own_script(
+        let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
             &["CREATE TABLE jsonb_array_copy_recovery (value JSONB[])"],
             script,
+            &[(copy_index, "42601")],
         );
         // Assert
         assert_eq!(
@@ -281,7 +283,9 @@ fn should_rollback_a_staged_copy_error_without_rewinding_its_sequence() {
     ];
 
     // Act
-    let frames = crate::support_repeatable_read::run_own_script(&[], script);
+    let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
+        &[], script, &[(3, "22P02")],
+    );
 
     // Assert
     assert_eq!(wire::error_code(&frames[3]).as_deref(), Some("22P02"));
@@ -442,7 +446,9 @@ fn should_report_unknown_quoted_copy_where_column_and_recover() {
         vec![wire::simple_query_frame("SELECT 1")],
     ];
     // Act
-    let frames = crate::support_repeatable_read::run_own_script(&[], script);
+    let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
+        &[], script, &[(1, "42703")],
+    );
     // Assert
     assert_eq!(wire::error_code(&frames[1]).as_deref(), Some("42703"));
     assert_eq!(wire::error_code(&frames[2]), None);
@@ -484,7 +490,9 @@ fn should_recover_binary_timestamp_range_errors_in_implicit_and_explicit_transac
 
             // Act
             let setup = format!("CREATE TABLE timestamp_copy_bounds (value {sql_type})");
-            let frames = crate::support_repeatable_read::run_own_script(&[&setup], script);
+            let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
+                &[&setup], script, &[(copy_index, "22008")],
+            );
 
             // Assert
             assert_eq!(
@@ -541,7 +549,9 @@ fn should_recover_binary_date_time_range_errors_in_implicit_and_explicit_transac
 
             // Act
             let setup = format!("CREATE TABLE date_time_copy_bounds (value {sql_type})");
-            let frames = crate::support_repeatable_read::run_own_script(&[&setup], script);
+            let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
+                &[&setup], script, &[(copy_index, "22008")],
+            );
 
             // Assert
             assert_eq!(
@@ -593,9 +603,10 @@ fn should_recover_binary_interval_framing_errors_in_implicit_and_explicit_transa
             )]);
 
             // Act
-            let frames = crate::support_repeatable_read::run_own_script(
+            let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
                 &["CREATE TABLE interval_copy_bounds (value INTERVAL)"],
                 script,
+                &[(copy_index, expected)],
             );
 
             // Assert

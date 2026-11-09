@@ -1,7 +1,7 @@
 //! PG18.6-pinned Bind command views survive later own writes and DDL.
 
 use crate::support_pgwire as wire;
-use crate::support_repeatable_read::run_own_script;
+use crate::support_repeatable_read::{run_own_script, run_own_script_with_expected_errors};
 
 fn query(sql: &str) -> Vec<Vec<u8>> {
     vec![wire::simple_query_frame(sql)]
@@ -205,7 +205,7 @@ fn should_restart_a_rolled_back_staged_sequence_with_a_recreated_identity() {
     ];
 
     // Act
-    let frames = run_own_script(&[], script);
+    let frames = run_own_script_with_expected_errors(&[], script, &[(7, "55000")]);
 
     // Assert
     assert_eq!(wire::error_code(&frames[7]).as_deref(), Some("55000"));
@@ -233,7 +233,7 @@ fn should_keep_staged_sequence_advance_after_a_failed_statement() {
     ];
 
     // Act
-    let frames = run_own_script(&[], script);
+    let frames = run_own_script_with_expected_errors(&[], script, &[(3, "22012")]);
 
     // Assert
     assert_eq!(wire::error_code(&frames[3]).as_deref(), Some("22012"));
@@ -308,7 +308,7 @@ fn should_follow_setval_for_the_last_used_sequence_identity() {
     ];
 
     // Act
-    let frames = run_own_script(&[], script);
+    let frames = run_own_script_with_expected_errors(&[], script, &[(8, "55000")]);
 
     // Assert
     assert_eq!(wire::data_rows(&frames[4]), vec![vec![Some("7".into())]]);
@@ -461,7 +461,7 @@ fn should_preserve_a_private_cursor_after_an_invalid_restart() {
     ];
 
     // Act
-    let frames = run_own_script(&[], script);
+    let frames = run_own_script_with_expected_errors(&[], script, &[(4, "22023")]);
 
     // Assert
     assert_eq!(wire::error_code(&frames[4]).as_deref(), Some("22023"));

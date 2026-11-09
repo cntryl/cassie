@@ -156,6 +156,28 @@ pub fn disconnect_retained_view() -> (u64, u64) {
 
 /// Executes ordered protocol exchanges on one owned memory-mode connection.
 pub fn run_own_script(setup: &[&str], script: Vec<Vec<Vec<u8>>>) -> Vec<Frames> {
+    run_own_script_with_expected_errors(setup, script, &[])
+}
+
+/// Executes one connection's script with exact expected SQLSTATEs at selected
+/// zero-based exchange indexes. Every other exchange must have no error frame.
+pub fn run_own_script_with_expected_errors(
+    setup: &[&str],
+    script: Vec<Vec<Vec<u8>>>,
+    expected_errors: &[(usize, &str)],
+) -> Vec<Frames> {
+    for (position, (index, _)) in expected_errors.iter().enumerate() {
+        assert!(
+            *index < script.len(),
+            "expected error index is outside the script"
+        );
+        assert!(
+            !expected_errors[..position]
+                .iter()
+                .any(|(earlier, _)| earlier == index),
+            "duplicate expected error index {index}"
+        );
+    }
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -176,11 +198,91 @@ pub fn run_own_script(setup: &[&str], script: Vec<Vec<Vec<u8>>>) -> Vec<Frames> 
         let (mut reader, mut writer) = socket.into_split();
         wire::complete_startup(&mut reader, &mut writer).await;
         let mut responses = Vec::new();
-        for frames in script {
-            responses.push(exchange(&mut reader, &mut writer, frames).await);
+        for (index, frames) in script.into_iter().enumerate() {
+            wire::write_frames(&mut writer, frames).await;
+            let response =
+                wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+            let expected = expected_errors
+                .iter()
+                .find_map(|(step, code)| (*step == index).then_some(*code));
+            assert_script_response(&response, index, expected);
+            responses.push(response);
         }
         drop((reader, writer));
         server.stop().await;
         responses
     })
+}
+
+fn assert_script_response(frames: &Frames, index: usize, expected: Option<&str>) {
+    let count = frames.iter().filter(|(tag, _)| *tag == b'E').count();
+    assert_eq!(
+        count,
+        usize::from(expected.is_some()),
+        "script step {index}: {frames:?}"
+    );
+    let actual = frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .and_then(|(_, payload)| complete_sqlstate(payload));
+    assert_eq!(actual, expected, "script step {index}: {frames:?}");
+}
+
+fn complete_sqlstate(payload: &[u8]) -> Option<&str> {
+    let mut index = 0;
+    let mut state = None;
+    loop {
+        let tag = *payload.get(index)?;
+        index += 1;
+        if tag == 0 {
+            return (index == payload.len()).then_some(state?);
+        }
+        let end = index.checked_add(payload.get(index..)?.iter().position(|byte| *byte == 0)?)?;
+        if tag == b'C' {
+            if state.is_some() {
+                return None;
+            }
+            let value = std::str::from_utf8(&payload[index..end]).ok()?;
+            if value.len() != 5 {
+                return None;
+            }
+            state = Some(value);
+        }
+        index = end + 1;
+    }
+}
+
+#[test]
+fn should_require_exact_error_count_and_sqlstate_for_each_script_step() {
+    // Arrange
+    let success = vec![(b'Z', b"I".to_vec())];
+    let failure = vec![(
+        b'E',
+        b"SERROR\0C22012\0Mdivision by zero\0\0".to_vec(),
+    )];
+
+    // Act / Assert
+    assert_script_response(&success, 0, None);
+    assert_script_response(&failure, 1, Some("22012"));
+    assert!(std::panic::catch_unwind(|| assert_script_response(&failure, 1, None)).is_err());
+    assert!(
+        std::panic::catch_unwind(|| assert_script_response(&failure, 1, Some("42601"))).is_err()
+    );
+    assert!(
+        std::panic::catch_unwind(|| assert_script_response(&success, 1, Some("22012"))).is_err()
+    );
+    let duplicate = vec![failure[0].clone(), failure[0].clone()];
+    assert!(
+        std::panic::catch_unwind(|| assert_script_response(&duplicate, 1, Some("22012"))).is_err()
+    );
+    let duplicate_code = vec![(b'E', b"C22012\0C42601\0\0".to_vec())];
+    let unterminated = vec![(b'E', b"C22012\0".to_vec())];
+    assert!(std::panic::catch_unwind(|| {
+        assert_script_response(&duplicate_code, 1, Some("22012"));
+    })
+    .is_err());
+    assert!(std::panic::catch_unwind(|| {
+        assert_script_response(&unterminated, 1, Some("22012"));
+    })
+    .is_err());
 }

@@ -17,6 +17,13 @@ mod output_owner_tests;
 #[path = "ordered_set_sort_control_tests.rs"]
 mod sort_control_tests;
 
+#[path = "ordered_set_inputs.rs"]
+mod inputs;
+
+#[cfg(test)]
+#[path = "ordered_set_input_owner_tests.rs"]
+mod input_owner_tests;
+
 use std::mem::size_of;
 
 use num_traits::ToPrimitive;

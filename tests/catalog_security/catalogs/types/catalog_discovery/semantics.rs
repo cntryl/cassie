@@ -378,10 +378,15 @@ fn should_resolve_bounded_array_type_names_for_regtype_and_regprocedure() {
                     to_regtype('_int4[2]') IS NULL, \
                     to_regtype('integer[1__0]') IS NULL, \
                     to_regtype('integer[2147483648]') IS NULL, \
-                    to_regtype('integer[0x80000000]') IS NULL, \
-                    to_regtype('integer[\u{00a0}2]') IS NULL",
+                    to_regtype('integer[0x80000000]') IS NULL",
         )
         .expect("resolve builtin array dimensions in object identifier names");
+    let nullable = fixture
+        .execute("SELECT to_regtype('integer[\u{00a0}2]') IS NULL")
+        .expect("malformed name has no nullable lookup result");
+    let invalid = fixture
+        .execute("SELECT 'integer[\u{00a0}2]'::regtype")
+        .expect_err("a regtype cast rejects non-SQL whitespace");
 
     // Assert
     assert_eq!(
@@ -405,9 +410,19 @@ fn should_resolve_bounded_array_type_names_for_regtype_and_regprocedure() {
             Value::Bool(true),
             Value::Bool(true),
             Value::Bool(true),
-            Value::Bool(true),
         ]]
     );
+    assert_eq!(nullable.rows(), vec![vec![Value::Bool(true)]]);
+    match &invalid {
+        cassie::app::CassieError::ObjectIdentifier(
+            error @ cassie::types::ObjectIdentifierError::InvalidName(name),
+        ) => {
+            assert_eq!(name, "integer[\u{00a0}2]");
+            assert_eq!(error.sqlstate(), "42602");
+        }
+        other => panic!("unexpected regtype error: {other:?}"),
+    }
+    assert_eq!(invalid.to_string(), "invalid name syntax");
 
     // The explicit cast path remains an error for invalid input.
     assert!(fixture.execute("SELECT 'integer[1__0]'::regtype").is_err());

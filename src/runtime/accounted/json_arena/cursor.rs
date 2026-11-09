@@ -57,6 +57,11 @@ pub(super) struct Cursor<'a> {
 }
 
 impl<'a> Cursor<'a> {
+    #[cfg(test)]
+    pub(super) fn from_row_bytes(source: &'a [u8], controls: &QueryExecutionControls) -> Self {
+        Self::new(source, controls)
+    }
+
     pub(super) fn from_str(source: &'a str, controls: &QueryExecutionControls) -> Self {
         Self::new(source.as_bytes(), controls)
     }

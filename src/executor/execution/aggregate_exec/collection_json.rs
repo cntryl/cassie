@@ -57,6 +57,42 @@ struct PendingNullArray {
     memory: QueryMemoryReservation,
 }
 
+struct PendingModeString {
+    value: String,
+    memory: QueryMemoryReservation,
+}
+
+pub(super) fn mode_string_output(
+    text: &str,
+    source: &QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+    mut observe: impl FnMut(),
+) -> Result<AggregateOutput, QueryError> {
+    if !source.belongs_to(controls) {
+        return Err(CassieError::ResourceLimit(
+            "mode source uses a different query tracker".into(),
+        )
+        .into());
+    }
+    let mut pending = PendingModeString {
+        value: String::new(),
+        memory: source.try_sibling(text.len())?,
+    };
+    pending.value = copy_output_string(
+        text,
+        text.len(),
+        controls,
+        OutputProgress::ValueCopy,
+        &mut |_| observe(),
+    )?;
+    let PendingModeString { value, memory } = pending;
+    Ok(AggregateOutput {
+        value: Value::String(value),
+        memory: Some(memory),
+        copy_mode: OutputCopyMode::Ordinary,
+    })
+}
+
 pub(super) fn null_array_output(
     count: usize,
     source: &QueryMemoryReservation,

@@ -13,22 +13,52 @@ use crate::sql::ast::{FunctionCall, SortDirection};
 use crate::types::Value;
 
 use super::super::{check_timeout, AggregateExecutionContext, QueryError};
+use super::collection_json::{self, AggregateOutput};
 use super::inputs::RetainedInputs;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ModeProgress {
+    InputRetained,
+    TieComparison,
+    OrdinaryCandidate,
+    StringCandidate,
+    OutputChunk,
+}
+
+enum Best {
+    StringIndex(usize),
+    Ordinary(Value),
+}
 
 pub(super) fn evaluate(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
-) -> Result<Value, QueryError> {
-    evaluate_observed(function, rows, context, || {})
+) -> Result<AggregateOutput, QueryError> {
+    evaluate_owned_observed(function, rows, context, |_| {})
 }
 
+#[cfg(test)]
 pub(super) fn evaluate_observed(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
     mut observe_retained: impl FnMut(),
 ) -> Result<Value, QueryError> {
+    evaluate_owned_observed(function, rows, context, |progress| {
+        if progress == ModeProgress::InputRetained {
+            observe_retained();
+        }
+    })
+    .map(AggregateOutput::into_value)
+}
+
+fn evaluate_owned_observed(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    context: &AggregateExecutionContext<'_>,
+    mut observe: impl FnMut(ModeProgress),
+) -> Result<AggregateOutput, QueryError> {
     let order = function
         .order_by
         .first()
@@ -59,14 +89,14 @@ pub(super) fn evaluate_observed(
             super::grow_values(&mut inputs.values, &mut inputs.capacity, "mode")?;
             inputs.retained.try_grow(value_clone_bytes(&value)?)?;
             inputs.values.push(value);
-            observe_retained();
+            observe(ModeProgress::InputRetained);
             check_timeout(context.controls)?;
         }
         drop(temporary);
     }
     check_timeout(context.controls)?;
     if inputs.values.is_empty() {
-        return Ok(Value::Null);
+        return Ok(AggregateOutput::from_value(Value::Null));
     }
     super::try_sort_by(&mut inputs.values, context.controls, |left, right| {
         let comparison = compare_values(left, right);
@@ -85,16 +115,38 @@ pub(super) fn evaluate_observed(
         let first = index;
         let value = &inputs.values[index];
         index += 1;
-        while index < inputs.values.len()
-            && compare_values(value, &inputs.values[index]) == Ordering::Equal
-        {
+        while index < inputs.values.len() {
+            check_timeout(context.controls)?;
+            let equal = compare_values(value, &inputs.values[index]) == Ordering::Equal;
+            observe(ModeProgress::TieComparison);
+            check_timeout(context.controls)?;
+            if !equal {
+                break;
+            }
             index += 1;
         }
         let count = index - first;
         if count > best_count {
-            best = Some(value.clone());
+            best = Some(if matches!(value, Value::String(_)) {
+                observe(ModeProgress::StringCandidate);
+                Best::StringIndex(first)
+            } else {
+                let value = value.clone();
+                observe(ModeProgress::OrdinaryCandidate);
+                Best::Ordinary(value)
+            });
             best_count = count;
         }
     }
-    Ok(best.expect("a nonempty ordered-set input has a mode"))
+    match best.expect("a nonempty ordered-set input has a mode") {
+        Best::Ordinary(value) => Ok(AggregateOutput::from_value(value)),
+        Best::StringIndex(index) => {
+            let Value::String(text) = &inputs.values[index] else {
+                unreachable!("a string candidate retains its sorted input")
+            };
+            collection_json::mode_string_output(text, &inputs.retained, context.controls, || {
+                observe(ModeProgress::OutputChunk);
+            })
+        }
+    }
 }

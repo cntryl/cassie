@@ -192,9 +192,7 @@ pub(super) fn evaluate(
     let metadata = crate::sql::functions::function(&function.name)
         .expect("ordered-set aggregate metadata is registered");
     match metadata.id {
-        crate::sql::functions::FunctionId::Mode => {
-            mode::evaluate(function, rows, context).map(AggregateOutput::from_value)
-        }
+        crate::sql::functions::FunctionId::Mode => mode::evaluate(function, rows, context),
         crate::sql::functions::FunctionId::Rank
         | crate::sql::functions::FunctionId::DenseRank
         | crate::sql::functions::FunctionId::PercentRank

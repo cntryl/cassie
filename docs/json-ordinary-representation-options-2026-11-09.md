@@ -37,6 +37,29 @@ can satisfy those APIs. Versioning, memory ownership through clones and
 `into_entries`/`into_values`, cancellation, row-blob format compatibility and
 already stored data require dedicated probes.
 
+The result boundary is also public: `QueryResult::rows()` returns
+`&[Vec<Value>]`, and its `Serialize` implementation serializes those Values.
+An internal raw cell cannot replace a returned `Value::Json` object with a
+String without changing the embedded API and serialized shape. A compatible
+embedded result must materialize the expected Value representation or use a
+separately proven equivalent. The infallible `rows()` accessor cannot report
+an admission failure from a newly introduced lazy conversion. To avoid that
+conversion for protocol clients, a private raw-aware result/encoder path would
+need to carry the row owner through pgwire or REST independently; its control,
+error, output and transport lifetimes require proof. The existing public
+result remains unchanged until such a path is established.
+Current pgwire simple-query handlers and connection writers iterate
+`result.rows()`; extended portal state and COPY paths do likewise. A private
+raw-aware path must therefore reach those consumers rather than only changing
+the result builder.
+Jev selected investigating a private schema-typed result and pgwire encoder,
+with fallible materialization before constructing the unchanged public
+`QueryResult` (A_design 1.00). Lazy conversion in the infallible accessor and
+public API breaks were rejected. The public materialization/serialization
+(0.63), pgwire/portal/REST (0.66), clone/owner lifetime (0.81) and storage/
+old-reader compatibility (0.84) leads require probes before any activation.
+Receipt: `target/assembly-review/json-raw-result-boundary-contract-{request,response}.json`.
+
 Option B preserves all current signatures and builds serde Values directly
 from the plain-object arena. This avoids sentinel-aware deserialization at the
 initial conversion, but every later deserialization must also use the plain

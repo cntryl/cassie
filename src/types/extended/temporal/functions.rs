@@ -618,16 +618,15 @@ pub fn make_time(hour: i32, minute: i32, seconds: f64) -> Result<i64, TypeInputE
             format_seconds(seconds)
         ))
     };
-    if !(0..=24).contains(&hour)
-        || !(0..60).contains(&minute)
-        || !(0.0..=60.0).contains(&seconds)
-        || seconds.is_nan()
-    {
+    if !(0..=24).contains(&hour) || !(0..60).contains(&minute) || !seconds.is_finite() {
         return Err(invalid());
     }
-    let time = i64::from(hour) * USECS_PER_HOUR
-        + i64::from(minute) * USECS_PER_MINUTE
-        + round_half_even(seconds * 1_000_000.0);
+    let rounded_seconds = round_half_even(seconds * 1_000_000.0);
+    if !(0..=60 * USECS_PER_SEC).contains(&rounded_seconds) {
+        return Err(invalid());
+    }
+    let time =
+        i64::from(hour) * USECS_PER_HOUR + i64::from(minute) * USECS_PER_MINUTE + rounded_seconds;
     if time > USECS_PER_DAY {
         return Err(invalid());
     }
@@ -879,3 +878,7 @@ mod tests {
 #[cfg(test)]
 #[path = "interval_make_tests.rs"]
 mod interval_make_tests;
+
+#[cfg(test)]
+#[path = "time_make_tests.rs"]
+mod time_make_tests;

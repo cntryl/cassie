@@ -639,3 +639,29 @@ fn should_reject_out_of_range_make_interval_seconds_and_keep_session_usable() {
         );
     }
 }
+
+#[test]
+fn should_round_constructor_seconds_before_checking_their_range() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-make-time-rounded-range",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let accepted = fixture.execute("SELECT make_time(1, 2, -0.0000005) = TIME '01:02:00' AND make_time(1, 2, 60.0000005) = TIME '01:03:00' AND make_time(24, 0, -0.0000005) = TIME '24:00:00' AND make_timestamp(2000, 1, 1, 1, 2, -0.0000005) = TIMESTAMP '2000-01-01 01:02:00' AND make_timestamptz(2000, 1, 1, 1, 2, 60.0000005, 'UTC') = TIMESTAMPTZ '2000-01-01 01:03:00+00'");
+    let negative = fixture.execute("SELECT make_time(1, 2, -0.0000006)");
+    let above = fixture.execute("SELECT make_time(1, 2, 60.0000006)");
+    let end = fixture.execute("SELECT make_time(24, 0, 0.0000006)");
+
+    // Assert
+    assert_eq!(
+        accepted.expect("rounded constructor seconds").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+    for result in [negative, above, end] {
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008")
+        );
+    }
+}

@@ -19,6 +19,8 @@ mod extension_catalog_descriptors;
 mod index_contracts;
 #[path = "../extensions/dependency_targets.rs"]
 mod pgcrypto_installation_boundary;
+#[path = "../extensions/pgcrypto_lifecycle.rs"]
+mod pgcrypto_lifecycle;
 #[path = "../tables/table_forms.rs"]
 mod table_forms;
 #[path = "../tables/table_storage_access.rs"]

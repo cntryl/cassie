@@ -40,3 +40,35 @@ savepoint snapshot/delta handling; same-database storage ownership; recovery,
 backup, old-reader behavior and raw native writer interactions. Published
 Midge 0.5.2 remains the direct storage layer; no engine edit, second layer,
 unpublished range assertion, or native extension ABI is assumed.
+
+The lifecycle acceptance draft covers two-session commit visibility, digest
+and NULL behavior, savepoint rollback of relocation, selected available
+versions, stable extension identity, two distinct digest member identities,
+member removal on drop, bytea overload descriptors and unselected algorithms.
+These tests are unexecuted; they do not select a
+durable encoding or prove the remaining contract. The existing unsupported
+pgcrypto test must be updated only when installation really becomes available.
+
+The existing `allocate_object_id` counter is in the schema family, and a
+transactional database-family scope leaves other family operations raw. ID
+reservation can therefore commit independently and leave unused IDs on abort;
+that is not atomic publication of extension state and its dependencies.
+`normal_oid` checks conversion into the PostgreSQL user range. The pinned
+`pg_proc` table currently has no built-in OID at or above 16384, but that
+observation alone does not prove future/user routine collision freedom. The
+extension record and selected routine/dependency changes need their own
+same-database atomicity and identity proof, including ambiguous outcomes.
+An older live reader or writer that does not understand a new extension record
+can omit its namespace dependency; a startup-only layout marker does not fence
+that already-running process. Compatibility activation remains unselected until
+the supported reader/writer boundary is proven.
+
+For the fixed pgcrypto/vector names, participating Cassie schema operations
+can in principle assert each exact extension key plus the exact namespace key;
+an arbitrary range assertion is not necessary for those two known names.
+However, the current `AdapterTransaction::assert_value` forwards only to the
+inner native transaction. A staged transaction drops that inner transaction,
+and `commit_storage_overlay` reasserts only keys recorded as changes, so a
+pure staged read/absence assertion is not retained. A separate #833 assertion
+owner with statement/savepoint rollback and final native publication is a
+prerequisite; this document does not claim it has been implemented.

@@ -543,6 +543,116 @@ mod tests {
         .expect("statistical accumulator")
     }
 
+    fn explicit_float_accumulator(name: &str) -> StatisticalAccumulator {
+        use crate::sql::ast::{CastIdentity, Expr};
+        StatisticalAccumulator::new(&FunctionCall {
+            name: name.to_owned(),
+            args: vec![Expr::Cast {
+                expr: Box::new(Expr::Column("v".to_owned())),
+                data_type: crate::types::DataType::Float,
+                source_type: None,
+                identity: CastIdentity::Scalar,
+            }],
+            ..FunctionCall::default()
+        })
+        .expect("statistical accumulator")
+    }
+
+    #[test]
+    fn should_use_postgresql_rounding_for_explicit_float_variance() {
+        // Arrange
+        let mut cast = explicit_float_accumulator("var_pop");
+        let mut uncast = accumulator(FunctionId::VarPop);
+        for value in [1.0, 2.0, 4.0] {
+            cast.update("var_pop", &Value::Float64(value))
+                .expect("cast input");
+            uncast
+                .update("var_pop", &Value::Float64(value))
+                .expect("uncast input");
+        }
+
+        // Act / Assert
+        assert_eq!(
+            cast.finish().expect("cast result"),
+            Value::Float64(1.555_555_555_555_555_6)
+        );
+        assert_eq!(
+            uncast.finish().expect("legacy uncast result"),
+            Value::Float64(1.555_555_555_555_555_4)
+        );
+    }
+
+    #[test]
+    fn should_reject_explicit_float_variance_overflow_without_losing_error_order() {
+        // Arrange
+        let mut overflow = explicit_float_accumulator("var_pop");
+        let mut nan_first = explicit_float_accumulator("var_pop");
+        nan_first
+            .update("var_pop", &Value::Float64(f64::NAN))
+            .expect("NaN");
+
+        // Act
+        overflow
+            .update("var_pop", &Value::Float64(1e308))
+            .expect("first finite input");
+        let error = overflow
+            .update("var_pop", &Value::Float64(1e308))
+            .expect_err("overflow");
+        nan_first
+            .update("var_pop", &Value::Float64(1e308))
+            .expect("first after NaN");
+        nan_first
+            .update("var_pop", &Value::Float64(1e308))
+            .expect("second after NaN");
+
+        // Assert
+        assert!(
+            matches!(error, super::QueryError::Cassie(crate::app::CassieError::TypeInput(ref error)) if error.sqlstate == "22003" && error.message == "value out of range: overflow")
+        );
+        assert!(
+            matches!(nan_first.finish().expect("NaN result"), Value::Float64(value) if value.is_nan())
+        );
+    }
+
+    #[test]
+    fn should_keep_explicit_float_null_and_singleton_infinity_semantics() {
+        // Arrange
+        let mut population = explicit_float_accumulator("var_pop");
+        let mut sample = explicit_float_accumulator("var_samp");
+        for state in [&mut population, &mut sample] {
+            state.update("variance", &Value::Null).expect("NULL");
+            state
+                .update("variance", &Value::Float64(f64::INFINITY))
+                .expect("infinity");
+        }
+
+        // Act / Assert
+        assert!(
+            matches!(population.finish().expect("population"), Value::Float64(value) if value.is_nan())
+        );
+        assert_eq!(sample.finish().expect("sample"), Value::Null);
+    }
+
+    #[test]
+    fn should_keep_explicit_float_state_order_sensitive_and_reject_wrong_carriers() {
+        // Arrange
+        let mut state = explicit_float_accumulator("var_pop");
+        state
+            .update("var_pop", &Value::Float64(1.0))
+            .expect("first float");
+
+        // Act
+        let invalid = state.update("var_pop", &Value::Int64(2));
+
+        // Assert
+        assert!(invalid.is_err());
+        assert!(state.requires_row_order());
+        assert_eq!(
+            state.finish().expect("unchanged state"),
+            Value::Float64(0.0)
+        );
+    }
+
     #[test]
     fn should_merge_exact_population_variance_partials() {
         // Arrange

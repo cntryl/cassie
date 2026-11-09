@@ -49,7 +49,7 @@ fn should_reject_a_copy_owner_from_a_retired_transaction_generation() {
     let (cassie, session) = fixture();
     let controls = controls();
     let owner = cassie
-        .capture_copy_command_owner(&session, "postgres.public.copy_owner_fence", &controls)
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls)
         .expect("owner");
     session.rollback_transaction();
     cassie
@@ -69,7 +69,7 @@ fn should_reject_storage_only_changes_before_copy_fork_capture() {
     let (cassie, session) = fixture();
     let controls = controls();
     let owner = cassie
-        .capture_copy_command_owner(&session, "postgres.public.copy_owner_fence", &controls)
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls)
         .expect("owner");
     stage_storage_only(&cassie, &session);
 
@@ -86,7 +86,7 @@ fn should_reject_storage_only_changes_after_copy_fork_capture() {
     let (cassie, session) = fixture();
     let controls = controls();
     let owner = cassie
-        .capture_copy_command_owner(&session, "postgres.public.copy_owner_fence", &controls)
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls)
         .expect("owner");
     let fork = session
         .fork_copy_statement_batch(&owner, &controls)
@@ -116,7 +116,7 @@ fn should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence() {
     let controls = controls();
     let _controls = crate::midge::adapter::PublicationControlScope::enter(Some(&controls));
     let owner = cassie
-        .capture_copy_command_owner(&session, "postgres.public.copy_owner_fork", &controls)
+        .capture_copy_command_owner(&session, "public.copy_owner_fork", &controls)
         .expect("owner");
     let fork = session
         .fork_copy_statement_batch(&owner, &controls)
@@ -180,7 +180,7 @@ fn should_use_the_default_database_for_a_session_without_an_explicit_database() 
     }
     let controls = controls();
     let owner = cassie
-        .capture_copy_command_owner(&session, "postgres.public.copy_owner_default_db", &controls)
+        .capture_copy_command_owner(&session, "public.copy_owner_default_db", &controls)
         .expect("owner");
 
     // Act
@@ -197,7 +197,7 @@ fn should_release_copy_owner_admission_when_the_owner_is_dropped() {
     let controls = controls();
     let before = controls.current_query_memory_bytes();
     let owner = cassie
-        .capture_copy_command_owner(&session, "postgres.public.copy_owner_fence", &controls)
+        .capture_copy_command_owner(&session, "public.copy_owner_fence", &controls)
         .expect("owner");
     let retained = controls.current_query_memory_bytes();
 
@@ -227,7 +227,7 @@ fn should_reject_recreated_physical_target_with_an_identical_zero_id_catalog() {
         .expect("begin");
     let controls = controls();
     let owner = cassie
-        .capture_copy_command_owner(&session, name, &controls)
+        .capture_copy_command_owner(&session, "public.copy_owner_legacy", &controls)
         .expect("physical owner");
     cassie
         .midge
@@ -279,12 +279,17 @@ fn should_not_pair_old_copy_snapshot_with_recreated_physical_target() {
 
     // Act: the callback synchronizes replacement after provisional resolution.
     let owner = cassie
-        .capture_bound_copy_command_owner_observed(&session, name, &controls, || {
-            cassie.midge.drop_collection(name)?;
-            cassie.midge.create_collection(name, schema.clone())?;
-            cassie.register_collection(name, schema);
-            Ok(())
-        })
+        .capture_bound_copy_command_owner_observed(
+            &session,
+            "public.copy_owner_capture_race",
+            &controls,
+            || {
+                cassie.midge.drop_collection(name)?;
+                cassie.midge.create_collection(name, schema.clone())?;
+                cassie.register_collection(name, schema);
+                Ok(())
+            },
+        )
         .expect("gated recapture");
 
     // Assert
@@ -293,6 +298,30 @@ fn should_not_pair_old_copy_snapshot_with_recreated_physical_target() {
         *physical_id, before,
         "the owner must pin the replacement observed under the gate"
     );
+}
+
+#[test]
+fn should_reject_database_qualified_copy_target_without_retiring_the_transaction() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let controls = controls();
+
+    // Act
+    let rejected = cassie.capture_copy_command_owner(
+        &session,
+        "postgres.public.copy_owner_fence",
+        &controls,
+    );
+    let accepted =
+        cassie.capture_copy_command_owner(&session, "public.copy_owner_fence", &controls);
+
+    // Assert
+    assert!(matches!(
+        rejected,
+        Err(CassieError::Unsupported(ref message))
+            if message == "cross-database relation references are not supported"
+    ));
+    assert!(accepted.is_ok());
 }
 
 #[test]

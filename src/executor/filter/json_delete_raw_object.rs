@@ -17,7 +17,7 @@ mod tests;
 mod order;
 
 #[derive(Debug)]
-pub(super) enum ObjectError {
+pub(in crate::executor::filter::json_delete) enum ObjectError {
     Control(CassieError),
     Scan(ScanError),
     Decode(DecodeError),

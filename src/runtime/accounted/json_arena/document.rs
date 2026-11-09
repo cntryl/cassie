@@ -261,7 +261,24 @@ enum DocumentProgress {
     NumberTypeScanned,
     RawSourcePushed,
     RawValueReady,
+    #[cfg(test)]
     UnwindByte(Position),
+    #[cfg(not(test))]
+    UnwindByte,
+}
+
+impl DocumentProgress {
+    fn unwind_byte(position: Position) -> Self {
+        #[cfg(test)]
+        {
+            Self::UnwindByte(position)
+        }
+        #[cfg(not(test))]
+        {
+            let _ = position;
+            Self::UnwindByte
+        }
+    }
 }
 
 pub(super) struct Parsed {

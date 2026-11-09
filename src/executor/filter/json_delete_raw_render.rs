@@ -17,7 +17,7 @@ pub(in crate::executor::filter) mod path;
 use path::render_path;
 
 #[derive(Debug)]
-pub(in crate::executor::filter) enum RenderError {
+pub(in crate::executor::filter::json_delete) enum RenderError {
     Control(CassieError),
     Scan(ScanError),
     Object(ObjectError),
@@ -28,7 +28,9 @@ pub(in crate::executor::filter) enum RenderError {
 }
 
 impl RenderError {
-    pub(in crate::executor::filter) fn into_query_error(self) -> crate::executor::QueryError {
+    pub(in crate::executor::filter::json_delete) fn into_query_error(
+        self,
+    ) -> crate::executor::QueryError {
         match self {
             Self::Control(error) => error.into(),
             Self::Scan(error) => {

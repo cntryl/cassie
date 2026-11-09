@@ -27,7 +27,7 @@ mod object;
 pub(in crate::executor::filter) mod render;
 
 #[derive(Debug)]
-enum ScanError {
+pub(super) enum ScanError {
     Control(CassieError),
     Syntax {
         message: &'static str,

@@ -68,16 +68,6 @@ pub(crate) struct ProjectionValueContext<'a> {
     pub(crate) resolver: Option<&'a super::ExistsResolver<'a>>,
 }
 
-pub(crate) fn evaluate_projection_value<R: RowAccess + ?Sized>(
-    row: &R,
-    expression: &Expr,
-    context: &ProjectionValueContext<'_>,
-    controls: &QueryExecutionControls,
-    memory: &EvaluationMemory,
-) -> Result<Value, QueryError> {
-    evaluate_projection_value_with_owners(row, expression, context, controls, Some(memory), None)
-}
-
 pub(crate) fn evaluate_projection_value_with_owners<R: RowAccess + ?Sized>(
     row: &R,
     expression: &Expr,

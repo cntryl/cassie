@@ -6,10 +6,55 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 #[path = "directory_tests.rs"]
 mod tests;
 
+#[cfg(test)]
 #[derive(Clone, Copy)]
 pub(super) enum Progress {
     Initialized(usize),
     Moved(usize),
+}
+
+#[cfg(not(test))]
+#[derive(Clone, Copy)]
+pub(super) enum Progress {
+    Initialized,
+    Moved,
+}
+
+impl Progress {
+    fn initialized(count: usize) -> Self {
+        #[cfg(test)]
+        {
+            Self::Initialized(count)
+        }
+        #[cfg(not(test))]
+        {
+            let _ = count;
+            Self::Initialized
+        }
+    }
+
+    fn moved(count: usize) -> Self {
+        #[cfg(test)]
+        {
+            Self::Moved(count)
+        }
+        #[cfg(not(test))]
+        {
+            let _ = count;
+            Self::Moved
+        }
+    }
+
+    pub(super) fn is_moved(self) -> bool {
+        #[cfg(test)]
+        {
+            matches!(self, Self::Moved(_))
+        }
+        #[cfg(not(test))]
+        {
+            matches!(self, Self::Moved)
+        }
+    }
 }
 
 struct OwnedDirectory<T> {
@@ -83,7 +128,7 @@ impl<T> Directory<T> {
         for index in 0..length {
             self.controls.check_interruption()?;
             items.push(None);
-            observer(Progress::Initialized(index + 1))?;
+            observer(Progress::initialized(index + 1))?;
         }
         self.controls.check_interruption()?;
         self.migration = Some(Migration {
@@ -108,7 +153,7 @@ impl<T> Directory<T> {
             let index = migration.frontier;
             migration.next.items[index] = self.current.items[index].take();
             migration.frontier += 1;
-            observer(Progress::Moved(migration.frontier))?;
+            observer(Progress::moved(migration.frontier))?;
             self.controls.check_interruption()?;
         }
         Ok(())

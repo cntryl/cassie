@@ -344,7 +344,7 @@ impl<V: Copy> ObjectIndex<V> {
                 _memory: memory,
             },
             |progress| {
-                if matches!(progress, DirectoryProgress::Moved(_)) {
+                if progress.is_moved() {
                     observer(Progress::Move)?;
                 }
                 Ok(())

@@ -132,7 +132,7 @@ impl<'a> SourceStack<'a> {
                 .map_err(|_| CassieError::Execution("occupied JSON source frame".into()))?;
         } else {
             self.frames.push_observed(frame, |progress| {
-                if matches!(progress, DirectoryProgress::Moved(_)) {
+                if progress.is_moved() {
                     observer(SourceProgress::Moved);
                 }
                 Ok(())

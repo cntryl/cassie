@@ -62,7 +62,7 @@ impl Document<'_> {
                 .map_err(CursorError::Interrupted)?;
             while matches!(cursor.peek(), Some(b' ' | b'\n' | b'\t' | b'\r')) {
                 let _ = cursor.next()?;
-                observer(DocumentProgress::UnwindByte(cursor.position()));
+                observer(DocumentProgress::unwind_byte(cursor.position()));
                 controls
                     .check_interruption()
                     .map_err(CursorError::Interrupted)?;
@@ -78,7 +78,7 @@ impl Document<'_> {
         let controls = self.controls.clone();
         self.sources.step(|cursor| {
             let _ = cursor.next()?;
-            observer(DocumentProgress::UnwindByte(cursor.position()));
+            observer(DocumentProgress::unwind_byte(cursor.position()));
             controls
                 .check_interruption()
                 .map_err(CursorError::Interrupted)

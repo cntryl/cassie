@@ -62,11 +62,11 @@ fn should_release_a_partial_element_after_actual_copy_cancellation() {
 }
 
 #[test]
-fn should_leave_nested_dimension_and_json_array_forms_on_the_existing_path() {
+fn should_leave_nested_multidimensional_and_json_array_forms_on_the_existing_path() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     // Act / Assert
-    for input in ["{{a},{b}}", "[0:1]={a,b}", r#"["a",null]"#] {
+    for input in ["{{a},{b}}", "[0:1][1:1]={{a},{b}}", r#"["a",null]"#] {
         assert!(parse(input, &controls).expect("probe").is_none());
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -425,4 +425,136 @@ fn should_enforce_measured_extraction_path_and_output_overlap_budget() {
         drop(owner);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
+}
+
+#[test]
+fn should_match_legacy_single_dimension_paths_and_leave_invalid_forms_to_fallback() {
+    // Arrange
+    let controls = controls(QueryCancellationHandle::new());
+    let valid = [
+        "[0:1]={a,b}",
+        "[ -2 : -1 ] = {a,NULL}",
+        "[+2147483647:+2147483647]={x}",
+        "[-2147483648:-2147483648]={x}",
+        "[1:9]={}",
+        "[1:0]={}",
+        "[\u{2003}1\u{2003}:\u{2003}2\u{2003}]={a,b}",
+    ];
+    let fallback = [
+        "[1:3]={a,b}",
+        "[2:0]={}",
+        "[2147483648:2147483648]={x}",
+        "[1:2][1:1]={{a},{b}}",
+        "[1:2]\u{2003}={a,b}",
+        "[1:2]={a,}",
+        "[x:2]={a,b}",
+        r#"["a",null]"#,
+    ];
+    // Act / Assert
+    for input in valid {
+        let expected = json_delete::text_array(&ScalarValue::Str(input.into())).expect("legacy");
+        let actual = parse(input, &controls).expect("parse").expect("owned");
+        assert_eq!(actual.values(), expected.as_slice(), "{input:?}");
+        drop(actual);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    for input in fallback {
+        assert!(
+            parse(input, &controls).expect("fallback").is_none(),
+            "{input:?}"
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_release_prefix_and_path_owners_after_actual_dimension_scan_cancellation() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = controls(cancel.clone());
+    let mut scanned = 0;
+    // Act
+    let result = parse_observing("[ -123 : -122 ]={a,b}", &controls, |progress| {
+        if matches!(progress, Progress::Dimension) {
+            scanned += 1;
+            cancel.cancel();
+        }
+    });
+    // Assert
+    assert_eq!(scanned, 1);
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_enforce_dimension_path_owner_overlap_budget() {
+    // Arrange
+    let input = "[-3:1]={one,two,three,four,five}";
+    let baseline = controls(QueryCancellationHandle::new());
+    let path = parse(input, &baseline).expect("parse").expect("path");
+    let peak = baseline.peak_query_memory_bytes();
+    drop(path);
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let limits = CassieRuntimeLimits {
+            query_memory_budget_bytes: budget,
+            query_timeout_ms: 0,
+            ..CassieRuntimeLimits::default()
+        };
+        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+        let result = parse(input, &controls);
+        assert_eq!(result.is_ok(), succeeds);
+        drop(result);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_transfer_dimensioned_deletion_path_through_the_expression_owner() {
+    // Arrange
+    let controls = controls(QueryCancellationHandle::new());
+    let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
+    let left = ScalarValue::Json(r#"{"a":{"b":1,"c":2}}"#.into());
+    let right = ScalarValue::Str("[-1:0]={a,b}".into());
+    // Act
+    let result = json_delete::controlled_path(&left, &right, &controls, &owner)
+        .expect("controlled")
+        .expect("owned path");
+    // Assert
+    assert!(matches!(&result, ScalarValue::Json(text) if text == r#"{"a": {"c": 2}}"#));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_handoff_dimensioned_extraction_and_existence_operands() {
+    // Arrange
+    use crate::executor::filter::{json_key_exists, BinaryOp};
+    let controls = controls(QueryCancellationHandle::new());
+    let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
+    let document = ScalarValue::Json(r#"{"a":{"b":1},"c":2}"#.into());
+    let path = ScalarValue::Str("[4:5]={a,b}".into());
+    let keys = ScalarValue::Str("[-1:0]={a,c}".into());
+    // Act
+    let extracted =
+        json_delete::controlled_extraction(&document, &path, true, false, false, &controls, &owner)
+            .expect("extraction")
+            .expect("owned path");
+    let exists = json_key_exists::evaluate_controlled(
+        &document,
+        &BinaryOp::JsonbKeyExistsAll,
+        &keys,
+        &controls,
+    )
+    .expect("existence")
+    .expect("owned keys");
+    // Assert
+    assert!(matches!(&extracted, ScalarValue::Json(text) if text == "1"));
+    assert!(matches!(exists, ScalarValue::Bool(true)));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(extracted);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }

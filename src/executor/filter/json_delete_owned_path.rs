@@ -3,12 +3,16 @@ use crate::app::CassieError;
 use crate::executor::QueryError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[path = "json_delete_owned_dimension.rs"]
+mod dimension;
+
 #[cfg(test)]
 #[path = "json_delete_owned_path_tests.rs"]
 mod tests;
 
 #[derive(Clone, Copy)]
 enum Progress {
+    Dimension,
     Scan,
     Copy,
     DirectoryMove,
@@ -278,10 +282,28 @@ fn parse_observing(
     mut observe: impl FnMut(Progress),
 ) -> Result<Option<OwnedPath>, QueryError> {
     controls.check_interruption()?;
+    if let Some((length, body)) = dimension::body(input, controls, &mut observe)? {
+        return match parse_flat_observing(body, controls, &mut observe) {
+            Ok(Some(path)) if path.values.is_empty() || path.values.len() == length => {
+                Ok(Some(path))
+            }
+            Ok(_) | Err(QueryError::Cassie(CassieError::ArrayInput(_))) => Ok(None),
+            Err(error) => Err(error),
+        };
+    }
+    parse_flat_observing(input, controls, observe)
+}
+
+fn parse_flat_observing(
+    input: &str,
+    controls: &QueryExecutionControls,
+    mut observe: impl FnMut(Progress),
+) -> Result<Option<OwnedPath>, QueryError> {
+    controls.check_interruption()?;
     let mut probe = input.chars().peekable();
     while probe.peek().is_some_and(|ch| ch.is_whitespace()) {
         controls.check_interruption()?;
-        probe.next();
+        let _consumed = probe.next();
     }
     if probe.next() != Some('{') {
         return Ok(None);

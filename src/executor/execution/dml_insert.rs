@@ -20,6 +20,8 @@ mod conflict;
 mod conflict_intents;
 #[path = "dml_insert_conflict_update.rs"]
 mod conflict_update;
+#[path = "insert_source_owner.rs"]
+mod source_owner;
 pub(crate) use conflict_intents::{
     repeatable_conflict_failure, resolve_transaction_conflict_intents,
 };
@@ -47,7 +49,7 @@ pub(in crate::executor::execution) fn execute_insert(
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
-    let (target_fields, source_rows) = prepare_insert_source_rows(
+    let (target_fields, mut source_rows) = prepare_insert_source_rows(
         cassie,
         session,
         statement,
@@ -58,6 +60,7 @@ pub(in crate::executor::execution) fn execute_insert(
     )?;
 
     let payloads = source_rows
+        .take_rows()
         .into_iter()
         .map(|row| cells::payload(cassie, session, &statement.table, &target_fields, &row));
     execute_insert_payloads(
@@ -203,21 +206,24 @@ fn prepare_insert_source_rows(
     user_functions: &HashMap<String, FunctionMeta>,
     schema: &CollectionSchema,
     controls: &QueryExecutionControls,
-) -> Result<(Vec<FieldMeta>, Vec<Vec<cells::InsertValue>>), QueryError> {
-    let source_rows =
+) -> Result<(Vec<FieldMeta>, source_owner::OwnedInsertSource), QueryError> {
+    let mut source_rows =
         insert_source_rows(cassie, session, statement, params, user_functions, controls)?;
     let source_width = source_rows
+        .rows()
         .first()
         .map_or_else(|| insert_source_width(statement, schema), Vec::len);
     let target_fields = insert_target_fields(statement, schema, source_width)?;
-    validate_insert_source_rows(&source_rows, target_fields.len())?;
-    super::identity_insert::apply_identity_policy(
+    validate_insert_source_rows(source_rows.rows(), target_fields.len())?;
+    let (target_fields, rows) = super::identity_insert::apply_identity_policy(
         cassie,
         statement,
         target_fields,
-        source_rows,
+        source_rows.take_rows(),
         |cell| matches!(cell, cells::InsertValue::Default),
-    )
+    )?;
+    source_rows.replace_rows(rows);
+    Ok((target_fields, source_rows))
 }
 
 fn attach_insert_returning_aliases(
@@ -318,7 +324,7 @@ fn insert_source_rows(
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
-) -> Result<Vec<Vec<cells::InsertValue>>, QueryError> {
+) -> Result<source_owner::OwnedInsertSource, QueryError> {
     match &statement.source {
         InsertSource::Values(rows) => scalar_values::evaluate(
             rows,
@@ -329,7 +335,8 @@ fn insert_source_rows(
                 session,
                 controls,
             },
-        ),
+        )
+        .map(source_owner::OwnedInsertSource::values),
         InsertSource::Select(select) => {
             let statement_controls =
                 crate::executor::execution::entrypoints::statement_read_controls(
@@ -382,16 +389,7 @@ fn insert_source_rows(
                 params,
                 controls,
             )?;
-            Ok(rows
-                .into_iter()
-                .map(|row| {
-                    let _operator_parent = row.operator_memory();
-                    row.into_entries()
-                        .into_iter()
-                        .map(|(_, value)| cells::InsertValue::Value(value))
-                        .collect()
-                })
-                .collect())
+            source_owner::from_select(rows, controls)
         }
     }
 }

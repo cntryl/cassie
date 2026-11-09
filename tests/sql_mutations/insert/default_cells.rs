@@ -139,6 +139,36 @@ fn should_reject_explicit_always_identity_before_allocating_default_cells() {
 }
 
 #[test]
+fn should_preserve_select_identity_policy_and_width_errors() {
+    // Arrange
+    let fixture = sql_fixture(
+        "insert-select-identity-owner",
+        &[
+            "CREATE TABLE source_identity_rows (id INT, label TEXT)",
+            "CREATE TABLE target_identity_rows (id INT GENERATED ALWAYS AS IDENTITY, label TEXT)",
+            "INSERT INTO source_identity_rows VALUES (91,'first'),(92,'second')",
+        ],
+    );
+    // Act
+    let rejected = fixture
+        .execute("INSERT INTO target_identity_rows SELECT id,label FROM source_identity_rows");
+    let wrong_width = fixture.execute(
+        "INSERT INTO target_identity_rows(label) SELECT id,label FROM source_identity_rows",
+    );
+    let inserted = fixture.execute("INSERT INTO target_identity_rows OVERRIDING USER VALUE SELECT id,label FROM source_identity_rows ORDER BY id RETURNING id,label");
+    // Assert
+    assert!(rejected.is_err());
+    assert!(wrong_width.is_err());
+    assert_eq!(
+        inserted.expect("override SELECT").rows(),
+        &[
+            vec![Value::Int64(1), Value::String("first".into())],
+            vec![Value::Int64(2), Value::String("second".into())],
+        ]
+    );
+}
+
+#[test]
 fn should_preserve_excluded_sql_null_given_a_json_default_when_upserting() {
     // Arrange
     let fixture = sql_fixture("upsert-json-null-default", &[

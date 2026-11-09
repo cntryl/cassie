@@ -14,6 +14,8 @@ use crate::types::Value;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod vector_array_tests;
 
 mod retention;
 use retention::{SortRetentionContext, SortRetentionPhase};
@@ -431,7 +433,8 @@ impl EvalInput<'_> {
                 .as_ref()
                 .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
             let mut admitted = 0;
-            if let Some(memory) = memory.as_mut() {
+            let mut vector_type = None;
+            if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
                 memory.try_grow(accounting::type_scratch(
                     row,
                     &order.expr,
@@ -440,13 +443,42 @@ impl EvalInput<'_> {
                 let data_type =
                     super::array_order::expression_type(row, &order.expr, self.user_functions);
                 admitted = accounting::conversion_bytes(&value, data_type.as_ref())?;
+                if let Some(extra) =
+                    super::array_order::sort_vector::bound(&value, data_type.as_ref(), controls)?
+                {
+                    admitted = add(admitted, extra)?;
+                    vector_type = data_type;
+                }
                 memory.try_grow(admitted)?;
             }
             retention.before(SortRetentionPhase::SemanticPart)?;
-            let semantic =
-                super::array_order::key(row, &order.expr, &value, self.user_functions, controls)?;
+            let (semantic, vector_retained) =
+                if let (Some(data_type), Some(controls)) = (vector_type.as_ref(), controls) {
+                    super::array_order::sort_vector_key(
+                        row,
+                        &order.expr,
+                        &value,
+                        self.user_functions,
+                        data_type,
+                        controls,
+                    )?
+                } else {
+                    (
+                        super::array_order::key(
+                            row,
+                            &order.expr,
+                            &value,
+                            self.user_functions,
+                            controls,
+                        )?,
+                        None,
+                    )
+                };
             if let Some(memory) = memory.as_mut() {
-                let retained = accounting::semantic_heap(&semantic)?;
+                let retained = match vector_retained {
+                    Some(retained) => retained,
+                    None => accounting::semantic_heap(&semantic)?,
+                };
                 if retained > admitted {
                     return Err(crate::app::CassieError::ResourceLimit(
                         "sort key exceeded its admitted allocation shape".to_owned(),

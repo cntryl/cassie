@@ -10,6 +10,8 @@ use crate::types::{DataType, Schema, Value};
 use super::batch::RowAccess;
 use super::semantic::SemanticValue;
 
+pub(super) mod sort_vector;
+
 pub(super) fn expression_type<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
@@ -49,6 +51,16 @@ pub(super) fn key<R: RowAccess + ?Sized>(
     if let Some(key) = super::search_lineage::extract(row, expr, controls)? {
         return Ok(key);
     }
+    key_after_lineage(row, expr, value, functions, controls)
+}
+
+fn key_after_lineage<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<SemanticValue, crate::app::CassieError> {
     let declared = match expr {
         Expr::Column(name) => row.column_type(name),
         Expr::Cast { data_type, .. } => Some(data_type),
@@ -68,6 +80,29 @@ pub(super) fn key<R: RowAccess + ?Sized>(
         return super::semantic::typed_value(value, inferred.as_ref(), controls);
     }
     Ok(typed_key(value, inferred.as_ref()))
+}
+
+pub(super) fn sort_vector_key<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    expected: &DataType,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(SemanticValue, Option<usize>), crate::app::CassieError> {
+    if let Some(key) = super::search_lineage::extract(row, expr, Some(controls))? {
+        return Ok((key, None));
+    }
+    let matches = match expr {
+        Expr::Column(name) => row.column_type(name) == Some(expected),
+        Expr::Cast { data_type, .. } => data_type == expected,
+        _ => expression_type(row, expr, functions).as_ref() == Some(expected),
+    };
+    if matches {
+        let (key, retained) = sort_vector::build(value, controls)?;
+        return Ok((key, Some(retained)));
+    }
+    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
 }
 
 fn typed_key(value: &Value, data_type: Option<&DataType>) -> SemanticValue {

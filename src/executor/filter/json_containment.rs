@@ -126,3 +126,7 @@ mod tests;
 #[cfg(test)]
 #[path = "json_containment_string_tests.rs"]
 mod string_tests;
+
+#[cfg(test)]
+#[path = "json_containment_number_tests.rs"]
+mod number_tests;

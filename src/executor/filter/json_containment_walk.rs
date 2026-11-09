@@ -8,6 +8,11 @@ use super::{json_document, kind, CassieError, JsonKind, QueryError};
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[path = "json_containment_number.rs"]
+mod numbers;
+#[cfg(test)]
+pub(super) use numbers::{cancel_after_number_compare_once, cancel_after_number_format_once};
+
 #[cfg(test)]
 thread_local! {
     static CANCEL_AFTER_STRING_COPY: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
@@ -72,6 +77,9 @@ impl Work<'_> {
         if let Some(controls) = self.controls {
             if kind(candidate) == JsonKind::String && kind(required) == JsonKind::String {
                 return string_equal(candidate.get(), required.get(), controls);
+            }
+            if kind(candidate) == JsonKind::Number && kind(required) == JsonKind::Number {
+                return numbers::equal(candidate.get(), required.get(), controls);
             }
         }
         let _numbers = if kind(candidate) == JsonKind::Number && kind(required) == JsonKind::Number

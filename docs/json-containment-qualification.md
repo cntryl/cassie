@@ -62,3 +62,24 @@ increment; Midge and the open private-sentinel representation issue are unchange
 PostgreSQL 18.6 reports true for `"a"` versus `"\u0061"`, true for an
 array containing `"é"` versus `"\u00e9"`, and false for `"éclair"`
 versus `"éclai"` under JSONB `@>`.
+
+## Visited finite numeric equality candidate
+
+For validated JSON number tokens, use the checked `raw_number` formatter in
+candidate-then-required order, keep both formatted text owners alive, and
+compare their canonical decimal text after checking and removing only trailing
+fractional zeros and an empty decimal point. This preserves zero sign removal,
+scale-independent equality and representable numeric range; malformed and
+out-of-range inputs retain their original parse/error ordering. The legacy
+no-controls route remains intact. Jev selected this bounded route (0.92), with
+parity/boundary (0.92), error/resource ordering (0.71) and ownership/
+interruption (0.89) leads. Receipt:
+`target/assembly-review/json-containment-number-contract-{request,response}.json`.
+Authored but unexecuted probes cover scaled equality, signed zero, exponents,
+range and competing errors, checked arithmetic/copy/compare interruption and
+exact/below admission. Both formatted Strings overlap the parent pair and can
+cause earlier resource or cancellation errors; allocation transient excess,
+parent/container parsing, diagnostics, numeric formatter limits and teardown
+remain open. This does not qualify sentinel storage or complete #809.
+PostgreSQL 18.6 reports true for `1.000 @> 1`, true for `-0.000 @> 0e4`,
+false for `1.0001 @> 1.001`, and true for `[1e2] @> 100` with JSONB operands.

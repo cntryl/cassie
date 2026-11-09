@@ -66,7 +66,7 @@ fn controlled_head(
     Ok(None)
 }
 
-fn adopt_output(
+pub(super) fn adopt_output(
     output: crate::runtime::accounted::compact_json::OwnedJsonText,
     owner: &super::EvaluationMemory,
     controls: &crate::runtime::QueryExecutionControls,
@@ -82,6 +82,22 @@ fn adopt_output(
     }
     owner.adopt(memory);
     Ok(ScalarValue::Json(text))
+}
+
+pub(super) fn controlled_concatenation(
+    left: &str,
+    right: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<ScalarValue, QueryError> {
+    let output = raw_scan::concat::concatenate(left, right, controls)
+        .map_err(raw_scan::render::RenderError::into_query_error)?;
+    adopt_output(output, owner, controls)
+}
+
+#[cfg(test)]
+pub(super) fn cancel_concat_after_copy_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::concat::cancel_after_copy_once(handle);
 }
 
 pub(super) fn controlled_operator(

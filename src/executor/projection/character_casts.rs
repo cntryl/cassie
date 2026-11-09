@@ -52,6 +52,14 @@ pub(super) fn deletion_required<R: RowAccess>(
                     op: crate::sql::ast::BinaryOp::Sub,
                     ..
                 } => json_producer(left, row, params, functions),
+                crate::sql::ast::Expr::Binary {
+                    left,
+                    op: crate::sql::ast::BinaryOp::Concat,
+                    right,
+                } => {
+                    json_producer(left, row, params, functions)
+                        || json_producer(right, row, params, functions)
+                }
                 _ => false,
             })
         }

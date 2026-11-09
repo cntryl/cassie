@@ -126,7 +126,27 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
             } else {
                 right_value
             };
+            if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+                if let Some(result) =
+                    json_concat::concatenate_controlled(&left_value, &right_value, controls, owner)?
+                {
+                    return Ok(result);
+                }
+            }
             return json_concat::concatenate(&left_value, &right_value);
+        }
+        if (matches!(left_value, ScalarValue::Json(_))
+            && matches!(right_value, ScalarValue::Json(_) | ScalarValue::Null))
+            || (matches!(right_value, ScalarValue::Json(_))
+                && matches!(left_value, ScalarValue::Null))
+        {
+            if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+                if let Some(result) =
+                    json_concat::concatenate_controlled(&left_value, &right_value, controls, owner)?
+                {
+                    return Ok(result);
+                }
+            }
         }
     }
     if let Some(result) = temporal::binary(&left_value, op, &right_value, context) {

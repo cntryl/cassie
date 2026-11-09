@@ -47,6 +47,56 @@ fn should_retain_session_controlled_deletion_output_on_the_projected_row() {
 }
 
 #[test]
+fn should_retain_json_concat_until_last_projection_clone_without_changing_siblings() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let session = CassieSession::new("root".into(), None)
+        .with_statement_text("SELECT 1", &controls)
+        .expect("session");
+    let baseline = controls.current_query_memory_bytes();
+    let mut row = BatchRow::new(vec![
+        ("doc".into(), Value::Json(serde_json::json!({"a":1}))),
+        ("n".into(), Value::Int64(2)),
+    ]);
+    row.set_data_types(
+        vec![
+            crate::types::DataType::Jsonb,
+            crate::types::DataType::BigInt,
+        ]
+        .into(),
+    );
+    let parsed = crate::sql::parse_statement(
+        "SELECT doc || doc AS j, 'a' || 'b' AS s, n - 1 AS n FROM records",
+    )
+    .expect("SQL");
+    let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
+        panic!("SELECT")
+    };
+    // Act
+    let rows = project_rows(
+        vec![row],
+        &select.projection,
+        &[],
+        None,
+        &std::collections::HashMap::new(),
+        Some(&session),
+    )
+    .expect("projection");
+    let last = rows[0].clone();
+    drop(rows);
+    // Assert
+    assert!(matches!(&last.entries()[0].1, Value::String(text) if text == r#"{"a": 1}"#));
+    assert!(matches!(&last.entries()[1].1, Value::String(text) if text == "ab"));
+    assert!(matches!(&last.entries()[2].1, Value::Int64(1)));
+    assert!(controls.current_query_memory_bytes() > baseline);
+    drop(last);
+    assert_eq!(controls.current_query_memory_bytes(), baseline);
+    drop(session);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_retain_session_controlled_extraction_until_last_row_clone() {
     // Arrange
     let controls =

@@ -66,9 +66,13 @@ impl OwnedExpanded {
     pub(crate) fn flatten(
         mut self,
         controls: &QueryExecutionControls,
-    ) -> Result<Vec<BatchRow>, QueryError> {
+    ) -> Result<crate::executor::execution::owned_rows::OwnedRows, QueryError> {
         let Some(memory) = self.chunk_memory.as_ref() else {
-            return Ok(batch::flatten_batches(std::mem::take(&mut self.batches)));
+            return Ok(
+                crate::executor::execution::owned_rows::OwnedRows::untracked(
+                    batch::flatten_batches(std::mem::take(&mut self.batches)),
+                ),
+            );
         };
         observe(Progress::Flatten);
         controls.check_interruption()?;
@@ -88,7 +92,7 @@ impl OwnedExpanded {
             }
         }
         let PendingFlatten { rows, memory } = pending;
-        drop(memory);
+        let rows = crate::executor::execution::owned_rows::OwnedRows::new(rows, memory, controls)?;
         drop(self);
         Ok(rows)
     }

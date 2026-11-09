@@ -95,7 +95,14 @@ fn run_with_execution_breakdown_controls(
     )?;
 
     let result_started = Instant::now();
-    let result = build_select_result(cassie, None, plan, rows, &user_functions, controls)?;
+    let result = build_select_result(
+        cassie,
+        None,
+        plan,
+        super::owned_rows::OwnedRows::untracked(rows),
+        &user_functions,
+        controls,
+    )?;
     breakdown.result_build += result_started.elapsed();
     Ok(ExecutionBreakdownOutput {
         result,

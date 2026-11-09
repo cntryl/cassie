@@ -1,3 +1,9 @@
+pub(crate) mod owned_rows;
+
+#[cfg(test)]
+#[path = "owned_rows_result_tests.rs"]
+mod owned_rows_result_tests;
+
 #[cfg(test)]
 #[path = "owned_rows_foundation_tests.rs"]
 mod owned_rows_foundation_tests;

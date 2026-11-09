@@ -357,17 +357,17 @@ pub(super) fn execute_source_query_with_outer_row(
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     outer_row: Option<&BatchRow>,
-) -> Result<Vec<BatchRow>, QueryError> {
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
     check_timeout(env.controls)?;
     if let Some(rows) = source_pull::try_execute(env, plan, cte_context, outer_row)? {
-        return Ok(rows);
+        return Ok(super::owned_rows::OwnedRows::untracked(rows));
     }
     let started_at = Instant::now();
     if outer_row.is_none() && plan.filter.is_some() {
         if let Some(rows) =
             aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
         {
-            return Ok(rows);
+            return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }
     if let Some(rows) = aggregate_accel::try_execute_column_batch_aggregate(
@@ -378,13 +378,13 @@ pub(super) fn execute_source_query_with_outer_row(
         env.params,
         env.user_functions,
     )? {
-        return Ok(rows);
+        return Ok(super::owned_rows::OwnedRows::untracked(rows));
     }
     if outer_row.is_none() && plan.filter.is_none() {
         if let Some(rows) =
             aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
         {
-            return Ok(rows);
+            return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }
     let (mut batches, text_fields) = load_source_batches(env, plan, cte_context, outer_row)?;
@@ -748,8 +748,12 @@ fn finalize_plan_rows(
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     batches: projection::OwnedExpanded,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let mut rows = batches.flatten(env.controls)?;
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
+    let rows = batches.flatten(env.controls)?;
+    if rows.is_tracked() && plan.set.is_none() && plan.limit.is_none() && plan.offset.is_none() {
+        return Ok(rows);
+    }
+    let mut rows = rows.into_legacy();
     if let Some(set) = &plan.set {
         let left_output_names = set_left_output_names(env, plan, &rows);
         let mut right_plan = plan_inspection::logical_plan_from_select(&set.right);
@@ -784,7 +788,11 @@ fn finalize_plan_rows(
         };
         rows = sort::sort_batch_rows_with_controls(rows, &eval, env.controls)?;
     }
-    Ok(slice_rows(rows, plan.offset_value(), plan.limit_value()))
+    Ok(super::owned_rows::OwnedRows::untracked(slice_rows(
+        rows,
+        plan.offset_value(),
+        plan.limit_value(),
+    )))
 }
 
 fn set_left_output_names(

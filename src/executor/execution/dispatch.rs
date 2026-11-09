@@ -120,7 +120,7 @@ pub(super) fn execute_physical_plan(
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     controls: &QueryExecutionControls,
-) -> Result<Vec<BatchRow>, QueryError> {
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
     let env = plan_execution_env(cassie, session, user_functions, params, controls);
     execute_plan_with_physical(&env, Some(physical), &physical.logical, cte_context, None)
 }
@@ -148,6 +148,7 @@ pub(super) fn execute_plan_with_outer_row(
     outer_row: Option<&BatchRow>,
 ) -> Result<Vec<BatchRow>, QueryError> {
     execute_plan_with_physical(env, None, plan, cte_context, outer_row)
+        .map(super::owned_rows::OwnedRows::into_legacy)
 }
 
 fn execute_plan_with_physical(
@@ -156,7 +157,7 @@ fn execute_plan_with_physical(
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     outer_row: Option<&BatchRow>,
-) -> Result<Vec<BatchRow>, QueryError> {
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
     check_timeout(env.controls)?;
     if plan.command.is_some() {
         return Err(QueryError::General(
@@ -242,7 +243,7 @@ fn execute_plan_with_physical(
             mixed_execution: mixed_execution.clone(),
         };
         if let Some(rows) = execute_access_path_registry(&mut access_path_context)? {
-            return Ok(rows);
+            return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }
 

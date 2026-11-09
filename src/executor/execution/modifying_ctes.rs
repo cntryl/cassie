@@ -112,7 +112,7 @@ fn execute(
                 inputs.cassie,
                 inputs.session,
                 plan,
-                rows,
+                super::owned_rows::OwnedRows::untracked(rows),
                 inputs.user_functions,
                 &snapshot,
             )

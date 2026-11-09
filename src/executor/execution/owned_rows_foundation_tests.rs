@@ -1,6 +1,5 @@
 //! Test-only proof probes; no production executor path uses this foundation.
-#[path = "owned_rows_foundation.rs"]
-mod owned;
+use super::owned_rows as owned;
 
 use super::{BatchRow, QueryExecutionControls, Value};
 use crate::config::CassieRuntimeLimits;

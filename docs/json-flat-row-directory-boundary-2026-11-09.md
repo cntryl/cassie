@@ -1,19 +1,18 @@
 # JSON object-key flattened row directory boundary
 
-Status: design only. The current source-controlled chunk builder and its checked
-flatten do not retain the flat destination directory's reservation after
-returning the bare `Vec<BatchRow>`. The returned allocation is not qualified by
-this record. No implementation, build, or test is claimed here. Existing
-stored JSON affected by serde's private sentinel interpretation cannot be
-assumed recoverable. Cassie continues to use published Midge directly.
+Status: the selected physical SELECT handoff described below is implemented
+but remains untested. Other logical, DML, paginated and set consumers still
+use bare Vecs and are not qualified by this record. Existing stored JSON
+affected by serde's private sentinel interpretation cannot be assumed
+recoverable. Cassie continues to use published Midge directly.
 
 ## Concrete route and invalidation points
 
-`json_object_keys_chunks::OwnedExpanded::flatten` currently allocates a fresh
-admitted destination, consumes all input batch directories while their lease
-is live, and drops the destination lease before returning the destination Vec.
-`source::finalize_plan_rows` then may consume that Vec in set operations and,
-for a set plus ORDER BY, sorting. It always passes rows to
+Before this selected handoff, `json_object_keys_chunks::OwnedExpanded::flatten`
+allocated a fresh admitted destination, consumed input directories under their
+lease, and dropped the destination lease before returning the bare Vec.
+`source::finalize_plan_rows` could consume that Vec in set operations and,
+for a set plus ORDER BY, sorting. Its pagination fallback passes rows to
 `source_rows::slice_rows`, which performs `IntoIter::skip`, optionally `take`,
 and `collect`. Neither source nor Rust's public contract guarantees that the
 collected Vec uses distinct backing storage. A lease must therefore outlive the
@@ -88,8 +87,8 @@ Midge conversion, sentinel semantics, or teardown.
 Jev's first scoped gate was inconclusive: local guard 0.37, selected-route design
 0.31, full design 0.28; owner/early-return lead 0.79. Receipt:
 `target/assembly-review/json-flat-rows-boundary-{request,response}.json`.
-This matrix supplies concrete route evidence for a follow-up decision; no model
-selection establishes correctness. Before activation, author focused tests for
+This matrix supplies concrete route evidence for the selected scope below; no
+model selection establishes correctness. Before broader activation, author tests for
 all affected callers, set/sort/slice semantic and order parity, selected and
 legacy routes, empty and retained-capacity Vecs, source and destination tracker
 identity, exact/below overlapping admission, actual iterator/partial-copy
@@ -99,7 +98,7 @@ and perform the deferred build and test gate in the prescribed order.
 After review of the matrix, Jev selected an isolated test-only owner/iterator
 foundation (0.89; propagation lead 0.88), receipt
 `target/assembly-review/json-flat-rows-matrix-{request,response}.json`.
-It is not authorization to activate the wrapper at a production return seam.
+That decision alone did not authorize a production return seam.
 The isolated probes must cover empty retained capacity, same/foreign tracker,
 partial consumption and cancellation/error/unwind, no bare Vec or iterator
 escape, and independently admitted source/destination overlap. Consumer-specific
@@ -110,3 +109,28 @@ lease byte count covers the observed Vec capacity. Those checks do not prove
 that the reservation belongs exclusively to that Vec or that its allocation was
 preadmitted. A production caller must establish both attribution and admission
 at the concrete allocation/transfer seam; the test-only constructor does not.
+
+## Selected private physical SELECT route
+
+Jev selected the smallest live route after the caller audit (0.99, ownership
+and routing lead 0.80); receipt
+`target/assembly-review/json-selected-owned-result-{request,response}.json`.
+The selected object-key checked flatten transfers its own exclusive destination
+reservation with the Vec. After pagination is resolved, when the plan has no set,
+OFFSET or LIMIT, source finalization can preserve that same Vec and lease as an
+identity operation. Physical SELECT dispatch carries the wrapper into the
+existing result builder, which keeps it through admitted `QueryResult` finish
+and drops source rows before the directory reservation. DISTINCT may run first;
+its own buffers remain separately unqualified. Empty and nonselected/optimized
+paths carry no claimed destination owner.
+
+Logical, CTE, DML, correlated/subquery, set and paginated routes deliberately
+return to their existing bare-Vec behavior: stripping the wrapper drops its
+lease and does not cover the returned allocation. They are not covered by this
+increment. Public `QueryResult` and the direct Midge boundary remain unchanged.
+Keeping the source lease through result construction increases overlapping budget
+admission and can change resource-error priority for this selected route. Check
+same/foreign tracker, identity selection after pagination resolution, actual
+object-key SELECT result success and failure, last-owner release, measured
+source/result overlap, cancellation, DISTINCT, empty/optimized and unsupported
+fallback behavior. All probes are authored before implementation and unexecuted.

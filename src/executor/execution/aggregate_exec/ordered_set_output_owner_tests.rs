@@ -290,3 +290,135 @@ fn should_retain_empty_null_array_through_aliases() {
     drop(source);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_retain_null_array_for_continuous_and_discrete_filtered_percentiles() {
+    // Arrange
+    let catalog = crate::catalog::Catalog::new();
+    catalog.register_collection(
+        "events",
+        vec![
+            ("value".into(), crate::types::DataType::Float),
+            ("keep".into(), crate::types::DataType::Boolean),
+        ],
+    );
+    let params = [Value::Array(
+        crate::types::SqlArray::from_elements(vec![Value::Null, Value::Null]).expect("fractions"),
+    )];
+    let rows = [
+        BatchRow::new(vec![
+            ("value".into(), Value::Float64(1.0)),
+            ("keep".into(), Value::Bool(false)),
+        ]),
+        BatchRow::new(vec![
+            ("value".into(), Value::Float64(3.0)),
+            ("keep".into(), Value::Bool(true)),
+        ]),
+    ];
+    let functions = std::collections::HashMap::new();
+    for name in ["percentile_cont", "percentile_disc"] {
+        let parsed = crate::sql::parse_statement(&format!(
+            "SELECT {name}($1) WITHIN GROUP (ORDER BY value) FILTER (WHERE keep) FROM events"
+        ))
+        .expect("parse");
+        let plan = crate::executor::execution::build_logical_plan(&catalog, &parsed).expect("plan");
+        let specs = super::super::aggregate_specs(&plan);
+        let controls = controls(1_000_000);
+        let context = AggregateExecutionContext {
+            plan: &plan,
+            params: &params,
+            search_context: None,
+            user_functions: &functions,
+            session: None,
+            controls: &controls,
+            after_partition_row: None,
+        };
+
+        // Act
+        let output =
+            evaluate_percentile_owned_observed(&specs[0].function, &rows, &context, |_, _| {})
+                .expect("filtered percentile");
+        let mut row = OutputRow::new(Vec::new(), &[], &controls).expect("row");
+        row.append(output, &["pct".into(), "alias".into()])
+            .expect("aliases");
+        let row = row.finish();
+
+        // Assert
+        assert_eq!(
+            row.get("pct"),
+            Some(&Value::Json(serde_json::json!([null, null])))
+        );
+        assert_eq!(
+            row.get("alias"),
+            Some(&Value::Json(serde_json::json!([null, null])))
+        );
+        assert!(row.query_memory().is_some());
+        drop(row);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+        let filtered_empty =
+            evaluate_percentile_owned_observed(&specs[0].function, &rows[..1], &context, |_, _| {})
+                .expect("no selected rows");
+        assert_eq!(filtered_empty.into_value(), Value::Null);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_cancel_actual_percentile_null_output_while_source_leases_overlap() {
+    // Arrange
+    let catalog = crate::catalog::Catalog::new();
+    catalog.register_collection(
+        "events",
+        vec![("value".into(), crate::types::DataType::Float)],
+    );
+    let parsed = crate::sql::parse_statement(
+        "SELECT percentile_cont($1) WITHIN GROUP (ORDER BY value) FROM events",
+    )
+    .expect("parse");
+    let plan = crate::executor::execution::build_logical_plan(&catalog, &parsed).expect("plan");
+    let specs = super::super::aggregate_specs(&plan);
+    let params = [Value::Array(
+        crate::types::SqlArray::from_elements(vec![Value::Null, Value::Null, Value::Null])
+            .expect("fractions"),
+    )];
+    let rows = [BatchRow::new(vec![("value".into(), Value::Float64(1.0))])];
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let functions = std::collections::HashMap::new();
+    let context = AggregateExecutionContext {
+        plan: &plan,
+        params: &params,
+        search_context: None,
+        user_functions: &functions,
+        session: None,
+        controls: &controls,
+        after_partition_row: None,
+    };
+    let mut seen = false;
+
+    // Act
+    let result = evaluate_percentile_owned_observed(
+        &specs[0].function,
+        &rows,
+        &context,
+        |progress, index| {
+            if matches!(progress, FractionProgress::ResultElement) && index == 0 {
+                seen = true;
+                let minimum = 3 * size_of::<Option<f64>>()
+                    + size_of::<Value>()
+                    + 3 * size_of::<serde_json::Value>();
+                assert!(controls.current_query_memory_bytes() >= minimum);
+                cancellation.cancel();
+            }
+        },
+    );
+
+    // Assert
+    assert!(seen);
+    assert!(matches!(result, Err(QueryError::General(ref message)) if message == "query canceled"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

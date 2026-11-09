@@ -12,6 +12,11 @@ fn row(controls: &QueryExecutionControls) -> OutputRow {
     }
 }
 
+fn null_output(controls: &QueryExecutionControls, count: usize) -> AggregateOutput {
+    let source = controls.reserve_query_memory(0).expect("source");
+    null_array_output(count, &source, controls, |_| {}).expect("null array output")
+}
+
 #[test]
 fn should_release_owned_output_after_cancellation_during_directory_move() {
     // Arrange
@@ -143,10 +148,7 @@ fn should_cancel_selected_null_array_during_actual_alias_value_copy() {
         Instant::now(),
         cancellation.clone(),
     );
-    let bytes = 3 * std::mem::size_of::<serde_json::Value>();
-    let memory = controls.reserve_query_memory(bytes).expect("result owner");
-    let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null; 3]));
-    let result = AggregateOutput::from_owned_null_array(value, memory);
+    let result = null_output(&controls, 3);
     let mut output = row(&controls);
     let mut reached = false;
 
@@ -177,10 +179,7 @@ fn should_release_selected_null_array_after_partial_alias_cancellation() {
         Instant::now(),
         cancellation.clone(),
     );
-    let bytes = 2 * std::mem::size_of::<serde_json::Value>();
-    let memory = controls.reserve_query_memory(bytes).expect("result owner");
-    let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null; 2]));
-    let result = AggregateOutput::from_owned_null_array(value, memory);
+    let result = null_output(&controls, 2);
     let mut output = row(&controls);
     let mut copies = 0;
 
@@ -204,11 +203,7 @@ fn should_reject_a_null_array_output_from_another_query_tracker() {
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let second =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
-    let memory = first
-        .reserve_query_memory(std::mem::size_of::<serde_json::Value>())
-        .expect("foreign owner");
-    let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null]));
-    let result = AggregateOutput::from_owned_null_array(value, memory);
+    let result = null_output(&first, 1);
     let mut output = row(&second);
 
     // Act
@@ -228,13 +223,7 @@ fn should_reject_a_null_array_output_from_another_query_tracker() {
 fn should_enforce_null_array_alias_copy_budget_at_exact_peak() {
     // Arrange
     let names = ["a".to_owned(), "b".to_owned()];
-    let make_output = |controls: &QueryExecutionControls| {
-        let memory = controls
-            .reserve_query_memory(2 * std::mem::size_of::<serde_json::Value>())
-            .expect("result owner");
-        let value = Value::Json(serde_json::Value::Array(vec![serde_json::Value::Null; 2]));
-        AggregateOutput::from_owned_null_array(value, memory)
-    };
+    let make_output = |controls: &QueryExecutionControls| null_output(controls, 2);
     let baseline =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let mut measured = row(&baseline);
@@ -260,4 +249,32 @@ fn should_enforce_null_array_alias_copy_budget_at_exact_peak() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
     assert_eq!(baseline.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reject_a_forged_nonnull_array_before_alias_publication() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let memory = controls
+        .reserve_query_memory(2 * std::mem::size_of::<serde_json::Value>())
+        .expect("owner");
+    let forged = AggregateOutput {
+        value: Value::Json(serde_json::json!([null, 1])),
+        memory: Some(memory),
+        copy_mode: OutputCopyMode::NullArray,
+    };
+    let mut output = row(&controls);
+
+    // Act
+    let result = output.append(forged, &["a".to_owned()]);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert!(output.values.is_empty());
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }

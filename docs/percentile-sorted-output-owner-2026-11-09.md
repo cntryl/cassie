@@ -16,6 +16,11 @@ rows exist, pre-admit the exact null-only JSON array directory and retain it in
 `AggregateOutput` through `OutputRow` and all duplicate-name copies. A private
 null-array copy policy checks the source and copies each element with controls.
 No serde JSON number or string formatting is involved in this selected result.
+The private policy is constructed only by a count-based builder that creates
+NULL elements itself; callers cannot pass an arbitrary Value to that builder.
+The copy still rejects an internally forged non-NULL payload before publishing
+its alias. Both continuous and discrete percentiles retain the normal FILTER
+and no-selected-row behavior.
 
 The empty array retains a zero-byte reservation and explicit private policy so
 OutputRow creates an owner even though `AggregateOutput::from_owned` normally

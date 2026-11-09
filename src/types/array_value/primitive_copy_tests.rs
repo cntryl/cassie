@@ -20,10 +20,16 @@ fn should_preserve_array_dimensions_values_and_float_bits() {
     // Arrange
     let nan = f64::from_bits(0x7ff8_0000_0000_1234);
     let array = SqlArray::new(
-        vec![ArrayDimension {
-            length: 5,
-            lower_bound: -7,
-        }],
+        vec![
+            ArrayDimension {
+                length: 1,
+                lower_bound: 3,
+            },
+            ArrayDimension {
+                length: 5,
+                lower_bound: -7,
+            },
+        ],
         vec![
             Value::Null,
             Value::Bool(true),

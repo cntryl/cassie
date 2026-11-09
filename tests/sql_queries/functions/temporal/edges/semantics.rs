@@ -192,3 +192,124 @@ fn should_match_postgresql_interval_quarters_at_signed_month_boundaries() {
         );
     }
 }
+
+#[test]
+fn should_reject_unrecognized_truncation_units_for_finite_and_infinite_temporal_values() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-trunc-unrecognized-units",
+        &["SET TIME ZONE 'UTC'"],
+    );
+    let values = [
+        "TIMESTAMP '2000-01-01'",
+        "TIMESTAMP 'infinity'",
+        "TIMESTAMP '-infinity'",
+        "TIMESTAMPTZ '2000-01-01 00:00:00+00'",
+        "TIMESTAMPTZ 'infinity'",
+        "TIMESTAMPTZ '-infinity'",
+        "INTERVAL '1 day'",
+        "INTERVAL 'infinity'",
+        "INTERVAL '-infinity'",
+    ];
+
+    for value in values {
+        for unit in ["dow", "doy", "isodow", "isoyear", "epoch", "julian"] {
+            // Act
+            let result = fixture.execute(&format!("SELECT date_trunc('{unit}', {value})"));
+
+            // Assert
+            assert!(
+                matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22023"),
+                "{unit}, {value}"
+            );
+        }
+    }
+}
+
+#[test]
+fn should_reject_unsupported_truncation_units_before_infinity_shortcut() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-trunc-unsupported-units",
+        &["SET TIME ZONE 'UTC'"],
+    );
+    let values = [
+        "TIMESTAMP '2000-01-01'",
+        "TIMESTAMP 'infinity'",
+        "TIMESTAMP '-infinity'",
+        "TIMESTAMPTZ '2000-01-01 00:00:00+00'",
+        "TIMESTAMPTZ 'infinity'",
+        "TIMESTAMPTZ '-infinity'",
+        "INTERVAL '1 day'",
+        "INTERVAL 'infinity'",
+        "INTERVAL '-infinity'",
+    ];
+
+    for value in values {
+        for unit in ["timezone", "timezone_hour", "timezone_minute"] {
+            // Act
+            let result = fixture.execute(&format!("SELECT date_trunc('{unit}', {value})"));
+
+            // Assert
+            assert!(
+                matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "0A000"),
+                "{unit}, {value}"
+            );
+        }
+    }
+    for value in [
+        "INTERVAL '1 day'",
+        "INTERVAL 'infinity'",
+        "INTERVAL '-infinity'",
+    ] {
+        // Act
+        let result = fixture.execute(&format!("SELECT date_trunc('week', {value})"));
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "0A000"),
+            "week, {value}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_infinity_for_supported_truncation_units() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-trunc-supported-infinity",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let result = fixture.execute("SELECT date_trunc('day', TIMESTAMP 'infinity') = TIMESTAMP 'infinity' AND date_trunc('week', TIMESTAMPTZ '-infinity') = TIMESTAMPTZ '-infinity' AND date_trunc('year', INTERVAL 'infinity') = INTERVAL 'infinity'");
+
+    // Assert
+    assert_eq!(
+        result.expect("supported infinite truncation").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_keep_null_and_explicit_timezone_priority_for_truncation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-trunc-null-zone-priority",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let nulls = fixture.execute("SELECT date_trunc('dow', NULL::timestamp) IS NULL AND date_trunc(NULL::text, TIMESTAMPTZ 'infinity') IS NULL AND date_trunc('timezone', NULL::interval) IS NULL");
+    let invalid_zone =
+        fixture.execute("SELECT date_trunc('dow', TIMESTAMPTZ 'infinity', 'NoSuch/Zone')");
+
+    // Assert
+    assert_eq!(
+        nulls.expect("null truncation").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+    assert!(
+        matches!(invalid_zone, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22023" && error.message == "time zone \"NoSuch/Zone\" not recognized")
+    );
+}

@@ -7,7 +7,7 @@ use super::calendar::{
     UNIX_EPOCH_JDATE, UNIX_TO_POSTGRES_SECS, USECS_PER_DAY, USECS_PER_HOUR, USECS_PER_MINUTE,
     USECS_PER_SEC,
 };
-use super::tokens::{field_unit, round_half_even, Unit};
+use super::tokens::{field_unit, round_half_even, unit_keyword, Keyword, Unit};
 use super::zone::Zone;
 use super::{range_error, Interval, TemporalSession};
 use crate::types::extended::TypeInputError;
@@ -29,6 +29,36 @@ fn unit_of(name: &str, type_name: &str) -> Result<Unit, TypeInputError> {
             ),
         )
     })
+}
+
+fn trunc_unit(name: &str, type_name: &str, interval: bool) -> Result<Unit, TypeInputError> {
+    let lower = name.to_ascii_lowercase();
+    let Some(Keyword::Units(unit)) = unit_keyword(&lower) else {
+        return Err(error(
+            "22023",
+            format!("unit \"{lower}\" not recognized for type {type_name}"),
+        ));
+    };
+    let supported = matches!(
+        unit,
+        Unit::Millennium
+            | Unit::Century
+            | Unit::Decade
+            | Unit::Year
+            | Unit::Quarter
+            | Unit::Month
+            | Unit::Day
+            | Unit::Hour
+            | Unit::Minute
+            | Unit::Second
+            | Unit::Millisecond
+            | Unit::Microsecond
+    ) || (!interval && unit == Unit::Week);
+    if supported {
+        Ok(unit)
+    } else {
+        Err(unsupported(name, type_name))
+    }
 }
 
 fn unsupported(name: &str, type_name: &str) -> TypeInputError {
@@ -126,7 +156,7 @@ fn truncate_fields(fields: &mut Fields, unit: Unit) -> Option<bool> {
 /// # Errors
 /// Returns PostgreSQL's unit errors.
 pub fn trunc_timestamp(name: &str, value: i64) -> Result<i64, TypeInputError> {
-    let unit = unit_of(name, "timestamp without time zone")?;
+    let unit = trunc_unit(name, "timestamp without time zone", false)?;
     if is_infinite(value) {
         return Ok(value);
     }
@@ -142,7 +172,7 @@ pub fn trunc_timestamp(name: &str, value: i64) -> Result<i64, TypeInputError> {
 /// # Errors
 /// Returns PostgreSQL's unit errors.
 pub fn trunc_timestamptz(name: &str, value: i64, zone: &Zone) -> Result<i64, TypeInputError> {
-    let unit = unit_of(name, "timestamp with time zone")?;
+    let unit = trunc_unit(name, "timestamp with time zone", false)?;
     if is_infinite(value) {
         return Ok(value);
     }
@@ -166,7 +196,7 @@ pub fn trunc_timestamptz(name: &str, value: i64, zone: &Zone) -> Result<i64, Typ
 /// # Errors
 /// Returns PostgreSQL's unit errors.
 pub fn trunc_interval(name: &str, value: &Interval) -> Result<Interval, TypeInputError> {
-    let unit = unit_of(name, "interval")?;
+    let unit = trunc_unit(name, "interval", true)?;
     if value.is_infinite() {
         return Ok(*value);
     }

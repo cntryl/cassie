@@ -252,6 +252,106 @@ fn should_enforce_null_array_alias_copy_budget_at_exact_peak() {
 }
 
 #[test]
+fn should_cancel_owned_mode_string_during_actual_alias_copy() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let text = "λ".repeat(2048);
+    let source = controls.reserve_query_memory(text.len()).expect("source");
+    let result = mode_string_output(&text, &source, &controls, || {}).expect("mode result");
+    drop(source);
+    let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
+    let mut copied = false;
+
+    // Act
+    let status = output.append_with_progress(
+        result,
+        &["mode".into(), "alias".into()],
+        || {},
+        &mut |progress| {
+            if matches!(progress, OutputProgress::ValueCopy) {
+                copied = true;
+                cancellation.cancel();
+            }
+        },
+    );
+
+    // Assert
+    assert!(copied);
+    assert!(matches!(
+        status,
+        Err(QueryError::Cassie(CassieError::QueryCancelled))
+    ));
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_enforce_owned_mode_string_alias_budget_at_measured_peak() {
+    // Arrange
+    let text = "λ-mode";
+    let names = ["mode".to_owned(), "alias".to_owned()];
+    let make_output = |controls: &QueryExecutionControls| {
+        let source = controls.reserve_query_memory(text.len()).expect("source");
+        mode_string_output(text, &source, controls, || {}).expect("result")
+    };
+    let baseline =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let mut measured = OutputRow::new(Vec::new(), &[], &baseline).expect("row");
+    measured
+        .append(make_output(&baseline), &names)
+        .expect("measure");
+    let peak = baseline.peak_query_memory_bytes();
+    drop(measured);
+
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
+        let result = output.append(make_output(&controls), &names);
+        assert_eq!(result.is_ok(), succeeds);
+        drop(output);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reject_owned_mode_string_from_another_tracker() {
+    // Arrange
+    let first =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let second =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let source = first.reserve_query_memory(4).expect("source");
+    let result = mode_string_output("text", &source, &first, || {}).expect("result");
+    drop(source);
+    let mut output = OutputRow::new(Vec::new(), &[], &second).expect("row");
+
+    // Act
+    let status = output.append(result, &["mode".into()]);
+
+    // Assert
+    assert!(matches!(
+        status,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert_eq!(first.current_query_memory_bytes(), 0);
+    drop(output);
+    assert_eq!(second.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_reject_a_forged_nonnull_array_before_alias_publication() {
     // Arrange
     let controls =

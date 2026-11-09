@@ -1,5 +1,9 @@
 //! Mode aggregate over its single ordered-set input.
 
+#[cfg(test)]
+#[path = "ordered_set_mode_output_tests.rs"]
+mod output_tests;
+
 use std::cmp::Ordering;
 
 use crate::executor::batch::BatchRow;

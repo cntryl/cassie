@@ -12,6 +12,9 @@ mod owned_tests;
 #[path = "json_concat_move_tests.rs"]
 mod move_tests;
 
+#[path = "json_operand.rs"]
+pub(super) mod operand;
+
 pub(super) fn as_json_document(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
     match value {
         ScalarValue::Null | ScalarValue::Json(_) => Ok(value.clone()),

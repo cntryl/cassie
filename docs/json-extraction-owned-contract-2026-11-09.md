@@ -10,6 +10,25 @@ separate ownership obligations. Authored pointer, output/error and owner probes
 are unexecuted until the consolidated gate; moving a non-JSON operand into the
 helper can retire its temporary source earlier after conversion.
 
+Controlled extraction and typed concatenation also need an owned conversion
+for non-JSON scalars. The selected candidate keeps each converted value before
+its own reservation, retaining the left operand while converting the right
+and retaining both through the operator. JSON and NULL still move; no-controls
+callers retain the existing conversion. Strings use the checked compact JSON
+quoting sink. Finite floats and integers serialize into a fixed 64-byte stack
+buffer before a checked sink copy; nonfinite floats keep the existing error.
+Pinned serde_json 1.0.154 uses the same `zmij::Buffer::format_finite` for both
+`Number::from_f64` and its f64 serializer; pinned zmij's buffer is 24 bytes,
+and i64 decimal text fits 20 bytes. This is a source proof for that pinned
+implementation, not executable qualification. Test-first probes cover float
+spelling/extremes, escapes, NULL/NaN/incompatible errors, actual copy
+cancellation, exact/below admission and left/right/result owner failures.
+Jev selected the scoped design (0.97); receipt:
+`target/assembly-review/json-operand-conversion-contract-{request,response}.json`.
+Extra admission/cancellation may precede legacy errors; source column clones,
+unowned callers, allocator transient excess, diagnostic allocation and
+teardown remain open. All new probes are unexecuted.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

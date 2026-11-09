@@ -45,10 +45,14 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         jsonb,
     } = op
     {
-        let document = json_concat::into_json_document(left_value)?;
+        let document = json_operand(
+            left_value,
+            true,
+            controls.filter(|_| context.deletion_memory.is_some()),
+        )?;
         if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
             if let Some(value) = json_delete::controlled_extraction(
-                &document,
+                document.value(),
                 &right_value,
                 *path,
                 *as_text,
@@ -59,7 +63,7 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
                 return Ok(value);
             }
         }
-        return json_extract::evaluate(&document, &right_value, *path, *as_text, *jsonb);
+        return json_extract::evaluate(document.value(), &right_value, *path, *as_text, *jsonb);
     }
     if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
         && (is_json_typed_input(row, left, &left_value)
@@ -116,24 +120,20 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         let left_is_json = is_json_typed_input(row, left, &left_value);
         let right_is_json = is_json_typed_input(row, right, &right_value);
         if left_is_json || right_is_json {
-            let left_value = if left_is_json {
-                json_concat::into_json_document(left_value)?
-            } else {
-                left_value
-            };
-            let right_value = if right_is_json {
-                json_concat::into_json_document(right_value)?
-            } else {
-                right_value
-            };
+            let conversion_controls = controls.filter(|_| context.deletion_memory.is_some());
+            let left_value = json_operand(left_value, left_is_json, conversion_controls)?;
+            let right_value = json_operand(right_value, right_is_json, conversion_controls)?;
             if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
-                if let Some(result) =
-                    json_concat::concatenate_controlled(&left_value, &right_value, controls, owner)?
-                {
+                if let Some(result) = json_concat::concatenate_controlled(
+                    left_value.value(),
+                    right_value.value(),
+                    controls,
+                    owner,
+                )? {
                     return Ok(result);
                 }
             }
-            return json_concat::concatenate(&left_value, &right_value);
+            return json_concat::concatenate(left_value.value(), right_value.value());
         }
         if (matches!(left_value, ScalarValue::Json(_))
             && matches!(right_value, ScalarValue::Json(_) | ScalarValue::Null))
@@ -157,6 +157,21 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         return Ok(result);
     }
     super::binary::binary_scalar_with_controls(&left_value, op, &right_value, controls)
+}
+
+fn json_operand(
+    value: ScalarValue,
+    convert: bool,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<json_concat::operand::OwnedOperand, QueryError> {
+    if !convert {
+        return Ok(json_concat::operand::OwnedOperand::legacy(value));
+    }
+    if let Some(controls) = controls {
+        json_concat::operand::OwnedOperand::convert(value, controls)
+    } else {
+        json_concat::into_json_document(value).map(json_concat::operand::OwnedOperand::legacy)
+    }
 }
 
 fn array_comparison<R: RowAccess + ?Sized>(

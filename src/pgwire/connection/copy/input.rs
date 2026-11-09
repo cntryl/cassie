@@ -40,6 +40,10 @@ mod binary_vector;
 mod tests;
 
 #[cfg(test)]
+#[path = "input/binary_json_owner_tests.rs"]
+mod binary_json_owner_tests;
+
+#[cfg(test)]
 #[path = "input/binary_timetz_bounds_tests.rs"]
 mod binary_timetz_bounds_tests;
 
@@ -389,6 +393,40 @@ pub(super) fn parse_binary_payload(
             if let Some((text, text_memory)) =
                 binary_text::decode(type_oid, bytes, column_index, controls)?
             {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if type_oid == 114 {
+                use crate::runtime::accounted::json::controlled_parse::ParseError;
+                let owner =
+                    match crate::runtime::accounted::json::controlled_parse::parse(bytes, controls)
+                    {
+                        Ok(owner) => owner,
+                        Err(ParseError::Controlled(error)) => return Err(error),
+                        Err(ParseError::InvalidJson {
+                            error,
+                            _memory: memory,
+                        }) => {
+                            drop(error);
+                            drop(memory);
+                            return Err(CassieError::Parse(format!(
+                                "COPY binary field {} is invalid: invalid binary json value",
+                                column_index + 1
+                            )));
+                        }
+                        Err(ParseError::InvalidUtf8) => {
+                            return Err(CassieError::Parse(format!(
+                                "COPY binary field {} is invalid: invalid binary json value",
+                                column_index + 1
+                            )));
+                        }
+                    };
+                // Serialization and its output pre-admission remain pending.
+                let text_memory;
+                let text;
+                text = owner.get().to_string();
+                text_memory = controls.reserve_query_memory(text.capacity())?;
                 row.push(Some(text));
                 row_memory.absorb(text_memory);
                 continue;

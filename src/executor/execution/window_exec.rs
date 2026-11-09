@@ -509,7 +509,7 @@ fn frame_positions(
     frame: &WindowFrame,
     context: &WindowExecutionContext<'_>,
 ) -> Result<FramePositions, QueryError> {
-    check_timeout(context.controls)?;
+    context.controls.check_interruption()?;
     let bounds = match frame.unit {
         WindowFrameUnit::Rows => frame_row_bounds(position, indices.len(), frame),
         WindowFrameUnit::Groups => {
@@ -535,7 +535,7 @@ fn frame_positions(
     let (mut positions, memory) = crate::runtime::owned_memory::try_reserve_vec(count, &admission)?;
     let current_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
     for candidate in start..=end {
-        check_timeout(context.controls)?;
+        context.controls.check_interruption()?;
         let is_current = candidate == position;
         let is_peer =
             window_peer_key(&rows[indices[candidate]], &function.order_by, context)? == current_key;
@@ -550,7 +550,7 @@ fn frame_positions(
         #[cfg(test)]
         frame_resource_tests::after_candidate();
     }
-    check_timeout(context.controls)?;
+    context.controls.check_interruption()?;
     Ok(FramePositions {
         positions,
         _memory: memory,
@@ -576,13 +576,13 @@ fn peer_groups(
     function: &WindowFunctionCall,
     context: &WindowExecutionContext<'_>,
 ) -> Result<PeerGroups, QueryError> {
-    check_timeout(context.controls)?;
+    context.controls.check_interruption()?;
     let admission = context.controls.reserve_query_memory(0)?;
     let (mut groups, memory) =
         crate::runtime::owned_memory::try_reserve_vec(indices.len(), &admission)?;
     let mut start = 0;
     for position in 1..indices.len() {
-        check_timeout(context.controls)?;
+        context.controls.check_interruption()?;
         let previous = window_peer_key(&rows[indices[position - 1]], &function.order_by, context)?;
         let current = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
         if previous != current {
@@ -592,7 +592,7 @@ fn peer_groups(
         #[cfg(test)]
         frame_resource_tests::after_candidate();
     }
-    check_timeout(context.controls)?;
+    context.controls.check_interruption()?;
     if !indices.is_empty() {
         groups.push((start, indices.len() - 1));
     }

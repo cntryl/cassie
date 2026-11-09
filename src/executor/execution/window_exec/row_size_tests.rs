@@ -135,7 +135,8 @@ fn should_interrupt_actual_window_numeric_counting() {
         Instant::now(),
         cancel.clone(),
     );
-    let value = parse_text("1234567890123456789012345678901234567890.123456789").expect("numeric");
+    // This bounded coefficient crosses the formatter's 256-step arithmetic hook.
+    let value = parse_text(&"7".repeat(512)).expect("numeric");
     let rows = vec![BatchRow::new(vec![(
         "value".into(),
         Value::Typed(TypedValue::Numeric(value)),

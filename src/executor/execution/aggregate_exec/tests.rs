@@ -322,6 +322,8 @@ fn should_fall_back_to_row_order_for_parallel_float_statistics() {
         after.parallel_aggregation.last_fallback_reason,
         "aggregate-state-requires-row-order"
     );
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(output_rows);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

@@ -176,9 +176,14 @@ fn run_active_workers(action: ActiveAction) {
         worker.join().expect("aggregate orchestration worker")
     });
     let after = fixture.cassie.metrics();
-    assert_eq!(controls.current_query_memory_bytes(), 0);
+    if matches!(action, ActiveAction::Finish) {
+        assert!(controls.current_query_memory_bytes() > 0);
+    } else {
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
     fixture.assert_released_permits();
     assert_active_result(action, result, &before, &after);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 fn assert_active_result(

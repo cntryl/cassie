@@ -182,6 +182,25 @@ impl Fold<'_, '_> {
         metadata: Option<&functions::ScalarFunction>,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
+        if metadata.is_some_and(|entry| {
+            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
+        }) && function.args.len() == 4
+            && matches!(function.args[3], ast::Expr::Param(_))
+        {
+            let arguments = &self.summaries.values[frame.start..frame.start + 4];
+            let first = arguments[0].oid;
+            if matches!(first, 701 | 1700)
+                && arguments[..3]
+                    .iter()
+                    .all(|argument| argument.qualified && argument.oid == first)
+                && matches!(arguments[3].oid, 0 | 705)
+            {
+                check_controls(self.controls)?;
+                self.occurrences
+                    .coerce(&mut self.summaries.values[frame.start + 3], 23, true)?;
+                return Ok(Summary::known(23));
+            }
+        }
         let signature = self.qualified_input_signature(function, metadata, frame);
         match signature {
             Some(

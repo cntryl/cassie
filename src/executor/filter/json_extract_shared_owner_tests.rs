@@ -110,6 +110,101 @@ fn should_cancel_during_the_selected_shared_owner_function_scan() {
 }
 
 #[test]
+fn should_reach_the_controlled_scan_for_each_shared_owner_path_variant() {
+    // Arrange
+    let functions = HashMap::new();
+    let row = BatchRow::new(vec![(
+        "doc".into(),
+        Value::String(r#"{"a":"payload"}"#.into()),
+    )]);
+    for name in [
+        "json_extract_path",
+        "json_extract_path_text",
+        "jsonb_extract_path",
+        "jsonb_extract_path_text",
+    ] {
+        let cancel = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancel.clone(),
+        );
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        let expression =
+            crate::sql::parser::parse_expression(&format!("{name}(doc, 'a')")).expect("expression");
+        let context = EvalContext {
+            params: &[],
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+            controls: Some(&controls),
+            memory: Some(&owner),
+            deletion_memory: Some(&owner),
+        };
+        super::json_delete::cancel_function_path_scan_once(cancel.clone());
+
+        // Act
+        let result = evaluate_expr_value_with_context(&row, &expression, context);
+
+        // Assert
+        assert!(
+            cancel.is_cancelled(),
+            "{name} must reach the controlled scan"
+        );
+        assert!(result.is_err());
+        drop(result);
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_release_shared_owner_after_actual_function_output_copy_cancellation() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let functions = HashMap::new();
+    let row = BatchRow::new(vec![(
+        "doc".into(),
+        Value::String(r#"{"a":"payload"}"#.into()),
+    )]);
+    let expression = crate::sql::parser::parse_expression("jsonb_extract_path_text(doc, 'a')")
+        .expect("expression");
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: Some(&owner),
+        deletion_memory: Some(&owner),
+    };
+    super::json_delete::cancel_function_path_copy_once(cancel.clone());
+
+    // Act
+    let result = evaluate_expr_value_with_context(&row, &expression, context);
+
+    // Assert
+    assert!(
+        cancel.is_cancelled(),
+        "actual output copy must reach the hook"
+    );
+    assert!(result.is_err());
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_reject_a_foreign_owner_and_release_both_query_trackers() {
     // Arrange
     let owner_controls = controls(10 * 1024 * 1024);

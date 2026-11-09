@@ -37,3 +37,20 @@ bytes, including padding, to the existing controls allocation outside the query
 tracker; no new heap owner is introduced. No claim is made about normal timestamp text, arbitrary IANA/TZif
 classification, no-controls callers, other overloads or #815 completion.
 Authored Cassie probes are unexecuted pending the consolidated build/test gate.
+
+A further PG18.6/source probe found that matching names alone are insufficient:
+`AAA0AAA-1,M3.2.0/2,M3.2.0/3` has no transitions, and PostgreSQL marks the
+standard designation unused. It reports 22023 for AAA and falls back to the
+global offset for an analogous CST rule. Jev therefore selected a narrower
+fully parsed subset (`target/assembly-review/temporal-posix-transition-contract-*`):
+both transition rules must be plain `Mmonth.week.weekday` without explicit
+times, and their months must differ by 2 through 10. Both offsets are limited
+to 23:59 with zero seconds. Validate both offsets and all rule fields; unsupported rules use the legacy resolver. Since omitted times
+are 02:00, the shortest season and complement are at least weeks, while the
+maximum accepted offset difference is under 48 hours. PostgreSQL's 400-year
+`tzparse` loop therefore emits transitions and retains the standard type.
+Southern order, minimum separation, offset extremes and DST seconds were also
+probed against PostgreSQL 18.6. Some extreme non-minute DST settings were
+rejected depending on the currently active offset, so the fast path excludes
+them; the oracle was stopped. This proof and its
+Cassie probes are source-only and unexecuted.

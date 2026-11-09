@@ -48,59 +48,93 @@ pub(super) fn fixed_duplicate_offset(rule: &str, name: &str) -> Option<i32> {
         return None;
     }
     let mut index = length;
-    let sign = match bytes.get(index) {
+    let standard = offset(bytes, &mut index, 23, true)?;
+    let end = index.checked_add(length)?;
+    if bytes.get(index..end) != Some(&bytes[..length]) {
+        return None;
+    }
+    index = end;
+    if bytes.get(index) == Some(&b',') {
+        if standard + 3_600 > 86_340 {
+            return None;
+        }
+    } else {
+        offset(bytes, &mut index, 23, true)?;
+    }
+    if take(bytes, &mut index)? != b',' {
+        return None;
+    }
+    let first_month = month_rule(bytes, &mut index)?;
+    if take(bytes, &mut index)? != b',' {
+        return None;
+    }
+    let second_month = month_rule(bytes, &mut index)?;
+    if index != bytes.len() || !(2..=10).contains(&first_month.abs_diff(second_month)) {
+        return None;
+    }
+    Some(standard)
+}
+
+fn offset(bytes: &[u8], index: &mut usize, max_hours: i32, zero_seconds: bool) -> Option<i32> {
+    let sign = match bytes.get(*index) {
         Some(b'-') => {
-            index += 1;
+            *index += 1;
             -1
         }
         Some(b'+') => {
-            index += 1;
+            *index += 1;
             1
         }
         _ => 1,
     };
-    let Some(hours) = component(bytes, &mut index) else {
-        return None;
-    };
+    let hours = component(bytes, index)?;
     let mut minutes = 0;
     let mut seconds = 0;
-    if bytes.get(index) == Some(&b':') {
-        index += 1;
-        let start = index;
-        let Some(value) = component(bytes, &mut index) else {
-            return None;
-        };
-        if index - start != 2 {
+    if bytes.get(*index) == Some(&b':') {
+        *index += 1;
+        let start = *index;
+        minutes = component(bytes, index)?;
+        if *index - start != 2 {
             return None;
         }
-        minutes = value;
-        if bytes.get(index) == Some(&b':') {
-            index += 1;
-            let start = index;
-            let Some(value) = component(bytes, &mut index) else {
-                return None;
-            };
-            if index - start != 2 {
+        if bytes.get(*index) == Some(&b':') {
+            *index += 1;
+            let start = *index;
+            seconds = component(bytes, index)?;
+            if *index - start != 2 {
                 return None;
             }
-            seconds = value;
         }
     }
-    if hours > 23 || minutes > 59 || seconds != 0 {
-        return None;
-    }
-    let Some(end) = index.checked_add(length) else {
-        return None;
-    };
-    if bytes.get(index..end) != Some(&bytes[..length])
-        || bytes
-            .get(end)
-            .is_some_and(|byte| byte.is_ascii_alphabetic())
-        || !bytes[end..].contains(&b',')
-    {
+    if hours > max_hours || minutes > 59 || seconds > 59 || (zero_seconds && seconds != 0) {
         return None;
     }
     Some(-sign * (hours * 3600 + minutes * 60 + seconds))
+}
+
+fn month_rule(bytes: &[u8], index: &mut usize) -> Option<u8> {
+    if take(bytes, index)? != b'M' {
+        return None;
+    }
+    let month = u8::try_from(component(bytes, index)?).ok()?;
+    if !(1..=12).contains(&month) || take(bytes, index)? != b'.' {
+        return None;
+    }
+    let week = take(bytes, index)?;
+    if !(b'1'..=b'5').contains(&week) || take(bytes, index)? != b'.' {
+        return None;
+    }
+    let day = take(bytes, index)?;
+    if !(b'0'..=b'6').contains(&day) {
+        return None;
+    }
+    Some(month)
+}
+
+fn take(bytes: &[u8], index: &mut usize) -> Option<u8> {
+    let byte = *bytes.get(*index)?;
+    *index += 1;
+    Some(byte)
 }
 
 fn component(bytes: &[u8], index: &mut usize) -> Option<i32> {

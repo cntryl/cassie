@@ -1,0 +1,67 @@
+# Ordinary JSON representation options
+
+This source audit follows the #809 private-sentinel decision and compares
+approaches without activating runtime behavior. Source baseline `5ad2d757`;
+no executable tests have been run. The already transformed contents of a
+stored record cannot be inferred or restored merely by changing the decoder.
+
+`types::Value` is a public `Debug + Clone + PartialEq + Serialize + Deserialize`
+enum with `Json(serde_json::Value)`. Adding a raw/arena variant would break
+downstream exhaustive matches and add a serialized enum shape. `BatchRow` is
+private and carries column `DataType` and owner links, but `RowAccess::get`
+returns `&Value`; `eval_column_value` converts `Value::String` to scalar text
+without consulting the JSON column type. A raw String substituted into an
+existing `TYPE_JSON` serde encoder is serialized as a JSON string, not an
+object. Existing JSON/JSONB output, NULL, field alias and expression behavior
+therefore cannot be preserved by changing one value at that boundary.
+
+Cassie's `Midge::put_document` takes `serde_json::Value` and row-blob
+`encode_row` serializes each JSON field as bytes; `decode_row` and projected
+variants deserialize to serde Value. Their callers include streaming and
+ordered document scans, document mutation/read, column-store compact fields,
+full-text, graph/time-series, vector publication, indexes and query source
+hydration. These are Cassie adapters and consumers. Published cntryl-midge
+0.5.2 exposes byte-key/value transactions; the storage engine need not change
+and no second storage layer is selected.
+
+Option A adds an internal schema-typed, owner-coupled raw/arena JSON cell and
+parallel row decode/encode path, retaining the current public `Value` enum and
+serde representation. The existing TYPE_JSON bytes can carry ordinary JSON
+text without a persisted tag change, subject to proof of old/new readers and
+exact canonical/diagnostic behavior. SQL hydration, expression evaluation,
+semantic keys, Bind/COPY, joins, projections, arrays and every listed adapter
+must migrate coherently before the new path is enabled. Public APIs returning
+serde Value need either a separately proven conversion or an explicitly
+retained legacy boundary; there is no blanket claim that a raw internal cell
+can satisfy those APIs. Versioning, memory ownership through clones and
+`into_entries`/`into_values`, cancellation, row-blob format compatibility and
+already stored data require dedicated probes.
+
+Option B preserves all current signatures and builds serde Values directly
+from the plain-object arena. This avoids sentinel-aware deserialization at the
+initial conversion, but every later deserialization must also use the plain
+policy. With pinned serde_json 1.0.154 and no `preserve_order` dependency,
+`Map` is backed by `BTreeMap`, `with_capacity` does not reserve space, and
+String-key comparisons and node allocations are private to the map. A
+cross-toolchain, before-allocation admission bound and bounded interruption
+for those operations has not been established. Public `Number::from_str`
+likewise needs a full-length allocation/interruption proof; the hidden
+`Number::from_string_unchecked` is documented as non-public API. Keeping an
+arena alive alongside a newly allocated Value does not account for the new
+Value. Accepting guessed limits or treating unadmitted map work as complete is
+not selected.
+
+Option C keeps both runtime routes unchanged while implementing focused,
+unwired tests and owner-coupled primitives, until either A or B is evidenced.
+Any production migration must preserve ordinary sentinel keys at all depths,
+JSON versus JSONB input and output semantics, duplicate-last, numeric range,
+NUL and SQLSTATE/error order, PostgreSQL wire OIDs, restart and cross-version
+reads, memory/timeout controls and full scan/filter/projection/join behavior.
+Use existing Midge APIs only. Jev selection and exact execution gates are
+not executable proof. Jev selected investigating option A as a design and
+test-only path (0.66; C 0.33), with no runtime activation selected. Its leads
+are public API loss (0.81), storage and old-reader behavior (0.87), resource
+accounting (0.83), and downstream reparsing (0.75). Receipt:
+`target/assembly-review/json-typed-raw-cell-contract-{request,response}.json`.
+No claim is made that Midge's existing Value-facing Cassie adapters carry the
+new cell or that already transformed bytes are recoverable.

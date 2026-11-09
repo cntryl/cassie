@@ -301,3 +301,95 @@ fn should_release_value_key_output_on_foreign_owner() {
     drop(owner);
     assert_eq!(foreign.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_count_selected_object_input_exactly_like_legacy_serde_writer() {
+    // Arrange
+    let cases = [
+        serde_json::json!({}),
+        serde_json::json!({"a":[1,true,null,{"x":"é\\n\\\""}]}),
+        serde_json::from_str(r#"{"n":123456789012345678901234567890.001,"s":"\u0000"}"#)
+            .expect("JSON"),
+        serde_json::json!({"$serde_json::private::Number":"7"}),
+    ];
+    let controls = controls(16 * 1024 * 1024);
+    // Act / Assert
+    for value in cases {
+        let expected =
+            crate::executor::retained_memory::serialized_json_bytes(&value).expect("legacy count");
+        let actual = super::selected_object_key_size(&value, &controls).expect("checked count");
+        assert_eq!(actual, expected);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_release_count_stack_after_actual_selected_preflight_scan_cancellation() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    super::cancel_object_key_count_scan_once(cancel.clone());
+    let input = Value::Json(serde_json::json!({"a":"x".repeat(2_048)}));
+    // Act
+    let result = run("json_object_keys", input, Some(&controls), Some(&owner));
+    // Assert
+    assert!(cancel.is_cancelled());
+    assert!(result.is_err());
+    assert_eq!(owner.bytes(), 0);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_leave_ownerless_value_preflight_on_legacy_route() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let input = Value::Json(serde_json::json!({"a":"x".repeat(2_048)}));
+    super::cancel_object_key_count_scan_once(cancel.clone());
+    // Act
+    let result = run("json_object_keys", input.clone(), Some(&controls), None);
+    // Assert
+    assert!(result.is_ok());
+    assert!(!cancel.is_cancelled());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    assert!(run("json_object_keys", input, Some(&controls), Some(&owner)).is_err());
+    assert!(cancel.is_cancelled());
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_nonobject_error_before_selected_count_hook() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    super::cancel_object_key_count_scan_once(cancel.clone());
+    let array = Value::Json(serde_json::json!(["x".repeat(2_048)]));
+    // Act
+    let result = run("json_object_keys", array, Some(&controls), Some(&owner));
+    // Assert
+    assert!(result
+        .expect_err("non-object")
+        .contains("cannot call json_object_keys on a non-object"));
+    assert!(!cancel.is_cancelled());
+    let object = Value::Json(serde_json::json!({"a":"x".repeat(2_048)}));
+    assert!(run("json_object_keys", object, Some(&controls), Some(&owner)).is_err());
+    assert!(cancel.is_cancelled());
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

@@ -263,7 +263,7 @@ pub(crate) fn count(
     count_observing(value, controls, |_| {})
 }
 
-fn count_observing(
+pub(crate) fn count_observing(
     value: &serde_json::Value,
     controls: &QueryExecutionControls,
     progress: impl FnMut(Progress),

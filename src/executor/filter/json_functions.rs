@@ -99,6 +99,40 @@ fn sql_input(
     Ok(Value::String(parsed.get().to_owned()))
 }
 
+#[cfg(test)]
+thread_local! {
+    static CANCEL_OBJECT_KEY_COUNT: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+fn cancel_object_key_count_scan_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_OBJECT_KEY_COUNT.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
+fn selected_object_key_size(
+    value: &serde_json::Value,
+    controls: &QueryExecutionControls,
+) -> Result<usize, CassieError> {
+    #[cfg(not(test))]
+    {
+        crate::runtime::accounted::compact_json::count(value, controls)
+    }
+    #[cfg(test)]
+    {
+        crate::runtime::accounted::compact_json::count_observing(value, controls, |progress| {
+            if matches!(
+                progress,
+                crate::runtime::accounted::compact_json::Progress::Scan
+            ) {
+                CANCEL_OBJECT_KEY_COUNT.with(|slot| {
+                    if let Some(handle) = slot.borrow_mut().take() {
+                        handle.cancel();
+                    }
+                });
+            }
+        })
+    }
+}
+
 fn inspect(
     kind: JsonFunction,
     args: &[Value],
@@ -119,7 +153,19 @@ fn inspect(
     let bytes = args.iter().try_fold(0, |bytes, value| {
         let size = match value {
             Value::String(text) => text.len(),
-            Value::Json(value) => crate::executor::retained_memory::serialized_json_bytes(value)?,
+            Value::Json(value) => {
+                if let (
+                    JsonFunction::ObjectKeys(_),
+                    serde_json::Value::Object(_),
+                    Some(controls),
+                    Some(_),
+                ) = (kind, value, controls, owner)
+                {
+                    selected_object_key_size(value, controls)?
+                } else {
+                    crate::executor::retained_memory::serialized_json_bytes(value)?
+                }
+            }
             _ => 64,
         };
         crate::executor::retained_memory::add(bytes, size)

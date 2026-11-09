@@ -99,9 +99,11 @@ raises 22008; strict NULL arguments and infinite DATE values return NULL. The
 Jev-selected scoped correction (0.93) retains timestamp and interval paths.
 Oracle-backed zone, gap, skipped-day, fixed-offset boundary and NULL/infinity
 probes are unexecuted. Existing Jiff zone-range behavior, timezone-info String
-ownership and cancellation remain open. Separately, PostgreSQL renders zero
-TZH/TZM/OF fields for timestamp without time zone while the existing Cassie
-timestamp formatter emits empty fields; that sibling gap is not fixed here.
+ownership and cancellation remain open. For timestamp without time zone,
+PostgreSQL 18.6 renders an empty TZ abbreviation and zero-valued TZH/TZM/OF
+fields independently of the session zone. The SQL timestamp path now supplies
+that zero displacement without changing public `Moment` behavior. `FMOF`
+formatting remains a separate gap. The SQL probes are unexecuted.
 
 For interval `Q`, PostgreSQL 18.6 emits nothing when the decomposed month
 component is zero, including interval zero and positive or negative whole

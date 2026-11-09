@@ -5,6 +5,39 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_timestamp_without_zone_with_zero_numeric_offsets() {
+    // Arrange
+    let kolkata = sql_fixture(
+        "issue-815-timestamp-format-no-zone",
+        &["SET TIME ZONE 'Asia/Kolkata'"],
+    );
+    let sao_paulo = sql_fixture(
+        "issue-815-timestamp-format-no-zone-gap",
+        &["SET TIME ZONE 'America/Sao_Paulo'"],
+    );
+
+    // Act
+    let ordinary = kolkata.execute("SELECT to_char(TIMESTAMP '2000-01-01 12:34:56', '[TZ]|[tz]|[TZH]|[TZM]|[OF]'), to_char(TIMESTAMPTZ '2000-01-01 00:00:00+00', '[TZ]|[TZH]|[TZM]|[OF]'), to_char(TIMESTAMP 'infinity', 'TZH') IS NULL, to_char(NULL::timestamp, 'TZH') IS NULL");
+    let gap = sao_paulo
+        .execute("SELECT to_char(TIMESTAMP '2018-11-04 00:00:00', '[TZ]|[TZH]|[TZM]|[OF]')");
+
+    // Assert
+    assert_eq!(
+        ordinary.expect("timestamp numeric offsets").rows(),
+        &[vec![
+            Value::String("[]|[]|[+00]|[00]|[+00]".to_owned()),
+            Value::String("[IST]|[+05]|[30]|[+05:30]".to_owned()),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+    assert_eq!(
+        gap.expect("timestamp near session gap").rows(),
+        &[vec![Value::String("[]|[+00]|[00]|[+00]".to_owned())]]
+    );
+}
+
+#[test]
 fn should_format_dates_via_the_session_timestamptz_conversion() {
     // Arrange
     let kolkata = sql_fixture(

@@ -168,7 +168,7 @@ fn to_char(
         TypedValue::Timestamp(local) => (
             Moment {
                 fields: timestamp_to_fields(*local).ok_or_else(out_of_range)?,
-                zone_east: None,
+                zone_east: Some(0),
                 is_interval: false,
             },
             String::new(),

@@ -334,6 +334,9 @@ fn dispatch(
                 other => coerce(other, TIMESTAMPTZ, session)?,
             };
             extract::validate_date_unit(&unit, &original)?;
+            if let Some(result) = extract::wide_date_part(&unit, &original) {
+                return Ok(result);
+            }
             match date_part(field, source, session)? {
                 Value::Float64(part) => extract::numeric_part(&unit, &original, part),
                 other => Ok(other),

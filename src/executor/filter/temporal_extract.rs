@@ -3,8 +3,9 @@ use super::QueryError;
 use crate::executor::filter::temporal::type_error;
 use crate::types::extended::numeric::{pow10, Numeric};
 use crate::types::extended::temporal::calendar::{
-    date2j, timestamp_to_fields, DAYS_PER_MONTH, MONTHS_PER_YEAR, UNIX_TO_POSTGRES_SECS,
-    USECS_PER_DAY, USECS_PER_SEC,
+    date2j, is_valid_date, iso_week, iso_year, j2date, j2day, timestamp_to_fields, DAYS_PER_MONTH,
+    MONTHS_PER_YEAR, POSTGRES_EPOCH_JDATE, SECS_PER_DAY, TIMESTAMP_END_JULIAN, UNIX_EPOCH_JDATE,
+    UNIX_TO_POSTGRES_SECS, USECS_PER_DAY, USECS_PER_SEC,
 };
 use crate::types::extended::temporal::tokens::{field_unit, Unit};
 use crate::types::typed::TypedValue;
@@ -40,6 +41,42 @@ pub(super) fn validate_date_unit(unit_name: &str, source: &TypedValue) -> Result
         return Err(unsupported(&unit_name.to_ascii_lowercase(), "date"));
     }
     Ok(())
+}
+
+/// Extracts supported fields from finite DATE values beyond timestamp's range.
+pub(super) fn wide_date_part(unit_name: &str, source: &TypedValue) -> Option<Value> {
+    let TypedValue::Date(date) = source else {
+        return None;
+    };
+    let date = i64::from(*date);
+    if !is_valid_date(date) || date < TIMESTAMP_END_JULIAN - i64::from(POSTGRES_EPOCH_JDATE) {
+        return None;
+    }
+    let unit = field_unit(unit_name)?;
+    let julian = date + i64::from(POSTGRES_EPOCH_JDATE);
+    let (year, month, day) = j2date(julian);
+    let year_i64 = i64::from(year);
+    let result = match unit {
+        Unit::Day => i64::from(day),
+        Unit::Month => i64::from(month),
+        Unit::Quarter => i64::from((month - 1) / 3 + 1),
+        Unit::Week => i64::from(iso_week(year, month, day)),
+        Unit::Year => year_i64,
+        Unit::Decade => year_i64 / 10,
+        Unit::Century => (year_i64 + 99) / 100,
+        Unit::Millennium => (year_i64 + 999) / 1000,
+        Unit::Julian => julian,
+        Unit::IsoYear => i64::from(iso_year(year, month, day)),
+        Unit::Dow => i64::from(j2day(julian)),
+        Unit::IsoDow => i64::from(match j2day(julian) {
+            0 => 7,
+            day => day,
+        }),
+        Unit::Doy => julian - date2j(year, 1, 1) + 1,
+        Unit::Epoch => (julian - i64::from(UNIX_EPOCH_JDATE)) * SECS_PER_DAY,
+        _ => return None,
+    };
+    Some(Value::Typed(TypedValue::Numeric(Numeric::from_i64(result))))
 }
 
 /// Converts a `date_part` result to `EXTRACT`'s exact `numeric`.

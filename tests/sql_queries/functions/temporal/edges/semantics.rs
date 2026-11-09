@@ -5,6 +5,207 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_extract_every_supported_field_from_dates_beyond_timestamp_range() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-extract-wide-date", &[]);
+    let fields = [
+        "year",
+        "month",
+        "day",
+        "quarter",
+        "week",
+        "isoyear",
+        "dow",
+        "isodow",
+        "doy",
+        "decade",
+        "century",
+        "millennium",
+        "julian",
+        "epoch",
+    ];
+    let cases = [
+        (
+            "294276-12-31",
+            [
+                "294276",
+                "12",
+                "31",
+                "4",
+                "52",
+                "294276",
+                "0",
+                "7",
+                "366",
+                "29427",
+                "2943",
+                "295",
+                "109203527",
+                "9224317929600",
+            ],
+        ),
+        (
+            "294277-01-01",
+            [
+                "294277",
+                "1",
+                "1",
+                "1",
+                "1",
+                "294277",
+                "1",
+                "1",
+                "1",
+                "29427",
+                "2943",
+                "295",
+                "109203528",
+                "9224318016000",
+            ],
+        ),
+        (
+            "294277-01-02",
+            [
+                "294277",
+                "1",
+                "2",
+                "1",
+                "1",
+                "294277",
+                "2",
+                "2",
+                "2",
+                "29427",
+                "2943",
+                "295",
+                "109203529",
+                "9224318102400",
+            ],
+        ),
+        (
+            "5874897-12-30",
+            [
+                "5874897",
+                "12",
+                "30",
+                "4",
+                "1",
+                "5874898",
+                "1",
+                "1",
+                "364",
+                "587489",
+                "58749",
+                "5875",
+                "2147483492",
+                "185331706905600",
+            ],
+        ),
+        (
+            "5874897-12-31",
+            [
+                "5874897",
+                "12",
+                "31",
+                "4",
+                "1",
+                "5874898",
+                "2",
+                "2",
+                "365",
+                "587489",
+                "58749",
+                "5875",
+                "2147483493",
+                "185331706992000",
+            ],
+        ),
+        (
+            "4714-11-24 BC",
+            [
+                "-4714",
+                "11",
+                "24",
+                "4",
+                "48",
+                "-4714",
+                "1",
+                "1",
+                "328",
+                "-472",
+                "-48",
+                "-5",
+                "0",
+                "-210866803200",
+            ],
+        ),
+        (
+            "2000-01-01",
+            [
+                "2000",
+                "1",
+                "1",
+                "1",
+                "52",
+                "1999",
+                "6",
+                "6",
+                "1",
+                "200",
+                "20",
+                "2",
+                "2451545",
+                "946684800",
+            ],
+        ),
+    ];
+
+    for (date, expected) in cases {
+        for (field, expected) in fields.into_iter().zip(expected) {
+            // Act
+            let sql = format!("SELECT EXTRACT({field} FROM DATE '{date}')::text");
+            let result = fixture.execute(&sql);
+
+            // Assert
+            assert_eq!(
+                result.expect("date field").rows(),
+                &[vec![Value::String(expected.to_owned())]],
+                "PostgreSQL 18.6 {sql}"
+            );
+        }
+    }
+
+    // Act
+    let widened = fixture.execute("SELECT DATE_PART('year', DATE '294277-01-01')");
+    let nulls = fixture.execute(
+        "SELECT EXTRACT(year FROM NULL::date) IS NULL, EXTRACT(month FROM DATE 'infinity') IS NULL",
+    );
+    let numeric = fixture.execute(
+        "SELECT EXTRACT(year FROM DATE '5874897-12-31'), EXTRACT(epoch FROM DATE '5874897-12-31')",
+    );
+
+    // Assert
+    assert!(
+        matches!(widened, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008" && error.message == "date out of range for timestamp")
+    );
+    assert_eq!(
+        nulls.expect("date nulls").rows(),
+        &[vec![Value::Bool(true), Value::Bool(true)]]
+    );
+    assert_eq!(
+        numeric.expect("date numeric type and scale").rows(),
+        &[vec![
+            Value::Typed(cassie::types::typed::TypedValue::Numeric(
+                cassie::types::extended::numeric::Numeric::from_i64(5_874_897)
+            )),
+            Value::Typed(cassie::types::typed::TypedValue::Numeric(
+                cassie::types::extended::numeric::Numeric::from_i64(185_331_706_992_000)
+            )),
+        ]]
+    );
+}
+
+#[test]
 fn should_reject_time_fields_in_extract_from_infinite_dates() {
     // Arrange
     let fixture = sql_fixture("issue-815-extract-date-unsupported-fields", &[]);

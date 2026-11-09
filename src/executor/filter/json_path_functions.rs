@@ -5,6 +5,10 @@ use crate::sql::functions::{self, json::JsonFunction, FunctionId};
 use crate::{app::CassieError, runtime::QueryExecutionControls};
 
 #[cfg(test)]
+#[path = "json_path_raw_function_tests.rs"]
+mod raw_function_tests;
+
+#[cfg(test)]
 #[path = "json_path_result_owner_tests.rs"]
 mod owner_tests;
 
@@ -414,12 +418,22 @@ fn extract(
         .map(|controls| controls.reserve_query_memory(scratch))
         .transpose()?;
     let document = super::json_functions::json_text(&args[0])?;
-    let segments = args[1..].iter().map(|value| match value {
-        Value::String(text) => Some(text.as_str()),
-        _ => None,
-    });
-    let result =
-        super::super::json_extract::evaluate_path(&document, segments, as_text, binary, controls)?;
+    let result = if let (Some(controls), Some(owner)) = (controls, owner) {
+        super::super::json_delete::controlled_function_extraction(
+            &document,
+            &args[1..],
+            as_text,
+            binary,
+            controls,
+            owner,
+        )?
+    } else {
+        let segments = args[1..].iter().map(|value| match value {
+            Value::String(text) => Some(text.as_str()),
+            _ => None,
+        });
+        super::super::json_extract::evaluate_path(&document, segments, as_text, binary, controls)?
+    };
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }

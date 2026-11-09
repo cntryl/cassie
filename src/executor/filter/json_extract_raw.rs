@@ -4,13 +4,91 @@ use crate::runtime::accounted::compact_json::{OwnedJsonText, Progress as SinkPro
 use crate::runtime::accounted::json_arena::raw_decode;
 use crate::runtime::QueryExecutionControls;
 
-use super::{object, render, scan};
-#[cfg(test)]
-use super::{scan_observing, Progress};
+use super::{object, render, scan, scan_observing, Progress};
 
 #[cfg(test)]
 #[path = "json_extract_raw_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_FUNCTION_SCAN: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+    static CANCEL_FUNCTION_COPY: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(in crate::executor::filter) fn cancel_function_scan_once(
+    handle: crate::runtime::QueryCancellationHandle,
+) {
+    CANCEL_FUNCTION_SCAN.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+#[cfg(test)]
+pub(in crate::executor::filter) fn cancel_function_copy_once(
+    handle: crate::runtime::QueryCancellationHandle,
+) {
+    CANCEL_FUNCTION_COPY.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+#[cfg(test)]
+fn function_scan_progress(progress: Progress) {
+    if matches!(progress, Progress::Input) {
+        CANCEL_FUNCTION_SCAN.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+    }
+}
+#[cfg(not(test))]
+fn function_scan_progress(_: Progress) {}
+#[cfg(test)]
+fn function_copy_progress(progress: SinkProgress) {
+    if matches!(progress, SinkProgress::Copy) {
+        CANCEL_FUNCTION_COPY.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+    }
+}
+#[cfg(not(test))]
+fn function_copy_progress(_: SinkProgress) {}
+
+pub(in crate::executor::filter) fn evaluate_function_path(
+    document: &str,
+    segments: &[crate::types::Value],
+    as_text: bool,
+    jsonb: bool,
+    controls: &QueryExecutionControls,
+    owner: &crate::executor::filter::EvaluationMemory,
+) -> Result<crate::executor::filter::ScalarValue, crate::executor::QueryError> {
+    use crate::executor::filter::ScalarValue;
+    let range = scan_observing(document, controls, function_scan_progress)
+        .map_err(render::RenderError::from)
+        .map_err(render::RenderError::into_query_error)?;
+    let selected = follow(
+        &document[range],
+        segments.len(),
+        |index| {
+            Ok(match &segments[index] {
+                crate::types::Value::String(text) => Some(text.as_str()),
+                _ => None,
+            })
+        },
+        jsonb,
+        controls,
+    )?;
+    let Some(value) = selected else {
+        return Ok(ScalarValue::Null);
+    };
+    let output = render_selected_observing(value, as_text, jsonb, controls, function_copy_progress)
+        .map_err(render::RenderError::into_query_error)?;
+    adopt_output(
+        output,
+        as_text,
+        controls,
+        owner,
+        "JSON path owner uses a different query tracker",
+    )
+}
 
 #[derive(Clone, Copy)]
 enum Selector<'a> {
@@ -162,20 +240,33 @@ fn output(
     controls: &QueryExecutionControls,
     owner: &crate::executor::filter::EvaluationMemory,
 ) -> Result<crate::executor::filter::ScalarValue, crate::executor::QueryError> {
+    let output = render_selected(value, as_text, jsonb, controls)
+        .map_err(render::RenderError::into_query_error)?;
+    adopt_output(
+        output,
+        as_text,
+        controls,
+        owner,
+        "JSON extraction owner uses a different query tracker",
+    )
+}
+
+fn adopt_output(
+    output: Output,
+    as_text: bool,
+    controls: &QueryExecutionControls,
+    owner: &crate::executor::filter::EvaluationMemory,
+    mismatch: &'static str,
+) -> Result<crate::executor::filter::ScalarValue, crate::executor::QueryError> {
     use crate::executor::filter::ScalarValue;
-    match render_selected(value, as_text, jsonb, controls)
-        .map_err(render::RenderError::into_query_error)?
-    {
+    match output {
         Output::Null => Ok(ScalarValue::Null),
         Output::Text(output) => {
             let (text, memory) = output.into_parts();
             if !memory.belongs_to(controls) || !owner.belongs_to(controls) {
                 drop(text);
                 drop(memory);
-                return Err(CassieError::ResourceLimit(
-                    "JSON extraction owner uses a different query tracker".into(),
-                )
-                .into());
+                return Err(CassieError::ResourceLimit(mismatch.into()).into());
             }
             owner.adopt(memory);
             Ok(if as_text {

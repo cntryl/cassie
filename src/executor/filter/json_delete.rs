@@ -31,6 +31,26 @@ pub(super) fn controlled_extraction(
     raw_scan::extract::evaluate(document, selector, path, as_text, jsonb, controls, owner)
 }
 
+pub(super) fn controlled_function_extraction(
+    document: &str,
+    segments: &[crate::types::Value],
+    as_text: bool,
+    jsonb: bool,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<ScalarValue, QueryError> {
+    raw_scan::extract::evaluate_function_path(document, segments, as_text, jsonb, controls, owner)
+}
+
+#[cfg(test)]
+pub(super) fn cancel_function_path_scan_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::extract::cancel_function_scan_once(handle);
+}
+#[cfg(test)]
+pub(super) fn cancel_function_path_copy_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::extract::cancel_function_copy_once(handle);
+}
+
 #[cfg(test)]
 thread_local! {
     static CANCEL_AFTER_OWNED_PATH: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };

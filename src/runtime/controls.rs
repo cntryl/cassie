@@ -18,8 +18,7 @@ impl Default for QueryCancellationHandle {
         Self(
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
-            super::aggregate_test_pause::take_next_query_pause()
-                .or_else(super::sleep_test_pause::take_next_query_pause)
+            super::sleep_test_pause::take_next_query_pause()
                 .or_else(super::regex_test_pause::take_next_query_pause),
             cancellation_signal,
         )
@@ -30,6 +29,14 @@ impl QueryCancellationHandle {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub(super) fn attach_test_pause(&mut self, pause: Arc<super::QueryTestPause>) -> bool {
+        if self.2.is_some() {
+            return false;
+        }
+        self.2 = Some(pause);
+        true
     }
 
     /// Pauses this request once after a candidate is scored and retained.

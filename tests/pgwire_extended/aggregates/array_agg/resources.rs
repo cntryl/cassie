@@ -3,6 +3,18 @@
 use crate::support_collection_aggregate_resources as support;
 
 #[test]
+fn should_scope_aggregate_cancellation_pause_to_the_selected_backend() {
+    // Arrange
+    let verify_scope = support::assert_aggregate_pause_targets_one_backend;
+
+    // Act
+    verify_scope();
+
+    // Assert
+    // The shared fixture asserts backend isolation, cancellation, and recovery.
+}
+
+#[test]
 fn should_cancel_array_agg_without_partial_output_given_retained_values_when_cancel_request_arrives(
 ) {
     // Arrange

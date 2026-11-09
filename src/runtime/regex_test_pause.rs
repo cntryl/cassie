@@ -83,14 +83,13 @@ impl Drop for QueryRegexTestPauseGuard {
 ///
 /// # Panics
 ///
-/// Panics if another aggregate, sleep or regex diagnostic pause is pending on this thread.
+/// Panics if another sleep or regex diagnostic pause is pending on this thread.
 #[doc(hidden)]
 pub fn pause_next_query_after_regex_search(
 ) -> (QueryRegexTestPauseGuard, Receiver<bool>, SyncSender<()>) {
     assert!(
-        !super::aggregate_test_pause::has_pending_query_pause()
-            && !super::sleep_test_pause::has_pending_query_pause(),
-        "regex, sleep and aggregate test pauses must not overlap"
+        !super::sleep_test_pause::has_pending_query_pause(),
+        "regex and sleep test pauses must not overlap"
     );
     let (pause, selected, resume) = QueryRegexTestPause::new();
     let pause = Arc::new(super::QueryTestPause::Regex(pause));

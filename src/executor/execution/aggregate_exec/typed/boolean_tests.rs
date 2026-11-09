@@ -121,8 +121,9 @@ fn should_reject_mismatched_boolean_partials_given_different_aggregate_kinds_whe
 #[test]
 fn should_cancel_boolean_typed_input_after_the_last_transition() {
     // Arrange
-    let (_pause_guard, selected, resume) = crate::runtime::pause_next_query_after_aggregate_input();
-    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let mut cancellation = crate::runtime::QueryCancellationHandle::new();
+    let (selected, resume) =
+        crate::runtime::pause_direct_handle_after_aggregate_input(&mut cancellation);
     let controls = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),

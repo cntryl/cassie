@@ -26,7 +26,7 @@ fn should_preserve_array_dimensions_values_and_float_bits() {
                 lower_bound: 3,
             },
             ArrayDimension {
-                length: 5,
+                length: 6,
                 lower_bound: -7,
             },
         ],
@@ -34,6 +34,7 @@ fn should_preserve_array_dimensions_values_and_float_bits() {
             Value::Null,
             Value::Bool(true),
             Value::Int64(i64::MIN),
+            Value::Int64(i64::MAX),
             Value::Float64(-0.0),
             Value::Float64(nan),
         ],
@@ -50,9 +51,9 @@ fn should_preserve_array_dimensions_values_and_float_bits() {
 
     // Assert
     assert_eq!(copy.dimensions(), array.dimensions());
-    assert_eq!(copy.elements()[..3], array.elements()[..3]);
-    assert!(matches!(copy.elements()[3], Value::Float64(v) if v.to_bits() == (-0.0_f64).to_bits()));
-    assert!(matches!(copy.elements()[4], Value::Float64(v) if v.to_bits() == nan.to_bits()));
+    assert_eq!(copy.elements()[..4], array.elements()[..4]);
+    assert!(matches!(copy.elements()[4], Value::Float64(v) if v.to_bits() == (-0.0_f64).to_bits()));
+    assert!(matches!(copy.elements()[5], Value::Float64(v) if v.to_bits() == nan.to_bits()));
     assert!(memory.belongs_to(&controls));
     drop(copy);
     drop(memory);

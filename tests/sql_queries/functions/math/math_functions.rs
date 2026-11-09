@@ -326,7 +326,16 @@ fn should_preserve_width_bucket_array_boundaries_for_exact_values() {
     let values = scalar_values("issue-813-width-bucket-boundaries", sql);
 
     // Assert
-    assert_eq!(values, vec![Value::Int64(2), Value::Int64(0), Value::Null, Value::Int64(1), Value::Int64(0)]);
+    assert_eq!(
+        values,
+        vec![
+            Value::Int64(2),
+            Value::Int64(0),
+            Value::Null,
+            Value::Int64(1),
+            Value::Int64(0)
+        ]
+    );
 }
 
 #[test]
@@ -339,8 +348,14 @@ fn should_reject_invalid_width_bucket_threshold_arrays() {
     let null_element = fixture.execute("SELECT WIDTH_BUCKET(1, ARRAY[1,NULL])");
 
     // Assert
-    assert!(matches!(&multidimensional, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2202E"), "{multidimensional:?}");
-    assert!(matches!(&null_element, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22004"), "{null_element:?}");
+    assert!(
+        matches!(&multidimensional, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2202E"),
+        "{multidimensional:?}"
+    );
+    assert!(
+        matches!(&null_element, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22004"),
+        "{null_element:?}"
+    );
 }
 
 #[test]
@@ -549,4 +564,19 @@ fn should_repeat_random_sequences_after_reseeding_the_session() {
 
     // Assert
     assert_eq!(first, repeated);
+}
+
+#[test]
+fn should_preserve_numeric_rounding_results_at_extreme_negative_scale() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-extreme-zero-rounding", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT ROUND(5::numeric, -2147483648) = 0::numeric AND TRUNC(-5::numeric, -2147483648) = 0::numeric AND ROUND(5::numeric, -1) = 10::numeric AND ROUND(-5::numeric, -1) = -10::numeric");
+
+    // Assert
+    assert_eq!(
+        result.expect("numeric rounding").rows(),
+        &[vec![Value::Bool(true)]]
+    );
 }

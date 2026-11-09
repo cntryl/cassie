@@ -238,6 +238,9 @@ impl Numeric {
         let current_i = i64::from(*current);
         let target = i64::from(scale);
         let display = u32::try_from(scale.max(0)).unwrap_or_default();
+        if mantissa.is_zero() {
+            return Self::finite(BigInt::zero(), display);
+        }
         if target >= current_i {
             return Self::finite(
                 Self::rescaled_mantissa(mantissa, *current, display),
@@ -245,6 +248,9 @@ impl Numeric {
             );
         }
         let drop = u32::try_from(current_i - target).unwrap_or(u32::MAX);
+        if u64::from(drop) > mantissa.bits() {
+            return Self::finite(BigInt::zero(), display);
+        }
         let divisor = pow10(drop);
         let (mut quotient, remainder) = mantissa.div_rem(&divisor);
         if remainder.magnitude() * 2u8 >= *divisor.magnitude() {
@@ -275,6 +281,9 @@ impl Numeric {
         let current_i = i64::from(*current);
         let target = i64::from(scale);
         let display = u32::try_from(scale.max(0)).unwrap_or_default();
+        if mantissa.is_zero() {
+            return Self::finite(BigInt::zero(), display);
+        }
         if target >= current_i {
             return Self::finite(
                 Self::rescaled_mantissa(mantissa, *current, display),
@@ -282,6 +291,9 @@ impl Numeric {
             );
         }
         let drop = u32::try_from(current_i - target).unwrap_or(u32::MAX);
+        if u64::from(drop) > mantissa.bits() {
+            return Self::finite(BigInt::zero(), display);
+        }
         let quotient = mantissa / pow10(drop);
         let mantissa = if target < 0 {
             quotient * pow10(u32::try_from(-target).unwrap_or_default())
@@ -870,3 +882,7 @@ pub fn parse_type_name(lower: &str) -> Option<Result<Option<NumericTypmod>, Stri
 #[cfg(test)]
 #[path = "numeric_decimal_tests.rs"]
 mod decimal_tests;
+
+#[cfg(test)]
+#[path = "numeric_zero_rounding_tests.rs"]
+mod zero_rounding_tests;

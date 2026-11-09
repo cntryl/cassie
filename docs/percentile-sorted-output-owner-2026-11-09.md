@@ -28,6 +28,10 @@ discards zero-byte reservations. This may introduce an earlier resource error
 for that result; output admission and checks may also precede later work. Each
 value drops before the reservation covering it, including error and cancellation
 paths; sorted, fraction, output and copy reservations overlap where needed.
+Pre-existing group values and names remain under the existing aggregate group
+owner through `retain_outputs`; the new lazy row owner independently charges
+the row directory and its own copies, not those earlier payloads. This slice
+does not independently qualify group-value allocation or final group teardown.
 
 Scalar results and non-null percentile arrays retain existing result paths;
 in particular arbitrary `percentile_disc` clones, JSON numbers and strings,

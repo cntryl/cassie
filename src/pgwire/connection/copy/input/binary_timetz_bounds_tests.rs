@@ -155,7 +155,7 @@ fn should_report_flattened_timetz_array_element_excess_before_later_missing_data
     let valid = vec![0_u8; 12];
     let excess = vec![0_u8; 13];
     let cases = [
-        (vec![2], vec![valid.clone(), excess.clone()], 2),
+        (vec![2_i32], vec![valid.clone(), excess.clone()], 2),
         (
             vec![2, 2],
             vec![valid.clone(), valid.clone(), excess.clone(), valid],

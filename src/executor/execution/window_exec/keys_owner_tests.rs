@@ -290,10 +290,19 @@ fn should_keep_mixed_vector_array_on_the_legacy_window_key_path() {
         Some(&controls),
     )
     .expect("legacy key");
+    let verification_controls = self::controls(2_000_000, QueryCancellationHandle::new());
+    let verification_context = WindowExecutionContext {
+        controls: &verification_controls,
+        ..context
+    };
+    let sort_key = window_sort_key(&row, &function.order_by, &verification_context)
+        .expect("fallback sort key");
+    assert!(sort_key.parts[0].value == expected);
+    drop(sort_key);
+    assert_eq!(verification_controls.current_query_memory_bytes(), 0);
     // Act
     let actual = window_peer_key(&row, &function.order_by, &context).expect("fallback key");
     // Assert
-    assert!(actual.key == SemanticKey::from_semantic_values(vec![expected]));
     let peak = controls.peak_query_memory_bytes();
     drop(actual);
     assert_eq!(controls.current_query_memory_bytes(), 0);

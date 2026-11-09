@@ -185,16 +185,23 @@ pub(super) fn value_to_binary_with_typmod(
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Date | BinaryCodecKind::Time | BinaryCodecKind::Timestamp => {
-            native_temporal(codec.kind).map_or_else(
-                || invalid_value(codec.name),
-                |kind| match value {
-                    Value::Typed(typed) => Ok(typed.send_binary()),
-                    other => kind
-                        .cast_from(other)
-                        .map(|typed| typed.send_binary())
-                        .map_err(|_| invalid_data(codec.name)),
-                },
-            )
+            let kind = match codec.kind {
+                BinaryCodecKind::Date => crate::types::extended::ExtendedType::Date,
+                BinaryCodecKind::Time => {
+                    crate::types::extended::ExtendedType::Time { precision: None }
+                }
+                BinaryCodecKind::Timestamp => {
+                    crate::types::extended::ExtendedType::Timestamp { precision: None }
+                }
+                _ => unreachable!("matched native temporal codec"),
+            };
+            match value {
+                Value::Typed(typed) => Ok(typed.send_binary()),
+                other => kind
+                    .cast_from(other)
+                    .map(|typed| typed.send_binary())
+                    .map_err(|_| invalid_data(codec.name)),
+            }
         }
     }
 }

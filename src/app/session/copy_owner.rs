@@ -333,10 +333,10 @@ impl Cassie {
                 .snapshot_with_controls(controls)?
         };
         let storage = transaction.storage_overlay.lock().copy_snapshot(controls)?;
-        let database = session.current_database().unwrap_or(&self.default_database);
+        let database_source = session.current_database().unwrap_or(&self.default_database);
         let database_memory;
         let database;
-        (database, database_memory) = copy_string(database, controls)?;
+        (database, database_memory) = copy_string(database_source, controls)?;
         let default_database_memory;
         let default_database;
         (default_database, default_database_memory) =

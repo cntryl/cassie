@@ -32,11 +32,18 @@ allocator excess, recursive teardown and generic consumer handoffs remain
 pending until independently proved. Interim source review does not replace
 the consolidated build, test and clippy gate.
 
-The first test-only candidate covers flat PostgreSQL brace literals without a
-dimension prefix; nested/dimensioned and JSON-array inputs retain the old route.
+The controlled deletion handoff covers flat PostgreSQL brace literals without
+a dimension prefix; nested/dimensioned and JSON-array inputs retain the old
+route, including its existing unowned allocations.
 It checks the whole input for nested brace syntax before constructing a path,
 then parses quoted/unquoted elements with owned string and directory buffers.
 That preflight and the new admission may surface cancellation or a resource
 error before an otherwise later syntax error. This is an explicit precedence
-change for the candidate, not a new length/depth limit. The result's directory
+change for the controlled route, not a new length/depth limit. The result's directory
 and all transferred String capacities remain reserved through its last use.
+The accepted path owner remains alive while deletion evaluates, and the
+result's independent reservation is transferred to the expression owner.
+An interruption check occurs after parsing and before document traversal, so
+cancellation may precede a document-shape or rendering error at that boundary.
+This does not qualify consumers without a deletion owner, the fallback forms,
+diagnostic delivery, allocator transients or unexecuted probes.

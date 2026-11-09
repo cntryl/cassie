@@ -14,7 +14,7 @@ enum Progress {
     DirectoryMove,
 }
 
-struct OwnedPath {
+pub(super) struct OwnedPath {
     values: Vec<Option<String>>,
     memory: QueryMemoryReservation,
 }
@@ -100,7 +100,7 @@ impl OwnedPath {
         })
     }
 
-    fn values(&self) -> &[Option<String>] {
+    pub(super) fn values(&self) -> &[Option<String>] {
         &self.values
     }
 
@@ -265,7 +265,10 @@ impl<F: FnMut(Progress)> Cursor<'_, F> {
     }
 }
 
-fn parse(input: &str, controls: &QueryExecutionControls) -> Result<Option<OwnedPath>, QueryError> {
+pub(super) fn parse(
+    input: &str,
+    controls: &QueryExecutionControls,
+) -> Result<Option<OwnedPath>, QueryError> {
     parse_observing(input, controls, |_| {})
 }
 

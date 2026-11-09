@@ -88,7 +88,6 @@ enum ArraySkip<'a> {
 #[derive(Clone, Copy)]
 enum KeySkip<'a> {
     One(&'a str),
-    #[cfg(test)]
     Many(&'a [Option<String>]),
     Native(&'a [crate::types::Value]),
 }
@@ -260,8 +259,7 @@ pub(in crate::executor::filter) fn render_array_without_text<'a>(
     )
 }
 
-#[cfg(test)]
-fn render_object_without_keys<'a>(
+pub(in crate::executor::filter) fn render_object_without_keys<'a>(
     source: &'a str,
     keys: &'a [Option<String>],
     controls: &'a QueryExecutionControls,
@@ -280,8 +278,7 @@ fn render_object_without_keys<'a>(
     )
 }
 
-#[cfg(test)]
-fn render_array_without_keys<'a>(
+pub(in crate::executor::filter) fn render_array_without_keys<'a>(
     source: &'a str,
     keys: &'a [Option<String>],
     controls: &'a QueryExecutionControls,
@@ -585,7 +582,6 @@ fn matches_key(
 ) -> Result<bool, CassieError> {
     match keys {
         KeySkip::One(key) => object::equal(value, key, controls),
-        #[cfg(test)]
         KeySkip::Many(keys) => {
             for key in keys {
                 controls.check_interruption()?;

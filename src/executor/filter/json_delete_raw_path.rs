@@ -16,7 +16,6 @@ enum Ancestor<'a> {
 
 #[derive(Clone, Copy)]
 enum PathView<'a> {
-    #[cfg(test)]
     Owned(&'a [Option<String>]),
     Native(&'a [crate::types::Value]),
 }
@@ -24,7 +23,6 @@ enum PathView<'a> {
 impl<'a> PathView<'a> {
     fn len(self) -> usize {
         match self {
-            #[cfg(test)]
             Self::Owned(values) => values.len(),
             Self::Native(values) => values.len(),
         }
@@ -32,7 +30,6 @@ impl<'a> PathView<'a> {
 
     fn get(self, index: usize) -> Option<Option<&'a str>> {
         match self {
-            #[cfg(test)]
             Self::Owned(values) => values.get(index).map(Option::as_deref),
             Self::Native(values) => values.get(index).map(|value| match value {
                 crate::types::Value::String(text) => Some(text.as_str()),
@@ -115,8 +112,7 @@ impl<'a> Ancestors<'a> {
     }
 }
 
-#[cfg(test)]
-pub(super) fn render_path<'a>(
+pub(in crate::executor::filter) fn render_path<'a>(
     source: &'a str,
     path: &'a [Option<String>],
     controls: &'a QueryExecutionControls,
@@ -124,7 +120,6 @@ pub(super) fn render_path<'a>(
     render_path_observing(source, path, controls, || {})
 }
 
-#[cfg(test)]
 pub(super) fn render_path_observing<'a>(
     source: &'a str,
     path: &'a [Option<String>],

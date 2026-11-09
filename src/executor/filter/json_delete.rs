@@ -16,9 +16,28 @@ mod compatibility_tests;
 #[path = "json_delete_raw_scan.rs"]
 mod raw_scan;
 
-#[cfg(test)]
 #[path = "json_delete_owned_path.rs"]
 mod owned_path;
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_OWNED_PATH: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn cancel_after_owned_path_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_OWNED_PATH.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
+fn after_owned_path(controls: &crate::runtime::QueryExecutionControls) -> Result<(), QueryError> {
+    #[cfg(test)]
+    CANCEL_AFTER_OWNED_PATH.with(|slot| {
+        if let Some(handle) = slot.borrow_mut().take() {
+            handle.cancel();
+        }
+    });
+    controls.check_interruption().map_err(Into::into)
+}
 
 fn controlled_head(
     document: &str,
@@ -63,6 +82,19 @@ pub(super) fn controlled_operator(
     }
     reject_multidimensional_array(right)?;
     let document = json_document(left)?;
+    if let ScalarValue::Json(text) = right {
+        let Some(path) = owned_path::parse(text, controls)? else {
+            return Ok(None);
+        };
+        after_owned_path(controls)?;
+        let output = match controlled_head(document, controls)? {
+            Some('{') => render::render_object_without_keys(document, path.values(), controls),
+            Some('[') => render::render_array_without_keys(document, path.values(), controls),
+            _ => return Err(invalid_parameter("cannot delete from scalar")),
+        }
+        .map_err(render::RenderError::into_query_error)?;
+        return adopt_output(output, owner, controls).map(Some);
+    }
     if !matches!(
         right,
         ScalarValue::Str(_) | ScalarValue::Int(_) | ScalarValue::Array(_)
@@ -115,11 +147,20 @@ pub(super) fn controlled_path(
     }
     reject_multidimensional_array(right)?;
     let document = json_document(left)?;
-    let ScalarValue::Array(array) = right else {
-        return Ok(None);
-    };
-    let output = raw_scan::render::path::render_native_path(document, array.elements(), controls)
-        .map_err(raw_scan::render::RenderError::into_query_error)?;
+    let output = match right {
+        ScalarValue::Array(array) => {
+            raw_scan::render::path::render_native_path(document, array.elements(), controls)
+        }
+        ScalarValue::Str(text) | ScalarValue::Json(text) => {
+            let Some(path) = owned_path::parse(text, controls)? else {
+                return Ok(None);
+            };
+            after_owned_path(controls)?;
+            raw_scan::render::path::render_path(document, path.values(), controls)
+        }
+        _ => return Ok(None),
+    }
+    .map_err(raw_scan::render::RenderError::into_query_error)?;
     adopt_output(output, owner, controls).map(Some)
 }
 

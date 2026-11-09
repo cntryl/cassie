@@ -301,6 +301,37 @@ fn should_route_a_typed_json_column_and_native_path_through_the_owner() {
 }
 
 #[test]
+fn should_route_a_typed_json_column_and_flat_text_path_through_the_owner() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let row = typed_json_row(serde_json::json!({"a":{"b":1,"c":2}}));
+    let params = [Value::String("{a,b}".into())];
+    let functions = HashMap::new();
+    let expression = crate::sql::parser::parse_expression("doc #- $1").expect("path expression");
+    let context = EvalContext {
+        params: &params,
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: None,
+        deletion_memory: Some(&owner),
+    };
+    // Act
+    let value = evaluate_expr_value_with_context(&row, &expression, context).expect("deletion");
+    // Assert
+    assert!(matches!(&value, Value::String(text) if text == r#"{"a": {"c": 2}}"#));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(value);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_keep_a_source_argument_deletion_in_its_existing_expression_owner() {
     // Arrange
     let controls =

@@ -70,6 +70,23 @@ budget/owner probes are unexecuted. Earlier resource/cancellation errors,
 allocator transients, diagnostics, teardown and sentinel/storage migration
 remain explicit.
 
+Selected scalar JSON builders previously dropped their workspace reservation
+as `Value::String` escaped. When a statement has an expression owner and no
+general leaf owner, transfer that existing workspace lease to the expression
+owner after `finish`, retaining the whole charge conservatively. Guard the
+result before the lease on failures, verify tracker identity, and grow the
+retained charge if the resulting String capacity exceeds it. This capacity
+check happens after existing construction; it does not establish pre-admission
+of all builder allocations or JSONB canonicalizer work. Other caller contexts
+retain their existing path. The retained workspace can increase later budget
+pressure, and the added pre-transfer interruption check may win over later
+work. Jev selected this scope (0.99); receipt:
+`target/assembly-review/json-builder-output-owner-contract-{request,response}.json`.
+Test-first builder variant, post-finish cancel, synthetic over-capacity growth,
+same-tracker/fallback and last-output-owner probes remain unexecuted. Original
+argument cloning, canonicalization, allocator transients, errors and teardown
+remain separate obligations; this does not close #809 or #811.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

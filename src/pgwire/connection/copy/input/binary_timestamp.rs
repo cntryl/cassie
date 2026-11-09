@@ -78,7 +78,7 @@ pub(super) fn decode(
     }
     controls.check_interruption()?;
     let value = super::super::super::codecs::binary_to_value(bytes, oid).map_err(|error| {
-        super::super::super::codecs::timestamp_copy_error(&error).map_or_else(
+        super::super::super::codecs::temporal_copy_error(&error).map_or_else(
             || {
                 CassieError::Parse(format!(
                     "COPY binary field {} is invalid: {error}",

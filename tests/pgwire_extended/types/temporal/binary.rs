@@ -494,3 +494,205 @@ fn should_report_timestamp_excess_bind_parameter_ordinal_and_recover() {
         Some(&b"E"[..])
     );
 }
+
+#[test]
+fn should_validate_binary_date_and_time_bounds_and_recover() {
+    // Arrange
+    use cassie::types::extended::temporal::calendar::{
+        DATE_END_JULIAN, POSTGRES_EPOCH_JDATE, USECS_PER_DAY,
+    };
+    let first = -POSTGRES_EPOCH_JDATE;
+    let end = i32::try_from(DATE_END_JULIAN - i64::from(POSTGRES_EPOCH_JDATE)).expect("end");
+    let cases: [(i32, Vec<(Vec<u8>, Option<&str>)>); 2] = [
+        (
+            1082,
+            vec![
+                (i32::MIN.to_be_bytes().to_vec(), None),
+                (first.to_be_bytes().to_vec(), None),
+                ((end - 1).to_be_bytes().to_vec(), None),
+                (i32::MAX.to_be_bytes().to_vec(), None),
+                ((first - 1).to_be_bytes().to_vec(), Some("22008")),
+                (end.to_be_bytes().to_vec(), Some("22008")),
+                (vec![0; 3], Some("08P01")),
+                (vec![0; 5], Some("22P03")),
+                (
+                    [(first - 1).to_be_bytes().as_slice(), &[0]].concat(),
+                    Some("22008"),
+                ),
+            ],
+        ),
+        (
+            1083,
+            vec![
+                (0_i64.to_be_bytes().to_vec(), None),
+                (USECS_PER_DAY.to_be_bytes().to_vec(), None),
+                ((-1_i64).to_be_bytes().to_vec(), Some("22008")),
+                ((USECS_PER_DAY + 1).to_be_bytes().to_vec(), Some("22008")),
+                (vec![0; 7], Some("08P01")),
+                (vec![0; 9], Some("22P03")),
+                (
+                    [(-1_i64).to_be_bytes().as_slice(), &[0]].concat(),
+                    Some("22008"),
+                ),
+            ],
+        ),
+    ];
+    let mut steps = Vec::new();
+    let mut expected = Vec::new();
+    for (index, (oid, values)) in cases.iter().enumerate() {
+        let statement = format!("date_time_binary_bounds_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &statement,
+            "SELECT $1",
+            &[*oid],
+        )));
+        expected.push(None);
+        for (payload, state) in values {
+            steps.push(Step::ThroughReady(vec![
+                wire::bind_frame_with_formats("", &statement, &[1], &[Some(payload)], &[]),
+                wire::execute_frame(""),
+                wire::sync_frame(),
+            ]));
+            expected.push(*state);
+            steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT 1",
+            )]));
+            expected.push(None);
+        }
+    }
+
+    // Act
+    let batches = run_script("date-time-binary-receive-bounds", steps);
+
+    // Assert
+    for (index, state) in expected.iter().enumerate() {
+        assert_eq!(
+            wire::error_code(&batches[index]).as_deref(),
+            *state,
+            "case {index}"
+        );
+    }
+}
+
+#[test]
+fn should_report_date_time_bind_extra_parameter_ordinal() {
+    // Arrange
+    let date = [0_i32.to_be_bytes().as_slice(), &[0]].concat();
+    let time = [0_i64.to_be_bytes().as_slice(), &[0]].concat();
+    let integer = 1_i32.to_be_bytes();
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "date_extra_ordinal",
+            "SELECT $1, $2",
+            &[1082, 23],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "date_extra_ordinal",
+                &[1],
+                &[Some(&date), Some(&integer)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "time_extra_ordinal",
+            "SELECT $1, $2",
+            &[23, 1083],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "time_extra_ordinal",
+                &[1],
+                &[Some(&integer), Some(&time)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("date-time-binary-extra-ordinal", steps);
+
+    // Assert
+    for (index, ordinal) in [(1, 1), (3, 2)] {
+        assert_eq!(wire::error_code(&batches[index]).as_deref(), Some("22P03"));
+        let fields = wire::parse_error_fields(
+            &batches[index]
+                .iter()
+                .find(|frame| frame.0 == b'E')
+                .expect("error")
+                .1,
+        );
+        assert!(fields.iter().any(|(field, message)| *field == 'M'
+            && message == &format!("incorrect binary data format in bind parameter {ordinal}")));
+    }
+}
+
+#[test]
+fn should_preserve_date_time_binary_array_element_error_order() {
+    // Arrange
+    let cases = [
+        (
+            1182,
+            1082_i32,
+            (-2_451_546_i32).to_be_bytes().to_vec(),
+            4_usize,
+        ),
+        (1183, 1083_i32, (-1_i64).to_be_bytes().to_vec(), 8_usize),
+    ];
+    let mut steps = Vec::new();
+    for (index, (array_oid, element_oid, invalid, width)) in cases.iter().enumerate() {
+        let statement = format!("date_time_array_bounds_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &statement,
+            "SELECT $1",
+            &[*array_oid],
+        )));
+        for field in [invalid.clone(), [vec![0; *width], vec![0]].concat()] {
+            let mut array = Vec::new();
+            for part in [1_i32, 0, *element_oid, 2, 1] {
+                array.extend_from_slice(&part.to_be_bytes());
+            }
+            array.extend_from_slice(&i32::try_from(*width).expect("width").to_be_bytes());
+            array.extend(std::iter::repeat_n(0, *width));
+            array.extend_from_slice(
+                &i32::try_from(field.len())
+                    .expect("field length")
+                    .to_be_bytes(),
+            );
+            array.extend_from_slice(&field);
+            steps.push(Step::ThroughReady(vec![
+                wire::bind_frame_with_formats("", &statement, &[1], &[Some(&array)], &[]),
+                wire::execute_frame(""),
+                wire::sync_frame(),
+            ]));
+        }
+    }
+
+    // Act
+    let batches = run_script("date-time-array-binary-bounds", steps);
+
+    // Assert
+    for offset in [0, 3] {
+        assert_eq!(
+            wire::error_code(&batches[offset + 1]).as_deref(),
+            Some("22008")
+        );
+        assert_eq!(
+            wire::error_code(&batches[offset + 2]).as_deref(),
+            Some("22P03")
+        );
+        let fields = wire::parse_error_fields(
+            &batches[offset + 2]
+                .iter()
+                .find(|frame| frame.0 == b'E')
+                .expect("error")
+                .1,
+        );
+        assert!(fields.iter().any(|(field, message)| *field == 'M'
+            && message == "improper binary format in array element 2"));
+    }
+}

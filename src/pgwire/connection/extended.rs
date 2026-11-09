@@ -837,7 +837,7 @@ fn decode_binary_parameter(
     index: usize,
 ) -> Result<Value, ExtendedQueryError> {
     binary_to_value(parameter, i64::from(oid)).map_err(|error| {
-        if super::codecs::timestamp_scalar_excess(&error) {
+        if super::codecs::temporal_scalar_excess(&error) {
             ExtendedQueryError {
                 pg_error: Box::new(PgWireError::new(
                     PgWireSeverity::Error,

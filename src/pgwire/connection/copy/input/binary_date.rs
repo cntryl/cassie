@@ -38,10 +38,15 @@ pub(super) fn decode(
     }
     controls.check_interruption()?;
     let value = super::super::super::codecs::binary_to_value(bytes, oid).map_err(|error| {
-        CassieError::Parse(format!(
-            "COPY binary field {} is invalid: {error}",
-            column + 1
-        ))
+        super::super::super::codecs::temporal_copy_error(&error).map_or_else(
+            || {
+                CassieError::Parse(format!(
+                    "COPY binary field {} is invalid: {error}",
+                    column + 1
+                ))
+            },
+            CassieError::TypeInput,
+        )
     })?;
     controls.check_interruption()?;
     let Value::Typed(TypedValue::Date(value)) = value else {

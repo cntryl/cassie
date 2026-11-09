@@ -3,6 +3,9 @@
 //! `timestamp.c` and the bundled IANA tz database.
 use super::TypeInputError;
 
+#[path = "temporal/binary_date_time.rs"]
+pub(crate) mod binary_date_time;
+
 #[path = "temporal/binary_timestamp.rs"]
 pub(crate) mod binary_timestamp;
 

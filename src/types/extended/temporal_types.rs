@@ -536,13 +536,15 @@ fn legacy_micros(time: time::Time) -> i64 {
 }
 
 pub(super) fn receive_binary(kind: ExtendedType, bytes: &[u8]) -> Result<TypedValue, String> {
-    let i64_frame =
-        |bytes: &[u8], name: &str| temporal::fixed::<8>(bytes, name).map(i64::from_be_bytes);
     Ok(match kind {
-        ExtendedType::Date => {
-            TypedValue::Date(i32::from_be_bytes(temporal::fixed::<4>(bytes, "date")?))
-        }
-        ExtendedType::Time { .. } => TypedValue::Time(i64_frame(bytes, "time")?),
+        ExtendedType::Date => TypedValue::Date(
+            temporal::binary_date_time::date(bytes)
+                .map_err(|error| error.public_message("date"))?,
+        ),
+        ExtendedType::Time { .. } => TypedValue::Time(
+            temporal::binary_date_time::time(bytes)
+                .map_err(|error| error.public_message("time"))?,
+        ),
         ExtendedType::TimeTz { .. } => TypedValue::TimeTz(temporal::receive_timetz(bytes)?),
         ExtendedType::Timestamp { .. } => TypedValue::Timestamp(
             temporal::binary_timestamp::receive(bytes)
@@ -625,6 +627,40 @@ mod tests {
                     "timestamp out of range"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn should_validate_public_binary_date_and_time_receive_bounds() {
+        // Arrange
+        use crate::types::extended::temporal::calendar::{
+            DATE_END_JULIAN, POSTGRES_EPOCH_JDATE, USECS_PER_DAY,
+        };
+        let date = ExtendedType::Date;
+        let time = ExtendedType::Time { precision: None };
+        let first = -POSTGRES_EPOCH_JDATE;
+        let end = i32::try_from(DATE_END_JULIAN - i64::from(POSTGRES_EPOCH_JDATE)).expect("end");
+
+        // Act / Assert
+        for value in [i32::MIN, first, end - 1, i32::MAX] {
+            assert!(date.receive_binary(&value.to_be_bytes()).is_ok());
+        }
+        for value in [first - 1, end] {
+            assert_eq!(
+                date.receive_binary(&value.to_be_bytes())
+                    .expect_err("date range"),
+                "date out of range"
+            );
+        }
+        for value in [0, USECS_PER_DAY] {
+            assert!(time.receive_binary(&value.to_be_bytes()).is_ok());
+        }
+        for value in [-1_i64, USECS_PER_DAY + 1] {
+            assert_eq!(
+                time.receive_binary(&value.to_be_bytes())
+                    .expect_err("time range"),
+                "time out of range"
+            );
         }
     }
 }

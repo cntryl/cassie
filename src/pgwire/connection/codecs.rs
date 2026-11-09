@@ -1,5 +1,5 @@
-#[path = "codecs/timestamp_error.rs"]
-mod timestamp_error;
+#[path = "codecs/temporal_error.rs"]
+mod temporal_error;
 
 #[path = "codecs/timetz_error.rs"]
 mod timetz_error;
@@ -344,7 +344,7 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
             .map(i64::from)
             .map(Value::Int64),
         BinaryCodecKind::Extended(crate::types::extended::ExtendedType::TimestampTz { .. }) => {
-            timestamp_error::decode(parameter, true)
+            temporal_error::decode(parameter, true)
         }
         BinaryCodecKind::Extended(crate::types::extended::ExtendedType::TimeTz { .. }) => {
             crate::types::extended::temporal::receive_timetz_checked(parameter)
@@ -401,9 +401,9 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Uuid => uuid::Uuid::from_slice(parameter)
             .map(|value| Value::String(value.to_string()))
             .map_err(|_| invalid_data(codec.name)),
-        BinaryCodecKind::Date => decode_native(parameter, codec, "date"),
-        BinaryCodecKind::Time => decode_native(parameter, codec, "time"),
-        BinaryCodecKind::Timestamp => timestamp_error::decode(parameter, false),
+        BinaryCodecKind::Date => temporal_error::decode_date(parameter),
+        BinaryCodecKind::Time => temporal_error::decode_time(parameter),
+        BinaryCodecKind::Timestamp => temporal_error::decode(parameter, false),
     }?;
     if parameter.len() != original_parameter.len() {
         return Err(io::Error::new(
@@ -412,41 +412,6 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         ));
     }
     Ok(value)
-}
-
-/// The native carrier of the existing `date` and `time` codecs.
-const fn native_temporal(kind: BinaryCodecKind) -> Option<crate::types::extended::ExtendedType> {
-    use crate::types::extended::ExtendedType;
-    match kind {
-        BinaryCodecKind::Date => Some(ExtendedType::Date),
-        BinaryCodecKind::Time => Some(ExtendedType::Time { precision: None }),
-        _ => None,
-    }
-}
-
-/// `date_recv`/`time_recv`, range-checked like PostgreSQL.
-fn decode_native(
-    parameter: &[u8],
-    codec: &BinaryCodec,
-    type_name: &'static str,
-) -> io::Result<Value> {
-    use crate::types::typed::TypedValue;
-    let kind = native_temporal(codec.kind).ok_or_else(|| invalid_data(codec.name))?;
-    let value = kind
-        .receive_binary(parameter)
-        .map_err(|_| invalid_data(codec.name))?;
-    let valid = match &value {
-        TypedValue::Date(date) => {
-            matches!(*date, i32::MIN | i32::MAX)
-                || crate::types::extended::temporal::calendar::is_valid_date(i64::from(*date))
-        }
-        TypedValue::Time(time) => (0..=86_400_000_000).contains(time),
-        _ => true,
-    };
-    if !valid {
-        return Err(temporal_out_of_range(type_name));
-    }
-    Ok(Value::Typed(value))
 }
 
 fn encode_array(value: &Value, type_oid: i64, element_oid: i64) -> io::Result<Vec<u8>> {
@@ -594,7 +559,7 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
             .ok_or_else(|| invalid_data("array"))?;
         cursor = end;
         let value = binary_to_value(bytes, element_oid).map_err(|error| {
-            timestamp_error::array_error(timetz_error::array_error(error, index), index)
+            temporal_error::array_error(timetz_error::array_error(error, index), index)
         })?;
         if matches!(value, Value::Json(ref document) if document.is_null()) {
             document_null_element = true;
@@ -955,25 +920,14 @@ pub(super) fn decode_hex_digit(byte: u8) -> Option<u8> {
 #[error("incorrect binary data format for {0}")]
 struct ExcessBinaryData(&'static str);
 
-#[derive(Debug, thiserror::Error)]
-#[error("{0} out of range")]
-struct DateTimeOutOfRange(&'static str);
-
-fn temporal_out_of_range(type_name: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, DateTimeOutOfRange(type_name))
-}
-
 pub(super) fn binary_error_sqlstate(error: &io::Error) -> Option<&'static str> {
     let error = error.get_ref()?;
-    if let Some(state) = timetz_error::sqlstate(error).or_else(|| timestamp_error::sqlstate(error))
-    {
+    if let Some(state) = timetz_error::sqlstate(error).or_else(|| temporal_error::sqlstate(error)) {
         Some(state)
     } else if let Some(error) = error.downcast_ref::<crate::types::extended::TypeInputError>() {
         Some(error.sqlstate)
     } else if error.is::<ExcessBinaryData>() {
         Some("22P03")
-    } else if error.is::<DateTimeOutOfRange>() {
-        Some("22008")
     } else {
         None
     }
@@ -985,12 +939,12 @@ pub(super) fn timetz_copy_error(
     timetz_error::copy_error(error)
 }
 
-pub(super) fn timestamp_copy_error(
+pub(super) fn temporal_copy_error(
     error: &io::Error,
 ) -> Option<crate::types::extended::TypeInputError> {
-    timestamp_error::copy_error(error)
+    temporal_error::copy_error(error)
 }
 
-pub(super) fn timestamp_scalar_excess(error: &io::Error) -> bool {
-    error.get_ref().is_some_and(timestamp_error::scalar_excess)
+pub(super) fn temporal_scalar_excess(error: &io::Error) -> bool {
+    error.get_ref().is_some_and(temporal_error::scalar_excess)
 }

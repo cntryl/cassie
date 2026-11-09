@@ -34,6 +34,10 @@ denial or cancellation may now take precedence at reached work that previously
 ran through the ownerless callback. `exists_projection::outer_row` retains its
 separate source-derived scratch estimate and attached owner until resolution
 finishes; this change does not prove its allocator or teardown bounds.
+When the general owner is present, the existing JSON function dispatcher does
+not pass its separate result owner, and `Value::Json` scalar conversion can
+still serialize the tree through an unchecked `to_string()`. The controlled
+binary `->>` scan witness does not qualify either of those earlier boundaries.
 
 Test-first witnesses must cover an actual cancellation inside reached argument
 work, false FILTER suppressing an invalid or cancelled argument, correlated and

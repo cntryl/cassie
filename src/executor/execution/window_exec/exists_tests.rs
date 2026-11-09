@@ -103,6 +103,40 @@ fn should_cancel_during_json_leaf_copy_on_exists_window_path() {
 }
 
 #[test]
+fn should_cancel_during_json_path_function_scan_on_exists_window_path() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
+    let parsed = crate::sql::parse_statement(
+        "SELECT var_pop(jsonb_extract_path_text(doc, 'n')::numeric) \
+         FILTER (WHERE EXISTS (SELECT 1)) OVER () FROM records",
+    )
+    .expect("window SQL");
+    let QueryStatement::Select(select) = parsed.statement else {
+        panic!("SELECT");
+    };
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    crate::executor::filter::cancel_function_path_scan_once(cancel.clone());
+
+    // Act
+    let result = run(&cassie, &select, &controls);
+
+    // Assert
+    assert!(
+        cancel.is_cancelled(),
+        "actual function scan must reach the hook"
+    );
+    assert!(result.is_err());
+    drop(result);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_not_copy_json_leaf_when_exists_window_filter_is_false() {
     // Arrange
     let cassie =

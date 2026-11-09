@@ -37,11 +37,16 @@ mod json_containment;
 #[path = "filter/json_delete.rs"]
 mod json_delete;
 #[cfg(test)]
+pub(crate) use json_delete::cancel_function_path_scan_once;
+#[cfg(test)]
 pub(crate) use json_delete::cancel_raw_scan_once;
 #[path = "filter/json_document.rs"]
 mod json_document;
 #[path = "filter/json_extract.rs"]
 mod json_extract;
+#[cfg(test)]
+#[path = "filter/json_extract_shared_owner_tests.rs"]
+mod json_extract_shared_owner_tests;
 #[path = "filter/json_key_exists.rs"]
 mod json_key_exists;
 #[path = "filter/json_order.rs"]

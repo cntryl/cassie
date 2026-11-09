@@ -570,7 +570,10 @@ pub fn age(left: i64, right: i64) -> Result<Interval, TypeInputError> {
 fn validated_year(year: i32) -> Option<(i32, bool)> {
     match year {
         0 => None,
-        year if year < 0 => Some((-(year) - 1, true)),
+        year if year < 0 => year
+            .checked_neg()
+            .and_then(|value| value.checked_sub(1))
+            .map(|value| (value, true)),
         year => Some((year, false)),
     }
 }
@@ -650,14 +653,16 @@ pub fn make_timestamp(
     let (year, month, day, hour, minute) = fields;
     let date = make_date(year, month, day)?;
     let time = make_time(hour, minute, seconds)?;
-    let value = i64::from(date) * USECS_PER_DAY + time;
-    if !super::calendar::is_valid_timestamp(value) {
-        return Err(range_error(format!(
-            "timestamp out of range: {year}-{month:02}-{day:02} {hour}:{minute:02}:{}",
-            format_seconds(seconds)
-        )));
-    }
-    Ok(value)
+    i64::from(date)
+        .checked_mul(USECS_PER_DAY)
+        .and_then(|value| value.checked_add(time))
+        .filter(|value| super::calendar::is_valid_timestamp(*value))
+        .ok_or_else(|| {
+            range_error(format!(
+                "timestamp out of range: {year}-{month:02}-{day:02} {hour}:{minute:02}:{}",
+                format_seconds(seconds)
+            ))
+        })
 }
 
 /// `make_interval`.

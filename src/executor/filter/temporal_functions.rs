@@ -285,9 +285,14 @@ fn constructor(
                     [zone] => zone_argument(zone, session)?,
                     _ => session.zone.clone(),
                 };
-                Ok(typed(TypedValue::TimestampTz(temporal::utc_of(
-                    local, &zone,
-                ))))
+                let instant = temporal::utc_of(local, &zone);
+                if crate::types::extended::temporal::calendar::is_valid_timestamp(instant) {
+                    Ok(typed(TypedValue::TimestampTz(instant)))
+                } else {
+                    Err(type_error(crate::types::extended::temporal::range_error(
+                        "timestamp out of range",
+                    )))
+                }
             }
         }
         ("make_interval", parts) if parts.len() <= 7 => make_interval(parts),

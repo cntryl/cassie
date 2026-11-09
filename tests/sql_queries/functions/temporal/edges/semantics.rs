@@ -487,3 +487,125 @@ fn should_preserve_signed_microseconds_for_ordinary_epoch_parts() {
         ]]
     );
 }
+
+#[test]
+fn should_reject_minimum_i32_year_in_temporal_constructors() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-constructor-min-year", &["SET TIME ZONE 'UTC'"]);
+    let cases = [
+        "make_date(-2147483648, 1, 1)",
+        "make_timestamp(-2147483648, 1, 1, 0, 0, 0)",
+        "make_timestamptz(-2147483648, 1, 1, 0, 0, 0, 'UTC')",
+    ];
+
+    for expression in cases {
+        // Act
+        let result = fixture.execute(&format!("SELECT {expression}"));
+        let recovered = fixture.execute("SELECT 1");
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008" && error.message == "date field value out of range: -2147483648-01-01"),
+            "{expression}"
+        );
+        assert_eq!(
+            recovered.expect("session recovery").rows(),
+            &[vec![Value::Int64(1)]]
+        );
+    }
+}
+
+#[test]
+fn should_reject_timestamp_constructor_multiplication_overflow_after_time_validation() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-constructor-range", &["SET TIME ZONE 'UTC'"]);
+    let cases = [
+        (
+            "make_timestamp(1000000, 1, 1, 0, 0, 0)",
+            "timestamp out of range: 1000000-01-01 0:00:00",
+        ),
+        (
+            "make_timestamptz(1000000, 1, 1, 0, 0, 0, 'UTC')",
+            "timestamp out of range: 1000000-01-01 0:00:00",
+        ),
+        (
+            "make_timestamp(1000000, 1, 1, 25, 0, 0)",
+            "time field value out of range: 25:00:00",
+        ),
+    ];
+
+    for (expression, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!("SELECT {expression}"));
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008" && error.message == expected),
+            "{expression}"
+        );
+    }
+}
+
+#[test]
+fn should_reject_timestamptz_constructor_that_crosses_the_utc_upper_bound() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-constructor-zone-range", &["SET TIME ZONE 'UTC'"]);
+
+    // Act
+    let valid =
+        fixture.execute("SELECT make_timestamptz(294276, 12, 31, 23, 59, 59, 'UTC') IS NOT NULL");
+    let invalid =
+        fixture.execute("SELECT make_timestamptz(294276, 12, 31, 23, 59, 59, 'America/New_York')");
+
+    // Assert
+    assert_eq!(
+        valid.expect("UTC upper bound").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+    assert!(
+        matches!(invalid, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008" && error.message == "timestamp out of range")
+    );
+}
+
+#[test]
+fn should_reject_timestamptz_constructor_that_crosses_the_utc_lower_bound() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-constructor-zone-lower", &["SET TIME ZONE 'UTC'"]);
+
+    // Act
+    let valid = fixture.execute("SELECT make_timestamptz(-4714, 11, 24, 0, 0, 0, 'UTC') IS NOT NULL AND make_date(-1, 1, 1) = DATE '0001-01-01 BC'");
+    let invalid =
+        fixture.execute("SELECT make_timestamptz(-4714, 11, 24, 0, 0, 0, 'Asia/Kolkata')");
+
+    // Assert
+    assert_eq!(
+        valid.expect("UTC lower bound and BCE").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+    assert!(
+        matches!(invalid, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008" && error.message == "timestamp out of range")
+    );
+}
+
+#[test]
+fn should_preserve_constructor_field_priority_over_zone_resolution() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-constructor-error-priority",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let invalid_time =
+        fixture.execute("SELECT make_timestamptz(1000000, 1, 1, 25, 0, 0, 'NoSuch/Zone')");
+    let invalid_zone =
+        fixture.execute("SELECT make_timestamptz(294276, 12, 31, 23, 59, 59, 'NoSuch/Zone')");
+
+    // Assert
+    assert!(
+        matches!(invalid_time, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008" && error.message == "time field value out of range: 25:00:00")
+    );
+    assert!(
+        matches!(invalid_zone, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22023" && error.message == "time zone \"NoSuch/Zone\" not recognized")
+    );
+}

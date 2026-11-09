@@ -1,4 +1,4 @@
-//! Resolve the finite JSON extraction signatures before scalar type erasure.
+//! Resolve finite JSON extraction and path-deletion signatures before scalar type erasure.
 use crate::app::CassieError;
 use crate::sql::ast::{BinaryOp, CastIdentity, Expr};
 use crate::types::DataType;
@@ -10,6 +10,15 @@ pub(super) fn qualify(
     left_type: Option<&DataType>,
     right_type: Option<&DataType>,
 ) -> Result<(), CassieError> {
+    if matches!(op, BinaryOp::JsonbDeletePath) {
+        if matches!(left, Expr::StringLiteral(_)) {
+            cast_literal(left, DataType::Jsonb);
+        }
+        if matches!(right, Expr::StringLiteral(_)) {
+            cast_literal(right, DataType::Array(Box::new(DataType::Text)));
+        }
+        return Ok(());
+    }
     let BinaryOp::JsonExtract { path, jsonb, .. } = op else {
         return Ok(());
     };
@@ -64,3 +73,7 @@ fn incompatible_operands() -> CassieError {
         "operator does not exist: JSON extraction with incompatible operands".into(),
     )
 }
+
+#[cfg(test)]
+#[path = "json_delete_path_literal_tests.rs"]
+mod delete_path_literal_tests;

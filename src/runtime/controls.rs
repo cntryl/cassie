@@ -140,6 +140,10 @@ pub struct QueryMemoryReservation {
 }
 
 impl QueryMemoryReservation {
+    pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+        Arc::ptr_eq(&self.tracker, &controls.memory)
+    }
+
     /// A narrow bounded owner without a request token, deadline or test scope.
     pub(crate) fn independent_budget(budget: usize, bytes: usize) -> Result<Self, CassieError> {
         if bytes > budget {

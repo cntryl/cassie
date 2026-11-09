@@ -32,6 +32,18 @@ impl GroupMemory {
         self.reservation.try_grow(bytes).map_err(QueryError::from)
     }
 
+    pub(super) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+        self.reservation.belongs_to(controls)
+    }
+
+    pub(super) fn absorb(&mut self, other: Self) {
+        self.reservation.absorb(other.reservation);
+    }
+
+    pub(super) fn into_reservation(self) -> Reservation {
+        self.reservation
+    }
+
     /// Re-accounts a retained value that changed from `before` to `after`
     /// bytes. Shrinking releases at most what this reservation holds.
     pub(super) fn resize(&mut self, before: usize, after: usize) -> Result<(), QueryError> {

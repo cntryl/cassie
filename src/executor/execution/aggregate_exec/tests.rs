@@ -22,6 +22,9 @@ mod merge_drop;
 #[path = "group_drop_tests.rs"]
 mod group_drop;
 
+#[path = "output_group_owner_tests.rs"]
+mod output_group_owner;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 
@@ -107,6 +110,8 @@ fn should_account_serial_aggregate_groups_without_rescanning_buffered_rows() {
         peak < expected_peak + 16 * 1024,
         "four group index records and their ordered drain have bounded overhead"
     );
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(batches);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

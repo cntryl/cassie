@@ -25,6 +25,7 @@ mod interval_aggregate;
 #[path = "aggregate_exec/modifiers.rs"]
 mod modifiers;
 mod ordered_set;
+mod output_owner;
 mod output_types;
 mod regression;
 mod retained_change;
@@ -192,8 +193,7 @@ fn aggregate_query_batches_serial(
         }
         out.push(output.finish());
     }
-    drop(owned.memory);
-
+    let out = output_owner::retain_outputs(out, owned.memory, Vec::new(), context.controls)?;
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
 }
 
@@ -287,8 +287,12 @@ fn merge_partial_aggregations(
         }
         out.push(BatchRow::new(values));
     }
-    drop(owned.merged_memory);
-    drop(owned.partition_memory);
+    let out = output_owner::retain_outputs(
+        out,
+        owned.merged_memory,
+        owned.partition_memory,
+        context.controls,
+    )?;
 
     check_timeout(context.controls)?;
     cassie

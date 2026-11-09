@@ -5,6 +5,55 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_interval_centuries_by_truncating_signed_years() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-century", &[]);
+    let cases = [
+        (-300, "-03|-3|-03rd|-03RD"),
+        (-201, "-02|-2|-02nd|-02ND"),
+        (-200, "-02|-2|-02nd|-02ND"),
+        (-199, "-01|-1|-01st|-01ST"),
+        (-100, "-01|-1|-01st|-01ST"),
+        (-99, "00|0|00th|00TH"),
+        (-1, "00|0|00th|00TH"),
+        (0, "00|0|00th|00TH"),
+        (1, "00|0|00th|00TH"),
+        (99, "00|0|00th|00TH"),
+        (100, "01|1|01st|01ST"),
+        (101, "01|1|01st|01ST"),
+        (200, "02|2|02nd|02ND"),
+        (201, "02|2|02nd|02ND"),
+    ];
+
+    for (years, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{years} years', 'CC|FMCC|CCth|CCTH')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval century formatting").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 century for {years} years"
+        );
+    }
+
+    // Act
+    let dates = fixture.execute("SELECT to_char(TIMESTAMP '0001-01-01', 'CC'), to_char(TIMESTAMP '0001-01-01 BC', 'CC'), to_char(TIMESTAMP '2000-01-01', 'CC')");
+
+    // Assert
+    assert_eq!(
+        dates.expect("timestamp century formatting").rows(),
+        &[vec![
+            Value::String("01".to_owned()),
+            Value::String("-01".to_owned()),
+            Value::String("20".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_count_the_sign_in_negative_interval_day_padding() {
     // Arrange
     let fixture = sql_fixture("issue-815-negative-interval-day-padding", &[]);

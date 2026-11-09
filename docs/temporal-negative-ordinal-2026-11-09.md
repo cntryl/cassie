@@ -15,3 +15,9 @@ This field-specific correction follows PostgreSQL 18.6's `DCH_DD` formatter;
 it does not change padding for clock or other template fields. The SQL
 regressions are authored but unexecuted; the consolidated build and test gates
 remain pending.
+
+Interval `CC` is also distinct from a timestamp's calendar century:
+PostgreSQL 18.6 truncates the interval's signed year field divided by 100
+toward zero. For example, 99 and -99 years yield `00`, whereas 100 and -199
+years yield `01` and `-01`. The interval-only branch preserves timestamp and BC
+century handling. Its SQL regressions are likewise unexecuted.

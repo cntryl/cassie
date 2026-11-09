@@ -395,7 +395,9 @@ fn render_field(
         ),
         "q" => numeric(i64::from((fields.month - 1) / 3 + 1), 1),
         "cc" => {
-            let century = if fields.year > 0 {
+            let century = if moment.is_interval {
+                i64::from(fields.year) / 100
+            } else if fields.year > 0 {
                 (i64::from(fields.year) + 99) / 100
             } else {
                 -((99 - (i64::from(fields.year) - 1)) / 100)

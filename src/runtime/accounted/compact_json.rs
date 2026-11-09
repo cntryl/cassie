@@ -244,7 +244,7 @@ pub(crate) fn serialize(
     serialize_observing(value, controls, |_| {})
 }
 
-fn serialize_observing(
+pub(crate) fn serialize_observing(
     value: &serde_json::Value,
     controls: &QueryExecutionControls,
     progress: impl FnMut(Progress),

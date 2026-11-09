@@ -46,6 +46,8 @@ mod json_key_exists;
 mod json_order;
 #[path = "filter/json_path_operator.rs"]
 mod json_path_operator;
+#[path = "filter/json_scalar_leaf.rs"]
+mod json_scalar_leaf;
 #[path = "filter/quantified_array.rs"]
 mod quantified_array;
 #[path = "filter/subquery_value.rs"]
@@ -354,7 +356,10 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         .transpose()?;
     match expr {
         Expr::RowCompare(comparison) => row_predicates::evaluate(row, comparison, context),
-        Expr::Column(name) => Ok(eval_column_value(row, name, context.local_args)),
+        Expr::Column(name) => match column_value_ref(row, name, context.local_args) {
+            Some(value) => json_scalar_leaf::from_value(value, context),
+            None => Ok(ScalarValue::Null),
+        },
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::IntegerLiteral(value) => Ok(ScalarValue::Int(*value)),
@@ -374,10 +379,10 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             else_expr.as_deref(),
             context,
         ),
-        Expr::Param(index) => Ok(context
-            .params
-            .get(*index)
-            .map_or(ScalarValue::Null, scalar_from_value)),
+        Expr::Param(index) => match context.params.get(*index) {
+            Some(value) => json_scalar_leaf::from_value(value, context),
+            None => Ok(ScalarValue::Null),
+        },
         Expr::Function(function) => evaluate_function_scalar(row, function, context),
         Expr::ArraySubscript { array, subscripts } => {
             array_subscript::evaluate(row, array, subscripts, context)
@@ -775,14 +780,6 @@ pub(super) fn scalar_from_value(value: &Value) -> ScalarValue {
         Value::Array(v) => ScalarValue::Array(v.clone()),
         Value::Null => ScalarValue::Null,
     }
-}
-
-fn eval_column_value<R: RowAccess + ?Sized>(
-    row: &R,
-    name: &str,
-    local_args: Option<&HashMap<String, Value>>,
-) -> ScalarValue {
-    column_value_ref(row, name, local_args).map_or(ScalarValue::Null, scalar_from_value)
 }
 
 // Both evaluators resolve the same canonical local binding before the row.

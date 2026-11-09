@@ -37,6 +37,24 @@ Extra admission/cancellation may precede legacy errors; source column clones,
 unowned callers, allocator transient excess, diagnostic allocation and
 teardown remain open. All new probes are unexecuted.
 
+For scalar evaluation of a JSON column or parameter, when there is no general
+leaf-memory owner but an expression/deletion owner and statement controls do
+exist, the selected source handoff serializes the borrowed serde Value with
+the checked compact writer and transfers its output reservation to that owner.
+The source stays alive throughout serialization. If a general leaf owner is
+present, or the expression owner/controls are absent, the existing path is
+unchanged; this avoids adding a second charge over the general leaf estimate.
+Jev selected this scope (0.98), with spelling/representation (0.79), source and
+tracker overlap (0.72), and context/sibling error priority (0.62) as leads.
+Receipt: `target/assembly-review/json-leaf-owner-contract-{request,response}.json`.
+Test-first probes cover actual copy cancellation, exact/below overlap, foreign
+trackers, general-owner/ownerless fallbacks and sibling failure. The shared
+expression owner may conservatively retain intermediate output after its use,
+and new resource/cancellation errors can precede old outcomes. Rich Value
+clones, other consumers, source construction, allocator transient excess,
+diagnostics, teardown and private-sentinel storage remain open. All probes
+remain unexecuted pending the consolidated gate.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

@@ -1,5 +1,6 @@
 #[derive(Debug, Default)]
 pub(crate) struct DocumentWriteBatchReport {
+    pub relation_id: u64,
     pub ids: Vec<String>,
     pub changed_ids: Vec<String>,
     pub row_delta: i64,

@@ -259,6 +259,40 @@ fn should_copy_into_a_transaction_recreated_target_and_restore_the_original() {
 }
 
 #[test]
+fn should_punt_recreated_published_copy_targets_before_copy_in_under_repeatable_read() {
+    // Arrange
+    let script = [
+        "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+        "SELECT count(*) FROM staged_copy_rr_recreated",
+        "DROP TABLE staged_copy_rr_recreated",
+        "CREATE TABLE staged_copy_rr_recreated (payload TEXT)",
+        "COPY staged_copy_rr_recreated (payload) FROM STDIN",
+        "ROLLBACK",
+        "SELECT id FROM staged_copy_rr_recreated",
+    ]
+    .into_iter()
+    .map(|sql| vec![wire::simple_query_frame(sql)])
+    .collect();
+
+    // Act
+    let frames = crate::support_repeatable_read::run_own_script_with_expected_errors(
+        &[
+            "CREATE TABLE staged_copy_rr_recreated (id INT)",
+            "INSERT INTO staged_copy_rr_recreated VALUES (7)",
+        ],
+        script,
+        &[(4, "0A000")],
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&frames[4]).as_deref(), Some("0A000"));
+    assert_eq!(frames[4].iter().map(|frame| frame.0).collect::<Vec<_>>(), b"EZ");
+    assert_eq!(frames[4].last().map(|frame| frame.1.as_slice()), Some(&b"E"[..]));
+    assert_eq!(wire::error_code(&frames[5]), None);
+    assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("7".into())]]);
+}
+
+#[test]
 fn should_rollback_a_staged_copy_error_without_rewinding_its_sequence() {
     // Arrange
     let script = vec![

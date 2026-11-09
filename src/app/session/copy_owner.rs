@@ -74,6 +74,17 @@ impl CopyCommandOwner {
         {
             return Err(stale_copy());
         }
+        if transaction.isolation == Some(crate::sql::ast::TransactionIsolation::RepeatableRead)
+            && self
+                .publication_catalog
+                .collection_storage_id(target)
+                .is_some_and(|published_id| published_id != id)
+        {
+            return Err(CassieError::Unsupported(
+                "COPY into a recreated published target is not supported under REPEATABLE READ"
+                    .into(),
+            ));
+        }
         let descriptor = CassieSession::command_descriptor_snapshot_locked(
             &mut transaction,
             &self.publication_catalog,

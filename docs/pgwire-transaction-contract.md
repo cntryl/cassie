@@ -26,7 +26,7 @@ READ COMMITTED is supported; unsupported isolation remains rejected.
 | Transaction controls | Explicit BEGIN persists across Query and Sync; controls follow the origin table below. |
 | Selected schema/table/scalar-index DDL | Explicit transactions only. The session reads its staged objects; commit publishes them atomically with row writes. See the #833 extension below. |
 | Other DDL/catalog operations | Standalone only. Reject a mixed Simple Query before any execution. Extended standalone DDL must be the first Execute after Sync; require Sync before another Execute. |
-| Table COPY FROM STDIN | Preserve the existing single-statement Simple Query streaming path, atomic application when idle, and staging in an explicit transaction. Extended COPY remains unsupported. |
+| Table COPY FROM STDIN | Preserve the existing single-statement Simple Query streaming path, atomic application when idle, and staging in an explicit transaction. Under REPEATABLE READ, COPY into a published table dropped and recreated with the same name in that transaction returns `0A000` before CopyInResponse and leaves the explicit transaction failed until rollback. READ COMMITTED replacement, new transaction-owned names, and unchanged published targets retain their selected behavior. See the [2026-11-09 decision](transaction-owned-copy-2026-11-06.md#2026-11-09-recreated-published-targets-under-repeatable-read). Extended COPY remains unsupported. |
 | Database BACKUP/RESTORE | Preserve authorization ordering and idle-only standalone image operations. |
 | Parse/Bind/Describe/Close | Preparation alone does not create a mutation transaction. Bound portals still belong to the current segment or explicit transaction. |
 

@@ -301,6 +301,126 @@ fn should_not_pair_old_copy_snapshot_with_recreated_physical_target() {
 }
 
 #[test]
+fn should_keep_a_recreated_copy_target_identity_in_the_staged_storage_overlay() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE copy_owner_recreated (id INT, marker TEXT)",
+            vec![],
+        )
+        .expect("published target");
+    let target = crate::catalog::canonical_relation_name(
+        &cassie.default_database,
+        crate::catalog::DEFAULT_SCHEMA,
+        "copy_owner_recreated",
+    );
+    let published_id = cassie.midge.row_schema(&target).expect("published descriptor").relation_id;
+    assert!(published_id > 0);
+    let controls = controls();
+
+    // Act
+    for sql in [
+        "BEGIN",
+        "DROP TABLE copy_owner_recreated",
+        "CREATE TABLE copy_owner_recreated (payload TEXT)",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).expect("replace target");
+    }
+    let overlay = session.transaction_storage_overlay();
+    let descriptor = {
+        let _scope = cassie
+            .midge
+            .enter_transactional_ddl_scope(&cassie.default_database, Arc::clone(&overlay), false)
+            .expect("staged descriptor scope");
+        cassie.midge.row_schema(&target).expect("replacement descriptor")
+    };
+    let physical_id = cassie
+        .midge
+        .copy_physical_identity(&target, &overlay.lock(), &controls)
+        .expect("staged physical identity");
+
+    // Assert
+    assert!(descriptor.relation_id > 0, "replacement descriptor: {descriptor:?}");
+    assert_ne!(descriptor.relation_id, published_id);
+    assert_eq!(descriptor.fields.len(), 1);
+    assert_eq!(descriptor.fields[0].name, "payload");
+    assert_eq!(physical_id, Some(descriptor.relation_id));
+    let (commit_gates, _) = cassie.transaction_commit_write_gates(&session);
+    assert!(commit_gates.contains(&target), "pure DDL retains its target gate");
+    let owner = cassie
+        .capture_copy_command_owner(&session, "public.copy_owner_recreated", &controls)
+        .expect("replacement COPY owner");
+    assert_eq!(owner.target.as_ref().map(|(_, _, id)| *id), physical_id);
+    let fork = session.fork_copy_statement_batch(&owner, &controls).expect("replacement fork");
+    drop(fork);
+    drop(owner);
+    cassie.execute_sql(&session, "ROLLBACK", vec![]).expect("rollback");
+    assert_eq!(cassie.midge.row_schema(&target).expect("restored descriptor").relation_id, published_id);
+}
+
+#[test]
+fn should_punt_a_recreated_published_copy_target_under_repeatable_read() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE copy_rr_recreated (id INT)",
+        "INSERT INTO copy_rr_recreated VALUES (7)",
+        "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+        "SELECT count(*) FROM copy_rr_recreated",
+        "DROP TABLE copy_rr_recreated",
+        "CREATE TABLE copy_rr_recreated (payload TEXT)",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).expect("replacement setup");
+    }
+    let controls = controls();
+
+    // Act
+    let owner = cassie.capture_copy_command_owner(&session, "public.copy_rr_recreated", &controls);
+    cassie.execute_sql(&session, "ROLLBACK", vec![]).expect("rollback");
+
+    // Assert
+    assert!(matches!(
+        owner,
+        Err(CassieError::Unsupported(ref message))
+            if message == "COPY into a recreated published target is not supported under REPEATABLE READ"
+    ));
+    let restored = cassie.execute_sql(&session, "SELECT id FROM copy_rr_recreated", vec![])
+        .expect("original target");
+    assert_eq!(restored.rows(), &[vec![crate::types::Value::Int64(7)]]);
+}
+
+#[test]
+fn should_keep_new_repeatable_read_copy_targets_supported() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+        "SELECT 1",
+        "CREATE TABLE copy_rr_new (payload TEXT)",
+    ] {
+        cassie.execute_sql(&session, sql, vec![]).expect("new target");
+    }
+    let controls = controls();
+
+    // Act
+    let owner = cassie.capture_copy_command_owner(&session, "public.copy_rr_new", &controls);
+
+    // Assert
+    assert!(owner.is_ok());
+}
+
+#[test]
 fn should_reject_database_qualified_copy_target_without_retiring_the_transaction() {
     // Arrange
     let (cassie, session) = fixture();

@@ -48,6 +48,14 @@ impl PartialEq for StorageOverlay {
 impl Eq for StorageOverlay {}
 
 impl StorageOverlay {
+    pub(crate) fn schema_write_collections(&self) -> Vec<String> {
+        let prefix = Midge::schema_collection_prefix();
+        self.changes
+            .keys()
+            .filter_map(|key| super::key_encoding::utf8_suffix_after_prefix(key, &prefix))
+            .collect()
+    }
+
     pub(crate) fn with_sequence_cursors(
         mut self,
         controls: &crate::runtime::QueryExecutionControls,
@@ -362,6 +370,14 @@ impl Midge {
                 .borrow()
                 .as_ref()
                 .is_some_and(|scope| scope.midge_identity == std::ptr::from_ref(self) as usize)
+        })
+    }
+
+    pub(super) fn has_staged_transactional_ddl_scope(&self) -> bool {
+        ACTIVE_STORAGE_SCOPE.with(|current| {
+            current.borrow().as_ref().is_some_and(|scope| {
+                scope.midge_identity == std::ptr::from_ref(self) as usize && scope.stage_writes
+            })
         })
     }
 

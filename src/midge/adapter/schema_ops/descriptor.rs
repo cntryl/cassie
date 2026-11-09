@@ -3,6 +3,24 @@
 use super::{CassieError, Midge, RowSchema, Schema};
 
 impl Midge {
+    /// Delayed work checks published identity, never an enclosing stale view.
+    pub(crate) fn current_row_schema_identity(
+        &self,
+        collection: &str,
+    ) -> Result<Option<u64>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let database = crate::catalog::relation_database_name(&collection)
+            .unwrap_or_else(|| self.default_database.clone());
+        let tx = self.begin_raw_database_adapter_tx(&database, super::super::TransactionMode::ReadOnly)?;
+        if let Some(schema) = Self::load_row_schema_from_tx(&tx, &collection)? {
+            return Ok(Some(schema.relation_id));
+        }
+        Ok(tx
+            .get(&Self::collection_schema_key(&collection))
+            .map_err(CassieError::from)?
+            .map(|_| 0))
+    }
+
     pub(crate) fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
         let collection = self.canonical_collection_name(collection);
         let statement_read = self.begin_data_readonly_tx_for(&collection)?;

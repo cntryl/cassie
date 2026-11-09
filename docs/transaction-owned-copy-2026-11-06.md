@@ -13,7 +13,8 @@ side effect. A parent mutation after capture makes fork publication fail without
 publishing rows or redirecting the target; sequence values actually consumed by
 the failed statement remain nontransactional, matching PostgreSQL. Session
 recovery and cancellation remain unchanged. Existing published COPY targets and unaffected
-COPY after unrelated transactional DDL remain accepted.
+COPY after unrelated transactional DDL remain accepted. The 2026-11-09
+REPEATABLE READ replacement boundary below is an explicit exception.
 
 The selected route reuses Cassie's admitted catalog snapshot/descriptor owner,
 query interruption and deadline authority, bounded COPY input buffers,
@@ -433,3 +434,44 @@ probes. This descriptor step alone does not qualify controlled identifier
 parsing, name normalization, diagnostics or relation lookup; those remain
 pending. Probes are unexecuted. Receipt:
 `target/assembly-review/copy-virtual-schema-{request,response}.json`.
+
+## 2026-11-09: Recreated published targets under REPEATABLE READ
+
+READ COMMITTED may drop a published table, recreate its name in the same
+transaction, and COPY into the replacement. The replacement must have a new
+nonzero RowSchema identity in the private storage overlay. Rollback restores
+the original table; commit preserves the replacement when deferred cleanup
+later reclaims the retired physical relation. A captured statement reader or
+cursor retains its original row descriptor and native snapshot.
+
+Private DROP unlinks the name-owned metadata and keys in its storage overlay;
+physical relation-ID data stays under deferred reader-epoch cleanup. Cleanup
+compares its captured retired ID with the current descriptor and never removes
+a replacement's name-owned state. Delayed committed-batch maintenance carries
+the ID used to encode its rows, rechecks fresh published identity under the
+catalog and ordered collection gates, and skips all hash, metadata, debt and
+source-rollup effects when that owner has retired.
+
+COPY into that same-name replacement under REPEATABLE READ is deliberately
+pending. Reject it before CopyInResponse with SQLSTATE `0A000` and the message
+`unsupported feature: COPY into a recreated published target is not supported under REPEATABLE READ`.
+The error leaves the explicit wire transaction failed; ROLLBACK restores the
+published original. Do not accept input, consume a sequence value, or fall back
+to a published descriptor for this case. Newly created transaction-owned names
+and unchanged published targets retain their existing supported behavior.
+
+The retained RR snapshot can contain legacy name-scoped `doc_prefix` rows from
+the original relation while a later command uses the replacement's current
+descriptor. A physical ID on the replacement alone cannot establish ownership
+of those old name-scoped bytes. The next Cassie-side increment must apply one
+shared relation-identity read fence to point, ordinary/ordered, full-text and
+time-series legacy fallbacks, and qualify staged tombstones and retained
+snapshots across replacement, commit and rollback before removing this punt.
+This is a Cassie authority/integration gap, not evidence that Midge 0.5.2 lacks
+read-your-own-writes or retained snapshots. Its published transaction scan
+merges staged tombstones and its snapshots retain old bytes as documented.
+
+Jev selected this explicit boundary with probability 0.99. Receipt:
+`target/assembly-review/jev-copy-rr-boundary-{request,response}.json` in the
+consolidated worktree. The new regression and the RC, captured-reader and
+stale-maintenance probes remain unexecuted until the coherent bundle gate.

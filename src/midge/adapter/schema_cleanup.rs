@@ -125,8 +125,17 @@ impl Midge {
         self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
-            action: PendingSchemaCleanupAction::Table { table, relation_id },
-        })
+            action: PendingSchemaCleanupAction::Table {
+                table: table.clone(),
+                relation_id,
+            },
+        })?;
+        if self.has_staged_transactional_ddl_scope() {
+            // Free the private name for a new identity without reclaiming the
+            // retired relation's physical data before its readers finish.
+            self.unlink_transactional_collection_name(&table)?;
+        }
+        Ok(())
     }
 
     /// # Errors
@@ -181,10 +190,21 @@ impl Midge {
     ) -> Result<(), CassieError> {
         match &cleanup.action {
             PendingSchemaCleanupAction::Table { table, relation_id } => {
-                if self.collection_schema(table).is_some() {
-                    self.drop_collection(table)?;
-                } else {
-                    self.delete_collection_data(table, *relation_id)?;
+                let _fresh_reads = super::StatementReadScope::enter(None);
+                let gate = self.collection_write_gate(table);
+                let _guard = gate.lock();
+                let current_identity = self
+                    .collection_schema(table)
+                    .map(|_| self.row_schema(table).map(|schema| schema.relation_id))
+                    .transpose()?;
+                match current_identity {
+                    Some(current) if current == *relation_id => self.drop_collection(table)?,
+                    Some(_) => {
+                        // Shared prefixes and the current descriptor belong to
+                        // the replacement, not this retired physical identity.
+                        self.delete_retired_collection_data(table, *relation_id)?;
+                    }
+                    None => self.delete_collection_data(table, *relation_id)?,
                 }
             }
             PendingSchemaCleanupAction::Index { table, index } => {

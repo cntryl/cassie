@@ -19,6 +19,10 @@ use std::sync::Arc;
 mod copy_snapshot;
 pub(crate) use copy_snapshot::CopyStorageSnapshot;
 
+#[path = "transactions/index_cleanup_guard.rs"]
+mod index_cleanup_guard;
+pub(crate) use index_cleanup_guard::IndexCleanupCommitGuard;
+
 #[path = "transactions/mutation_error.rs"]
 mod mutation_error;
 #[path = "transactions/sequence_owner.rs"]

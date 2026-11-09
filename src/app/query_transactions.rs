@@ -224,20 +224,38 @@ impl Cassie {
         let transactional_ddl = catalog_overlay
             .as_ref()
             .map(|_| (database.as_str(), &storage_overlay));
-        let (collections, referential) = self.transaction_commit_write_gates(session);
+        #[cfg(test)]
+        output_admission_tests::cancel_before_index_guard_if_armed();
+        let index_guard =
+            crate::midge::adapter::IndexCleanupCommitGuard::capture(&storage_overlay, controls)
+                .inspect_err(|_| session.mark_transaction_failed())?;
+        let (row_collections, referential) = self.transaction_commit_write_gates(session);
+        let gate_names = if index_guard.is_empty() {
+            None
+        } else {
+            Some(
+                index_guard
+                    .gate_names(&row_collections, controls)
+                    .inspect_err(|_| session.mark_transaction_failed())?,
+            )
+        };
+        let collections = gate_names
+            .as_ref()
+            .map_or(row_collections.as_slice(), |names| names.values.as_slice());
         let publish = || {
+            index_guard.validate(&self.midge, controls)?;
             self.publish_transaction_rows(
                 session,
                 &database,
                 catalog_overlay.as_ref(),
-                &collections,
+                collections,
                 controls,
                 transactional_ddl,
             )
         };
         let committed = if repeatable_write {
             self.midge
-                .with_transaction_write_gates(&collections, referential, controls, || {
+                .with_transaction_write_gates(collections, referential, controls, || {
                     if referential {
                         self.validate_staged_foreign_keys(session)?;
                         self.validate_staged_parent_references(session)?;
@@ -245,13 +263,13 @@ impl Cassie {
                     publish()
                 })
         } else if referential {
-            self.midge.with_collection_write_gates(&collections, || {
+            self.midge.with_collection_write_gates(collections, || {
                 self.validate_staged_foreign_keys(session)?;
                 self.validate_staged_parent_references(session)?;
                 publish()
             })
         } else {
-            self.midge.with_collection_gates(&collections, publish)
+            self.midge.with_collection_gates(collections, publish)
         }
         .inspect_err(|_| session.mark_transaction_failed())?;
 

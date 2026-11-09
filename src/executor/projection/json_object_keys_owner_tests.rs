@@ -428,3 +428,55 @@ fn should_release_empty_and_foreign_output_reservations() {
     assert_eq!(foreign.current_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_release_replacement_rows_and_source_after_actual_move_and_reverse_cancellation() {
+    // Arrange
+    for stage in [4, 5] {
+        let cancel = crate::runtime::QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancel.clone(),
+        );
+        let source = std::sync::Arc::new(controls.reserve_query_memory(64).expect("source"));
+        let weak = std::sync::Arc::downgrade(&source);
+        let (mut batches, projection) =
+            expansion_fixture(serde_json::json!(["a", "b", "c", "d", "e", "f"]));
+        batches[0][0] = batches[0][0].clone().with_query_memory(Some(source));
+        json_object_keys::cancel_expand_once(cancel.clone(), stage);
+        // Act
+        let result = json_object_keys::expand(batches, &projection, &controls);
+        // Assert
+        assert!(cancel.is_cancelled(), "stage {stage}");
+        assert!(result.is_err(), "stage {stage}");
+        assert!(weak.upgrade().is_none());
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_enforce_measured_replacement_directory_overlap() {
+    // Arrange
+    let make = || expansion_fixture(serde_json::json!(["a", "b", "c", "d", "e", "f"]));
+    let baseline =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let (batches, projection) = make();
+    let result = json_object_keys::expand(batches, &projection, &baseline).expect("baseline");
+    let peak = baseline.peak_query_memory_bytes();
+    drop(result);
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let limits = CassieRuntimeLimits {
+            query_memory_budget_bytes: budget,
+            query_timeout_ms: 0,
+            ..CassieRuntimeLimits::default()
+        };
+        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+        let (batches, projection) = make();
+        let result = json_object_keys::expand(batches, &projection, &controls);
+        assert_eq!(result.is_ok(), succeeds);
+        drop(result);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

@@ -64,11 +64,6 @@ pub(crate) struct AccountedVec<T> {
     reservation: QueryMemoryReservation,
 }
 
-struct PendingAdmitted<T> {
-    value: Option<T>,
-    reservation: Option<QueryMemoryReservation>,
-}
-
 impl<T> AccountedVec<T> {
     /// # Errors
     ///
@@ -139,37 +134,6 @@ impl<T> AccountedVec<T> {
         Ok(())
     }
 
-    /// Insert a prepared value and transfer its existing same-tracker lease.
-    ///
-    /// # Errors
-    /// Returns an error if the trackers differ or the row slot cannot be admitted.
-    pub(crate) fn try_push_admitted(
-        &mut self,
-        value: T,
-        reservation: QueryMemoryReservation,
-        controls: &QueryExecutionControls,
-    ) -> Result<(), CassieError> {
-        let mut pending = PendingAdmitted {
-            value: Some(value),
-            reservation: Some(reservation),
-        };
-        if !self.reservation.belongs_to(controls)
-            || !pending
-                .reservation
-                .as_ref()
-                .expect("prepared reservation")
-                .belongs_to(controls)
-        {
-            return Err(CassieError::ResourceLimit(
-                "accounted value uses a different query tracker".into(),
-            ));
-        }
-        self.try_push_with(0, || pending.value.take().expect("prepared value"))?;
-        self.reservation
-            .absorb(pending.reservation.take().expect("prepared reservation"));
-        Ok(())
-    }
-
     /// Reserves before growing the vector and before cloning its new retained value.
     ///
     /// # Errors
@@ -223,10 +187,6 @@ fn retained_value_bytes<T>(variable_bytes: usize) -> Result<usize, CassieError> 
         .checked_add(variable_bytes)
         .ok_or_else(|| CassieError::ResourceLimit("accounted query value size overflow".to_owned()))
 }
-
-#[cfg(test)]
-#[path = "accounted/admitted_vec_tests.rs"]
-mod admitted_vec_tests;
 
 #[cfg(test)]
 mod tests {

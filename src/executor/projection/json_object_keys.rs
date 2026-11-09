@@ -3,7 +3,6 @@
 use super::BatchRow;
 use super::{Batch, QueryError};
 use crate::executor::batch::chunk_rows;
-use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::SelectItem;
 use crate::types::Value;
@@ -15,6 +14,8 @@ pub(super) use output::cancel_after_output_attachment_once;
 
 #[path = "json_object_keys_row.rs"]
 mod row;
+#[path = "json_object_keys_rows.rs"]
+mod rows;
 
 #[derive(Clone, Copy)]
 enum Progress {
@@ -22,6 +23,8 @@ enum Progress {
     Key,
     Entries,
     Slot,
+    Move,
+    Reverse,
 }
 
 #[cfg(test)]
@@ -54,6 +57,8 @@ fn observe(progress: Progress) {
         Progress::Key => 1,
         Progress::Entries => 2,
         Progress::Slot => 3,
+        Progress::Move => 4,
+        Progress::Reverse => 5,
     };
     CANCEL_EXPAND.with(|slot| {
         let mut slot = slot.borrow_mut();
@@ -79,7 +84,7 @@ pub(super) fn expand(
         return Ok(batches);
     };
     let output_name = alias.unwrap_or(function.name.as_str());
-    let mut expanded = AccountedVec::try_new(controls)?;
+    let mut expanded = rows::Rows::new(controls)?;
     for batch in batches {
         for row in batch {
             controls.check_interruption()?;
@@ -94,7 +99,7 @@ pub(super) fn expand(
                             ));
                         };
                         let prepared = row::prepare(output_name, key, &row, controls)?;
-                        expanded.try_push_admitted(prepared.row, prepared.memory, controls)?;
+                        expanded.push(prepared, controls)?;
                         observe(Progress::Slot);
                         controls.check_interruption()?;
                     }
@@ -107,7 +112,7 @@ pub(super) fn expand(
             }
         }
     }
-    let (rows, reservation) = expanded.into_parts();
+    let (rows, reservation) = expanded.into_parts(controls)?;
     let rows = output::retain(rows, reservation, controls)?;
     Ok(chunk_rows(rows, crate::executor::batch::DEFAULT_BATCH_SIZE))
 }

@@ -157,7 +157,13 @@ impl StatisticalAccumulator {
             self.result_family = other.result_family;
         }
         let left = std::mem::replace(&mut self.moments, Moments::Empty);
-        self.moments = merge_moments(left, other.moments.clone())?;
+        self.moments = match (left, &other.moments) {
+            (Moments::Exact(mut left), Moments::Exact(right)) => {
+                left.merge(right)?;
+                Moments::Exact(left)
+            }
+            (left, _) => merge_moments(left, other.moments.clone())?,
+        };
         Ok(())
     }
 

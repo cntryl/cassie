@@ -475,6 +475,12 @@ fn parallel_aggregation_eligibility(
     {
         return Err("aggregate-local-distinct-or-order");
     }
+    if specs
+        .iter()
+        .any(|spec| statistical::uses_explicit_float(&spec.function))
+    {
+        return Err("explicit-float-statistical-row-order");
+    }
     if plan
         .projection
         .iter()

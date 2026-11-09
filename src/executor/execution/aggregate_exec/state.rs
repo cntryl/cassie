@@ -229,10 +229,17 @@ impl AggregateAccumulator {
     }
 
     pub(super) fn new(function: &FunctionCall) -> Self {
+        Self::new_with_arguments(function, &function.args)
+    }
+
+    pub(super) fn new_with_arguments(
+        function: &FunctionCall,
+        arguments: &[crate::sql::ast::Expr],
+    ) -> Self {
         if let Some(state) = RegressionAccumulator::new(function) {
             return Self::Regression(state);
         }
-        if let Some(state) = StatisticalAccumulator::new(function) {
+        if let Some(state) = StatisticalAccumulator::new_with_arguments(function, arguments) {
             return Self::Statistical(state);
         }
         if let Some(state) = BooleanState::new(&function.name) {

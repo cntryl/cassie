@@ -1,12 +1,16 @@
 //! Streaming variance and standard-deviation state for SQL aggregates.
+#[path = "statistical/pg_float.rs"]
+mod pg_float;
+
 use crate::app::CassieError;
-use crate::sql::ast::FunctionCall;
+use crate::sql::ast::{Expr, FunctionCall};
 use crate::sql::functions::{self, FunctionId};
 use crate::types::extended::numeric::{math as numeric_math, Numeric};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
 use super::QueryError;
+use pg_float::{FloatCast, PgFloatMoments};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ResultFamily {
@@ -25,6 +29,10 @@ enum Moments {
     Empty,
     Exact(ExactMoments),
     Float(FloatMoments),
+    PgFloat {
+        cast: FloatCast,
+        state: PgFloatMoments,
+    },
 }
 
 #[derive(Clone)]
@@ -50,7 +58,12 @@ pub(super) struct StatisticalAccumulator {
 }
 
 impl StatisticalAccumulator {
+    #[cfg(test)]
     pub(super) fn new(function: &FunctionCall) -> Option<Self> {
+        Self::new_with_arguments(function, &function.args)
+    }
+
+    pub(super) fn new_with_arguments(function: &FunctionCall, arguments: &[Expr]) -> Option<Self> {
         let id = functions::function(&function.name)?.id;
         let kind = match id {
             FunctionId::VarPop => Kind {
@@ -73,12 +86,32 @@ impl StatisticalAccumulator {
         };
         Some(Self {
             kind,
-            moments: Moments::Empty,
+            moments: explicit_float_cast(arguments).map_or(Moments::Empty, |cast| {
+                Moments::PgFloat {
+                    cast,
+                    state: PgFloatMoments::default(),
+                }
+            }),
             result_family: None,
         })
     }
 
     pub(super) fn update(&mut self, function: &str, value: &Value) -> Result<(), QueryError> {
+        if let Moments::PgFloat { cast, state } = &mut self.moments {
+            let value = match (*cast, value) {
+                (_, Value::Null) => return Ok(()),
+                (FloatCast::Float8, Value::Float64(value)) => *value,
+                (FloatCast::Real, Value::Typed(TypedValue::Real(value))) => f64::from(*value),
+                _ => {
+                    return Err(QueryError::General(
+                        "explicit float variance received an unexpected value carrier".into(),
+                    ))
+                }
+            };
+            state.update(value)?;
+            self.result_family = Some(ResultFamily::Float);
+            return Ok(());
+        }
         match value {
             Value::Null => Ok(()),
             Value::Int64(value) => self.update_exact(&Numeric::from_i64(*value)),
@@ -113,6 +146,9 @@ impl StatisticalAccumulator {
             }
             Moments::Exact(state) => state.update(value),
             Moments::Float(_) => self.update_float_value(value.to_f64()),
+            Moments::PgFloat { .. } => {
+                unreachable!("selected float input is handled before exact update")
+            }
         }
     }
 
@@ -158,6 +194,21 @@ impl StatisticalAccumulator {
         }
         let left = std::mem::replace(&mut self.moments, Moments::Empty);
         self.moments = match (left, &other.moments) {
+            (
+                Moments::PgFloat { cast, mut state },
+                Moments::PgFloat {
+                    cast: other_cast,
+                    state: right,
+                },
+            ) if cast == *other_cast => {
+                state.merge(right)?;
+                Moments::PgFloat { cast, state }
+            }
+            (Moments::PgFloat { .. }, _) | (_, Moments::PgFloat { .. }) => {
+                return Err(QueryError::General(
+                    "incompatible statistical partial states".into(),
+                ));
+            }
             (Moments::Exact(mut left), Moments::Exact(right)) => {
                 left.merge(right)?;
                 Moments::Exact(left)
@@ -170,6 +221,11 @@ impl StatisticalAccumulator {
     pub(super) fn finish(self) -> Result<Value, QueryError> {
         let value = match self.moments {
             Moments::Empty => return Ok(Value::Null),
+            Moments::PgFloat { state, .. } => {
+                return Ok(state
+                    .result(self.kind.sample, self.kind.standard_deviation)
+                    .map_or(Value::Null, Value::Float64))
+            }
             Moments::Exact(state) => {
                 let Some(result) = state.result(self.kind)? else {
                     return Ok(Value::Null);
@@ -192,7 +248,7 @@ impl StatisticalAccumulator {
     }
 
     pub(super) fn requires_row_order(&self) -> bool {
-        matches!(self.moments, Moments::Float(_))
+        matches!(self.moments, Moments::Float(_) | Moments::PgFloat { .. })
     }
 
     /// Conservative transition/finalization workspace, including decimal
@@ -220,9 +276,30 @@ impl StatisticalAccumulator {
         match &self.moments {
             Moments::Exact(state) => numeric_heap_bytes(&state.sum)
                 .saturating_add(numeric_heap_bytes(&state.sum_squares)),
-            Moments::Empty | Moments::Float(_) => 0,
+            Moments::Empty | Moments::Float(_) | Moments::PgFloat { .. } => 0,
         }
     }
+}
+
+fn explicit_float_cast(arguments: &[Expr]) -> Option<FloatCast> {
+    match arguments {
+        [Expr::Cast {
+            data_type: crate::types::DataType::Float,
+            ..
+        }] => Some(FloatCast::Float8),
+        [Expr::Cast {
+            data_type: crate::types::DataType::Extended(crate::types::extended::ExtendedType::Real),
+            ..
+        }] => Some(FloatCast::Real),
+        _ => None,
+    }
+}
+
+pub(super) fn uses_explicit_float(function: &FunctionCall) -> bool {
+    functions::function(&function.name).is_some_and(|metadata| {
+        functions::statistical::is_statistical_function(metadata.id)
+            && explicit_float_cast(&function.args).is_some()
+    })
 }
 
 impl Default for ExactMoments {
@@ -370,6 +447,9 @@ impl FloatMoments {
 
 fn merge_moments(left: Moments, right: Moments) -> Result<Moments, QueryError> {
     match (left, right) {
+        (Moments::PgFloat { .. }, _) | (_, Moments::PgFloat { .. }) => Err(QueryError::General(
+            "incompatible statistical partial states".into(),
+        )),
         (Moments::Empty, right) | (right, Moments::Empty) => Ok(right),
         (Moments::Exact(mut left), Moments::Exact(right)) => {
             left.merge(&right)?;
@@ -388,6 +468,7 @@ fn as_float(moments: Moments) -> FloatMoments {
         Moments::Empty => FloatMoments::default(),
         Moments::Float(state) => state,
         Moments::Exact(state) => FloatMoments::from_exact(&state),
+        Moments::PgFloat { .. } => unreachable!("selected float states are merged separately"),
     }
 }
 
@@ -720,6 +801,35 @@ mod tests {
         );
         assert_eq!(
             right.finish().expect("right stays intact"),
+            Value::Float64(0.0)
+        );
+    }
+
+    #[test]
+    fn should_reject_merging_different_explicit_float_carriers() {
+        // Arrange
+        let mut float = explicit_float_accumulator("var_pop");
+        let mut real = explicit_real_accumulator("var_pop");
+        float
+            .update("var_pop", &Value::Float64(1.0))
+            .expect("FLOAT8");
+        real.update(
+            "var_pop",
+            &Value::Typed(crate::types::typed::TypedValue::Real(2.0)),
+        )
+        .expect("REAL");
+
+        // Act
+        let result = float.merge(&real);
+
+        // Assert
+        assert!(result.is_err());
+        assert_eq!(
+            float.finish().expect("failed merge leaves no moments"),
+            Value::Null
+        );
+        assert_eq!(
+            real.finish().expect("right remains intact"),
             Value::Float64(0.0)
         );
     }

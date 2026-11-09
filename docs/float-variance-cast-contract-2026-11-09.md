@@ -44,6 +44,13 @@ parallel eligibility, while unselected statistical calls keep the existing
 eligibility behavior. The regression exercises both input orders across the
 actual partition threshold without using timing as synchronization.
 
+The selected transition is an additional variant of the existing moments enum,
+not a separately allocated owner. Rust does not promise enum layout stability;
+its addition may change the inline accumulator size and therefore admitted bytes
+for unselected aggregates. Unchanged budget thresholds are not claimed. The
+transition uses PostgreSQL's FLOAT8 counter and operation order, including very
+large counts, instead of converting an integer count on each input.
+
 Before activation, author and source-review ordinary rounding, both overflow
 shapes, NaN/Infinity ordering, NULL/empty/singleton, grouped, window, FILTER,
 modifier, marker survival and partial-merge/error-state probes. Existing input,

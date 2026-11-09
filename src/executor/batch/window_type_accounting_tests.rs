@@ -29,6 +29,7 @@ fn should_match_type_metadata_count_for_shared_distinct_and_empty_buffers() {
         row(Arc::clone(&shared)),
         row(shared),
         row(Arc::new(extra_capacity)),
+        row(Arc::new(vec![DataType::BigInt])),
         row(Arc::new(Vec::new())),
         row(Arc::new(Vec::new())),
         BatchRow::new(Vec::new()),
@@ -53,12 +54,56 @@ fn should_admit_type_directory_at_the_exact_budget_and_release_it() {
     let directory_bytes = rows.len() * std::mem::size_of::<&Vec<DataType>>();
 
     // Act / Assert
-    for (budget, succeeds) in [(directory_bytes, true), (directory_bytes - 1, false)] {
+    let retained_bytes = 7;
+    for (budget, succeeds) in [
+        (retained_bytes + directory_bytes, true),
+        (retained_bytes + directory_bytes - 1, false),
+    ] {
         let controls = controls(budget);
+        let retained = controls
+            .reserve_query_memory(retained_bytes)
+            .expect("existing owner");
         let result = row_type_bytes_controlled(&rows, &controls);
         assert_eq!(result.is_ok(), succeeds);
+        assert_eq!(controls.current_query_memory_bytes(), retained_bytes);
+        drop(retained);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
+}
+
+#[test]
+fn should_reject_type_vector_size_overflow() {
+    // Arrange
+    let capacity = usize::MAX;
+
+    // Act
+    let result = window_type_accounting::vector_bytes(capacity);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+}
+
+#[test]
+fn should_order_type_buffer_identities_for_odd_even_and_duplicate_inputs() {
+    // Arrange
+    let first = vec![DataType::Int];
+    let second = vec![DataType::Text];
+    let third = vec![DataType::BigInt];
+    let controls = controls(1_000_000);
+    let cases = [
+        vec![&third, &first, &second],
+        vec![&second, &first, &third, &first],
+        vec![&third, &second],
+    ];
+
+    // Act / Assert
+    for mut values in cases {
+        window_type_accounting::sort(&mut values, &controls, &mut |_| {}).expect("sort");
+        assert!(values
+            .windows(2)
+            .all(|pair| { (pair[0].as_ptr() as usize) <= (pair[1].as_ptr() as usize) }));
+    }
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]

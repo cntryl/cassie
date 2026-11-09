@@ -2,6 +2,12 @@
 mod operator_memory;
 pub(crate) use operator_memory::OperatorMemory;
 
+#[path = "batch/window_type_accounting.rs"]
+mod window_type_accounting;
+pub(crate) use window_type_accounting::row_type_bytes_controlled;
+#[cfg(test)]
+use window_type_accounting::{row_type_bytes_controlled_observed, TypeCountProgress};
+
 #[cfg(test)]
 #[path = "batch/single_lookup_tests.rs"]
 mod single_lookup_tests;

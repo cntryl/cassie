@@ -182,7 +182,7 @@ fn batch_rows_bytes(
         bytes = add_window_row_bytes(bytes, size)?;
     }
     controls.check_interruption()?;
-    let metadata = batch::row_type_bytes(rows);
+    let metadata = batch::row_type_bytes_controlled(rows, controls)?;
     controls.check_interruption()?;
     add_window_row_bytes(bytes, metadata)
 }

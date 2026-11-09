@@ -12,7 +12,9 @@ the enclosing Arc. Each ARRAY chain is counted iteratively with interruption
 checks. The directory is destroyed before its admission is released. Checked
 arithmetic fails with ResourceLimit on overflow; representable totals retain
 the existing per-vector, capacity and nested-type calculation. Allocator excess
-over the requested directory capacity is rejected.
+over the requested directory capacity is rejected. Sorting uses O(n log n)
+comparisons for n present row metadata references, rather than the former
+expected-linear hash insertion.
 
 Jev selected this scoped contract (0.86; gap 0.93), receipt
 `target/assembly-review/806-window-type-metadata-{request,response}.json`.

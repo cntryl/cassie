@@ -13,6 +13,8 @@ use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
 
 #[cfg(test)]
+mod numeric_key_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod vector_array_tests;
@@ -434,6 +436,7 @@ impl EvalInput<'_> {
                 .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
             let mut admitted = 0;
             let mut vector_type = None;
+            let mut numeric_type = None;
             if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
                 memory.try_grow(accounting::type_scratch(
                     row,
@@ -448,32 +451,47 @@ impl EvalInput<'_> {
                 {
                     admitted = add(admitted, extra)?;
                     vector_type = data_type;
+                } else if let Some(extra) =
+                    super::array_order::sort_numeric::bound(&value, data_type.as_ref())?
+                {
+                    admitted = add(admitted, extra)?;
+                    numeric_type = data_type;
                 }
                 memory.try_grow(admitted)?;
             }
             retention.before(SortRetentionPhase::SemanticPart)?;
-            let (semantic, vector_retained) =
-                if let (Some(data_type), Some(controls)) = (vector_type.as_ref(), controls) {
-                    super::array_order::sort_vector_key(
+            let (semantic, vector_retained) = if let (Some(data_type), Some(controls)) =
+                (vector_type.as_ref(), controls)
+            {
+                super::array_order::sort_vector_key(
+                    row,
+                    &order.expr,
+                    &value,
+                    self.user_functions,
+                    data_type,
+                    controls,
+                )?
+            } else if let (Some(data_type), Some(controls)) = (numeric_type.as_ref(), controls) {
+                super::array_order::sort_numeric_key(
+                    row,
+                    &order.expr,
+                    &value,
+                    self.user_functions,
+                    data_type,
+                    controls,
+                )?
+            } else {
+                (
+                    super::array_order::key(
                         row,
                         &order.expr,
                         &value,
                         self.user_functions,
-                        data_type,
                         controls,
-                    )?
-                } else {
-                    (
-                        super::array_order::key(
-                            row,
-                            &order.expr,
-                            &value,
-                            self.user_functions,
-                            controls,
-                        )?,
-                        None,
-                    )
-                };
+                    )?,
+                    None,
+                )
+            };
             if let Some(memory) = memory.as_mut() {
                 let retained = match vector_retained {
                     Some(retained) => retained,

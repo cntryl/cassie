@@ -185,6 +185,23 @@ impl Fold<'_, '_> {
         if metadata.is_some_and(|entry| {
             entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
         }) && function.args.len() == 4
+            && all_unknown_bucket_parameters(
+                &function.args,
+                &self.summaries.values[frame.start..frame.start + 4],
+            )
+        {
+            for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
+                .iter_mut()
+                .zip([701, 701, 701, 23])
+            {
+                check_controls(self.controls)?;
+                self.occurrences.coerce(argument, target, true)?;
+            }
+            return Ok(Summary::known(23));
+        }
+        if metadata.is_some_and(|entry| {
+            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
+        }) && function.args.len() == 4
         {
             let arguments = &self.summaries.values[frame.start..frame.start + 4];
             let first = arguments[0].oid;
@@ -802,6 +819,23 @@ impl Fold<'_, '_> {
         Ok(result)
     }
 }
+
+fn all_unknown_bucket_parameters(arguments: &[ast::Expr], summaries: &[Summary]) -> bool {
+    let [ast::Expr::Param(first), ast::Expr::Param(second), ast::Expr::Param(third), ast::Expr::Param(count)] =
+        arguments
+    else {
+        return false;
+    };
+    ![first, second, third].contains(&count)
+        && summaries.len() == 4
+        && summaries
+            .iter()
+            .all(|summary| summary.qualified && matches!(summary.oid, 0 | 705))
+}
+
+#[cfg(test)]
+#[path = "fold_functions_tests.rs"]
+mod tests;
 
 fn primitive(data_type: &DataType) -> bool {
     matches!(

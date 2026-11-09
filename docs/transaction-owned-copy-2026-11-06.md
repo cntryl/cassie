@@ -346,3 +346,14 @@ cancellation (0.56) and ownership (0.33) require focused source checks and
 probes. Array conversion and malformed diagnostic scratch remain pending;
 probes are unexecuted. Receipt:
 `target/assembly-review/copy-binary-numeric-{request,response}.json`.
+
+Jev selected (1.00) two-pass binary VECTOR COPY decoding: preserve header,
+dimension, reserved-field, length and finite-component validation order, and
+render each f32 with the existing Rust `Display` spelling in checked stack
+scratch. Compute and admit the exact bracket/comma/output size before replay,
+check interruption in both passes, and retain the output lease. Validation
+(0.87), cancellation (0.62), display parity (0.35) and ownership (0.31) require
+focused source checks and probes. Formatter allocation evidence is specific to
+the inspected Rust toolchain. Other codecs and diagnostics remain pending;
+probes are unexecuted. Receipt:
+`target/assembly-review/copy-binary-vector-{request,response}.json`.

@@ -353,3 +353,40 @@ fn should_report_width_bucket_int4_overflow_and_keep_wire_session_usable() {
         );
     }
 }
+
+#[test]
+fn should_reject_typed_width_bucket_count_overloads_during_parse() {
+    // Arrange
+    let cases = [(20, "bigint"), (1700, "numeric"), (701, "double precision")];
+    let mut steps = Vec::new();
+    for (index, (oid, _)) in cases.iter().enumerate() {
+        let name = format!("issue_813_width_bucket_bad_count_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &name,
+            "SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, $1)",
+            &[*oid],
+        )));
+        steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::smallint)",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-count-wire", steps);
+
+    // Assert
+    for (index, (_, kind)) in cases.iter().enumerate() {
+        let error = &batches[index * 3];
+        assert_eq!(error.first().map(|frame| frame.0), Some(b'E'));
+        assert_eq!(wire::error_code(error).as_deref(), Some("42883"));
+        assert!(error_response_fields(error).iter().any(|(field, message)| {
+            *field == 'M' && message == &format!("function width_bucket(double precision, double precision, double precision, {kind}) does not exist")
+        }));
+        assert_eq!(wire::error_code(&batches[index * 3 + 2]), None);
+        assert_eq!(
+            wire::data_rows(&batches[index * 3 + 2]),
+            vec![vec![Some("1".to_owned())]]
+        );
+    }
+}

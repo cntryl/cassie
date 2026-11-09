@@ -673,3 +673,55 @@ fn should_preserve_width_bucket_in_range_null_and_error_priority() {
         matches!(invalid_count, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "count must be greater than zero")
     );
 }
+
+#[test]
+fn should_reject_undefined_width_bucket_count_types_before_null_evaluation() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-count-overload", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::bigint)",
+        "SELECT WIDTH_BUCKET(0.5::numeric, 0::numeric, 1::numeric, 1::numeric)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::float8)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::real)",
+        "SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 1::bigint)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 2147483648)",
+    ];
+
+    // Act
+    let rejected: Vec<_> = queries.iter().map(|sql| fixture.execute(sql)).collect();
+    let controls = fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::smallint), WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 1::int), WIDTH_BUCKET(2, ARRAY[1, 3])");
+    let qualified = fixture
+        .execute("SELECT pg_catalog.width_bucket(0.5::float8, 0::float8, 1::float8, 1::bigint)");
+
+    // Assert
+    for result in rejected {
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::Execution(message)) if message.starts_with("function width_bucket(") && message.ends_with(" does not exist"))
+        );
+    }
+    assert!(
+        matches!(qualified, Err(cassie::app::CassieError::Execution(message)) if message.contains("width_bucket(") && message.ends_with(" does not exist"))
+    );
+    assert_eq!(
+        controls.expect("valid sibling overloads").rows(),
+        &[vec![Value::Int64(1), Value::Null, Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_preserve_width_bucket_resolution_when_a_distinct_arity_routine_is_visible() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-visible-routine", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION width_bucket(x INT) RETURNS INT AS "x""#)
+        .expect("create distinct-arity routine");
+
+    // Act
+    let result =
+        fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::bigint)");
+
+    // Assert
+    assert!(
+        !matches!(result, Err(cassie::app::CassieError::Execution(message)) if message.starts_with("function width_bucket(") && message.ends_with(" does not exist"))
+    );
+}

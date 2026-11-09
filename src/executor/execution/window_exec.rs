@@ -87,6 +87,13 @@ fn apply_scalar_window_functions(
 
 type PhaseEvaluator<'a> =
     dyn Fn(&BatchRow, &crate::sql::ast::Expr) -> Result<Value, QueryError> + 'a;
+type AggregatePhaseEvaluator<'a> = dyn Fn(&BatchRow, &crate::sql::ast::Expr, &filter::EvaluationMemory) -> Result<Value, QueryError>
+    + 'a;
+
+struct PhaseEvaluators<'a> {
+    ordinary: &'a PhaseEvaluator<'a>,
+    aggregate: &'a AggregatePhaseEvaluator<'a>,
+}
 
 #[derive(Clone, Copy)]
 struct WindowExecutionContext<'a> {
@@ -95,7 +102,7 @@ struct WindowExecutionContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     session: Option<&'a CassieSession>,
     controls: &'a QueryExecutionControls,
-    evaluate: Option<&'a PhaseEvaluator<'a>>,
+    evaluate: Option<&'a PhaseEvaluators<'a>>,
     output_memory: Option<&'a filter::EvaluationMemory>,
 }
 
@@ -904,7 +911,7 @@ fn evaluate_window_expr(
     context: &WindowExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     if let Some(evaluate) = context.evaluate {
-        return evaluate(row, expression);
+        return (evaluate.ordinary)(row, expression);
     }
     filter::evaluate_expr_value(
         row,

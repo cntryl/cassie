@@ -18,6 +18,18 @@ pub(in crate::executor::execution) fn apply_resolving(
     let evaluate = |row: &super::BatchRow, expr: &crate::sql::ast::Expr| {
         super::super::exists_phase::evaluate(env, ctes, source, row, expr, search)
     };
+    let evaluate_aggregate =
+        |row: &super::BatchRow,
+         expr: &crate::sql::ast::Expr,
+         memory: &crate::executor::filter::EvaluationMemory| {
+            super::super::exists_phase::evaluate_with_owner(
+                env, ctes, source, row, expr, search, memory,
+            )
+        };
+    let evaluators = super::PhaseEvaluators {
+        ordinary: &evaluate,
+        aggregate: &evaluate_aggregate,
+    };
     typed::apply(
         batches,
         projection,
@@ -27,7 +39,7 @@ pub(in crate::executor::execution) fn apply_resolving(
             user_functions: env.user_functions,
             session: env.session,
             controls: env.controls,
-            evaluate: Some(&evaluate),
+            evaluate: Some(&evaluators),
             output_memory: None,
         },
     )

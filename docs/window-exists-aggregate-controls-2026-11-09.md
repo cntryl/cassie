@@ -27,6 +27,14 @@ existing FILTER-before-argument order, resolver evaluation and short-circuit
 rules do not change. This is not a claim that every allocation in the EXISTS
 resolver or every non-aggregate window operation is fully controlled.
 
+The same owner is used for general expression scratch and selected JSON output,
+and the pre-existing window transition also admits a value clone before updating
+the accumulator. These overlapping reservations are conservative: budget
+denial or cancellation may now take precedence at reached work that previously
+ran through the ownerless callback. `exists_projection::outer_row` retains its
+separate source-derived scratch estimate and attached owner until resolution
+finishes; this change does not prove its allocator or teardown bounds.
+
 Test-first witnesses must cover an actual cancellation inside reached argument
 work, false FILTER suppressing an invalid or cancelled argument, correlated and
 uncorrelated EXISTS, returned value/temporary owner overlap and cleanup, and

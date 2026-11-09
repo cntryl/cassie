@@ -241,7 +241,9 @@ fn should_apply_frame_only_inheritance_from_an_empty_named_window() {
 
     // Assert
     assert_eq!(
-        result.expect("frame-only extension of an empty base").rows(),
+        result
+            .expect("frame-only extension of an empty base")
+            .rows(),
         &[vec![Value::Int64(2)]]
     );
 }
@@ -264,7 +266,9 @@ fn should_fold_unquoted_named_window_identifiers() {
 
     // Assert
     assert_eq!(
-        result.expect("unquoted window identifiers fold case").rows(),
+        result
+            .expect("unquoted window identifiers fold case")
+            .rows(),
         &[vec![Value::Int64(5)], vec![Value::Int64(5)]]
     );
 }
@@ -380,7 +384,9 @@ fn should_accept_window_clause_after_having_before_pagination() {
 
     // Assert
     assert_eq!(
-        result.expect("WINDOW follows HAVING and precedes pagination").rows(),
+        result
+            .expect("WINDOW follows HAVING and precedes pagination")
+            .rows(),
         &[
             vec![Value::String("a".to_owned()), Value::Int64(1)],
             vec![Value::String("b".to_owned()), Value::Int64(1)],
@@ -445,7 +451,10 @@ fn should_reject_adding_partition_by_to_an_inherited_window() {
     );
 
     // Assert
-    assert!(result.is_err(), "an inherited window cannot add PARTITION BY");
+    assert!(
+        result.is_err(),
+        "an inherited window cannot add PARTITION BY"
+    );
 }
 
 #[test]
@@ -579,6 +588,44 @@ fn should_apply_aggregate_filters_to_window_frames() {
             .collect::<Vec<_>>(),
         vec![25, 23, 20, 20]
     );
+}
+
+#[test]
+fn should_preserve_correlated_exists_filter_for_numeric_window_arguments() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-window-exists-owned-arguments",
+        &[
+            "CREATE TABLE window_exists_rows (id INT, doc JSONB)",
+            "INSERT INTO window_exists_rows VALUES (1, '{\"n\":\"3.125\"}'::JSONB), (2, '{\"n\":\"bad\"}'::JSONB)",
+            "CREATE TABLE window_exists_selected (id INT)",
+            "INSERT INTO window_exists_selected VALUES (1)",
+        ],
+    );
+    let sql = "SELECT r.id, SUM((r.doc ->> 'n')::NUMERIC) FILTER (WHERE EXISTS \
+        (SELECT s.id FROM window_exists_selected s WHERE s.id = r.id)) OVER (), \
+        LAG(r.id) OVER (ORDER BY r.id) \
+        FROM window_exists_rows r ORDER BY r.id";
+
+    // Act
+    let result = fixture.execute(sql).expect("correlated window FILTER");
+
+    // Assert
+    assert_eq!(result.rows().len(), 2);
+    let expected = parse_text("3.125").expect("expected numeric");
+    for (index, row) in result.rows().iter().enumerate() {
+        assert_eq!(
+            row[0],
+            Value::Int64(i64::try_from(index + 1).expect("small index"))
+        );
+        assert!(
+            matches!(&row[1], Value::Typed(cassie::types::typed::TypedValue::Numeric(value))
+            if value.compare(&expected) == std::cmp::Ordering::Equal)
+        );
+    }
+    assert_eq!(result.columns()[1].type_oid, 1700);
+    assert_eq!(result.rows()[0][2], Value::Null);
+    assert_eq!(result.rows()[1][2], Value::Int64(1));
 }
 
 #[test]
@@ -837,19 +884,22 @@ fn should_evaluate_statistical_window_frames() {
     assert_eq!(result.rows()[0][7..], [Value::Null, Value::Null]);
     for row in &result.rows()[1..] {
         let Value::String(actual) = &row[7] else {
-            panic!("NUMERIC window result should retain text carrier, got {:?}", row[7]);
+            panic!(
+                "NUMERIC window result should retain text carrier, got {:?}",
+                row[7]
+            );
         };
         let actual = parse_text(actual).expect("parse NUMERIC population variance");
-        assert_eq!(
-            actual.compare(&Numeric::zero()),
-            std::cmp::Ordering::Equal
-        );
+        assert_eq!(actual.compare(&Numeric::zero()), std::cmp::Ordering::Equal);
     }
     let expected_numeric_stddev =
         numeric_math::sqrt(&Numeric::from_i128(2)).expect("numeric sample standard deviation");
     for row in &result.rows()[1..] {
         let Value::String(actual) = &row[8] else {
-            panic!("NUMERIC window result should retain text carrier, got {:?}", row[8]);
+            panic!(
+                "NUMERIC window result should retain text carrier, got {:?}",
+                row[8]
+            );
         };
         let actual = parse_text(actual).expect("parse NUMERIC window result");
         assert_eq!(

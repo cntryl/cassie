@@ -49,6 +49,59 @@ pub(super) fn evaluate(
     )
 }
 
+pub(super) fn evaluate_with_owner(
+    env: &SourceExecutionEnv<'_>,
+    ctes: &CteContext,
+    source: &QuerySource,
+    row: &BatchRow,
+    expr: &Expr,
+    search: Option<&filter::SearchContext>,
+    memory: &filter::EvaluationMemory,
+) -> Result<Value, QueryError> {
+    if !super::exists_correlated::contains_exists(expr) {
+        let context = filter::evaluation::ProjectionValueContext {
+            params: env.params,
+            search,
+            functions: env.user_functions,
+            session: env.session,
+            resolver: None,
+        };
+        return filter::evaluation::evaluate_projection_value_with_owners(
+            row,
+            expr,
+            &context,
+            env.controls,
+            Some(memory),
+            Some(memory),
+        );
+    }
+    check_timeout(env.controls)?;
+    let outer = super::exists_projection::outer_row(env, source, row)?;
+    let context = ExistsResolutionContext {
+        cassie: env.cassie,
+        session: env.session,
+        cte_context: ctes,
+        user_functions: env.user_functions,
+        params: env.params,
+        controls: env.controls,
+        outer_row: Some(&outer),
+    };
+    let resolve = |expr: &Expr| super::resolve_exists_expr(&context, expr);
+    filter::evaluate_source_argument_resolving(
+        row,
+        expr,
+        filter::ExistsValueContext {
+            params: env.params,
+            search,
+            functions: env.user_functions,
+            session: env.session,
+            resolver: &resolve,
+        },
+        env.controls,
+        memory,
+    )
+}
+
 pub(super) fn having(
     env: &SourceExecutionEnv<'_>,
     ctes: &CteContext,

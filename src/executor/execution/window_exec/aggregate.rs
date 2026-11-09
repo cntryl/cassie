@@ -80,7 +80,7 @@ fn evaluate_argument(
     context: &WindowExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     if let Some(evaluate) = context.evaluate {
-        return evaluate(row, expression);
+        return (evaluate.aggregate)(row, expression, memory);
     }
     let projection = ProjectionValueContext {
         params: context.params,
@@ -89,12 +89,13 @@ fn evaluate_argument(
         session: context.session,
         resolver: None,
     };
-    crate::executor::filter::evaluation::evaluate_projection_value(
+    crate::executor::filter::evaluation::evaluate_projection_value_with_owners(
         row,
         expression,
         &projection,
         context.controls,
-        memory,
+        Some(memory),
+        Some(memory),
     )
 }
 

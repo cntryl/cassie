@@ -104,3 +104,57 @@ fn should_skip_the_argument_when_exists_window_filter_is_false_or_null() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[test]
+fn should_retain_result_and_enforce_measured_exists_window_overlap() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
+    let select = select("EXISTS (SELECT 1)");
+    let baseline =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let output = run(&cassie, &select, &baseline).expect("baseline");
+    let peak = baseline.peak_query_memory_bytes();
+    let retained = baseline.current_query_memory_bytes();
+
+    // Act
+    drop(output);
+    let released = baseline.current_query_memory_bytes();
+    let results = [(peak, true), (peak - 1, false)].map(|(budget, succeeds)| {
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                query_timeout_ms: 0,
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let result = run(&cassie, &select, &controls);
+        let matches = result.is_ok() == succeeds;
+        drop(result);
+        (matches, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    assert!(retained > 0);
+    assert_eq!(released, 0);
+    assert_eq!(results, [(true, 0), (true, 0)]);
+}
+
+#[test]
+fn should_release_window_owners_when_exists_resolution_fails() {
+    // Arrange
+    let cassie =
+        Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
+    let select = select("EXISTS (SELECT 1 FROM missing_exists_source)");
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+
+    // Act
+    let result = run(&cassie, &select, &controls);
+
+    // Assert
+    assert!(result.is_err());
+    drop(result);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

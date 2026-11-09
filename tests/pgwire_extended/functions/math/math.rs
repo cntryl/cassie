@@ -7,6 +7,8 @@ use crate::support_pgwire as wire;
 mod mod_zero_division;
 #[path = "numeric_log_binary.rs"]
 mod numeric_log_binary;
+#[path = "power_range_messages.rs"]
+mod power_range_messages;
 #[path = "typed_math/errors.rs"]
 mod residual_typed_math_contract;
 

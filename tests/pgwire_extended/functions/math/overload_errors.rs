@@ -478,3 +478,168 @@ fn should_reject_width_bucket_parameter_shared_by_operand_and_count() {
         );
     }
 }
+
+#[test]
+fn should_infer_width_bucket_unknown_operands_from_uniform_known_anchors() {
+    // Arrange
+    let cases: [(&str, &[i32], &[&str], &str); 7] = [
+        (
+            "SELECT WIDTH_BUCKET($1, 0::float8, 1::float8, 2)",
+            &[701],
+            &["0.5"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET($1, 0::numeric, 1::numeric, 2)",
+            &[1700],
+            &["0.5"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET($1, 0::numeric(2,1), 1::numeric(3,1), $2)",
+            &[1700, 23],
+            &["0.5", "2"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET($1, $1, 1::numeric, 2)",
+            &[1700],
+            &["0"],
+            "1",
+        ),
+        (
+            "SELECT pg_catalog.width_bucket($1, 0::float8, 1::float8, 2)",
+            &[701],
+            &["0.5"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET(0.5::float8, $1, 1::float8, 2)",
+            &[701],
+            &["0"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, $1, 2)",
+            &[701],
+            &["1"],
+            "2",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (index, (sql, _, values, _)) in cases.iter().enumerate() {
+        let statement = format!("bucket_mixed_{index}");
+        let portal = format!("bucket_mixed_portal_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame(&statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(&statement),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame(&portal, &statement, values),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+        let mut null_values: Vec<Option<&[u8]>> =
+            values.iter().map(|value| Some(value.as_bytes())).collect();
+        null_values[0] = None;
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats("", &statement, &[0], &null_values, &[]),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-mixed-inference", steps);
+
+    // Assert
+    for (index, (_, expected_types, _, expected_value)) in cases.iter().enumerate() {
+        let offset = index * 4;
+        assert_eq!(batches[offset].first().map(|frame| frame.0), Some(b'1'));
+        let parameters = batches[offset + 1]
+            .iter()
+            .find(|frame| frame.0 == b't')
+            .expect("parameter description");
+        assert_eq!(
+            wire::parse_parameter_description(&parameters.1).as_slice(),
+            *expected_types
+        );
+        let row = batches[offset + 1]
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .expect("row description");
+        assert_eq!(wire::parse_row_description(&row.1)[0].type_oid, 23);
+        assert_eq!(wire::error_code(&batches[offset + 2]), None);
+        assert_eq!(
+            wire::data_rows(&batches[offset + 2]),
+            vec![vec![Some((*expected_value).to_owned())]]
+        );
+        assert_eq!(wire::data_rows(&batches[offset + 3]), vec![vec![None]]);
+    }
+}
+
+#[test]
+fn should_preserve_declared_width_bucket_routine_parameter_inference_with_known_anchors() {
+    // Arrange
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            r#"CREATE FUNCTION width_bucket(a TEXT, b TEXT, c TEXT, d TEXT) RETURNS TEXT AS "d""#,
+        )]),
+        Step::ParseFlush(wire::parse_frame(
+            "bucket_mixed_declared",
+            "SELECT WIDTH_BUCKET($1, 0::float8, 1::float8, 2)",
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("bucket_mixed_declared"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-mixed-routine", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    let parameters = batches[2]
+        .iter()
+        .find(|frame| frame.0 == b't')
+        .expect("parameter description");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), [25]);
+}
+
+#[test]
+fn should_report_mixed_width_bucket_count_cast_conflicts_during_parse() {
+    // Arrange
+    let cases = [
+        "SELECT WIDTH_BUCKET($1, 0::float8, 1::float8, $1::int4)",
+        "SELECT WIDTH_BUCKET($1, 0::float8, 1::float8, $1::int4 + 1)",
+    ];
+    let mut steps = Vec::new();
+    for (index, sql) in cases.iter().enumerate() {
+        steps.push(Step::ParseFlush(wire::parse_frame(
+            &format!("bucket_mixed_conflict_{index}"),
+            sql,
+        )));
+        steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 45",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-mixed-count-conflict", steps);
+
+    // Assert
+    for index in 0..cases.len() {
+        let error = &batches[index * 3];
+        assert_eq!(wire::error_code(error).as_deref(), Some("42P08"));
+        assert!(error_response_fields(error)
+            .iter()
+            .any(|(field, value)| *field == 'D' && value == "integer versus double precision"));
+        assert_eq!(
+            wire::data_rows(&batches[index * 3 + 2]),
+            vec![vec![Some("45".to_owned())]]
+        );
+    }
+}

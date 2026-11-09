@@ -237,6 +237,28 @@ impl Fold<'_, '_> {
                 return Ok(Summary::known(23));
             }
         }
+        if metadata.is_some_and(|entry| {
+            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
+        }) && function.args.len() == 4
+        {
+            let summaries = &self.summaries.values[frame.start..frame.start + 4];
+            let fresh = std::array::from_fn(|index| {
+                let summary = &summaries[index];
+                summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
+            });
+            if let Some(targets) = mixed_bucket_targets(&function.args, summaries, &fresh) {
+                for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
+                    .iter_mut()
+                    .zip(targets)
+                {
+                    check_controls(self.controls)?;
+                    if matches!(argument.oid, 0 | 705) {
+                        self.occurrences.coerce(argument, target, true)?;
+                    }
+                }
+                return Ok(Summary::known(23));
+            }
+        }
         let signature = self.qualified_input_signature(function, metadata, frame);
         match signature {
             Some(
@@ -843,6 +865,54 @@ fn all_unknown_bucket_parameters(
 #[cfg(test)]
 #[path = "fold_functions_tests.rs"]
 mod tests;
+
+fn mixed_bucket_targets(
+    arguments: &[ast::Expr],
+    summaries: &[Summary],
+    fresh: &[bool; 4],
+) -> Option<[i32; 4]> {
+    if arguments.len() != 4 || summaries.len() != 4 {
+        return None;
+    }
+    let mut anchor = None;
+    let mut slots = [None; 3];
+    let mut unknowns = 0;
+    for index in 0..3 {
+        let summary = summaries[index];
+        if !summary.qualified {
+            return None;
+        }
+        if let ast::Expr::Param(slot) = &arguments[index] {
+            if !matches!(summary.oid, 0 | 705) || summary.literal || !fresh[index] {
+                return None;
+            }
+            slots[index] = Some(*slot);
+            unknowns += 1;
+        } else if matches!(summary.oid, 701 | 1700) {
+            if anchor.is_some_and(|known| known != summary.oid) {
+                return None;
+            }
+            anchor = Some(summary.oid);
+        } else {
+            return None;
+        }
+    }
+    let anchor = anchor?;
+    if unknowns == 0 || !summaries[3].qualified {
+        return None;
+    }
+    if matches!(summaries[3].oid, 0 | 705) {
+        let ast::Expr::Param(slot) = &arguments[3] else {
+            return None;
+        };
+        if summaries[3].literal || !fresh[3] || slots.contains(&Some(*slot)) {
+            return None;
+        }
+    } else if summaries[3].oid != 23 {
+        return None;
+    }
+    Some([anchor, anchor, anchor, 23])
+}
 
 fn primitive(data_type: &DataType) -> bool {
     matches!(

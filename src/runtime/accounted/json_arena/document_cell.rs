@@ -135,8 +135,12 @@ impl Cell {
     pub(crate) fn text(&self) -> &str {
         &self.text
     }
-    fn identity(&self) -> Identity {
+    pub(crate) fn identity(&self) -> Identity {
         self.identity
+    }
+
+    pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+        self.memory.belongs_to(controls)
     }
 
     fn try_clone(&self, controls: &QueryExecutionControls) -> Result<Self, CellError> {

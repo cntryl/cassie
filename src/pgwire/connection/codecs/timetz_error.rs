@@ -7,7 +7,7 @@ use crate::types::extended::{temporal::TimeTzBinaryError, TypeInputError};
 #[error("improper binary format in array element {0}")]
 struct TimetzArrayExcess(usize);
 
-fn scalar_excess(error: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
+pub(super) fn scalar_excess(error: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
     error
         .downcast_ref::<super::ExcessBinaryData>()
         .is_some_and(|error| error.0 == "timetz")

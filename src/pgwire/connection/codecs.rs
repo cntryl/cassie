@@ -946,5 +946,7 @@ pub(super) fn temporal_copy_error(
 }
 
 pub(super) fn temporal_scalar_excess(error: &io::Error) -> bool {
-    error.get_ref().is_some_and(temporal_error::scalar_excess)
+    error.get_ref().is_some_and(|error| {
+        temporal_error::scalar_excess(error) || timetz_error::scalar_excess(error)
+    })
 }

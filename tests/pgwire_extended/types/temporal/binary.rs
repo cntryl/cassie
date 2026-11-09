@@ -696,3 +696,117 @@ fn should_preserve_date_time_binary_array_element_error_order() {
             && message == "improper binary format in array element 2"));
     }
 }
+
+#[test]
+fn should_report_timetz_excess_bind_parameter_ordinal_and_recover() {
+    // Arrange
+    let integer = 1_i32.to_be_bytes();
+    let frame = |time: i64, zone: i32| {
+        [
+            time.to_be_bytes().as_slice(),
+            zone.to_be_bytes().as_slice(),
+            &[0],
+        ]
+        .concat()
+    };
+    let valid_extra = frame(0, 0);
+    let invalid_time_extra = frame(-1, 0);
+    let invalid_zone_extra = frame(0, 57_600);
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "timetz_extra_first",
+            "SELECT $1, $2",
+            &[1266, 23],
+        )),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "timetz_extra_second",
+            "SELECT $1, $2",
+            &[23, 1266],
+        )),
+        Step::ThroughReady(vec![wire::simple_query_frame("BEGIN")]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "timetz_extra_first",
+                &[1],
+                &[Some(&valid_extra), Some(&integer)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("ROLLBACK")]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "timetz_extra_second",
+                &[1],
+                &[Some(&integer), Some(&valid_extra)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "timetz_extra_second",
+                &[1],
+                &[Some(&integer), Some(&invalid_time_extra)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "timetz_extra_second",
+                &[1],
+                &[Some(&integer), Some(&invalid_zone_extra)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "timetz_extra_first",
+                &[1],
+                &[None, Some(&integer)],
+                &[],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45")]),
+    ];
+
+    // Act
+    let batches = run_script("timetz-bind-extra-ordinal", steps);
+
+    // Assert
+    for (index, ordinal) in [(3, 1), (5, 2)] {
+        assert_eq!(wire::error_code(&batches[index]).as_deref(), Some("22P03"));
+        let fields = wire::parse_error_fields(
+            &batches[index]
+                .iter()
+                .find(|frame| frame.0 == b'E')
+                .expect("error")
+                .1,
+        );
+        assert!(fields.iter().any(|(field, message)| *field == 'M'
+            && message == &format!("incorrect binary data format in bind parameter {ordinal}")));
+    }
+    assert_eq!(
+        batches[3].last().map(|frame| frame.1.as_slice()),
+        Some(&b"E"[..])
+    );
+    assert_eq!(wire::error_code(&batches[6]).as_deref(), Some("22008"));
+    assert_eq!(wire::error_code(&batches[7]).as_deref(), Some("22009"));
+    assert_eq!(
+        wire::data_rows(&batches[8]),
+        vec![vec![None, Some("1".to_owned())]]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[9]),
+        vec![vec![Some("45".to_owned())]]
+    );
+}

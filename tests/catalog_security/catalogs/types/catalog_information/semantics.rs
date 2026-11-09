@@ -259,12 +259,76 @@ fn should_keep_private_vector_type_classification() {
 
     // Act
     let selected = fixture
-        .execute("SELECT typtype, typcategory FROM pg_catalog.pg_type WHERE typname = 'vector(2)'")
+        .execute("SELECT typtype, typcategory, typbyval FROM pg_catalog.pg_type WHERE typname = 'vector(2)'")
         .expect("read private vector type");
 
     // Assert
     assert_eq!(
         selected.rows(),
-        vec![vec![Value::String("b".into()), Value::String("V".into())]]
+        vec![vec![
+            Value::String("b".into()),
+            Value::String("V".into()),
+            Value::Bool(false)
+        ]]
     );
+}
+
+#[test]
+fn should_report_builtin_type_pass_by_value_flags() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-pg-type-pass-by-value", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture.execute("SELECT oid, typbyval FROM pg_catalog.pg_type WHERE oid IN (16,17,19,20,21,23,24,25,26,114,650,700,701,705,774,829,869,1007,1042,1043,1082,1083,1114,1184,1186,1266,1560,1562,1700,2202,2203,2204,2205,2206,2950,3220,3734,3769,3802,4072,4089,4096,4191) ORDER BY oid").expect("read builtin pass-by-value flags");
+
+    // Assert
+    let expected = [
+        (16, true),
+        (17, false),
+        (19, false),
+        (20, true),
+        (21, true),
+        (23, true),
+        (24, true),
+        (25, false),
+        (26, true),
+        (114, false),
+        (650, false),
+        (700, true),
+        (701, true),
+        (705, false),
+        (774, false),
+        (829, false),
+        (869, false),
+        (1007, false),
+        (1042, false),
+        (1043, false),
+        (1082, true),
+        (1083, true),
+        (1114, true),
+        (1184, true),
+        (1186, false),
+        (1266, false),
+        (1560, false),
+        (1562, false),
+        (1700, false),
+        (2202, true),
+        (2203, true),
+        (2204, true),
+        (2205, true),
+        (2206, true),
+        (2950, false),
+        (3220, true),
+        (3734, true),
+        (3769, true),
+        (3802, false),
+        (4072, false),
+        (4089, true),
+        (4096, true),
+        (4191, true),
+    ]
+    .map(|(oid, by_value)| vec![Value::Int64(oid), Value::Bool(by_value)])
+    .to_vec();
+    assert_eq!(selected.rows(), expected);
 }

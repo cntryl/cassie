@@ -811,6 +811,16 @@ fn is_type_passed_by_value(data_type: &DataType) -> bool {
             | DataType::Float
             | DataType::Date
             | DataType::Time
+            | DataType::Timestamp
+            | DataType::ObjectId(_)
+            | DataType::Extended(
+                crate::types::extended::ExtendedType::Real
+                    | crate::types::extended::ExtendedType::PgLsn
+                    | crate::types::extended::ExtendedType::Date
+                    | crate::types::extended::ExtendedType::Time { .. }
+                    | crate::types::extended::ExtendedType::Timestamp { .. }
+                    | crate::types::extended::ExtendedType::TimestampTz { .. }
+            )
     )
 }
 

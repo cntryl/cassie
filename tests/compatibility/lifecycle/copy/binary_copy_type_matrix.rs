@@ -250,6 +250,44 @@ fn should_keep_wildcard_duplicate_alias_as_text() {
 }
 
 #[test]
+fn should_describe_and_decode_builtin_type_pass_by_value_as_bool() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pg_type_byval_bool").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let statement = client
+            .prepare(
+                "SELECT t.typbyval AS pass_by_value FROM pg_catalog.pg_type t WHERE t.oid = $1",
+            )
+            .await
+            .expect("prepare typbyval");
+        let timestamp = client
+            .query_one(&statement, &[&1114_u32])
+            .await
+            .expect("timestamp");
+        let macaddr = client
+            .query_one(&statement, &[&774_u32])
+            .await
+            .expect("macaddr8");
+        let array = client
+            .query_one(&statement, &[&1007_u32])
+            .await
+            .expect("array");
+
+        // Assert
+        assert_eq!(statement.columns()[0].type_().oid(), 16);
+        assert!(timestamp.get::<_, bool>(0));
+        assert!(!macaddr.get::<_, bool>(0));
+        assert!(!array.get::<_, bool>(0));
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_export_binary_copy_rows_with_postgresql_scalar_type_encodings() {
     // Arrange
     let runtime = current_thread_runtime();

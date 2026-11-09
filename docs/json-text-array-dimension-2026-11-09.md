@@ -25,3 +25,8 @@ Differential tests for signed/extreme bounds, Unicode/ASCII whitespace, empty,
 shape/fallback, actual prefix/copy cancellation, exact/below budget and caller
 handoffs are authored before implementation and remain unexecuted until the
 consolidated gate. The private-sentinel/storage issue remains open.
+
+A PostgreSQL 18.6 oracle returned `{"b": 2}`, `1`, and `true` respectively
+for JSONB deletion by `[0:0]={a}`, extraction by `[7:8]={a,b}`, and `?&`
+with `[5:6]={a,b}` (each explicitly cast to `text[]`). This witnesses
+lower-bound-independent element use, not the whole literal grammar.

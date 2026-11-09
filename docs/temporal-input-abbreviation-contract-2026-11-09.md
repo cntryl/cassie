@@ -32,3 +32,18 @@ capacity and lifetime, actual SQL-cast controls routing, preexisting tokenizer
 allocation and interruption behavior, other temporal inputs, public callers,
 and the first/full-history scan. An immutable source checkpoint or a Jev
 selection is not executable qualification or #815 completion.
+
+
+A separate raw-TZif parity boundary applies to both the old bounded lookup and
+the integrated checked lookup. PostgreSQL's `pg_timezone_abbrev_is_known`
+scans every raw local-time type, including an unreferenced nonzero type; Jiff's
+public preceding/following transition API exposes transition-reachable types.
+The pinned jiff-core 0.1.2 parser explicitly accepts unreferenced types. A
+synthetic, unexecuted witness compares the old fallback and new cached fallback
+for such a custom zone; PostgreSQL source would recognize the orphan CST type.
+Cassie's statement settings resolve names through Jiff's configured database or
+POSIX parsing; a direct custom `Zone::Rules` is public but is not itself proof
+that SQL settings can install the synthetic instance. Jiff features can unify in
+downstream consumers, so bundled-zone provenance must not be assumed. Proving
+real setting reachability and a public way to inspect the actual zone's complete
+raw type table remain open. No new classification is promoted on this basis.

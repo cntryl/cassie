@@ -305,4 +305,64 @@ mod tests {
             Some(crate::types::extended::temporal::zone::Zone::Fixed { east: 28_800, .. })
         ));
     }
+    #[test]
+    fn should_record_unreferenced_tzif_abbreviation_fallback_boundary() {
+        // Arrange
+        // Type 0 (AAA) is active; the second type (CST, +01) is unreferenced.
+        // Both TZif blocks contain the same two records and no transitions.
+        fn block(bytes: &mut Vec<u8>) {
+            bytes.extend_from_slice(b"TZif2");
+            bytes.extend_from_slice(&[0; 15]);
+            for count in [0_u32, 0, 0, 0, 2, 8] {
+                bytes.extend_from_slice(&count.to_be_bytes());
+            }
+            bytes.extend_from_slice(&0_i32.to_be_bytes());
+            bytes.extend_from_slice(&[0, 0]);
+            bytes.extend_from_slice(&3_600_i32.to_be_bytes());
+            bytes.extend_from_slice(&[0, 4]);
+            bytes.extend_from_slice(b"AAA\0CST\0");
+        }
+        let mut bytes = Vec::new();
+        block(&mut bytes);
+        block(&mut bytes);
+        bytes.extend_from_slice(b"\n\n");
+        let session = Arc::new(TemporalSession {
+            zone: crate::types::extended::temporal::zone::Zone::Rules {
+                tz: jiff::tz::TimeZone::tzif("Test/Unreferenced", &bytes).expect("TZif"),
+                name: "Test/Unreferenced".to_owned(),
+            },
+            ..TemporalSession::default()
+        });
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            QueryCancellationHandle::new(),
+        );
+        controls.install_temporal_session(Arc::clone(&session));
+        let zone = Value::String("CST".to_owned());
+        let operand = Value::Typed(TypedValue::Timestamp(0));
+
+        // Act
+        let previous = crate::types::extended::temporal::functions::zone_named("CST", &session)
+            .expect("previous fallback");
+        let first = resolve_with_observer(&zone, &operand, &session, Some(&controls), || {})
+            .expect("first lookup");
+        let repeated = resolve_with_observer(&zone, &operand, &session, Some(&controls), || {})
+            .expect("cached lookup");
+
+        // Assert
+        // PostgreSQL's raw ttinfo scan would instead recognize CST as +01.
+        assert!(matches!(
+            previous,
+            crate::types::extended::temporal::zone::Zone::Fixed { east: -21_600, .. }
+        ));
+        assert!(matches!(
+            first,
+            Some(crate::types::extended::temporal::zone::Zone::Fixed { east: -21_600, .. })
+        ));
+        assert!(matches!(
+            repeated,
+            Some(crate::types::extended::temporal::zone::Zone::Fixed { east: -21_600, .. })
+        ));
+    }
 }

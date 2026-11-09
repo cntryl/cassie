@@ -70,7 +70,7 @@ fn apply_scalar_window_functions(
     let mut rows = batch::flatten_batches(batches);
     let _rows_memory = context
         .controls
-        .reserve_query_memory(batch_rows_bytes(&rows))?;
+        .reserve_query_memory(batch_rows_bytes(&rows, context.controls)?)?;
     for (window_index, function, alias) in windows {
         let output_name = crate::executor::projection::window_value_key(window_index);
         apply_single_window(
@@ -171,15 +171,24 @@ fn apply_single_window(
     Ok(())
 }
 
-fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
-    rows.iter()
-        .map(|row| {
-            serde_json::to_vec(row.entries())
-                .map(|bytes| bytes.len())
-                .unwrap_or_default()
-        })
-        .sum::<usize>()
-        .saturating_add(batch::row_type_bytes(rows))
+fn batch_rows_bytes(
+    rows: &[BatchRow],
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    let mut bytes = 0;
+    for row in rows {
+        controls.check_interruption()?;
+        let size = super::aggregate_exec::window_row_entry_bytes(row.entries(), controls)?;
+        bytes = add_window_row_bytes(bytes, size)?;
+    }
+    controls.check_interruption()?;
+    let metadata = batch::row_type_bytes(rows);
+    controls.check_interruption()?;
+    add_window_row_bytes(bytes, metadata)
+}
+
+fn add_window_row_bytes(left: usize, right: usize) -> Result<usize, QueryError> {
+    crate::executor::retained_memory::add(left, right).map_err(Into::into)
 }
 
 fn window_partition_bytes(partitions: &KeyedMap<SemanticKey, Vec<usize>>) -> usize {

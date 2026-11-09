@@ -95,6 +95,69 @@ fn should_interrupt_actual_window_row_string_count_and_release_workspace() {
 }
 
 #[test]
+fn should_interrupt_actual_window_json_and_array_counting() {
+    // Arrange
+    let values = [
+        Value::Json(serde_json::json!({"payload": "é".repeat(2048)})),
+        Value::Array(
+            crate::types::SqlArray::from_elements(vec![Value::Int64(1); 512]).expect("array"),
+        ),
+    ];
+    for value in values {
+        let cancel = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancel.clone(),
+        );
+        let rows = vec![BatchRow::new(vec![("value".into(), value)])];
+        super::super::aggregate_exec::cancel_next_window_row_count(cancel.clone());
+
+        // Act
+        let result = batch_rows_bytes(&rows, &controls);
+
+        // Assert
+        assert!(cancel.is_cancelled(), "nested counting must reach its hook");
+        assert!(matches!(
+            result,
+            Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        ));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_interrupt_actual_window_numeric_counting() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let value = parse_text("1234567890123456789012345678901234567890.123456789").expect("numeric");
+    let rows = vec![BatchRow::new(vec![(
+        "value".into(),
+        Value::Typed(TypedValue::Numeric(value)),
+    )])];
+    crate::executor::numeric_controlled_text::cancel_next_arithmetic(cancel.clone());
+
+    // Act
+    let result = batch_rows_bytes(&rows, &controls);
+
+    // Assert
+    assert!(
+        cancel.is_cancelled(),
+        "numeric digit work must reach the hook"
+    );
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_admit_exact_transient_count_workspace_and_release_it() {
     // Arrange
     let rows = rows();
@@ -172,4 +235,44 @@ fn should_reject_window_row_accounting_overflow() {
             _
         )))
     ));
+}
+
+#[test]
+fn should_leave_non_window_projection_outside_the_row_count_path() {
+    // Arrange
+    let parsed = crate::sql::parse_statement("SELECT n").expect("ordinary projection");
+    let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
+        panic!("SELECT");
+    };
+    let row = BatchRow::new(vec![
+        ("n".into(), Value::Int64(1)),
+        ("payload".into(), Value::String("é".repeat(2048))),
+    ]);
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let functions = HashMap::new();
+    super::super::aggregate_exec::cancel_next_window_row_count(cancel.clone());
+
+    // Act
+    let result = apply_window_functions(
+        vec![vec![row]],
+        &select.projection,
+        &[],
+        None,
+        &functions,
+        None,
+        &controls,
+    );
+    super::super::aggregate_exec::clear_next_window_row_count();
+
+    // Assert
+    assert!(!cancel.is_cancelled());
+    let output = result.expect("ordinary projection");
+    assert_eq!(output[0][0].get("n"), Some(&Value::Int64(1)));
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }

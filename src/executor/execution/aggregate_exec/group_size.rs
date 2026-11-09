@@ -39,6 +39,11 @@ pub(super) fn cancel_next_chunk(cancel: crate::runtime::QueryCancellationHandle)
     NEXT_COUNT_CANCEL.with(|slot| *slot.borrow_mut() = Some(cancel));
 }
 
+#[cfg(test)]
+pub(super) fn clear_next_chunk() {
+    NEXT_COUNT_CANCEL.with(|slot| *slot.borrow_mut() = None);
+}
+
 fn json_bytes_controlled_observing(
     values: &[(String, Value)],
     controls: &QueryExecutionControls,
@@ -127,14 +132,24 @@ fn non_array_value_bytes(
                 )?)
                 .saturating_add(1),
         ),
-        Value::Json(document) => Some(
-            "{\"Json\":"
-                .len()
-                .saturating_add(crate::runtime::accounted::compact_json::count(
-                    document, controls,
-                )?)
-                .saturating_add(1),
-        ),
+        Value::Json(document) => {
+            #[cfg(not(test))]
+            let size = crate::runtime::accounted::compact_json::count(document, controls)?;
+            #[cfg(test)]
+            let size = crate::runtime::accounted::compact_json::count_observing(
+                document,
+                controls,
+                |progress| {
+                    if matches!(
+                        progress,
+                        crate::runtime::accounted::compact_json::Progress::Scan
+                    ) {
+                        after_chunk();
+                    }
+                },
+            )?;
+            Some("{\"Json\":".len().saturating_add(size).saturating_add(1))
+        }
         Value::Vector(vector) => vector_json_bytes(&vector.values, controls, after_chunk)?,
         Value::Typed(crate::types::typed::TypedValue::Bit(bits)) => {
             bit_json_bytes(bits, false, controls, after_chunk)?

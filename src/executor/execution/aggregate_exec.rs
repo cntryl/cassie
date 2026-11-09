@@ -21,6 +21,24 @@ mod collection_json;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
 mod group_size;
+
+pub(super) fn window_row_entry_bytes(
+    values: &[(String, Value)],
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    group_size::json_bytes_controlled(values, controls)
+}
+
+#[cfg(test)]
+pub(super) fn cancel_next_window_row_count(cancel: crate::runtime::QueryCancellationHandle) {
+    group_size::cancel_next_chunk(cancel);
+}
+
+#[cfg(test)]
+pub(super) fn clear_next_window_row_count() {
+    group_size::clear_next_chunk();
+}
+
 #[path = "aggregate_exec/interval_aggregate.rs"]
 mod interval_aggregate;
 #[path = "aggregate_exec/modifiers.rs"]

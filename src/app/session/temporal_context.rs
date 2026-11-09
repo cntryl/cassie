@@ -5,13 +5,13 @@ use super::CassieSession;
 use crate::types::extended::temporal::session::{
     current_timestamp, parse_datestyle, DateOrder, DateOutput, IntervalStyle, TemporalSession,
 };
-use crate::types::extended::temporal::zone::{lookup_zone, AbbreviationSet, Zone};
+use crate::types::extended::temporal::zone::{lookup_zone_with_origin, AbbreviationSet, Zone};
 
 impl CassieSession {
     /// Builds the temporal session a statement starting now evaluates under.
     /// `now()` is fixed for an explicit transaction; otherwise it is the
     /// statement start.
-    pub(crate) fn temporal_session(&self) -> TemporalSession {
+    fn temporal_session_and_origin(&self) -> (TemporalSession, bool) {
         let statement_start = current_timestamp();
         let transaction_start = if self.is_transaction_active() {
             let generation = self.transaction_generation();
@@ -27,20 +27,24 @@ impl CassieSession {
             statement_start
         };
         let setting = |name: &str| self.setting(name).unwrap_or_default();
-        let zone = setting_zone(&setting("timezone")).unwrap_or_else(Zone::utc);
+        let (zone, is_posix) =
+            setting_zone_with_origin(&setting("timezone")).unwrap_or_else(|| (Zone::utc(), false));
         let (date_output, date_order) =
             parse_datestyle(&setting("datestyle"), (DateOutput::Iso, DateOrder::Mdy))
                 .unwrap_or((DateOutput::Iso, DateOrder::Mdy));
-        TemporalSession {
-            zone,
-            date_output,
-            date_order,
-            interval_style: IntervalStyle::parse(&setting("intervalstyle")).unwrap_or_default(),
-            abbreviations: AbbreviationSet::parse(&setting("timezone_abbreviations"))
-                .unwrap_or_default(),
-            transaction_start,
-            statement_start,
-        }
+        (
+            TemporalSession {
+                zone,
+                date_output,
+                date_order,
+                interval_style: IntervalStyle::parse(&setting("intervalstyle")).unwrap_or_default(),
+                abbreviations: AbbreviationSet::parse(&setting("timezone_abbreviations"))
+                    .unwrap_or_default(),
+                transaction_start,
+                statement_start,
+            },
+            is_posix,
+        )
     }
 
     /// Installs this session's temporal view into a statement's controls.
@@ -48,7 +52,8 @@ impl CassieSession {
         &self,
         controls: &crate::runtime::QueryExecutionControls,
     ) {
-        controls.install_temporal_session(Arc::new(self.temporal_session()));
+        let (session, is_posix) = self.temporal_session_and_origin();
+        controls.install_temporal_session(Arc::new(session), is_posix);
     }
 }
 
@@ -56,15 +61,22 @@ impl CassieSession {
 /// fixed offset such as `<-08>+08`.
 #[must_use]
 pub(crate) fn setting_zone(name: &str) -> Option<Zone> {
+    setting_zone_with_origin(name).map(|(zone, _)| zone)
+}
+
+fn setting_zone_with_origin(name: &str) -> Option<(Zone, bool)> {
     if let Some(rest) = name.strip_prefix('<') {
         let (abbreviation, posix) = rest.split_once('>')?;
         let east = fixed_offset(abbreviation)?;
         if fixed_offset(posix).map(|west| -west) != Some(east) {
             return None;
         }
-        return Some(crate::types::extended::temporal::zone::fixed_zone(east));
+        return Some((
+            crate::types::extended::temporal::zone::fixed_zone(east),
+            false,
+        ));
     }
-    lookup_zone(name)
+    lookup_zone_with_origin(name)
 }
 
 fn fixed_offset(text: &str) -> Option<i32> {

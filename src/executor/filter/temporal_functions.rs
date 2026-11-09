@@ -12,6 +12,8 @@ use crate::types::Value;
 
 #[path = "temporal_extract.rs"]
 mod extract;
+#[path = "temporal_posix_timezone.rs"]
+mod posix_timezone;
 #[path = "temporal_sleep.rs"]
 mod sleep;
 
@@ -360,7 +362,13 @@ fn dispatch(
         ("overlaps", [first, second, third, fourth]) => {
             overlaps([first, second, third, fourth], session)
         }
-        ("timezone", [zone, value]) => timezone(&zone_argument(zone, session)?, value, session),
+        ("timezone", [zone, value]) => {
+            let zone = match posix_timezone::resolve(zone, value, session, controls)? {
+                Some(zone) => zone,
+                None => zone_argument(zone, session)?,
+            };
+            timezone(&zone, value, session)
+        }
         ("timezone", [value]) => timezone(&session.zone, value, session),
         ("date_add" | "date_subtract", [value, span, rest @ ..]) => {
             let TypedValue::TimestampTz(instant) = coerce(value, TIMESTAMPTZ, session)? else {
@@ -643,3 +651,7 @@ fn timezone(zone: &Zone, value: &Value, session: &TemporalSession) -> Result<Val
 #[cfg(test)]
 #[path = "temporal_timezone_regression_tests.rs"]
 mod timezone_regression_tests;
+
+#[cfg(test)]
+#[path = "temporal_posix_tests.rs"]
+mod posix_tests;

@@ -134,8 +134,13 @@ pub struct QueryExecutionControls {
     memory: Arc<QueryMemoryTracker>,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
-    temporal:
-        Arc<parking_lot::RwLock<Option<Arc<crate::types::extended::temporal::TemporalSession>>>>,
+    temporal: Arc<parking_lot::RwLock<TemporalSlot>>,
+}
+
+#[derive(Debug, Default)]
+struct TemporalSlot {
+    session: Option<Arc<crate::types::extended::temporal::TemporalSession>>,
+    is_posix: bool,
 }
 
 #[derive(Debug)]
@@ -340,8 +345,11 @@ impl QueryExecutionControls {
     pub(crate) fn install_temporal_session(
         &self,
         session: Arc<crate::types::extended::temporal::TemporalSession>,
+        is_posix: bool,
     ) {
-        *self.temporal.write() = Some(session);
+        let mut slot = self.temporal.write();
+        slot.session = Some(session);
+        slot.is_posix = is_posix;
     }
 
     /// The statement's temporal session, when one was installed.
@@ -349,7 +357,24 @@ impl QueryExecutionControls {
     pub(crate) fn temporal_session(
         &self,
     ) -> Option<Arc<crate::types::extended::temporal::TemporalSession>> {
-        self.temporal.read().clone()
+        self.temporal.read().session.clone()
+    }
+
+    pub(crate) fn temporal_session_is_posix(
+        &self,
+        session: &crate::types::extended::temporal::TemporalSession,
+    ) -> Result<bool, CassieError> {
+        loop {
+            self.check_interruption()?;
+            if let Some(slot) = self.temporal.try_read_for(Duration::from_millis(2)) {
+                self.check_interruption()?;
+                return Ok(slot.is_posix
+                    && slot
+                        .session
+                        .as_deref()
+                        .is_some_and(|current| std::ptr::eq(current, session)));
+            }
+        }
     }
 
     /// Returns controls for an input relation that must be fully

@@ -227,6 +227,10 @@ pub fn offset_abbreviation(east: i32) -> String {
 /// database, then as a POSIX rule.
 #[must_use]
 pub fn lookup_zone(name: &str) -> Option<Zone> {
+    lookup_zone_with_origin(name).map(|(zone, _)| zone)
+}
+
+pub(crate) fn lookup_zone_with_origin(name: &str) -> Option<(Zone, bool)> {
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed.len() > 255 {
         return None;
@@ -240,19 +244,25 @@ pub fn lookup_zone(name: &str) -> Option<Zone> {
         } else {
             trimmed.to_string()
         };
-        return Some(Zone::Rules {
-            tz,
-            name: canonical,
-        });
+        return Some((
+            Zone::Rules {
+                tz,
+                name: canonical,
+            },
+            false,
+        ));
     }
     let posix_like =
         trimmed.starts_with('<') || trimmed.chars().next().is_some_and(char::is_alphabetic);
     if posix_like && trimmed.chars().any(|c| c.is_ascii_digit()) {
         if let Ok(tz) = TimeZone::posix(trimmed) {
-            return Some(Zone::Rules {
-                tz,
-                name: trimmed.to_string(),
-            });
+            return Some((
+                Zone::Rules {
+                    tz,
+                    name: trimmed.to_string(),
+                },
+                true,
+            ));
         }
     }
     None

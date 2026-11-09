@@ -13,6 +13,10 @@ mod fraction_tests;
 #[path = "ordered_set_output_owner_tests.rs"]
 mod output_owner_tests;
 
+#[cfg(test)]
+#[path = "ordered_set_sort_control_tests.rs"]
+mod sort_control_tests;
+
 use std::mem::size_of;
 
 use num_traits::ToPrimitive;

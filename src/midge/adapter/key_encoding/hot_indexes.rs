@@ -54,6 +54,59 @@ pub(crate) fn unique_scalar_index_reservation_key(
     Ok(key)
 }
 
+pub(crate) fn generated_unique_index_reservation_key(
+    collection: &str,
+    index_id: u64,
+    values: &[serde_json::Value],
+) -> Result<Vec<u8>, CassieError> {
+    let mut key = generated_unique_index_reservation_prefix(collection, index_id);
+    for value in values {
+        append_scalar_value(&mut key, value)?;
+    }
+    Ok(key)
+}
+
+pub(crate) fn generated_unique_index_reservations_prefix(collection: &str) -> Vec<u8> {
+    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"g"])
+}
+
+pub(crate) fn generated_unique_index_reservation_prefix(
+    collection: &str,
+    index_id: u64,
+) -> Vec<u8> {
+    let identity = encoded_u64_component(index_id);
+    data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"g", &identity])
+}
+
+pub(crate) fn unique_index_reservation_key_for(
+    collection: &str,
+    identity: crate::catalog::indexes::ReservationIdentity<'_>,
+    values: &[serde_json::Value],
+) -> Result<Vec<u8>, CassieError> {
+    match identity {
+        crate::catalog::indexes::ReservationIdentity::Legacy(name) => {
+            unique_scalar_index_reservation_key(collection, name, values)
+        }
+        crate::catalog::indexes::ReservationIdentity::Generation(id) => {
+            generated_unique_index_reservation_key(collection, id, values)
+        }
+    }
+}
+
+pub(crate) fn unique_index_reservation_prefix_for(
+    collection: &str,
+    identity: crate::catalog::indexes::ReservationIdentity<'_>,
+) -> Vec<u8> {
+    match identity {
+        crate::catalog::indexes::ReservationIdentity::Legacy(name) => {
+            unique_scalar_index_reservation_prefix(collection, name)
+        }
+        crate::catalog::indexes::ReservationIdentity::Generation(id) => {
+            generated_unique_index_reservation_prefix(collection, id)
+        }
+    }
+}
+
 pub(crate) fn unique_index_reservation_prefix(collection: &str) -> Vec<u8> {
     data_scoped_prefix(FAMILY_UNIQUE_RESERVATION, collection, &[b"i"])
 }

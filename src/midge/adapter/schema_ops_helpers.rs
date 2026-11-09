@@ -4,6 +4,10 @@ use super::{
 };
 use crate::catalog::{canonical_relation_name, local_name, RelationId};
 
+#[cfg(test)]
+#[path = "schema_ops_identity_tests.rs"]
+mod identity_tests;
+
 pub(super) fn clear_pending_collection_rename(
     midge: &Midge,
     current: &str,
@@ -38,6 +42,8 @@ pub(super) struct PendingFieldDrop {
     #[serde(default)]
     pub(super) column_storage_ids: Vec<(u64, u64)>,
     pub(super) scalar_names: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) scalar_reservation_generations: Vec<u64>,
     #[serde(default)]
     pub(super) scalar_storage_ids: Vec<(u64, u64)>,
     pub(super) time_series_names: Vec<String>,
@@ -55,6 +61,7 @@ pub(super) struct DroppedCollectionIndexes {
     pub columns: Vec<String>,
     pub column_storage_ids: Vec<(u64, u64)>,
     pub scalars: Vec<String>,
+    pub scalar_reservation_generations: Vec<u64>,
     pub scalar_storage_ids: Vec<(u64, u64)>,
     pub time_series: Vec<String>,
     pub time_series_storage_ids: Vec<(u64, u64)>,
@@ -119,13 +126,21 @@ pub(super) fn drop_referencing_indexes_in_tx(
         .collect();
 
     let mut scalar_names = Vec::new();
+    let mut scalar_reservation_generations = Vec::new();
     let mut scalar_storage_ids = Vec::new();
     for (key, index) in dropped_scalar_indexes {
         tx.delete(key).map_err(CassieError::from)?;
         if let (Some(relation_id), Some(index_id)) = (index.relation_id(), index.storage_id()) {
             scalar_storage_ids.push((relation_id, index_id));
         }
-        scalar_names.push(index.unique_reservation_name().to_string());
+        match index.reservation_identity()? {
+            crate::catalog::indexes::ReservationIdentity::Legacy(name) => {
+                scalar_names.push(name.to_string())
+            }
+            crate::catalog::indexes::ReservationIdentity::Generation(id) => {
+                scalar_reservation_generations.push(id)
+            }
+        }
     }
 
     let mut time_series_names = Vec::new();
@@ -152,6 +167,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
         columns: column_names,
         column_storage_ids,
         scalars: scalar_names,
+        scalar_reservation_generations,
         scalar_storage_ids,
         time_series: time_series_names,
         time_series_storage_ids,
@@ -211,6 +227,12 @@ pub(super) fn delete_dropped_field_data(
         Midge::delete_keys_with_prefix(
             &mut data_tx,
             Midge::unique_scalar_index_reservation_prefix(collection, index_name),
+        )?;
+    }
+    for identity in &dropped_indexes.scalar_reservation_generations {
+        Midge::delete_keys_with_prefix(
+            &mut data_tx,
+            super::key_encoding::generated_unique_index_reservation_prefix(collection, *identity),
         )?;
     }
     Midge::delete_keys_with_prefix(
@@ -690,6 +712,11 @@ fn collection_rename_prefixes(
         (
             super::key_encoding::unique_index_reservation_prefix(current_name),
             super::key_encoding::unique_index_reservation_prefix(next_name),
+            false,
+        ),
+        (
+            super::key_encoding::generated_unique_index_reservations_prefix(current_name),
+            super::key_encoding::generated_unique_index_reservations_prefix(next_name),
             false,
         ),
         (

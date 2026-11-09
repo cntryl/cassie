@@ -14,7 +14,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
         Instant::now(),
     )
 }
-fn project(controls: &QueryExecutionControls) -> Result<Vec<Batch>, QueryError> {
+fn project(controls: &QueryExecutionControls) -> Result<projection::OwnedExpanded, QueryError> {
     let outer = BatchRow::new(vec![(
         "outer_docs.payload".into(),
         Value::Json(serde_json::json!({"n":1})),

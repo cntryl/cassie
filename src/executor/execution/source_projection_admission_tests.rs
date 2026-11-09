@@ -97,9 +97,9 @@ fn should_admit_repeated_nested_array_projection_capacity() {
             assert!(output[0][0].entries().iter().all(|(_, v)| v == &value));
             assert_eq!(output[0][0].data_types(), vec![kind.clone(); width]);
             assert_eq!(output[0][0].get("x0"), Some(&value));
-            let row = output[0].remove(0);
+            let row = output.batches_mut()[0].remove(0);
             let (row, actual) = actual_body(row);
-            output[0].push(row);
+            output.batches_mut()[0].push(row);
             let delta = controls.current_query_memory_bytes() - before;
             println!(
                 "ARRAY width={width} new_charge={delta} actual_body={actual} peak={}",
@@ -172,9 +172,9 @@ fn should_admit_direct_outer_projection_copies() {
             if matches!(kind, DataType::Array(_)) {
                 assert_eq!(output[0][0].data_types(), std::slice::from_ref(&kind));
             }
-            let row = output[0].remove(0);
+            let row = output.batches_mut()[0].remove(0);
             let (row, actual) = actual_body(row);
-            output[0].push(row);
+            output.batches_mut()[0].push(row);
             let delta = controls.current_query_memory_bytes() - before;
             println!("outer case={index} delta={delta} actual={actual}");
             if delta < actual {

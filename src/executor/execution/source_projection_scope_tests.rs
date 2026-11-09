@@ -61,7 +61,7 @@ fn run_projection(select: &str, input_name: &str, expected: &str, scalar: bool) 
         assert!(controls.current_query_memory_bytes() - before >= actual);
     }
     drop(origin);
-    let row = output[0].pop().expect("copied row");
+    let row = output.batches_mut()[0].pop().expect("copied row");
     assert_eq!(row.get("x"), Some(&Value::String(expected.into())));
     drop(row);
     drop(output);
@@ -174,7 +174,7 @@ fn should_admit_mixed_direct_copy_capacity_growth() {
             .map(|row| row.owned_body_bytes().expect("body"))
             .sum::<usize>();
         assert!(controls.current_query_memory_bytes() >= actual);
-        let row = output[0].pop().expect("row");
+        let row = output.batches_mut()[0].pop().expect("row");
         let query = row.query_memory();
         let operator = row.operator_memory();
         let entries = row.into_entries();

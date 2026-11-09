@@ -5,6 +5,36 @@ mod controlled_directory;
 #[path = "controlled_directory_tests.rs"]
 mod controlled_directory_tests;
 
+pub(crate) fn owned_row_diagnostic(
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<crate::runtime::accounted::json_arena::JsonbDiagnostic, CassieError> {
+    use crate::runtime::accounted::json_arena::PlainCellError;
+    use controlled_directory::{Directory, HandoffError};
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "doc".into(),
+            data_type: DataType::Json,
+            nullable: true,
+        }],
+    });
+    let mut row = encode_row(&schema, &serde_json::json!({"doc":"xx"}))?;
+    let start = row
+        .len()
+        .checked_sub(4)
+        .ok_or_else(|| CassieError::Execution("invalid row fixture".into()))?;
+    row[start..].copy_from_slice(b"[}\xff ");
+    let directory = Directory::parse(&row, controls)?;
+    match directory.json_cell(&schema.fields[0], controls) {
+        Err(HandoffError::Cell(PlainCellError::Syntax(diagnostic))) => Ok(diagnostic),
+        Err(
+            HandoffError::Cell(PlainCellError::Control(error)) | HandoffError::Directory(error),
+        ) => Err(error),
+        _ => Err(CassieError::Execution(
+            "unexpected row diagnostic fixture result".into(),
+        )),
+    }
+}
+
 #[test]
 fn should_decode_sparse_rows_without_field_names() {
     // Arrange

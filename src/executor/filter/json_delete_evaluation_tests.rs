@@ -873,3 +873,98 @@ fn should_use_controlled_value_arena_for_json_existence_in_where() {
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_flatten_string_backed_nested_extraction_paths() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let cases = [
+        (r#"{"a":{"b":7}}"#, "{{a,b}}", false, true, Some("7")),
+        (
+            r#"{"a":{"b":7}}"#,
+            "[0:0][3:4]={{a,b}}",
+            true,
+            true,
+            Some("7"),
+        ),
+        (
+            r#"{"a":{"b":"payload"}}"#,
+            "{{a,b}}",
+            true,
+            false,
+            Some("payload"),
+        ),
+        (r#"{"a":{"b":7}}"#, "{{a,NULL}}", true, true, None),
+        (r#"{"a":{"b":7}}"#, "{{missing,b}}", true, true, None),
+    ];
+    for (source, path, text, jsonb, expected) in cases {
+        let document = ScalarValue::Json(source.into());
+        let selector = ScalarValue::Str(path.into());
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        // Act
+        let selected = super::json_delete::controlled_extraction(
+            &document, &selector, true, text, jsonb, &controls, &owner,
+        )
+        .expect("controlled attempt");
+        assert!(selected.is_none(), "nested paths remain legacy fallback");
+        let result = super::json_extract::evaluate(&document, &selector, true, text, jsonb)
+            .expect("fallback");
+        // Assert
+        match (result, expected) {
+            (ScalarValue::Null, None) => {}
+            (ScalarValue::Json(actual) | ScalarValue::Str(actual), Some(expected)) => {
+                assert_eq!(actual, expected)
+            }
+            _ => panic!("unexpected nested path result: {path}"),
+        }
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_use_nested_string_parameter_in_real_extraction_expression() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let row = typed_json_row(serde_json::json!({"a":{"b":"payload"}}));
+    let expression = crate::sql::parser::parse_expression("doc #>> $1").expect("expression");
+    let parameters = [Value::String("{{a,b}}".into())];
+    let functions = HashMap::new();
+    let context = EvalContext {
+        params: &parameters,
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: None,
+        deletion_memory: Some(&owner),
+    };
+    // Act
+    let result = evaluate_expr_value_with_context(&row, &expression, context).expect("extraction");
+    // Assert
+    assert_eq!(result, Value::String("payload".into()));
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_keep_document_before_ragged_nested_path_error() {
+    // Arrange
+    let invalid_document = ScalarValue::Json("[}".into());
+    let valid_document = ScalarValue::Json("{}".into());
+    let path = ScalarValue::Str("{{a},{b,c}}".into());
+    // Act
+    let first = super::json_extract::evaluate(&invalid_document, &path, true, true, true)
+        .expect_err("document");
+    let second = super::json_extract::evaluate(&valid_document, &path, true, true, true)
+        .expect_err("ragged");
+    // Assert
+    assert!(first.to_string().contains("JSON"));
+    assert!(second.to_string().contains("array"));
+}

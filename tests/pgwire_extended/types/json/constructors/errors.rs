@@ -120,3 +120,6 @@ mod path_function_native;
 
 #[path = "../nested_text_array_existence.rs"]
 mod nested_text_array_existence;
+
+#[path = "../nested_text_array_extraction.rs"]
+mod nested_text_array_extraction;

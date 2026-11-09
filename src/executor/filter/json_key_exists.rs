@@ -33,31 +33,87 @@ pub(super) fn evaluate_controlled(
             Ok(Some(ScalarValue::Bool(document.contains(key)?)))
         }
         BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
-            let ScalarValue::Array(keys) = right else {
-                return Ok(None);
-            };
-            for value in keys.elements() {
-                controls.check_interruption()?;
-                if !matches!(
-                    value,
-                    crate::types::Value::String(_) | crate::types::Value::Null
-                ) {
-                    return Ok(None);
-                }
-            }
             let all = matches!(op, BinaryOp::JsonbKeyExistsAll);
-            for value in keys.elements() {
-                controls.check_interruption()?;
-                if let crate::types::Value::String(key) = value {
-                    if document.contains(key)? != all {
-                        return Ok(Some(ScalarValue::Bool(!all)));
+            if let ScalarValue::Array(keys) = right {
+                for value in keys.elements() {
+                    controls.check_interruption()?;
+                    if !matches!(
+                        value,
+                        crate::types::Value::String(_) | crate::types::Value::Null
+                    ) {
+                        return Ok(None);
                     }
                 }
+                let values = keys.elements();
+                let exists = lookup_keys(
+                    values.len(),
+                    |index| {
+                        Ok(match &values[index] {
+                            crate::types::Value::String(text) => Some(text.as_str()),
+                            _ => None,
+                        })
+                    },
+                    all,
+                    controls,
+                    |key| document.contains(key),
+                )?;
+                return Ok(Some(ScalarValue::Bool(exists)));
             }
-            Ok(Some(ScalarValue::Bool(all)))
+            let (ScalarValue::Str(text) | ScalarValue::Json(text)) = right else {
+                return Ok(None);
+            };
+            let parsed = match super::json_delete::owned_path::parse(text, controls) {
+                Ok(path) => path,
+                Err(QueryError::Cassie(CassieError::ArrayInput(_))) => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            if let Some(path) = parsed {
+                super::json_delete::after_owned_path(controls)?;
+                let values = path.values();
+                let exists = lookup_keys(
+                    values.len(),
+                    |index| Ok(values[index].as_deref()),
+                    all,
+                    controls,
+                    |key| document.contains(key),
+                )?;
+                return Ok(Some(ScalarValue::Bool(exists)));
+            }
+            if let Some(path) =
+                crate::runtime::accounted::json_arena::parse_text_array_candidate(text, controls)?
+            {
+                super::json_delete::after_owned_path(controls)?;
+                let exists = lookup_keys(
+                    path.len(),
+                    |index| path.get(index),
+                    all,
+                    controls,
+                    |key| document.contains(key),
+                )?;
+                return Ok(Some(ScalarValue::Bool(exists)));
+            }
+            Ok(None)
         }
         _ => Ok(None),
     }
+}
+
+fn lookup_keys<'a>(
+    length: usize,
+    mut key: impl FnMut(usize) -> Result<Option<&'a str>, CassieError>,
+    all: bool,
+    controls: &crate::runtime::QueryExecutionControls,
+    mut contains: impl FnMut(&str) -> Result<bool, CassieError>,
+) -> Result<bool, CassieError> {
+    for index in 0..length {
+        controls.check_interruption()?;
+        if let Some(key) = key(index)? {
+            if contains(key)? != all {
+                return Ok(!all);
+            }
+        }
+    }
+    Ok(all)
 }
 
 pub(super) fn evaluate(

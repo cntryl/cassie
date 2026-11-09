@@ -14,7 +14,7 @@ enum Progress {
     DirectoryMove,
 }
 
-pub(super) struct OwnedPath {
+pub(in crate::executor::filter) struct OwnedPath {
     values: Vec<Option<String>>,
     memory: QueryMemoryReservation,
 }
@@ -100,7 +100,7 @@ impl OwnedPath {
         })
     }
 
-    pub(super) fn values(&self) -> &[Option<String>] {
+    pub(in crate::executor::filter) fn values(&self) -> &[Option<String>] {
         &self.values
     }
 
@@ -265,7 +265,7 @@ impl<F: FnMut(Progress)> Cursor<'_, F> {
     }
 }
 
-pub(super) fn parse(
+pub(in crate::executor::filter) fn parse(
     input: &str,
     controls: &QueryExecutionControls,
 ) -> Result<Option<OwnedPath>, QueryError> {

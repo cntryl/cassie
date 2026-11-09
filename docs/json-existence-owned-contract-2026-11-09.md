@@ -29,11 +29,20 @@ parser. Receipt: `target/assembly-review/json-existence-arena-contract-{request,
 The arena owns all parsed strings and object/array indexes through each checked
 lookup. Control or budget failures propagate; semantic parse failures and
 unsupported operands fall back to the old evaluator, which reparses the input.
-String-backed TEXT[] operands remain on that route. Arena admission and
+Unsupported TEXT[] operand forms remain on that route. Arena admission and
 interruption may take precedence over a later legacy error, and semantic
 fallback repeats parsing. Diagnostic ownership, allocator transient excess,
 arena teardown, JSON function callers and callers lacking controls remain
 unqualified.
+
+The string-backed follow-up selects the already admitted flat-brace or
+JSON-array TEXT[] parser only after the full document Value parse. Both owners
+remain live through eager key validation and lookup; malformed operands return
+to the legacy evaluator for its diagnostic while resource and interruption
+errors propagate. Unsupported nested/dimensioned forms remain legacy. Jev
+selected this limited handoff (0.94); its precedence, grammar, owner and resource
+leads need the authored differential and synchronized ownership probes. Receipt:
+`target/assembly-review/json-existence-text-path-contract-{request,response}.json`.
 
 Authored probes compare legacy results, sentinel and malformed diagnostics,
 duplicate/escaped keys, all-NULL/empty/invalid native arrays, short-circuit

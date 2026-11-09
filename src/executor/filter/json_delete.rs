@@ -17,7 +17,7 @@ mod compatibility_tests;
 mod raw_scan;
 
 #[path = "json_delete_owned_path.rs"]
-mod owned_path;
+pub(super) mod owned_path;
 
 pub(super) fn controlled_extraction(
     document: &ScalarValue,
@@ -37,11 +37,13 @@ thread_local! {
 }
 
 #[cfg(test)]
-fn cancel_after_owned_path_once(handle: crate::runtime::QueryCancellationHandle) {
+pub(super) fn cancel_after_owned_path_once(handle: crate::runtime::QueryCancellationHandle) {
     CANCEL_AFTER_OWNED_PATH.with(|slot| *slot.borrow_mut() = Some(handle));
 }
 
-fn after_owned_path(controls: &crate::runtime::QueryExecutionControls) -> Result<(), QueryError> {
+pub(super) fn after_owned_path(
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), QueryError> {
     #[cfg(test)]
     CANCEL_AFTER_OWNED_PATH.with(|slot| {
         if let Some(handle) = slot.borrow_mut().take() {

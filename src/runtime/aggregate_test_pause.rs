@@ -48,7 +48,7 @@ impl QueryAggregateTestPause {
 pub struct QueryAggregateTestPauseGuard {
     pub(super) runtime: Weak<super::RuntimeState>,
     pub(super) process_id: i32,
-    pub(super) pause: Arc<super::QueryTestPause>,
+    pub(super) pause: Arc<QueryAggregateTestPause>,
 }
 
 impl Drop for QueryAggregateTestPauseGuard {
@@ -83,7 +83,7 @@ pub(crate) fn pause_direct_handle_after_aggregate_input(
     cancellation: &mut super::QueryCancellationHandle,
 ) -> (Receiver<()>, SyncSender<()>) {
     let (pause, selected, resume) = QueryAggregateTestPause::new();
-    assert!(cancellation.attach_test_pause(Arc::new(super::QueryTestPause::Aggregate(pause))));
+    assert!(cancellation.attach_aggregate_test_pause(Arc::new(pause)));
     (selected, resume)
 }
 

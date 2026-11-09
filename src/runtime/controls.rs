@@ -10,6 +10,7 @@ pub struct QueryCancellationHandle(
     Option<Arc<crate::midge::adapter::QueryScanControlScope>>,
     Option<Arc<super::QueryTestPause>>,
     tokio::sync::watch::Sender<bool>,
+    Option<Arc<super::aggregate_test_pause::QueryAggregateTestPause>>,
 );
 
 impl Default for QueryCancellationHandle {
@@ -21,6 +22,7 @@ impl Default for QueryCancellationHandle {
             super::sleep_test_pause::take_next_query_pause()
                 .or_else(super::regex_test_pause::take_next_query_pause),
             cancellation_signal,
+            None,
         )
     }
 }
@@ -31,11 +33,14 @@ impl QueryCancellationHandle {
         Self::default()
     }
 
-    pub(super) fn attach_test_pause(&mut self, pause: Arc<super::QueryTestPause>) -> bool {
-        if self.2.is_some() {
+    pub(super) fn attach_aggregate_test_pause(
+        &mut self,
+        pause: Arc<super::aggregate_test_pause::QueryAggregateTestPause>,
+    ) -> bool {
+        if self.4.is_some() {
             return false;
         }
-        self.2 = Some(pause);
+        self.4 = Some(pause);
         true
     }
 
@@ -242,7 +247,7 @@ impl Drop for QueryMemoryReservation {
 
 impl QueryExecutionControls {
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
-        if let Some(super::QueryTestPause::Aggregate(pause)) = self.cancellation.2.as_deref() {
+        if let Some(pause) = self.cancellation.4.as_deref() {
             pause.reach()?;
         }
         Ok(())

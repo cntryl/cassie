@@ -120,7 +120,6 @@ pub use snapshots::*;
 
 #[derive(Debug)]
 enum QueryTestPause {
-    Aggregate(aggregate_test_pause::QueryAggregateTestPause),
     Sleep(sleep_test_pause::QuerySleepTestPause),
     Regex(regex_test_pause::QueryRegexTestPause),
     Scoring(scoring_test_pause::ScoringTestPause),

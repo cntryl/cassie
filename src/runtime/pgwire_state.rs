@@ -10,7 +10,7 @@ pub(super) struct PgwireBackendRegistry {
 struct RegisteredBackend {
     secret_key: i32,
     cancellation: Option<QueryCancellationHandle>,
-    aggregate_pause: Option<Arc<super::QueryTestPause>>,
+    aggregate_pause: Option<Arc<super::aggregate_test_pause::QueryAggregateTestPause>>,
 }
 
 impl Default for PgwireBackendRegistry {
@@ -90,10 +90,9 @@ impl PgwireBackendRegistration {
             .get_mut(&self.process_id)
         {
             if claim_pause
-                && backend
-                    .aggregate_pause
-                    .as_ref()
-                    .is_some_and(|pause| cancellation.attach_test_pause(Arc::clone(pause)))
+                && backend.aggregate_pause.as_ref().is_some_and(|pause| {
+                    cancellation.attach_aggregate_test_pause(Arc::clone(pause))
+                })
             {
                 backend.aggregate_pause = None;
             }
@@ -217,7 +216,7 @@ impl RuntimeState {
             ));
         }
         let (pause, selected, resume) = super::aggregate_test_pause::QueryAggregateTestPause::new();
-        let pause = Arc::new(super::QueryTestPause::Aggregate(pause));
+        let pause = Arc::new(pause);
         backend.aggregate_pause = Some(Arc::clone(&pause));
         Ok((
             super::QueryAggregateTestPauseGuard {
@@ -233,7 +232,7 @@ impl RuntimeState {
     pub(super) fn clear_backend_aggregate_pause(
         &self,
         process_id: i32,
-        pause: &Arc<super::QueryTestPause>,
+        pause: &Arc<super::aggregate_test_pause::QueryAggregateTestPause>,
     ) {
         if let Some(backend) = self
             .pgwire_backends
@@ -432,6 +431,82 @@ mod tests {
         assert!(runtime
             .pause_backend_after_aggregate_input(process_id, secret_key)
             .is_err());
+    }
+
+    #[test]
+    fn should_keep_aggregate_and_sleep_pause_on_the_same_backend_query() {
+        // Arrange
+        let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
+        let target = runtime.register_pgwire_backend();
+        let (_aggregate_guard, aggregate_reached, aggregate_resume) = runtime
+            .pause_backend_after_aggregate_input(target.process_id(), target.secret_key())
+            .expect("arm aggregate pause");
+        let (_sleep_guard, sleep_reached, sleep_resume) =
+            crate::runtime::pause_next_query_at_sleep_entry();
+        let query = target.begin_query();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            query.handle(),
+        );
+        let worker = std::thread::spawn(move || {
+            controls.sleep_function_entered()?;
+            controls.aggregate_input_retained()
+        });
+
+        // Act
+        let sleep = sleep_reached.recv_timeout(Duration::from_secs(1));
+        sleep_resume.send(()).expect("resume sleep boundary");
+        let aggregate = aggregate_reached.recv_timeout(Duration::from_secs(1));
+        aggregate_resume
+            .send(())
+            .expect("resume aggregate boundary");
+
+        // Assert
+        sleep.expect("sleep boundary reached");
+        aggregate.expect("aggregate boundary reached on the same query");
+        assert!(worker.join().expect("query worker").is_ok());
+    }
+
+    #[test]
+    fn should_keep_claimed_pause_in_clones_when_old_guard_drops() {
+        // Arrange
+        let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
+        let target = runtime.register_pgwire_backend();
+        let (old_guard, old_reached, old_resume) = runtime
+            .pause_backend_after_aggregate_input(target.process_id(), target.secret_key())
+            .expect("arm first pause");
+        let old_query = target.begin_query();
+        let old_handle = old_query.handle();
+        let clone = old_handle.clone();
+        let (new_guard, new_reached, new_resume) = runtime
+            .pause_backend_after_aggregate_input(target.process_id(), target.secret_key())
+            .expect("arm replacement pause");
+
+        // Act
+        drop(old_guard);
+        let new_query = target.begin_query();
+        drop(new_guard);
+        let limits = CassieRuntimeLimits::default();
+        let old_controls =
+            QueryExecutionControls::with_cancellation(&limits, Instant::now(), clone);
+        let old_worker = std::thread::spawn(move || {
+            old_controls.aggregate_input_retained()?;
+            old_controls.aggregate_input_retained()
+        });
+        let old_result = old_reached.recv_timeout(Duration::from_secs(1));
+        old_resume.send(()).expect("resume first pause");
+        let new_controls =
+            QueryExecutionControls::with_cancellation(&limits, Instant::now(), new_query.handle());
+        let new_worker = std::thread::spawn(move || new_controls.aggregate_input_retained());
+        let new_result = new_reached.recv_timeout(Duration::from_secs(1));
+        new_resume.send(()).expect("resume replacement pause");
+
+        // Assert
+        old_result.expect("claimed clone reaches the first pause");
+        new_result.expect("dropping the old guard preserves the replacement");
+        assert!(old_worker.join().expect("first worker").is_ok());
+        assert!(new_worker.join().expect("replacement worker").is_ok());
     }
 
     #[test]

@@ -15,9 +15,13 @@ entry. Unit-only direct attachment supports operator tests. This changes the
 signature of an existing public, doc-hidden diagnostic function and can require
 updates for downstream Rust callers of that function; it adds no new public
 pause function. The existing sleep and regex hooks retain their own scopes.
+An aggregate pause and a sleep or regex pause may coexist on one query handle;
+each retains a separate one-shot owner and reaches only its own boundary.
 
 The authored probes cover two instances and two backends on one executor,
 an intervening bare handle, invalid and duplicate identities, guard drop,
 disconnect, and real CancelRequest with no output and recovery. They have not
-been run on this candidate. The rest of #954, including its full ordered gate
+been run on this candidate. Additional probes cover coexistence with a sleep
+pause, cloned-handle one-shot behavior, and an old guard dropped after a new
+pause is armed. The rest of #954, including its full ordered gate
 and timing comparison, remains open.

@@ -27,3 +27,6 @@ the consolidated gate.
 This repair does not qualify mode's selected-result clone, hypothetical result
 handoff, input conversion, growth relocation/allocator excess, rich comparison
 work, general query cancellation or total synchronous destructor latency.
+Pre-existing group rows and their payloads remain covered by the separate
+aggregate group owner; these guards do not independently qualify their
+construction, output handoff or final teardown.

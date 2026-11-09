@@ -19,6 +19,9 @@ columns then INCLUDE columns, returning `42703` for the first missing column.
 Valid duplicates continue through the prior no-op. Other AST forms keep
 their existing behavior and remain pending; #842 is not complete. The
 nonduplicate diagnostic path remains unchanged.
+The helper checks supplied cancellation and deadline controls before it tests
+eligibility, so an already interrupted request can now return that control
+error even for an excluded duplicate shape that previously skipped immediately.
 
 Additional PostgreSQL probes confirmed missing unqualified, qualified and
 quoted predicate references return `42703`; a wrong qualifier can instead

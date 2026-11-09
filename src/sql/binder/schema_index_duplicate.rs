@@ -175,4 +175,30 @@ mod tests {
         assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
+
+    #[test]
+    fn should_report_cancellation_before_skipping_an_excluded_duplicate_shape() {
+        // Arrange
+        let parsed = crate::sql::parse_statement(
+            "CREATE INDEX IF NOT EXISTS stable_idx ON rows (v) WITH (unknown_option = 1)",
+        )
+        .expect("parse");
+        let QueryStatement::CreateIndex(statement) = parsed.statement else {
+            panic!("index statement")
+        };
+        let cancellation = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        cancellation.cancel();
+
+        // Act
+        let result = validate(&statement, &Catalog::new(), "rows", Some(&controls));
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
 }

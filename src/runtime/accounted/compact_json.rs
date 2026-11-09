@@ -101,6 +101,7 @@ struct Sink<'a> {
     text: String,
     memory: QueryMemoryReservation,
     controls: &'a QueryExecutionControls,
+    count: Option<usize>,
 }
 
 impl Sink<'_> {
@@ -110,6 +111,10 @@ impl Sink<'_> {
         progress: &mut impl FnMut(Progress),
     ) -> Result<(), CassieError> {
         self.controls.check_interruption()?;
+        if let Some(count) = &mut self.count {
+            *count = count.checked_add(text.len()).ok_or_else(overflow)?;
+            return Ok(());
+        }
         let needed = self
             .text
             .len()
@@ -226,13 +231,43 @@ pub(crate) fn serialize(
 fn serialize_observing(
     value: &serde_json::Value,
     controls: &QueryExecutionControls,
-    mut progress: impl FnMut(Progress),
+    progress: impl FnMut(Progress),
 ) -> Result<OwnedJsonText, CassieError> {
+    let sink = render(value, controls, false, progress)?;
+    Ok(OwnedJsonText {
+        text: sink.text,
+        memory: sink.memory,
+    })
+}
+
+pub(crate) fn count(
+    value: &serde_json::Value,
+    controls: &QueryExecutionControls,
+) -> Result<usize, CassieError> {
+    count_observing(value, controls, |_| {})
+}
+
+fn count_observing(
+    value: &serde_json::Value,
+    controls: &QueryExecutionControls,
+    progress: impl FnMut(Progress),
+) -> Result<usize, CassieError> {
+    let sink = render(value, controls, true, progress)?;
+    Ok(sink.count.expect("counting sink"))
+}
+
+fn render<'a>(
+    value: &'a serde_json::Value,
+    controls: &'a QueryExecutionControls,
+    counting: bool,
+    mut progress: impl FnMut(Progress),
+) -> Result<Sink<'a>, CassieError> {
     controls.check_interruption()?;
     let mut sink = Sink {
         text: String::new(),
         memory: controls.reserve_query_memory(0)?,
         controls,
+        count: counting.then_some(0),
     };
     let mut stack = Stack::new(controls)?;
     stack.push(Frame::Value(value), &mut progress)?;
@@ -281,8 +316,5 @@ fn serialize_observing(
             }
         }
     }
-    Ok(OwnedJsonText {
-        text: sink.text,
-        memory: sink.memory,
-    })
+    Ok(sink)
 }

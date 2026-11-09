@@ -637,7 +637,7 @@ fn evaluate_aggregate(
             )
         })
     {
-        AggregateAccumulator::evaluate(function, rows, context).map(AggregateOutput::from_value)
+        AggregateAccumulator::evaluate_owned(function, rows, context)
     } else {
         Ok(AggregateOutput::from_value(Value::Null))
     }

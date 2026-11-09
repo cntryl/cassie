@@ -26,6 +26,11 @@ impl AggregateOutput {
         }
     }
 
+    pub(super) fn from_owned(value: Value, memory: QueryMemoryReservation) -> Self {
+        let memory = (memory.bytes() != 0).then_some(memory);
+        Self { value, memory }
+    }
+
     pub(super) fn into_value(self) -> Value {
         self.value
     }
@@ -35,6 +40,7 @@ impl AggregateOutput {
 pub(super) struct OutputRow {
     values: Vec<(String, Value)>,
     memory: Option<QueryMemoryReservation>,
+    controls: QueryExecutionControls,
 }
 
 impl OutputRow {
@@ -44,7 +50,11 @@ impl OutputRow {
         controls: &QueryExecutionControls,
     ) -> Result<Self, QueryError> {
         let memory = row_memory(&values, specs, controls)?;
-        Ok(Self { values, memory })
+        Ok(Self {
+            values,
+            memory,
+            controls: controls.clone(),
+        })
     }
 
     pub(super) fn append(
@@ -61,10 +71,29 @@ impl OutputRow {
         names: &[String],
         mut after_copy: impl FnMut(),
     ) -> Result<(), QueryError> {
-        if output.memory.is_some() && self.memory.is_none() {
-            return Err(QueryError::General(
-                "JSON aggregate output lost its physical row owner".into(),
-            ));
+        if let Some(memory) = output.memory.as_ref() {
+            if !memory.belongs_to(&self.controls) {
+                return Err(CassieError::ResourceLimit(
+                    "aggregate output owner uses a different query tracker".into(),
+                )
+                .into());
+            }
+            if self.memory.is_none() {
+                let bytes = add(
+                    mul(
+                        self.values.capacity(),
+                        std::mem::size_of::<(String, Value)>(),
+                    )?,
+                    add(
+                        std::mem::size_of::<BatchRow>(),
+                        add(
+                            std::mem::size_of::<QueryMemoryReservation>(),
+                            2 * std::mem::size_of::<usize>(),
+                        )?,
+                    )?,
+                )?;
+                self.memory = Some(self.controls.reserve_query_memory(bytes)?);
+            }
         }
         if let Some(memory) = output.memory.take() {
             self.memory
@@ -75,6 +104,7 @@ impl OutputRow {
         for name in names {
             push_output(&mut self.values, &mut self.memory, name, &output.value)?;
             after_copy();
+            super::check_timeout(&self.controls)?;
         }
         Ok(())
     }

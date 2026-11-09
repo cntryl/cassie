@@ -158,11 +158,21 @@ impl AggregateAccumulator {
     }
 
     /// Folds `rows` in order through a fresh accumulator for `function`.
+    #[cfg(test)]
     pub(super) fn evaluate(
         function: &FunctionCall,
         rows: &[BatchRow],
         context: &AggregateExecutionContext<'_>,
     ) -> Result<Value, QueryError> {
+        Self::evaluate_owned(function, rows, context)
+            .map(super::collection_json::AggregateOutput::into_value)
+    }
+
+    pub(super) fn evaluate_owned(
+        function: &FunctionCall,
+        rows: &[BatchRow],
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<super::collection_json::AggregateOutput, QueryError> {
         let is_regression =
             crate::sql::functions::function(&function.name).is_some_and(|metadata| {
                 crate::sql::functions::regression::is_regression_function(metadata.id)
@@ -179,7 +189,8 @@ impl AggregateAccumulator {
             || function.is_distinct()
             || !function.order_by.is_empty()
         {
-            return super::modifiers::evaluate(function, rows, context);
+            return super::modifiers::evaluate(function, rows, context)
+                .map(super::collection_json::AggregateOutput::from_value);
         }
         let mut key_memory = super::group_memory::GroupMemory::new(context.controls)?;
         // A retained accumulator must retire before the key reservation on errors.
@@ -210,7 +221,11 @@ impl AggregateAccumulator {
             super::check_timeout(context.controls)?;
         }
         super::check_timeout(context.controls)?;
-        accumulator.finish()
+        let value = accumulator.finish()?;
+        Ok(super::collection_json::AggregateOutput::from_owned(
+            value,
+            key_memory.into_reservation(),
+        ))
     }
 
     pub(super) fn new(function: &FunctionCall) -> Self {

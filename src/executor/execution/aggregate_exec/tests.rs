@@ -28,6 +28,9 @@ mod output_group_owner;
 #[path = "accumulator_drop_tests.rs"]
 mod accumulator_drop;
 
+#[path = "accumulator_output_owner_tests.rs"]
+mod accumulator_output_owner;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 

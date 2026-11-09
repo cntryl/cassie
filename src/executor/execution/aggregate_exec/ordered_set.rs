@@ -25,7 +25,18 @@ use crate::types::Value;
 
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
-type EvaluatedFractions = (Vec<Option<f64>>, bool, QueryMemoryReservation);
+struct EvaluatedFractions {
+    values: Vec<Option<f64>>,
+    is_array: bool,
+    memory: QueryMemoryReservation,
+}
+
+#[derive(Clone, Copy)]
+enum FractionProgress {
+    Element,
+    Ready,
+    SortComparison,
+}
 
 fn try_sort_by<T>(
     values: &mut [T],
@@ -147,35 +158,54 @@ fn evaluate_percentile(
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
+    evaluate_percentile_observed(function, rows, context, |_, _| {})
+}
+
+fn evaluate_percentile_observed(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    context: &AggregateExecutionContext<'_>,
+    mut observe: impl FnMut(FractionProgress, usize),
+) -> Result<Value, QueryError> {
     let metadata = crate::sql::functions::function(&function.name)
         .expect("percentile aggregate metadata is registered");
     let is_continuous = metadata.id == crate::sql::functions::FunctionId::PercentileCont;
     let order = function.order_by.first().ok_or_else(|| {
         QueryError::General("percentile aggregates require WITHIN GROUP ORDER BY".into())
     })?;
-    let Some((fractions, is_array, _fraction_state)) = evaluate_fractions(function, rows, context)?
-    else {
+    let Some(fractions) = evaluate_fractions(function, rows, context, &mut observe)? else {
         return Ok(Value::Null);
     };
-    let (values, mut retained) = collect_sorted_values(function, rows, order, context)?;
+    observe(FractionProgress::Ready, fractions.memory.bytes());
+    check_timeout(context.controls)?;
+    let (values, mut retained) = collect_sorted_values(function, rows, order, context, || {
+        observe(FractionProgress::SortComparison, fractions.memory.bytes());
+    })?;
 
     if values.is_empty() {
         return Ok(Value::Null);
     }
-    if !is_array {
-        let Some(fraction) = fractions.first().copied().flatten() else {
+    if !fractions.is_array {
+        let Some(fraction) = fractions.values.first().copied().flatten() else {
             return Ok(Value::Null);
         };
         return percentile_value(&values, fraction, is_continuous);
     }
 
-    percentile_array_values(&fractions, &values, &mut retained, context, is_continuous)
+    percentile_array_values(
+        &fractions.values,
+        &values,
+        &mut retained,
+        context,
+        is_continuous,
+    )
 }
 
 fn evaluate_fractions(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
+    observe: &mut impl FnMut(FractionProgress, usize),
 ) -> Result<Option<EvaluatedFractions>, QueryError> {
     let empty_row = BatchRow::new(Vec::new());
     let direct_row = rows.first().unwrap_or(&empty_row);
@@ -202,40 +232,77 @@ fn evaluate_fractions(
     if matches!(fraction, Value::Null) {
         return Ok(None);
     }
-    let is_array = matches!(
-        &fraction,
-        Value::Json(serde_json::Value::Array(_)) | Value::Array(_)
-    );
     let numeric_text_array = fraction_array_has_numeric_element_type(function);
-    let fractions = match fraction {
-        Value::Json(serde_json::Value::Array(fractions)) => fractions
-            .iter()
-            .map(|value| parse_array_fraction(value, numeric_text_array))
-            .collect::<Result<Vec<_>, _>>()?,
-        Value::Array(fractions) => fractions
-            .elements()
-            .iter()
-            .map(|value| {
-                if value.is_null() {
-                    Ok(None)
-                } else {
-                    parse_fraction(value).map(Some)
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?,
-        scalar => vec![Some(parse_fraction(&scalar)?)],
-    };
-    let fraction_state_bytes = fractions
-        .capacity()
-        .checked_mul(size_of::<Option<f64>>())
-        .ok_or_else(|| {
-            CassieError::ResourceLimit("percentile fraction capacity overflow".into())
-        })?;
-    let fraction_state = context
-        .controls
-        .reserve_query_memory(fraction_state_bytes)?;
+    let fractions = collect_fractions(
+        &fraction,
+        numeric_text_array,
+        context.controls,
+        &fraction_memory,
+        |index| observe(FractionProgress::Element, index),
+    )?;
+    drop(fraction);
     drop(fraction_memory);
-    Ok(Some((fractions, is_array, fraction_state)))
+    Ok(fractions)
+}
+
+fn collect_fractions(
+    input: &Value,
+    numeric_text_array: bool,
+    controls: &QueryExecutionControls,
+    input_memory: &QueryMemoryReservation,
+    mut observe: impl FnMut(usize),
+) -> Result<Option<EvaluatedFractions>, QueryError> {
+    if !input_memory.belongs_to(controls) {
+        return Err(CassieError::ResourceLimit(
+            "percentile input uses a different query tracker".into(),
+        )
+        .into());
+    }
+    check_timeout(controls)?;
+    let (length, is_array) = match input {
+        Value::Null => return Ok(None),
+        Value::Json(serde_json::Value::Array(values)) => (values.len(), true),
+        Value::Array(values) => (values.elements().len(), true),
+        _ => (1, false),
+    };
+    let (values, memory) = crate::runtime::owned_memory::try_reserve_vec(length, input_memory)?;
+    let mut output = EvaluatedFractions {
+        values,
+        is_array,
+        memory,
+    };
+    match input {
+        Value::Json(serde_json::Value::Array(values)) => {
+            for (index, value) in values.iter().enumerate() {
+                check_timeout(controls)?;
+                output
+                    .values
+                    .push(parse_array_fraction(value, numeric_text_array)?);
+                observe(index);
+                check_timeout(controls)?;
+            }
+        }
+        Value::Array(values) => {
+            for (index, value) in values.elements().iter().enumerate() {
+                check_timeout(controls)?;
+                let value = if value.is_null() {
+                    None
+                } else {
+                    Some(parse_fraction(value)?)
+                };
+                output.values.push(value);
+                observe(index);
+                check_timeout(controls)?;
+            }
+        }
+        scalar => {
+            output.values.push(Some(parse_fraction(scalar)?));
+            observe(0);
+            check_timeout(controls)?;
+        }
+    }
+    check_timeout(controls)?;
+    Ok(Some(output))
 }
 
 fn collect_sorted_values(
@@ -243,10 +310,12 @@ fn collect_sorted_values(
     rows: &[BatchRow],
     order: &crate::sql::ast::OrderExpr,
     context: &AggregateExecutionContext<'_>,
+    mut observe: impl FnMut(),
 ) -> Result<(Vec<Value>, QueryMemoryReservation), QueryError> {
     collect_sorted_values_using(function, rows, order, context, |values| {
         try_sort_by(values, context.controls, |left, right| {
             let comparison = compare_values(left, right);
+            observe();
             match order.direction {
                 SortDirection::Asc => comparison,
                 SortDirection::Desc => comparison.reverse(),

@@ -8,7 +8,7 @@ use crate::types::extended::numeric::{MAX_DSCALE, MAX_INTEGER_DIGITS};
 mod tests;
 
 #[derive(Debug)]
-pub(super) enum FormatError {
+pub(in crate::runtime::accounted::json_arena) enum FormatError {
     Overflow,
     Control(CassieError),
 }
@@ -20,19 +20,25 @@ impl From<CassieError> for FormatError {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum Progress {
+pub(in crate::runtime::accounted::json_arena) enum Progress {
     Scan,
     Output,
 }
 
-pub(super) struct OwnedNumberText {
+pub(in crate::runtime::accounted::json_arena) struct OwnedNumberText {
     text: String,
     _memory: QueryMemoryReservation,
 }
 
 impl OwnedNumberText {
-    pub(super) fn as_str(&self) -> &str {
+    pub(in crate::runtime::accounted::json_arena) fn as_str(&self) -> &str {
         &self.text
+    }
+
+    pub(in crate::runtime::accounted::json_arena) fn into_parts(
+        self,
+    ) -> (String, QueryMemoryReservation) {
+        (self.text, self._memory)
     }
 }
 
@@ -55,7 +61,7 @@ fn format_number_observed(
 
 // This helper is reachable only from the arena's validated number nodes. It is
 // not a replacement for NUMERIC's public syntax validation.
-pub(super) fn format_number_with_observer(
+pub(in crate::runtime::accounted::json_arena) fn format_number_with_observer(
     input: &str,
     controls: &QueryExecutionControls,
     mut observer: impl FnMut(Progress),

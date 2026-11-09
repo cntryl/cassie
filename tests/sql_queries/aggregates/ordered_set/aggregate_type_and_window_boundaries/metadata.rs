@@ -32,3 +32,38 @@ fn should_preserve_ordered_set_percentile_array_results_with_exact_oids() {
         vec![1022, 1005]
     );
 }
+
+#[test]
+fn should_preserve_string_carried_percentile_array_values_and_oids() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-806-ordered-set-string-array-result-oids",
+        &[
+            "CREATE TABLE issue_806_percentile_string_types (t TEXT, v VARCHAR(20))",
+            "INSERT INTO issue_806_percentile_string_types VALUES ('alpha','first'),('zeta','last')",
+        ],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT percentile_disc(ARRAY[0.0,NULL,1.0]) WITHIN GROUP (ORDER BY t), percentile_disc(ARRAY[0.0,NULL,1.0]) WITHIN GROUP (ORDER BY v) FROM issue_806_percentile_string_types",
+    );
+
+    // Assert
+    let result = result.expect("string-carried percentile arrays");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::Json(serde_json::json!(["alpha", null, "zeta"])),
+            Value::Json(serde_json::json!(["first", null, "last"])),
+        ]]
+    );
+    assert_eq!(
+        result
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![1009, 1015]
+    );
+}

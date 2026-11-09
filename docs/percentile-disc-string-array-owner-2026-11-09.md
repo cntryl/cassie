@@ -12,7 +12,9 @@ fractions when all sorted non-NULL input values are Strings (0.91; gap lead
 Preserve fraction validation, FILTER, sort, no-row NULL and the existing
 all-NULL/empty array path first. Track whether every non-NULL input is a String
 when the existing input loop retains each value; sorting preserves this flag.
-Any other value and all `percentile_cont` calls retain their existing path.
+This is a `Value::String` carrier check rather than a declared-TEXT check;
+for example, VARCHAR inputs can select it too. Any other carrier and all
+`percentile_cont` calls retain their existing path.
 
 For the selected path preserve the original per-fraction rank operation order,
 NULL fraction positions and the actual sorted String spelling. Build a private
@@ -28,7 +30,8 @@ publication; partial row values must remain owned on failure.
 Test-first probes cover rank/order and differently spelled equal keys, DESC,
 FILTER, NULL and empty/no-row behavior, the actual construction/copy boundaries,
 foreign tracker, exact/below measured peak, aliases and last-row-clone lifetime,
-forged payload rejection, and mixed/non-String/CONT fallback. Input evaluation,
+forged payload rejection, TEXT/VARCHAR descriptors, and mixed/non-String/CONT
+fallback. Input evaluation,
 comparison, numeric/nested/non-String results, scalar SQL Array cloning,
 generic array cloning, allocator transients, group payloads and synchronous
 teardown remain unqualified. These probes are authored and unexecuted; this

@@ -2,6 +2,22 @@
 
 use super::super::calendar::Fields;
 
+pub(super) fn roman_month(fields: Fields) -> usize {
+    let month = i64::from(fields.month);
+    let index = if month == 0 {
+        if fields.year < 0 {
+            0
+        } else {
+            11
+        }
+    } else if month < 0 {
+        month + 12
+    } else {
+        month - 1
+    };
+    usize::try_from(index).unwrap_or(0).min(11)
+}
+
 pub(super) fn hour12(hour: i64, fill: bool) -> (String, Option<i64>) {
     let remainder = hour % 12;
     let value = if remainder == 0 { 12 } else { remainder };

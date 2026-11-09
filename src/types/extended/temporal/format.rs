@@ -249,8 +249,16 @@ fn render_name_field(
                 (padded(&case_like(spelling, name), fill, 9), None)
             }
         }
+        "rm" if moment.is_interval && fields.year == 0 && fields.month == 0 => {
+            (String::new(), None)
+        }
         "rm" => {
-            let roman = ROMAN[usize::try_from(fields.month - 1).unwrap_or(0).min(11)];
+            let index = if moment.is_interval {
+                interval::roman_month(fields)
+            } else {
+                usize::try_from(fields.month - 1).unwrap_or(0).min(11)
+            };
+            let roman = ROMAN[index];
             (padded(&case_like(spelling, roman), fill, 4), None)
         }
         "tz" => (

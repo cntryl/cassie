@@ -80,3 +80,11 @@ query controls during scanning, and leaves the public infallible formatter and
 timestamp behavior unchanged. Existing mixed-case output discrepancies and the
 subsequent template parser/output and diagnostic allocation/cancellation
 limits remain open. All Cassie probes are unexecuted.
+
+Interval `RM` uses the decomposed year and month fields rather than a calendar
+month. PostgreSQL 18.6 renders zero years/months as empty; a positive full
+year as XII and a negative full year as I; and negative month remainders count
+backward from XII. SQL cases cover both sides of a 12-month boundary, padding,
+`FM`, case, quoted text and a timestamp control. Public `Moment` values with
+non-normalized month fields remain outside this parity claim. The probes are
+unexecuted.

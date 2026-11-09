@@ -5,6 +5,53 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_interval_roman_months_using_interval_components() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-roman-month", &[]);
+    let cases = [
+        (0, "[]|[]|[]|[]"),
+        (1, "[I   ]|[I]|[i   ]|[i]"),
+        (2, "[II  ]|[II]|[ii  ]|[ii]"),
+        (11, "[XI  ]|[XI]|[xi  ]|[xi]"),
+        (12, "[XII ]|[XII]|[xii ]|[xii]"),
+        (13, "[I   ]|[I]|[i   ]|[i]"),
+        (-1, "[XII ]|[XII]|[xii ]|[xii]"),
+        (-2, "[XI  ]|[XI]|[xi  ]|[xi]"),
+        (-11, "[II  ]|[II]|[ii  ]|[ii]"),
+        (-12, "[I   ]|[I]|[i   ]|[i]"),
+        (-13, "[XII ]|[XII]|[xii ]|[xii]"),
+    ];
+
+    for (months, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{months} months', '[RM]|[FMRM]|[rm]|[fmrm]')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval Roman month").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 interval Roman month: {months}"
+        );
+    }
+
+    // Act
+    let controls = fixture.execute(
+        "SELECT to_char(TIMESTAMP '2000-01-01', 'FMRM'), to_char(INTERVAL '-1 month', '\"RM\"')",
+    );
+
+    // Assert
+    assert_eq!(
+        controls.expect("timestamp and quoted Roman month").rows(),
+        &[vec![
+            Value::String("I".to_owned()),
+            Value::String("RM".to_owned())
+        ]]
+    );
+}
+
+#[test]
 fn should_reject_postgresql_interval_only_invalid_format_fields() {
     // Arrange
     let fixture = sql_fixture("issue-815-invalid-interval-format", &[]);

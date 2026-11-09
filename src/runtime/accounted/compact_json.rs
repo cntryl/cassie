@@ -22,7 +22,7 @@ impl OwnedJsonText {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum Progress {
+pub(crate) enum Progress {
     Scan,
     Copy,
     FrameMove,
@@ -97,7 +97,7 @@ impl<'a> Stack<'a> {
     }
 }
 
-pub(super) struct Sink<'a> {
+pub(crate) struct Sink<'a> {
     text: String,
     memory: QueryMemoryReservation,
     controls: &'a QueryExecutionControls,
@@ -105,7 +105,7 @@ pub(super) struct Sink<'a> {
 }
 
 impl<'a> Sink<'a> {
-    pub(super) fn for_arena(controls: &'a QueryExecutionControls) -> Result<Self, CassieError> {
+    pub(crate) fn for_arena(controls: &'a QueryExecutionControls) -> Result<Self, CassieError> {
         Ok(Self {
             text: String::new(),
             memory: controls.reserve_query_memory(0)?,
@@ -114,14 +114,14 @@ impl<'a> Sink<'a> {
         })
     }
 
-    pub(super) fn finish_output(self) -> OwnedJsonText {
+    pub(crate) fn finish_output(self) -> OwnedJsonText {
         OwnedJsonText {
             text: self.text,
             memory: self.memory,
         }
     }
 
-    pub(super) fn write(
+    pub(crate) fn write(
         &mut self,
         text: &str,
         progress: &mut impl FnMut(Progress),
@@ -155,7 +155,7 @@ impl<'a> Sink<'a> {
         copy_chunks(&mut self.text, text, self.controls, progress)
     }
 
-    pub(super) fn quoted(
+    pub(crate) fn quoted(
         &mut self,
         text: &str,
         progress: &mut impl FnMut(Progress),

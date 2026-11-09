@@ -182,7 +182,10 @@ impl Cursor<'_> {
     }
 
     #[cfg(test)]
-    fn read_string_observed(&mut self, observer: impl FnMut()) -> Result<DecodedText, CursorError> {
+    pub(in crate::runtime::accounted::json_arena) fn read_string_observed(
+        &mut self,
+        observer: impl FnMut(),
+    ) -> Result<DecodedText, CursorError> {
         self.read_string_with_observer(observer)
     }
 

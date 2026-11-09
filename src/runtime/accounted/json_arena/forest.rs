@@ -14,7 +14,7 @@ use array::ArrayIndex;
 mod scalar;
 use scalar::OwnedText;
 #[path = "jsonb_number.rs"]
-mod jsonb_number;
+pub(super) mod jsonb_number;
 #[path = "jsonb_order.rs"]
 mod jsonb_order;
 #[path = "jsonb_output.rs"]

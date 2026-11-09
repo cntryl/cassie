@@ -1,4 +1,4 @@
-use super::{delete_operator, QueryError, ScalarValue};
+use super::{delete_operator, delete_path, QueryError, ScalarValue};
 
 #[test]
 fn should_treat_first_private_number_key_as_an_ordinary_deletion_key() {
@@ -97,4 +97,35 @@ fn should_decode_keys_of_reached_objects_but_not_removed_subtrees() {
     // Assert
     assert!(matches!(reached_result, Err(QueryError::General(_))));
     assert!(matches!(removed_result, Ok(ScalarValue::Json(text)) if text == r#"{"keep": 1}"#));
+}
+
+#[test]
+fn should_preserve_branch_specific_key_and_later_syntax_error_order() {
+    // Arrange
+    let document = "{\n  \"\\ud800\": 0, \"later\": [}";
+    let source = ScalarValue::Json(document.into());
+    let key = ScalarValue::Str("drop".into());
+    let path = ScalarValue::Array(
+        crate::types::SqlArray::from_elements(vec![crate::types::Value::String("drop".into())])
+            .expect("path"),
+    );
+    let expected_object = serde_json::from_str::<super::super::json_document::RawObject>(document)
+        .err()
+        .expect("invalid key")
+        .to_string();
+    let expected_raw = serde_json::from_str::<Box<serde_json::value::RawValue>>(document)
+        .err()
+        .expect("invalid syntax")
+        .to_string();
+    // Act
+    let direct = delete_operator(&source, &key);
+    let nested = delete_path(&source, &path);
+    // Assert
+    assert_ne!(expected_object, expected_raw);
+    assert!(
+        matches!(direct, Err(QueryError::General(message)) if message == format!("invalid JSON document: {expected_object}"))
+    );
+    assert!(
+        matches!(nested, Err(QueryError::General(message)) if message == format!("invalid JSON document: {expected_raw}"))
+    );
 }

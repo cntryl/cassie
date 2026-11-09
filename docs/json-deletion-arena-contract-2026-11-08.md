@@ -65,6 +65,15 @@ add a depth limit. The full raw document syntax is validated before output;
 only surviving values undergo deletion formatting. JSONB cast errors remain
 at the input cast boundary, before the operator.
 
+Validation and reached-key decoding are not universally ordered the same:
+direct object deletion decodes each key as `RawObject` traverses fields, so an
+invalid early key can precede a later malformed value. Path deletion first
+validates the complete root as `RawValue`, so later malformed syntax can win
+before any key is decoded. Reached-key diagnostics use positions relative to
+the reached object; scalar formatting parses its token independently and uses
+a token-relative origin. A pre-scan or isolated key decoder must preserve the
+applicable branch and diagnostic origin.
+
 A subsequent source probe exposed the eager-surrogate counterexample above.
 The refined Jev decision selected deletion-specific checked raw spans and
 on-demand traversal (0.90; lazy forest 0.07), with parity 0.63, ownership 0.63
@@ -79,12 +88,31 @@ decoded and may report an error. Output visits surviving members in the old
 canonical key order, preserving numeric/error precedence. The preserved
 eager arena flag draft is not selected for integration.
 
+The draft reached-object index retains every decoded key until object output,
+then orders equal decoded keys stably and selects the last occurrence. This
+can retain more memory than the previous map, which discarded a duplicate at
+insertion; a tight budget or cancellation may therefore fail earlier. The
+sorting and output tests are unexecuted, and the index is not production-wired.
+
 The current worktree contains a test-only raw syntax scanner draft with an
 admitted iterative frame stack and borrowed result spans. It is not connected
 to SQL deletion. Exact malformed diagnostics, synchronized stack-move
 cancellation, raw object indexing, selection, formatting and result-owner
 handoffs remain open; no executable tests have been run. A pre-cancelled query
 reports cancellation before inspecting even an empty or malformed input.
+
+The unconnected raw deletion candidate covers object and array `-` overloads
+and bottom-up `#-` traversal in test-only code. It owns output and traversal
+buffers and preserves structured diagnostics while rendering. Their eventual
+conversion into independently owned client error Strings and delivery has no
+diagnostic-owner handoff yet. It rescans surviving nested raw arrays and values,
+so deeply nested input can incur quadratic checked work; interruption checks
+do not make that cost linear. Controlled SQL text-array/path operand conversion,
+expression/result ownership and consumer handoffs are still pending. No
+end-to-end resource qualification is claimed.
+The path index scanner checks each byte, but its invalid-index diagnostic still
+uses `format!` to copy the complete path element without admission or bounded
+interruption; error-message ownership and delivery remain open.
 
 Required probes include JSON versus JSONB casts and operators; NUL in removed
 and surviving fields; duplicate and sentinel keys; malformed documents and

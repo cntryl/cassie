@@ -9,6 +9,13 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 #[path = "json_delete_raw_scan_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "json_delete_raw_object.rs"]
+mod object;
+#[cfg(test)]
+#[path = "json_delete_raw_render.rs"]
+mod render;
+
 #[derive(Debug)]
 enum ScanError {
     Control(CassieError),
@@ -172,89 +179,92 @@ fn scan_inner(
         controls,
         observe: observer,
     };
-    let mut stack = Stack::new(controls)?;
-    scanner.whitespace()?;
-    let start = scanner.position;
-    scanner.value(&mut stack)?;
-    while let Some(frame) = stack.frames.pop() {
-        scanner.whitespace()?;
-        match frame {
-            Frame::ArrayFirst | Frame::ArrayValue => {
-                if scanner.peek() == Some(b']') {
-                    if matches!(frame, Frame::ArrayValue) {
-                        return Err(scanner.error("expected value"));
-                    }
-                    scanner.next()?;
-                } else {
-                    if matches!(frame, Frame::ArrayFirst) && scanner.peek().is_none() {
-                        return Err(scanner.error("EOF while parsing a list"));
-                    }
-                    stack.push(Frame::ArrayAfter, &mut scanner.observe)?;
-                    scanner.value(&mut stack)?;
-                }
-            }
-            Frame::ArrayAfter => match scanner.peek() {
-                Some(b']') => {
-                    scanner.next()?;
-                }
-                Some(b',') => {
-                    scanner.next()?;
-                    stack.push(Frame::ArrayValue, &mut scanner.observe)?;
-                }
-                Some(_) => return Err(scanner.error("expected `,` or `]`")),
-                None => return Err(scanner.error("EOF while parsing a list")),
-            },
-            Frame::ObjectFirst | Frame::ObjectKey => {
-                if scanner.peek() == Some(b'}') {
-                    if matches!(frame, Frame::ObjectKey) {
-                        return Err(scanner.error("key must be a string"));
-                    }
-                    scanner.next()?;
-                } else if scanner.peek() == Some(b'"') {
-                    scanner.string()?;
-                    stack.push(Frame::ObjectColon, &mut scanner.observe)?;
-                } else if scanner.peek().is_none() {
-                    return Err(scanner.error("EOF while parsing an object"));
-                } else {
-                    return Err(scanner.error("key must be a string"));
-                }
-            }
-            Frame::ObjectColon => match scanner.peek() {
-                Some(b':') => {
-                    scanner.next()?;
-                    stack.push(Frame::ObjectValue, &mut scanner.observe)?;
-                }
-                None => return Err(scanner.error("EOF while parsing an object")),
-                Some(_) => return Err(scanner.error("expected `:`")),
-            },
-            Frame::ObjectValue => {
-                stack.push(Frame::ObjectAfter, &mut scanner.observe)?;
-                scanner.value(&mut stack)?;
-            }
-            Frame::ObjectAfter => match scanner.peek() {
-                Some(b'}') => {
-                    scanner.next()?;
-                }
-                Some(b',') => {
-                    scanner.next()?;
-                    stack.push(Frame::ObjectKey, &mut scanner.observe)?;
-                }
-                None => return Err(scanner.error("EOF while parsing an object")),
-                Some(_) => return Err(scanner.error("expected `,` or `}`")),
-            },
-        }
-    }
-    let end = scanner.position;
+    let range = scanner.value_span()?;
     if complete {
         scanner.whitespace()?;
         if scanner.peek().is_some() {
             return Err(scanner.error("trailing characters"));
         }
     }
-    Ok(start..end)
+    Ok(range)
 }
 
 impl<F: FnMut(Progress)> Scanner<'_, F> {
+    fn value_span(&mut self) -> Result<Range<usize>, ScanError> {
+        let mut stack = Stack::new(self.controls)?;
+        self.whitespace()?;
+        let start = self.position;
+        self.value(&mut stack)?;
+        while let Some(frame) = stack.frames.pop() {
+            self.whitespace()?;
+            match frame {
+                Frame::ArrayFirst | Frame::ArrayValue => {
+                    if self.peek() == Some(b']') {
+                        if matches!(frame, Frame::ArrayValue) {
+                            return Err(self.error("expected value"));
+                        }
+                        self.next()?;
+                    } else {
+                        if matches!(frame, Frame::ArrayFirst) && self.peek().is_none() {
+                            return Err(self.error("EOF while parsing a list"));
+                        }
+                        stack.push(Frame::ArrayAfter, &mut self.observe)?;
+                        self.value(&mut stack)?;
+                    }
+                }
+                Frame::ArrayAfter => match self.peek() {
+                    Some(b']') => {
+                        self.next()?;
+                    }
+                    Some(b',') => {
+                        self.next()?;
+                        stack.push(Frame::ArrayValue, &mut self.observe)?;
+                    }
+                    Some(_) => return Err(self.error("expected `,` or `]`")),
+                    None => return Err(self.error("EOF while parsing a list")),
+                },
+                Frame::ObjectFirst | Frame::ObjectKey => {
+                    if self.peek() == Some(b'}') {
+                        if matches!(frame, Frame::ObjectKey) {
+                            return Err(self.error("key must be a string"));
+                        }
+                        self.next()?;
+                    } else if self.peek() == Some(b'"') {
+                        self.string()?;
+                        stack.push(Frame::ObjectColon, &mut self.observe)?;
+                    } else if self.peek().is_none() {
+                        return Err(self.error("EOF while parsing an object"));
+                    } else {
+                        return Err(self.error("key must be a string"));
+                    }
+                }
+                Frame::ObjectColon => match self.peek() {
+                    Some(b':') => {
+                        self.next()?;
+                        stack.push(Frame::ObjectValue, &mut self.observe)?;
+                    }
+                    None => return Err(self.error("EOF while parsing an object")),
+                    Some(_) => return Err(self.error("expected `:`")),
+                },
+                Frame::ObjectValue => {
+                    stack.push(Frame::ObjectAfter, &mut self.observe)?;
+                    self.value(&mut stack)?;
+                }
+                Frame::ObjectAfter => match self.peek() {
+                    Some(b'}') => {
+                        self.next()?;
+                    }
+                    Some(b',') => {
+                        self.next()?;
+                        stack.push(Frame::ObjectKey, &mut self.observe)?;
+                    }
+                    None => return Err(self.error("EOF while parsing an object")),
+                    Some(_) => return Err(self.error("expected `,` or `}`")),
+                },
+            }
+        }
+        Ok(start..self.position)
+    }
     fn peek(&self) -> Option<u8> {
         self.input.get(self.position).copied()
     }

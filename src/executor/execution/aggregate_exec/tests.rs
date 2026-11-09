@@ -34,6 +34,9 @@ mod accumulator_output_owner;
 #[path = "group_count_wiring_tests.rs"]
 mod group_count_wiring;
 
+#[path = "semantic_group_count_tests.rs"]
+mod semantic_group_count;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 

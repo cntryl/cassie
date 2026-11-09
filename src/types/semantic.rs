@@ -3,6 +3,9 @@ use std::hash::{Hash, Hasher};
 
 use crate::types::Value;
 
+mod estimated_controlled;
+#[cfg(test)]
+pub(crate) use estimated_controlled::cancel_next_estimate_frame;
 mod jsonb;
 mod jsonb_array;
 mod record;

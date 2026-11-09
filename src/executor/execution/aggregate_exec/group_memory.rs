@@ -63,7 +63,7 @@ pub(super) fn serial_group_bytes(
     controls: &QueryExecutionControls,
 ) -> Result<usize, QueryError> {
     Ok(signature
-        .estimated_bytes()
+        .estimated_bytes_controlled(controls)?
         .saturating_add(super::group_size::json_bytes_controlled(values, controls)?))
 }
 
@@ -80,7 +80,7 @@ pub(super) fn partial_group_bytes(
     controls: &QueryExecutionControls,
 ) -> Result<usize, QueryError> {
     Ok(signature
-        .estimated_bytes()
+        .estimated_bytes_controlled(controls)?
         .saturating_add(super::group_size::json_bytes_controlled(
             &group.group_values,
             controls,

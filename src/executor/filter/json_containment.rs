@@ -122,3 +122,7 @@ fn kind(value: &RawValue) -> JsonKind {
 #[cfg(test)]
 #[path = "json_containment_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "json_containment_string_tests.rs"]
+mod string_tests;

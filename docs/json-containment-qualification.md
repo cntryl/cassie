@@ -39,3 +39,26 @@ entry-point probes. These judgments do not replace executable qualification.
 This increment concerns Boolean containment workspace. Other JSON operators,
 scalar outputs, JSONPath and expansion ownership retain their own qualification
 obligations; this record does not close #809 or #810.
+
+## Visited string scalar comparison candidate
+
+The existing controlled walk calls `serde_json::from_str::<String>` on the
+candidate followed by the required value, then compares the two decoded
+Strings. Those individual copies and the equality walk are not interruptible
+or separately owned by the admitted parent pair. Jev selected checked decoding
+of those two visited raw strings and checked bytewise equality when controls
+exist (0.96); the uncontrolled route stays unchanged. Receipt:
+`target/assembly-review/json-containment-string-contract-{request,response}.json`.
+Decode candidate before required, retain both independent owners until
+comparison finishes, preserve existing bare serde error text and position,
+propagate actual control errors, and keep exact decoded UTF-8 byte equality.
+Additional admission and cancellation can precede old errors. Differential
+escaped strings, Unicode, lone surrogates and error order, exact/below overlap,
+and synchronized actual-copy/compare interruption probes are authored before
+implementation and deferred until the combined gate. The parent raw pair,
+map parsing/comparison, numeric work, diagnostic allocation, allocator
+transient excess and recursive/third-party teardown are not qualified by this
+increment; Midge and the open private-sentinel representation issue are unchanged.
+PostgreSQL 18.6 reports true for `"a"` versus `"\u0061"`, true for an
+array containing `"é"` versus `"\u00e9"`, and false for `"éclair"`
+versus `"éclai"` under JSONB `@>`.

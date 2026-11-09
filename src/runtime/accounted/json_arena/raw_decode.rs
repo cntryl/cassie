@@ -82,7 +82,7 @@ pub(crate) fn decode_at(
 }
 
 #[cfg(test)]
-fn decode_observing(
+pub(crate) fn decode_observing(
     raw: &str,
     controls: &QueryExecutionControls,
     observer: impl FnMut(),

@@ -8,6 +8,22 @@ use super::{json_document, kind, CassieError, JsonKind, QueryError};
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_STRING_COPY: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+    static CANCEL_AFTER_STRING_COMPARE: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn cancel_after_string_copy_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_STRING_COPY.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
+#[cfg(test)]
+pub(super) fn cancel_after_string_compare_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_STRING_COMPARE.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
 struct Pair {
     candidate: Box<RawValue>,
     required: Box<RawValue>,
@@ -53,6 +69,11 @@ impl Work<'_> {
 
     fn scalar_equal(&self, candidate: &RawValue, required: &RawValue) -> Result<bool, QueryError> {
         self.check()?;
+        if let Some(controls) = self.controls {
+            if kind(candidate) == JsonKind::String && kind(required) == JsonKind::String {
+                return string_equal(candidate.get(), required.get(), controls);
+            }
+        }
         let _numbers = if kind(candidate) == JsonKind::Number && kind(required) == JsonKind::Number
         {
             let bound = |value: &RawValue| {
@@ -78,6 +99,59 @@ impl Work<'_> {
         };
         super::scalar_equal(candidate, required)
     }
+}
+
+fn string_equal(
+    candidate: &str,
+    required: &str,
+    controls: &QueryExecutionControls,
+) -> Result<bool, QueryError> {
+    let candidate = decode_string(candidate, controls)?;
+    let required = decode_string(required, controls)?;
+    if candidate.get().len() != required.get().len() {
+        return Ok(false);
+    }
+    for (left, right) in candidate
+        .get()
+        .as_bytes()
+        .chunks(1024)
+        .zip(required.get().as_bytes().chunks(1024))
+    {
+        controls.check_interruption()?;
+        let equal = left == right;
+        #[cfg(test)]
+        CANCEL_AFTER_STRING_COMPARE.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+        controls.check_interruption()?;
+        if !equal {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn decode_string(
+    source: &str,
+    controls: &QueryExecutionControls,
+) -> Result<crate::runtime::accounted::Accounted<String>, QueryError> {
+    use crate::runtime::accounted::json_arena::raw_decode;
+    #[cfg(not(test))]
+    let decoded = raw_decode::decode(source, controls);
+    #[cfg(test)]
+    let decoded = raw_decode::decode_observing(source, controls, || {
+        CANCEL_AFTER_STRING_COPY.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+    });
+    decoded.map_err(|error| match error.into_control() {
+        Ok(control) => control.into(),
+        Err(error) => QueryError::General(error.to_string()),
+    })
 }
 
 enum State {

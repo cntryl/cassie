@@ -185,19 +185,21 @@ impl Fold<'_, '_> {
         if metadata.is_some_and(|entry| {
             entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
         }) && function.args.len() == 4
-            && all_unknown_bucket_parameters(
-                &function.args,
-                &self.summaries.values[frame.start..frame.start + 4],
-            )
         {
-            for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
-                .iter_mut()
-                .zip([701, 701, 701, 23])
-            {
-                check_controls(self.controls)?;
-                self.occurrences.coerce(argument, target, true)?;
+            let summaries = &self.summaries.values[frame.start..frame.start + 4];
+            let shared_slot_is_fresh = summaries.iter().all(|summary| {
+                summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
+            });
+            if all_unknown_bucket_parameters(&function.args, summaries, shared_slot_is_fresh) {
+                for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
+                    .iter_mut()
+                    .zip([701, 701, 701, 23])
+                {
+                    check_controls(self.controls)?;
+                    self.occurrences.coerce(argument, target, true)?;
+                }
+                return Ok(Summary::known(23));
             }
-            return Ok(Summary::known(23));
         }
         if metadata.is_some_and(|entry| {
             entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
@@ -820,13 +822,18 @@ impl Fold<'_, '_> {
     }
 }
 
-fn all_unknown_bucket_parameters(arguments: &[ast::Expr], summaries: &[Summary]) -> bool {
+fn all_unknown_bucket_parameters(
+    arguments: &[ast::Expr],
+    summaries: &[Summary],
+    shared_slot_is_fresh: bool,
+) -> bool {
     let [ast::Expr::Param(first), ast::Expr::Param(second), ast::Expr::Param(third), ast::Expr::Param(count)] =
         arguments
     else {
         return false;
     };
-    ![first, second, third].contains(&count)
+    (![first, second, third].contains(&count)
+        || shared_slot_is_fresh && summaries.iter().all(|summary| !summary.literal))
         && summaries.len() == 4
         && summaries
             .iter()

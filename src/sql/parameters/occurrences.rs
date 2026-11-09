@@ -483,7 +483,7 @@ impl<'a> Occurrences<'a> {
         Ok(())
     }
 
-    fn has_legacy_inference(&self, summary: &Summary) -> bool {
+    pub(super) fn has_legacy_inference(&self, summary: &Summary) -> bool {
         summary.occurrence.is_some_and(|ordinal| {
             self.demands.values[self.ledger.values[ordinal].slot] & LEGACY_INFERRED != 0
         })

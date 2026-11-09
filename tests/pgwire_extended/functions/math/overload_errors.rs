@@ -440,3 +440,41 @@ fn should_validate_unknown_width_bucket_count_literals_during_parse() {
         assert_eq!(wire::data_rows(recovered), vec![vec![Some("2".to_owned())]]);
     }
 }
+
+#[test]
+fn should_reject_width_bucket_parameter_shared_by_operand_and_count() {
+    // Arrange
+    let cases = [
+        "SELECT WIDTH_BUCKET($1, $2, $3, $1)",
+        "SELECT WIDTH_BUCKET($1, $1, $2, $1)",
+        "SELECT pg_catalog.width_bucket($1, $2, $3, $2)",
+    ];
+    let mut steps = Vec::new();
+    for (index, sql) in cases.iter().enumerate() {
+        steps.push(Step::ParseFlush(wire::parse_frame(
+            &format!("bucket_conflict_{index}"),
+            sql,
+        )));
+        steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 45",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-shared-parameter", steps);
+
+    // Assert
+    for (index, _) in cases.iter().enumerate() {
+        let error = &batches[index * 3];
+        assert_eq!(error.first().map(|frame| frame.0), Some(b'E'));
+        assert_eq!(wire::error_code(error).as_deref(), Some("42P08"));
+        assert!(error_response_fields(error)
+            .iter()
+            .any(|(field, value)| *field == 'D' && value == "double precision versus integer"));
+        assert_eq!(
+            wire::data_rows(&batches[index * 3 + 2]),
+            vec![vec![Some("45".to_owned())]]
+        );
+    }
+}

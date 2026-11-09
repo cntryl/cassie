@@ -50,6 +50,9 @@ fn erf(x: f64) -> f64 {
     if x.is_nan() {
         return f64::NAN;
     }
+    if x == 0.0 {
+        return x;
+    }
     if x.abs() > 3.0 {
         return (1.0 - erfc_tail(x.abs())).copysign(x);
     }
@@ -62,7 +65,7 @@ fn erf(x: f64) -> f64 {
         term *= -squared / n;
         let step = term / (2.0 * n + 1.0);
         sum += step;
-        if step.abs() < 1e-17 * sum.abs() {
+        if step == 0.0 || step.abs() < 1e-17 * sum.abs() {
             break;
         }
     }
@@ -296,3 +299,7 @@ pub(super) fn width_bucket_array(operand: &Value, thresholds: &Value) -> Result<
 #[cfg(test)]
 #[path = "math_width_bucket_float_tests.rs"]
 mod width_bucket_float_tests;
+
+#[cfg(test)]
+#[path = "math_error_function_tests.rs"]
+mod error_function_tests;

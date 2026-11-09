@@ -151,3 +151,28 @@ boundaries; storage sentinel behavior and full #809 remain open.
 PostgreSQL 18.6 reports true for `[{"a":1,"a":2}] @> [{"a":2}]`, false for
 `[{"a":[1]}] @> [{"a":1}]`, and true for matching nested `outer.k` objects,
 with JSONB operands.
+
+## Controlled array containment candidate
+
+With controls, an iterative array Frame can own both existing raw sources and
+admitted directories of child byte ranges, in place of constructing a boxed
+RawValue for every element. Build the required array directory first and then
+the candidate directory, preserving the current parse and error order. A root
+scalar requirement is one raw span; it is not generalized to nested arrays.
+Advance required elements and retry candidate elements in the legacy order,
+forward the same scalar observer, and pass each selected pair to the existing
+child walk. Without controls, keep the legacy arrays and parser.
+
+Jev selected the bounded design (0.67), with parse/retry/root/observer (0.77),
+partial owners/cancellation (0.49) and repeated search/diagnostics/teardown
+(0.86) leads. Receipt:
+`target/assembly-review/json-containment-array-contract-{request,response}.json`.
+Test-first probes cover required-first parsing, duplicate and missing elements,
+array/scalar root versus nested behavior, both directions, invalid surviving
+values, actual range-directory movement and exact/below-budget overlap. These
+probes are unexecuted. Directory admission can surface resource or cancellation
+errors earlier; the existing repeated candidate search can remain quadratic.
+General raw parsing, diagnostic allocation, source/allocator transients,
+teardown and sentinel/storage migration remain outside this increment.
+PostgreSQL 18.6 yields true for `[1] @> [1,1]`, true for `[1,2] @> [2,1]`,
+false for `[1,2] @> 3`, and true for `[] @> []` with JSONB operands.

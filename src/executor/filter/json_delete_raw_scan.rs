@@ -9,6 +9,8 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 #[path = "json_delete_raw_scan_tests.rs"]
 mod tests;
 
+#[path = "json_containment_array_pair.rs"]
+pub(super) mod array_containment;
 #[path = "json_concat_raw.rs"]
 pub(super) mod concat;
 #[path = "json_containment_raw_object.rs"]

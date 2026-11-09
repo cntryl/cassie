@@ -151,3 +151,7 @@ mod pair_tests;
 #[cfg(test)]
 #[path = "json_containment_nested_object_tests.rs"]
 mod nested_object_tests;
+
+#[cfg(test)]
+#[path = "json_containment_array_pair_tests.rs"]
+mod array_pair_tests;

@@ -104,7 +104,13 @@ pub(super) fn controlled_containment_objects(
     raw_scan::containment::evaluate(candidate, required, controls, after_scalar)
 }
 
+pub(super) use raw_scan::array_containment::{ArrayPair, ArrayStep};
 pub(super) use raw_scan::nested_containment::{ObjectPair, ObjectStep};
+
+#[cfg(test)]
+pub(super) fn cancel_containment_array_move_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::array_containment::cancel_move_once(handle);
+}
 
 #[cfg(test)]
 pub(super) fn cancel_nested_object_index_once(handle: crate::runtime::QueryCancellationHandle) {

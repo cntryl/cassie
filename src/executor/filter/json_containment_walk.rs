@@ -173,6 +173,7 @@ fn decode_string(
 }
 
 enum State {
+    ControlledArrays(super::super::json_delete::ArrayPair),
     ControlledObjects(super::super::json_delete::ObjectPair),
     Objects {
         candidate: BTreeMap<String, Box<RawValue>>,
@@ -201,6 +202,16 @@ impl Frame {
     fn advance(&mut self, previous: Option<bool>, work: &Work<'_>) -> Result<Next, QueryError> {
         work.check()?;
         match &mut self.state {
+            State::ControlledArrays(arrays) => {
+                let controls = work.controls.expect("controlled array frame");
+                match arrays.next(previous, controls)? {
+                    super::super::json_delete::ArrayStep::Child(candidate, required) => {
+                        work.pair(candidate, required).map(Next::Child)
+                    }
+                    super::super::json_delete::ArrayStep::Missing => Ok(Next::Complete(false)),
+                    super::super::json_delete::ArrayStep::Done => Ok(Next::Complete(true)),
+                }
+            }
             State::ControlledObjects(objects) => {
                 if previous == Some(false) {
                     return Ok(Next::Complete(false));
@@ -314,16 +325,25 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
         (JsonKind::Array, required_kind)
             if required_kind == JsonKind::Array || (root && required_kind.is_scalar()) =>
         {
-            let required = if required_kind == JsonKind::Array {
-                json_document::parse_array(pair.required.get())?
+            if let Some(controls) = work.controls {
+                State::ControlledArrays(super::super::json_delete::ArrayPair::build(
+                    pair.candidate,
+                    pair.required,
+                    required_kind == JsonKind::Array,
+                    controls,
+                )?)
             } else {
-                vec![pair.required]
-            };
-            State::Arrays {
-                candidate: json_document::parse_array(pair.candidate.get())?,
-                required: required.into_iter(),
-                current: None,
-                next_candidate: 0,
+                let required = if required_kind == JsonKind::Array {
+                    json_document::parse_array(pair.required.get())?
+                } else {
+                    vec![pair.required]
+                };
+                State::Arrays {
+                    candidate: json_document::parse_array(pair.candidate.get())?,
+                    required: required.into_iter(),
+                    current: None,
+                    next_candidate: 0,
+                }
             }
         }
         (JsonKind::Number, JsonKind::Number)

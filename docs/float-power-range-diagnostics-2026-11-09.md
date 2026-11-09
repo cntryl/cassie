@@ -9,6 +9,13 @@ checks, finite calculation, NaN and infinity handling, signed zero, argument
 conversion and NULL dispatch remain unchanged. NUMERIC-to-FLOAT8 input range
 errors are separate and retain their existing diagnostic.
 
+For these two arithmetic failures, embedded callers that inspect the public
+error enum now receive `CassieError::TypeInput` with SQLSTATE `22003` rather
+than `CassieError::FloatInput(FloatInputError::Range)`. This is an intentional
+error-variant change to preserve PostgreSQL's distinct operation diagnostics.
+Other FLOAT8 input conversion failures keep their existing variant. Platform
+`pow`/`errno` behavior for subnormal results is outside this scoped correction.
+
 The pinned PostgreSQL 18.6 oracle confirmed the messages for both call and
 operator forms, and `NaN^0`, `1^NaN`, and negative-infinity powers. Authored
 pgwire regressions cover those cases, parameter/result descriptors, Sync and

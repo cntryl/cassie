@@ -14,7 +14,9 @@ fn should_distinguish_float_power_overflow_and_underflow_for_calls_and_operators
     let mut steps = Vec::new();
     for (sql, _) in cases {
         steps.push(Step::ThroughReady(vec![wire::simple_query_frame(sql)]));
-        steps.push(Step::ThroughReady(vec![wire::simple_query_frame("SELECT 42")]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 42",
+        )]));
     }
 
     // Act
@@ -27,9 +29,12 @@ fn should_distinguish_float_power_overflow_and_underflow_for_calls_and_operators
             .iter()
             .find(|(tag, _)| *tag == b'E')
             .expect("range ErrorResponse");
-        assert!(wire::parse_error_fields(&error.1)
-            .iter()
-            .any(|(kind, text)| *kind == 'M' && text == &format!("value out of range: {expected}")));
+        assert!(
+            wire::parse_error_fields(&error.1)
+                .iter()
+                .any(|(kind, text)| *kind == 'M'
+                    && text == &format!("value out of range: {expected}"))
+        );
         assert!(!pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
         assert_eq!(wire::error_code(&pair[1]), None);
         assert_eq!(wire::data_rows(&pair[1]), vec![vec![Some("42".to_owned())]]);
@@ -47,7 +52,10 @@ fn should_report_bound_float_power_overflow_and_recover_after_sync() {
             "SELECT power($1, $2)",
             &[701, 701],
         )),
-        Step::ThroughReady(vec![wire::describe_statement_frame(statement), wire::sync_frame()]),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
         Step::ThroughReady(vec![
             wire::bind_frame(portal, statement, &["1e308", "2"]),
             wire::execute_frame(portal),
@@ -74,5 +82,35 @@ fn should_report_bound_float_power_overflow_and_recover_after_sync() {
         .iter()
         .any(|(kind, text)| *kind == 'M' && text == "value out of range: overflow"));
     assert_eq!(wire::error_code(&batches[3]), None);
-    assert_eq!(wire::data_rows(&batches[3]), vec![vec![Some("42".to_owned())]]);
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("42".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_float_power_special_and_null_results() {
+    // Arrange
+    let sql = "SELECT power('NaN'::float8, 0::float8), \
+        power(1::float8, 'NaN'::float8), \
+        power('-Infinity'::float8, -3::float8), \
+        power(NULL::float8, 2::float8)";
+
+    // Act
+    let batches = run_script(
+        "float-power-special-controls",
+        vec![Step::ThroughReady(vec![wire::simple_query_frame(sql)])],
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("1".into()),
+            Some("1".into()),
+            Some("-0".into()),
+            None
+        ]]
+    );
 }

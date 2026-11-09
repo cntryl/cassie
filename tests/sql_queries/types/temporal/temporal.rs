@@ -53,6 +53,36 @@ fn should_resolve_old_session_zone_abbreviations_for_timezone_conversion() {
 }
 
 #[test]
+fn should_resolve_historical_session_abbreviations_in_timestamp_text() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-historical-abbreviation-input",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
+
+    // Act
+    let sql = "SELECT TIMESTAMPTZ '2024-01-01 00:00:00 LMT' = TIMESTAMPTZ '2024-01-01 04:56:02+00' AND TIMESTAMPTZ '2024-01-01 00:00:00 EWT' = TIMESTAMPTZ '2024-01-01 04:00:00+00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
+fn should_resolve_dynamic_input_abbreviation_after_complete_local_time() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-dynamic-input-order",
+        &["SET TIME ZONE 'Europe/Moscow'"],
+    );
+
+    // Act
+    let sql = "SELECT TIMESTAMPTZ '2014-10-26 MSK 01:30:00' = TIMESTAMPTZ '2014-10-25 22:30:00+00' AND TIMESTAMPTZ '2014-10-26 01:30:00 MSK' = TIMESTAMPTZ '2014-10-25 22:30:00+00' AND TIMESTAMPTZ '2011-03-27 MSK 02:30:00' = TIMESTAMPTZ '2011-03-26 22:30:00+00' AND TIMESTAMPTZ '2011-03-27 02:30:00 MSK' = TIMESTAMPTZ '2011-03-26 22:30:00+00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
 fn should_resolve_dynamic_session_abbreviation_at_the_operand_date() {
     // Arrange
     let fixture = sql_fixture(

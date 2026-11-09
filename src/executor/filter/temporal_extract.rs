@@ -58,10 +58,16 @@ pub(super) fn numeric_part(
     }
     let numeric = match (unit, source) {
         (Some(Unit::Epoch), TypedValue::Timestamp(value) | TypedValue::TimestampTz(value)) => {
-            scaled(
-                i128::from(*value) + i128::from(UNIX_TO_POSTGRES_SECS) * i128::from(USECS_PER_SEC),
-                6,
-            )
+            let micros =
+                i128::from(*value) + i128::from(UNIX_TO_POSTGRES_SECS) * i128::from(USECS_PER_SEC);
+            // Above PostgreSQL's i64 boundary, numeric division first rounds
+            // the positive result to four decimal places, then pads to six.
+            let rounded = if micros >= i128::from(i64::MAX) {
+                (micros + 50) / 100 * 100
+            } else {
+                micros
+            };
+            scaled(rounded, 6)
         }
         (Some(Unit::Epoch), TypedValue::Time(value)) => scaled(i128::from(*value), 6),
         (Some(Unit::Epoch), TypedValue::TimeTz(value)) => scaled(

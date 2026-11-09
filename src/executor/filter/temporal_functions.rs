@@ -464,13 +464,17 @@ fn date_part(
             temporal::part_timestamp(&unit, value, None, "timestamp without time zone")
         }
         TypedValue::TimestampTz(value) => {
-            let east = session.zone.offset_at(value);
-            temporal::part_timestamp(
-                &unit,
-                temporal::local_of(value, &session.zone),
-                Some(east),
-                "timestamp with time zone",
-            )
+            if unit.eq_ignore_ascii_case("epoch") {
+                temporal::part_timestamp(&unit, value, Some(0), "timestamp with time zone")
+            } else {
+                let east = session.zone.offset_at(value);
+                temporal::part_timestamp(
+                    &unit,
+                    temporal::local_of(value, &session.zone),
+                    Some(east),
+                    "timestamp with time zone",
+                )
+            }
         }
         TypedValue::Time(time) => temporal::part_time(&unit, time, None).map(Some),
         TypedValue::TimeTz(value) => {

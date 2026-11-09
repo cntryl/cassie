@@ -392,3 +392,98 @@ fn should_preserve_null_parts_for_infinite_interval_weeks_and_timestamp_timezone
         &[vec![Value::Bool(true)]]
     );
 }
+
+#[test]
+fn should_extract_epoch_across_the_unix_microsecond_overflow_boundary() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-epoch-overflow-boundary",
+        &["SET TIME ZONE 'UTC'"],
+    );
+    let cases = [
+        ("775806", "9223372036854.775806"),
+        ("775807", "9223372036854.775800"),
+        ("775849", "9223372036854.775800"),
+        ("775850", "9223372036854.775900"),
+        ("999950", "9223372036855.000000"),
+    ];
+
+    for (micros, expected) in cases {
+        // Act
+        let sql =
+            format!("SELECT EXTRACT(EPOCH FROM TIMESTAMP '294247-01-10 04:00:54.{micros}')::text");
+        let result = fixture.execute(&sql);
+
+        // Assert
+        assert_eq!(
+            result.expect("timestamp epoch").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "{micros}"
+        );
+    }
+}
+
+#[test]
+fn should_match_float_epoch_rounding_above_the_overflow_boundary() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-float-epoch-overflow-boundary",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let result = fixture.execute("SELECT DATE_PART('epoch', TIMESTAMP '294247-01-10 04:00:54.999950'), DATE_PART('epoch', TIMESTAMPTZ '294247-01-10 04:00:54.999950+00')");
+
+    // Assert
+    assert_eq!(
+        result.expect("floating timestamp epochs").rows(),
+        &[vec![
+            Value::Float64(9_223_372_036_855.002),
+            Value::Float64(9_223_372_036_855.002)
+        ]]
+    );
+}
+
+#[test]
+fn should_extract_epoch_at_the_upper_bound_in_a_non_utc_session() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-epoch-upper-timezone",
+        &["SET TIME ZONE 'Asia/Kolkata'"],
+    );
+
+    // Act
+    let result = fixture.execute("SELECT EXTRACT(EPOCH FROM TIMESTAMP '294276-12-31 23:59:59.999999')::text, EXTRACT(EPOCH FROM TIMESTAMPTZ '294247-01-10 09:30:54.775850+05:30')::text, DATE_PART('epoch', TIMESTAMPTZ '294247-01-10 09:30:54.775850+05:30'), DATE_PART('epoch', TIMESTAMPTZ '294276-12-31 23:59:59.999999+00')");
+
+    // Assert
+    assert_eq!(
+        result.expect("upper timestamp epochs").rows(),
+        &[vec![
+            Value::String("9224318016000.000000".to_owned()),
+            Value::String("9223372036854.775900".to_owned()),
+            Value::Float64(9_223_372_036_854.775),
+            Value::Float64(9_224_318_016_000.0)
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_signed_microseconds_for_ordinary_epoch_parts() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-epoch-signed-microseconds",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let result = fixture.execute("SELECT EXTRACT(EPOCH FROM TIMESTAMP '1970-01-01 00:00:00.000001')::text, EXTRACT(EPOCH FROM TIMESTAMP '1969-12-31 23:59:59.999999')::text");
+
+    // Assert
+    assert_eq!(
+        result.expect("signed epoch microseconds").rows(),
+        &[vec![
+            Value::String("0.000001".to_owned()),
+            Value::String("-0.000001".to_owned())
+        ]]
+    );
+}

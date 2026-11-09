@@ -73,3 +73,26 @@ fn should_preserve_first_repeated_posix_designation_for_timestamptz_timezone() {
     // Assert
     assert!(matches!(result, Ok(Value::Typed(TypedValue::Timestamp(value))) if value == summer));
 }
+
+#[test]
+fn should_extract_timestamptz_epoch_without_local_offset_saturation() {
+    // Arrange
+    let session = TemporalSession {
+        zone: crate::types::extended::temporal::zone::Zone::Fixed {
+            east: i32::MAX,
+            name: String::new(),
+        },
+        ..TemporalSession::default()
+    };
+    let maximum = crate::types::extended::temporal::calendar::END_TIMESTAMP - 1;
+
+    // Act
+    let result = super::date_part(
+        &Value::String("epoch".to_owned()),
+        &Value::Typed(TypedValue::TimestampTz(maximum)),
+        &session,
+    );
+
+    // Assert
+    assert!(matches!(result, Ok(Value::Float64(value)) if value == 9_224_318_016_000.0));
+}

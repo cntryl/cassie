@@ -330,8 +330,18 @@ pub fn part_timestamp(
         }
         Unit::Doy => f(date2j(year, fields.month, fields.day) - date2j(year, 1, 1) + 1),
         Unit::Epoch => {
-            let utc = local - i64::from(zone_east.unwrap_or(0)) * USECS_PER_SEC;
-            f(utc - (-UNIX_TO_POSTGRES_SECS * USECS_PER_SEC)) / 1_000_000.0
+            let utc =
+                i128::from(local) - i128::from(zone_east.unwrap_or(0)) * i128::from(USECS_PER_SEC);
+            let offset = i128::from(UNIX_TO_POSTGRES_SECS) * i128::from(USECS_PER_SEC);
+            let unix = utc + offset;
+            match i64::try_from(unix) {
+                Ok(micros) if micros != i64::MAX => f(micros) / 1_000_000.0,
+                _ => {
+                    (num_traits::ToPrimitive::to_f64(&utc).unwrap_or(0.0)
+                        + f(UNIX_TO_POSTGRES_SECS * USECS_PER_SEC))
+                        / 1_000_000.0
+                }
+            }
         }
         Unit::Timezone | Unit::TimezoneHour | Unit::TimezoneMinute => {
             let east = zone_east.ok_or_else(|| unsupported(name, type_name))?;

@@ -307,11 +307,8 @@ fn should_reject_database_qualified_copy_target_without_retiring_the_transaction
     let controls = controls();
 
     // Act
-    let rejected = cassie.capture_copy_command_owner(
-        &session,
-        "postgres.public.copy_owner_fence",
-        &controls,
-    );
+    let rejected =
+        cassie.capture_copy_command_owner(&session, "postgres.public.copy_owner_fence", &controls);
     let accepted =
         cassie.capture_copy_command_owner(&session, "public.copy_owner_fence", &controls);
 

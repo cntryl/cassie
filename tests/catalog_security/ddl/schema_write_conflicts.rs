@@ -94,7 +94,7 @@ fn should_abort_one_conflicting_table_create_before_reusing_object_id() {
 }
 
 #[test]
-fn should_abort_one_conflicting_nextval_before_returning_a_duplicate_value() {
+fn should_retry_one_conflicting_nextval_before_returning_unique_values() {
     // Arrange
     let _test_guard = schema_write_conflict_test_guard();
     let path = support::data_dir("sequence-write-conflicts");
@@ -130,31 +130,16 @@ fn should_abort_one_conflicting_nextval_before_returning_a_duplicate_value() {
     // Act
     resume.wait();
     let outcomes = workers.map(|worker| worker.join().expect("join sequence worker"));
-    let mut returned_ids = Vec::new();
-    let mut retryable_conflicts = 0_usize;
+    let mut returned_ids = Vec::with_capacity(outcomes.len());
     for result in outcomes {
         match result {
             Ok(value) => returned_ids.push(value),
-            Err(CassieError::StorageRetryable(message))
-                if message
-                    .to_ascii_lowercase()
-                    .starts_with("midge write conflict") =>
-            {
-                retryable_conflicts += 1;
-            }
-            Err(error) => panic!("unexpected sequence error: {error}"),
+            Err(error) => panic!("nextval should retry storage conflicts: {error}"),
         }
     }
-    assert_eq!(returned_ids.len(), 1, "one nextval call should commit");
-    assert_eq!(retryable_conflicts, 1, "one nextval call should abort");
-    returned_ids.push(
-        cassie
-            .midge
-            .next_sequence_value("sequence_conflict_ids")
-            .expect("retry nextval"),
-    );
 
     // Assert
+    assert_eq!(returned_ids.len(), 2, "both nextval calls should complete");
     returned_ids.sort_unstable();
     assert_eq!(returned_ids, vec![1, 2]);
     let stored = cassie

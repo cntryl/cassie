@@ -55,7 +55,10 @@ fn should_bound_expanded_numeric_coefficients_before_comparing_them() {
     let measured = evaluate_with_controls(&contains(), &number, &number, Some(&baseline));
     assert!(matches!(measured, Ok(ScalarValue::Bool(true))));
     let peak = baseline.peak_query_memory_bytes();
-    assert!(peak >= 2 * 401, "both expanded numeric texts must be admitted");
+    assert!(
+        peak >= 2 * 401,
+        "both expanded numeric texts must be admitted"
+    );
     assert_eq!(baseline.current_query_memory_bytes(), 0);
 
     for (budget, accepted) in [(peak - 1, false), (peak, true)] {

@@ -151,12 +151,38 @@ fn should_join_and_preserve_namespace_identity_across_rollback() {
         .expect("runtime");
     runtime.block_on(async {
         let (server, client, connection, path) = start_pgwire_fixture("namespace_descriptor_join").await;
-        client.batch_execute("CREATE SCHEMA descriptor_before; CREATE TABLE descriptor_before.rows (v INT)").await.expect("create schema and table");
-        let before = client.query_one("SELECT n.oid FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace_oid WHERE n.nspname = 'descriptor_before' AND c.relname = 'rows'", &[]).await.expect("join catalog identities").get::<_, u32>(0);
+        client
+            .batch_execute("CREATE SCHEMA descriptor_before")
+            .await
+            .expect("create schema");
+        client
+            .batch_execute("CREATE TABLE descriptor_before.rows (v INT)")
+            .await
+            .expect("create table");
+        let before = client
+            .query_one(
+                "SELECT n.oid FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace_oid WHERE n.nspname = 'descriptor_before' AND c.relname = 'rows'",
+                &[],
+            )
+            .await
+            .expect("join catalog identities")
+            .get::<_, u32>(0);
 
         // Act
-        client.batch_execute("BEGIN; ALTER SCHEMA descriptor_before RENAME TO descriptor_after; ROLLBACK").await.expect("rollback rename");
-        let after = client.query_one("SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'descriptor_before'", &[]).await.expect("restored namespace").get::<_, u32>(0);
+        client.batch_execute("BEGIN").await.expect("begin rename transaction");
+        client
+            .batch_execute("ALTER SCHEMA descriptor_before RENAME TO descriptor_after")
+            .await
+            .expect("rename schema");
+        client.batch_execute("ROLLBACK").await.expect("rollback rename");
+        let after = client
+            .query_one(
+                "SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'descriptor_before'",
+                &[],
+            )
+            .await
+            .expect("restored namespace")
+            .get::<_, u32>(0);
 
         // Assert
         assert_ne!(before, 0);

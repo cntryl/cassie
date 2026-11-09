@@ -171,7 +171,7 @@ fn should_describe_and_decode_pg_type_kind_and_category_as_internal_chars() {
         let direct = client.prepare("SELECT t.typtype AS kind, t.typcategory AS category FROM pg_catalog.pg_type t WHERE t.oid = $1").await.expect("prepare direct and aliased columns");
         let unknown = client.query_one(&direct, &[&705_u32]).await.expect("unknown type");
         let array = client.query_one(&direct, &[&1007_u32]).await.expect("array type");
-        let wildcard = client.prepare("SELECT * FROM pg_catalog.pg_type WHERE oid = $1").await.expect("prepare wildcard");
+        let wildcard = client.prepare("SELECT * FROM pg_catalog.pg_type WHERE oid = $1::oid").await.expect("prepare wildcard");
         let wildcard_row = client.query_one(&wildcard, &[&1007_u32]).await.expect("array wildcard");
         let kind = wildcard.columns().iter().position(|column| column.name() == "typtype").expect("kind column");
         let category = wildcard.columns().iter().position(|column| column.name() == "typcategory").expect("category column");

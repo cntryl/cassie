@@ -52,14 +52,18 @@ pub(super) fn retain_json_tree(
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
     let mut pending = PendingOutput { value, memory };
-    if let (Value::Json(_), Some(owner), Some(memory), Some(controls)) =
-        (&pending.value, owner, pending.memory.as_ref(), controls)
+    if let (Value::Json(json), Some(owner), Some(memory), Some(controls)) =
+        (&pending.value, owner, pending.memory.as_mut(), controls)
     {
         if !owner.belongs_to(controls) || !memory.belongs_to(controls) {
             return Err(CassieError::ResourceLimit(
                 "JSONPath result owner uses a different query tracker".into(),
             )
             .into());
+        }
+        let retained = crate::runtime::accounted::json::tree_estimate::estimate(json, controls)?;
+        if retained > memory.bytes() {
+            memory.try_grow(retained - memory.bytes())?;
         }
         check_transfer(controls)?;
         if let Some(memory) = pending.memory.take() {

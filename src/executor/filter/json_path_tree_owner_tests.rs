@@ -259,3 +259,72 @@ fn should_keep_general_owner_jsonpath_route_on_its_existing_path() {
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_grow_existing_tree_lease_to_the_retained_estimate_or_release_it() {
+    // Arrange
+    let mut text = String::with_capacity(65_536);
+    text.push('x');
+    let json = serde_json::Value::String(text);
+    let expected = crate::runtime::accounted::json::retained_bytes(&json).expect("estimate");
+    let probe = controls(10 * 1024 * 1024);
+    let _ =
+        crate::runtime::accounted::json::tree_estimate::estimate(&json, &probe).expect("scratch");
+    let scratch = probe.peak_query_memory_bytes();
+    let budget = scratch + 1;
+    assert!(budget < expected);
+    // Act / Assert
+    for (limit, succeeds) in [(10 * 1024 * 1024, true), (budget, false)] {
+        let controls = controls(limit);
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        let memory = controls.reserve_query_memory(1).expect("workspace");
+        let mut case_text = String::with_capacity(65_536);
+        case_text.push('x');
+        let case_json = serde_json::Value::String(case_text);
+        let case_estimate =
+            crate::runtime::accounted::json::retained_bytes(&case_json).expect("estimate");
+        let result = super::super::json_result_owner::retain_json_tree(
+            Value::Json(case_json),
+            Some(memory),
+            Some(&owner),
+            Some(&controls),
+        );
+        assert_eq!(result.is_ok(), succeeds);
+        if succeeds {
+            assert!(owner.bytes() >= case_estimate);
+        }
+        assert!(controls.peak_query_memory_bytes() > 1);
+        drop(result);
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_release_the_tree_and_workspace_after_actual_estimator_move_cancellation() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let memory = controls.reserve_query_memory(512).expect("workspace");
+    let mut json = serde_json::Value::Null;
+    for _ in 0..16 {
+        json = serde_json::Value::Array(vec![json]);
+    }
+    crate::runtime::accounted::json::tree_estimate::cancel_move_once(cancel);
+    // Act
+    let result = super::super::json_result_owner::retain_json_tree(
+        Value::Json(json),
+        Some(memory),
+        Some(&owner),
+        Some(&controls),
+    );
+    // Assert
+    assert!(result.is_err());
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

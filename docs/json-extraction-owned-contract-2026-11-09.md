@@ -136,6 +136,22 @@ Jev selected this limited handoff (0.99); receipt:
 Test-first array/first, source/output overlap, actual post-result cancellation,
 foreign tracker, fallback and projection lifetime probes remain unexecuted.
 
+The follow-up estimates the completed Value tree with a separately admitted,
+iterative traversal equivalent to Cassie's existing `json::retained_bytes`
+convention, including the unknown-provenance empty-map charge, and grows the
+existing workspace reservation before transferring it. The tree remains in a
+value-first guard throughout estimation/growth; traversal scratch overlaps
+the old reservation. Jev selected this limited improvement (0.99), with
+estimator parity/overflow (0.78), stack/lease overlap (0.60) and post-allocation
+overclaim (0.88) leads. Receipt:
+`target/assembly-review/jsonpath-tree-estimator-contract-{request,response}.json`.
+The grow happens after JSONPath has constructed the tree. The existing BTree
+node and Number backing allowances are conservative conventions, not a proof
+of private allocator capacity, and do not establish pre-admission, bounded
+third-party construction or nonrecursive destruction. Empty-map, nested tree,
+overflow, actual stack-move/cancellation, exact/below and release probes are
+authored but unexecuted; output/diagnostic/storage limits remain open.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

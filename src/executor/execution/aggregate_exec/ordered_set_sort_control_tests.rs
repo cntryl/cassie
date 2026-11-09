@@ -73,8 +73,14 @@ fn should_preserve_stable_order_when_checked_sort_completes() {
 fn should_admit_both_sort_buffers_before_initialization() {
     // Arrange
     let values = vec![3, 1, 2, 0];
-    let needed = 2 * values.len() * size_of::<usize>();
-    for (budget, succeeds) in [(needed, true), (needed - 1, false)] {
+    let baseline =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let mut measured = values.clone();
+    try_sort_by_observed(&mut measured, &baseline, i32::cmp, |_| {}).expect("measure workspace");
+    let peak = baseline.peak_query_memory_bytes();
+    assert!(peak >= 2 * values.len() * size_of::<usize>());
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
         let controls = QueryExecutionControls::from_limits(
             &CassieRuntimeLimits {
                 query_memory_budget_bytes: budget,

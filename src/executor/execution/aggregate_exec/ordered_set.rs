@@ -55,10 +55,26 @@ enum FractionProgress {
     ResultElement,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SortProgress {
+    Initialize,
+    Inverse,
+    Swap,
+}
+
 fn try_sort_by<T>(
     values: &mut [T],
     controls: &QueryExecutionControls,
+    compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+) -> Result<(), QueryError> {
+    try_sort_by_observed(values, controls, compare, |_| {})
+}
+
+fn try_sort_by_observed<T>(
+    values: &mut [T],
+    controls: &QueryExecutionControls,
     mut compare: impl FnMut(&T, &T) -> std::cmp::Ordering,
+    mut observe: impl FnMut(SortProgress),
 ) -> Result<(), QueryError> {
     check_timeout(controls)?;
     let length = values.len();
@@ -91,8 +107,13 @@ fn try_sort_by<T>(
     if actual_capacity > sort_bytes {
         sort_memory.try_grow(actual_capacity - sort_bytes)?;
     }
-    indices.extend(0..length);
-    scratch.resize(length, 0);
+    for index in 0..length {
+        check_timeout(controls)?;
+        indices.push(index);
+        scratch.push(0);
+        observe(SortProgress::Initialize);
+        check_timeout(controls)?;
+    }
 
     let mut width = 1;
     while width < length {
@@ -122,7 +143,10 @@ fn try_sort_by<T>(
     }
 
     for (destination, source) in indices.iter().copied().enumerate() {
+        check_timeout(controls)?;
         scratch[source] = destination;
+        observe(SortProgress::Inverse);
+        check_timeout(controls)?;
     }
     for origin in 0..length {
         check_timeout(controls)?;
@@ -130,6 +154,8 @@ fn try_sort_by<T>(
             let destination = scratch[origin];
             values.swap(origin, destination);
             scratch.swap(origin, destination);
+            observe(SortProgress::Swap);
+            check_timeout(controls)?;
         }
     }
     check_timeout(controls)?;

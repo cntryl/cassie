@@ -334,3 +334,15 @@ parity (0.86), i64/i32 extrema (0.81), owner lifetime (0.50), other callers
 (0.38) and decoder errors (0.33) require focused source checks and probes. Other
 codecs and malformed diagnostic scratch remain pending; probes unexecuted.
 Receipt: `target/assembly-review/copy-binary-interval-{request,response}.json`.
+
+Jev selected (0.99) scalar binary NUMERIC COPY output by checked direct
+base-10000 group rendering, without constructing BigInts or powers of ten.
+Preserve exact frame-length/sign/scale/digit validation order, special values
+that return before scale/digit validation, decimal truncation toward zero,
+fixed display scale and suppression of negative zero. Compute the output size
+before admission, check interruption during input and output traversals, and
+retain the output lease. Truncation/parity (0.69), validation order (0.63),
+cancellation (0.56) and ownership (0.33) require focused source checks and
+probes. Array conversion and malformed diagnostic scratch remain pending;
+probes are unexecuted. Receipt:
+`target/assembly-review/copy-binary-numeric-{request,response}.json`.

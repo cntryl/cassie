@@ -7,6 +7,63 @@ use crate::sql::ast::SelectItem;
 use crate::types::Value;
 use std::sync::Arc;
 
+#[path = "json_object_keys_row.rs"]
+mod row;
+
+#[derive(Clone, Copy)]
+enum Progress {
+    Name,
+    Key,
+    Entries,
+    Slot,
+}
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_EXPAND: std::cell::RefCell<Option<(crate::runtime::QueryCancellationHandle, u8)>> = const { std::cell::RefCell::new(None) };
+    static OBSERVE_SOURCE: std::cell::RefCell<Option<(std::sync::Weak<crate::runtime::QueryMemoryReservation>, std::rc::Rc<std::cell::Cell<bool>>)>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(super) fn cancel_expand_once(handle: crate::runtime::QueryCancellationHandle, stage: u8) {
+    CANCEL_EXPAND.with(|slot| *slot.borrow_mut() = Some((handle, stage)));
+}
+#[cfg(test)]
+pub(super) fn observe_source_during_copy(
+    source: std::sync::Weak<crate::runtime::QueryMemoryReservation>,
+    observed: std::rc::Rc<std::cell::Cell<bool>>,
+) {
+    OBSERVE_SOURCE.with(|slot| *slot.borrow_mut() = Some((source, observed)));
+}
+#[cfg(test)]
+fn observe(progress: Progress) {
+    if matches!(progress, Progress::Key) {
+        OBSERVE_SOURCE.with(|slot| {
+            if let Some((source, observed)) = slot.borrow_mut().take() {
+                observed.set(source.upgrade().is_some());
+            }
+        });
+    }
+    let stage = match progress {
+        Progress::Name => 0,
+        Progress::Key => 1,
+        Progress::Entries => 2,
+        Progress::Slot => 3,
+    };
+    CANCEL_EXPAND.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot
+            .as_ref()
+            .is_some_and(|(_, selected)| *selected == stage)
+        {
+            if let Some((handle, _)) = slot.take() {
+                handle.cancel();
+            }
+        }
+    });
+}
+#[cfg(not(test))]
+fn observe(_: Progress) {}
+
 pub(super) fn expand(
     batches: Vec<Batch>,
     projection: &[SelectItem],
@@ -15,12 +72,12 @@ pub(super) fn expand(
     let Some((function, alias)) = object_keys_projection(projection) else {
         return Ok(batches);
     };
-    let output_name = alias.unwrap_or(function.name.as_str()).to_owned();
+    let output_name = alias.unwrap_or(function.name.as_str());
     let mut expanded = AccountedVec::try_new(controls)?;
     for batch in batches {
         for row in batch {
             controls.check_interruption()?;
-            match row.get(&output_name) {
+            match row.get(output_name) {
                 None | Some(Value::Null) => {}
                 Some(Value::Json(serde_json::Value::Array(keys))) => {
                     for key in keys {
@@ -30,14 +87,10 @@ pub(super) fn expand(
                                 "json_object_keys produced a non-text key".into(),
                             ));
                         };
-                        let retained_bytes = key.len().saturating_add(output_name.len());
-                        expanded.try_push_with(retained_bytes, || {
-                            BatchRow::from_projected_values(vec![(
-                                output_name.clone(),
-                                Value::String(key.to_owned()),
-                            )])
-                            .with_optional_data_types(row.shared_data_types())
-                        })?;
+                        let prepared = row::prepare(output_name, key, &row, controls)?;
+                        expanded.try_push_admitted(prepared.row, prepared.memory, controls)?;
+                        observe(Progress::Slot);
+                        controls.check_interruption()?;
                     }
                 }
                 Some(_) => {

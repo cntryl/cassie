@@ -349,9 +349,13 @@ fn bind_statement(
         StatementRoute::Runtime(statement) => {
             bind_runtime_route(*statement, catalog, outer_scope, &raw_sql, context)
         }
-        StatementRoute::Catalog(statement) => {
-            bind_catalog_route(statement, catalog, &raw_sql, context)
-        }
+        StatementRoute::Catalog(statement) => bind_catalog_route(
+            statement,
+            catalog,
+            &raw_sql,
+            context,
+            outer_scope.controls(),
+        ),
         StatementRoute::Projection(statement) => {
             bind_projection_route(statement, catalog, &raw_sql, context)
         }
@@ -423,32 +427,65 @@ fn bind_catalog_route(
     catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ParsedStatement, CassieError> {
     match statement {
-        CatalogStatement::CreateFunction(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::DropFunction(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::CreateProcedure(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::DropProcedure(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::CallProcedure(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::CreateIndex(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::DropIndex(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::AlterIndex(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
+        CatalogStatement::CreateFunction(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
+        CatalogStatement::DropFunction(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
+        CatalogStatement::CreateProcedure(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
+        CatalogStatement::DropProcedure(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
+        CatalogStatement::CallProcedure(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
+        CatalogStatement::CreateIndex(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
+        CatalogStatement::DropIndex(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
+        CatalogStatement::AlterIndex(statement) => bind_catalog_routine_or_index_route(
+            raw_sql,
+            catalog,
+            statement.into(),
+            context,
+            controls,
+        ),
         CatalogStatement::Reindex(statement) => bind_catalog_statement(
             raw_sql,
             schema::bind_reindex(statement, catalog, context),
@@ -576,6 +613,7 @@ fn bind_catalog_routine_or_index_route(
     catalog: &Catalog,
     statement: CatalogRoutineOrIndexStatement,
     context: &BindingContext,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ParsedStatement, CassieError> {
     match statement {
         CatalogRoutineOrIndexStatement::CreateFunction(statement) => bind_catalog_statement(
@@ -605,7 +643,7 @@ fn bind_catalog_routine_or_index_route(
         ),
         CatalogRoutineOrIndexStatement::CreateIndex(statement) => bind_catalog_statement(
             raw_sql,
-            bind_create_index(statement, catalog, context),
+            bind_create_index(statement, catalog, context, controls),
             QueryStatement::CreateIndex,
         ),
         CatalogRoutineOrIndexStatement::DropIndex(statement) => bind_catalog_statement(

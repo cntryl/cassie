@@ -24,6 +24,10 @@ mod unwind;
 #[path = "document_plain_tests.rs"]
 mod plain_tests;
 
+#[cfg(test)]
+#[path = "document_cell.rs"]
+mod cell;
+
 #[path = "document_text_array.rs"]
 pub(super) mod text_array;
 

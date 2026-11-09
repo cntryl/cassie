@@ -9,6 +9,14 @@ use crate::types::{array, extended::TypeInputError, DataType};
 use serde_json::value::RawValue;
 use serde_json::Value as JsonValue;
 
+#[cfg(test)]
+#[path = "json_delete_compatibility_tests.rs"]
+mod compatibility_tests;
+
+#[cfg(test)]
+#[path = "json_delete_raw_scan.rs"]
+mod raw_scan;
+
 pub(super) fn delete_operator(
     left: &ScalarValue,
     right: &ScalarValue,

@@ -7,7 +7,8 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::DataType;
 
 use super::super::{
-    expected_type_tag, field_bit, Cursor, RowFieldMeta, FORMAT_VERSION, MAGIC, TYPE_JSON,
+    decode_directory_value, expected_type_tag, field_bit, Cursor, RowFieldMeta, FORMAT_VERSION,
+    MAGIC, TYPE_JSON,
 };
 
 #[derive(Clone, Copy)]
@@ -58,9 +59,10 @@ pub(super) struct Directory<'a> {
 
 #[derive(Debug)]
 pub(super) enum HandoffError {
-    Directory,
-    Utf8,
-    Cell,
+    Directory(CassieError),
+    Legacy(CassieError),
+    Plain(crate::runtime::accounted::json_arena::PlainCellError),
+    Cell(crate::runtime::accounted::json_arena::PlainCellError),
 }
 
 impl<'a> Directory<'a> {
@@ -233,21 +235,41 @@ impl<'a> Directory<'a> {
         use crate::runtime::accounted::json_arena::{PlainCell, PlainIdentity};
         let Some(bytes) = self
             .json_span(field, controls)
-            .map_err(|_| HandoffError::Directory)?
+            .map_err(HandoffError::Directory)?
         else {
             return Ok(None);
         };
         let identity = match field.data_type {
             DataType::Json => PlainIdentity::Json,
             DataType::Jsonb => PlainIdentity::Jsonb,
-            _ => return Err(HandoffError::Directory),
+            _ => {
+                return Err(HandoffError::Directory(CassieError::Execution(
+                    "raw JSON span requires a JSON field".into(),
+                )))
+            }
         };
         PlainCell::parse_bytes_observing(bytes, identity, controls, copied)
             .map(Some)
             .map_err(|error| match error {
-                crate::runtime::accounted::json_arena::PlainCellError::Utf8 => HandoffError::Utf8,
-                _ => HandoffError::Cell,
+                error @ (crate::runtime::accounted::json_arena::PlainCellError::Utf8
+                | crate::runtime::accounted::json_arena::PlainCellError::Syntax) => {
+                    legacy_error_or_plain(bytes, error)
+                }
+                other => HandoffError::Cell(other),
             })
+    }
+}
+
+pub(super) fn legacy_error_or_plain(
+    bytes: &[u8],
+    error: crate::runtime::accounted::json_arena::PlainCellError,
+) -> HandoffError {
+    match decode_directory_value(TYPE_JSON, bytes) {
+        Ok(value) => {
+            drop(value);
+            HandoffError::Plain(error)
+        }
+        Err(error) => HandoffError::Legacy(error),
     }
 }
 

@@ -54,7 +54,8 @@ distinct partition versus trailing-byte errors remain unchanged.
 The isolated prototype also hands the borrowed TYPE_JSON bytes to the
 test-only inline plain cell before the row is released. UTF-8 validation and
 copying occur in checked chunks; JSON preserves raw text and JSONB formats via
-the plain arena. Its `HandoffError` currently groups directory and cell
-errors rather than preserving the legacy message/SQLSTATE, and the plain
-parser's existing nesting limit and row-source lifetime integration remain
-pending. It is not a production decoder or a storage migration.
+the plain arena. A later test-only error handoff retains directory/control
+errors and uses legacy diagnostics only if legacy decoding also fails; its
+legacy scratch and remaining plain-error diagnostics are unqualified. The
+plain parser's existing nesting limit and row-source lifetime integration
+remain pending. It is not a production decoder or a storage migration.

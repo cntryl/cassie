@@ -1,4 +1,5 @@
 //! Test-only schema-typed raw JSON cell; no production representation change.
+use crate::app::CassieError;
 use crate::runtime::accounted::compact_json::{OwnedJsonText, Progress, Sink};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
@@ -19,7 +20,7 @@ pub(crate) enum CellError {
     Utf8,
     Nul,
     Numeric,
-    Control,
+    Control(CassieError),
 }
 
 pub(crate) struct Cell {
@@ -54,26 +55,25 @@ impl Cell {
     ) -> Result<Self, CellError> {
         let sources = SourceStack::from_bytes(source, controls).map_err(|error| match error {
             CursorError::InvalidUtf8 => CellError::Utf8,
-            _ => CellError::Control,
+            CursorError::Interrupted(error) => CellError::Control(error),
+            _ => CellError::Syntax,
         })?;
         let parsed =
             Document::parse_sources_with_policy(sources, controls, ObjectPolicy::Plain, |_| {})
                 .map_err(|error| match error {
-                    DocumentError::Control(_)
-                    | DocumentError::Token(CursorError::Interrupted(_))
-                    | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(_))) => {
-                        CellError::Control
-                    }
+                    DocumentError::Control(error)
+                    | DocumentError::Token(CursorError::Interrupted(error))
+                    | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(
+                        error,
+                    ))) => CellError::Control(error),
                     _ => CellError::Syntax,
                 })?;
         let output = match identity {
             Identity::Json => {
-                let mut sink = Sink::for_arena(controls).map_err(|_| CellError::Control)?;
+                let mut sink = Sink::for_arena(controls).map_err(CellError::Control)?;
                 let mut start = 0;
                 while start < source.len() {
-                    controls
-                        .check_interruption()
-                        .map_err(|_| CellError::Control)?;
+                    controls.check_interruption().map_err(CellError::Control)?;
                     let mut end = start.saturating_add(1024).min(source.len());
                     while end < source.len() && source[end] & 0xc0 == 0x80 {
                         end -= 1;
@@ -85,7 +85,7 @@ impl Cell {
                             copied();
                         }
                     })
-                    .map_err(|_| CellError::Control)?;
+                    .map_err(CellError::Control)?;
                     start = end;
                 }
                 sink.finish_output()
@@ -97,16 +97,14 @@ impl Cell {
                         super::super::forest::jsonb_output::SerializeError::NumericOverflow => {
                             CellError::Numeric
                         }
-                        super::super::forest::jsonb_output::SerializeError::Control(_) => {
-                            CellError::Control
+                        super::super::forest::jsonb_output::SerializeError::Control(error) => {
+                            CellError::Control(error)
                         }
                     },
                 )?
             }
         };
-        controls
-            .check_interruption()
-            .map_err(|_| CellError::Control)?;
+        controls.check_interruption().map_err(CellError::Control)?;
         Self::from_output(output, identity, controls)
     }
 
@@ -122,7 +120,9 @@ impl Cell {
             memory,
         };
         if !cell.memory.belongs_to(controls) {
-            return Err(CellError::Control);
+            return Err(CellError::Control(CassieError::ResourceLimit(
+                "raw JSON cell uses a different query tracker".into(),
+            )));
         }
         Ok(cell)
     }
@@ -144,15 +144,17 @@ impl Cell {
         mut copied: impl FnMut(),
     ) -> Result<Self, CellError> {
         if !self.memory.belongs_to(controls) {
-            return Err(CellError::Control);
+            return Err(CellError::Control(CassieError::ResourceLimit(
+                "raw JSON cell uses a different query tracker".into(),
+            )));
         }
-        let mut sink = Sink::for_arena(controls).map_err(|_| CellError::Control)?;
+        let mut sink = Sink::for_arena(controls).map_err(CellError::Control)?;
         sink.write(&self.text, &mut |progress| {
             if matches!(progress, Progress::Copy) {
                 copied();
             }
         })
-        .map_err(|_| CellError::Control)?;
+        .map_err(CellError::Control)?;
         Self::from_output(sink.finish_output(), self.identity, controls)
     }
 }

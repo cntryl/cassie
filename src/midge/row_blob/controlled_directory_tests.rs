@@ -179,12 +179,56 @@ fn should_validate_utf8_in_a_borrowed_json_field_before_handoff() {
     // Act
     let result = directory.json_cell(&schema.fields[0], &controls);
     // Assert
-    assert!(matches!(
-        result,
-        Err(super::controlled_directory::HandoffError::Utf8)
-    ));
+    let expected = decode_directory_value(TYPE_JSON, &[b'"', 0xff, b'"'])
+        .expect_err("legacy")
+        .to_string();
+    assert!(
+        matches!(result, Err(super::controlled_directory::HandoffError::Legacy(error)) if error.to_string() == expected)
+    );
     drop(directory);
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_legacy_syntax_before_later_invalid_utf8() {
+    // Arrange
+    let controls = controls();
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "doc".into(),
+            data_type: DataType::Json,
+            nullable: true,
+        }],
+    });
+    let payload = [b'[', b'}', 0xff];
+    let expected = decode_directory_value(TYPE_JSON, &payload)
+        .expect_err("legacy")
+        .to_string();
+    let bytes = row(&[(1, TYPE_JSON, 0, 3)], &payload);
+    let directory = Directory::parse(&bytes, &controls).expect("directory");
+    // Act
+    let result = directory.json_cell(&schema.fields[0], &controls);
+    // Assert
+    assert!(
+        matches!(result, Err(super::controlled_directory::HandoffError::Legacy(error)) if error.to_string() == expected)
+    );
+    drop(directory);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_never_replace_a_plain_error_with_a_legacy_success_value() {
+    // Arrange
+    let plain_error = crate::runtime::accounted::json_arena::PlainCellError::Syntax;
+    // Act
+    let result = super::controlled_directory::legacy_error_or_plain(b"1", plain_error);
+    // Assert
+    assert!(matches!(
+        result,
+        super::controlled_directory::HandoffError::Plain(
+            crate::runtime::accounted::json_arena::PlainCellError::Syntax
+        )
+    ));
 }
 
 #[test]
@@ -241,7 +285,14 @@ fn should_release_partial_cell_after_actual_borrowed_field_copy_cancellation() {
     });
     // Assert
     assert_eq!(copied, 1);
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(super::controlled_directory::HandoffError::Cell(
+            crate::runtime::accounted::json_arena::PlainCellError::Control(
+                CassieError::QueryCancelled
+            )
+        ))
+    ));
     assert_eq!(controls.current_query_memory_bytes(), retained);
     drop(directory);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -264,7 +315,12 @@ fn should_reject_foreign_tracker_for_borrowed_json_handoff() {
     // Act
     let result = directory.json_cell(&schema.fields[0], &second);
     // Assert
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(super::controlled_directory::HandoffError::Directory(
+            CassieError::ResourceLimit(_)
+        ))
+    ));
     assert_eq!(second.current_query_memory_bytes(), 0);
     drop(directory);
     assert_eq!(first.current_query_memory_bytes(), 0);

@@ -54,7 +54,12 @@ fn should_reject_foreign_tracker_when_cloning_a_cell() {
     // Act
     let result = cell.try_clone(&second);
     // Assert
-    assert!(matches!(result, Err(CellError::Control)));
+    assert!(matches!(
+        result,
+        Err(CellError::Control(crate::app::CassieError::ResourceLimit(
+            _
+        )))
+    ));
     assert_eq!(second.current_query_memory_bytes(), 0);
     drop(cell);
     assert_eq!(first.current_query_memory_bytes(), 0);
@@ -97,7 +102,10 @@ fn should_release_partial_clone_after_actual_copy_cancellation() {
     });
     // Assert
     assert_eq!(copies, 1);
-    assert!(matches!(result, Err(CellError::Control)));
+    assert!(matches!(
+        result,
+        Err(CellError::Control(crate::app::CassieError::QueryCancelled))
+    ));
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(cell);
     assert_eq!(controls.current_query_memory_bytes(), 0);

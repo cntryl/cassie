@@ -21,20 +21,10 @@ fn scaled(mantissa: i128, scale: u32) -> Numeric {
     Numeric::finite(num_bigint::BigInt::from(mantissa), scale)
 }
 
-/// Converts a `date_part` result to `EXTRACT`'s exact `numeric`.
-///
-/// `source` is the original argument (before `date` was widened), `part`
-/// the `date_part` value.
-pub(super) fn numeric_part(
-    unit_name: &str,
-    source: &TypedValue,
-    part: f64,
-) -> Result<Value, QueryError> {
-    let unit = field_unit(unit_name);
-    let lower = unit_name.to_ascii_lowercase();
-    if let TypedValue::Date(_) = source {
-        if matches!(
-            unit,
+pub(super) fn validate_date_unit(unit_name: &str, source: &TypedValue) -> Result<(), QueryError> {
+    if matches!(source, TypedValue::Date(_))
+        && matches!(
+            field_unit(unit_name),
             Some(
                 Unit::Hour
                     | Unit::Minute
@@ -45,10 +35,23 @@ pub(super) fn numeric_part(
                     | Unit::TimezoneHour
                     | Unit::TimezoneMinute
             )
-        ) {
-            return Err(unsupported(&lower, "date"));
-        }
+        )
+    {
+        return Err(unsupported(&unit_name.to_ascii_lowercase(), "date"));
     }
+    Ok(())
+}
+
+/// Converts a `date_part` result to `EXTRACT`'s exact `numeric`.
+///
+/// `source` is the original argument (before `date` was widened), `part`
+/// the `date_part` value.
+pub(super) fn numeric_part(
+    unit_name: &str,
+    source: &TypedValue,
+    part: f64,
+) -> Result<Value, QueryError> {
+    let unit = field_unit(unit_name);
     if part.is_infinite() {
         return Ok(Value::Typed(TypedValue::Numeric(if part > 0.0 {
             Numeric::Infinity

@@ -333,6 +333,7 @@ fn dispatch(
                 Value::Typed(typed) => typed.clone(),
                 other => coerce(other, TIMESTAMPTZ, session)?,
             };
+            extract::validate_date_unit(&unit, &original)?;
             match date_part(field, source, session)? {
                 Value::Float64(part) => extract::numeric_part(&unit, &original, part),
                 other => Ok(other),

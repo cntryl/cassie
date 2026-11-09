@@ -5,6 +5,50 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_reject_time_fields_in_extract_from_infinite_dates() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-extract-date-unsupported-fields", &[]);
+    let fields = [
+        "hour",
+        "minute",
+        "second",
+        "milliseconds",
+        "microseconds",
+        "timezone",
+        "timezone_hour",
+        "timezone_minute",
+    ];
+
+    for date in ["infinity", "-infinity", "2000-01-01", "5874897-12-31"] {
+        for field in fields {
+            // Act
+            let result = fixture.execute(&format!("SELECT EXTRACT({field} FROM DATE '{date}')"));
+
+            // Assert
+            assert!(
+                matches!(result, Err(cassie::app::CassieError::TypeInput(error))
+                if error.sqlstate == "0A000"
+                    && error.message == format!("unit \"{field}\" not supported for type date")),
+                "PostgreSQL 18.6 EXTRACT({field} FROM DATE '{date}')"
+            );
+        }
+    }
+
+    // Act
+    let controls = fixture.execute("SELECT EXTRACT(hour FROM NULL::date) IS NULL, EXTRACT(timezone FROM NULL::date) IS NULL, EXTRACT(month FROM DATE 'infinity') IS NULL, DATE_PART('timezone', DATE 'infinity') IS NULL, DATE_PART('timezone', TIMESTAMP '-infinity') IS NULL");
+    let timestamp = fixture.execute("SELECT EXTRACT(timezone FROM TIMESTAMP '2000-01-01')");
+
+    // Assert
+    assert_eq!(
+        controls.expect("NULL and infinity controls").rows(),
+        &[vec![Value::Bool(true); 5]]
+    );
+    assert!(
+        matches!(timestamp, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "0A000" && error.message == "unit \"timezone\" not supported for type timestamp without time zone")
+    );
+}
+
+#[test]
 fn should_bin_timestamp_before_origin_toward_negative_infinity() {
     // Arrange
     let fixture = sql_fixture("issue-815-date-bin-negative-timestamp", &[]);

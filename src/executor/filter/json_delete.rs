@@ -16,6 +16,10 @@ mod compatibility_tests;
 #[path = "json_delete_raw_scan.rs"]
 mod raw_scan;
 
+#[cfg(test)]
+#[path = "json_delete_owned_path.rs"]
+mod owned_path;
+
 fn controlled_head(
     document: &str,
     controls: &crate::runtime::QueryExecutionControls,

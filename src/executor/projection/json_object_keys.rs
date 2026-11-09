@@ -2,10 +2,13 @@
 #[cfg(test)]
 use super::BatchRow;
 use super::{Batch, QueryError};
-use crate::executor::batch::chunk_rows;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::SelectItem;
 use crate::types::Value;
+
+#[path = "json_object_keys_chunks.rs"]
+mod chunks;
+pub(crate) use chunks::OwnedExpanded;
 
 #[path = "json_object_keys_output.rs"]
 mod output;
@@ -25,6 +28,9 @@ enum Progress {
     Slot,
     Move,
     Reverse,
+    ChunkMove,
+    ChunkDirectory,
+    Flatten,
 }
 
 #[cfg(test)]
@@ -59,6 +65,9 @@ fn observe(progress: Progress) {
         Progress::Slot => 3,
         Progress::Move => 4,
         Progress::Reverse => 5,
+        Progress::ChunkMove => 6,
+        Progress::ChunkDirectory => 7,
+        Progress::Flatten => 8,
     };
     CANCEL_EXPAND.with(|slot| {
         let mut slot = slot.borrow_mut();
@@ -79,9 +88,9 @@ pub(super) fn expand(
     batches: Vec<Batch>,
     projection: &[SelectItem],
     controls: &QueryExecutionControls,
-) -> Result<Vec<Batch>, QueryError> {
+) -> Result<OwnedExpanded, QueryError> {
     let Some((function, alias)) = object_keys_projection(projection) else {
-        return Ok(batches);
+        return Ok(OwnedExpanded::untracked(batches));
     };
     let output_name = alias.unwrap_or(function.name.as_str());
     let mut expanded = rows::Rows::new(controls)?;
@@ -114,7 +123,7 @@ pub(super) fn expand(
     }
     let (rows, reservation) = expanded.into_parts(controls)?;
     let rows = output::retain(rows, reservation, controls)?;
-    Ok(chunk_rows(rows, crate::executor::batch::DEFAULT_BATCH_SIZE))
+    chunks::build(rows, controls).map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -123,7 +132,7 @@ pub(super) fn retain_output_for_test(
     reservation: crate::runtime::QueryMemoryReservation,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, crate::app::CassieError> {
-    output::retain(rows, reservation, controls)
+    output::retain(rows, reservation, controls).map(|retained| retained.rows)
 }
 
 pub(super) fn requires_owner(projection: &[SelectItem]) -> bool {

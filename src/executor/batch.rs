@@ -426,6 +426,20 @@ impl BatchStream for VecBatchStream {
 static BATCH_BUFFERS_BUILT: AtomicU64 = AtomicU64::new(0);
 static ROW_TIE_KEYS_BUILT: AtomicU64 = AtomicU64::new(0);
 
+#[cfg(test)]
+thread_local! {
+    static LOCAL_BATCH_BUFFERS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(crate) fn take_local_batch_buffers() -> u64 {
+    LOCAL_BATCH_BUFFERS.with(|count| count.replace(0))
+}
+pub(crate) fn record_batch_buffer() {
+    BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+    #[cfg(test)]
+    LOCAL_BATCH_BUFFERS.with(|count| count.set(count.get().saturating_add(1)));
+}
+
 pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
     let batch_size = batch_size.max(1);
     if rows.is_empty() {
@@ -439,13 +453,13 @@ pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
         current.push(row);
         remaining -= 1;
         if current.len() == batch_size {
-            BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+            record_batch_buffer();
             batches.push(current);
             current = Vec::with_capacity(batch_size.min(remaining));
         }
     }
     if !current.is_empty() {
-        BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+        record_batch_buffer();
         batches.push(current);
     }
     batches

@@ -31,18 +31,26 @@ struct PendingOutputs {
     shared: Option<Arc<QueryMemoryReservation>>,
 }
 
+pub(super) struct RetainedRows {
+    pub(super) rows: Vec<BatchRow>,
+    pub(super) source_owner: Option<Arc<QueryMemoryReservation>>,
+}
+
 pub(super) fn retain(
     rows: Vec<BatchRow>,
     reservation: QueryMemoryReservation,
     controls: &QueryExecutionControls,
-) -> Result<Vec<BatchRow>, CassieError> {
+) -> Result<RetainedRows, CassieError> {
     let mut pending = PendingOutputs {
         rows,
         reservation: Some(reservation),
         shared: None,
     };
     if pending.rows.is_empty() {
-        return Ok(Vec::new());
+        return Ok(RetainedRows {
+            rows: Vec::new(),
+            source_owner: None,
+        });
     }
     if !pending
         .reservation
@@ -75,5 +83,8 @@ pub(super) fn retain(
         attached();
         controls.check_interruption()?;
     }
-    Ok(pending.rows)
+    Ok(RetainedRows {
+        rows: pending.rows,
+        source_owner: pending.shared,
+    })
 }

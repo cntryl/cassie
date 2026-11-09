@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "source_json_keys_chunk_tests.rs"]
+mod source_json_keys_chunk_tests;
+
 #[path = "jsonpath_table.rs"]
 mod jsonpath_table;
 #[cfg(test)]
@@ -418,8 +422,14 @@ pub(super) fn execute_source_query_with_outer_row(
     batches = apply_aggregate_phase(&phase_env, batches, plan, cte_context)?;
     batches = phases::window(env, cte_context, batches, plan, search_context.as_ref())?;
     batches = phases::sort(env, cte_context, batches, plan, search_context.as_ref())?;
-    batches = if super::exists_projection::contains(&plan.projection) {
-        exists_projection_phase::apply(env, batches, plan, cte_context, search_context.as_ref())?
+    let batches = if super::exists_projection::contains(&plan.projection) {
+        projection::OwnedExpanded::untracked(exists_projection_phase::apply(
+            env,
+            batches,
+            plan,
+            cte_context,
+            search_context.as_ref(),
+        )?)
     } else {
         apply_projection_phase(
             batches,
@@ -708,7 +718,7 @@ fn apply_projection_phase(
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
-) -> Result<Vec<Batch>, QueryError> {
+) -> Result<projection::OwnedExpanded, QueryError> {
     let grouped_projection = plan_uses_aggregate(plan)
         .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
     let projection = grouped_projection.as_deref().unwrap_or(&plan.projection);
@@ -723,23 +733,23 @@ fn apply_projection_phase(
         user_functions,
         session,
     )?;
-    batches = projection::expand_json_object_keys(batches, projection, controls)?;
-    let _output_memory = output_memory.retain(controls, &mut batches)?;
-    ensure_query_memory_budget(controls, &batches)?;
+    let mut expanded = projection::expand_json_object_keys(batches, projection, controls)?;
+    let _output_memory = output_memory.retain(controls, expanded.batches_mut())?;
+    ensure_query_memory_budget(controls, expanded.batches())?;
     if plan.distinct {
-        batches = distinct_batches(batches, controls)?;
-        ensure_query_memory_budget(controls, &batches)?;
+        expanded.transform(|batches| distinct_batches(batches, controls))?;
+        ensure_query_memory_budget(controls, expanded.batches())?;
     }
-    Ok(batches)
+    Ok(expanded)
 }
 
 fn finalize_plan_rows(
     env: &PhaseExecutionEnv<'_>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
-    batches: Vec<Batch>,
+    batches: projection::OwnedExpanded,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let mut rows = batch::flatten_batches(batches);
+    let mut rows = batches.flatten(env.controls)?;
     if let Some(set) = &plan.set {
         let left_output_names = set_left_output_names(env, plan, &rows);
         let mut right_plan = plan_inspection::logical_plan_from_select(&set.right);

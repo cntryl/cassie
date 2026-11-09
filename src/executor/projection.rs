@@ -17,6 +17,9 @@ mod json_deletion_owner_tests;
 #[path = "projection/json_object_keys.rs"]
 mod json_object_keys;
 #[cfg(test)]
+#[path = "projection/json_object_keys_chunk_tests.rs"]
+mod json_object_keys_chunk_tests;
+#[cfg(test)]
 #[path = "projection/json_object_keys_owner_tests.rs"]
 mod json_object_keys_owner_tests;
 
@@ -304,11 +307,13 @@ pub(crate) fn project_batches(
         .collect()
 }
 
+pub(crate) use json_object_keys::OwnedExpanded;
+
 pub(crate) fn expand_json_object_keys(
     batches: Vec<Batch>,
     projection: &[SelectItem],
     controls: &crate::runtime::QueryExecutionControls,
-) -> Result<Vec<Batch>, QueryError> {
+) -> Result<OwnedExpanded, QueryError> {
     json_object_keys::expand(batches, projection, controls)
 }
 

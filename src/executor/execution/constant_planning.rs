@@ -835,3 +835,7 @@ fn is_integer_input_diagnostic(message: &str) -> bool {
 #[cfg(test)]
 #[path = "constant_planning_controls_tests.rs"]
 mod controls_tests;
+
+#[cfg(test)]
+#[path = "constant_planning_power_tests.rs"]
+mod power_tests;

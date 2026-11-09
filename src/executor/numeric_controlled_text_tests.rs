@@ -181,3 +181,24 @@ fn should_match_display_for_public_mantissas_across_scale_boundaries() {
     }
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_preserve_integer_format_error_mapping_for_non_power_errors() {
+    // Arrange
+    let cancelled = crate::executor::QueryError::General("query canceled".into());
+    let resource = crate::executor::QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+        "budget".into(),
+    ));
+    let power = crate::executor::QueryError::FloatPowerUnderflow;
+
+    // Act / Assert
+    assert!(
+        matches!(super::format_integer_error(cancelled), crate::app::CassieError::Execution(ref message) if message == "query canceled")
+    );
+    assert!(
+        matches!(super::format_integer_error(resource), crate::app::CassieError::ResourceLimit(ref message) if message == "budget")
+    );
+    assert!(
+        matches!(super::format_integer_error(power), crate::app::CassieError::TypeInput(ref error) if error.sqlstate == "22003" && error.message == "value out of range: underflow")
+    );
+}

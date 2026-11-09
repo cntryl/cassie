@@ -68,6 +68,11 @@ fn should_report_bound_float_power_overflow_and_recover_after_sync() {
     let batches = run_script("bound-float-power-range", steps);
 
     // Assert
+    let parameters = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("parameter description");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), [701, 701]);
     let description = batches[1]
         .iter()
         .find(|(tag, _)| *tag == b'T')
@@ -113,4 +118,58 @@ fn should_preserve_float_power_special_and_null_results() {
             None
         ]]
     );
+}
+
+#[test]
+fn should_report_folded_power_range_at_bind_and_recover_after_sync() {
+    // Arrange
+    let cases = [
+        (
+            "power_folded_overflow",
+            "SELECT CASE WHEN TRUE THEN power(1e308::float8,2::float8) ELSE 1::float8 END",
+            "overflow",
+        ),
+        (
+            "power_folded_underflow",
+            "SELECT COALESCE(NULL::float8, 1e-300::float8 ^ 2::float8)",
+            "underflow",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (statement, sql, _) in cases {
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            sql,
+            &[],
+        )));
+        steps.push(Step::BindFlush(wire::bind_frame("", statement, &[])));
+        steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 42",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("folded-power-range-bind", steps);
+
+    // Assert
+    for ((_, _, expected), cycle) in cases.into_iter().zip(batches.as_chunks::<4>().0) {
+        assert_eq!(cycle[0][0].0, b'1');
+        assert_eq!(wire::error_code(&cycle[1]).as_deref(), Some("22003"));
+        let error = cycle[1]
+            .iter()
+            .find(|(tag, _)| *tag == b'E')
+            .expect("bind error");
+        assert!(
+            wire::parse_error_fields(&error.1)
+                .iter()
+                .any(|(kind, text)| *kind == 'M'
+                    && text == &format!("value out of range: {expected}"))
+        );
+        assert!(!cycle[1]
+            .iter()
+            .any(|(tag, _)| matches!(*tag, b'2' | b'D' | b'C')));
+        assert_eq!(wire::error_code(&cycle[3]), None);
+        assert_eq!(wire::data_rows(&cycle[3]), vec![vec![Some("42".into())]]);
+    }
 }

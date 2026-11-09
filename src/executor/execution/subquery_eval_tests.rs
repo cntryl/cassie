@@ -181,3 +181,23 @@ fn should_release_destination_and_source_owners_on_move_cancellation_and_width_e
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_treat_float_power_range_failures_as_non_interruptions() {
+    // Arrange
+    let errors = [
+        QueryError::FloatPowerOverflow,
+        QueryError::FloatPowerUnderflow,
+    ];
+
+    // Act / Assert
+    for error in &errors {
+        assert!(!is_interruption(error));
+    }
+    assert!(is_interruption(&QueryError::Cassie(
+        crate::app::CassieError::QueryCancelled
+    )));
+    assert!(is_interruption(&QueryError::Cassie(
+        crate::app::CassieError::DeadlineExceeded
+    )));
+}

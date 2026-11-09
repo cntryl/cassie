@@ -66,15 +66,23 @@ pub(super) fn fixed_duplicate_offset(rule: &str, name: &str) -> Option<i32> {
     let mut seconds = 0;
     if bytes.get(index) == Some(&b':') {
         index += 1;
+        let start = index;
         let Some(value) = component(bytes, &mut index) else {
             return None;
         };
+        if index - start != 2 {
+            return None;
+        }
         minutes = value;
         if bytes.get(index) == Some(&b':') {
             index += 1;
+            let start = index;
             let Some(value) = component(bytes, &mut index) else {
                 return None;
             };
+            if index - start != 2 {
+                return None;
+            }
             seconds = value;
         }
     }
@@ -88,6 +96,7 @@ pub(super) fn fixed_duplicate_offset(rule: &str, name: &str) -> Option<i32> {
         || bytes
             .get(end)
             .is_some_and(|byte| byte.is_ascii_alphabetic())
+        || !bytes[end..].contains(&b',')
     {
         return None;
     }

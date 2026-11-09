@@ -22,6 +22,16 @@ fn should_resolve_equal_posix_designations_to_the_standard_offset() {
         ("EEE+05:30:00EEE+04:30:00,M3.2.0,M11.1.0", "EEE", -19_800),
         ("EEE+23:59EEE+22:59,M3.2.0,M11.1.0", "EEE", -86_340),
         ("EEE-23:59EEE-22:59,M3.2.0,M11.1.0", "EEE", 86_340),
+        ("ABC0ABC-1,M3.2.0,M11.1.0", "ABC", 0),
+        (
+            "ABCDEFGHIJKLMNOP0ABCDEFGHIJKLMNOP-1,M3.2.0,M11.1.0",
+            "ABCDEFGHIJKLMNOP",
+            0,
+        ),
+        ("AAA-0AAA-1,M3.2.0,M11.1.0", "AAA", 0),
+        ("AAA+0AAA-1,M3.2.0,M11.1.0", "AAA", 0),
+        ("AAA0AAA,M3.2.0,M11.1.0", "AAA", 0),
+        ("CST0CST-1,M3.2.0,M11.1.0", "cst", 0),
     ];
 
     // Act and assert
@@ -44,6 +54,12 @@ fn should_leave_nonmatching_posix_forms_to_the_legacy_resolver() {
         ("EEE5:30:45EEE4:30:45,M3.2.0,M11.1.0", "EEE"),
         ("EEE24EEE23,M3.2.0,M11.1.0", "EEE"),
         ("EEE5:60EEE4,M3.2.0,M11.1.0", "EEE"),
+        ("EEE5:3EEE4:3,M3.2.0,M11.1.0", "EEE"),
+        ("AAA0AAA", "AAA"),
+        (
+            "ABCDEFGHIJKLMNOPQ0ABCDEFGHIJKLMNOPQ-1,M3.2.0,M11.1.0",
+            "ABCDEFGHIJKLMNOPQ",
+        ),
     ];
 
     // Act and assert

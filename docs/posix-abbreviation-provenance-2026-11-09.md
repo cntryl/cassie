@@ -5,8 +5,12 @@ POSIX rule as the first, standard designation. Under `AAA0AAA-1,M3.2.0,M11.1.0`
 it resolves `AAA` to UTC in both January and July. With `EEE5EEE4,...`,
 `EEE-5EEE-6,...`, and `EEE5:30EEE4:30,...`, it resolves EEE as UTC−05,
 UTC+05, and UTC−05:30 respectively. Explicit `+` and `-` and ±23:59 were
-also accepted. PostgreSQL rejected a POSIX rule with nonzero seconds at SET
-with 22023, while `:00` seconds were accepted. The oracle was stopped.
+also accepted. PostgreSQL accepted 3-, 10-, and 16-letter names, signed zero,
+omitted DST offsets/rules, and both one- and two-digit minutes; lowercase `cst`
+selected the session's UTC designation over global CST. It rejected a POSIX
+rule with nonzero seconds at SET with 22023, while `:00` seconds were accepted.
+The oracle was stopped. Pinned Jiff requires two-digit minutes/seconds and a
+DST rule suffix, so the other PG-accepted spellings do not enter this path.
 
 Jev selected an allocation-free, narrowly recognized SQL path with provenance
 captured at the actual POSIX fallback branch (`target/assembly-review/temporal-
@@ -14,7 +18,8 @@ posix-provenance-contract-*`). A marker is installed under the same lock as the
 exact immutable statement session and is invalidated on replacement. Only a
 POSIX fallback object, an unquoted identical uppercase ASCII standard and DST
 name (3–16 letters), and a standard `+/-HH[:MM[:00]]` offset within 23:59
-are recognized; the Jiff POSIX parser has already validated the full rule. The
+are recognized, with two-digit minute/second components and a DST rule suffix;
+the Jiff POSIX parser has already validated the full rule. The
 input abbreviation must match that name case-insensitively. The POSIX sign is
 reversed to obtain seconds east. All other zone origins, malformed, quoted,
 nonmatching, oversized and otherwise unrecognized forms retain the legacy

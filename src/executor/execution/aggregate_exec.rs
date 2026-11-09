@@ -178,6 +178,18 @@ fn aggregate_query_batches_serial(
 /// Fallback reason recorded when a merged aggregate state requires row order.
 const AGGREGATE_ROW_ORDER_FALLBACK: &str = "aggregate-state-requires-row-order";
 
+#[cfg(test)]
+thread_local! {
+    static MERGED_GROUP_MUTATION_CANCEL: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+// The map must retire before the reservations that cover its groups.
+struct MergedGroups {
+    groups: KeyedMap<SemanticKey, PartialAggregateGroup>,
+    partition_memory: Vec<GroupMemory>,
+    merged_memory: GroupMemory,
+}
+
 fn merge_partial_aggregations(
     cassie: &Cassie,
     partials: Vec<PartialAggregation>,
@@ -189,21 +201,32 @@ fn merge_partial_aggregations(
     check_timeout(context.controls)?;
     let partitions = partials.len();
     let input_rows = rows.len();
-    let mut merged = KeyedMap::<SemanticKey, PartialAggregateGroup>::new(Some(context.controls))?;
     // Worker reservations stay alive until the merged output is built: groups
     // moved into `merged` are still accounted by the partition that built
     // them, so only growth that happens during the merge is charged here.
-    let mut partition_memory = Vec::with_capacity(partitions);
-    let mut merged_memory = GroupMemory::new(context.controls)?;
+    let mut owned = MergedGroups {
+        groups: KeyedMap::<SemanticKey, PartialAggregateGroup>::new(Some(context.controls))?,
+        partition_memory: Vec::with_capacity(partitions),
+        merged_memory: GroupMemory::new(context.controls)?,
+    };
     for partial in partials {
         check_timeout(context.controls)?;
-        partition_memory.push(partial.memory);
+        owned.partition_memory.push(partial.memory);
         for (signature, group) in partial.groups.into_sorted_entries()? {
             check_timeout(context.controls)?;
-            match merged.entry(signature)? {
+            match owned.groups.entry(signature)? {
                 Entry::Occupied(mut entry) => {
                     let change = entry.get_mut().merge(&group)?;
-                    merged_memory.add(change.after.saturating_sub(change.before))?;
+                    #[cfg(test)]
+                    MERGED_GROUP_MUTATION_CANCEL.with(|slot| {
+                        if let Some(cancellation) = slot.borrow_mut().take() {
+                            cancellation.cancel();
+                        }
+                    });
+                    check_timeout(context.controls)?;
+                    owned
+                        .merged_memory
+                        .add(change.after.saturating_sub(change.before))?;
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(group);
@@ -212,23 +235,26 @@ fn merge_partial_aggregations(
         }
     }
 
-    if merged.is_empty() && context.plan.group_by.is_empty() {
+    if owned.groups.is_empty() && context.plan.group_by.is_empty() {
         let signature = SemanticKey::default();
         let group = PartialAggregateGroup::new(Vec::new(), specs);
-        merged_memory.add(group_memory::partial_group_bytes(&signature, &group))?;
-        merged.insert(signature, group)?;
+        owned
+            .merged_memory
+            .add(group_memory::partial_group_bytes(&signature, &group))?;
+        owned.groups.insert(signature, group)?;
     }
 
-    if merged
+    if owned
+        .groups
         .values()
         .any(PartialAggregateGroup::requires_row_order)
     {
         return Ok(None);
     }
 
-    let group_count = merged.len();
+    let group_count = owned.groups.len();
     let mut out = Vec::with_capacity(group_count);
-    for (_signature, group) in merged.into_sorted_entries()? {
+    for (_signature, group) in owned.groups.into_sorted_entries()? {
         check_timeout(context.controls)?;
         let mut values = group.group_values;
         for (spec, accumulator) in specs.iter().zip(group.accumulators) {
@@ -239,8 +265,8 @@ fn merge_partial_aggregations(
         }
         out.push(BatchRow::new(values));
     }
-    drop(merged_memory);
-    drop(partition_memory);
+    drop(owned.merged_memory);
+    drop(owned.partition_memory);
 
     check_timeout(context.controls)?;
     cassie

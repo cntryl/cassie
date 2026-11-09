@@ -16,6 +16,9 @@ mod collection_json;
 #[path = "collection_json_arrays_tests.rs"]
 mod collection_json_arrays;
 
+#[path = "merge_drop_tests.rs"]
+mod merge_drop;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 

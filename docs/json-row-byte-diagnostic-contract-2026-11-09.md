@@ -27,3 +27,13 @@ values, prior invalid bytes followed by escape/control/EOF, Unicode split
 boundaries, escaped bytes, lines and actual cancellation. Any unproved source,
 diagnostic delivery, row object traversal, allocator excess, legacy fallback
 or transport behavior remains open; no size/depth limit is added.
+
+The next test-only increment extends the policy to complete row documents:
+the root source is read as bytes without whole-input UTF-8 prevalidation, and
+each reached object key or string value uses the deferred string decoder.
+Plain-object mode avoids Value-sentinel nested reparses. Existing Value and
+binary COPY entrypoints still validate UTF-8 first. Unescaped invalid bytes
+outside strings, all delimiters, trailing content, nesting and line/column
+ordering must match the old SliceRead path for the tested non-sentinel corpus.
+This remains an unconnected diagnostic probe; full error text ownership,
+sentinel-related compatibility, row-cell wiring and execution remain pending.

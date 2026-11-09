@@ -25,6 +25,10 @@ mod unwind;
 mod plain_tests;
 
 #[cfg(test)]
+#[path = "document_row_tests.rs"]
+mod row_tests;
+
+#[cfg(test)]
 #[path = "document_cell.rs"]
 pub(super) mod cell;
 
@@ -335,6 +339,24 @@ impl<'a> Document<'a> {
         controls: &QueryExecutionControls,
     ) -> Result<Parsed, DocumentError> {
         Self::parse_plain_observed(input, controls, |_| {})
+    }
+
+    #[cfg(test)]
+    fn parse_plain_row(
+        input: &'a [u8],
+        controls: &QueryExecutionControls,
+    ) -> Result<Parsed, DocumentError> {
+        Self::parse_plain_row_observed(input, controls, |_| {})
+    }
+
+    #[cfg(test)]
+    fn parse_plain_row_observed(
+        input: &'a [u8],
+        controls: &QueryExecutionControls,
+        observer: impl FnMut(DocumentProgress),
+    ) -> Result<Parsed, DocumentError> {
+        let sources = SourceStack::from_row_bytes(input, controls)?;
+        Self::parse_sources_with_policy(sources, controls, ObjectPolicy::Plain, observer)
     }
 
     #[cfg(test)]

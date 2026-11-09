@@ -27,6 +27,8 @@ struct SourceFrame<'a> {
     source: Source<'a>,
     position: Position,
     remaining_depth: usize,
+    #[cfg(test)]
+    row_bytes: bool,
 }
 
 impl<'a> SourceFrame<'a> {
@@ -39,6 +41,8 @@ impl<'a> SourceFrame<'a> {
                 column: 0,
             },
             remaining_depth: 128,
+            #[cfg(test)]
+            row_bytes: false,
         }
     }
 
@@ -48,6 +52,10 @@ impl<'a> SourceFrame<'a> {
         action: impl FnOnce(&mut Cursor<'_>) -> Result<T, CursorError>,
     ) -> Result<T, CursorError> {
         let mut cursor = Cursor::restore_validated(self.source.bytes(), self.position, controls);
+        #[cfg(test)]
+        if self.row_bytes {
+            cursor.enable_row_bytes();
+        }
         let result = action(&mut cursor);
         self.position = cursor.position();
         result
@@ -67,6 +75,16 @@ pub(super) struct SourceStack<'a> {
 }
 
 impl<'a> SourceStack<'a> {
+    #[cfg(test)]
+    pub(super) fn from_row_bytes(
+        source: &'a [u8],
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, CassieError> {
+        let mut stack = Self::from_validated(source, controls)?;
+        stack.frames.get_mut(0).expect("root source").row_bytes = true;
+        Ok(stack)
+    }
+
     #[cfg(test)]
     pub(super) fn from_str(
         source: &'a str,

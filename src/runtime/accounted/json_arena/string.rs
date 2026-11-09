@@ -191,6 +191,10 @@ impl Cursor<'_> {
     pub(in crate::runtime::accounted::json_arena) fn read_string(
         &mut self,
     ) -> Result<DecodedText, CursorError> {
+        #[cfg(test)]
+        if self.row_bytes {
+            return self.read_row_string_observing(|| {});
+        }
         self.read_string_with_observer(|| {})
     }
 

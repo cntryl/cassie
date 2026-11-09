@@ -54,12 +54,21 @@ pub(super) struct Cursor<'a> {
     source: &'a [u8],
     position: Position,
     controls: QueryExecutionControls,
+    #[cfg(test)]
+    row_bytes: bool,
 }
 
 impl<'a> Cursor<'a> {
     #[cfg(test)]
     pub(super) fn from_row_bytes(source: &'a [u8], controls: &QueryExecutionControls) -> Self {
-        Self::new(source, controls)
+        let mut cursor = Self::new(source, controls);
+        cursor.row_bytes = true;
+        cursor
+    }
+
+    #[cfg(test)]
+    pub(super) fn enable_row_bytes(&mut self) {
+        self.row_bytes = true;
     }
 
     pub(super) fn from_str(source: &'a str, controls: &QueryExecutionControls) -> Self {
@@ -124,6 +133,8 @@ impl<'a> Cursor<'a> {
                 column: 0,
             },
             controls: controls.clone(),
+            #[cfg(test)]
+            row_bytes: false,
         }
     }
 
@@ -136,6 +147,8 @@ impl<'a> Cursor<'a> {
             source,
             position,
             controls: controls.clone(),
+            #[cfg(test)]
+            row_bytes: false,
         }
     }
 

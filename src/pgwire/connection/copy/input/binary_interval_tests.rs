@@ -49,12 +49,15 @@ fn should_match_binary_interval_default_style_and_error_precedence() {
         drop((actual, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
-    for bytes in [vec![], vec![0; 15], vec![0; 17]] {
-        let original =
-            super::super::super::super::codecs::binary_to_value(&bytes, 1186).expect_err("invalid");
+    let invalid = [
+        (vec![], "08P01", "insufficient data left in message"),
+        (vec![0; 15], "08P01", "insufficient data left in message"),
+        (vec![0; 17], "22P03", "incorrect binary data format"),
+    ];
+    for (bytes, state, message) in invalid {
         let result = super::decode(1186, &bytes, 2, &controls);
         assert!(
-            matches!(result, Err(CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+            matches!(result, Err(CassieError::TypeInput(error)) if error.sqlstate == state && error.message == message)
         );
     }
 }

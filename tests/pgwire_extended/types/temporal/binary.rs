@@ -810,3 +810,122 @@ fn should_report_timetz_excess_bind_parameter_ordinal_and_recover() {
         vec![vec![Some("45".to_owned())]]
     );
 }
+
+#[test]
+fn should_preserve_binary_interval_framing_and_bind_ordinal() {
+    // Arrange
+    let valid = [
+        i64::MIN.to_be_bytes().as_slice(),
+        i32::MAX.to_be_bytes().as_slice(),
+        i32::MIN.to_be_bytes().as_slice(),
+    ]
+    .concat();
+    let short = vec![0; 15];
+    let extra = [valid.as_slice(), &[0]].concat();
+    let integer = 1_i32.to_be_bytes();
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "interval_frame",
+            "SELECT $1, $2",
+            &[23, 1186],
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "interval_frame",
+                &[1],
+                &[Some(&integer), Some(&valid)],
+                &[],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "interval_frame",
+                &[1],
+                &[Some(&integer), Some(&short)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "interval_frame",
+                &[1],
+                &[Some(&integer), Some(&extra)],
+                &[],
+            ),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45")]),
+    ];
+
+    // Act
+    let batches = run_script("interval-binary-framing", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[1]), None);
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("08P01"));
+    assert_eq!(wire::error_code(&batches[3]).as_deref(), Some("22P03"));
+    let fields = wire::parse_error_fields(
+        &batches[3]
+            .iter()
+            .find(|frame| frame.0 == b'E')
+            .expect("error")
+            .1,
+    );
+    assert!(fields.iter().any(|(field, message)| *field == 'M'
+        && message == "incorrect binary data format in bind parameter 2"));
+    assert_eq!(
+        wire::data_rows(&batches[4]),
+        vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_binary_interval_array_framing_order() {
+    // Arrange
+    let mut steps = vec![Step::ParseFlush(wire::parse_frame_with_types(
+        "interval_array_frame",
+        "SELECT $1",
+        &[1187],
+    ))];
+    for field in [vec![0; 15], vec![0; 17]] {
+        let mut array = Vec::new();
+        for number in [1_i32, 0, 1186, 2, 1, 16] {
+            array.extend_from_slice(&number.to_be_bytes());
+        }
+        array.extend_from_slice(&[0; 16]);
+        array.extend_from_slice(
+            &i32::try_from(field.len())
+                .expect("field size")
+                .to_be_bytes(),
+        );
+        array.extend_from_slice(&field);
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats("", "interval_array_frame", &[1], &[Some(&array)], &[]),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("interval-array-binary-framing", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("08P01"));
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22P03"));
+    let fields = wire::parse_error_fields(
+        &batches[2]
+            .iter()
+            .find(|frame| frame.0 == b'E')
+            .expect("error")
+            .1,
+    );
+    assert!(fields
+        .iter()
+        .any(|(field, message)| *field == 'M'
+            && message == "improper binary format in array element 2"));
+}

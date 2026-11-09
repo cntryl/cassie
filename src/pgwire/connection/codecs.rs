@@ -352,6 +352,9 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
                 .map(Value::Typed)
                 .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
         }
+        BinaryCodecKind::Extended(crate::types::extended::ExtendedType::Interval { .. }) => {
+            temporal_error::decode_interval(parameter)
+        }
         BinaryCodecKind::Extended(kind) => {
             kind.receive_binary(parameter)
                 .map(Value::Typed)

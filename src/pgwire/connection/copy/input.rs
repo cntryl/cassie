@@ -47,6 +47,10 @@ mod tests;
 mod binary_json_owner_tests;
 
 #[cfg(test)]
+#[path = "input/binary_interval_bounds_tests.rs"]
+mod binary_interval_bounds_tests;
+
+#[cfg(test)]
 #[path = "input/binary_date_time_bounds_tests.rs"]
 mod binary_date_time_bounds_tests;
 

@@ -96,7 +96,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                     .or_else(|| super::hash_functions::evaluate(local, args))
                     .or_else(|| json_functions::evaluate(local, args, controls))
                     .or_else(|| json_mutations::evaluate(local, args, controls, result_owner))
-                    .or_else(|| json_path_functions::evaluate(local, args, controls))
+                    .or_else(|| json_path_functions::evaluate(local, args, controls, result_owner))
                     .or_else(|| bytea_functions::evaluate(local, args, controls))
                     .or_else(|| math_random::evaluate(local, args, session))
                     .or_else(|| math_functions::evaluate(local, args))

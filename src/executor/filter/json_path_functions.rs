@@ -4,14 +4,19 @@ use crate::executor::retained_memory::{add, mul, serialized_json_bytes};
 use crate::sql::functions::{self, json::JsonFunction, FunctionId};
 use crate::{app::CassieError, runtime::QueryExecutionControls};
 
+#[cfg(test)]
+#[path = "json_path_result_owner_tests.rs"]
+mod owner_tests;
+
 pub(super) fn evaluate(
     name: &str,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Option<Result<Value, QueryError>> {
     match functions::function(name)?.id {
         FunctionId::Json(JsonFunction::ExtractPath { binary, as_text }) => {
-            Some(extract(args, binary, as_text, controls))
+            Some(extract(args, binary, as_text, controls, owner))
         }
         FunctionId::Json(JsonFunction::PathMatch) => Some(path_match(args, controls)),
         FunctionId::Json(
@@ -355,6 +360,7 @@ fn extract(
     binary: bool,
     as_text: bool,
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     if let Some(controls) = controls {
         controls.check_interruption()?;
@@ -394,7 +400,7 @@ fn extract(
         )?,
         mul(expanded.max(8), 8)?,
     )?;
-    let _memory = controls
+    let memory = controls
         .map(|controls| controls.reserve_query_memory(scratch))
         .transpose()?;
     let document = super::json_functions::json_text(&args[0])?;
@@ -407,11 +413,19 @@ fn extract(
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
-    match result {
-        ScalarValue::Null => Ok(Value::Null),
-        ScalarValue::Str(text) | ScalarValue::Json(text) => Ok(Value::String(text)),
+    drop(document);
+    let value = match result {
+        ScalarValue::Null => Value::Null,
+        ScalarValue::Str(text) | ScalarValue::Json(text) => Value::String(text),
         _ => unreachable!("JSON extraction yields documents, text or NULL"),
-    }
+    };
+    super::json_result_owner::retain_output(
+        value,
+        memory,
+        owner,
+        controls,
+        "JSON path owner uses a different query tracker",
+    )
 }
 
 #[cfg(test)]
@@ -442,8 +456,10 @@ mod tests {
         let scarce = controls(1024);
         let ample = controls(131_072);
         // Act
-        let denied = evaluate("jsonb_extract_path", &input, Some(&scarce)).expect("finite path");
-        let accepted = evaluate("jsonb_extract_path", &input, Some(&ample)).expect("finite path");
+        let denied =
+            evaluate("jsonb_extract_path", &input, Some(&scarce), None).expect("finite path");
+        let accepted =
+            evaluate("jsonb_extract_path", &input, Some(&ample), None).expect("finite path");
         // Assert
         assert!(denied
             .expect_err("decode exceeds budget")
@@ -472,9 +488,10 @@ mod tests {
         cancellation.cancel();
         let input = [Value::String("invalid".into()), Value::String("a".into())];
         // Act
-        let invalid = evaluate("jsonb_extract_path", &input, Some(&controls)).expect("finite path");
+        let invalid =
+            evaluate("jsonb_extract_path", &input, Some(&controls), None).expect("finite path");
         let interrupted =
-            evaluate("jsonb_extract_path", &input, Some(&cancelled)).expect("finite path");
+            evaluate("jsonb_extract_path", &input, Some(&cancelled), None).expect("finite path");
         // Assert
         assert!(invalid.is_err());
         assert!(interrupted
@@ -511,8 +528,10 @@ mod expansion_tests {
         let scarce = controls(8192);
         let ample = controls(131_072);
         // Act
-        let denied = evaluate("jsonb_extract_path", &input, Some(&scarce)).expect("finite path");
-        let accepted = evaluate("jsonb_extract_path", &input, Some(&ample)).expect("finite path");
+        let denied =
+            evaluate("jsonb_extract_path", &input, Some(&scarce), None).expect("finite path");
+        let accepted =
+            evaluate("jsonb_extract_path", &input, Some(&ample), None).expect("finite path");
         // Assert
         assert!(denied
             .expect_err("expanded scratch exceeds budget")

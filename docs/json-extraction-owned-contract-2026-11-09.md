@@ -104,6 +104,21 @@ scope (0.98); receipt:
 Variant, error, cancellation, capacity and output-lifetime probes are authored
 before implementation but unexecuted. This does not complete #809 or #810.
 
+The finite `json[b]_extract_path[_text]` function forms likewise return a
+String after dropping their preexisting extraction workspace. For an existing
+expression owner with no general owner, retain that workspace using the same
+value-first String guard after the source-document temporary is dropped. NULL
+and error ordering, JSON versus JSONB formatting, and ownerless/general-owner
+fallback remain unchanged apart from the added pre-transfer control check.
+Jev selected this scope (0.98); receipt:
+`target/assembly-review/jsonpath-result-owner-contract-{request,response}.json`.
+Variant, missing/NULL/error, tracker, actual post-extraction cancellation,
+over-capacity and last-owner probes are authored but unexecuted. Earlier
+construction/pre-admission, output diagnostics, teardown and JSONPath core
+execution remain unqualified. `jsonb_path_query_array/first` instead return
+serde Value trees whose physical-capacity coverage is not established by a
+serialized-size estimate; no tree ownership completion is claimed here.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

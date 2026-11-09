@@ -56,3 +56,19 @@ varying. The PostgreSQL raw-type distinction, final-date application, token
 masks, cache, SQL-cast wiring, owner and resource bounds remain unproved. The
 bundled data inspection cannot discriminate all actual Jiff zone databases; no
 production path is selected or enabled by this prototype.
+
+PostgreSQL 18.6 also treats `AAA0AAA-1,M3.2.0,M11.1.0` as fixed UTC for
+`AAA`: both January and July inputs and typed `timezone` overloads resolve
+12:00 to 12:00 UTC. A reachable-transition classifier instead sees the same
+spelling at offsets 0 and +01 and identifies a dynamic abbreviation. The
+operand-time route was withdrawn in a separate corrective checkpoint.
+
+The paired unexecuted TZif witness varies only whether two local-time types
+reference a shared `AAA` designation or two distinct `AAA` designation indices.
+PostgreSQL's raw index scan selects the first matching index: the first file is
+dynamic and the second is fixed. The pinned Jiff parser interns equal strings,
+so the public offset/transition view loses this distinction. Jiff equality also
+uses a raw-data CRC32, so this is not a claim that every public operation sees
+the same object; a checksum is not collision-free access to designation indices.
+A correct promotion must preserve or obtain the actual source designation
+identity; no such Jiff API or safe provenance discriminator has yet been shown.

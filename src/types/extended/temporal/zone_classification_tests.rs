@@ -77,3 +77,49 @@ fn should_classify_distinct_dst_flags_as_dynamic_at_the_same_offset() {
     // Assert
     assert_eq!(result, Ok(Some(Classification::Dynamic)));
 }
+
+#[test]
+fn should_observe_the_same_transitions_for_distinct_raw_designation_indices() {
+    // Arrange
+    fn data(duplicate: bool) -> Vec<u8> {
+        fn block(bytes: &mut Vec<u8>, time_bytes: usize, duplicate: bool) {
+            bytes.extend_from_slice(b"TZif2");
+            bytes.extend_from_slice(&[0; 15]);
+            for count in [0_u32, 0, 0, 1, 2, if duplicate { 8 } else { 4 }] {
+                bytes.extend_from_slice(&count.to_be_bytes());
+            }
+            if time_bytes == 4 {
+                bytes.extend_from_slice(&1_711_929_600_i32.to_be_bytes());
+            } else {
+                bytes.extend_from_slice(&1_711_929_600_i64.to_be_bytes());
+            }
+            bytes.push(1);
+            bytes.extend_from_slice(&0_i32.to_be_bytes());
+            bytes.extend_from_slice(&[0, 0]);
+            bytes.extend_from_slice(&3_600_i32.to_be_bytes());
+            bytes.extend_from_slice(&[1, if duplicate { 4 } else { 0 }]);
+            bytes.extend_from_slice(if duplicate { b"AAA\0AAA\0" } else { b"AAA\0" });
+        }
+        let mut bytes = Vec::new();
+        block(&mut bytes, 4, duplicate);
+        block(&mut bytes, 8, duplicate);
+        bytes.extend_from_slice(b"\n\n");
+        bytes
+    }
+    let zone = |duplicate| crate::types::extended::temporal::zone::Zone::Rules {
+        tz: jiff::tz::TimeZone::tzif("Test/Paired", &data(duplicate)).expect("TZif"),
+        name: "Test/Paired".to_owned(),
+    };
+    let shared = zone(false);
+    let duplicate = zone(true);
+
+    // Act
+    let first = classify(&shared, "AAA", &mut || Ok::<_, ()>(()));
+    let second = classify(&duplicate, "AAA", &mut || Ok::<_, ()>(()));
+
+    // Assert
+    // PostgreSQL's raw index scan classifies the first as dynamic and the
+    // second as fixed; visible Jiff transitions instead classify both alike.
+    assert_eq!(first, Ok(Some(Classification::Dynamic)));
+    assert_eq!(second, first);
+}

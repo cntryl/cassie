@@ -261,20 +261,38 @@ fn controlled_object_keys(
     controls: Option<&QueryExecutionControls>,
     owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Option<Value>, QueryError> {
-    let (Value::String(text), Some(controls), Some(owner)) = (value, controls, owner) else {
+    let (Some(controls), Some(owner)) = (controls, owner) else {
         return Ok(None);
     };
-    let Some(document) =
-        crate::runtime::accounted::json_arena::parse_existence_candidate(text, controls)?
-    else {
-        return Ok(None);
-    };
-    let Some(keys) = document.object_keys(controls)? else {
-        return Err(CassieError::InvalidParameterValue(
-            "cannot call json_object_keys on a non-object".into(),
-        )
-        .into());
-    };
+    match value {
+        Value::String(text) => {
+            let Some(document) =
+                crate::runtime::accounted::json_arena::parse_existence_candidate(text, controls)?
+            else {
+                return Ok(None);
+            };
+            let Some(keys) = document.object_keys(controls)? else {
+                return Err(CassieError::InvalidParameterValue(
+                    "cannot call json_object_keys on a non-object".into(),
+                )
+                .into());
+            };
+            adopt_object_keys(keys, controls, owner).map(Some)
+        }
+        Value::Json(serde_json::Value::Object(map)) => {
+            let keys =
+                crate::runtime::accounted::json_arena::build_object_keys_from_map(map, controls)?;
+            adopt_object_keys(keys, controls, owner).map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn adopt_object_keys(
+    keys: crate::runtime::accounted::json_arena::OwnedObjectKeys,
+    controls: &QueryExecutionControls,
+    owner: &super::super::EvaluationMemory,
+) -> Result<Value, QueryError> {
     let (value, memory) = keys.into_parts();
     let mut pending = PendingObjectKeys {
         value,
@@ -294,7 +312,7 @@ fn controlled_object_keys(
     }
     controls.check_interruption()?;
     owner.adopt(pending.memory.take().expect("key memory"));
-    Ok(Some(pending.value))
+    Ok(pending.value)
 }
 
 fn controlled_root(

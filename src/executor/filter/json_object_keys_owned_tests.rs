@@ -180,3 +180,124 @@ fn should_leave_general_owner_and_ownerless_calls_on_legacy_construction() {
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_match_value_backed_object_keys_across_unicode_prefixes_and_sentinels() {
+    // Arrange
+    let mut map = serde_json::Map::new();
+    for key in ["é", "aa", "a", "", "\0", "$serde_json::private::Number"] {
+        map.insert(key.into(), serde_json::json!(1));
+    }
+    let inputs = [
+        Value::Json(serde_json::Value::Object(map)),
+        Value::Json(serde_json::Value::Array(vec![])),
+        Value::Null,
+    ];
+    // Act / Assert
+    for name in ["json_object_keys", "jsonb_object_keys"] {
+        for input in &inputs {
+            let controls = controls(16 * 1024 * 1024);
+            let owner = EvaluationMemory::new(&controls).expect("owner");
+            let expected = evaluate(name, &[input.clone()], Some(&controls))
+                .expect("known")
+                .map_err(|error| error.to_string());
+            let actual = run(name, input.clone(), Some(&controls), Some(&owner));
+            assert_eq!(actual, expected, "{name} {input:?}");
+            if matches!(input, Value::Json(serde_json::Value::Object(_))) {
+                assert!(owner.bytes() > 0);
+            }
+            drop(actual);
+            drop(expected);
+            drop(owner);
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
+    }
+}
+
+#[test]
+fn should_release_value_key_sort_and_output_after_actual_work_cancellation() {
+    // Arrange
+    for stage in 0..3 {
+        let cancel = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancel.clone(),
+        );
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        match stage {
+            0 => crate::runtime::accounted::json_arena::cancel_object_keys_sort_compare_once(
+                cancel.clone(),
+            ),
+            1 => crate::runtime::accounted::json_arena::cancel_object_keys_sort_move_once(
+                cancel.clone(),
+            ),
+            _ => {
+                crate::runtime::accounted::json_arena::cancel_object_keys_copy_once(cancel.clone())
+            }
+        }
+        let input = Value::Json(serde_json::json!({"long-a":1,"long-b":2,"long-c":3}));
+        // Act
+        let result = run("json_object_keys", input, Some(&controls), Some(&owner));
+        // Assert
+        assert!(cancel.is_cancelled());
+        assert!(result.is_err());
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_enforce_value_key_sort_source_and_output_overlap() {
+    // Arrange
+    let input = Value::Json(serde_json::json!({"first":1,"second":2,"third":3}));
+    let baseline = controls(16 * 1024 * 1024);
+    let owner = EvaluationMemory::new(&baseline).expect("owner");
+    let value = run(
+        "jsonb_object_keys",
+        input.clone(),
+        Some(&baseline),
+        Some(&owner),
+    )
+    .expect("result");
+    let peak = baseline.peak_query_memory_bytes();
+    assert!(owner.bytes() > 0);
+    drop(value);
+    drop(owner);
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let controls = controls(budget);
+        let owner = EvaluationMemory::new(&controls).expect("owner");
+        let result = run(
+            "jsonb_object_keys",
+            input.clone(),
+            Some(&controls),
+            Some(&owner),
+        );
+        assert_eq!(result.is_ok(), succeeds);
+        drop(result);
+        drop(owner);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_release_value_key_output_on_foreign_owner() {
+    // Arrange
+    let controls = controls(16 * 1024 * 1024);
+    let foreign = self::controls(16 * 1024 * 1024);
+    let owner = EvaluationMemory::new(&foreign).expect("owner");
+    // Act
+    let result = run(
+        "json_object_keys",
+        Value::Json(serde_json::json!({"a":1})),
+        Some(&controls),
+        Some(&owner),
+    );
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    drop(owner);
+    assert_eq!(foreign.current_query_memory_bytes(), 0);
+}

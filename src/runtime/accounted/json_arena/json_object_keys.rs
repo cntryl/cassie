@@ -4,6 +4,11 @@ use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::Value;
 
+#[path = "json_object_keys_sort.rs"]
+mod sort;
+#[cfg(test)]
+pub(crate) use sort::{cancel_object_keys_sort_compare_once, cancel_object_keys_sort_move_once};
+
 #[cfg(test)]
 thread_local! {
     static CANCEL_COPY: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
@@ -52,22 +57,15 @@ struct Building {
     memory: QueryMemoryReservation,
 }
 
-pub(in crate::runtime::accounted::json_arena) fn build(
-    forest: &Forest,
-    root: NodeId,
-    controls: &QueryExecutionControls,
-) -> Result<Option<OwnedObjectKeys>, CassieError> {
-    let Kind::Object(index) = &forest.nodes.get(root)?.kind else {
-        return Ok(None);
-    };
-    let empty = controls.reserve_query_memory(0)?;
-    let (values, memory) =
-        crate::runtime::owned_memory::try_reserve_vec(index.values_len(), &empty)?;
-    let mut building = Building { values, memory };
-    let mut position = index.first_index()?;
-    while let Some(current) = position {
+impl Building {
+    fn new(length: usize, controls: &QueryExecutionControls) -> Result<Self, CassieError> {
+        let empty = controls.reserve_query_memory(0)?;
+        let (values, memory) = crate::runtime::owned_memory::try_reserve_vec(length, &empty)?;
+        drop(empty);
+        Ok(Self { values, memory })
+    }
+    fn push(&mut self, key: &str, controls: &QueryExecutionControls) -> Result<(), CassieError> {
         controls.check_interruption()?;
-        let key = index.item(current).0;
         let text_memory = controls.reserve_query_memory(key.len())?;
         let mut text = String::new();
         text.try_reserve_exact(key.len())
@@ -89,15 +87,45 @@ pub(in crate::runtime::accounted::json_arena) fn build(
             copied();
             controls.check_interruption()?;
         }
-        building.memory.absorb(text_memory);
-        building.values.push(serde_json::Value::String(text));
+        self.memory.absorb(text_memory);
+        self.values.push(serde_json::Value::String(text));
         visited();
         controls.check_interruption()?;
+        Ok(())
+    }
+    fn finish(self) -> OwnedObjectKeys {
+        OwnedObjectKeys {
+            value: Value::Json(serde_json::Value::Array(self.values)),
+            memory: self.memory,
+        }
+    }
+}
+
+pub(in crate::runtime::accounted::json_arena) fn build(
+    forest: &Forest,
+    root: NodeId,
+    controls: &QueryExecutionControls,
+) -> Result<Option<OwnedObjectKeys>, CassieError> {
+    let Kind::Object(index) = &forest.nodes.get(root)?.kind else {
+        return Ok(None);
+    };
+    let mut building = Building::new(index.values_len(), controls)?;
+    let mut position = index.first_index()?;
+    while let Some(current) = position {
+        building.push(index.item(current).0, controls)?;
         position = index.next_index(current, &mut || {})?;
     }
-    drop(empty);
-    Ok(Some(OwnedObjectKeys {
-        value: Value::Json(serde_json::Value::Array(building.values)),
-        memory: building.memory,
-    }))
+    Ok(Some(building.finish()))
+}
+
+pub(crate) fn build_object_keys_from_map(
+    map: &serde_json::Map<String, serde_json::Value>,
+    controls: &QueryExecutionControls,
+) -> Result<OwnedObjectKeys, CassieError> {
+    let sorted = sort::keys(map, controls)?;
+    let mut building = Building::new(sorted.values.len(), controls)?;
+    for key in &sorted.values {
+        building.push(key, controls)?;
+    }
+    Ok(building.finish())
 }

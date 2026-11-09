@@ -127,3 +127,50 @@ fn should_select_only_the_existing_single_bare_object_keys_projection() {
         );
     }
 }
+
+#[test]
+fn should_retain_value_backed_object_keys_through_single_projection_expansion() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let session = CassieSession::new("root".into(), None)
+        .with_statement_text("SELECT 1", &controls)
+        .expect("session");
+    let baseline = controls.current_query_memory_bytes();
+    let row = BatchRow::new(vec![(
+        "doc".into(),
+        Value::Json(serde_json::json!({"z":1,"a":2})),
+    )]);
+    let parsed =
+        crate::sql::parse_statement("SELECT jsonb_object_keys(doc) FROM records").expect("SQL");
+    let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
+        panic!("SELECT")
+    };
+    // Act
+    let rows = project_rows(
+        vec![row],
+        &select.projection,
+        &[],
+        None,
+        &std::collections::HashMap::new(),
+        Some(&session),
+    )
+    .expect("projection");
+    assert!(controls.current_query_memory_bytes() > baseline);
+    let expanded =
+        json_object_keys::expand(vec![rows], &select.projection, &controls).expect("expansion");
+    let values: Vec<_> = expanded
+        .iter()
+        .flatten()
+        .map(|row| row.entries()[0].1.clone())
+        .collect();
+    // Assert
+    assert_eq!(
+        values,
+        vec![Value::String("a".into()), Value::String("z".into())]
+    );
+    drop(expanded);
+    assert_eq!(controls.current_query_memory_bytes(), baseline);
+    drop(session);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

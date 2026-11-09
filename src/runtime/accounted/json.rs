@@ -1,3 +1,4 @@
+#[cfg(test)]
 #[path = "json/controlled_parse.rs"]
 pub(crate) mod controlled_parse;
 #[path = "json/tree_estimate.rs"]

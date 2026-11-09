@@ -5,6 +5,10 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::functions::{self, json::JsonFunction, FunctionId};
 use std::borrow::Cow;
 
+#[cfg(test)]
+#[path = "json_exists_function_tests.rs"]
+mod exists_function_tests;
+
 #[path = "json_unique_keys.rs"]
 mod unique_keys;
 
@@ -172,7 +176,17 @@ fn inspect(
             } else {
                 BinaryOp::JsonbKeyExistsAny
             };
-            match json_key_exists::evaluate(&ScalarValue::Json(document), &operator, &keys)? {
+            let document = ScalarValue::Json(document);
+            let selected = if let Some(controls) = controls {
+                json_key_exists::evaluate_controlled(&document, &operator, &keys, controls)?
+            } else {
+                None
+            };
+            let result = match selected {
+                Some(result) => result,
+                None => json_key_exists::evaluate(&document, &operator, &keys)?,
+            };
+            match result {
                 ScalarValue::Bool(value) => Value::Bool(value),
                 _ => unreachable!("non-NULL key inspection returns BOOLEAN"),
             }

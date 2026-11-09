@@ -187,6 +187,27 @@ impl Fold<'_, '_> {
         }) && function.args.len() == 4
         {
             let summaries = &self.summaries.values[frame.start..frame.start + 4];
+            let fresh = std::array::from_fn(|index| {
+                let summary = &summaries[index];
+                summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
+            });
+            if unknown_bucket_literal_operands(&function.args, summaries, &fresh) {
+                if let ast::Expr::StringLiteral(input) = &function.args[3] {
+                    check_controls(self.controls)?;
+                    self.validate_type_function_literal(input, &DataType::Int)?;
+                }
+                for argument in &mut self.summaries.values[frame.start..frame.start + 3] {
+                    check_controls(self.controls)?;
+                    self.occurrences.coerce(argument, 701, true)?;
+                }
+                return Ok(Summary::known(23));
+            }
+        }
+        if metadata.is_some_and(|entry| {
+            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
+        }) && function.args.len() == 4
+        {
+            let summaries = &self.summaries.values[frame.start..frame.start + 4];
             let shared_slot_is_fresh = summaries.iter().all(|summary| {
                 summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
             });
@@ -916,6 +937,26 @@ fn mixed_bucket_targets(
         return None;
     }
     Some([anchor, anchor, anchor, 23])
+}
+
+fn unknown_bucket_literal_operands(
+    arguments: &[ast::Expr],
+    summaries: &[Summary],
+    fresh: &[bool; 3],
+) -> bool {
+    if arguments.len() != 4
+        || summaries.len() != 4
+        || !matches!(arguments[3], ast::Expr::StringLiteral(_) | ast::Expr::Null)
+    {
+        return false;
+    }
+    (0..3).all(|index| {
+        matches!(arguments[index], ast::Expr::Param(_))
+            && summaries[index].qualified
+            && !summaries[index].literal
+            && matches!(summaries[index].oid, 0 | 705)
+            && fresh[index]
+    })
 }
 
 fn primitive(data_type: &DataType) -> bool {

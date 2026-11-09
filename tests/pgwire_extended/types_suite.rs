@@ -39,6 +39,9 @@ mod unnest_sources;
 #[path = "functions/math/overload_errors.rs"]
 mod functions_math_overload_errors;
 
+#[path = "functions/math/width_bucket_unknown_literal.rs"]
+mod width_bucket_unknown_literal;
+
 #[path = "functions/string/error_sqlstates.rs"]
 mod functions_string_error_sqlstates;
 

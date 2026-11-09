@@ -321,3 +321,59 @@ fn should_preserve_a_prior_smallint_count_cast_when_operand_snapshot_was_unknown
         ))
     ));
 }
+
+#[test]
+fn should_select_only_fresh_unknown_bucket_operands_with_literal_count() {
+    // Arrange
+    let operands = [
+        ast::Expr::Param(0),
+        ast::Expr::Param(1),
+        ast::Expr::Param(0),
+        ast::Expr::StringLiteral("2".to_owned()),
+    ];
+    let null_count = [
+        ast::Expr::Param(0),
+        ast::Expr::Param(1),
+        ast::Expr::Param(0),
+        ast::Expr::Null,
+    ];
+    let unknown_count = [
+        ast::Expr::Param(0),
+        ast::Expr::Param(1),
+        ast::Expr::Param(0),
+        ast::Expr::Param(2),
+    ];
+    let summaries = [unknown(), unknown(), unknown(), Summary::literal()];
+    let mut contextual_null = summaries;
+    contextual_null[0].literal = true;
+    let mut known = summaries;
+    known[0] = Summary::known(701);
+
+    // Act / Assert
+    assert!(super::unknown_bucket_literal_operands(
+        &operands, &summaries, &[true; 3]
+    ));
+    assert!(super::unknown_bucket_literal_operands(
+        &null_count,
+        &summaries,
+        &[true; 3]
+    ));
+    assert!(!super::unknown_bucket_literal_operands(
+        &unknown_count,
+        &summaries,
+        &[true; 3]
+    ));
+    assert!(!super::unknown_bucket_literal_operands(
+        &operands,
+        &contextual_null,
+        &[true; 3]
+    ));
+    assert!(!super::unknown_bucket_literal_operands(
+        &operands, &known, &[true; 3]
+    ));
+    assert!(!super::unknown_bucket_literal_operands(
+        &operands,
+        &summaries,
+        &[false, true, true]
+    ));
+}

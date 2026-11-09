@@ -27,6 +27,7 @@ pub(super) struct AggregateOutput {
 enum OutputCopyMode {
     Ordinary,
     NullArray,
+    StringArray,
 }
 
 impl AggregateOutput {
@@ -52,9 +53,59 @@ impl AggregateOutput {
     }
 }
 
-struct PendingNullArray {
+struct PendingJsonArray {
     values: Vec<serde_json::Value>,
     memory: QueryMemoryReservation,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum StringArrayProgress {
+    Element,
+    StringChunk,
+}
+
+pub(super) fn string_array_output<'a>(
+    count: usize,
+    source: &QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+    mut item: impl FnMut(usize) -> Result<Option<&'a str>, QueryError>,
+    mut observe: impl FnMut(usize, StringArrayProgress),
+) -> Result<AggregateOutput, QueryError> {
+    if !source.belongs_to(controls) {
+        return Err(CassieError::ResourceLimit(
+            "percentile source uses a different query tracker".into(),
+        )
+        .into());
+    }
+    super::check_timeout(controls)?;
+    let (values, memory) = crate::runtime::owned_memory::try_reserve_vec(count, source)?;
+    let mut pending = PendingJsonArray { values, memory };
+    for index in 0..count {
+        super::check_timeout(controls)?;
+        let value = if let Some(text) = item(index)? {
+            pending.memory.try_grow(text.len())?;
+            let text = copy_output_string(
+                text,
+                text.len(),
+                controls,
+                OutputProgress::ValueCopy,
+                &mut |_| observe(index, StringArrayProgress::StringChunk),
+            )?;
+            serde_json::Value::String(text)
+        } else {
+            serde_json::Value::Null
+        };
+        pending.values.push(value);
+        observe(index, StringArrayProgress::Element);
+        super::check_timeout(controls)?;
+    }
+    super::check_timeout(controls)?;
+    let PendingJsonArray { values, memory } = pending;
+    Ok(AggregateOutput {
+        value: Value::Json(serde_json::Value::Array(values)),
+        memory: Some(memory),
+        copy_mode: OutputCopyMode::StringArray,
+    })
 }
 
 struct PendingModeString {
@@ -135,7 +186,7 @@ pub(super) fn null_array_output(
     }
     super::check_timeout(controls)?;
     let (values, memory) = crate::runtime::owned_memory::try_reserve_vec(count, source)?;
-    let mut pending = PendingNullArray { values, memory };
+    let mut pending = PendingJsonArray { values, memory };
     for index in 0..count {
         super::check_timeout(controls)?;
         pending.values.push(serde_json::Value::Null);
@@ -143,7 +194,7 @@ pub(super) fn null_array_output(
         super::check_timeout(controls)?;
     }
     super::check_timeout(controls)?;
-    let PendingNullArray { values, memory } = pending;
+    let PendingJsonArray { values, memory } = pending;
     Ok(AggregateOutput {
         value: Value::Json(serde_json::Value::Array(values)),
         memory: Some(memory),
@@ -534,7 +585,7 @@ fn push_output_mode_observing(
     progress: &mut impl FnMut(OutputProgress),
 ) -> Result<(), QueryError> {
     let Some(memory) = memory.as_mut() else {
-        if mode == OutputCopyMode::NullArray {
+        if mode != OutputCopyMode::Ordinary {
             return Err(output_overflow().into());
         }
         values.push((name.to_owned(), value.clone()));
@@ -587,6 +638,20 @@ fn push_output_mode_observing(
             mul(values.len(), std::mem::size_of::<serde_json::Value>())?
         }
         (OutputCopyMode::NullArray, _) => return Err(output_overflow().into()),
+        (OutputCopyMode::StringArray, Value::Json(serde_json::Value::Array(values))) => {
+            let mut bytes = mul(values.len(), std::mem::size_of::<serde_json::Value>())?;
+            for value in values {
+                controls.check_interruption()?;
+                match value {
+                    serde_json::Value::Null => {}
+                    serde_json::Value::String(text) => bytes = add(bytes, text.len())?,
+                    _ => return Err(output_overflow().into()),
+                }
+            }
+            controls.check_interruption()?;
+            bytes
+        }
+        (OutputCopyMode::StringArray, _) => return Err(output_overflow().into()),
         (OutputCopyMode::Ordinary, _) => {
             crate::executor::retained_memory::value_clone_bytes(value)?
         }
@@ -603,6 +668,11 @@ fn push_output_mode_observing(
         (OutputCopyMode::NullArray, Value::Json(serde_json::Value::Array(values))) => Value::Json(
             serde_json::Value::Array(copy_null_array(values, controls, progress)?),
         ),
+        (OutputCopyMode::StringArray, Value::Json(serde_json::Value::Array(values))) => {
+            Value::Json(serde_json::Value::Array(copy_string_array(
+                values, controls, progress,
+            )?))
+        }
         (OutputCopyMode::Ordinary, Value::String(text)) => Value::String(copy_output_string(
             text,
             text.capacity(),
@@ -612,9 +682,42 @@ fn push_output_mode_observing(
         )?),
         (OutputCopyMode::Ordinary, _) => value.clone(),
         (OutputCopyMode::NullArray, _) => return Err(output_overflow().into()),
+        (OutputCopyMode::StringArray, _) => return Err(output_overflow().into()),
     };
     values.push((name, value));
     Ok(())
+}
+
+fn copy_string_array(
+    values: &[serde_json::Value],
+    controls: &QueryExecutionControls,
+    progress: &mut impl FnMut(OutputProgress),
+) -> Result<Vec<serde_json::Value>, QueryError> {
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(values.len())
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    if output.capacity() > values.len() {
+        return Err(output_overflow().into());
+    }
+    for value in values {
+        controls.check_interruption()?;
+        let value = match value {
+            serde_json::Value::Null => serde_json::Value::Null,
+            serde_json::Value::String(text) => serde_json::Value::String(copy_output_string(
+                text,
+                text.len(),
+                controls,
+                OutputProgress::ValueCopy,
+                progress,
+            )?),
+            _ => return Err(output_overflow().into()),
+        };
+        output.push(value);
+        progress(OutputProgress::ValueCopy);
+        controls.check_interruption()?;
+    }
+    Ok(output)
 }
 
 fn copy_null_array(

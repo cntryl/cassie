@@ -46,7 +46,10 @@ use crate::sql::ast::{Expr, FunctionCall, SortDirection};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
-use super::collection_json::{null_array_output, percentile_string_output, AggregateOutput};
+use super::collection_json::{
+    null_array_output, percentile_string_output, string_array_output, AggregateOutput,
+    StringArrayProgress,
+};
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
 struct EvaluatedFractions {
@@ -60,6 +63,7 @@ struct EvaluatedFractions {
 struct SortedValues {
     values: Vec<Value>,
     memory: QueryMemoryReservation,
+    all_strings: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -69,6 +73,7 @@ enum FractionProgress {
     SortComparison,
     ResultElement,
     StringChunk,
+    ArrayStringChunk,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -290,6 +295,38 @@ fn evaluate_percentile_owned_observed(
         );
     }
 
+    if !is_continuous && sorted.all_strings {
+        return string_array_output(
+            fractions.values.len(),
+            &sorted.memory,
+            context.controls,
+            |index| {
+                let Some(fraction) = fractions.values[index] else {
+                    return Ok(None);
+                };
+                let count = sorted
+                    .values
+                    .len()
+                    .to_f64()
+                    .ok_or_else(percentile_rank_overflow)?;
+                let selected = percentile_discrete_index(sorted.values.len(), fraction, count)?;
+                let Value::String(text) = &sorted.values[selected] else {
+                    unreachable!("String-only input remains String-only after sorting")
+                };
+                Ok(Some(text.as_str()))
+            },
+            |index, progress| {
+                observe(
+                    match progress {
+                        StringArrayProgress::Element => FractionProgress::ResultElement,
+                        StringArrayProgress::StringChunk => FractionProgress::ArrayStringChunk,
+                    },
+                    index,
+                );
+            },
+        );
+    }
+
     percentile_array_values(
         &fractions.values,
         &sorted.values,
@@ -436,6 +473,7 @@ fn collect_sorted_values_using(
     let mut sorted = SortedValues {
         values: Vec::new(),
         memory: context.controls.reserve_query_memory(0)?,
+        all_strings: true,
     };
     for row in rows {
         check_timeout(context.controls)?;
@@ -456,6 +494,7 @@ fn collect_sorted_values_using(
         if !matches!(value, Value::Null) {
             grow_values(&mut sorted.values, &mut sorted.memory, "percentile")?;
             sorted.memory.try_grow(value_clone_bytes(&value)?)?;
+            sorted.all_strings &= matches!(value, Value::String(_));
             sorted.values.push(value);
             context.controls.aggregate_input_retained()?;
         }

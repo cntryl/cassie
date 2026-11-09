@@ -351,4 +351,3 @@ fn should_render_negative_interval_ordinal_suffixes_from_the_magnitude() {
         );
     }
 }
-

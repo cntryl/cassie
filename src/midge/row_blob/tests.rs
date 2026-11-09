@@ -1,5 +1,10 @@
 use super::*;
 
+#[path = "controlled_directory.rs"]
+mod controlled_directory;
+#[path = "controlled_directory_tests.rs"]
+mod controlled_directory_tests;
+
 #[test]
 fn should_decode_sparse_rows_without_field_names() {
     // Arrange

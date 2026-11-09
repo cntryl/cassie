@@ -22,6 +22,10 @@ mod slots;
 #[path = "json_arena/sources.rs"]
 mod sources;
 
+#[cfg(test)]
+pub(crate) use document::cell::{
+    Cell as PlainCell, CellError as PlainCellError, Identity as PlainIdentity,
+};
 pub(crate) use document::diagnostic::OwnedDiagnostic as JsonbDiagnostic;
 pub(crate) use document::exists::parse as parse_existence_candidate;
 pub(crate) use document::jsonb::{parse_field as parse_jsonb_field, JsonbFieldError};

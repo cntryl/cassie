@@ -26,7 +26,7 @@ mod plain_tests;
 
 #[cfg(test)]
 #[path = "document_cell.rs"]
-mod cell;
+pub(super) mod cell;
 
 #[path = "document_text_array.rs"]
 pub(super) mod text_array;

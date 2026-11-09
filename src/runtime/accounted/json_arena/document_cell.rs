@@ -2,33 +2,34 @@
 use crate::runtime::accounted::compact_json::{OwnedJsonText, Progress, Sink};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
-use super::{CursorError, Document, DocumentError, WrappedCause};
+use super::{CursorError, Document, DocumentError, ObjectPolicy, SourceStack, WrappedCause};
 
 #[path = "document_cell_tests.rs"]
 mod tests;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Identity {
+pub(crate) enum Identity {
     Json,
     Jsonb,
 }
 
 #[derive(Debug)]
-enum CellError {
+pub(crate) enum CellError {
     Syntax,
+    Utf8,
     Nul,
     Numeric,
     Control,
 }
 
-struct Cell {
+pub(crate) struct Cell {
     text: String,
     identity: Identity,
     memory: QueryMemoryReservation,
 }
 
 impl Cell {
-    fn parse(
+    pub(crate) fn parse(
         source: &str,
         identity: Identity,
         controls: &QueryExecutionControls,
@@ -40,25 +41,53 @@ impl Cell {
         source: &str,
         identity: Identity,
         controls: &QueryExecutionControls,
+        copied: impl FnMut(),
+    ) -> Result<Self, CellError> {
+        Self::parse_bytes_observing(source.as_bytes(), identity, controls, copied)
+    }
+
+    pub(crate) fn parse_bytes_observing(
+        source: &[u8],
+        identity: Identity,
+        controls: &QueryExecutionControls,
         mut copied: impl FnMut(),
     ) -> Result<Self, CellError> {
-        let parsed = Document::parse_plain(source, controls).map_err(|error| match error {
-            DocumentError::Control(_)
-            | DocumentError::Token(CursorError::Interrupted(_))
-            | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(_))) => {
-                CellError::Control
-            }
-            _ => CellError::Syntax,
+        let sources = SourceStack::from_bytes(source, controls).map_err(|error| match error {
+            CursorError::InvalidUtf8 => CellError::Utf8,
+            _ => CellError::Control,
         })?;
+        let parsed =
+            Document::parse_sources_with_policy(sources, controls, ObjectPolicy::Plain, |_| {})
+                .map_err(|error| match error {
+                    DocumentError::Control(_)
+                    | DocumentError::Token(CursorError::Interrupted(_))
+                    | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(_))) => {
+                        CellError::Control
+                    }
+                    _ => CellError::Syntax,
+                })?;
         let output = match identity {
             Identity::Json => {
                 let mut sink = Sink::for_arena(controls).map_err(|_| CellError::Control)?;
-                sink.write(source, &mut |progress| {
-                    if matches!(progress, Progress::Copy) {
-                        copied();
+                let mut start = 0;
+                while start < source.len() {
+                    controls
+                        .check_interruption()
+                        .map_err(|_| CellError::Control)?;
+                    let mut end = start.saturating_add(1024).min(source.len());
+                    while end < source.len() && source[end] & 0xc0 == 0x80 {
+                        end -= 1;
                     }
-                })
-                .map_err(|_| CellError::Control)?;
+                    let chunk =
+                        std::str::from_utf8(&source[start..end]).map_err(|_| CellError::Utf8)?;
+                    sink.write(chunk, &mut |progress| {
+                        if matches!(progress, Progress::Copy) {
+                            copied();
+                        }
+                    })
+                    .map_err(|_| CellError::Control)?;
+                    start = end;
+                }
                 sink.finish_output()
             }
             Identity::Jsonb => {
@@ -98,7 +127,7 @@ impl Cell {
         Ok(cell)
     }
 
-    fn text(&self) -> &str {
+    pub(crate) fn text(&self) -> &str {
         &self.text
     }
     fn identity(&self) -> Identity {

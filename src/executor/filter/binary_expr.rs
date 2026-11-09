@@ -195,18 +195,9 @@ fn array_comparison<R: RowAccess + ?Sized>(
             | BinaryOp::Gt
             | BinaryOp::Gte
     ) {
-        if let Some(ordering) = super::super::array_order::compare_with_controls(
-            row,
-            (left, &left_value.to_value()),
-            (right, &right_value.to_value()),
-            context.user_functions,
-            context.local_args,
-            context.controls.or_else(|| {
-                context
-                    .session
-                    .and_then(crate::app::CassieSession::statement_execution_controls)
-            }),
-        )? {
+        if let Some(ordering) =
+            compare_array_operands(row, (left, left_value), (right, right_value), context)?
+        {
             return Ok(Some(ScalarValue::Bool(match op {
                 BinaryOp::Eq | BinaryOp::IsNotDistinctFrom => ordering.is_eq(),
                 BinaryOp::NotEq | BinaryOp::IsDistinctFrom => ordering.is_ne(),
@@ -219,6 +210,42 @@ fn array_comparison<R: RowAccess + ?Sized>(
         }
     }
     Ok(None)
+}
+
+pub(super) fn compare_array_operands<R: RowAccess + ?Sized>(
+    row: &R,
+    left: (&Expr, &ScalarValue),
+    right: (&Expr, &ScalarValue),
+    context: EvalContext<'_>,
+) -> Result<Option<std::cmp::Ordering>, QueryError> {
+    let controls = context.controls.or_else(|| {
+        context
+            .session
+            .and_then(crate::app::CassieSession::statement_execution_controls)
+    });
+    if let (Some(controls), ScalarValue::Array(left_array), ScalarValue::Array(right_array)) =
+        (controls, left.1, right.1)
+    {
+        if let Some(order) = super::super::array_order::compare_direct_jsonb_arrays(
+            row,
+            (left.0, left_array),
+            (right.0, right_array),
+            context.user_functions,
+            context.local_args,
+            controls,
+        )? {
+            return Ok(order);
+        }
+    }
+    super::super::array_order::compare_with_controls(
+        row,
+        (left.0, &left.1.to_value()),
+        (right.0, &right.1.to_value()),
+        context.user_functions,
+        context.local_args,
+        controls,
+    )
+    .map_err(Into::into)
 }
 
 fn operand_type(expr: &Expr) -> (bool, bool) {

@@ -329,6 +329,39 @@ pub(super) fn compare_with_controls<R: RowAccess + ?Sized>(
     Ok(crate::executor::filter::compare_sql_arrays(&left, &right))
 }
 
+pub(super) fn compare_direct_jsonb_arrays<R: RowAccess + ?Sized>(
+    row: &R,
+    left: (&Expr, &crate::types::SqlArray),
+    right: (&Expr, &crate::types::SqlArray),
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<Option<Ordering>>, crate::app::CassieError> {
+    if !row.has_array_types() {
+        return Ok(None);
+    }
+    let is_jsonb_column = |expr: &Expr| match expr {
+        Expr::Column(name) => {
+            matches!(row.column_type(name), Some(DataType::Array(element)) if matches!(element.as_ref(), DataType::Jsonb))
+        }
+        _ => false,
+    };
+    let left_column = is_jsonb_column(left.0);
+    let right_column = is_jsonb_column(right.0);
+    if !((left_column && (right_column || matches!(right.0, Expr::Param(_))))
+        || (right_column && matches!(left.0, Expr::Param(_))))
+    {
+        return Ok(None);
+    }
+    if !matches!(
+        comparison_expression_types(row, left.0, right.0, functions, local_args),
+        Some((DataType::Jsonb, DataType::Jsonb))
+    ) {
+        return Ok(None);
+    }
+    crate::executor::filter::compare_sql_arrays_controlled(left.1, right.1, controls).map(Some)
+}
+
 fn comparison_types<R: RowAccess + ?Sized>(
     row: &R,
     left: (&Expr, &Value),
@@ -339,13 +372,23 @@ fn comparison_types<R: RowAccess + ?Sized>(
     if !row.has_array_types() || matches!(left.1, Value::Null) || matches!(right.1, Value::Null) {
         return None;
     }
+    comparison_expression_types(row, left.0, right.0, functions, local_args)
+}
+
+fn comparison_expression_types<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    right: &Expr,
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+) -> Option<(DataType, DataType)> {
     let scope = ComparisonScope { row, local_args };
-    let mut left_type = expression_type(&scope, left.0, functions);
-    let mut right_type = expression_type(&scope, right.0, functions);
-    if matches!(left_type, Some(DataType::Array(_))) && parameter_context(right.0) {
+    let mut left_type = expression_type(&scope, left, functions);
+    let mut right_type = expression_type(&scope, right, functions);
+    if matches!(left_type, Some(DataType::Array(_))) && parameter_context(right) {
         right_type.clone_from(&left_type);
     }
-    if matches!(right_type, Some(DataType::Array(_))) && parameter_context(left.0) {
+    if matches!(right_type, Some(DataType::Array(_))) && parameter_context(left) {
         left_type.clone_from(&right_type);
     }
     let (Some(DataType::Array(left_type)), Some(DataType::Array(right_type))) =

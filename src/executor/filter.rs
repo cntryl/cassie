@@ -148,6 +148,7 @@ mod json_function_result_owner_tests;
 #[cfg(test)]
 thread_local! {
     static JSON_FUNCTION_CALL_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static ARRAY_VALUE_CLONE_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -158,6 +159,11 @@ fn reset_json_function_call_count() {
 #[cfg(test)]
 fn take_json_function_call_count() -> usize {
     JSON_FUNCTION_CALL_COUNT.with(|count| count.replace(0))
+}
+
+#[cfg(test)]
+fn take_array_value_clone_count() -> usize {
+    ARRAY_VALUE_CLONE_COUNT.with(|count| count.replace(0))
 }
 
 #[derive(Debug, Clone)]
@@ -263,7 +269,11 @@ impl ScalarValue {
             ScalarValue::Float(v) => Value::Float64(*v),
             ScalarValue::Str(v) | ScalarValue::Json(v) => Value::String(v.clone()),
             ScalarValue::Typed(v) => Value::Typed(v.clone()),
-            ScalarValue::Array(v) => Value::Array(v.clone()),
+            ScalarValue::Array(v) => {
+                #[cfg(test)]
+                ARRAY_VALUE_CLONE_COUNT.with(|count| count.set(count.get().saturating_add(1)));
+                Value::Array(v.clone())
+            }
         }
     }
 
@@ -906,35 +916,22 @@ fn eval_between_expr<R: RowAccess + ?Sized>(
     let value = eval_scalar_with_context(row, expr, context)?;
     let low_value = eval_scalar_with_context(row, low, context)?;
     let high_value = eval_scalar_with_context(row, high, context)?;
-    let controls = context.controls.or_else(|| {
-        context
-            .session
-            .and_then(crate::app::CassieSession::statement_execution_controls)
-    });
-    let in_range = super::array_order::compare_with_controls(
-        row,
-        (expr, &value.to_value()),
-        (low, &low_value.to_value()),
-        context.user_functions,
-        context.local_args,
-        controls,
-    )?
-    .map(|ordering| !ordering.is_lt())
-    .or_else(|| ordered_cmp(&value, &low_value, |ordering| !ordering.is_lt()))
-    .map_or(PredicateResult::Unknown, bool_to_predicate)
-    .and(
-        super::array_order::compare_with_controls(
-            row,
-            (expr, &value.to_value()),
-            (high, &high_value.to_value()),
-            context.user_functions,
-            context.local_args,
-            controls,
-        )?
-        .map(|ordering| !ordering.is_gt())
-        .or_else(|| ordered_cmp(&value, &high_value, |ordering| !ordering.is_gt()))
-        .map_or(PredicateResult::Unknown, bool_to_predicate),
-    );
+    let in_range =
+        binary_expr::compare_array_operands(row, (expr, &value), (low, &low_value), context)?
+            .map(|ordering| !ordering.is_lt())
+            .or_else(|| ordered_cmp(&value, &low_value, |ordering| !ordering.is_lt()))
+            .map_or(PredicateResult::Unknown, bool_to_predicate)
+            .and(
+                binary_expr::compare_array_operands(
+                    row,
+                    (expr, &value),
+                    (high, &high_value),
+                    context,
+                )?
+                .map(|ordering| !ordering.is_gt())
+                .or_else(|| ordered_cmp(&value, &high_value, |ordering| !ordering.is_gt()))
+                .map_or(PredicateResult::Unknown, bool_to_predicate),
+            );
     if negated {
         Ok(in_range.not().into_scalar())
     } else {

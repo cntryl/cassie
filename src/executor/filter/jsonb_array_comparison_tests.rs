@@ -175,3 +175,204 @@ fn should_release_left_owner_after_actual_right_serialization_cancellation() {
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_borrow_evaluated_jsonb_arrays_for_binary_and_between() {
+    // Arrange
+    use crate::executor::batch::BatchRow;
+    use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
+    use crate::types::DataType;
+    use std::collections::HashMap;
+    let mut row = BatchRow::new(vec![
+        ("a".into(), Value::Array(array(vec![json("1")], 1))),
+        ("b".into(), Value::Array(array(vec![json("1.0")], 1))),
+    ]);
+    row.set_data_types(
+        vec![
+            DataType::Array(Box::new(DataType::Jsonb)),
+            DataType::Array(Box::new(DataType::Jsonb)),
+        ]
+        .into(),
+    );
+    let controls = controls(10 * 1024 * 1024);
+    let functions = HashMap::new();
+    for sql in ["a = b", "a BETWEEN b AND b"] {
+        let expression = crate::sql::parser::parse_expression(sql).expect("expression");
+        let context = EvalContext {
+            params: &[],
+            search_context: None,
+            user_functions: &functions,
+            local_args: None,
+            session: None,
+            exists: None,
+            controls: Some(&controls),
+            memory: None,
+            deletion_memory: None,
+        };
+        crate::executor::filter::take_array_value_clone_count();
+        // Act
+        let result =
+            evaluate_expr_value_with_context(&row, &expression, context).expect("comparison");
+        // Assert
+        assert!(matches!(result, Value::Bool(true)), "{sql}");
+        assert_eq!(
+            crate::executor::filter::take_array_value_clone_count(),
+            0,
+            "{sql}"
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_parameter_null_and_non_json_array_fallback() {
+    // Arrange
+    use crate::executor::batch::BatchRow;
+    use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
+    use crate::types::DataType;
+    use std::collections::HashMap;
+    let json_array = array(vec![json("1")], 1);
+    let mut row = BatchRow::new(vec![
+        ("a".into(), Value::Array(json_array.clone())),
+        ("n".into(), Value::Null),
+        ("x".into(), Value::Array(array(vec![Value::Int64(1)], 1))),
+    ]);
+    row.set_data_types(
+        vec![
+            DataType::Array(Box::new(DataType::Jsonb)),
+            DataType::Array(Box::new(DataType::Jsonb)),
+            DataType::Array(Box::new(DataType::BigInt)),
+        ]
+        .into(),
+    );
+    let params = [Value::Array(json_array)];
+    let functions = HashMap::new();
+    let controls = controls(10 * 1024 * 1024);
+    let context = EvalContext {
+        params: &params,
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: None,
+        deletion_memory: None,
+    };
+    let parameter = crate::sql::parser::parse_expression("a = $1").expect("parameter");
+    let null = crate::sql::parser::parse_expression("a = n").expect("null");
+    let mixed = crate::sql::parser::parse_expression("x = x").expect("mixed");
+    // Act / Assert
+    crate::executor::filter::take_array_value_clone_count();
+    assert!(matches!(
+        evaluate_expr_value_with_context(&row, &parameter, context),
+        Ok(Value::Bool(true))
+    ));
+    assert_eq!(crate::executor::filter::take_array_value_clone_count(), 0);
+    assert!(matches!(
+        evaluate_expr_value_with_context(&row, &null, context),
+        Ok(Value::Null)
+    ));
+    crate::executor::filter::take_array_value_clone_count();
+    assert!(matches!(
+        evaluate_expr_value_with_context(&row, &mixed, context),
+        Ok(Value::Bool(true))
+    ));
+    assert!(crate::executor::filter::take_array_value_clone_count() > 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_borrow_qualified_jsonb_columns_and_preserve_ownerless_path() {
+    // Arrange
+    use crate::executor::batch::BatchRow;
+    use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
+    use crate::types::DataType;
+    use std::collections::HashMap;
+    let mut row = BatchRow::new(vec![
+        ("t.a".into(), Value::Array(array(vec![json("1")], 1))),
+        ("t.b".into(), Value::Array(array(vec![json("1")], 1))),
+    ]);
+    row.set_data_types(
+        vec![
+            DataType::Array(Box::new(DataType::Jsonb)),
+            DataType::Array(Box::new(DataType::Jsonb)),
+        ]
+        .into(),
+    );
+    let expression = crate::sql::parser::parse_expression("t.a = t.b").expect("expression");
+    let controls = controls(10 * 1024 * 1024);
+    let functions = HashMap::new();
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: None,
+        deletion_memory: None,
+    };
+    // Act / Assert
+    crate::executor::filter::take_array_value_clone_count();
+    assert!(matches!(
+        evaluate_expr_value_with_context(&row, &expression, context),
+        Ok(Value::Bool(true))
+    ));
+    assert_eq!(crate::executor::filter::take_array_value_clone_count(), 0);
+    assert!(matches!(
+        evaluate_expr_value_with_context(
+            &row,
+            &expression,
+            EvalContext {
+                controls: None,
+                ..context
+            }
+        ),
+        Ok(Value::Bool(true))
+    ));
+    assert!(crate::executor::filter::take_array_value_clone_count() > 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_evaluate_between_high_operand_before_admitting_low_comparison() {
+    // Arrange
+    use crate::executor::batch::BatchRow;
+    use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
+    use crate::types::DataType;
+    use std::collections::HashMap;
+    let mut row = BatchRow::new(vec![
+        ("a".into(), Value::Array(array(vec![json("1")], 1))),
+        ("b".into(), Value::Array(array(vec![json("1")], 1))),
+    ]);
+    row.set_data_types(
+        vec![
+            DataType::Array(Box::new(DataType::Jsonb)),
+            DataType::Array(Box::new(DataType::Jsonb)),
+        ]
+        .into(),
+    );
+    let expression =
+        crate::sql::parser::parse_expression("a BETWEEN b AND (1 / 0)").expect("expression");
+    let controls = controls(0);
+    let functions = HashMap::new();
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: None,
+        deletion_memory: None,
+    };
+    // Act
+    let error = evaluate_expr_value_with_context(&row, &expression, context)
+        .expect_err("division fails first");
+    // Assert
+    assert!(error.to_string().contains("division by zero"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

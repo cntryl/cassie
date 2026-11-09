@@ -39,3 +39,10 @@ fields; `FM` removes padding. The interval-only calculation uses explicit
 wrapping and leaves date/timestamp calendar fields unchanged. Ordinary,
 negative, mixed-sign, extrema, ordinal, `FM` and timestamp controls are
 authored but unexecuted. This does not establish a general resource bound.
+
+PostgreSQL 18.6 formats `MS`, `US` and `FF1` through `FF6` with fixed signed
+minimum widths: the sign counts toward the width, and `FM` does not remove
+zero padding. Fractional values truncate toward zero to the requested digits;
+ordinal suffixes use the resulting magnitude. This applies to timestamps as
+well as intervals. PostgreSQL oracle cases cover positive, negative and
+sub-millisecond fractions, FM and suffixes. Cassie regressions are unexecuted.

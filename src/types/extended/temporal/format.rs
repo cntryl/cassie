@@ -8,6 +8,8 @@ use crate::types::extended::TypeInputError;
 
 #[path = "format_zone_catalog.rs"]
 mod catalog;
+#[path = "format_fraction.rs"]
+mod fraction;
 #[path = "format_interval.rs"]
 mod interval;
 #[path = "format_zone.rs"]
@@ -240,12 +242,11 @@ fn render_clock_field(
         "hh24" => numeric(hour, 2),
         "mi" => numeric(i64::from(fields.minute), 2),
         "ss" => numeric(i64::from(fields.second), 2),
-        "ms" => numeric(fields.micros / 1000, 3),
-        "us" => numeric(fields.micros, 6),
+        "ms" => fraction::field(fields.micros, 3),
+        "us" => fraction::field(fields.micros, 6),
         "ff1" | "ff2" | "ff3" | "ff4" | "ff5" | "ff6" => {
             let digits = usize::from(keyword.as_bytes()[2] - b'0');
-            let scaled = fields.micros / 10_i64.pow(u32::try_from(6 - digits).unwrap_or(0));
-            numeric(scaled, digits)
+            fraction::field(fields.micros, digits)
         }
         "ssss" | "sssss" => numeric(
             hour * 3600 + i64::from(fields.minute) * 60 + i64::from(fields.second),

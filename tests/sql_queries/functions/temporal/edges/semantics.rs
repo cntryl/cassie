@@ -5,6 +5,49 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_keep_fraction_width_for_fill_mode_and_negative_intervals() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-fraction-format-width", &[]);
+    let template =
+        "MS|FMMS|MSth|US|FMUS|USth|FF1|FMFF1|FF2|FMFF2|FF3|FMFF3|FF4|FMFF4|FF5|FMFF5|FF6|FMFF6";
+    let cases = [
+        ("0.005006", "005|005|005th|005006|005006|005006th|0|0|00|00|005|005|0050|0050|00500|00500|005006|005006"),
+        ("-0.005006", "-05|-05|-05th|-05006|-05006|-05006th|0|0|00|00|-05|-05|-050|-050|-0500|-0500|-05006|-05006"),
+        ("0.000001", "000|000|000th|000001|000001|000001st|0|0|00|00|000|000|0000|0000|00000|00000|000001|000001"),
+        ("-0.000001", "000|000|000th|-00001|-00001|-00001st|0|0|00|00|000|000|0000|0000|00000|00000|-00001|-00001"),
+        ("0.500005", "500|500|500th|500005|500005|500005th|5|5|50|50|500|500|5000|5000|50000|50000|500005|500005"),
+        ("-0.500005", "-500|-500|-500th|-500005|-500005|-500005th|-5|-5|-50|-50|-500|-500|-5000|-5000|-50000|-50000|-500005|-500005"),
+    ];
+
+    for (seconds, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{seconds} seconds', '{template}')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval fractional format").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 fraction: {seconds}"
+        );
+    }
+
+    // Act
+    let timestamp = fixture.execute(
+        "SELECT to_char(TIMESTAMP '2000-01-01 00:00:00.005006', 'MS|FMMS|US|FMUS|FF3|FMFF3')",
+    );
+
+    // Assert
+    assert_eq!(
+        timestamp.expect("timestamp fractional format").rows(),
+        &[vec![Value::String(
+            "005|005|005006|005006|005|005".to_owned()
+        )]]
+    );
+}
+
+#[test]
 fn should_format_interval_day_of_year_and_week_from_approximate_span() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-day-of-year-week", &[]);

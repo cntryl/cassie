@@ -580,3 +580,43 @@ fn should_preserve_numeric_rounding_results_at_extreme_negative_scale() {
         &[vec![Value::Bool(true)]]
     );
 }
+
+#[test]
+fn should_bucket_float_values_across_an_overflowing_span() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-float-span", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT WIDTH_BUCKET(0::float8, '-1e308'::float8, '1e308'::float8, 10), WIDTH_BUCKET('5e307'::float8, '-1e308'::float8, '1e308'::float8, 10), WIDTH_BUCKET(0::float8, '1e308'::float8, '-1e308'::float8, 10), WIDTH_BUCKET('-5e307'::float8, '1e308'::float8, '-1e308'::float8, 10)");
+
+    // Assert
+    assert_eq!(
+        result.expect("wide float buckets").rows(),
+        &[vec![
+            Value::Int64(6),
+            Value::Int64(8),
+            Value::Int64(6),
+            Value::Int64(8)
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_float_bucket_bounds_that_differ_only_by_zero_sign() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-signed-zero", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(0::float8, 0::float8, '-0'::float8, 10)",
+        "SELECT WIDTH_BUCKET(0::float8, '-0'::float8, 0::float8, 10)",
+    ];
+
+    for query in queries {
+        // Act
+        let result = fixture.execute(query);
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "lower bound cannot equal upper bound")
+        );
+    }
+}

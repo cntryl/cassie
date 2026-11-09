@@ -26,11 +26,32 @@ enum NumericPhase {
     Output,
 }
 
+#[cfg(test)]
+thread_local! {
+    static NEXT_ARITHMETIC_CANCEL: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn cancel_next_arithmetic(cancellation: crate::runtime::QueryCancellationHandle) {
+    NEXT_ARITHMETIC_CANCEL.with(|slot| *slot.borrow_mut() = Some(cancellation));
+}
+
 pub(crate) fn format(
     value: &Numeric,
     controls: &QueryExecutionControls,
 ) -> Result<NumericText, QueryError> {
-    format_observing(value, controls, |_| {})
+    format_observing(value, controls, |phase| {
+        #[cfg(test)]
+        if matches!(phase, NumericPhase::Arithmetic) {
+            NEXT_ARITHMETIC_CANCEL.with(|slot| {
+                if let Some(cancellation) = slot.borrow_mut().take() {
+                    cancellation.cancel();
+                }
+            });
+        }
+        #[cfg(not(test))]
+        let _ = phase;
+    })
 }
 
 pub(crate) fn format_integer(

@@ -57,27 +57,41 @@ impl GroupMemory {
     }
 }
 
-pub(super) fn serial_group_bytes(signature: &SemanticKey, values: &[(String, Value)]) -> usize {
-    signature
+pub(super) fn serial_group_bytes(
+    signature: &SemanticKey,
+    values: &[(String, Value)],
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    Ok(signature
         .estimated_bytes()
-        .saturating_add(json_bytes(values))
+        .saturating_add(super::group_size::json_bytes_controlled(values, controls)?))
 }
 
-pub(super) fn serial_row_bytes(row: &BatchRow) -> usize {
-    json_bytes(row.entries())
+pub(super) fn serial_row_bytes(
+    row: &BatchRow,
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    super::group_size::json_bytes_controlled(row.entries(), controls)
 }
 
-pub(super) fn partial_group_bytes(signature: &SemanticKey, group: &PartialAggregateGroup) -> usize {
-    signature
+pub(super) fn partial_group_bytes(
+    signature: &SemanticKey,
+    group: &PartialAggregateGroup,
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    Ok(signature
         .estimated_bytes()
-        .saturating_add(json_bytes(&group.group_values))
+        .saturating_add(super::group_size::json_bytes_controlled(
+            &group.group_values,
+            controls,
+        )?)
         .saturating_add(
             group
                 .accumulators
                 .iter()
                 .map(AggregateAccumulator::retained_bytes)
                 .fold(0, usize::saturating_add),
-        )
+        ))
 }
 
 pub(super) fn json_bytes<T: serde::Serialize + ?Sized>(value: &T) -> usize {

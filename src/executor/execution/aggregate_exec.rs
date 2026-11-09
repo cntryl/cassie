@@ -20,6 +20,7 @@ mod boolean;
 mod collection_json;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
+mod group_size;
 #[path = "aggregate_exec/interval_aggregate.rs"]
 mod interval_aggregate;
 #[path = "aggregate_exec/modifiers.rs"]
@@ -155,12 +156,15 @@ fn aggregate_query_batches_serial(
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
         let signature = aggregate_typed_group_signature(&group_values, &row, context)?;
-        let mut added_bytes = group_memory::serial_row_bytes(&row);
+        let mut added_bytes = group_memory::serial_row_bytes(&row, context.controls)?;
         let group = match owned.groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
-                added_bytes = added_bytes
-                    .saturating_add(group_memory::serial_group_bytes(entry.key(), &group_values));
+                added_bytes = added_bytes.saturating_add(group_memory::serial_group_bytes(
+                    entry.key(),
+                    &group_values,
+                    context.controls,
+                )?);
                 entry.insert((group_values, Vec::new()))
             }
         };
@@ -177,9 +181,11 @@ fn aggregate_query_batches_serial(
 
     if owned.groups.is_empty() && context.plan.group_by.is_empty() {
         let signature = SemanticKey::default();
-        owned
-            .memory
-            .add(group_memory::serial_group_bytes(&signature, &[]))?;
+        owned.memory.add(group_memory::serial_group_bytes(
+            &signature,
+            &[],
+            context.controls,
+        )?)?;
         owned.groups.insert(signature, (Vec::new(), Vec::new()))?;
     }
 
@@ -260,9 +266,11 @@ fn merge_partial_aggregations(
     if owned.groups.is_empty() && context.plan.group_by.is_empty() {
         let signature = SemanticKey::default();
         let group = PartialAggregateGroup::new(Vec::new(), specs);
-        owned
-            .merged_memory
-            .add(group_memory::partial_group_bytes(&signature, &group))?;
+        owned.merged_memory.add(group_memory::partial_group_bytes(
+            &signature,
+            &group,
+            context.controls,
+        )?)?;
         owned.groups.insert(signature, group)?;
     }
 
@@ -351,9 +359,11 @@ fn aggregate_partition(
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let group = PartialAggregateGroup::new(group_values, specs);
-                owned
-                    .memory
-                    .add(group_memory::partial_group_bytes(entry.key(), &group))?;
+                owned.memory.add(group_memory::partial_group_bytes(
+                    entry.key(),
+                    &group,
+                    context.controls,
+                )?)?;
                 entry.insert(group)
             }
         };

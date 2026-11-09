@@ -374,6 +374,7 @@ fn render_field(
             i64::from(iso_week(fields.year, fields.month, fields.day)),
             2,
         ),
+        "q" if moment.is_interval && fields.month == 0 => (String::new(), None),
         "q" => numeric(i64::from((fields.month - 1) / 3 + 1), 1),
         "cc" => {
             let century = if moment.is_interval {

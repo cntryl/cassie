@@ -5,6 +5,53 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_omit_interval_quarter_for_a_zero_month_component() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-quarter-zero-month", &[]);
+    let cases = [
+        (0, "[]|[]|[]|[]"),
+        (1, "[1]|[1]|[1st]|[1ST]"),
+        (3, "[1]|[1]|[1st]|[1ST]"),
+        (4, "[2]|[2]|[2nd]|[2ND]"),
+        (11, "[4]|[4]|[4th]|[4TH]"),
+        (12, "[]|[]|[]|[]"),
+        (-1, "[1]|[1]|[1st]|[1ST]"),
+        (-2, "[0]|[0]|[0th]|[0TH]"),
+        (-3, "[0]|[0]|[0th]|[0TH]"),
+        (-11, "[-3]|[-3]|[-3rd]|[-3RD]"),
+        (-12, "[]|[]|[]|[]"),
+        (-13, "[1]|[1]|[1st]|[1ST]"),
+    ];
+
+    for (months, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{months} months', '[Q]|[FMQ]|[Qth]|[QTH]')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval quarter").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 interval quarter for {months} months"
+        );
+    }
+
+    // Act
+    let controls = fixture
+        .execute("SELECT to_char(TIMESTAMP '2000-01-01', 'Q'), to_char(INTERVAL '0', '\"Q\"')");
+
+    // Assert
+    assert_eq!(
+        controls.expect("timestamp and quoted quarter").rows(),
+        &[vec![
+            Value::String("1".to_owned()),
+            Value::String("Q".to_owned())
+        ]]
+    );
+}
+
+#[test]
 fn should_format_interval_week_in_month_at_signed_day_boundaries() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-week-in-month", &[]);

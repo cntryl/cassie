@@ -125,7 +125,7 @@ fn should_release_converted_operands_when_final_owner_is_foreign() {
     let owner = EvaluationMemory::new(&owner_controls).expect("owner");
     let mut row = BatchRow::new(vec![
         ("a".into(), Value::String("payload".into())),
-        ("b".into(), Value::Json(serde_json::json!({"b":1}))),
+        ("b".into(), Value::String("second".into())),
     ]);
     row.set_data_types(vec![DataType::Jsonb, DataType::Jsonb].into());
     let expression = crate::sql::parser::parse_expression("a || b").expect("expression");
@@ -144,7 +144,12 @@ fn should_release_converted_operands_when_final_owner_is_foreign() {
     // Act
     let result = evaluate_expr_value_with_context(&row, &expression, context);
     // Assert
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(crate::executor::QueryError::Cassie(
+            crate::app::CassieError::ResourceLimit(message)
+        )) if message == "JSON deletion owner uses a different query tracker"
+    ));
     assert!(run_controls.peak_query_memory_bytes() > 0);
     assert_eq!(run_controls.current_query_memory_bytes(), 0);
     drop(owner);

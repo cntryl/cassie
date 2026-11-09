@@ -327,7 +327,34 @@ mod tests {
             source_type: Some(crate::types::DataType::Json),
             identity: crate::sql::ast::CastIdentity::Scalar,
         };
-        for (budget, accepted) in [(800, false), (4096, true)] {
+        let baseline = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits {
+                query_memory_budget_bytes: 64 * 1024,
+                ..Default::default()
+            },
+            Instant::now(),
+        );
+        let baseline_memory = EvaluationMemory::new(&baseline).expect("owner");
+        let measured = evaluate_source_argument(
+            &row,
+            &expression,
+            &[],
+            &HashMap::new(),
+            None,
+            &baseline,
+            &baseline_memory,
+        )
+        .expect("measure escaped JSON text");
+        assert_eq!(
+            measured,
+            Value::String(serde_json::to_string(&document).expect("JSON text"))
+        );
+        let peak = baseline.peak_query_memory_bytes();
+        assert!(peak > 800);
+        drop(measured);
+        drop(baseline_memory);
+        assert_eq!(baseline.current_query_memory_bytes(), 0);
+        for (budget, accepted) in [(800, false), (peak - 1, false), (peak, true)] {
             let controls = QueryExecutionControls::from_limits(
                 &crate::config::CassieRuntimeLimits {
                     query_memory_budget_bytes: budget,

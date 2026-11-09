@@ -438,6 +438,7 @@ pub(crate) fn quote_identifier(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{builtin_type_oid, qualified_name, quote_identifier, signature, Identifier};
+    use crate::types::ObjectIdentifierError;
 
     #[test]
     fn should_parse_qualified_identifier_case_rules() {
@@ -617,10 +618,14 @@ mod tests {
         ];
 
         // Act
-        let actual = names.map(|name| builtin_type_oid(name).expect("well-formed lookup"));
+        let actual = names.map(builtin_type_oid);
 
         // Assert
-        assert_eq!(actual, [None, None, None, None, None]);
+        assert!(matches!(
+            &actual[0],
+            Err(ObjectIdentifierError::InvalidName(name)) if name == names[0]
+        ));
+        assert!(actual[1..].iter().all(|result| matches!(result, Ok(None))));
     }
 
     #[test]

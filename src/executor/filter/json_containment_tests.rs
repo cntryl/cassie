@@ -51,8 +51,14 @@ fn should_admit_containment_parser_frames_before_decoding() {
 fn should_bound_expanded_numeric_coefficients_before_comparing_them() {
     // Arrange
     let number = ScalarValue::Json("1e400".into());
+    let baseline = controls(64 * 1024);
+    let measured = evaluate_with_controls(&contains(), &number, &number, Some(&baseline));
+    assert!(matches!(measured, Ok(ScalarValue::Bool(true))));
+    let peak = baseline.peak_query_memory_bytes();
+    assert!(peak >= 2 * 401, "both expanded numeric texts must be admitted");
+    assert_eq!(baseline.current_query_memory_bytes(), 0);
 
-    for (budget, accepted) in [(4096, false), (64 * 1024, true)] {
+    for (budget, accepted) in [(peak - 1, false), (peak, true)] {
         let controls = controls(budget);
 
         // Act

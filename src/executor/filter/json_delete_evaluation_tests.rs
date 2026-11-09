@@ -463,7 +463,8 @@ fn should_preserve_dynamic_array_subtraction_error_but_allow_typed_json_deletion
             assert!(controls.current_query_memory_bytes() > 0);
         } else {
             assert!(actual.is_err());
-            assert_eq!(controls.current_query_memory_bytes(), 0);
+            assert!(owner.bytes() > 0, "the JSON leaf remains owned until the expression owner drops");
+            assert_eq!(controls.current_query_memory_bytes(), owner.bytes());
         }
         drop(actual);
         drop(owner);

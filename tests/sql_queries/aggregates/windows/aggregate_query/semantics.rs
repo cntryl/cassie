@@ -618,9 +618,14 @@ fn should_preserve_correlated_exists_filter_for_numeric_window_arguments() {
             row[0],
             Value::Int64(i64::try_from(index + 1).expect("small index"))
         );
-        assert!(
-            matches!(&row[1], Value::Typed(cassie::types::typed::TypedValue::Numeric(value))
-            if value.compare(&expected) == std::cmp::Ordering::Equal)
+        let Value::String(actual) = &row[1] else {
+            panic!("NUMERIC window result should retain text carrier");
+        };
+        assert_eq!(
+            parse_text(actual)
+                .expect("numeric result")
+                .compare(&expected),
+            std::cmp::Ordering::Equal
         );
     }
     assert_eq!(result.columns()[1].type_oid, 1700);

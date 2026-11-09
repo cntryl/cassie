@@ -24,6 +24,8 @@ mod binary_text;
 mod binary_time;
 #[path = "input/binary_timestamp.rs"]
 mod binary_timestamp;
+#[path = "input/binary_timetz.rs"]
+mod binary_timetz;
 #[path = "input/binary_uuid.rs"]
 mod binary_uuid;
 
@@ -324,6 +326,13 @@ pub(super) fn parse_binary_payload(
             }
             if let Some((text, text_memory)) =
                 binary_time::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if let Some((text, text_memory)) =
+                binary_timetz::decode(type_oid, bytes, column_index, controls)?
             {
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

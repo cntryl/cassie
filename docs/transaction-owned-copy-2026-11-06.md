@@ -314,3 +314,13 @@ decoder error ordering (0.44) and UTC selection (0.37) require focused source
 checks and probes. Other session-zone output, codecs and malformed diagnostic
 scratch remain pending. Probes are unexecuted. Receipt:
 `target/assembly-review/copy-binary-timestamptz-{request,response}.json`.
+
+Jev selected (0.99) direct admitted binary TIMETZ output (OID 1266), after the
+checked receive boundary from `b11e9640` validates time and zone. A fixed stack
+clock and offset reproduce `format_timetz`, including 24:00, fractional
+trimming and signed hour/minute/second displacement; the typed TIMETZ error
+handoff remains unchanged. Formatting parity (0.86), owner lifetime (0.47),
+error handling (0.35) and prerequisite range (0.33) require source checks and
+focused probes. Direct arbitrary Rust values, other codecs, and malformed
+diagnostic scratch remain pending. Probes remain unexecuted. Receipt:
+`target/assembly-review/copy-binary-timetz-{request,response}.json`.

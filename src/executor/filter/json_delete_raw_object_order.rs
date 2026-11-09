@@ -14,6 +14,7 @@ pub(super) struct Order<'a> {
 }
 
 impl Order<'_> {
+    #[cfg(test)]
     pub(super) fn indices(&self) -> &[usize] {
         &self.indices
     }

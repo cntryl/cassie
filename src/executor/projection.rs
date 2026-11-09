@@ -11,6 +11,9 @@ use crate::types::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 mod character_casts;
+#[cfg(test)]
+#[path = "projection/json_deletion_owner_tests.rs"]
+mod json_deletion_owner_tests;
 #[path = "projection/json_object_keys.rs"]
 mod json_object_keys;
 
@@ -81,7 +84,10 @@ where
     };
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
-        let cast_memory = character_casts::Memory::new(retain_cast_memory, session)?;
+        let retain_deletion_memory =
+            character_casts::deletion_required(&ops, &row, params, user_functions);
+        let cast_memory =
+            character_casts::Memory::new(retain_cast_memory, retain_deletion_memory, session)?;
         let data_types = super::projection_types::projected(&row, &ops, user_functions);
         let mut projected = Vec::with_capacity(ops.len());
         for op in &ops {

@@ -263,6 +263,7 @@ fn should_enforce_containment_controls_during_row_evaluation() {
         exists: None,
         controls: Some(&controls),
         memory: None,
+        deletion_memory: None,
     };
 
     // Act

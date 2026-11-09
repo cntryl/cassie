@@ -88,28 +88,48 @@ decoded and may report an error. Output visits surviving members in the old
 canonical key order, preserving numeric/error precedence. The preserved
 eager arena flag draft is not selected for integration.
 
-The draft reached-object index retains every decoded key until object output,
+The reached-object index retains every decoded key until object output,
 then orders equal decoded keys stably and selects the last occurrence. This
 can retain more memory than the previous map, which discarded a duplicate at
 insertion; a tight budget or cancellation may therefore fail earlier. The
-sorting and output tests are unexecuted, and the index is not production-wired.
+sorting and output tests are unexecuted.
 
-The current worktree contains a test-only raw syntax scanner draft with an
-admitted iterative frame stack and borrowed result spans. It is not connected
-to SQL deletion. Exact malformed diagnostics, synchronized stack-move
-cancellation, raw object indexing, selection, formatting and result-owner
-handoffs remain open; no executable tests have been run. A pre-cancelled query
-reports cancellation before inspecting even an empty or malformed input.
+The raw syntax scanner uses an admitted iterative frame stack and borrowed
+result spans on the controlled SQL routes described below. Authored malformed
+diagnostic, synchronized stack-move cancellation, selection, formatting and
+result-owner probes have not been executed. A pre-cancelled query reports
+cancellation before inspecting even an empty or malformed input.
 
-The unconnected raw deletion candidate covers object and array `-` overloads
-and bottom-up `#-` traversal in test-only code. It owns output and traversal
+The raw deletion implementation covers object and array `-` overloads and
+bottom-up `#-` traversal for the controlled native-operand routes. It owns output and traversal
 buffers and preserves structured diagnostics while rendering. Their eventual
 conversion into independently owned client error Strings and delivery has no
 diagnostic-owner handoff yet. It rescans surviving nested raw arrays and values,
 so deeply nested input can incur quadratic checked work; interruption checks
-do not make that cost linear. Controlled SQL text-array/path operand conversion,
+do not make that cost linear. The native text-array prototype validates every
+element then borrows its strings rather than cloning them; its caller must
+retain the operand owner. Controlled string-backed text-array/path conversion,
 expression/result ownership and consumer handoffs are still pending. No
 end-to-end resource qualification is claimed.
+
+The SQL handoff adds a dedicated deletion owner to controlled WHERE
+evaluation, including statement controls carried by a session. Projection
+creates a separate owner when its per-row expression contains a `#-` or a
+subtraction whose JSON-producing input is identified from a JSON column,
+parameter, cast, nested deletion/concat, or known JSON-returning function.
+Complex producers that cannot be identified keep the old path. A projected row
+retains the owner, and consuming scalar-to-Value conversion moves its strings.
+The owner retains intermediate deletion outputs conservatively until the row
+or predicate finishes. Projection checks interruption after constructing the
+owner and before attachment, so cancellation can precede attachment errors.
+Native TEXT[] elements are validated before document-shape dispatch; text-backed
+arrays and contexts without this owner keep the old path. For subtraction,
+an actual JSON scalar with a non-array right operand also takes the controlled
+route for untyped or non-JSON declared columns, matching the old dynamic JSON
+fallback. Native array right operands keep the old array-first dispatch. An untyped `#-`
+column remains on its existing generic route. Source JSON scalar
+construction, casts/routines and their clones, projection row clones, aggregate,
+window, DML and other consumers are not yet qualified by this handoff.
 The path index scanner checks each byte, but its invalid-index diagnostic still
 uses `format!` to copy the complete path element without admission or bounded
 interruption; error-message ownership and delivery remain open.

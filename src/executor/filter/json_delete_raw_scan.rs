@@ -9,12 +9,10 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 #[path = "json_delete_raw_scan_tests.rs"]
 mod tests;
 
-#[cfg(test)]
 #[path = "json_delete_raw_object.rs"]
 mod object;
-#[cfg(test)]
 #[path = "json_delete_raw_render.rs"]
-mod render;
+pub(in crate::executor::filter) mod render;
 
 #[derive(Debug)]
 enum ScanError {
@@ -152,6 +150,7 @@ fn scan(input: &str, controls: &QueryExecutionControls) -> Result<Range<usize>, 
     scan_observing(input, controls, |_| {})
 }
 
+#[cfg(test)]
 fn scan_prefix(input: &str, controls: &QueryExecutionControls) -> Result<Range<usize>, ScanError> {
     scan_inner(input, controls, false, |_| {})
 }

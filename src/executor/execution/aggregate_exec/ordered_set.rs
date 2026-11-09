@@ -27,11 +27,19 @@ use crate::sql::ast::{Expr, FunctionCall, SortDirection};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
+use super::collection_json::{null_array_output, AggregateOutput};
 use super::{check_timeout, AggregateExecutionContext, QueryError};
 
 struct EvaluatedFractions {
     values: Vec<Option<f64>>,
     is_array: bool,
+    all_null: bool,
+    memory: QueryMemoryReservation,
+}
+
+#[derive(Debug)]
+struct SortedValues {
+    values: Vec<Value>,
     memory: QueryMemoryReservation,
 }
 
@@ -40,6 +48,7 @@ enum FractionProgress {
     Element,
     Ready,
     SortComparison,
+    ResultElement,
 }
 
 fn try_sort_by<T>(
@@ -142,21 +151,24 @@ pub(super) fn evaluate(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
-) -> Result<Value, QueryError> {
+) -> Result<AggregateOutput, QueryError> {
     let metadata = crate::sql::functions::function(&function.name)
         .expect("ordered-set aggregate metadata is registered");
     match metadata.id {
-        crate::sql::functions::FunctionId::Mode => mode::evaluate(function, rows, context),
+        crate::sql::functions::FunctionId::Mode => {
+            mode::evaluate(function, rows, context).map(AggregateOutput::from_value)
+        }
         crate::sql::functions::FunctionId::Rank
         | crate::sql::functions::FunctionId::DenseRank
         | crate::sql::functions::FunctionId::PercentRank
         | crate::sql::functions::FunctionId::CumeDist => {
-            hypothetical::evaluate(function, rows, context)
+            hypothetical::evaluate(function, rows, context).map(AggregateOutput::from_value)
         }
-        _ => evaluate_percentile(function, rows, context),
+        _ => evaluate_percentile_owned_observed(function, rows, context, |_, _| {}),
     }
 }
 
+#[cfg(test)]
 fn evaluate_percentile(
     function: &FunctionCall,
     rows: &[BatchRow],
@@ -165,12 +177,23 @@ fn evaluate_percentile(
     evaluate_percentile_observed(function, rows, context, |_, _| {})
 }
 
+#[cfg(test)]
 fn evaluate_percentile_observed(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
-    mut observe: impl FnMut(FractionProgress, usize),
+    observe: impl FnMut(FractionProgress, usize),
 ) -> Result<Value, QueryError> {
+    evaluate_percentile_owned_observed(function, rows, context, observe)
+        .map(AggregateOutput::into_value)
+}
+
+fn evaluate_percentile_owned_observed(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    context: &AggregateExecutionContext<'_>,
+    mut observe: impl FnMut(FractionProgress, usize),
+) -> Result<AggregateOutput, QueryError> {
     let metadata = crate::sql::functions::function(&function.name)
         .expect("percentile aggregate metadata is registered");
     let is_continuous = metadata.id == crate::sql::functions::FunctionId::PercentileCont;
@@ -178,31 +201,44 @@ fn evaluate_percentile_observed(
         QueryError::General("percentile aggregates require WITHIN GROUP ORDER BY".into())
     })?;
     let Some(fractions) = evaluate_fractions(function, rows, context, &mut observe)? else {
-        return Ok(Value::Null);
+        return Ok(AggregateOutput::from_value(Value::Null));
     };
     observe(FractionProgress::Ready, fractions.memory.bytes());
     check_timeout(context.controls)?;
-    let (values, mut retained) = collect_sorted_values(function, rows, order, context, || {
+    let mut sorted = collect_sorted_values(function, rows, order, context, || {
         observe(FractionProgress::SortComparison, fractions.memory.bytes());
     })?;
 
-    if values.is_empty() {
-        return Ok(Value::Null);
+    if sorted.values.is_empty() {
+        return Ok(AggregateOutput::from_value(Value::Null));
     }
     if !fractions.is_array {
         let Some(fraction) = fractions.values.first().copied().flatten() else {
-            return Ok(Value::Null);
+            return Ok(AggregateOutput::from_value(Value::Null));
         };
-        return percentile_value(&values, fraction, is_continuous);
+        return percentile_value(&sorted.values, fraction, is_continuous)
+            .map(AggregateOutput::from_value);
+    }
+
+    if fractions.all_null {
+        return null_array_output(
+            fractions.values.len(),
+            &sorted.memory,
+            context.controls,
+            |index| {
+                observe(FractionProgress::ResultElement, index);
+            },
+        );
     }
 
     percentile_array_values(
         &fractions.values,
-        &values,
-        &mut retained,
+        &sorted.values,
+        &mut sorted.memory,
         context,
         is_continuous,
     )
+    .map(AggregateOutput::from_value)
 }
 
 fn evaluate_fractions(
@@ -273,15 +309,16 @@ fn collect_fractions(
     let mut output = EvaluatedFractions {
         values,
         is_array,
+        all_null: true,
         memory,
     };
     match input {
         Value::Json(serde_json::Value::Array(values)) => {
             for (index, value) in values.iter().enumerate() {
                 check_timeout(controls)?;
-                output
-                    .values
-                    .push(parse_array_fraction(value, numeric_text_array)?);
+                let value = parse_array_fraction(value, numeric_text_array)?;
+                output.all_null &= value.is_none();
+                output.values.push(value);
                 observe(index);
                 check_timeout(controls)?;
             }
@@ -294,6 +331,7 @@ fn collect_fractions(
                 } else {
                     Some(parse_fraction(value)?)
                 };
+                output.all_null &= value.is_none();
                 output.values.push(value);
                 observe(index);
                 check_timeout(controls)?;
@@ -301,6 +339,7 @@ fn collect_fractions(
         }
         scalar => {
             output.values.push(Some(parse_fraction(scalar)?));
+            output.all_null = false;
             observe(0);
             check_timeout(controls)?;
         }
@@ -315,7 +354,7 @@ fn collect_sorted_values(
     order: &crate::sql::ast::OrderExpr,
     context: &AggregateExecutionContext<'_>,
     mut observe: impl FnMut(),
-) -> Result<(Vec<Value>, QueryMemoryReservation), QueryError> {
+) -> Result<SortedValues, QueryError> {
     collect_sorted_values_using(function, rows, order, context, |values| {
         try_sort_by(values, context.controls, |left, right| {
             let comparison = compare_values(left, right);
@@ -334,9 +373,11 @@ fn collect_sorted_values_using(
     order: &crate::sql::ast::OrderExpr,
     context: &AggregateExecutionContext<'_>,
     sort: impl FnOnce(&mut [Value]) -> Result<(), QueryError>,
-) -> Result<(Vec<Value>, QueryMemoryReservation), QueryError> {
-    let mut values = Vec::new();
-    let mut retained = context.controls.reserve_query_memory(0)?;
+) -> Result<SortedValues, QueryError> {
+    let mut sorted = SortedValues {
+        values: Vec::new(),
+        memory: context.controls.reserve_query_memory(0)?,
+    };
     for row in rows {
         check_timeout(context.controls)?;
         if !super::state_input::row_filter_matches(function, row, context)? {
@@ -354,16 +395,16 @@ fn collect_sorted_values_using(
             None,
         )?;
         if !matches!(value, Value::Null) {
-            grow_values(&mut values, &mut retained, "percentile")?;
-            retained.try_grow(value_clone_bytes(&value)?)?;
-            values.push(value);
+            grow_values(&mut sorted.values, &mut sorted.memory, "percentile")?;
+            sorted.memory.try_grow(value_clone_bytes(&value)?)?;
+            sorted.values.push(value);
             context.controls.aggregate_input_retained()?;
         }
         drop(temporary);
     }
     check_timeout(context.controls)?;
-    sort(&mut values)?;
-    Ok((values, retained))
+    sort(&mut sorted.values)?;
+    Ok(sorted)
 }
 
 fn percentile_array_values(

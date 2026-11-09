@@ -20,6 +20,13 @@ mod output_row_control_tests;
 pub(super) struct AggregateOutput {
     value: Value,
     memory: Option<QueryMemoryReservation>,
+    copy_mode: OutputCopyMode,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OutputCopyMode {
+    Ordinary,
+    NullArray,
 }
 
 impl AggregateOutput {
@@ -27,17 +34,57 @@ impl AggregateOutput {
         Self {
             value,
             memory: None,
+            copy_mode: OutputCopyMode::Ordinary,
         }
     }
 
     pub(super) fn from_owned(value: Value, memory: QueryMemoryReservation) -> Self {
         let memory = (memory.bytes() != 0).then_some(memory);
-        Self { value, memory }
+        Self {
+            value,
+            memory,
+            copy_mode: OutputCopyMode::Ordinary,
+        }
     }
 
     pub(super) fn into_value(self) -> Value {
         self.value
     }
+}
+
+struct PendingNullArray {
+    values: Vec<serde_json::Value>,
+    memory: QueryMemoryReservation,
+}
+
+pub(super) fn null_array_output(
+    count: usize,
+    source: &QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+    mut observe: impl FnMut(usize),
+) -> Result<AggregateOutput, QueryError> {
+    if !source.belongs_to(controls) {
+        return Err(CassieError::ResourceLimit(
+            "percentile source uses a different query tracker".into(),
+        )
+        .into());
+    }
+    super::check_timeout(controls)?;
+    let (values, memory) = crate::runtime::owned_memory::try_reserve_vec(count, source)?;
+    let mut pending = PendingNullArray { values, memory };
+    for index in 0..count {
+        super::check_timeout(controls)?;
+        pending.values.push(serde_json::Value::Null);
+        observe(index);
+        super::check_timeout(controls)?;
+    }
+    super::check_timeout(controls)?;
+    let PendingNullArray { values, memory } = pending;
+    Ok(AggregateOutput {
+        value: Value::Json(serde_json::Value::Array(values)),
+        memory: Some(memory),
+        copy_mode: OutputCopyMode::NullArray,
+    })
 }
 
 /// Physical values drop before their shared output lease on every error path.
@@ -71,9 +118,19 @@ impl OutputRow {
 
     pub(super) fn append_with_observer(
         &mut self,
+        output: AggregateOutput,
+        names: &[String],
+        after_copy: impl FnMut(),
+    ) -> Result<(), QueryError> {
+        self.append_with_progress(output, names, after_copy, &mut |_| {})
+    }
+
+    fn append_with_progress(
+        &mut self,
         mut output: AggregateOutput,
         names: &[String],
         mut after_copy: impl FnMut(),
+        progress: &mut impl FnMut(OutputProgress),
     ) -> Result<(), QueryError> {
         if let Some(memory) = output.memory.as_ref() {
             if !memory.belongs_to(&self.controls) {
@@ -106,12 +163,14 @@ impl OutputRow {
                 .absorb(memory);
         }
         for name in names {
-            push_output(
+            push_output_mode_observing(
                 &mut self.values,
                 &mut self.memory,
                 &self.controls,
                 name,
                 &output.value,
+                output.copy_mode,
+                progress,
             )?;
             after_copy();
             super::check_timeout(&self.controls)?;
@@ -284,7 +343,11 @@ pub(super) fn finish_with_observer(
         };
         memory.shrink_to(retained);
     }
-    Ok(AggregateOutput { value, memory })
+    Ok(AggregateOutput {
+        value,
+        memory,
+        copy_mode: OutputCopyMode::Ordinary,
+    })
 }
 
 /// Preserve JSONB's document carrier when the aggregate becomes a physical row value.
@@ -377,16 +440,7 @@ enum OutputProgress {
     ValueCopy,
 }
 
-fn push_output(
-    values: &mut Vec<(String, Value)>,
-    memory: &mut Option<QueryMemoryReservation>,
-    controls: &QueryExecutionControls,
-    name: &str,
-    value: &Value,
-) -> Result<(), QueryError> {
-    push_output_observing(values, memory, controls, name, value, &mut |_| {})
-}
-
+#[cfg(test)]
 fn push_output_observing(
     values: &mut Vec<(String, Value)>,
     memory: &mut Option<QueryMemoryReservation>,
@@ -395,7 +449,30 @@ fn push_output_observing(
     value: &Value,
     progress: &mut impl FnMut(OutputProgress),
 ) -> Result<(), QueryError> {
+    push_output_mode_observing(
+        values,
+        memory,
+        controls,
+        name,
+        value,
+        OutputCopyMode::Ordinary,
+        progress,
+    )
+}
+
+fn push_output_mode_observing(
+    values: &mut Vec<(String, Value)>,
+    memory: &mut Option<QueryMemoryReservation>,
+    controls: &QueryExecutionControls,
+    name: &str,
+    value: &Value,
+    mode: OutputCopyMode,
+    progress: &mut impl FnMut(OutputProgress),
+) -> Result<(), QueryError> {
     let Some(memory) = memory.as_mut() else {
+        if mode == OutputCopyMode::NullArray {
+            return Err(output_overflow().into());
+        }
         values.push((name.to_owned(), value.clone()));
         return Ok(());
     };
@@ -441,10 +518,16 @@ fn push_output_observing(
             .ok_or_else(output_overflow)?;
         memory.shrink_to(retained);
     }
-    memory.try_grow(add(
-        name.len(),
-        crate::executor::retained_memory::value_clone_bytes(value)?,
-    )?)?;
+    let value_bytes = match (mode, value) {
+        (OutputCopyMode::NullArray, Value::Json(serde_json::Value::Array(values))) => {
+            mul(values.len(), std::mem::size_of::<serde_json::Value>())?
+        }
+        (OutputCopyMode::NullArray, _) => return Err(output_overflow().into()),
+        (OutputCopyMode::Ordinary, _) => {
+            crate::executor::retained_memory::value_clone_bytes(value)?
+        }
+    };
+    memory.try_grow(add(name.len(), value_bytes)?)?;
     let name = copy_output_string(
         name,
         name.len(),
@@ -452,18 +535,46 @@ fn push_output_observing(
         OutputProgress::NameCopy,
         progress,
     )?;
-    let value = match value {
-        Value::String(text) => Value::String(copy_output_string(
+    let value = match (mode, value) {
+        (OutputCopyMode::NullArray, Value::Json(serde_json::Value::Array(values))) => Value::Json(
+            serde_json::Value::Array(copy_null_array(values, controls, progress)?),
+        ),
+        (OutputCopyMode::Ordinary, Value::String(text)) => Value::String(copy_output_string(
             text,
             text.capacity(),
             controls,
             OutputProgress::ValueCopy,
             progress,
         )?),
-        _ => value.clone(),
+        (OutputCopyMode::Ordinary, _) => value.clone(),
+        (OutputCopyMode::NullArray, _) => return Err(output_overflow().into()),
     };
     values.push((name, value));
     Ok(())
+}
+
+fn copy_null_array(
+    values: &[serde_json::Value],
+    controls: &QueryExecutionControls,
+    progress: &mut impl FnMut(OutputProgress),
+) -> Result<Vec<serde_json::Value>, QueryError> {
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(values.len())
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    if output.capacity() > values.len() {
+        return Err(output_overflow().into());
+    }
+    for value in values {
+        controls.check_interruption()?;
+        if !value.is_null() {
+            return Err(output_overflow().into());
+        }
+        output.push(serde_json::Value::Null);
+        progress(OutputProgress::ValueCopy);
+        controls.check_interruption()?;
+    }
+    Ok(output)
 }
 
 fn copy_output_string(

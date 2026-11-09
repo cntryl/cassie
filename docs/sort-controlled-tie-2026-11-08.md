@@ -17,9 +17,10 @@ shapes, including ignoring dimensions after a reached zero.
 
 The change can shift resource/cancellation precedence, uses additional
 overlapping reservations, and may reject tighter budgets. Fixed typed-format
-scratch, generic typed formatting, Numeric formatter's maximum-width quadratic
-CPU, and repeated array suffix-stride calculation (quadratic in the depth of
-a one-element nested array) remain unqualified. Allocator transient excess,
+scratch, generic typed formatting and Numeric formatter's maximum-width
+quadratic CPU remain unqualified. The later carried-stride increment in
+`sort-tie-linear-stride-2026-11-08.md` removes repeated suffix scans.
+Allocator transient excess,
 earlier input cloning, comparisons and
 teardown remain separate limitations. The bound choice is recorded at
 `target/assembly-review/sort-array-bound-semantics-contract-response.json`.

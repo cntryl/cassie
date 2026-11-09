@@ -188,6 +188,7 @@ enum Frame<'a> {
         depth: usize,
         next: usize,
         base: usize,
+        stride: usize,
     },
 }
 struct Stack<'a> {
@@ -351,12 +352,18 @@ fn sql_array<'a, F: FnMut(usize)>(
             expected *= length;
         }
     }
+    let stride = if array.dimensions()[0].length == 0 {
+        0
+    } else {
+        array_stride(&array.dimensions()[1..], sink.controls)?
+    };
     sink.write("[")?;
     stack.push(Frame::SqlArray {
         array,
         depth: 0,
         next: 0,
         base: 0,
+        stride,
     })
 }
 
@@ -438,6 +445,7 @@ fn visit<'a, F: FnMut(usize)>(
                 depth,
                 next,
                 base,
+                stride,
             } => {
                 let length = usize::try_from(array.dimensions()[depth].length)
                     .map_err(|_| CassieError::Execution("invalid SQL array shape".into()))?;
@@ -453,19 +461,27 @@ fn visit<'a, F: FnMut(usize)>(
                     depth,
                     next: next + 1,
                     base,
+                    stride,
                 })?;
                 if depth + 1 == array.dimensions().len() {
                     let offset = add(base, next)?;
                     stack.push(Frame::SqlValue(&array.elements()[offset]))?;
                 } else {
-                    let stride = array_stride(&array.dimensions()[depth + 1..], sink.controls)?;
                     let child_base = add(base, mul(next, stride)?)?;
+                    let child_length = usize::try_from(array.dimensions()[depth + 1].length)
+                        .map_err(|_| CassieError::Execution("invalid SQL array shape".into()))?;
+                    let child_stride = if child_length == 0 {
+                        0
+                    } else {
+                        stride / child_length
+                    };
                     sink.write("[")?;
                     stack.push(Frame::SqlArray {
                         array,
                         depth: depth + 1,
                         next: 0,
                         base: child_base,
+                        stride: child_stride,
                     })?;
                 }
             }
@@ -474,12 +490,19 @@ fn visit<'a, F: FnMut(usize)>(
     Ok(())
 }
 
+#[cfg(test)]
+thread_local! {
+    static STRIDE_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 fn array_stride(
     dimensions: &[crate::types::ArrayDimension],
     controls: &QueryExecutionControls,
 ) -> Result<usize, QueryError> {
     for dimension in dimensions {
         controls.check_interruption()?;
+        #[cfg(test)]
+        STRIDE_VISITS.with(|count| count.set(count.get().saturating_add(1)));
         let length = usize::try_from(dimension.length)
             .map_err(|_| CassieError::Execution("invalid SQL array shape".into()))?;
         if length == 0 {
@@ -489,6 +512,8 @@ fn array_stride(
     let mut stride = 1;
     for dimension in dimensions {
         controls.check_interruption()?;
+        #[cfg(test)]
+        STRIDE_VISITS.with(|count| count.set(count.get().saturating_add(1)));
         stride = mul(
             stride,
             usize::try_from(dimension.length)

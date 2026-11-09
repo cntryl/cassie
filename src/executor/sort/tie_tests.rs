@@ -167,6 +167,53 @@ fn should_stop_stride_at_zero_before_unreachable_negative_or_overflow() {
 }
 
 #[test]
+fn should_visit_nested_array_stride_dimensions_only_linearly() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let dimensions = vec![
+        ArrayDimension {
+            length: 1,
+            lower_bound: 1
+        };
+        128
+    ];
+    let array = SqlArray::new(dimensions, vec![Value::Int64(7)]).expect("deep array");
+    let expected = format!("{}{}", "[1:1]".repeat(128), array.to_nested_json());
+    let row = BatchRow::new(vec![("a".into(), Value::Array(array))]);
+    STRIDE_VISITS.with(|count| count.set(0));
+    // Act
+    let actual = serialize(&row, &controls).expect("tie");
+    let visits = STRIDE_VISITS.with(std::cell::Cell::get);
+    // Assert
+    assert_eq!(actual.text(), expected);
+    assert!(visits <= 2 * 128, "root suffix must be scanned only once");
+    drop(actual);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_empty_and_rank_one_array_ties() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let arrays = [
+        SqlArray::empty(),
+        SqlArray::from_elements(vec![Value::Int64(1), Value::Int64(2)]).expect("rank one"),
+    ];
+    for array in arrays {
+        let row = BatchRow::new(vec![("a".into(), Value::Array(array))]);
+        let expected = row_tie_key(&row);
+        // Act
+        let actual = serialize(&row, &controls).expect("tie");
+        // Assert
+        assert_eq!(actual.text(), expected);
+        drop(actual);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
 fn should_cancel_during_tie_string_copy() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();

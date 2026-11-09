@@ -38,6 +38,66 @@ fn should_apply_session_timezone_when_timestamptz_input_has_no_zone() {
 }
 
 #[test]
+fn should_resolve_old_session_zone_abbreviations_for_timezone_conversion() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-session-zone-old-abbreviations",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
+
+    // Act
+    let sql = "SELECT timezone('LMT', TIMESTAMP '2024-01-01 00:00:00') = TIMESTAMPTZ '2024-01-01 04:56:02+00' AND timezone('EWT', TIMESTAMP '2024-01-01 00:00:00') = TIMESTAMPTZ '2024-01-01 04:00:00+00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
+fn should_resolve_dynamic_session_abbreviation_at_the_operand_date() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-session-zone-historical-offset",
+        &["SET TIME ZONE 'Europe/Moscow'"],
+    );
+
+    // Act
+    let sql = "SELECT timezone('MSK', TIMESTAMP '2012-01-01 00:00:00') = TIMESTAMPTZ '2011-12-31 20:00:00+00' AND timezone('MSK', TIMESTAMP '2020-01-01 00:00:00') = TIMESTAMPTZ '2019-12-31 21:00:00+00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
+fn should_prefer_the_session_zone_for_ambiguous_abbreviations() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-session-zone-abbreviation-precedence",
+        &["SET TIME ZONE 'Asia/Shanghai'"],
+    );
+
+    // Act
+    let sql = "SELECT timezone('CST', TIMESTAMP '2024-01-01 00:00:00') = TIMESTAMPTZ '2023-12-31 16:00:00+00' AND timezone('LMT', TIMESTAMP '2024-01-01 00:00:00') = TIMESTAMPTZ '2023-12-31 15:54:17+00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
+fn should_resolve_repeated_abbreviations_across_dst_boundaries_and_operand_kinds() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-session-zone-abbreviation-transitions",
+        &["SET TIME ZONE 'Europe/Moscow'"],
+    );
+
+    // Act
+    let sql = "SELECT timezone('MSK', TIMESTAMP '2011-03-27 02:30:00') = TIMESTAMPTZ '2011-03-26 22:30:00+00' AND timezone('MSK', TIMESTAMP '2014-10-26 01:30:00') = TIMESTAMPTZ '2014-10-25 22:30:00+00' AND timezone('MSK', TIMESTAMPTZ '2012-01-01 00:00:00+00') = TIMESTAMP '2012-01-01 04:00:00' AND timezone('MSK', TIMESTAMPTZ '2020-01-01 00:00:00+00') = TIMESTAMP '2020-01-01 03:00:00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
 fn should_change_local_timestamp_interpretation_with_session_timezone() {
     // Arrange
     let fixture = sql_fixture("issue-814-session-timezone-changes", &[]);

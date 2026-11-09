@@ -134,8 +134,13 @@ pub struct QueryExecutionControls {
     memory: Arc<QueryMemoryTracker>,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
-    temporal:
-        Arc<parking_lot::RwLock<Option<Arc<crate::types::extended::temporal::TemporalSession>>>>,
+    temporal: Arc<parking_lot::RwLock<TemporalSlot>>,
+}
+
+#[derive(Debug, Default)]
+struct TemporalSlot {
+    session: Option<Arc<crate::types::extended::temporal::TemporalSession>>,
+    absent: [u64; crate::types::extended::temporal::zone::ABBREVIATION_CACHE_WORDS],
 }
 
 #[derive(Debug)]
@@ -341,7 +346,9 @@ impl QueryExecutionControls {
         &self,
         session: Arc<crate::types::extended::temporal::TemporalSession>,
     ) {
-        *self.temporal.write() = Some(session);
+        let mut slot = self.temporal.write();
+        slot.session = Some(session);
+        slot.absent.fill(0);
     }
 
     /// The statement's temporal session, when one was installed.
@@ -349,7 +356,68 @@ impl QueryExecutionControls {
     pub(crate) fn temporal_session(
         &self,
     ) -> Option<Arc<crate::types::extended::temporal::TemporalSession>> {
-        self.temporal.read().clone()
+        self.temporal.read().session.clone()
+    }
+
+    pub(crate) fn temporal_abbreviation_absent(
+        &self,
+        session: &crate::types::extended::temporal::TemporalSession,
+        index: usize,
+    ) -> Result<bool, CassieError> {
+        loop {
+            self.check_interruption()?;
+            if let Some(slot) = self.temporal.try_read_for(Duration::from_millis(2)) {
+                self.check_interruption()?;
+                return Ok(slot
+                    .session
+                    .as_deref()
+                    .is_some_and(|current| std::ptr::eq(current, session))
+                    && slot
+                        .absent
+                        .get(index / 64)
+                        .is_some_and(|word| word & (1_u64 << (index % 64)) != 0));
+            }
+        }
+    }
+
+    pub(crate) fn mark_temporal_abbreviation_absent(
+        &self,
+        session: &crate::types::extended::temporal::TemporalSession,
+        index: usize,
+    ) -> Result<(), CassieError> {
+        loop {
+            self.check_interruption()?;
+            if let Some(mut slot) = self.temporal.try_write_for(Duration::from_millis(2)) {
+                self.check_interruption()?;
+                if !slot
+                    .session
+                    .as_deref()
+                    .is_some_and(|current| std::ptr::eq(current, session))
+                {
+                    return Ok(());
+                }
+                if let Some(word) = slot.absent.get_mut(index / 64) {
+                    *word |= 1_u64 << (index % 64);
+                }
+                return Ok(());
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn temporal_cache_contains_for_test(
+        &self,
+        session: &crate::types::extended::temporal::TemporalSession,
+        index: usize,
+    ) -> bool {
+        let slot = self.temporal.read();
+        slot.session
+            .as_deref()
+            .is_some_and(|current| std::ptr::eq(current, session))
+            && slot
+                .absent
+                .get(index / 64)
+                .is_some_and(|word| word & (1_u64 << (index % 64)) != 0)
     }
 
     /// Returns controls for an input relation that must be fully

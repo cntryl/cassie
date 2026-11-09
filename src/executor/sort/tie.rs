@@ -13,7 +13,7 @@ use crate::executor::numeric_controlled_text as numeric;
 #[path = "tie_tests.rs"]
 mod tests;
 
-pub(super) struct TieText {
+pub(crate) struct TieText {
     text: String,
     memory: QueryMemoryReservation,
 }
@@ -22,7 +22,7 @@ impl TieText {
     fn text(&self) -> &str {
         &self.text
     }
-    pub(super) fn into_parts(self) -> (String, QueryMemoryReservation) {
+    pub(crate) fn into_parts(self) -> (String, QueryMemoryReservation) {
         (self.text, self.memory)
     }
 }
@@ -523,8 +523,7 @@ fn array_stride(
     Ok(stride)
 }
 
-#[cfg(test)]
-pub(super) fn serialize(
+pub(crate) fn serialize(
     row: &impl RowAccess,
     controls: &QueryExecutionControls,
 ) -> Result<TieText, QueryError> {

@@ -16,9 +16,14 @@ use crate::types::Value;
 
 use super::{check_timeout, QueryError};
 
+mod admitted;
 mod aggregate;
 mod exists;
 mod keys;
+#[cfg(test)]
+mod keys_owner_tests;
+mod stable_order;
+use admitted::AdmittedWindowBuffer;
 use keys::{
     compare_window_sort_keys, window_peer_key, window_sort_key, WindowSortKey, WindowSortPart,
 };
@@ -312,34 +317,32 @@ fn sort_partition(
     indices: &mut [usize],
     context: &WindowExecutionContext<'_>,
 ) -> Result<(), QueryError> {
-    let mut keyed = indices
-        .iter()
-        .map(|index| {
-            window_sort_key(&rows[*index], &function.order_by, context).map(|key| (key, *index))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let key_bytes = keyed
-        .iter()
-        .map(|(key, _)| {
-            std::mem::size_of::<WindowSortKey>()
-                .saturating_add(key.tie_key.len())
-                .saturating_add(
-                    key.parts
-                        .len()
-                        .saturating_mul(std::mem::size_of::<WindowSortPart>()),
-                )
-                .saturating_add(
-                    key.parts
-                        .iter()
-                        .map(|part| part.value.estimated_bytes())
-                        .sum::<usize>(),
-                )
-        })
-        .sum();
-    let _keys_memory = context.controls.reserve_query_memory(key_bytes)?;
-    keyed.sort_by(|(left, _), (right, _)| compare_window_sort_keys(left, right));
-    for (target, (_, index)) in indices.iter_mut().zip(keyed) {
-        *target = index;
+    sort_partition_observing(rows, function, indices, context, |_| {})
+}
+
+fn sort_partition_observing(
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    indices: &mut [usize],
+    context: &WindowExecutionContext<'_>,
+    mut observe_key: impl FnMut(usize),
+) -> Result<(), QueryError> {
+    let mut keyed = AdmittedWindowBuffer::new(indices.len(), context.controls)?;
+    for (position, index) in indices.iter().enumerate() {
+        check_timeout(context.controls)?;
+        let key = window_sort_key(&rows[*index], &function.order_by, context)?;
+        keyed.values.push((key, *index));
+        observe_key(position);
+        check_timeout(context.controls)?;
+    }
+    let order = stable_order::order_by(keyed.values.len(), context.controls, |left, right| {
+        Ok(compare_window_sort_keys(
+            &keyed.values[left].0,
+            &keyed.values[right].0,
+        ))
+    })?;
+    for (target, position) in indices.iter_mut().zip(&order.values) {
+        *target = keyed.values[*position].1;
     }
     Ok(())
 }

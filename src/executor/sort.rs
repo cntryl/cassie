@@ -27,7 +27,8 @@ mod retention;
 use retention::{SortRetentionContext, SortRetentionPhase};
 pub(crate) mod accounting;
 mod exists;
-mod tie;
+pub(crate) mod key_part;
+pub(crate) mod tie;
 mod typed;
 pub(crate) use exists::{requires_resolver, sort_batches_resolving};
 #[cfg(test)]
@@ -436,93 +437,29 @@ impl EvalInput<'_> {
             if let Some(controls) = controls {
                 check_query_controls(controls)?;
             }
-            let previous = memory
-                .as_ref()
-                .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
-            let mut admitted = 0;
-            let mut vector_type = None;
-            let mut numeric_type = None;
-            let mut bit_type = None;
-            if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
-                memory.try_grow(accounting::type_scratch(
+            let semantic = if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
+                let (semantic, part_memory) = key_part::convert(
                     row,
                     &order.expr,
+                    value,
                     self.user_functions,
-                )?)?;
-                let data_type =
-                    super::array_order::expression_type(row, &order.expr, self.user_functions);
-                admitted = accounting::conversion_bytes(&value, data_type.as_ref())?;
-                if let Some(extra) =
-                    super::array_order::sort_vector::bound(&value, data_type.as_ref(), controls)?
-                {
-                    admitted = add(admitted, extra)?;
-                    vector_type = data_type;
-                } else if let Some(extra) =
-                    super::array_order::sort_numeric::bound(&value, data_type.as_ref())?
-                {
-                    admitted = add(admitted, extra)?;
-                    numeric_type = data_type;
-                } else if super::array_order::sort_bit::eligible(&value, data_type.as_ref()) {
-                    bit_type = data_type;
-                }
-                memory.try_grow(admitted)?;
-            }
-            retention.before(SortRetentionPhase::SemanticPart)?;
-            let (semantic, known_retained) = if let (Some(data_type), Some(controls)) =
-                (vector_type.as_ref(), controls)
-            {
-                super::array_order::sort_vector_key(
-                    row,
-                    &order.expr,
-                    &value,
-                    self.user_functions,
-                    data_type,
                     controls,
-                )?
-            } else if let (Some(data_type), Some(controls)) = (numeric_type.as_ref(), controls) {
-                super::array_order::sort_numeric_key(
-                    row,
-                    &order.expr,
-                    &value,
-                    self.user_functions,
-                    data_type,
-                    controls,
-                )?
-            } else if let (Some(data_type), Some(controls)) = (bit_type.as_ref(), controls) {
-                super::array_order::sort_bit_key(
-                    row,
-                    &order.expr,
-                    &value,
-                    self.user_functions,
-                    data_type,
-                    controls,
-                )?
-            } else {
-                (
-                    super::array_order::key(
-                        row,
-                        &order.expr,
-                        &value,
-                        self.user_functions,
-                        controls,
-                    )?,
-                    None,
-                )
-            };
-            if let Some(memory) = memory.as_mut() {
-                let retained = match known_retained {
-                    Some(retained) => retained,
-                    None => accounting::semantic_heap(&semantic)?,
-                };
-                if retained > admitted {
+                    || retention.before(SortRetentionPhase::SemanticPart),
+                )?;
+                if !part_memory.belongs_to(controls) {
+                    drop(semantic);
+                    drop(part_memory);
                     return Err(crate::app::CassieError::ResourceLimit(
-                        "sort key exceeded its admitted allocation shape".to_owned(),
+                        "sort key owner uses a different query tracker".into(),
                     )
                     .into());
                 }
-                drop(value);
-                memory.shrink_to(add(previous, retained)?);
-            }
+                memory.absorb(part_memory);
+                semantic
+            } else {
+                retention.before(SortRetentionPhase::SemanticPart)?;
+                super::array_order::key(row, &order.expr, &value, self.user_functions, None)?
+            };
             parts.push(KeyPart {
                 value: semantic,
                 direction: order.direction.clone(),

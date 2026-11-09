@@ -14,6 +14,7 @@ pub(super) fn evaluate(
     name: &str,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Option<Result<Value, QueryError>> {
     let metadata = functions::function(name)?;
     let FunctionId::Json(kind) = metadata.id else {
@@ -35,13 +36,14 @@ pub(super) fn evaluate(
         ))
         .into()));
     }
-    Some(run(kind, args, controls))
+    Some(run(kind, args, controls, owner))
 }
 
 fn run(
     kind: JsonFunction,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     check(controls)?;
     let lax = kind == JsonFunction::SetLax;
@@ -96,10 +98,10 @@ fn run(
         )?,
         mul(output.max(8), 8)?,
     )?;
-    let _memory = controls
+    let memory = controls
         .map(|controls| controls.reserve_query_memory(scratch))
         .transpose()?;
-    match kind {
+    let result = match kind {
         JsonFunction::Pretty => {
             let source = super::json_functions::json_text(&args[0])?;
             let canonical =
@@ -122,7 +124,14 @@ fn run(
             mutate(kind, args, controls)
         }
         _ => unreachable!("finite JSON function dispatch"),
-    }
+    }?;
+    super::json_result_owner::retain_output(
+        result,
+        memory,
+        owner,
+        controls,
+        "JSON mutation owner uses a different query tracker",
+    )
 }
 
 fn mutate(
@@ -230,3 +239,7 @@ fn check(controls: Option<&QueryExecutionControls>) -> Result<(), QueryError> {
 #[cfg(test)]
 #[path = "json_mutation_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "json_mutation_owner_tests.rs"]
+mod owner_tests;

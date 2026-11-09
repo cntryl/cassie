@@ -1,8 +1,8 @@
 //! Scalar call evaluation preserves argument order and context-owned scratch.
 use super::{
     array_functions, datum_size, evaluate_builtin_function, evaluate_coalesce,
-    evaluate_user_defined_function, json_builders, text_selection, CassieSession, EvalContext,
-    FunctionCall, QueryError, RowAccess, Value,
+    evaluate_user_defined_function, json_builders, text_selection, EvalContext, FunctionCall,
+    QueryError, RowAccess, Value,
 };
 
 pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
@@ -96,18 +96,6 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         return result;
     }
 
-    evaluate_builtin_function(
-        &name,
-        function,
-        row,
-        &args,
-        context.search_context,
-        context.session,
-        context.controls.or_else(|| {
-            context
-                .session
-                .and_then(CassieSession::statement_execution_controls)
-        }),
-    )
-    .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))
+    evaluate_builtin_function(&name, function, row, &args, context)
+        .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))
 }

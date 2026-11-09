@@ -7,6 +7,8 @@ use time_bucket::evaluate_time_bucket;
 mod json_builders;
 #[path = "json_functions.rs"]
 mod json_functions;
+#[path = "json_result_owner.rs"]
+mod json_result_owner;
 use super::search::{simple_search_score, SearchContext};
 use super::{
     cast_scalar, eval_scalar, scalar_from_value, AnalyzerConfig, CassieSession, DataType,
@@ -61,10 +63,18 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,
     args: &[Value],
-    search_context: Option<&SearchContext>,
-    session: Option<&CassieSession>,
-    controls: Option<&crate::runtime::QueryExecutionControls>,
+    context: EvalContext<'_>,
 ) -> Option<Result<Value, QueryError>> {
+    let search_context = context.search_context;
+    let session = context.session;
+    let controls = context
+        .controls
+        .or_else(|| session.and_then(CassieSession::statement_execution_controls));
+    let result_owner = if context.memory.is_none() {
+        context.deletion_memory
+    } else {
+        None
+    };
     evaluate_pg_input_is_valid(name, args, controls).or_else(|| {
         crate::types::extended::operations::function(name, args)
             .map(|result| {
@@ -85,7 +95,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                 super::temporal_functions::evaluate(local, args, controls)
                     .or_else(|| super::hash_functions::evaluate(local, args))
                     .or_else(|| json_functions::evaluate(local, args, controls))
-                    .or_else(|| json_mutations::evaluate(local, args, controls))
+                    .or_else(|| json_mutations::evaluate(local, args, controls, result_owner))
                     .or_else(|| json_path_functions::evaluate(local, args, controls))
                     .or_else(|| bytea_functions::evaluate(local, args, controls))
                     .or_else(|| math_random::evaluate(local, args, session))

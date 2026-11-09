@@ -87,6 +87,23 @@ same-tracker/fallback and last-output-owner probes remain unexecuted. Original
 argument cloning, canonicalization, allocator transients, errors and teardown
 remain separate obligations; this does not close #809 or #811.
 
+JSON mutation functions (`jsonb_set`, `jsonb_set_lax`, `jsonb_insert`,
+`json[b]_strip_nulls`, and `jsonb_pretty`) likewise create a raw result while
+holding a workspace lease. When the caller has an expression owner and no
+general leaf owner, the selected path retains the existing lease with the
+result through the same value-first guard, verifies tracker identity and grows
+for an unexpectedly larger output capacity before transfer. The mutation's
+branch-local scratch is dropped first. NULL, lax treatment, validation/error
+order and ownerless/general-owner paths stay unchanged, except that an added
+pre-transfer interruption may win over later work. The full workspace charge
+remains conservatively retained. A post-allocation capacity grow cannot prove
+pre-admission of prior allocations; source clones, JSONB canonicalization,
+diagnostic allocation and teardown remain unqualified. Jev selected this
+scope (0.98); receipt:
+`target/assembly-review/json-mutation-output-owner-contract-{request,response}.json`.
+Variant, error, cancellation, capacity and output-lifetime probes are authored
+before implementation but unexecuted. This does not complete #809 or #810.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

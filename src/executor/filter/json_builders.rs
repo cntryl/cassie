@@ -8,18 +8,8 @@ use crate::sql::functions::{self, json::JsonFunction, FunctionId};
 use crate::types::DataType;
 
 #[cfg(test)]
-thread_local! {
-    static CANCEL_AFTER_FINISH: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
-}
-
-#[cfg(test)]
 fn cancel_after_finish_once(handle: crate::runtime::QueryCancellationHandle) {
-    CANCEL_AFTER_FINISH.with(|slot| *slot.borrow_mut() = Some(handle));
-}
-
-struct PendingBuilderOutput {
-    value: Value,
-    memory: Option<crate::runtime::QueryMemoryReservation>,
+    super::json_result_owner::cancel_after_output_once(handle);
 }
 
 fn retain_builder_output(
@@ -28,36 +18,18 @@ fn retain_builder_output(
     context: EvalContext<'_>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
-    let mut pending = PendingBuilderOutput { value, memory };
-    if context.memory.is_none() {
-        if let (Value::String(text), Some(owner), Some(memory), Some(controls)) = (
-            &pending.value,
-            context.deletion_memory,
-            pending.memory.as_mut(),
-            controls,
-        ) {
-            if !owner.belongs_to(controls) || !memory.belongs_to(controls) {
-                return Err(CassieError::ResourceLimit(
-                    "JSON builder owner uses a different query tracker".into(),
-                )
-                .into());
-            }
-            if text.capacity() > memory.bytes() {
-                memory.try_grow(text.capacity() - memory.bytes())?;
-            }
-            #[cfg(test)]
-            CANCEL_AFTER_FINISH.with(|slot| {
-                if let Some(handle) = slot.borrow_mut().take() {
-                    handle.cancel();
-                }
-            });
-            controls.check_interruption()?;
-            if let Some(memory) = pending.memory.take() {
-                owner.adopt(memory);
-            }
-        }
-    }
-    Ok(pending.value)
+    let owner = if context.memory.is_none() {
+        context.deletion_memory
+    } else {
+        None
+    };
+    super::json_result_owner::retain_output(
+        value,
+        memory,
+        owner,
+        controls,
+        "JSON builder owner uses a different query tracker",
+    )
 }
 
 pub(super) fn evaluate<R: RowAccess + ?Sized>(

@@ -8,6 +8,15 @@ use crate::types::extended::TypedOperator;
 #[path = "json_containment_walk.rs"]
 mod walk;
 
+pub(super) fn evaluate_nested(
+    candidate: &str,
+    required: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+    after_scalar: &mut impl FnMut(bool),
+) -> Result<bool, QueryError> {
+    walk::evaluate_nested(candidate, required, controls, after_scalar)
+}
+
 pub(super) const fn handles(op: &BinaryOp) -> bool {
     matches!(
         op.typed_operator(),
@@ -130,3 +139,7 @@ mod string_tests;
 #[cfg(test)]
 #[path = "json_containment_number_tests.rs"]
 mod number_tests;
+
+#[cfg(test)]
+#[path = "json_containment_root_object_tests.rs"]
+mod root_object_tests;

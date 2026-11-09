@@ -28,7 +28,31 @@ pub(super) fn sort<'a>(
     fields: &'a Fields<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<Order<'a>, CassieError> {
-    sort_inner(fields, controls, || {})
+    sort_inner(fields, controls, true, || {})
+}
+
+pub(super) fn sort_lexical<'a>(
+    fields: &'a Fields<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<Order<'a>, CassieError> {
+    sort_inner(fields, controls, false, || {
+        #[cfg(test)]
+        CANCEL_LEXICAL_SORT.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+    })
+}
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_LEXICAL_SORT: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn cancel_lexical_sort_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_LEXICAL_SORT.with(|slot| *slot.borrow_mut() = Some(handle));
 }
 
 #[cfg(test)]
@@ -37,12 +61,13 @@ pub(super) fn sort_observing<'a>(
     controls: &QueryExecutionControls,
     observe: impl FnMut(),
 ) -> Result<Order<'a>, CassieError> {
-    sort_inner(fields, controls, observe)
+    sort_inner(fields, controls, true, observe)
 }
 
 fn sort_inner<'a>(
     fields: &'a Fields<'_>,
     controls: &QueryExecutionControls,
+    length_first: bool,
     mut observe: impl FnMut(),
 ) -> Result<Order<'a>, CassieError> {
     if !fields.memory.belongs_to(controls) {
@@ -78,6 +103,7 @@ fn sort_inner<'a>(
                             fields.entries[first[left]].key.get(),
                             fields.entries[first[right]].key.get(),
                             controls,
+                            length_first,
                             &mut observe,
                         )? != Ordering::Greater);
                 if choose_left {
@@ -102,6 +128,7 @@ fn sort_inner<'a>(
                 fields.entries[current].key.get(),
                 fields.entries[first[index + 1]].key.get(),
                 controls,
+                length_first,
                 &mut observe,
             )? != Ordering::Equal;
         if last {
@@ -121,10 +148,11 @@ fn compare(
     left: &str,
     right: &str,
     controls: &QueryExecutionControls,
+    length_first: bool,
     observe: &mut impl FnMut(),
 ) -> Result<Ordering, CassieError> {
     let length = left.len().cmp(&right.len());
-    if length != Ordering::Equal {
+    if length_first && length != Ordering::Equal {
         return Ok(length);
     }
     for (left, right) in left
@@ -140,5 +168,5 @@ fn compare(
             return Ok(cmp);
         }
     }
-    Ok(Ordering::Equal)
+    Ok(length)
 }

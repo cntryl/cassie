@@ -11,6 +11,8 @@ mod tests;
 
 #[path = "json_concat_raw.rs"]
 pub(super) mod concat;
+#[path = "json_containment_raw_object.rs"]
+pub(super) mod containment;
 #[path = "json_extract_raw.rs"]
 pub(super) mod extract;
 #[path = "json_delete_raw_object.rs"]

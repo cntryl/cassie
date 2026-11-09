@@ -83,3 +83,30 @@ parent/container parsing, diagnostics, numeric formatter limits and teardown
 remain open. This does not qualify sentinel storage or complete #809.
 PostgreSQL 18.6 reports true for `1.000 @> 1`, true for `-0.000 @> 0e4`,
 false for `1.0001 @> 1.001`, and true for `[1e2] @> 100` with JSONB operands.
+
+## Root object containment candidate
+
+When controls exist and both root values are objects, retain both raw sources,
+validate complete candidate then required syntax, decode all candidate keys
+then all required keys, and order their duplicate-last entries by checked UTF-8
+byte lexicographic order. This is the legacy `BTreeMap` iteration order, not
+the length-first JSONB display order. Merge matching keys in required-key order;
+invoke the existing child walk with `root=false` and the same scalar observer,
+short-circuiting on missing keys or failed children. The `<@` caller must
+continue reversing candidate and required. Other roots and calls without
+controls retain the existing path.
+
+Jev selected the scoped route (0.92), with key order/duplicates/errors (0.90),
+root handling/observer/reversal (0.67), and source/key/sort/child ownership
+(0.92) as leads. Receipt:
+`target/assembly-review/json-containment-root-object-contract-{request,response}.json`.
+Author tests for length-vs-lexical error precedence, duplicate last-wins,
+escaped keys, candidate-before-required errors, scalar observers, nested
+array-versus-scalar behavior, both directions, exact/below admission, and
+actual sort/comparison cancellation. All probes remain unexecuted until the
+combined gate. Newly admitted key directories and sorting can report control
+errors earlier; nested container parsing, general raw pairs, diagnostics,
+allocator transients, teardown and sentinel/storage migration remain open.
+PostgreSQL 18.6 yields false for `{"a":[1]} @> {"a":1}`, true for
+`[1] @> 1`, true for `{"a":1,"a":2} @> {"a":2}`, and true for
+`{"a":[1,2]} @> {"a":[2]}` with JSONB operands.

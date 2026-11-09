@@ -317,9 +317,38 @@ pub(super) fn evaluate(
     controls: Option<&QueryExecutionControls>,
     mut after_scalar: impl FnMut(bool),
 ) -> Result<bool, QueryError> {
+    if let Some(controls) = controls {
+        if let Some(result) = super::super::json_delete::controlled_containment_objects(
+            candidate,
+            required,
+            controls,
+            &mut after_scalar,
+        )? {
+            return Ok(result);
+        }
+    }
+    evaluate_from(candidate, required, controls, true, after_scalar)
+}
+
+pub(super) fn evaluate_nested(
+    candidate: &str,
+    required: &str,
+    controls: &QueryExecutionControls,
+    after_scalar: &mut impl FnMut(bool),
+) -> Result<bool, QueryError> {
+    evaluate_from(candidate, required, Some(controls), false, after_scalar)
+}
+
+fn evaluate_from(
+    candidate: &str,
+    required: &str,
+    controls: Option<&QueryExecutionControls>,
+    root: bool,
+    mut after_scalar: impl FnMut(bool),
+) -> Result<bool, QueryError> {
     let work = Work { controls };
     let mut frames = Frames::default();
-    let mut comparison = compare(work.pair(candidate, required)?, true, &work)?;
+    let mut comparison = compare(work.pair(candidate, required)?, root, &work)?;
     loop {
         work.check()?;
         let (mut frame, previous) = match comparison {

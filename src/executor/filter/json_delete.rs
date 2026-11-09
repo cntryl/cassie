@@ -95,6 +95,25 @@ pub(super) fn controlled_concatenation(
     adopt_output(output, owner, controls)
 }
 
+pub(super) fn controlled_containment_objects(
+    candidate: &str,
+    required: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+    after_scalar: &mut impl FnMut(bool),
+) -> Result<Option<bool>, QueryError> {
+    raw_scan::containment::evaluate(candidate, required, controls, after_scalar)
+}
+
+#[cfg(test)]
+pub(super) fn cancel_containment_key_sort_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::containment::cancel_sort_once(handle);
+}
+
+#[cfg(test)]
+pub(super) fn cancel_containment_key_compare_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::containment::cancel_compare_once(handle);
+}
+
 #[cfg(test)]
 pub(super) fn cancel_concat_after_copy_once(handle: crate::runtime::QueryCancellationHandle) {
     raw_scan::concat::cancel_after_copy_once(handle);

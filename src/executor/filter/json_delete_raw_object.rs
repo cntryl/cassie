@@ -188,6 +188,23 @@ impl<'a> Fields<'a> {
             _memory: memory,
         })
     }
+
+    pub(super) fn into_lexical(
+        self,
+        controls: &QueryExecutionControls,
+    ) -> Result<OrderedFields<'a>, CassieError> {
+        let (indices, memory) = order::sort_lexical(&self, controls)?.into_parts();
+        Ok(OrderedFields {
+            fields: self,
+            indices,
+            _memory: memory,
+        })
+    }
+}
+
+#[cfg(test)]
+pub(super) fn cancel_lexical_sort_once(handle: crate::runtime::QueryCancellationHandle) {
+    order::cancel_lexical_sort_once(handle);
 }
 
 pub(super) fn equal(

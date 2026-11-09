@@ -171,8 +171,9 @@ fn text_array(value: &ScalarValue, op: &BinaryOp) -> Result<Vec<JsonValue>, Quer
     let (ScalarValue::Json(text) | ScalarValue::Str(text)) = value else {
         return Err(operator_input_error(op));
     };
-    array::parse_text_array(text, &DataType::Text)
+    array::parse_text_array_with_dimensions(text, &DataType::Text)
         .map_err(|error| QueryError::Cassie(CassieError::ArrayInput(error.to_string())))?
+        .flat_values
         .as_array()
         .cloned()
         .ok_or_else(|| operator_input_error(op))

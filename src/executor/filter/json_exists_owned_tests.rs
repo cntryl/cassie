@@ -236,3 +236,110 @@ fn should_release_string_keys_and_document_after_parse_cancellation() {
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_flatten_multidimensional_text_array_literals_for_key_existence() {
+    // Arrange
+    let controls = controls();
+    let document = ScalarValue::Json(r#"{"a":1,"b":2}"#.into());
+    let cases = [
+        (BinaryOp::JsonbKeyExistsAny, "{{z,b}}", true),
+        (BinaryOp::JsonbKeyExistsAll, "{{a,z}}", false),
+        (BinaryOp::JsonbKeyExistsAll, "{{a,b}}", true),
+        (BinaryOp::JsonbKeyExistsAny, "[0:0][3:4]={{z,b}}", true),
+        (BinaryOp::JsonbKeyExistsAll, "[0:0][3:4]={{a,z}}", false),
+        (BinaryOp::JsonbKeyExistsAny, "{{z,NULL}}", false),
+        (BinaryOp::JsonbKeyExistsAll, "{{a,NULL}}", true),
+    ];
+    for (op, input, expected) in cases {
+        let right = ScalarValue::Str(input.into());
+        // Act
+        let legacy = evaluate(&document, &op, &right).expect("legacy dispatch");
+        let controlled = super::super::binary::binary_scalar_with_controls(
+            &document,
+            &op,
+            &right,
+            Some(&controls),
+        )
+        .expect("controlled dispatch");
+        // Assert
+        assert!(
+            matches!(legacy, ScalarValue::Bool(actual) if actual == expected),
+            "{input}"
+        );
+        assert!(
+            matches!(controlled, ScalarValue::Bool(actual) if actual == expected),
+            "{input}"
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_ragged_array_and_document_error_priority_for_key_existence() {
+    // Arrange
+    let controls = controls();
+    let ragged = ScalarValue::Str("{{a},{b,c}}".into());
+    let document = ScalarValue::Json("{}".into());
+    let invalid_document = ScalarValue::Json("[}".into());
+    // Act
+    let ragged_error = super::super::binary::binary_scalar_with_controls(
+        &document,
+        &BinaryOp::JsonbKeyExistsAny,
+        &ragged,
+        Some(&controls),
+    )
+    .expect_err("ragged");
+    let document_error = super::super::binary::binary_scalar_with_controls(
+        &invalid_document,
+        &BinaryOp::JsonbKeyExistsAny,
+        &ragged,
+        Some(&controls),
+    )
+    .expect_err("document");
+    // Assert
+    assert!(ragged_error.to_string().contains("array"));
+    assert!(document_error.to_string().contains("JSON"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_keep_native_one_dimensional_and_json_array_key_parity() {
+    // Arrange
+    let controls = controls();
+    let document = ScalarValue::Json(r#"{"a":1,"b":2}"#.into());
+    let native = ScalarValue::Array(
+        SqlArray::new(
+            vec![
+                crate::types::ArrayDimension {
+                    length: 1,
+                    lower_bound: 0,
+                },
+                crate::types::ArrayDimension {
+                    length: 2,
+                    lower_bound: 3,
+                },
+            ],
+            vec![Value::String("z".into()), Value::String("b".into())],
+        )
+        .expect("rectangular native keys"),
+    );
+    let inputs = [
+        native,
+        ScalarValue::Str("{z,b}".into()),
+        ScalarValue::Str(r#"["z","b"]"#.into()),
+    ];
+    for input in inputs {
+        // Act
+        let result = super::super::binary::binary_scalar_with_controls(
+            &document,
+            &BinaryOp::JsonbKeyExistsAny,
+            &input,
+            Some(&controls),
+        )
+        .expect("key existence");
+        // Assert
+        assert!(matches!(result, ScalarValue::Bool(true)));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

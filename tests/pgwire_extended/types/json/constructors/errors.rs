@@ -117,3 +117,6 @@ mod mutation_native;
 
 #[path = "../path_function_native.rs"]
 mod path_function_native;
+
+#[path = "../nested_text_array_existence.rs"]
+mod nested_text_array_existence;

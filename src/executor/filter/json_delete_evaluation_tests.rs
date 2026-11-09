@@ -845,3 +845,31 @@ fn should_preserve_string_path_legacy_diagnostics_at_expression_boundary() {
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_use_controlled_value_arena_for_json_existence_in_where() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let row = typed_json_row(serde_json::json!({"a":"payload"}));
+    let expression = crate::sql::parser::parse_expression("doc ? 'a'").expect("predicate");
+    let functions = HashMap::new();
+    let context = EvalContext {
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        local_args: None,
+        session: None,
+        exists: None,
+        controls: Some(&controls),
+        memory: None,
+        deletion_memory: None,
+    };
+    // Act
+    let rows =
+        super::filtering::filter_rows_in_context(vec![row], &expression, context).expect("filter");
+    // Assert
+    assert_eq!(rows.len(), 1);
+    assert!(controls.peak_query_memory_bytes() > 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

@@ -73,6 +73,59 @@ pub(super) enum TextArrayElement<'a> {
 }
 
 impl Forest {
+    pub(super) fn key_exists(&self, root: NodeId, key: &str) -> Result<bool, CassieError> {
+        self.key_exists_observing(root, key, || {})
+    }
+
+    pub(super) fn key_exists_observing(
+        &self,
+        root: NodeId,
+        key: &str,
+        mut observe: impl FnMut(),
+    ) -> Result<bool, CassieError> {
+        self.controls.check_interruption()?;
+        match &self.nodes.get(root)?.kind {
+            Kind::Object(index) => Ok(index.find(key)?.is_some()),
+            Kind::Array(index) => {
+                for position in 0..index.len() {
+                    self.controls.check_interruption()?;
+                    let child = index.get(position).ok_or_else(invalid_owner)?;
+                    if let Kind::Text(text) = &self.nodes.get(child)?.kind {
+                        let equal = self.equal_text(text.as_str(), key)?;
+                        observe();
+                        self.controls.check_interruption()?;
+                        if equal {
+                            return Ok(true);
+                        }
+                    } else {
+                        observe();
+                        self.controls.check_interruption()?;
+                    }
+                }
+                Ok(false)
+            }
+            Kind::Text(text) => self.equal_text(text.as_str(), key),
+            Kind::Scalar | Kind::Boolean(_) | Kind::Number(_) => Ok(false),
+        }
+    }
+
+    fn equal_text(&self, left: &str, right: &str) -> Result<bool, CassieError> {
+        if left.len() != right.len() {
+            return Ok(false);
+        }
+        for (left, right) in left
+            .as_bytes()
+            .chunks(1024)
+            .zip(right.as_bytes().chunks(1024))
+        {
+            self.controls.check_interruption()?;
+            if left != right {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn text_array_len(&self, root: NodeId) -> Result<Option<usize>, CassieError> {
         Ok(match &self.nodes.get(root)?.kind {
             Kind::Array(index) => Some(index.len()),

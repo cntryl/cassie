@@ -4,6 +4,62 @@ use crate::app::CassieError;
 use crate::types::{array, DataType};
 use serde_json::Value as JsonValue;
 
+#[cfg(test)]
+#[path = "json_exists_owned_tests.rs"]
+mod owned_tests;
+
+pub(super) fn evaluate_controlled(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(Some(ScalarValue::Null));
+    }
+    let ScalarValue::Json(document) = left else {
+        return Ok(None);
+    };
+    let Some(document) =
+        crate::runtime::accounted::json_arena::parse_existence_candidate(document, controls)?
+    else {
+        return Ok(None);
+    };
+    match op {
+        BinaryOp::JsonbKeyExists => {
+            let ScalarValue::Str(key) = right else {
+                return Ok(None);
+            };
+            Ok(Some(ScalarValue::Bool(document.contains(key)?)))
+        }
+        BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
+            let ScalarValue::Array(keys) = right else {
+                return Ok(None);
+            };
+            for value in keys.elements() {
+                controls.check_interruption()?;
+                if !matches!(
+                    value,
+                    crate::types::Value::String(_) | crate::types::Value::Null
+                ) {
+                    return Ok(None);
+                }
+            }
+            let all = matches!(op, BinaryOp::JsonbKeyExistsAll);
+            for value in keys.elements() {
+                controls.check_interruption()?;
+                if let crate::types::Value::String(key) = value {
+                    if document.contains(key)? != all {
+                        return Ok(Some(ScalarValue::Bool(!all)));
+                    }
+                }
+            }
+            Ok(Some(ScalarValue::Bool(all)))
+        }
+        _ => Ok(None),
+    }
+}
+
 pub(super) fn evaluate(
     left: &ScalarValue,
     op: &BinaryOp,

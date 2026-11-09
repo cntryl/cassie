@@ -10,6 +10,18 @@ pub(super) fn binary_scalar_with_controls(
     right: &ScalarValue,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
+    if matches!(
+        op,
+        BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll
+    ) {
+        if let Some(controls) = controls {
+            if let Some(result) =
+                super::json_key_exists::evaluate_controlled(left, op, right, controls)?
+            {
+                return Ok(result);
+            }
+        }
+    }
     if super::json_containment::handles(op)
         && (matches!(left, ScalarValue::Json(_)) || matches!(right, ScalarValue::Json(_)))
     {

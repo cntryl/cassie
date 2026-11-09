@@ -23,5 +23,6 @@ mod slots;
 mod sources;
 
 pub(crate) use document::diagnostic::OwnedDiagnostic as JsonbDiagnostic;
+pub(crate) use document::exists::parse as parse_existence_candidate;
 pub(crate) use document::jsonb::{parse_field as parse_jsonb_field, JsonbFieldError};
 pub(crate) use document::text_array::{parse as parse_text_array_candidate, OwnedTextArray};

@@ -218,3 +218,25 @@ fn should_preserve_bound_and_reached_subquery_power_range_diagnostics() {
         );
     }
 }
+
+#[test]
+fn should_defer_row_dependent_subquery_power_failure_until_its_branch_is_reached() {
+    // Arrange
+    let fixture = planning_fixture("constant_planning_float_power_subquery_runtime");
+    let query = |outer_id| {
+        format!("SELECT CASE WHEN cp.id = 1 THEN (SELECT power(inner_row.id::float8 * 1e-300::float8, 2::float8) FROM cp AS inner_row WHERE inner_row.id = 1) ELSE 3::float8 END FROM cp WHERE cp.id = {outer_id}")
+    };
+
+    // Act
+    let unreached = fixture.execute(&query(2));
+    let reached = fixture.execute(&query(1));
+
+    // Assert
+    assert_eq!(
+        unreached.expect("unreached subquery").rows(),
+        &[vec![Value::Float64(3.0)]]
+    );
+    assert!(
+        matches!(reached, Err(CassieError::TypeInput(ref error)) if error.sqlstate == "22003" && error.message == "value out of range: underflow")
+    );
+}

@@ -12,12 +12,16 @@ use super::{
 };
 use crate::sql::ast::{QueryStatement, RowSubqueryAssignment, SelectItem, SelectStatement};
 
+#[path = "dml_row_subquery_owner.rs"]
+mod owner;
+pub(super) use owner::OwnedAssignmentValues;
+
 /// The values one row subquery assigns to its columns.
 pub(super) fn evaluate_row_subquery(
     scope: &ExecutionScope<'_>,
     assignment: &RowSubqueryAssignment,
     outer: &BatchRow,
-) -> Result<Vec<Value>, QueryError> {
+) -> Result<OwnedAssignmentValues, QueryError> {
     check_timeout(scope.controls)?;
     let mut statement = (*assignment.query).clone();
     let mut params = scope.params.to_vec();
@@ -46,28 +50,7 @@ pub(super) fn evaluate_row_subquery(
         &params,
         &controls,
     )?;
-    let mut rows = rows.into_iter();
-    let Some(first) = rows.next() else {
-        return Ok(vec![Value::Null; assignment.columns.len()]);
-    };
-    if rows.next().is_some() {
-        return Err(QueryError::Cassie(
-            crate::app::CassieError::CardinalityViolation(
-                "more than one row returned by a subquery used as an expression".to_string(),
-            ),
-        ));
-    }
-    let values = first
-        .into_entries()
-        .into_iter()
-        .map(|(_, value)| value)
-        .collect::<Vec<_>>();
-    if values.len() != assignment.columns.len() {
-        return Err(QueryError::Cassie(crate::app::CassieError::Parse(
-            "number of columns does not match number of values".to_string(),
-        )));
-    }
-    Ok(values)
+    owner::retain_rows(rows, assignment.columns.len(), &controls)
 }
 
 fn substitute_select(select: &mut SelectStatement, outer: &BatchRow, params: &mut Vec<Value>) {

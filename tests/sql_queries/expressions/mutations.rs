@@ -49,6 +49,30 @@ fn should_assign_multiple_update_columns_from_a_scalar_subquery() {
 }
 
 #[test]
+fn should_apply_row_subqueries_in_update_and_conflict_assignments() {
+    // Arrange
+    let fixture = sql_fixture(
+        "dml-row-subquery-owner",
+        &[
+            "CREATE TABLE assignment_owner (id INT PRIMARY KEY, label TEXT, version INT)",
+            "INSERT INTO assignment_owner VALUES (1,'old',1), (2,'old',2)",
+        ],
+    );
+    // Act
+    let updated = fixture.execute("UPDATE assignment_owner SET (label,version) = (SELECT 'update', 4) WHERE id = 1 RETURNING label,version");
+    let conflict = fixture.execute("INSERT INTO assignment_owner VALUES (2,'input',8) ON CONFLICT (id) DO UPDATE SET (label,version) = (SELECT 'conflict', 7) RETURNING label,version");
+    // Assert
+    assert_eq!(
+        updated.expect("UPDATE assignment").rows(),
+        &[vec![Value::String("update".into()), Value::Int64(4)]]
+    );
+    assert_eq!(
+        conflict.expect("conflict assignment").rows(),
+        &[vec![Value::String("conflict".into()), Value::Int64(7)]]
+    );
+}
+
+#[test]
 fn should_insert_default_values_using_all_declared_defaults() {
     // Arrange
     let fixture = sql_fixture(

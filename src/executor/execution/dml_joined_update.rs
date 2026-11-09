@@ -68,11 +68,11 @@ pub(super) fn update_target_row(
         &current.payload,
     )?;
     for assignment in row_subqueries {
-        let values = super::dml_row_subquery::evaluate_row_subquery(scope, assignment, row)?;
+        let mut values = super::dml_row_subquery::evaluate_row_subquery(scope, assignment, row)?;
         let object = payload
             .as_object_mut()
             .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
-        for (column, value) in assignment.columns.iter().zip(values) {
+        for (column, value) in assignment.columns.iter().zip(values.take_values()) {
             object.insert(
                 column.clone(),
                 update_assignment_to_json(column, &value, target.schema)?,

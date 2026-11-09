@@ -135,9 +135,9 @@ fn apply_row_subqueries(
         controls: context.controls,
     };
     for assignment in row_subqueries {
-        let values =
+        let mut values =
             super::super::dml_row_subquery::evaluate_row_subquery(&scope, assignment, outer)?;
-        for (column, value) in assignment.columns.iter().zip(values) {
+        for (column, value) in assignment.columns.iter().zip(values.take_values()) {
             apply_update_value(payload, column, &value, context.schema)?;
         }
     }

@@ -23,6 +23,9 @@ mod unwind;
 #[path = "document_text_array.rs"]
 pub(super) mod text_array;
 
+#[path = "document_comparison.rs"]
+pub(super) mod comparison;
+
 #[path = "document_exists.rs"]
 pub(super) mod exists;
 

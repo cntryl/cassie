@@ -13,6 +13,8 @@ use array::ArrayIndex;
 #[path = "scalar.rs"]
 mod scalar;
 use scalar::OwnedText;
+#[path = "jsonb_comparison.rs"]
+pub(super) mod comparison;
 #[path = "jsonb_number.rs"]
 pub(super) mod jsonb_number;
 #[path = "jsonb_order.rs"]

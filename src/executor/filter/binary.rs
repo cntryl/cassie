@@ -10,6 +10,17 @@ pub(super) fn binary_scalar_with_controls(
     right: &ScalarValue,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
+    if let (BinaryOp::JsonbCompare { comparison }, Some(controls)) = (op, controls) {
+        if matches!(
+            left,
+            ScalarValue::Null | ScalarValue::Str(_) | ScalarValue::Json(_)
+        ) && matches!(
+            right,
+            ScalarValue::Null | ScalarValue::Str(_) | ScalarValue::Json(_)
+        ) {
+            return super::json_order::evaluate_controlled(left, *comparison, right, controls);
+        }
+    }
     if matches!(
         op,
         BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll

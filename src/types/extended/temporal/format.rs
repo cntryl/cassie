@@ -147,6 +147,7 @@ fn case_like(spelling: &str, word: &str) -> String {
 }
 
 fn ordinal_suffix(value: i64, upper: bool) -> &'static str {
+    let value = value.unsigned_abs();
     let suffix = if (11..=13).contains(&(value % 100)) {
         "th"
     } else {

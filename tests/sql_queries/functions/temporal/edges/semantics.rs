@@ -5,6 +5,39 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_render_negative_interval_ordinal_suffixes_from_the_magnitude() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-negative-interval-ordinal", &[]);
+    let cases = [
+        (-1, "-01st|-01ST|-1st"),
+        (-2, "-02nd|-02ND|-2nd"),
+        (-3, "-03rd|-03RD|-3rd"),
+        (-11, "-11th|-11TH|-11th"),
+        (-12, "-12th|-12TH|-12th"),
+        (-13, "-13th|-13TH|-13th"),
+        (-21, "-21st|-21ST|-21st"),
+        (-22, "-22nd|-22ND|-22nd"),
+        (-23, "-23rd|-23RD|-23rd"),
+        (0, "00th|00TH|0th"),
+        (1, "01st|01ST|1st"),
+    ];
+
+    for (hours, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{hours} hours', 'HH24th|HH24TH|FMHH24th')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval ordinal formatting").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 ordinal for {hours} hours"
+        );
+    }
+}
+
+#[test]
 fn should_bin_timestamp_before_origin_toward_negative_infinity() {
     // Arrange
     let fixture = sql_fixture("issue-815-date-bin-negative-timestamp", &[]);

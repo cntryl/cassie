@@ -180,3 +180,108 @@ fn should_cancel_hypothetical_direct_or_ordered_inputs_after_real_retention() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[derive(Clone, Copy)]
+enum RetentionStage {
+    Mode,
+    Direct,
+    Ordered,
+}
+
+fn reached_cancellation_case(
+    sql: &str,
+    values: &[&str],
+    stage: RetentionStage,
+) -> (Result<Value, QueryError>, bool, usize) {
+    let plan = plan(sql);
+    let specs = super::super::aggregate_specs(&plan);
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let functions = std::collections::HashMap::new();
+    let context = AggregateExecutionContext {
+        plan: &plan,
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        session: None,
+        controls: &controls,
+        after_partition_row: None,
+    };
+    let rows = values
+        .iter()
+        .map(|value| BatchRow::new(vec![("value".into(), Value::String((*value).into()))]))
+        .collect::<Vec<_>>();
+    let mut reached = false;
+    let result = match stage {
+        RetentionStage::Mode => {
+            mode::evaluate_observed(&specs[0].function, &rows, &context, || {
+                reached = true;
+                assert!(controls.current_query_memory_bytes() > 0);
+                cancellation.cancel();
+            })
+        }
+        RetentionStage::Direct | RetentionStage::Ordered => {
+            hypothetical::evaluate_observed(&specs[0].function, &rows, &context, |progress| {
+                let selected = matches!(
+                    (stage, progress),
+                    (RetentionStage::Direct, hypothetical::InputProgress::Direct)
+                        | (
+                            RetentionStage::Ordered,
+                            hypothetical::InputProgress::Ordered
+                        )
+                );
+                if selected {
+                    reached = true;
+                    assert!(controls.current_query_memory_bytes() > 0);
+                    cancellation.cancel();
+                }
+            })
+        }
+    };
+    (result, reached, controls.current_query_memory_bytes())
+}
+
+#[test]
+fn should_check_cancellation_after_current_retention_before_later_input_errors() {
+    // Arrange
+    let cases = [
+        (RetentionStage::Mode, "SELECT mode() WITHIN GROUP (ORDER BY value::FLOAT8) FROM events", vec!["1", "bad"]),
+        (RetentionStage::Direct, "SELECT rank(1::FLOAT8, 'bad'::FLOAT8) WITHIN GROUP (ORDER BY value::FLOAT8, value::FLOAT8) FROM events", vec!["1"]),
+        (RetentionStage::Ordered, "SELECT rank(0::FLOAT8) WITHIN GROUP (ORDER BY value::FLOAT8) FROM events", vec!["1", "bad"]),
+    ];
+
+    // Act / Assert
+    for (stage, sql, values) in cases {
+        let (result, reached, bytes) = reached_cancellation_case(sql, &values, stage);
+        assert!(reached);
+        assert!(
+            matches!(result, Err(QueryError::General(ref message)) if message == "query canceled")
+        );
+        assert_eq!(bytes, 0);
+    }
+}
+
+#[test]
+fn should_preserve_current_input_parse_errors_before_retention_check() {
+    // Arrange
+    let cases = [
+        (RetentionStage::Mode, "SELECT mode() WITHIN GROUP (ORDER BY value::FLOAT8) FROM events", vec!["bad"]),
+        (RetentionStage::Direct, "SELECT rank('bad'::FLOAT8, 1::FLOAT8) WITHIN GROUP (ORDER BY value::FLOAT8, value::FLOAT8) FROM events", vec!["1"]),
+        (RetentionStage::Ordered, "SELECT rank(0::FLOAT8) WITHIN GROUP (ORDER BY value::FLOAT8) FROM events", vec!["bad"]),
+    ];
+
+    // Act / Assert
+    for (stage, sql, values) in cases {
+        let (result, reached, bytes) = reached_cancellation_case(sql, &values, stage);
+        assert!(!reached);
+        assert!(matches!(
+            result,
+            Err(QueryError::Cassie(CassieError::FloatInput(_)))
+        ));
+        assert_eq!(bytes, 0);
+    }
+}

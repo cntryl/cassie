@@ -17,8 +17,12 @@ The hypothetical direct path creates its existing zero-byte retained lease
 before the fallible Vec allocation rather than immediately after it. Under the
 tracker invariant, reserving zero cannot overflow or exceed the budget; the
 atomic operation can retry under contention. Existing value, sort and error
-semantics otherwise remain selected. Drop sentinels and actual post-insertion
-cancellation probes are authored but unexecuted until the consolidated gate.
+semantics otherwise remain selected. Each newly retained mode, direct or
+ordered input is followed by an interruption check. The current value's parse,
+clone and retention errors still occur before that check, but cancellation may
+now preempt a later input's ordinary error. Drop sentinels, current-value error
+and actual post-insertion cancellation probes are authored but unexecuted until
+the consolidated gate.
 
 This repair does not qualify mode's selected-result clone, hypothetical result
 handoff, input conversion, growth relocation/allocator excess, rich comparison

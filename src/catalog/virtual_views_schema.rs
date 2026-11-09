@@ -1,9 +1,10 @@
 //! Lazy descriptors for the authoritative virtual-schema dispatchers.
 use super::{
     bool, int, text, virtual_views_constraints, virtual_views_dependencies, virtual_views_empty,
-    virtual_views_pg, virtual_views_procedures, virtual_views_projections, virtual_views_relations,
-    virtual_views_sequences, virtual_views_session_objects, virtual_views_shared_dependencies,
-    virtual_views_storage, virtual_views_timezones, DataType, INFORMATION_SCHEMA_TABLES,
+    virtual_views_extensions, virtual_views_pg, virtual_views_procedures,
+    virtual_views_projections, virtual_views_relations, virtual_views_sequences,
+    virtual_views_session_objects, virtual_views_shared_dependencies, virtual_views_storage,
+    virtual_views_timezones, DataType, INFORMATION_SCHEMA_TABLES,
 };
 
 pub(super) type SchemaFactory = fn() -> Vec<(String, DataType)>;
@@ -99,6 +100,8 @@ fn pg_catalog_core_schema(name: &str) -> Option<SchemaFactory> {
                 text("datctype"),
             ]
         }),
+        "pg_catalog.pg_extension" => Some(virtual_views_extensions::installed_schema),
+        "pg_catalog.pg_available_extensions" => Some(virtual_views_extensions::available_schema),
         "pg_catalog.pg_namespace" => Some(|| virtual_views_pg::namespace_schema()),
         "pg_catalog.pg_class" => Some(|| virtual_views_pg::class_schema()),
         "pg_catalog.pg_am" => Some(|| virtual_views_pg::access_method_schema()),

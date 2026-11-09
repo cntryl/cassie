@@ -42,6 +42,8 @@ mod virtual_views_constraints;
 mod virtual_views_dependencies;
 #[path = "virtual_views_empty.rs"]
 mod virtual_views_empty;
+#[path = "virtual_views_extensions.rs"]
+mod virtual_views_extensions;
 #[path = "virtual_views_pg.rs"]
 mod virtual_views_pg;
 #[path = "virtual_views_procedures.rs"]
@@ -297,6 +299,7 @@ fn pg_catalog_core_rows(
 ) -> Option<Vec<VirtualRow>> {
     match name {
         "pg_catalog.pg_database" => Some(pg_database_rows(catalog)),
+        "pg_catalog.pg_extension" | "pg_catalog.pg_available_extensions" => Some(Vec::new()),
         "pg_catalog.pg_namespace" => {
             Some(virtual_views_pg::pg_namespace(catalog, current_database))
         }

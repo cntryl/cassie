@@ -36,6 +36,14 @@ FunctionCall currently drops its arguments, so it must explicitly preserve the
 actual window argument's mode without cloning that expression. This evidence
 does not yet prove all optimizer rewrite, phase callback or ownership paths.
 
+Selected casts must also be excluded from parallel aggregation before workers
+start. The current code computes partition results before its row-order
+fallback; a later worker could otherwise fail on two finite large values before
+an earlier NaN is seen. The selected sequential path intentionally changes
+parallel eligibility, while unselected statistical calls keep the existing
+eligibility behavior. The regression exercises both input orders across the
+actual partition threshold without using timing as synchronization.
+
 Before activation, author and source-review ordinary rounding, both overflow
 shapes, NaN/Infinity ordering, NULL/empty/singleton, grouped, window, FILTER,
 modifier, marker survival and partial-merge/error-state probes. Existing input,

@@ -4,8 +4,8 @@ fn should_preserve_explicit_float_variance_mode_through_ordered_window() {
     let fixture = sql_fixture(
         "variance-explicit-float-window",
         &[
-            "CREATE TABLE vf (id INT PRIMARY KEY, v FLOAT8)",
-            "INSERT INTO vf VALUES (1,1),(2,2),(3,4)",
+            "CREATE TABLE vf (id INT PRIMARY KEY, v TEXT)",
+            "INSERT INTO vf VALUES (1,'1'),(2,'2'),(3,'4')",
         ],
     );
 
@@ -20,6 +20,21 @@ fn should_preserve_explicit_float_variance_mode_through_ordered_window() {
         vec![Value::Int64(3), Value::Float64(1.555_555_555_555_555_6)]
     );
     assert_eq!(result.columns()[1].type_oid, 701);
+    let grouped = fixture
+        .execute("SELECT VAR_POP(v::FLOAT8 ORDER BY id) FROM vf")
+        .expect("ordered grouped variance");
+    assert_eq!(
+        grouped.rows(),
+        &[vec![Value::Float64(1.555_555_555_555_555_6)]]
+    );
+    let real = fixture
+        .execute("SELECT VAR_POP(v::REAL ORDER BY id) FROM vf")
+        .expect("ordered REAL variance");
+    assert_eq!(
+        real.rows(),
+        &[vec![Value::Float64(1.555_555_555_555_555_6)]]
+    );
+    assert_eq!(real.columns()[0].type_oid, 701);
 }
 
 #[test]
@@ -28,8 +43,8 @@ fn should_report_explicit_float_variance_overflow_after_filter_selection() {
     let fixture = sql_fixture(
         "variance-explicit-float-overflow",
         &[
-            "CREATE TABLE vo (id INT PRIMARY KEY, v FLOAT8)",
-            "INSERT INTO vo VALUES (1,1e308),(2,1e308)",
+            "CREATE TABLE vo (id INT PRIMARY KEY, v TEXT)",
+            "INSERT INTO vo VALUES (1,'1e308'),(2,'1e308')",
         ],
     );
 

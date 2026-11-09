@@ -558,6 +558,43 @@ mod tests {
         .expect("statistical accumulator")
     }
 
+    fn explicit_real_accumulator(name: &str) -> StatisticalAccumulator {
+        use crate::sql::ast::{CastIdentity, Expr};
+        StatisticalAccumulator::new(&FunctionCall {
+            name: name.to_owned(),
+            args: vec![Expr::Cast {
+                expr: Box::new(Expr::Column("v".to_owned())),
+                data_type: crate::types::DataType::Extended(
+                    crate::types::extended::ExtendedType::Real,
+                ),
+                source_type: None,
+                identity: CastIdentity::Scalar,
+            }],
+            ..FunctionCall::default()
+        })
+        .expect("statistical accumulator")
+    }
+
+    #[test]
+    fn should_use_postgresql_transition_for_explicit_real_inputs() {
+        // Arrange
+        let mut state = explicit_real_accumulator("var_pop");
+        for value in [1.0_f32, 2.0, 4.0] {
+            state
+                .update(
+                    "var_pop",
+                    &Value::Typed(crate::types::typed::TypedValue::Real(value)),
+                )
+                .expect("REAL input");
+        }
+
+        // Act / Assert
+        assert_eq!(
+            state.finish().expect("REAL variance"),
+            Value::Float64(1.555_555_555_555_555_6)
+        );
+    }
+
     #[test]
     fn should_use_postgresql_rounding_for_explicit_float_variance() {
         // Arrange
@@ -609,6 +646,12 @@ mod tests {
         assert!(
             matches!(error, super::QueryError::Cassie(crate::app::CassieError::TypeInput(ref error)) if error.sqlstate == "22003" && error.message == "value out of range: overflow")
         );
+        assert_eq!(
+            overflow
+                .finish()
+                .expect("failed transition keeps prior state"),
+            Value::Float64(0.0)
+        );
         assert!(
             matches!(nan_first.finish().expect("NaN result"), Value::Float64(value) if value.is_nan())
         );
@@ -649,6 +692,34 @@ mod tests {
         assert!(state.requires_row_order());
         assert_eq!(
             state.finish().expect("unchanged state"),
+            Value::Float64(0.0)
+        );
+    }
+
+    #[test]
+    fn should_preserve_partial_merge_failure_state_for_explicit_float() {
+        // Arrange
+        let mut left = explicit_float_accumulator("var_pop");
+        let mut right = explicit_float_accumulator("var_pop");
+        left.update("var_pop", &Value::Float64(1e308))
+            .expect("left");
+        right
+            .update("var_pop", &Value::Float64(1e308))
+            .expect("right");
+
+        // Act
+        let error = left.merge(&right).expect_err("finite sum overflow");
+
+        // Assert
+        assert!(
+            matches!(error, super::QueryError::Cassie(crate::app::CassieError::TypeInput(ref error)) if error.sqlstate == "22003")
+        );
+        assert_eq!(
+            left.finish().expect("failed merge leaves no moments"),
+            Value::Null
+        );
+        assert_eq!(
+            right.finish().expect("right stays intact"),
             Value::Float64(0.0)
         );
     }

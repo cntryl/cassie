@@ -13,11 +13,13 @@ thread_local! {
 }
 
 #[cfg(test)]
-pub(super) fn cancel_after_copy_once(handle: crate::runtime::QueryCancellationHandle) {
+pub(in crate::executor::filter) fn cancel_after_copy_once(
+    handle: crate::runtime::QueryCancellationHandle,
+) {
     CANCEL_AFTER_COPY.with(|slot| *slot.borrow_mut() = Some(handle));
 }
 
-pub(super) fn concatenate<'a>(
+pub(in crate::executor::filter) fn concatenate<'a>(
     left: &'a str,
     right: &'a str,
     controls: &'a QueryExecutionControls,

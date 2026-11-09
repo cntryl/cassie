@@ -12,8 +12,8 @@ use crate::executor::semantic::compare_values;
 use crate::sql::ast::{FunctionCall, SortDirection};
 use crate::types::Value;
 
+use super::super::collection_json::{self, AggregateOutput};
 use super::super::{check_timeout, AggregateExecutionContext, QueryError};
-use super::collection_json::{self, AggregateOutput};
 use super::inputs::RetainedInputs;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

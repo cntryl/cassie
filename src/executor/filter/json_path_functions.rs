@@ -148,6 +148,7 @@ fn sql_json_exists(
         JsonFunction::PathExists,
         &[document.clone(), path.clone()],
         controls,
+        None,
     ) {
         Ok(value) => Ok(value),
         Err(error) => match policy.to_ascii_lowercase().as_str() {

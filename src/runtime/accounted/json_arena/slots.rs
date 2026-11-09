@@ -245,11 +245,16 @@ impl<T> ValueSlots<T> {
 }
 
 fn allocate_namespace(counter: &AtomicU64) -> Result<u64, CassieError> {
-    counter
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
-            value.checked_add(1)
-        })
-        .map_err(|_| CassieError::ResourceLimit("JSON arena namespace exhausted".into()))
+    let mut current = counter.load(Ordering::Relaxed);
+    loop {
+        let next = current
+            .checked_add(1)
+            .ok_or_else(|| CassieError::ResourceLimit("JSON arena namespace exhausted".into()))?;
+        match counter.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(previous) => return Ok(previous),
+            Err(observed) => current = observed,
+        }
+    }
 }
 
 fn invalid_handle() -> CassieError {

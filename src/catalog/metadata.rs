@@ -58,6 +58,8 @@ pub struct Catalog {
 
 #[path = "metadata/index_relations.rs"]
 mod index_relations;
+#[path = "metadata/index_namespace.rs"]
+mod index_namespace;
 #[path = "metadata_databases.rs"]
 mod metadata_databases;
 #[path = "metadata_domains.rs"]

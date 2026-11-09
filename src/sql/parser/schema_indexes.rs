@@ -49,7 +49,18 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
     let name = if raw_name.is_empty() {
         String::new()
     } else {
-        parse_identifier(raw_name)?
+        let parsed = parse_identifier(raw_name)?;
+        if raw_name.starts_with('"')
+            && crate::sql::ast::IdentifierPath::parse(raw_name)
+                .map_err(SqlError::new)?
+                .components()
+                .len()
+                == 1
+        {
+            crate::catalog::canonical_identifier_component(&parsed)
+        } else {
+            parsed
+        }
     };
     if !raw_name.is_empty() && name.is_empty() {
         return Err(SqlError::new("CREATE INDEX missing index name".to_string()));

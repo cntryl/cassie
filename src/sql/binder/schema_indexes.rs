@@ -6,12 +6,14 @@ use crate::catalog::{derive_scoped_name, local_name, parse_name, IndexMeta, Pars
 use crate::sql::ast::{CreateIndexStatement, IdentifierPath};
 use crate::types::DataType;
 
-const MAX_GENERATED_INDEX_IDENTIFIER_BYTES: usize = 63;
+#[path = "index_generated_name.rs"]
+mod index_generated_name;
 
 pub(super) fn bind_create_index(
     mut statement: CreateIndexStatement,
     catalog: &Catalog,
     context: &BindingContext,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<CreateIndexStatement, CassieError> {
     let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
@@ -38,12 +40,6 @@ pub(super) fn bind_create_index(
             _ => normalize_relation_name(statement.name.trim(), context)?,
         }
     };
-    if !name.is_empty() && statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
-        statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
-        statement.name = name;
-        return Ok(statement);
-    }
-
     for expr in statement.expressions.iter().chain(&statement.predicate) {
         crate::sql::definition_guard::expression(expr)?;
     }
@@ -62,18 +58,14 @@ pub(super) fn bind_create_index(
     let fields = declared_field_names(&schema, fields);
     let expressions = declared_index_expressions(&schema, &expressions);
     if name.is_empty() {
-        name = generated_index_name(&table, &fields, catalog);
-    }
-    if statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
-        statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
-        statement.name = name;
-        return Ok(statement);
+        name =
+            index_generated_name::generate(&table, &fields, catalog, &context.database, controls)?;
     }
     validate_index_shape(&statement, &fields, &expressions)?;
 
     let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
-    validate_include_fields(&statement, &schema, &table, &fields, &include_fields)?;
-    validate_index_fields_and_expressions(&schema, &table, &fields, &expressions)?;
+    validate_include_fields(&statement, &schema, &fields, &include_fields)?;
+    validate_index_fields_and_expressions(&schema, &fields, &expressions)?;
     bind_index_method_options(
         &mut statement,
         IndexMethodBinding {
@@ -91,10 +83,14 @@ pub(super) fn bind_create_index(
         bind_index_predicate(predicate, &schema, &table, catalog, context)?;
     }
 
-    if !statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
-        return Err(CassieError::Planner(format!(
-            "index '{name}' already exists on collection '{table}'"
-        )));
+    if !statement.if_not_exists
+        && catalog.index_relation_name_occupied(&name, &context.database, false, controls)?
+    {
+        return Err(crate::app::DiagnosticError::new(
+            "42P07",
+            format!("relation \"{}\" already exists", local_name(&name)),
+        )
+        .into());
     }
 
     statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
@@ -249,42 +245,6 @@ fn declared_index_expressions(schema: &CollectionSchema, expressions: &[Expr]) -
         .collect()
 }
 
-fn generated_index_name(table: &str, fields: &[String], catalog: &Catalog) -> String {
-    let indexed_columns = if fields.is_empty() {
-        vec!["expression".to_string()]
-    } else {
-        fields.to_vec()
-    };
-    let base = format!("{}_{}_idx", local_name(table), indexed_columns.join("_"));
-    let mut collision = 0_usize;
-
-    loop {
-        let suffix = if collision == 0 {
-            String::new()
-        } else {
-            format!("_{collision}")
-        };
-        let prefix_limit = MAX_GENERATED_INDEX_IDENTIFIER_BYTES.saturating_sub(suffix.len());
-        let local = format!(
-            "{}{suffix}",
-            truncate_identifier_prefix(&base, prefix_limit)
-        );
-        let scoped = derive_scoped_name(table, |_| local);
-        if catalog.get_index(table, &scoped).is_none() {
-            return scoped;
-        }
-        collision = collision.saturating_add(1);
-    }
-}
-
-fn truncate_identifier_prefix(value: &str, max_bytes: usize) -> &str {
-    let mut end = value.len().min(max_bytes);
-    while !value.is_char_boundary(end) {
-        end -= 1;
-    }
-    &value[..end]
-}
-
 pub(super) fn resolve_drop_index_name(
     raw: &str,
     catalog: &Catalog,
@@ -297,7 +257,7 @@ pub(super) fn resolve_drop_index_name(
         normalize_relation_name(raw, context)?;
     }
 
-    let (database, schema, local) = match reference {
+    let (database, schema, _) = match reference {
         ParsedName::Unqualified(local) => (None, None, local),
         ParsedName::SchemaQualified { schema, name } => (None, Some(schema), name),
         ParsedName::DatabaseQualified {
@@ -305,6 +265,16 @@ pub(super) fn resolve_drop_index_name(
             schema,
             name,
         } => (Some(database), Some(schema), name),
+    };
+    let identifier = IdentifierPath::parse(raw).map_err(CassieError::Planner)?;
+    let last = identifier
+        .components()
+        .last()
+        .ok_or_else(|| CassieError::Planner("empty index name".to_owned()))?;
+    let local = if last.is_delimited() {
+        last.value().to_owned()
+    } else {
+        last.value().to_ascii_lowercase()
     };
     let indexes = catalog
         .all_indexes_snapshot()
@@ -333,7 +303,14 @@ pub(super) fn resolve_drop_index_name(
         let matching = indexes
             .iter()
             .filter(|index| {
-                index_name_matches_scope(index, context, database.as_deref(), &schema, &local)
+                index_name_matches_scope(
+                    index,
+                    context,
+                    database.as_deref(),
+                    &schema,
+                    &local,
+                    last.is_delimited(),
+                )
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -356,6 +333,7 @@ fn index_name_matches_scope(
     database: Option<&str>,
     schema: &str,
     local: &str,
+    delimited: bool,
 ) -> bool {
     let (index_database, index_schema, index_local) = match parse_name(&index.name) {
         Ok(ParsedName::DatabaseQualified {
@@ -392,7 +370,11 @@ fn index_name_matches_scope(
 
     database_matches
         && index_schema.eq_ignore_ascii_case(schema)
-        && index_local.eq_ignore_ascii_case(local)
+        && if delimited {
+            index_local == local
+        } else {
+            index_local.eq_ignore_ascii_case(local)
+        }
 }
 
 fn bind_index_predicate(
@@ -435,9 +417,7 @@ pub(super) fn validate_index_expression(
             if known_fields.contains(name) {
                 return Ok(());
             }
-            return Err(CassieError::Planner(format!(
-                "index expression references unknown field '{name}'"
-            )));
+            return Err(CassieError::UndefinedColumn(name.clone()));
         }
         Expr::Param(_) => {
             return Err(CassieError::Planner(
@@ -578,7 +558,6 @@ fn validate_index_shape(
 fn validate_include_fields(
     statement: &CreateIndexStatement,
     schema: &CollectionSchema,
-    table: &str,
     fields: &[String],
     include_fields: &[String],
 ) -> Result<(), CassieError> {
@@ -609,9 +588,7 @@ fn validate_include_fields(
             )));
         }
         if !schema.fields.iter().any(|entry| entry.name == *field) {
-            return Err(CassieError::Planner(format!(
-                "INCLUDE field '{field}' does not exist on collection '{table}'"
-            )));
+            return Err(CassieError::UndefinedColumn(field.clone()));
         }
     }
     Ok(())
@@ -619,15 +596,12 @@ fn validate_include_fields(
 
 fn validate_index_fields_and_expressions(
     schema: &CollectionSchema,
-    table: &str,
     fields: &[String],
     expressions: &[Expr],
 ) -> Result<(), CassieError> {
     for field in fields {
         if !schema.fields.iter().any(|entry| entry.name == *field) {
-            return Err(CassieError::Planner(format!(
-                "index field '{field}' does not exist on collection '{table}'"
-            )));
+            return Err(CassieError::UndefinedColumn(field.clone()));
         }
     }
 

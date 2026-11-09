@@ -6,9 +6,9 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 #[path = "controlled_name_tests.rs"]
 mod tests;
 
-struct Parts {
-    values: Vec<String>,
-    memory: QueryMemoryReservation,
+pub(super) struct Parts {
+    pub(super) values: Vec<String>,
+    pub(super) memory: QueryMemoryReservation,
 }
 
 struct NameText {
@@ -101,7 +101,10 @@ fn push_part(
     Ok(())
 }
 
-fn parse_parts(raw: &str, controls: &QueryExecutionControls) -> Result<Option<Parts>, CassieError> {
+pub(super) fn parse_parts(
+    raw: &str,
+    controls: &QueryExecutionControls,
+) -> Result<Option<Parts>, CassieError> {
     controls.check_interruption()?;
     let raw = trim_checked(raw, controls)?;
     let mut parts = Parts {

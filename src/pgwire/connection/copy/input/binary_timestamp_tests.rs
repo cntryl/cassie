@@ -63,19 +63,30 @@ fn should_match_binary_timestamp_output_and_error_precedence() {
         drop((actual, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
-    for bytes in [
-        vec![],
-        vec![0; 7],
-        vec![0; 9],
-        (MIN_TIMESTAMP - 1).to_be_bytes().to_vec(),
-        END_TIMESTAMP.to_be_bytes().to_vec(),
-        [(MIN_TIMESTAMP - 1).to_be_bytes().as_slice(), &[0]].concat(),
-    ] {
-        let original =
-            super::super::super::super::codecs::binary_to_value(&bytes, 1114).expect_err("invalid");
+    let invalid = [
+        (vec![], "08P01", "insufficient data left in message"),
+        (vec![0; 7], "08P01", "insufficient data left in message"),
+        (vec![0; 9], "22P03", "incorrect binary data format"),
+        (
+            (MIN_TIMESTAMP - 1).to_be_bytes().to_vec(),
+            "22008",
+            "timestamp out of range",
+        ),
+        (
+            END_TIMESTAMP.to_be_bytes().to_vec(),
+            "22008",
+            "timestamp out of range",
+        ),
+        (
+            [(MIN_TIMESTAMP - 1).to_be_bytes().as_slice(), &[0]].concat(),
+            "22008",
+            "timestamp out of range",
+        ),
+    ];
+    for (bytes, state, message) in invalid {
         let result = super::decode(1114, &bytes, 2, &controls);
         assert!(
-            matches!(result, Err(CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+            matches!(result, Err(CassieError::TypeInput(error)) if error.sqlstate == state && error.message == message)
         );
     }
 }

@@ -448,3 +448,57 @@ fn should_report_unknown_quoted_copy_where_column_and_recover() {
     assert_eq!(wire::error_code(&frames[2]), None);
     assert_eq!(wire::data_rows(&frames[2]), vec![vec![Some("1".into())]]);
 }
+
+#[test]
+fn should_recover_binary_timestamp_range_errors_in_implicit_and_explicit_transactions() {
+    // Arrange
+    use cassie::types::extended::temporal::calendar::END_TIMESTAMP;
+    let mut payload = b"PGCOPY\n\xff\r\n\0".to_vec();
+    payload.extend_from_slice(&0_i32.to_be_bytes());
+    payload.extend_from_slice(&0_i32.to_be_bytes());
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&8_i32.to_be_bytes());
+    payload.extend_from_slice(&END_TIMESTAMP.to_be_bytes());
+    payload.extend_from_slice(&(-1_i16).to_be_bytes());
+    for sql_type in ["TIMESTAMP", "TIMESTAMPTZ"] {
+        for explicit in [false, true] {
+            let mut script = Vec::new();
+            if explicit {
+                script.push(vec![wire::simple_query_frame("BEGIN")]);
+                script.push(vec![wire::simple_query_frame("SAVEPOINT before_copy")]);
+            }
+            let copy_index = script.len();
+            script.push(vec![
+                wire::simple_query_frame(
+                    "COPY timestamp_copy_bounds (value) FROM STDIN WITH (FORMAT BINARY)",
+                ),
+                wire::copy_data_frame(&payload),
+                wire::copy_done_frame(),
+            ]);
+            if explicit {
+                script.push(vec![wire::simple_query_frame("ROLLBACK TO before_copy")]);
+            }
+            script.push(vec![wire::simple_query_frame(
+                "SELECT count(*) FROM timestamp_copy_bounds",
+            )]);
+
+            // Act
+            let setup = format!("CREATE TABLE timestamp_copy_bounds (value {sql_type})");
+            let frames = crate::support_repeatable_read::run_own_script(&[&setup], script);
+
+            // Assert
+            assert_eq!(
+                wire::error_code(&frames[copy_index]).as_deref(),
+                Some("22008")
+            );
+            assert_eq!(
+                frames[copy_index].last().map(|frame| frame.1.as_slice()),
+                Some(if explicit { &b"E"[..] } else { &b"I"[..] })
+            );
+            assert_eq!(
+                wire::data_rows(frames.last().expect("recovery")),
+                vec![vec![Some("0".into())]]
+            );
+        }
+    }
+}

@@ -269,3 +269,119 @@ fn should_validate_timetz_binary_bounds_and_recover_on_same_connection() {
         );
     }
 }
+
+#[test]
+fn should_validate_binary_timestamp_and_timestamptz_bounds_and_recover() {
+    // Arrange
+    use cassie::types::extended::temporal::calendar::{END_TIMESTAMP, MIN_TIMESTAMP};
+    let mut steps = Vec::new();
+    let mut expected = Vec::new();
+    for (index, oid) in [1114, 1184].into_iter().enumerate() {
+        let statement = format!("timestamp_bounds_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &statement,
+            "SELECT $1",
+            &[oid],
+        )));
+        expected.push(None);
+        let cases = [
+            (i64::MIN.to_be_bytes().to_vec(), None),
+            (MIN_TIMESTAMP.to_be_bytes().to_vec(), None),
+            ((END_TIMESTAMP - 1).to_be_bytes().to_vec(), None),
+            (i64::MAX.to_be_bytes().to_vec(), None),
+            ((MIN_TIMESTAMP - 1).to_be_bytes().to_vec(), Some("22008")),
+            (END_TIMESTAMP.to_be_bytes().to_vec(), Some("22008")),
+            (vec![0; 7], Some("08P01")),
+            (
+                [0_i64.to_be_bytes().as_slice(), &[0]].concat(),
+                Some("22P03"),
+            ),
+            (
+                [END_TIMESTAMP.to_be_bytes().as_slice(), &[0]].concat(),
+                Some("22008"),
+            ),
+        ];
+        for (payload, state) in cases {
+            steps.push(Step::ThroughReady(vec![
+                wire::bind_frame_with_formats("", &statement, &[1], &[Some(&payload)], &[]),
+                wire::execute_frame(""),
+                wire::sync_frame(),
+            ]));
+            expected.push(state);
+            steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT 1",
+            )]));
+            expected.push(None);
+        }
+    }
+
+    // Act
+    let batches = run_script("timestamp-binary-receive-bounds", steps);
+
+    // Assert
+    for (index, state) in expected.iter().enumerate() {
+        assert_eq!(
+            wire::error_code(&batches[index]).as_deref(),
+            *state,
+            "case {index}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_binary_timestamp_array_element_error_order() {
+    // Arrange
+    use cassie::types::extended::temporal::calendar::END_TIMESTAMP;
+    let mut steps = Vec::new();
+    let mut expected = Vec::new();
+    for (index, (array_oid, element_oid)) in
+        [(1115, 1114_i32), (1185, 1184_i32)].into_iter().enumerate()
+    {
+        let statement = format!("timestamp_array_bounds_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &statement,
+            "SELECT $1",
+            &[array_oid],
+        )));
+        expected.push(None);
+        for (value, extra, state) in [
+            (END_TIMESTAMP, false, "22008"),
+            (END_TIMESTAMP, true, "22008"),
+            (0, true, "22P03"),
+        ] {
+            let mut array = Vec::new();
+            for part in [1_i32, 0, element_oid, 2, 1] {
+                array.extend_from_slice(&part.to_be_bytes());
+            }
+            array.extend_from_slice(&8_i32.to_be_bytes());
+            array.extend_from_slice(&0_i64.to_be_bytes());
+            array.extend_from_slice(&(8_i32 + i32::from(extra)).to_be_bytes());
+            array.extend_from_slice(&value.to_be_bytes());
+            if extra {
+                array.push(0);
+            }
+            steps.push(Step::ThroughReady(vec![
+                wire::bind_frame_with_formats("", &statement, &[1], &[Some(&array)], &[]),
+                wire::execute_frame(""),
+                wire::sync_frame(),
+            ]));
+            expected.push(Some(state));
+            steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+                "SELECT 1",
+            )]));
+            expected.push(None);
+        }
+    }
+
+    // Act
+    let batches = run_script("timestamp-array-binary-bounds", steps);
+
+    // Assert
+    for (index, state) in expected.iter().enumerate() {
+        assert_eq!(
+            wire::error_code(&batches[index]).as_deref(),
+            *state,
+            "case {index}"
+        );
+    }
+}

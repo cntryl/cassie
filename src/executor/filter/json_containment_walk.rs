@@ -173,6 +173,7 @@ fn decode_string(
 }
 
 enum State {
+    ControlledObjects(super::super::json_delete::ObjectPair),
     Objects {
         candidate: BTreeMap<String, Box<RawValue>>,
         required: btree_map::IntoIter<String, Box<RawValue>>,
@@ -200,6 +201,19 @@ impl Frame {
     fn advance(&mut self, previous: Option<bool>, work: &Work<'_>) -> Result<Next, QueryError> {
         work.check()?;
         match &mut self.state {
+            State::ControlledObjects(objects) => {
+                if previous == Some(false) {
+                    return Ok(Next::Complete(false));
+                }
+                let controls = work.controls.expect("controlled object frame");
+                match objects.next(controls)? {
+                    super::super::json_delete::ObjectStep::Child(candidate, required) => {
+                        work.pair(candidate, required).map(Next::Child)
+                    }
+                    super::super::json_delete::ObjectStep::Missing => Ok(Next::Complete(false)),
+                    super::super::json_delete::ObjectStep::Done => Ok(Next::Complete(true)),
+                }
+            }
             State::Objects {
                 candidate,
                 required,
@@ -281,12 +295,22 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
         work.check()?;
     }
     let state = match (kind(&pair.candidate), kind(&pair.required)) {
-        (JsonKind::Object, JsonKind::Object) => State::Objects {
-            candidate: json_document::parse_object(pair.candidate.get())?.0,
-            required: json_document::parse_object(pair.required.get())?
-                .0
-                .into_iter(),
-        },
+        (JsonKind::Object, JsonKind::Object) => {
+            if let Some(controls) = work.controls {
+                State::ControlledObjects(super::super::json_delete::ObjectPair::build(
+                    pair.candidate,
+                    pair.required,
+                    controls,
+                )?)
+            } else {
+                State::Objects {
+                    candidate: json_document::parse_object(pair.candidate.get())?.0,
+                    required: json_document::parse_object(pair.required.get())?
+                        .0
+                        .into_iter(),
+                }
+            }
+        }
         (JsonKind::Array, required_kind)
             if required_kind == JsonKind::Array || (root && required_kind.is_scalar()) =>
         {

@@ -76,6 +76,20 @@ pub(super) struct OrderedFields<'a> {
     _memory: QueryMemoryReservation,
 }
 
+pub(super) struct DetachedFields {
+    entries: Vec<Field>,
+    indices: Vec<usize>,
+    _field_memory: QueryMemoryReservation,
+    _index_memory: QueryMemoryReservation,
+}
+
+impl DetachedFields {
+    pub(super) fn get<'a>(&'a self, source: &'a str, index: usize) -> Option<(&'a str, &'a str)> {
+        let field = self.entries.get(*self.indices.get(index)?)?;
+        Some((field.key.get().as_str(), &source[field.value.clone()]))
+    }
+}
+
 impl<'a> OrderedFields<'a> {
     pub(super) fn get(&self, index: usize) -> Option<(&str, &'a str)> {
         let field = self.fields.entries.get(*self.indices.get(index)?)?;
@@ -83,6 +97,25 @@ impl<'a> OrderedFields<'a> {
             field.key.get().as_str(),
             &self.fields.source[field.value.clone()],
         ))
+    }
+
+    pub(super) fn into_detached(self) -> DetachedFields {
+        let Self {
+            fields,
+            indices,
+            _memory: index_memory,
+        } = self;
+        let Fields {
+            source: _,
+            entries,
+            memory: field_memory,
+        } = fields;
+        DetachedFields {
+            entries,
+            indices,
+            _field_memory: field_memory,
+            _index_memory: index_memory,
+        }
     }
 }
 

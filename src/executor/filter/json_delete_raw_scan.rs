@@ -15,6 +15,8 @@ pub(super) mod concat;
 pub(super) mod containment;
 #[path = "json_extract_raw.rs"]
 pub(super) mod extract;
+#[path = "json_containment_nested_object.rs"]
+pub(super) mod nested_containment;
 #[path = "json_delete_raw_object.rs"]
 mod object;
 #[path = "json_delete_raw_render.rs"]

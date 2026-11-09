@@ -79,7 +79,7 @@ fn is_object(input: &str, controls: &QueryExecutionControls) -> Result<bool, Que
     Ok(false)
 }
 
-fn compare(
+pub(super) fn compare(
     left: &str,
     right: &str,
     controls: &QueryExecutionControls,

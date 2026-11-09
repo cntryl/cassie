@@ -125,3 +125,29 @@ other probes cover required-scalar array success and error cleanup. The hook
 checks release, not the exact timing of a String destructor. No production
 interruption point is added. Other parser, transition, memory estimate and
 nested-container limits remain open; these probes are unexecuted.
+
+## Nested object containment candidate
+
+For controlled nested object pairs, detach each checked object index into
+owned decoded keys, raw-source byte ranges, stable lexical duplicate-last
+indices, and their reservations. Move both original RawValue boxes and both
+detached indexes into a Frame-owned object pair; no field borrows the source it
+is stored beside. Merge required keys lexically inside the existing iterative
+walker, passing matched children through its regular pair/equality path. Keep
+the outer Pair reservation alive while the builder owns raw inputs and until
+the Frame takes that reservation. Preserve candidate-then-required key parse,
+the observer, short-circuit order, and the no-controls legacy route.
+
+Jev selected this bounded design (0.89), with parse/order/observer (0.58),
+source/index/Frame failure ownership (0.38), and controls/teardown (0.77)
+leads. Receipt:
+`target/assembly-review/json-containment-nested-object-contract-{request,response}.json`.
+Unexecuted probes cover nested/deep objects, duplicate and escaped keys,
+lexical and malformed-key precedence, both directions, synchronized actual
+index work cancellation, and exact/below peak admission. Extra index storage
+can change budget/cancellation precedence. Nested arrays, general raw copies,
+diagnostic allocations, allocator transients and teardown remain separate
+boundaries; storage sentinel behavior and full #809 remain open.
+PostgreSQL 18.6 reports true for `[{"a":1,"a":2}] @> [{"a":2}]`, false for
+`[{"a":[1]}] @> [{"a":1}]`, and true for matching nested `outer.k` objects,
+with JSONB operands.

@@ -81,6 +81,16 @@ timestamp behavior unchanged. Existing mixed-case output discrepancies and the
 subsequent template parser/output and diagnostic allocation/cancellation
 limits remain open. All Cassie probes are unexecuted.
 
+PostgreSQL 18.6 resolves `to_char(TIME, text)` by converting the time to an
+interval with zero months and days and unchanged microseconds. The SQL TIME
+route now uses those interval fields and the same interval token validator,
+including 22007/HINT for calendar-only and timezone fields. Empty format and
+NULL remain NULL, and the result descriptor remains text. The existing
+TIMETZ overload gap is not changed. Jev selected this scoped route (0.92);
+oracle-backed 00:00, 24:00, fractional, quoted, invalid-field, descriptor and
+timestamp/interval sibling probes remain unexecuted. Existing formatter and
+diagnostic allocation/cancellation limitations remain open.
+
 Interval `RM` uses the decomposed year and month fields rather than a calendar
 month. PostgreSQL 18.6 renders zero years/months as empty; a positive full
 year as XII and a negative full year as I; and negative month remainders count

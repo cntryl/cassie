@@ -5,6 +5,49 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_time_values_using_interval_fields() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-to-char-time", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT to_char(TIME '00:00:00', 'HH12|HH24|MI|SS|MS|US|SSSS|AM|DDD|WW|Q|RM'), to_char(TIME '24:00:00', 'HH12|HH24|MI|SS|MS|US|SSSS|AM|DDD|WW|Q|RM'), to_char(TIME '12:34:56.123456', 'HH24:MI:SS.US'), to_char(TIME '12:34:56', '\"DAY\"'), to_char(TIME '12:34:56', '') IS NULL, to_char(NULL::time, 'HH24') IS NULL");
+    let boundary = fixture.execute("SELECT to_char(TIME '23:59:59.999999', 'HH12|HH24|MI|SS|MS|US|SSSS|AM'), to_char(TIMESTAMP '2000-01-01 12:34:56', 'HH24:MI:SS'), to_char(INTERVAL '12:34:56', 'HH24:MI:SS')");
+
+    // Assert
+    let result = result.expect("time formatting");
+    assert_eq!(result.columns()[0].data_type, "text");
+    assert_eq!(
+        result.rows(),
+        &[vec![
+            Value::String("12|00|00|00|000|000000|0|AM|000|01||".to_owned()),
+            Value::String("12|24|00|00|000|000000|86400|AM|000|01||".to_owned()),
+            Value::String("12:34:56.123456".to_owned()),
+            Value::String("DAY".to_owned()),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+    assert_eq!(
+        boundary.expect("time boundary and siblings").rows(),
+        &[vec![
+            Value::String("11|23|59|59|999|999999|86399|PM".to_owned()),
+            Value::String("12:34:56".to_owned()),
+            Value::String("12:34:56".to_owned()),
+        ]]
+    );
+    for field in ["DAY", "MON", "AD", "D", "ID", "TZ", "TZH", "TZM", "OF"] {
+        let error = fixture.execute(&format!("SELECT to_char(TIME '12:34:56', '{field}')"));
+        assert!(
+            matches!(error, Err(cassie::app::CassieError::Diagnostic(error))
+            if error.sql_state == "22007"
+                && error.message == "invalid format specification for an interval value"
+                && error.hint.as_deref() == Some("Intervals are not tied to specific calendar dates.")),
+            "{field}"
+        );
+    }
+}
+
+#[test]
 fn should_use_original_interval_year_sign_for_year_tail_padding() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-year-tail", &[]);

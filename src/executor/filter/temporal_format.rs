@@ -148,7 +148,7 @@ fn to_char(
     if template.is_empty() {
         return Ok(Value::Null);
     }
-    if matches!(value, TypedValue::Interval(_))
+    if matches!(value, TypedValue::Interval(_) | TypedValue::Time(_))
         && interval_template::invalid(template, || {
             if let Some(controls) = controls {
                 controls.check_interruption()?;
@@ -185,33 +185,35 @@ fn to_char(
                 info.abbreviation,
             )
         }
-        TypedValue::Interval(interval) => {
-            let time = interval.micros;
-            let fields = Fields {
-                year: interval.months / 12,
-                month: interval.months % 12,
-                day: interval.days,
-                hour: i32::try_from(time / USECS_PER_HOUR).unwrap_or(i32::MAX),
-                minute: i32::try_from((time % USECS_PER_HOUR) / USECS_PER_MINUTE).unwrap_or(0),
-                second: i32::try_from((time % USECS_PER_MINUTE) / USECS_PER_SEC).unwrap_or(0),
-                micros: time % USECS_PER_SEC,
-            };
-            (
-                Moment {
-                    fields,
-                    zone_east: None,
-                    is_interval: true,
-                },
-                String::new(),
-            )
-        }
+        TypedValue::Time(time) => (interval_moment(0, 0, *time), String::new()),
+        TypedValue::Interval(interval) => (
+            interval_moment(interval.months, interval.days, interval.micros),
+            String::new(),
+        ),
         _ => return Ok(Value::Null),
     };
     let hour = match value {
         TypedValue::Interval(interval) => interval.micros / USECS_PER_HOUR,
+        TypedValue::Time(time) => *time / USECS_PER_HOUR,
         _ => i64::from(moment.fields.hour),
     };
     Ok(Value::String(format::to_char_with_hour(
         &moment, template, &zone_name, hour,
     )))
+}
+
+fn interval_moment(months: i32, days: i32, time: i64) -> Moment {
+    Moment {
+        fields: Fields {
+            year: months / 12,
+            month: months % 12,
+            day: days,
+            hour: i32::try_from(time / USECS_PER_HOUR).unwrap_or(i32::MAX),
+            minute: i32::try_from((time % USECS_PER_HOUR) / USECS_PER_MINUTE).unwrap_or(0),
+            second: i32::try_from((time % USECS_PER_MINUTE) / USECS_PER_SEC).unwrap_or(0),
+            micros: time % USECS_PER_SEC,
+        },
+        zone_east: None,
+        is_interval: true,
+    }
 }

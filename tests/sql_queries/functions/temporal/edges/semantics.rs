@@ -609,3 +609,33 @@ fn should_preserve_constructor_field_priority_over_zone_resolution() {
         matches!(invalid_zone, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22023" && error.message == "time zone \"NoSuch/Zone\" not recognized")
     );
 }
+
+#[test]
+fn should_reject_out_of_range_make_interval_seconds_and_keep_session_usable() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-make-interval-seconds-range", &[]);
+    let cases = [
+        ("1e300", "22008", "interval out of range"),
+        ("-1e300", "22008", "interval out of range"),
+        ("1e308", "22003", "value out of range: overflow"),
+        ("-1e308", "22003", "value out of range: overflow"),
+    ];
+
+    for (seconds, state, message) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT make_interval(0, 0, 0, 0, 0, 0, {seconds})"
+        ));
+        let recovered = fixture.execute("SELECT 1");
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == state && error.message == message),
+            "{seconds}"
+        );
+        assert_eq!(
+            recovered.expect("session recovery").rows(),
+            &[vec![Value::Int64(1)]]
+        );
+    }
+}

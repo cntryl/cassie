@@ -7,7 +7,7 @@ use super::calendar::{
     UNIX_EPOCH_JDATE, UNIX_TO_POSTGRES_SECS, USECS_PER_DAY, USECS_PER_HOUR, USECS_PER_MINUTE,
     USECS_PER_SEC,
 };
-use super::tokens::{field_unit, round_half_even, unit_keyword, Keyword, Unit};
+use super::tokens::{field_unit, round_half_even, truncate_f64, unit_keyword, Keyword, Unit};
 use super::zone::Zone;
 use super::{range_error, Interval, TemporalSession};
 use crate::types::extended::TypeInputError;
@@ -683,7 +683,11 @@ pub fn make_interval(parts: [i32; 6], seconds: f64) -> Result<Interval, TypeInpu
         .checked_mul(7)
         .and_then(|value| value.checked_add(days))
         .ok_or_else(overflow)?;
-    let secs = round_half_even(seconds * 1_000_000.0);
+    let seconds_micros = seconds * 1_000_000.0;
+    if seconds_micros.is_infinite() {
+        return Err(error("22003", "value out of range: overflow"));
+    }
+    let secs = truncate_f64(seconds_micros.round_ties_even()).ok_or_else(overflow)?;
     let micros = i64::from(hours)
         .checked_mul(USECS_PER_HOUR)
         .and_then(|value| value.checked_add(i64::from(minutes) * USECS_PER_MINUTE))
@@ -871,3 +875,7 @@ mod tests {
         assert_eq!(bin.ok(), Some(ts("2020-02-11 15:32:30")));
     }
 }
+
+#[cfg(test)]
+#[path = "interval_make_tests.rs"]
+mod interval_make_tests;

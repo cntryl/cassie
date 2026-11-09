@@ -100,7 +100,22 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                         json_functions::evaluate_with_owner(local, args, controls, result_owner)
                     })
                     .or_else(|| json_mutations::evaluate(local, args, controls, result_owner))
-                    .or_else(|| json_path_functions::evaluate(local, args, controls, result_owner))
+                    .or_else(|| {
+                        let extraction_owner = result_owner.or_else(|| {
+                            let metadata = crate::sql::functions::function(local)?;
+                            if !matches!(
+                                metadata.id,
+                                crate::sql::functions::FunctionId::Json(
+                                    crate::sql::functions::json::JsonFunction::ExtractPath { .. }
+                                )
+                            ) {
+                                return None;
+                            }
+                            let (general, owner) = context.memory.zip(context.deletion_memory)?;
+                            std::ptr::eq(general, owner).then_some(owner)
+                        });
+                        json_path_functions::evaluate(local, args, controls, extraction_owner)
+                    })
                     .or_else(|| bytea_functions::evaluate(local, args, controls))
                     .or_else(|| math_random::evaluate(local, args, session))
                     .or_else(|| math_functions::evaluate(local, args))

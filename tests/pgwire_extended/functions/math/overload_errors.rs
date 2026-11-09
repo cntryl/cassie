@@ -903,3 +903,58 @@ fn should_preserve_smallint_width_bucket_null_error_and_visible_routine_behavior
         [25, 25, 25]
     );
 }
+
+#[test]
+fn should_use_float_width_bucket_for_binary_bigint_parameters() {
+    // Arrange
+    let statement = "bucket_integer_precision";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT WIDTH_BUCKET($1, $2, $3, 2)",
+            &[20, 20, 20],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                statement,
+                &[1],
+                &[
+                    Some(&9007199254740993_i64.to_be_bytes()),
+                    Some(&9007199254740992_i64.to_be_bytes()),
+                    Some(&9007199254740994_i64.to_be_bytes()),
+                ],
+                &[],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-integer-wire", steps);
+
+    // Assert
+    let parameters = batches[1]
+        .iter()
+        .find(|frame| frame.0 == b't')
+        .expect("parameter description");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        [20, 20, 20]
+    );
+    let row = batches[1]
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("row description");
+    assert_eq!(wire::parse_row_description(&row.1)[0].type_oid, 23);
+    assert_eq!(wire::error_code(&batches[2]), None);
+    assert_eq!(
+        wire::data_rows(&batches[2]),
+        vec![vec![Some("1".to_owned())]]
+    );
+}

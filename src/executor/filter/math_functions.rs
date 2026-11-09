@@ -272,11 +272,7 @@ fn width_bucket(args: &[Value]) -> Result<Value, QueryError> {
         return Ok(Value::Null);
     }
     let count = to_i64(count)?;
-    let result = if [operand, low, high].into_iter().any(is_numeric)
-        || [operand, low, high]
-            .into_iter()
-            .all(|value| matches!(value, Value::Int64(_)))
-    {
+    let result = if [operand, low, high].into_iter().any(is_numeric) {
         math::width_bucket(
             &to_numeric(operand)?,
             &to_numeric(low)?,

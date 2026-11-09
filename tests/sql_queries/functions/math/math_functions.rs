@@ -771,3 +771,33 @@ fn should_leave_width_bucket_count_literal_unchanged_for_a_visible_routine() {
         !matches!(result, Err(cassie::app::CassieError::Execution(message)) if message == "invalid input syntax for type integer: \"bad\"")
     );
 }
+
+#[test]
+fn should_use_float_width_bucket_for_integer_operands() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-integer-overload", &[]);
+
+    // Act
+    let precision = fixture.execute("SELECT WIDTH_BUCKET(9007199254740993::bigint, 9007199254740992::bigint, 9007199254740994::bigint, 2), WIDTH_BUCKET(9007199254740993::bigint, 9007199254740994::bigint, 9007199254740992::bigint, 2), WIDTH_BUCKET(9007199254740993::numeric, 9007199254740992::bigint, 9007199254740994::bigint, 2), WIDTH_BUCKET(1::smallint, 0::integer, 2::bigint, 2), WIDTH_BUCKET(NULL::bigint, 0::bigint, 1::bigint, 0) IS NULL");
+    let invalid_count = fixture.execute("SELECT WIDTH_BUCKET(0::bigint, 0::bigint, 0::bigint, 0)");
+    let overflow =
+        fixture.execute("SELECT WIDTH_BUCKET(1::bigint, 0::bigint, 1::bigint, 2147483647)");
+
+    // Assert
+    assert_eq!(
+        precision.expect("integer and numeric buckets").rows(),
+        &[vec![
+            Value::Int64(1),
+            Value::Int64(3),
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Bool(true)
+        ]]
+    );
+    assert!(
+        matches!(invalid_count, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "count must be greater than zero")
+    );
+    assert!(
+        matches!(overflow, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22003" && error.message == "integer out of range")
+    );
+}

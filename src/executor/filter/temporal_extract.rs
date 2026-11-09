@@ -7,7 +7,9 @@ use crate::types::extended::temporal::calendar::{
     MONTHS_PER_YEAR, POSTGRES_EPOCH_JDATE, SECS_PER_DAY, TIMESTAMP_END_JULIAN, UNIX_EPOCH_JDATE,
     UNIX_TO_POSTGRES_SECS, USECS_PER_DAY, USECS_PER_SEC,
 };
-use crate::types::extended::temporal::tokens::{field_unit, Unit};
+use crate::types::extended::temporal::tokens::{
+    date_keyword, field_unit, unit_keyword, Keyword, Reserved, Unit,
+};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
@@ -23,24 +25,40 @@ fn scaled(mantissa: i128, scale: u32) -> Numeric {
 }
 
 pub(super) fn validate_date_unit(unit_name: &str, source: &TypedValue) -> Result<(), QueryError> {
-    if matches!(source, TypedValue::Date(_))
-        && matches!(
-            field_unit(unit_name),
-            Some(
-                Unit::Hour
-                    | Unit::Minute
-                    | Unit::Second
-                    | Unit::Millisecond
-                    | Unit::Microsecond
-                    | Unit::Timezone
-                    | Unit::TimezoneHour
-                    | Unit::TimezoneMinute
-            )
-        )
-    {
-        return Err(unsupported(&unit_name.to_ascii_lowercase(), "date"));
+    if !matches!(source, TypedValue::Date(_)) {
+        return Ok(());
     }
-    Ok(())
+    let mut end = unit_name.len().min(63);
+    while !unit_name.is_char_boundary(end) {
+        end -= 1;
+    }
+    let lower = unit_name[..end].to_ascii_lowercase();
+    match unit_keyword(&lower).or_else(|| date_keyword(&lower)) {
+        Some(Keyword::Units(
+            Unit::Hour
+            | Unit::Minute
+            | Unit::Second
+            | Unit::Millisecond
+            | Unit::Microsecond
+            | Unit::Timezone
+            | Unit::TimezoneHour
+            | Unit::TimezoneMinute,
+        ))
+        | Some(Keyword::Reserved(
+            Reserved::Late
+            | Reserved::Early
+            | Reserved::Now
+            | Reserved::Today
+            | Reserved::Tomorrow
+            | Reserved::Yesterday
+            | Reserved::Zulu,
+        )) => Err(unsupported(&lower, "date")),
+        Some(Keyword::Units(_) | Keyword::Reserved(Reserved::Epoch)) => Ok(()),
+        _ => Err(type_error(crate::types::extended::TypeInputError::new(
+            "22023",
+            format!("unit \"{lower}\" not recognized for type date"),
+        ))),
+    }
 }
 
 /// Extracts supported fields from finite DATE values beyond timestamp's range.

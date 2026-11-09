@@ -414,10 +414,55 @@ fn numeric_error(error: crate::types::extended::TypeInputError) -> QueryError {
 
 #[cfg(test)]
 mod tests {
-    use super::{FunctionId, StatisticalAccumulator};
+    use super::{numeric_heap_bytes, FunctionId, StatisticalAccumulator};
     use crate::sql::ast::FunctionCall;
     use crate::types::extended::numeric::{math as numeric_math, Numeric};
     use crate::types::Value;
+
+    #[test]
+    fn should_count_statistical_numeric_magnitudes_at_byte_boundaries() {
+        // Arrange
+        let cases = [
+            (Numeric::from_i64(0), 0),
+            (Numeric::from_i64(1), 1),
+            (Numeric::from_i64(-255), 1),
+            (Numeric::from_i64(256), 2),
+            (Numeric::from_i64(-256), 2),
+            (Numeric::NaN, 0),
+            (Numeric::Infinity, 0),
+            (Numeric::NegInfinity, 0),
+        ];
+
+        // Act / Assert
+        for (value, expected) in cases {
+            let actual = numeric_heap_bytes(&value);
+            assert_eq!(actual, expected);
+            assert_eq!(
+                actual,
+                crate::types::typed::TypedValue::Numeric(value).heap_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn should_count_exact_statistical_state_after_update_and_merge() {
+        // Arrange
+        let mut left = accumulator(FunctionId::VarPop);
+        let mut right = accumulator(FunctionId::VarPop);
+        left.update("var_pop", &Value::Int64(256))
+            .expect("first input");
+        right
+            .update("var_pop", &Value::Int64(-256))
+            .expect("second input");
+
+        // Act
+        let before = left.retained_heap_bytes();
+        left.merge(&right).expect("merge states");
+
+        // Assert
+        assert_eq!(before, 5); // 256 uses two bytes; its square uses three.
+        assert_eq!(left.retained_heap_bytes(), 3); // Sum is zero; squares total 131072.
+    }
 
     fn accumulator(id: FunctionId) -> StatisticalAccumulator {
         let name = match id {

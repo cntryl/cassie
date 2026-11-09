@@ -209,7 +209,7 @@ pub(crate) fn apply_void_function_oids(projection: &[SelectItem], columns: &mut 
 }
 
 /// Applies PostgreSQL's internal one-byte `char` identity to the
-/// `pg_type.typtype` result column without changing Cassie's SQL text type.
+/// selected `pg_type` result columns without changing Cassie's SQL text type.
 pub(crate) fn apply_pg_type_kind_oid(
     source: &crate::sql::ast::QuerySource,
     projection: &[SelectItem],
@@ -218,13 +218,19 @@ pub(crate) fn apply_pg_type_kind_oid(
     if !query_source_contains_pg_type(source) {
         return;
     }
+    let direct_pg_type = query_source_is_pg_type(source);
+    let only_wildcard = matches!(projection, [SelectItem::Wildcard]);
 
     if projection
         .iter()
         .any(|item| matches!(item, SelectItem::Wildcard))
     {
         for column in columns {
-            if column.name.eq_ignore_ascii_case("typtype") {
+            if column.name.eq_ignore_ascii_case("typtype")
+                || (direct_pg_type
+                    && only_wildcard
+                    && column.name.eq_ignore_ascii_case("typcategory"))
+            {
                 apply_internal_char_identity(column);
             }
         }
@@ -232,9 +238,22 @@ pub(crate) fn apply_pg_type_kind_oid(
     }
 
     for (item, column) in projection.iter().zip(columns) {
-        if is_pg_type_kind_column(item) {
+        if is_pg_type_kind_column(item, direct_pg_type) {
             apply_internal_char_identity(column);
         }
+    }
+}
+
+fn query_source_is_pg_type(source: &crate::sql::ast::QuerySource) -> bool {
+    use crate::sql::ast::QuerySource;
+    match source {
+        QuerySource::Collection(name) => {
+            name.to_string().eq_ignore_ascii_case("pg_catalog.pg_type")
+        }
+        QuerySource::Aliased { source, .. } | QuerySource::TableSample { source, .. } => {
+            query_source_is_pg_type(source)
+        }
+        _ => false,
     }
 }
 
@@ -258,13 +277,13 @@ fn query_source_contains_pg_type(source: &crate::sql::ast::QuerySource) -> bool 
     }
 }
 
-fn is_pg_type_kind_column(item: &SelectItem) -> bool {
+fn is_pg_type_kind_column(item: &SelectItem, direct_pg_type: bool) -> bool {
     match item {
         SelectItem::Column { name, .. } => {
             crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|column| {
-                column
-                    .implicit_output_label()
-                    .eq_ignore_ascii_case("typtype")
+                let name = column.implicit_output_label();
+                name.eq_ignore_ascii_case("typtype")
+                    || (direct_pg_type && name.eq_ignore_ascii_case("typcategory"))
             })
         }
         _ => false,

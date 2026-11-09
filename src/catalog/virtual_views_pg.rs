@@ -8,6 +8,7 @@ use super::VirtualRow;
 
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
+mod type_identity;
 
 pub(super) fn namespace_schema() -> Vec<(String, DataType)> {
     vec![
@@ -776,8 +777,11 @@ fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> Virtual
         int_value("typnamespace", namespace_oid(catalog, namespace)),
         int_value("typlen", i64::from(data_type.typlen())),
         bool_value("typbyval", is_type_passed_by_value(data_type)),
-        string("typtype", type_kind(data_type)),
-        string("typcategory", type_category(data_type)),
+        string("typtype", type_identity::kind(data_type, builtin_type)),
+        string(
+            "typcategory",
+            type_identity::category(data_type, builtin_type),
+        ),
         int_value(
             "typelem",
             builtin_type.map_or_else(
@@ -808,36 +812,6 @@ fn is_type_passed_by_value(data_type: &DataType) -> bool {
             | DataType::Date
             | DataType::Time
     )
-}
-
-fn type_kind(data_type: &DataType) -> String {
-    if matches!(data_type, DataType::Array(_)) {
-        "a".to_string()
-    } else {
-        "b".to_string()
-    }
-}
-
-fn type_category(data_type: &DataType) -> String {
-    match data_type {
-        DataType::Null => "Z".to_string(),
-        DataType::Boolean => "B".to_string(),
-        DataType::SmallInt
-        | DataType::Int
-        | DataType::BigInt
-        | DataType::Float
-        | DataType::ObjectId(_) => "N".to_string(),
-        DataType::Name
-        | DataType::Text
-        | DataType::Char { .. }
-        | DataType::Varchar { .. }
-        | DataType::Json => "S".to_string(),
-        DataType::Bytea | DataType::Uuid | DataType::Jsonb | DataType::JsonPath => "U".to_string(),
-        DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
-        DataType::Vector(_) => "V".to_string(),
-        DataType::Array(_) => "A".to_string(),
-        DataType::Extended(kind) => kind.category().to_string(),
-    }
 }
 
 fn element_type_oid(data_type: &DataType) -> i64 {

@@ -160,6 +160,96 @@ fn should_decode_pg_type_kind_as_internal_char() {
 }
 
 #[test]
+fn should_describe_and_decode_pg_type_kind_and_category_as_internal_chars() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pg_type_kind_category_internal_char").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let direct = client.prepare("SELECT t.typtype AS kind, t.typcategory AS category FROM pg_catalog.pg_type t WHERE t.oid = $1").await.expect("prepare direct and aliased columns");
+        let unknown = client.query_one(&direct, &[&705_u32]).await.expect("unknown type");
+        let array = client.query_one(&direct, &[&1007_u32]).await.expect("array type");
+        let wildcard = client.prepare("SELECT * FROM pg_catalog.pg_type WHERE oid = $1").await.expect("prepare wildcard");
+        let wildcard_row = client.query_one(&wildcard, &[&1007_u32]).await.expect("array wildcard");
+        let kind = wildcard.columns().iter().position(|column| column.name() == "typtype").expect("kind column");
+        let category = wildcard.columns().iter().position(|column| column.name() == "typcategory").expect("category column");
+
+        // Assert
+        assert_eq!(direct.columns()[0].type_().oid(), 18);
+        assert_eq!(direct.columns()[1].type_().oid(), 18);
+        assert_eq!((unknown.get::<_, i8>(0), unknown.get::<_, i8>(1)), (b'p'.cast_signed(), b'X'.cast_signed()));
+        assert_eq!((array.get::<_, i8>(0), array.get::<_, i8>(1)), (b'b'.cast_signed(), b'A'.cast_signed()));
+        assert_eq!(wildcard.columns()[kind].type_().oid(), 18);
+        assert_eq!(wildcard.columns()[category].type_().oid(), 18);
+        assert_eq!((wildcard_row.get::<_, i8>(kind), wildcard_row.get::<_, i8>(category)), (b'b'.cast_signed(), b'A'.cast_signed()));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_unrelated_joined_typcategory_as_text() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pg_type_unrelated_category").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE other_category (typcategory TEXT)")
+            .await
+            .expect("create unrelated column");
+        client
+            .batch_execute("INSERT INTO other_category VALUES ('long')")
+            .await
+            .expect("insert unrelated value");
+
+        // Act
+        let statement = client.prepare("SELECT o.typcategory FROM pg_catalog.pg_type t JOIN other_category o ON t.oid = 23").await.expect("prepare join");
+        let row = client.query_one(&statement, &[]).await.expect("read unrelated value");
+
+        // Assert
+        assert_eq!(statement.columns()[0].type_().oid(), 25);
+        assert_eq!(row.get::<_, &str>(0), "long");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_keep_wildcard_duplicate_alias_as_text() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pg_type_wildcard_category_alias").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let statement = client
+            .prepare("SELECT *, 'long' AS typcategory FROM pg_catalog.pg_type WHERE oid = 23")
+            .await
+            .expect("prepare wildcard and duplicate alias");
+        let row = client
+            .query_one(&statement, &[])
+            .await
+            .expect("read wildcard and alias");
+        let alias = statement
+            .columns()
+            .iter()
+            .rposition(|column| column.name() == "typcategory")
+            .expect("duplicate alias");
+
+        // Assert
+        assert_eq!(statement.columns()[alias].type_().oid(), 25);
+        assert_eq!(row.get::<_, &str>(alias), "long");
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_export_binary_copy_rows_with_postgresql_scalar_type_encodings() {
     // Arrange
     let runtime = current_thread_runtime();

@@ -215,3 +215,56 @@ fn should_report_builtin_int4_array_type_links_in_pg_type() {
         ]
     );
 }
+
+#[test]
+fn should_report_builtin_type_kind_and_category_from_postgresql_identity() {
+    // Arrange
+    let fixture = sql_fixture("issue-817-pg-type-kind-category", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT oid, typtype, typcategory FROM pg_catalog.pg_type WHERE oid IN (16, 23, 25, 705, 1007, 2205, 3802) ORDER BY oid")
+        .expect("read built-in type classification");
+
+    // Assert
+    let expected = [
+        (16, "b", "B"),
+        (23, "b", "N"),
+        (25, "b", "S"),
+        (705, "p", "X"),
+        (1007, "b", "A"),
+        (2205, "b", "N"),
+        (3802, "b", "U"),
+    ]
+    .map(|(oid, kind, category)| {
+        vec![
+            Value::Int64(oid),
+            Value::String(kind.into()),
+            Value::String(category.into()),
+        ]
+    })
+    .to_vec();
+    assert_eq!(selected.rows(), expected);
+}
+
+#[test]
+fn should_keep_private_vector_type_classification() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-private-vector-type-kind",
+        &["CREATE TABLE vector_kind (embedding VECTOR(2))"],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute("SELECT typtype, typcategory FROM pg_catalog.pg_type WHERE typname = 'vector(2)'")
+        .expect("read private vector type");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![Value::String("b".into()), Value::String("V".into())]]
+    );
+}

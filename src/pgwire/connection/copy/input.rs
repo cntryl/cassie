@@ -12,6 +12,8 @@ mod binary_fixed;
 mod binary_float8;
 #[path = "input/binary_inet.rs"]
 mod binary_inet;
+#[path = "input/binary_interval.rs"]
+mod binary_interval;
 #[path = "input/binary_name.rs"]
 mod binary_name;
 #[path = "input/binary_network.rs"]
@@ -298,6 +300,13 @@ pub(super) fn parse_binary_payload(
             }
             if let Some((text, text_memory)) =
                 binary_float8::decode(type_oid, bytes, column_index, controls)?
+            {
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if let Some((text, text_memory)) =
+                binary_interval::decode(type_oid, bytes, column_index, controls)?
             {
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

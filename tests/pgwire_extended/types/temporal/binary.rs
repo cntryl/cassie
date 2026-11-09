@@ -202,3 +202,70 @@ fn should_accept_binary_temporal_parameters_with_explicit_postgresql_oids() {
         ]
     );
 }
+
+#[test]
+fn should_validate_timetz_binary_bounds_and_recover_on_same_connection() {
+    // Arrange
+    let frame = |time: i64, zone: i32| {
+        [time.to_be_bytes().as_slice(), zone.to_be_bytes().as_slice()].concat()
+    };
+    let mut overlong_valid = frame(0, 0);
+    overlong_valid.push(0);
+    let mut overlong_bad_time = frame(-1, 0);
+    overlong_bad_time.push(0);
+    let cases = [
+        (frame(0, 0), None),
+        (frame(86_400_000_000, -57_599), None),
+        (frame(0, 57_599), None),
+        (frame(-1, 0), Some("22008")),
+        (frame(86_400_000_001, 0), Some("22008")),
+        (frame(0, -57_600), Some("22009")),
+        (frame(0, 57_600), Some("22009")),
+        (frame(0, i32::MIN), Some("22009")),
+        (frame(0, i32::MAX), Some("22009")),
+        (frame(-1, i32::MIN), Some("22008")),
+        (vec![0; 11], Some("08P01")),
+        (overlong_valid, Some("22P03")),
+        (overlong_bad_time, Some("22008")),
+    ];
+    let mut steps = vec![Step::ParseFlush(wire::parse_frame_with_types(
+        "timetz_bounds",
+        "SELECT $1",
+        &[1266],
+    ))];
+    for (payload, _) in &cases {
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "timetz_bounds",
+                &[1],
+                &[Some(payload.as_slice())],
+                &[0],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 1",
+        )]));
+    }
+    // Act
+    let batches = run_script("timetz-binary-receive-boundaries", steps);
+    // Assert
+    for (index, (_, expected)) in cases.iter().enumerate() {
+        assert_eq!(
+            wire::error_code(&batches[1 + index * 2]).as_deref(),
+            *expected,
+            "case {index}"
+        );
+        assert_eq!(
+            wire::error_code(&batches[2 + index * 2]),
+            None,
+            "recovery {index}"
+        );
+        assert_eq!(
+            wire::data_rows(&batches[2 + index * 2]),
+            vec![vec![Some("1".to_owned())]]
+        );
+    }
+}

@@ -106,3 +106,45 @@ an explicit zone, `timestamptz` output, calendar arithmetic and `now()` use
 it. `now()`/`transaction_timestamp()` are fixed for an explicit transaction,
 `statement_timestamp()` per statement and `clock_timestamp()` per call;
 statements that read the clock bypass the result cache.
+
+### TIMETZ binary receive boundary (PostgreSQL 18.6)
+
+The binary payload is an i64 time in microseconds followed by an i32 zone in
+seconds west. PostgreSQL 18.6 accepts time from 0 through 86,400,000,000 and
+zone values strictly between -57,600 and +57,600. It checks time first (22008,
+`time out of range`), then zone (22009, `time zone displacement out of range`),
+then rejects unread bytes. A short frame is 08P01; excess bytes on otherwise
+valid data are 22P03. The current Cassie public receiver accepts out-of-range
+values, and its formatter can overflow while negating `i32::MIN`; the correction
+must cover the public receiver and wire paths, preserving short/error/excess
+precedence and same-session recovery. Oracle receipts:
+`target/scalar-oracle/timetz-binary-{boundaries,precedence}.txt`. Implementation
+and executable qualification remain pending.
+
+Jev selected (0.99) a private typed checked receiver with existing public
+String-result wrappers; wire binary errors retain 22008/22009 through the
+existing typed error handoff, and COPY maps only TIMETZ's typed input errors
+without changing unrelated OIDs. The checks preserve time-before-zone and
+validation-before-excess order. Public callers (0.75), wire priority (0.88),
+recovery (0.70), bounded diagnostic ownership (0.59) and COPY scope (0.42)
+require focused source and regression checks. Fixed-size diagnostic Strings
+are not claimed as pre-admitted. Tests are authored and unexecuted. Receipt:
+`target/assembly-review/timetz-receive-{request,response}.json`.
+
+The public `TimeTz` struct still permits direct construction with arbitrary
+fields; binary receive validation does not validate already constructed Rust
+values. Their formatting and ordering invariants are a separate pending public
+API contract, including `i32::MIN` zone negation and i64 arithmetic overflow.
+
+A separate PostgreSQL 18.6 binary COPY probe confirms that TIMETZ COPY reports
+08P01 on short fields, 22P03 on valid-prefix excess, and 22008/22009 on invalid
+values before excess. These TIMETZ-only COPY diagnostics use the same bounded
+fixed messages; unrelated OID error mappings are unchanged. Receipt:
+`target/scalar-oracle/timetz-copy-binary.txt`.
+
+TIMETZ array elements retain the same typed receive errors in binary Bind and
+COPY; excess data identifies the flattened one-based element ordinal, including
+multidimensional arrays. PostgreSQL 18.6 also reports an invalid earlier element
+before a later missing one in the probed case. The general binary array decoder's
+scratch admission and interruption remain separately pending. Receipts:
+`target/scalar-oracle/timetz-array-copy-{binary,order}.txt`.

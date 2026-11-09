@@ -1,3 +1,6 @@
+#[path = "codecs/timetz_error.rs"]
+mod timetz_error;
+
 #[path = "codecs/jsonb.rs"]
 mod jsonb;
 
@@ -337,6 +340,12 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
             .map(u32::from_be_bytes)
             .map(i64::from)
             .map(Value::Int64),
+        BinaryCodecKind::Extended(crate::types::extended::ExtendedType::TimeTz { .. }) => {
+            crate::types::extended::temporal::receive_timetz_checked(parameter)
+                .map(crate::types::typed::TypedValue::TimeTz)
+                .map(Value::Typed)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+        }
         BinaryCodecKind::Extended(kind) => {
             kind.receive_binary(parameter)
                 .map(Value::Typed)
@@ -568,7 +577,7 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
     let mut values = Vec::with_capacity(element_count);
     let mut sql_null_frame = false;
     let mut document_null_element = false;
-    for _ in 0..element_count {
+    for index in 0..element_count {
         let element_length = read_i32(parameter, &mut cursor, "array")?;
         if element_length == -1 {
             sql_null_frame = true;
@@ -583,7 +592,8 @@ fn decode_array(parameter: &[u8], expected_element_oid: i64) -> io::Result<Value
             .get(cursor..end)
             .ok_or_else(|| invalid_data("array"))?;
         cursor = end;
-        let value = binary_to_value(bytes, element_oid)?;
+        let value = binary_to_value(bytes, element_oid)
+            .map_err(|error| timetz_error::array_error(error, index))?;
         if matches!(value, Value::Json(ref document) if document.is_null()) {
             document_null_element = true;
         }
@@ -953,7 +963,9 @@ fn temporal_out_of_range(type_name: &'static str) -> io::Error {
 
 pub(super) fn binary_error_sqlstate(error: &io::Error) -> Option<&'static str> {
     let error = error.get_ref()?;
-    if let Some(error) = error.downcast_ref::<crate::types::extended::TypeInputError>() {
+    if let Some(state) = timetz_error::sqlstate(error) {
+        Some(state)
+    } else if let Some(error) = error.downcast_ref::<crate::types::extended::TypeInputError>() {
         Some(error.sqlstate)
     } else if error.is::<ExcessBinaryData>() {
         Some("22P03")
@@ -962,4 +974,10 @@ pub(super) fn binary_error_sqlstate(error: &io::Error) -> Option<&'static str> {
     } else {
         None
     }
+}
+
+pub(super) fn timetz_copy_error(
+    error: &io::Error,
+) -> Option<crate::types::extended::TypeInputError> {
+    timetz_error::copy_error(error)
 }

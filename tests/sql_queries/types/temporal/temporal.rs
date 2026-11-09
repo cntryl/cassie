@@ -83,6 +83,44 @@ fn should_prefer_the_session_zone_for_ambiguous_abbreviations() {
 }
 
 #[test]
+fn should_fall_back_to_global_abbreviations_when_session_zone_has_no_match() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-session-zone-global-fallback",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
+
+    // Act
+    let sql = "SELECT timezone('CST', TIMESTAMP '2024-01-01 00:00:00') = TIMESTAMPTZ '2024-01-01 06:00:00+00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
+fn should_respect_active_global_abbreviation_set_overrides() {
+    // Arrange
+    let australia = sql_fixture(
+        "issue-815-global-australia",
+        &[
+            "SET TIME ZONE 'UTC'",
+            "SET timezone_abbreviations = 'Australia'",
+        ],
+    );
+    let india = sql_fixture(
+        "issue-815-global-india",
+        &[
+            "SET TIME ZONE 'UTC'",
+            "SET timezone_abbreviations = 'India'",
+        ],
+    );
+
+    // Act and assert
+    assert_true(&australia, "SELECT timezone('CST', TIMESTAMP '2024-01-01 00:00:00') = TIMESTAMPTZ '2023-12-31 14:30:00+00'");
+    assert_true(&india, "SELECT timezone('IST', TIMESTAMP '2024-01-01 00:00:00') = TIMESTAMPTZ '2023-12-31 18:30:00+00'");
+}
+
+#[test]
 fn should_resolve_repeated_abbreviations_across_dst_boundaries_and_operand_kinds() {
     // Arrange
     let fixture = sql_fixture(

@@ -32,7 +32,9 @@ PostgreSQL 18.6 further showed MSK at +04 for a 2012 operand and +03 in 2020,
 including both timestamp and timestamptz `timezone` overloads; the 2011 gap
 and 2014 fold resolve to 22:30 UTC in the tested local-time cases. Shanghai
 CST resolves to +08, while New York falls back to the global -06; Shanghai
-LMT is +08:05:43 and New York LMT is -04:56:02. The oracle was stopped.
+LMT is +08:05:43 and New York LMT is -04:56:02. With a UTC session zone,
+the Australia set resolves CST as +09:30 and the India set resolves IST as
++05:30; New York CST falls back to -06. The oracle was stopped.
 
 The narrow draft uses the checked full-history search at the typed operand's
 instant for timestamp/timestamptz `timezone` and retains the public `Zone`

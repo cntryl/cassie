@@ -20,6 +20,10 @@ pub(super) mod jsonb;
 #[path = "document_unwind.rs"]
 mod unwind;
 
+#[cfg(test)]
+#[path = "document_plain_tests.rs"]
+mod plain_tests;
+
 #[path = "document_text_array.rs"]
 pub(super) mod text_array;
 
@@ -264,11 +268,19 @@ pub(super) struct Parsed {
     pub(super) root: NodeId,
 }
 
+#[derive(Clone, Copy)]
+enum ObjectPolicy {
+    Value,
+    #[cfg(test)]
+    Plain,
+}
+
 pub(super) struct Document<'a> {
     sources: SourceStack<'a>,
     frames: Frames,
     forest: Forest,
     controls: QueryExecutionControls,
+    object_policy: ObjectPolicy,
 }
 
 impl<'a> Document<'a> {
@@ -308,6 +320,33 @@ impl<'a> Document<'a> {
     fn parse_sources(
         sources: SourceStack<'a>,
         controls: &QueryExecutionControls,
+        observer: impl FnMut(DocumentProgress),
+    ) -> Result<Parsed, DocumentError> {
+        Self::parse_sources_with_policy(sources, controls, ObjectPolicy::Value, observer)
+    }
+
+    #[cfg(test)]
+    fn parse_plain(
+        input: &'a str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Parsed, DocumentError> {
+        Self::parse_plain_observed(input, controls, |_| {})
+    }
+
+    #[cfg(test)]
+    fn parse_plain_observed(
+        input: &'a str,
+        controls: &QueryExecutionControls,
+        observer: impl FnMut(DocumentProgress),
+    ) -> Result<Parsed, DocumentError> {
+        let sources = SourceStack::from_str(input, controls)?;
+        Self::parse_sources_with_policy(sources, controls, ObjectPolicy::Plain, observer)
+    }
+
+    fn parse_sources_with_policy(
+        sources: SourceStack<'a>,
+        controls: &QueryExecutionControls,
+        object_policy: ObjectPolicy,
         mut observer: impl FnMut(DocumentProgress),
     ) -> Result<Parsed, DocumentError> {
         let mut document = Self {
@@ -315,6 +354,7 @@ impl<'a> Document<'a> {
             frames: Frames::new(controls)?,
             forest: Forest::new(controls)?,
             controls: controls.clone(),
+            object_policy,
         };
         let root = match document.run(&mut observer) {
             Ok(root) => root,
@@ -477,10 +517,13 @@ impl<'a> Document<'a> {
             Some(_) => return Err(self.syntax(SyntaxKind::ExpectedKey)?),
         }
         let key = self.sources.step(|cursor| cursor.read_string())?;
-        let number_sentinel =
-            matches!(phase, Phase::ObjectFirst) && key.as_str() == "$serde_json::private::Number";
-        let raw_sentinel =
-            matches!(phase, Phase::ObjectFirst) && key.as_str() == "$serde_json::private::RawValue";
+        let value_policy = matches!(self.object_policy, ObjectPolicy::Value);
+        let number_sentinel = value_policy
+            && matches!(phase, Phase::ObjectFirst)
+            && key.as_str() == "$serde_json::private::Number";
+        let raw_sentinel = value_policy
+            && matches!(phase, Phase::ObjectFirst)
+            && key.as_str() == "$serde_json::private::RawValue";
         match self.whitespace()? {
             Some(b':') => {
                 self.consume()?;

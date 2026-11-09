@@ -33,4 +33,8 @@ pub(crate) use document::text_array::{parse as parse_text_array_candidate, Owned
 pub(crate) use forest::comparison::{
     cancel_comparison_frame_move_once, cancel_comparison_reverse_once, cancel_comparison_work_once,
 };
+pub(crate) use forest::object_keys::OwnedObjectKeys;
 pub(crate) use forest::InspectionRoot;
+
+#[cfg(test)]
+pub(crate) use forest::object_keys::{cancel_object_keys_copy_once, cancel_object_keys_visit_once};

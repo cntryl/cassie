@@ -21,6 +21,8 @@ pub(super) mod jsonb_number;
 mod jsonb_order;
 #[path = "jsonb_output.rs"]
 pub(super) mod jsonb_output;
+#[path = "json_object_keys.rs"]
+pub(super) mod object_keys;
 #[path = "output.rs"]
 pub(super) mod output;
 

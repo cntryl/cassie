@@ -57,6 +57,10 @@ pub(super) fn expand(
     Ok(chunk_rows(rows, crate::executor::batch::DEFAULT_BATCH_SIZE))
 }
 
+pub(super) fn requires_owner(projection: &[SelectItem]) -> bool {
+    object_keys_projection(projection).is_some()
+}
+
 fn object_keys_projection(
     projection: &[SelectItem],
 ) -> Option<(&crate::sql::ast::FunctionCall, Option<&str>)> {

@@ -16,6 +16,9 @@ mod character_casts;
 mod json_deletion_owner_tests;
 #[path = "projection/json_object_keys.rs"]
 mod json_object_keys;
+#[cfg(test)]
+#[path = "projection/json_object_keys_owner_tests.rs"]
+mod json_object_keys_owner_tests;
 
 static OWNED_VALUE_MOVES: AtomicU64 = AtomicU64::new(0);
 
@@ -75,6 +78,7 @@ where
 {
     let ops = compile_projection_ops(projection);
     let retain_cast_memory = character_casts::required(&ops);
+    let retain_object_keys = json_object_keys::requires_owner(projection);
     let evaluation = filter::evaluation::ProjectionValueContext {
         params,
         search: search_context,
@@ -84,8 +88,8 @@ where
     };
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
-        let retain_deletion_memory =
-            character_casts::deletion_required(&ops, &row, params, user_functions);
+        let retain_deletion_memory = retain_object_keys
+            || character_casts::deletion_required(&ops, &row, params, user_functions);
         let cast_memory =
             character_casts::Memory::new(retain_cast_memory, retain_deletion_memory, session)?;
         let data_types = super::projection_types::projected(&row, &ops, user_functions);

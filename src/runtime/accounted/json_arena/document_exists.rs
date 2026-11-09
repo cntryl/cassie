@@ -24,6 +24,13 @@ pub(crate) struct OwnedExistence {
 }
 
 impl OwnedExistence {
+    pub(crate) fn object_keys(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<super::super::OwnedObjectKeys>, CassieError> {
+        super::super::forest::object_keys::build(&self.parsed.forest, self.parsed.root, controls)
+    }
+
     pub(crate) fn inspection_root(
         &self,
     ) -> Result<super::super::forest::InspectionRoot, CassieError> {

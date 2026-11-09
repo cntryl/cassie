@@ -94,7 +94,9 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                 let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
                 super::temporal_functions::evaluate(local, args, controls)
                     .or_else(|| super::hash_functions::evaluate(local, args))
-                    .or_else(|| json_functions::evaluate(local, args, controls))
+                    .or_else(|| {
+                        json_functions::evaluate_with_owner(local, args, controls, result_owner)
+                    })
                     .or_else(|| json_mutations::evaluate(local, args, controls, result_owner))
                     .or_else(|| json_path_functions::evaluate(local, args, controls, result_owner))
                     .or_else(|| bytea_functions::evaluate(local, args, controls))

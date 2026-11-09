@@ -13,13 +13,27 @@ mod exists_function_tests;
 #[path = "json_inspection_root_tests.rs"]
 mod inspection_root_tests;
 
+#[cfg(test)]
+#[path = "json_object_keys_owned_tests.rs"]
+mod object_keys_owned_tests;
+
 #[path = "json_unique_keys.rs"]
 mod unique_keys;
 
+#[cfg(test)]
 pub(super) fn evaluate(
     name: &str,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+) -> Option<Result<Value, QueryError>> {
+    evaluate_with_owner(name, args, controls, None)
+}
+
+pub(super) fn evaluate_with_owner(
+    name: &str,
+    args: &[Value],
+    controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Option<Result<Value, QueryError>> {
     let FunctionId::Json(kind) = functions::function(name)?.id else {
         return None;
@@ -34,7 +48,7 @@ pub(super) fn evaluate(
             | JsonFunction::Exists(_)
             | JsonFunction::ObjectKeys(_)
     )
-    .then(|| inspect(kind, args, controls))
+    .then(|| inspect(kind, args, controls, owner))
 }
 
 fn sql_input(
@@ -89,6 +103,7 @@ fn inspect(
     kind: JsonFunction,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     let expected = if matches!(kind, JsonFunction::Exists(_)) {
         2
@@ -139,17 +154,21 @@ fn inspect(
         JsonFunction::SqlExists => unreachable!("SQL/JSON EXISTS uses JSONPath evaluation"),
         JsonFunction::SqlInput => unreachable!("JSON input uses its own evaluator"),
         JsonFunction::ObjectKeys(_) => {
-            let document = document(&args[0])?;
-            let object = document.as_object().ok_or_else(|| {
-                CassieError::InvalidParameterValue(
-                    "cannot call json_object_keys on a non-object".into(),
-                )
-            })?;
-            let mut keys = object.keys().cloned().collect::<Vec<_>>();
-            keys.sort();
-            Value::Json(serde_json::Value::Array(
-                keys.into_iter().map(serde_json::Value::String).collect(),
-            ))
+            if let Some(value) = controlled_object_keys(&args[0], controls, owner)? {
+                value
+            } else {
+                let document = document(&args[0])?;
+                let object = document.as_object().ok_or_else(|| {
+                    CassieError::InvalidParameterValue(
+                        "cannot call json_object_keys on a non-object".into(),
+                    )
+                })?;
+                let mut keys = object.keys().cloned().collect::<Vec<_>>();
+                keys.sort();
+                Value::Json(serde_json::Value::Array(
+                    keys.into_iter().map(serde_json::Value::String).collect(),
+                ))
+            }
         }
         JsonFunction::Typeof(_) => {
             use crate::runtime::accounted::json_arena::InspectionRoot;
@@ -230,6 +249,52 @@ fn inspect(
         controls.check_interruption()?;
     }
     Ok(result)
+}
+
+struct PendingObjectKeys {
+    value: Value,
+    memory: Option<crate::runtime::QueryMemoryReservation>,
+}
+
+fn controlled_object_keys(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
+) -> Result<Option<Value>, QueryError> {
+    let (Value::String(text), Some(controls), Some(owner)) = (value, controls, owner) else {
+        return Ok(None);
+    };
+    let Some(document) =
+        crate::runtime::accounted::json_arena::parse_existence_candidate(text, controls)?
+    else {
+        return Ok(None);
+    };
+    let Some(keys) = document.object_keys(controls)? else {
+        return Err(CassieError::InvalidParameterValue(
+            "cannot call json_object_keys on a non-object".into(),
+        )
+        .into());
+    };
+    let (value, memory) = keys.into_parts();
+    let mut pending = PendingObjectKeys {
+        value,
+        memory: Some(memory),
+    };
+    if !owner.belongs_to(controls)
+        || !pending
+            .memory
+            .as_ref()
+            .expect("key memory")
+            .belongs_to(controls)
+    {
+        return Err(CassieError::ResourceLimit(
+            "JSON object keys owner uses a different query tracker".into(),
+        )
+        .into());
+    }
+    controls.check_interruption()?;
+    owner.adopt(pending.memory.take().expect("key memory"));
+    Ok(Some(pending.value))
 }
 
 fn controlled_root(

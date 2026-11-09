@@ -14,6 +14,9 @@ cancellation and cleanup. The cancellation probe directly exercises the
 existing observed frame builder with an admitted message; it does not claim to
 observe the earlier `controlled_diagnostic` message-copy phase. The public
 embedded conversion to `CassieError::Parse(String)` and its detached String
-remain explicitly unqualified. This experiment stops at the owned encoded
+remain explicitly unqualified; a separate test-only conversion now records
+its exact display/descriptor semantics and demonstrates that the query lease
+is released while the public String remains alive. This does not count that
+public allocation or its subsequent clones. This experiment stops at the owned encoded
 frame; it does not prove an actual socket write, REST body, TLS/network buffer
 or transport flush. All tests remain unexecuted.

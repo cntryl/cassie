@@ -11,6 +11,13 @@ enum PrivateExecutionError {
 }
 
 impl PrivateExecutionError {
+    fn into_public(self) -> CassieError {
+        match self {
+            Self::Cassie(error) => error,
+            Self::Row(diagnostic) => CassieError::Parse(diagnostic.as_str().to_owned()),
+        }
+    }
+
     fn frame(
         &self,
         severity: PgWireSeverity,
@@ -92,6 +99,27 @@ fn should_preserve_worker_cancellation_in_private_execution_error() {
         Err(PrivateExecutionError::Cassie(CassieError::QueryCancelled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_public_parse_error_shape_while_marking_its_detached_owner_boundary() {
+    // Arrange
+    let controls = controls(1_048_576);
+    let private = simulated_execution(&controls).expect_err("row error");
+    let expected = serde_json::from_slice::<serde_json::Value>(b"[}\xff ")
+        .expect_err("legacy")
+        .to_string();
+    let bare = format!("invalid JSON in row blob: {expected}");
+    // Act
+    let public = private.into_public();
+    // Assert
+    assert_eq!(public.to_string(), format!("parse error: {bare}"));
+    let descriptor = public.descriptor();
+    assert_eq!(descriptor.sql_state, "42601");
+    assert_eq!(descriptor.message, bare);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    drop(descriptor);
+    drop(public);
 }
 
 #[test]

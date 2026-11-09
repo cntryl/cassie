@@ -181,8 +181,9 @@ impl AggregateAccumulator {
         {
             return super::modifiers::evaluate(function, rows, context);
         }
-        let mut accumulator = Self::new(function);
         let mut key_memory = super::group_memory::GroupMemory::new(context.controls)?;
+        // A retained accumulator must retire before the key reservation on errors.
+        let mut accumulator = Self::new(function);
         let mut retained_key_bytes = 0;
         for row in rows {
             super::check_timeout(context.controls)?;

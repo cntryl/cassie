@@ -8,6 +8,8 @@ use crate::types::extended::TypeInputError;
 
 #[path = "format_zone_catalog.rs"]
 mod catalog;
+#[path = "format_interval.rs"]
+mod interval;
 #[path = "format_zone.rs"]
 mod zone;
 use super::zone::AbbreviationSet;
@@ -373,6 +375,7 @@ fn render_field(
                 (padded(&case_like(spelling, name), fill, 9), None)
             }
         }
+        "ddd" if moment.is_interval => interval::span_field(fields, false, fill),
         "ddd" => numeric(julian() - date2j(fields.year, 1, 1) + 1, 3),
         "iddd" => numeric(
             i64::from(iso_year_day(fields.year, fields.month, fields.day)),
@@ -388,6 +391,7 @@ fn render_field(
             numeric(if day == 0 { 7 } else { day }, 1)
         }
         "w" => numeric(i64::from((fields.day - 1) / 7 + 1), 1),
+        "ww" if moment.is_interval => interval::span_field(fields, true, fill),
         "ww" => numeric((julian() - date2j(fields.year, 1, 1)) / 7 + 1, 2),
         "iw" => numeric(
             i64::from(iso_week(fields.year, fields.month, fields.day)),

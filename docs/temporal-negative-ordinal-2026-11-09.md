@@ -27,3 +27,15 @@ template before formatting the value. A nonempty template containing only an
 empty quoted literal still produces empty text. The temporal evaluator now
 preserves this distinction for timestamp, timestamptz, date, and interval;
 other overloads are unchanged. The SQL regression is unexecuted.
+
+For interval `DDD` and `WW`, PostgreSQL 18.6 computes an approximate span as
+`(years * 12 + months) * 30 + days`, using 32-bit signed fields; `DDD` renders
+that value and `WW` renders `(span - 1) / 7 + 1` with division toward zero.
+The pinned oracle build uses `-fwrapv`. Its observed extrema confirm wrapping
+after each 32-bit arithmetic operation: 2147483647 months renders `-30|-3`
+and -2147483648 days renders `-2147483648|306783379`. The last week result
+also witnesses wrapping of `span - 1`. Signed widths count the sign for these
+fields; `FM` removes padding. The interval-only calculation uses explicit
+wrapping and leaves date/timestamp calendar fields unchanged. Ordinary,
+negative, mixed-sign, extrema, ordinal, `FM` and timestamp controls are
+authored but unexecuted. This does not establish a general resource bound.

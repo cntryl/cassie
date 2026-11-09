@@ -5,6 +5,58 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_interval_day_of_year_and_week_from_approximate_span() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-day-of-year-week", &[]);
+    let cases = [
+        ("0", "000|0|000th|01|1|01st"),
+        ("1 day", "001|1|001st|01|1|01st"),
+        ("1 month", "030|30|030th|05|5|05th"),
+        ("1 year 2 months 3 days", "423|423|423rd|61|61|61st"),
+        ("-1 day", "-01|-1|-01st|01|1|01st"),
+        ("-1 month -3 days", "-33|-33|-33rd|-3|-3|-3rd"),
+        ("1 month -30 days", "000|0|000th|01|1|01st"),
+        ("1 month -31 days", "-01|-1|-01st|01|1|01st"),
+        ("7 days", "007|7|007th|01|1|01st"),
+        ("8 days", "008|8|008th|02|2|02nd"),
+    ];
+
+    for (interval, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{interval}', 'DDD|FMDDD|DDDth|WW|FMWW|WWth')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval span formatting").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 interval span: {interval}"
+        );
+    }
+
+    // Act
+    let extremes = fixture.execute("SELECT to_char(INTERVAL '2147483647 months', 'DDD|WW'), to_char(INTERVAL '-2147483648 months', 'DDD|WW'), to_char(INTERVAL '2147483647 days', 'DDD|WW'), to_char(INTERVAL '-2147483648 days', 'DDD|WW'), to_char(INTERVAL '2147483647 months 2147483647 days', 'DDD|WW')");
+    let date = fixture.execute("SELECT to_char(TIMESTAMP '2024-12-31', 'DDD|WW')");
+
+    // Assert
+    assert_eq!(
+        extremes.expect("interval span extremes").rows(),
+        &[vec![
+            Value::String("-30|-3".to_owned()),
+            Value::String("000|01".to_owned()),
+            Value::String("2147483647|306783379".to_owned()),
+            Value::String("-2147483648|306783379".to_owned()),
+            Value::String("2147483617|306783374".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        date.expect("timestamp day of year and week").rows(),
+        &[vec![Value::String("366|53".to_owned())]]
+    );
+}
+
+#[test]
 fn should_return_null_for_an_empty_temporal_to_char_template() {
     // Arrange
     let fixture = sql_fixture("issue-815-empty-temporal-to-char", &[]);

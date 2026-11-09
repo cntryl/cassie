@@ -85,13 +85,52 @@ struct State {
 /// # Errors
 /// Returns PostgreSQL's decode error class.
 pub fn decode_datetime(input: &str, session: &TemporalSession) -> Result<Decoded, DecodeError> {
+    decode_datetime_with_resolver(input, session, &mut |field, local| {
+        Ok(session
+            .zone
+            .abbreviation_offset(field, local)
+            .or_else(|| session.abbreviations.lookup(field)))
+    })
+}
+
+#[cfg(test)]
+#[derive(Debug, PartialEq, Eq)]
+enum ControlledDecodeError<E> {
+    Decode(DecodeError),
+    Control(E),
+}
+
+#[cfg(test)]
+fn decode_datetime_checked<E>(
+    input: &str,
+    session: &TemporalSession,
+    resolver: &mut impl FnMut(&str, i64) -> Result<Option<(i32, bool)>, E>,
+) -> Result<Decoded, ControlledDecodeError<E>> {
+    let mut error = None;
+    let result = decode_datetime_with_resolver(input, session, &mut |field, local| {
+        resolver(field, local).map_err(|failure| {
+            error = Some(failure);
+            DecodeError::BadFormat
+        })
+    });
+    match error {
+        Some(failure) => Err(ControlledDecodeError::Control(failure)),
+        None => result.map_err(ControlledDecodeError::Decode),
+    }
+}
+
+fn decode_datetime_with_resolver(
+    input: &str,
+    session: &TemporalSession,
+    resolver: &mut impl FnMut(&str, i64) -> Result<Option<(i32, bool)>, DecodeError>,
+) -> Result<Decoded, DecodeError> {
     let tokens = tokenize(input)?;
     if tokens.is_empty() {
         return Err(DecodeError::BadFormat);
     }
     let mut state = State::default();
     for (index, token) in tokens.iter().enumerate() {
-        let tmask = decode_datetime_field(&tokens, index, token, &mut state, session)?;
+        let tmask = decode_datetime_field(&tokens, index, token, &mut state, session, resolver)?;
         let Some(tmask) = tmask else { continue };
         if tmask & state.fmask != 0 {
             return Err(DecodeError::BadFormat);
@@ -156,6 +195,7 @@ fn decode_datetime_field(
     token: &Token,
     state: &mut State,
     session: &TemporalSession,
+    resolver: &mut impl FnMut(&str, i64) -> Result<Option<(i32, bool)>, DecodeError>,
 ) -> Result<Option<u32>, DecodeError> {
     let field = token.text.as_str();
     let tmask = match token.kind {
@@ -201,7 +241,7 @@ fn decode_datetime_field(
         }
         TokenKind::Number => decode_number_token(tokens, index, field, state, session)?,
         TokenKind::String | TokenKind::Special => {
-            return decode_keyword_field(tokens, index, field, state, session);
+            return decode_keyword_field(tokens, index, field, state, session, resolver);
         }
     };
     Ok(Some(tmask))
@@ -281,8 +321,13 @@ fn decode_keyword_field(
     field: &str,
     state: &mut State,
     session: &TemporalSession,
+    resolver: &mut impl FnMut(&str, i64) -> Result<Option<(i32, bool)>, DecodeError>,
 ) -> Result<Option<u32>, DecodeError> {
-    if let Some((east, dst)) = zone_abbreviation(field, state, session) {
+    let abbreviation = match zone_abbreviation_probe(field, state, session) {
+        Some(local) => resolver(field, local)?,
+        None => None,
+    };
+    if let Some((east, dst)) = abbreviation {
         if !dst {
             state.zone_west = Some(-east);
             return Ok(Some(TZ));
@@ -356,18 +401,22 @@ fn decode_keyword_field(
 }
 
 fn zone_abbreviation(field: &str, state: &State, session: &TemporalSession) -> Option<(i32, bool)> {
-    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
-        return None;
-    }
-    let local = if state.fmask & DATE_M == DATE_M {
-        local_micros(&state.fields)
-    } else {
-        session.transaction_start
-    };
+    let local = zone_abbreviation_probe(field, state, session)?;
     session
         .zone
         .abbreviation_offset(field, local)
         .or_else(|| session.abbreviations.lookup(field))
+}
+
+fn zone_abbreviation_probe(field: &str, state: &State, session: &TemporalSession) -> Option<i64> {
+    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
+        return None;
+    }
+    Some(if state.fmask & DATE_M == DATE_M {
+        local_micros(&state.fields)
+    } else {
+        session.transaction_start
+    })
 }
 
 fn decode_reserved(reserved: Reserved, state: &mut State, session: &TemporalSession) -> u32 {
@@ -859,3 +908,7 @@ mod tests {
         assert_eq!(bad, Err(DecodeError::FieldOverflow));
     }
 }
+
+#[cfg(test)]
+#[path = "decode_controlled_tests.rs"]
+mod controlled_tests;

@@ -116,7 +116,36 @@ fn to_char(
     let Value::Typed(value) = value else {
         return Ok(Value::Null);
     };
-    if template.is_empty() || !ops::is_finite(value) {
+    if !ops::is_finite(value) {
+        return Ok(Value::Null);
+    }
+    if let TypedValue::Date(date) = value {
+        let midnight = ops::date_to_timestamp(*date).map_err(type_error)?;
+        let offset = i64::from(session.zone.offset_for_local(midnight)) * USECS_PER_SEC;
+        let instant = midnight
+            .checked_sub(offset)
+            .filter(|instant| is_valid_timestamp(*instant))
+            .ok_or_else(|| type_error(range_error("date out of range for timestamp")))?;
+        if template.is_empty() {
+            return Ok(Value::Null);
+        }
+        let info = session.zone.info_at(instant);
+        let local = instant
+            .checked_add(i64::from(info.east) * USECS_PER_SEC)
+            .ok_or_else(|| type_error(range_error("timestamp out of range")))?;
+        let moment = Moment {
+            fields: timestamp_to_fields(local)
+                .ok_or_else(|| type_error(range_error("timestamp out of range")))?,
+            zone_east: Some(info.east),
+            is_interval: false,
+        };
+        return Ok(Value::String(format::to_char(
+            &moment,
+            template,
+            &info.abbreviation,
+        )));
+    }
+    if template.is_empty() {
         return Ok(Value::Null);
     }
     if matches!(value, TypedValue::Interval(_))
@@ -144,17 +173,6 @@ fn to_char(
             },
             String::new(),
         ),
-        TypedValue::Date(date) => {
-            let local = ops::date_to_timestamp(*date).map_err(type_error)?;
-            (
-                Moment {
-                    fields: timestamp_to_fields(local).ok_or_else(out_of_range)?,
-                    zone_east: Some(session.zone.offset_for_local(local)),
-                    is_interval: false,
-                },
-                String::new(),
-            )
-        }
         TypedValue::TimestampTz(instant) => {
             let info = session.zone.info_at(*instant);
             let local = instant + i64::from(info.east) * USECS_PER_SEC;

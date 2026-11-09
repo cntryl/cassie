@@ -89,6 +89,20 @@ backward from XII. SQL cases cover both sides of a 12-month boundary, padding,
 non-normalized month fields remain outside this parity claim. The probes are
 unexecuted.
 
+PostgreSQL 18.6 resolves `to_char(DATE, text)` through the session's
+timestamptz conversion: it first validates the date-to-timestamp threshold,
+interprets local midnight in the session zone, and validates the resulting UTC
+instant. Formatting then uses that instant's actual local fields, abbreviation
+and offset. This matters for midnight gaps and skipped civil days. The DATE
+conversion precedes even an empty template, so an out-of-range DATE still
+raises 22008; strict NULL arguments and infinite DATE values return NULL. The
+Jev-selected scoped correction (0.93) retains timestamp and interval paths.
+Oracle-backed zone, gap, skipped-day, fixed-offset boundary and NULL/infinity
+probes are unexecuted. Existing Jiff zone-range behavior, timezone-info String
+ownership and cancellation remain open. Separately, PostgreSQL renders zero
+TZH/TZM/OF fields for timestamp without time zone while the existing Cassie
+timestamp formatter emits empty fields; that sibling gap is not fixed here.
+
 For interval `Q`, PostgreSQL 18.6 emits nothing when the decomposed month
 component is zero, including interval zero and positive or negative whole
 years; an ordinal suffix is omitted too. Other interval month components keep

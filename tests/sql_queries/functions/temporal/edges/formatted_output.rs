@@ -5,6 +5,125 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_dates_via_the_session_timestamptz_conversion() {
+    // Arrange
+    let kolkata = sql_fixture(
+        "issue-815-date-format-kolkata",
+        &["SET TIME ZONE 'Asia/Kolkata'"],
+    );
+    let sao_paulo = sql_fixture(
+        "issue-815-date-format-sao-paulo",
+        &["SET TIME ZONE 'America/Sao_Paulo'"],
+    );
+    let apia = sql_fixture(
+        "issue-815-date-format-apia",
+        &["SET TIME ZONE 'Pacific/Apia'"],
+    );
+    let havana = sql_fixture(
+        "issue-815-date-format-havana",
+        &["SET TIME ZONE 'America/Havana'"],
+    );
+
+    // Act
+    let ordinary = kolkata.execute("SELECT to_char(DATE '2000-01-01', '[TZ]|[TZH]|[TZM]|[OF]'), to_char(TIMESTAMP '2000-01-01', 'YYYY-MM-DD HH24:MI')");
+    let gap = sao_paulo.execute("SELECT to_char(DATE '2018-11-04', 'YYYY-MM-DD HH24:MI TZ TZH:TZM OF'), to_char(TIMESTAMP '2018-11-04', 'YYYY-MM-DD HH24:MI')");
+    let skipped = apia.execute("SELECT to_char(DATE '2011-12-30', 'YYYY-MM-DD HH24:MI TZ TZH:TZM OF'), to_char(DATE '2011-12-31', 'YYYY-MM-DD HH24:MI TZ TZH:TZM OF')");
+    let fold =
+        havana.execute("SELECT to_char(DATE '2020-11-01', 'YYYY-MM-DD HH24:MI TZ TZH:TZM OF')");
+
+    // Assert
+    assert_eq!(
+        ordinary.expect("date session zone").rows(),
+        &[vec![
+            Value::String("[IST]|[+05]|[30]|[+05:30]".to_owned()),
+            Value::String("2000-01-01 00:00".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        gap.expect("date midnight gap").rows(),
+        &[vec![
+            Value::String("2018-11-04 01:00 -02 -02:00 -02".to_owned()),
+            Value::String("2018-11-04 00:00".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        skipped.expect("date skipped day").rows(),
+        &[vec![
+            Value::String("2011-12-31 00:00 +14 +14:00 +14".to_owned()),
+            Value::String("2011-12-31 00:00 +14 +14:00 +14".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        fold.expect("date midnight fold").rows(),
+        &[vec![Value::String(
+            "2020-11-01 00:00 CST -05:00 -05".to_owned()
+        )]]
+    );
+}
+
+#[test]
+fn should_validate_date_conversion_before_an_empty_but_not_null_format() {
+    // Arrange
+    let fixed = sql_fixture(
+        "issue-815-date-format-boundary",
+        &["SET TIME ZONE '<+14>-14'"],
+    );
+    let west = sql_fixture(
+        "issue-815-date-format-boundary-west",
+        &["SET TIME ZONE '<-12>+12'"],
+    );
+    let utc = sql_fixture(
+        "issue-815-date-format-boundary-utc",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    for (fixture, date) in [
+        (&fixed, "4714-11-24 BC"),
+        (&fixed, "5874897-12-31"),
+        (&utc, "5874897-12-31"),
+    ] {
+        for template in ["YYYY", ""] {
+            // Act
+            let result = fixture.execute(&format!("SELECT to_char(DATE '{date}', '{template}')"));
+
+            // Assert
+            assert!(
+                matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008" && error.message == "date out of range for timestamp"),
+                "{date} / {template:?}"
+            );
+        }
+    }
+
+    // Act
+    let safe = fixed.execute("SELECT to_char(DATE '4714-11-25 BC', 'YYYY-MM-DD HH24:MI TZ TZH:TZM'), to_char(DATE '294276-12-31', 'YYYY-MM-DD HH24:MI TZH:TZM'), to_char(DATE '5874897-12-31', NULL) IS NULL, to_char(DATE 'infinity', '') IS NULL, to_char(DATE '-infinity', 'YYYY') IS NULL");
+    let utc_min = utc.execute("SELECT to_char(DATE '4714-11-24 BC', 'YYYY-MM-DD HH24:MI TZH:TZM')");
+    let west_edges = west.execute("SELECT to_char(DATE '4714-11-24 BC', 'YYYY-MM-DD HH24:MI TZH:TZM'), to_char(DATE '294276-12-31', 'YYYY-MM-DD HH24:MI TZH:TZM')");
+
+    // Assert
+    assert_eq!(
+        safe.expect("date format boundary controls").rows(),
+        &[vec![
+            Value::String("4714-11-25 00:00 +14 +14:00".to_owned()),
+            Value::String("294276-12-31 00:00 +14:00".to_owned()),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+    assert_eq!(
+        utc_min.expect("UTC minimum date").rows(),
+        &[vec![Value::String("4714-11-24 00:00 +00:00".to_owned())]]
+    );
+    assert_eq!(
+        west_edges.expect("western offset date bounds").rows(),
+        &[vec![
+            Value::String("4714-11-24 00:00 -12:00".to_owned()),
+            Value::String("294276-12-31 00:00 -12:00".to_owned())
+        ]]
+    );
+}
+
+#[test]
 fn should_omit_interval_quarter_for_a_zero_month_component() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-quarter-zero-month", &[]);

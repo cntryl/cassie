@@ -45,7 +45,7 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         jsonb,
     } = op
     {
-        let document = json_concat::as_json_document(&left_value)?;
+        let document = json_concat::into_json_document(left_value)?;
         if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
             if let Some(value) = json_delete::controlled_extraction(
                 &document,
@@ -117,12 +117,12 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
         let right_is_json = is_json_typed_input(row, right, &right_value);
         if left_is_json || right_is_json {
             let left_value = if left_is_json {
-                json_concat::as_json_document(&left_value)?
+                json_concat::into_json_document(left_value)?
             } else {
                 left_value
             };
             let right_value = if right_is_json {
-                json_concat::as_json_document(&right_value)?
+                json_concat::into_json_document(right_value)?
             } else {
                 right_value
             };

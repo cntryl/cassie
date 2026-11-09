@@ -1,5 +1,15 @@
 # Controlled JSON extraction
 
+The owned expression-input follow-up moves an already-evaluated JSON String
+into the extraction carrier rather than cloning it. The same move applies to
+both typed concatenation operands; left/right conversion order and non-JSON
+scalar conversion/error behavior remain unchanged. The surrounding evaluation
+owner continues to cover an admitted input until the branch completes. Other
+source-column clones, scalar-to-JSON serialization, casts and consumers remain
+separate ownership obligations. Authored pointer, output/error and owner probes
+are unexecuted until the consolidated gate; moving a non-JSON operand into the
+helper can retire its temporary source earlier after conversion.
+
 This is a scoped implementation contract for #809, not an issue-completion
 claim. The source baseline is the tree of `dd74bbac`; executable qualification
 is deferred until the consolidated milestone bundle is complete.

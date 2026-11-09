@@ -8,6 +8,10 @@ use crate::app::CassieError;
 #[path = "json_concat_owned_tests.rs"]
 mod owned_tests;
 
+#[cfg(test)]
+#[path = "json_concat_move_tests.rs"]
+mod move_tests;
+
 pub(super) fn as_json_document(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
     match value {
         ScalarValue::Null | ScalarValue::Json(_) => Ok(value.clone()),
@@ -23,6 +27,13 @@ pub(super) fn as_json_document(value: &ScalarValue) -> Result<ScalarValue, Query
             "operator does not exist: jsonb || incompatible operands".into(),
         )
         .into()),
+    }
+}
+
+pub(super) fn into_json_document(value: ScalarValue) -> Result<ScalarValue, QueryError> {
+    match value {
+        value @ (ScalarValue::Null | ScalarValue::Json(_)) => Ok(value),
+        other => as_json_document(&other),
     }
 }
 

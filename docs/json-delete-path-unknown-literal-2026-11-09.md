@@ -51,3 +51,18 @@ not establish invalid-literal Parse parity. Explicit TEXT's existing
 `operator does not exist:` error maps to 42883 in `app/error/execution.rs`.
 The generated cast may add resource/cancellation precedence relative to the
 old rejected literal; the generic array parser remains unqualified.
+
+A narrower proposed flat-literal Parse check remains deferred because it could
+change left-to-right error priority. PostgreSQL 18.6 rejects
+`'{"n":1e131073}'::jsonb #- '{a'` with 22003,
+`'{"s":"\u0000"}'::jsonb #- '{a'` with 22P05, and
+`missing #- '{a'` with 42703 before reaching the malformed path. Cassie's
+current Fold `rejected_cast` relies on syntax-only `IgnoredAny` for JSONB and
+therefore cannot by itself establish the first two precedences; name/binder
+precedence also needs proof before a parent-level path check. The existing
+owned flat parser constructs an unowned `ArrayInput` diagnostic and treats
+nested/dimensioned shapes as fallback. A complete follow-up needs reusable
+owner-coupled diagnostics and controlled JSONB/identifier validation before
+any earlier RHS error, without guessed allocation bounds or a depth cap. A
+NULL-only special case is not a complete fix. These oracle checks do not
+represent a Cassie build or test run.

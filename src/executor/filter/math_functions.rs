@@ -272,21 +272,28 @@ fn width_bucket(args: &[Value]) -> Result<Value, QueryError> {
         return Ok(Value::Null);
     }
     let count = to_i64(count)?;
-    if [operand, low, high].into_iter().any(is_numeric)
+    let result = if [operand, low, high].into_iter().any(is_numeric)
         || [operand, low, high]
             .into_iter()
             .all(|value| matches!(value, Value::Int64(_)))
     {
-        return math::width_bucket(
+        math::width_bucket(
             &to_numeric(operand)?,
             &to_numeric(low)?,
             &to_numeric(high)?,
             count,
         )
         .map(Value::Int64)
-        .map_err(input_error);
+        .map_err(input_error)?
+    } else {
+        special::width_bucket_float(to_f64(operand)?, to_f64(low)?, to_f64(high)?, count)?
+    };
+    match result {
+        Value::Int64(value) if i32::try_from(value).is_err() => {
+            Err(error("22003", "integer out of range"))
+        }
+        other => Ok(other),
     }
-    special::width_bucket_float(to_f64(operand)?, to_f64(low)?, to_f64(high)?, count)
 }
 
 fn float_function(function: MathFunction, args: &[Value]) -> Result<Value, QueryError> {

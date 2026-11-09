@@ -307,3 +307,49 @@ fn should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero() 
         vec![vec![Some("45".to_owned())]]
     );
 }
+
+#[test]
+fn should_report_width_bucket_int4_overflow_and_keep_wire_session_usable() {
+    // Arrange
+    let queries = [
+        "SELECT WIDTH_BUCKET(1::float8, 0::float8, 1::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::float8, 1::float8, 0::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(1::numeric, 0::numeric, 1::numeric, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::numeric, 1::numeric, 0::numeric, 2147483647)",
+        "SELECT WIDTH_BUCKET(v, 0::float8, 1::float8, 2147483647) FROM (VALUES (0.5::float8), (1::float8)) AS inputs(v)",
+    ];
+    let mut steps = Vec::new();
+    for query in queries {
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(query)]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame("SELECT WIDTH_BUCKET('0.9999999999999999'::float8, 0::float8, 1::float8, 2147483647), WIDTH_BUCKET(0.9999999999::numeric, 0::numeric, 1::numeric, 2147483647)")]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-int4-wire", steps);
+
+    // Assert
+    for pair in batches.as_chunks::<2>().0 {
+        assert_eq!(wire::error_code(&pair[0]).as_deref(), Some("22003"));
+        assert!(!pair[0].iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
+        assert_eq!(pair[0].last().map(|frame| frame.0), Some(b'Z'));
+        assert_eq!(wire::error_code(&pair[1]), None);
+        assert_eq!(
+            wire::data_rows(&pair[1]),
+            vec![vec![
+                Some("2147483647".to_owned()),
+                Some("2147483647".to_owned())
+            ]]
+        );
+        let description = pair[1]
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .expect("descriptors");
+        assert_eq!(
+            wire::parse_row_description(&description.1)
+                .iter()
+                .map(|field| field.type_oid)
+                .collect::<Vec<_>>(),
+            [23, 23]
+        );
+    }
+}

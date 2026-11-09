@@ -620,3 +620,56 @@ fn should_reject_float_bucket_bounds_that_differ_only_by_zero_sign() {
         );
     }
 }
+
+#[test]
+fn should_reject_four_argument_width_bucket_results_above_int4() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-int4-overflow", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(1::float8, 0::float8, 1::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::float8, 1::float8, 0::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(1::numeric, 0::numeric, 1::numeric, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::numeric, 1::numeric, 0::numeric, 2147483647)",
+    ];
+
+    for query in queries {
+        // Act
+        let result = fixture.execute(query);
+        let recovered = fixture.execute("SELECT 1");
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22003" && error.message == "integer out of range"),
+            "{query}"
+        );
+        assert_eq!(
+            recovered.expect("session recovery").rows(),
+            &[vec![Value::Int64(1)]]
+        );
+    }
+}
+
+#[test]
+fn should_preserve_width_bucket_in_range_null_and_error_priority() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-int4-boundary", &[]);
+
+    // Act
+    let valid = fixture.execute("SELECT WIDTH_BUCKET('0.9999999999999999'::float8, 0::float8, 1::float8, 2147483647), WIDTH_BUCKET(0.9999999999::numeric, 0::numeric, 1::numeric, 2147483647), WIDTH_BUCKET('-Infinity'::float8, 0::float8, 1::float8, 2147483647), WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 0) IS NULL");
+    let invalid_count =
+        fixture.execute("SELECT WIDTH_BUCKET('NaN'::float8, 0::float8, 1::float8, 0)");
+
+    // Assert
+    assert_eq!(
+        valid.expect("valid buckets").rows(),
+        &[vec![
+            Value::Int64(i64::from(i32::MAX)),
+            Value::Int64(i64::from(i32::MAX)),
+            Value::Int64(0),
+            Value::Bool(true)
+        ]]
+    );
+    assert!(
+        matches!(invalid_count, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "count must be greater than zero")
+    );
+}

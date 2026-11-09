@@ -222,7 +222,7 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
     );
     assert_eq!(
         super::mixed_bucket_targets(&args, &small_count, &fresh),
-        None
+        Some([701, 701, 701, 23])
     );
     assert_eq!(
         super::mixed_bucket_targets(&no_anchor_args, &no_anchor, &[true, true, true, false]),
@@ -234,7 +234,7 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
             &no_anchor_small,
             &[true, true, true, false]
         ),
-        None
+        Some([701, 701, 701, 23])
     );
     assert_eq!(
         super::mixed_bucket_targets(
@@ -278,6 +278,44 @@ fn should_preserve_a_prior_count_cast_when_an_operand_snapshot_was_unknown() {
             super::super::diagnostics::ParameterSemanticDiagnostic::Inconsistent {
                 slot: 0,
                 previous: 23,
+                requested: 701,
+            }
+        ))
+    ));
+}
+
+#[test]
+fn should_preserve_a_prior_smallint_count_cast_when_operand_snapshot_was_unknown() {
+    // Arrange
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    let mut occurrences = super::super::occurrences::Occurrences::new(
+        1,
+        super::super::occurrences::PrivateParameterTypeInput::Wire(&[]),
+        &controls,
+        true,
+    )
+    .expect("occurrence ledger");
+    let mut operand = occurrences.parameter(0, &controls, true).expect("operand");
+    let mut count = occurrences
+        .parameter(0, &controls, true)
+        .expect("count cast");
+    occurrences
+        .coerce(&mut count, 21, true)
+        .expect("count type");
+
+    // Act
+    let result = occurrences.coerce(&mut operand, 701, true);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(super::super::ParameterAdmissionError::Semantic(
+            super::super::diagnostics::ParameterSemanticDiagnostic::Inconsistent {
+                slot: 0,
+                previous: 21,
                 requested: 701,
             }
         ))

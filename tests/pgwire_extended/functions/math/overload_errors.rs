@@ -766,3 +766,140 @@ fn should_preserve_known_count_null_later_cast_and_declared_routine_paths() {
     assert_eq!(wire::data_rows(&batches[2]), vec![vec![None, None]]);
     assert_eq!(wire::error_code(&batches[3]), None);
 }
+
+#[test]
+fn should_infer_width_bucket_operands_when_the_count_is_smallint() {
+    // Arrange
+    let cases: [(&str, &[i32], &[i32], &[&str], &str); 3] = [
+        (
+            "SELECT WIDTH_BUCKET($1, $2, $3, 2::smallint)",
+            &[],
+            &[701, 701, 701],
+            &["0.5", "0", "1"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET($1, 0::numeric, 1::numeric, 2::smallint)",
+            &[],
+            &[1700],
+            &["0.5"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET($1, $2, $3, $4)",
+            &[0, 0, 0, 21],
+            &[701, 701, 701, 21],
+            &["0.5", "0", "1", "2"],
+            "2",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (index, (sql, supplied, _, values, _)) in cases.iter().enumerate() {
+        let statement = format!("bucket_int2_count_{index}");
+        let portal = format!("bucket_int2_portal_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &statement, sql, supplied,
+        )));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(&statement),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame(&portal, &statement, values),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+    }
+    steps.push(Step::ParseFlush(wire::parse_frame(
+        "bucket_int2_conflict",
+        "SELECT WIDTH_BUCKET($1, $2, $3, $1::smallint)",
+    )));
+    steps.push(Step::ThroughReady(vec![wire::sync_frame()]));
+    steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+        "SELECT 45",
+    )]));
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-int2-count", steps);
+
+    // Assert
+    for (index, (_, _, types, _, expected)) in cases.iter().enumerate() {
+        let offset = index * 3;
+        assert_eq!(batches[offset].first().map(|frame| frame.0), Some(b'1'));
+        let parameters = batches[offset + 1]
+            .iter()
+            .find(|frame| frame.0 == b't')
+            .expect("parameter description");
+        assert_eq!(
+            wire::parse_parameter_description(&parameters.1).as_slice(),
+            *types
+        );
+        assert_eq!(wire::error_code(&batches[offset + 2]), None);
+        assert_eq!(
+            wire::data_rows(&batches[offset + 2]),
+            vec![vec![Some((*expected).to_owned())]]
+        );
+    }
+    assert_eq!(wire::error_code(&batches[9]).as_deref(), Some("42P08"));
+    assert!(error_response_fields(&batches[9])
+        .iter()
+        .any(|(field, value)| *field == 'D' && value == "smallint versus double precision"));
+    assert_eq!(
+        wire::data_rows(&batches[11]),
+        vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
+fn should_preserve_smallint_width_bucket_null_error_and_visible_routine_behavior() {
+    // Arrange
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "bucket_int2_null",
+            "SELECT WIDTH_BUCKET($1, $2, $3, (-1)::smallint)",
+        )),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                "bucket_int2_null",
+                &[0],
+                &[None, Some(b"0"), Some(b"1")],
+                &[],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("", "bucket_int2_null", &["0.5", "0", "1"]),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            r#"CREATE FUNCTION width_bucket(a TEXT, b TEXT, c TEXT, d TEXT) RETURNS TEXT AS "d""#,
+        )]),
+        Step::ParseFlush(wire::parse_frame(
+            "bucket_int2_routine",
+            "SELECT WIDTH_BUCKET($1, $2, $3, 2::smallint)",
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("bucket_int2_routine"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-int2-context", steps);
+
+    // Assert
+    assert_eq!(wire::data_rows(&batches[1]), vec![vec![None]]);
+    assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("2201G"));
+    assert_eq!(wire::error_code(&batches[3]), None);
+    let parameters = batches[5]
+        .iter()
+        .find(|frame| frame.0 == b't')
+        .expect("parameter description");
+    assert_eq!(
+        wire::parse_parameter_description(&parameters.1),
+        [25, 25, 25]
+    );
+}

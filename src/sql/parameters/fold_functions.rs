@@ -899,7 +899,7 @@ fn mixed_bucket_targets(
     }
     let anchor = match anchor {
         Some(anchor) => anchor,
-        None if summaries[3].oid == 23 => 701,
+        None if matches!(summaries[3].oid, 21 | 23) => 701,
         None => return None,
     };
     if unknowns == 0 || !summaries[3].qualified {
@@ -912,7 +912,7 @@ fn mixed_bucket_targets(
         if summaries[3].literal || !fresh[3] || slots.contains(&Some(*slot)) {
             return None;
         }
-    } else if summaries[3].oid != 23 {
+    } else if !matches!(summaries[3].oid, 21 | 23) {
         return None;
     }
     Some([anchor, anchor, anchor, 23])

@@ -173,3 +173,36 @@ fn should_reject_a_foreign_array_source_tracker() {
     drop(source);
     assert_eq!(left.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_cancel_during_eligibility_before_later_nonprimitive_fallback() {
+    // Arrange
+    let array = SqlArray::from_elements(vec![Value::Int64(1), Value::String("fallback".into())])
+        .expect("array");
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let source = controls.reserve_query_memory(32).expect("source");
+    let mut seen = false;
+
+    // Act
+    let result = copy_primitive_array(&array, &source, &controls, |progress| {
+        if matches!(progress, PrimitiveCopyProgress::Eligibility) {
+            seen = true;
+            cancellation.cancel();
+        }
+    });
+
+    // Assert
+    assert!(seen);
+    assert!(matches!(
+        result,
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 32);
+    drop(source);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

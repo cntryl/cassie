@@ -587,3 +587,34 @@ fn should_require_row_admission_for_empty_primitive_array() {
     drop(source);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_reject_primitive_array_result_from_another_row_tracker() {
+    // Arrange
+    use crate::types::array_value::primitive_copy::copy_primitive_array;
+    let first =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let second =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let source = first.reserve_query_memory(32).expect("source");
+    let array = crate::types::SqlArray::from_elements(vec![Value::Int64(1)]).expect("array");
+    let copy = copy_primitive_array(&array, &source, &first, |_| {})
+        .expect("copy")
+        .expect("primitive");
+    let result = primitive_array_output(copy);
+    drop(source);
+    let mut output = OutputRow::new(Vec::new(), &[], &second).expect("row");
+
+    // Act
+    let status = output.append(result, &["pct".into()]);
+
+    // Assert
+    assert!(matches!(
+        status,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert!(output.values.is_empty());
+    assert_eq!(first.current_query_memory_bytes(), 0);
+    drop(output);
+    assert_eq!(second.current_query_memory_bytes(), 0);
+}

@@ -134,3 +134,35 @@ fn should_retain_json_error_owner_and_match_serde_diagnostic() {
     drop(error);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_match_serde_private_keys_and_exponent_normalization() {
+    // Arrange
+    let inputs = [
+        r#"1E2"#,
+        r#"1e2"#,
+        r#"1e-02"#,
+        r#"-0"#,
+        r#"{"$serde_json::private::Number":"123"}"#,
+        r#"{"$serde_json::private::Number":"not-a-number"}"#,
+        r#"{"$serde_json::private::RawValue":"{\"a\":1}"}"#,
+        r#"{"$serde_json::private::RawValue":"{", "other": }"#,
+    ];
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    // Act / Assert
+    for text in inputs {
+        let expected = serde_json::from_str::<serde_json::Value>(text);
+        let actual = super::parse(text.as_bytes(), &controls);
+        match (expected, actual) {
+            (Ok(expected), Ok(actual)) => assert_eq!(actual.get(), &expected, "{text}"),
+            (Err(expected), Err(super::ParseError::InvalidJson { error, _memory })) => {
+                assert_eq!(error.to_string(), expected.to_string(), "{text}");
+                drop(error);
+                drop(_memory);
+            }
+            (expected, actual) => panic!("mismatch for {text}: {expected:?}, {actual:?}"),
+        }
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

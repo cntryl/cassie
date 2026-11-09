@@ -422,11 +422,9 @@ pub(super) fn parse_binary_payload(
                             )));
                         }
                     };
-                // Serialization and its output pre-admission remain pending.
-                let text_memory;
-                let text;
-                text = owner.get().to_string();
-                text_memory = controls.reserve_query_memory(text.capacity())?;
+                let output =
+                    crate::runtime::accounted::compact_json::serialize(owner.get(), controls)?;
+                let (text, text_memory) = output.into_parts();
                 row.push(Some(text));
                 row_memory.absorb(text_memory);
                 continue;

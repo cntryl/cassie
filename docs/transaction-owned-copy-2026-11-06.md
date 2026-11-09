@@ -413,3 +413,12 @@ resource limit before the old unchecked parser would have reported a later
 syntax error; invalid UTF-8 is still recognized before parser admission. The
 binary JSON caller drops a serde error before releasing its reservation, then
 emits the same generic invalid-binary diagnostic as before.
+
+The separately reviewed compact `serde_json::Value` writer is the selected
+binary JSON output handoff: keep the input Value and its reservation alive
+through serialization, then move the returned String and its reservation into
+the already-admitted row before infallibly absorbing that same-tracker lease.
+It preserves compact Value spelling and adds checked output scans/growth; it
+does not qualify the parser estimate, BTree comparisons, whole-string parser
+validation or recursive input Value drop. Output handoff probes are authored and
+unexecuted. Receipt: `target/assembly-review/json-compact-writer-{request,response}.json`.

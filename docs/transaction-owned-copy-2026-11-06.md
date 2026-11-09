@@ -324,3 +324,13 @@ error handling (0.35) and prerequisite range (0.33) require source checks and
 focused probes. Direct arbitrary Rust values, other codecs, and malformed
 diagnostic scratch remain pending. Probes remain unexecuted. Receipt:
 `target/assembly-review/copy-binary-timetz-{request,response}.json`.
+
+Jev selected (0.97) a shared fallible writer for default Postgres-style
+INTERVAL output (binary COPY OID 1186), preserving the existing String adapter,
+other styles, infinities, signed component arithmetic, pluralization and
+fraction trimming. The original binary decoder remains authoritative; COPY
+writes valid output to a checked stack and admits the final String. Formatting
+parity (0.86), i64/i32 extrema (0.81), owner lifetime (0.50), other callers
+(0.38) and decoder errors (0.33) require focused source checks and probes. Other
+codecs and malformed diagnostic scratch remain pending; probes unexecuted.
+Receipt: `target/assembly-review/copy-binary-interval-{request,response}.json`.

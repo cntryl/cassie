@@ -8,6 +8,10 @@ use super::session::IntervalStyle;
 use super::tokens::round_half_even;
 use std::fmt::Write as _;
 
+#[cfg(test)]
+#[path = "interval_postgres_tests.rs"]
+mod postgres_tests;
+
 #[path = "interval_input.rs"]
 mod input;
 pub use input::{interval_range, interval_typmod, parse_interval};
@@ -374,6 +378,16 @@ impl Interval {
         Ok(result)
     }
 
+    pub(crate) fn format_postgres_to(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
+        if *self == Self::INFINITY {
+            return out.write_str("infinity");
+        }
+        if *self == Self::NEG_INFINITY {
+            return out.write_str("-infinity");
+        }
+        Parts::of(self).postgres_to(out)
+    }
+
     /// `interval_out` in the given `IntervalStyle`.
     #[must_use]
     pub fn format(&self, style: IntervalStyle) -> String {
@@ -482,26 +496,32 @@ impl Parts {
 
     fn postgres(&self) -> String {
         let mut out = String::new();
+        self.postgres_to(&mut out)
+            .expect("String interval formatting");
+        out
+    }
+
+    fn postgres_to(&self, out: &mut impl std::fmt::Write) -> std::fmt::Result {
         let (mut is_zero, mut is_before) = (true, false);
         for (value, unit) in [(self.year, "year"), (self.month, "mon"), (self.day, "day")] {
             if value == 0 {
                 continue;
             }
-            let _ = write!(
+            write!(
                 out,
                 "{}{}{value} {unit}{}",
                 if is_zero { "" } else { " " },
                 if is_before && value > 0 { "+" } else { "" },
                 if value == 1 { "" } else { "s" }
-            );
+            )?;
             is_before = value < 0;
             is_zero = false;
         }
         if is_zero || self.has_time() {
             let minus = self.hour < 0 || self.minute < 0 || self.second < 0 || self.micros < 0;
-            let _ = write!(
+            write!(
                 out,
-                "{}{}{:02}:{:02}:",
+                "{}{}{:02}:{:02}:{:02}",
                 if is_zero { "" } else { " " },
                 if minus {
                     "-"
@@ -511,11 +531,28 @@ impl Parts {
                     ""
                 },
                 self.hour.unsigned_abs(),
-                self.minute.unsigned_abs()
-            );
-            append_seconds(&mut out, self.second, self.micros, true);
+                self.minute.unsigned_abs(),
+                self.second.unsigned_abs()
+            )?;
+            if self.micros != 0 {
+                let mut fraction = self.micros.unsigned_abs();
+                let mut digits = [b'0'; 6];
+                for digit in digits.iter_mut().rev() {
+                    *digit += u8::try_from(fraction % 10).expect("decimal digit");
+                    fraction /= 10;
+                }
+                let end = digits
+                    .iter()
+                    .rposition(|digit| *digit != b'0')
+                    .expect("nonzero fraction")
+                    + 1;
+                out.write_char('.')?;
+                for digit in &digits[..end] {
+                    out.write_char(char::from(*digit))?;
+                }
+            }
         }
-        out
+        Ok(())
     }
 
     fn verbose(&self) -> String {

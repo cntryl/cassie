@@ -12,8 +12,8 @@ keeps that guard while projection retention and budget checks borrow its
 batches. DISTINCT takes the batches only while the guard remains live through
 the consuming call; its own newly constructed directories are not covered by
 the old chunk lease, which is conservatively retained until finalization. The
-single `finalize_plan_rows` call takes batches under the guard, uses the existing
-flatten, then releases the guard only after the input directories are consumed.
+single `finalize_plan_rows` call takes batches under the guard, moves them into distinct flat storage, then
+releases the guard only after the input directories are consumed.
 Errors and interruption drop contained rows/directories before the associated
 leases. Batch buffer metric increments remain one per emitted nonempty batch.
 

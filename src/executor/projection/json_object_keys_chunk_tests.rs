@@ -212,3 +212,25 @@ fn should_release_both_directory_leases_after_actual_flatten_move_cancellation()
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_measured_flatten_overlap_and_release_on_below_peak() {
+    // Arrange
+    let generous = controls(64 * 1024 * 1024);
+    let (batches, projection) = fixture(1025);
+    let expanded = json_object_keys::expand(batches, &projection, &generous).expect("expansion");
+    let rows = expanded.flatten(&generous).expect("flatten");
+    let peak = generous.peak_query_memory_bytes();
+    drop(rows);
+    assert_eq!(generous.current_query_memory_bytes(), 0);
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let limited = controls(budget);
+        let (batches, projection) = fixture(1025);
+        let result = json_object_keys::expand(batches, &projection, &limited)
+            .and_then(|expanded| expanded.flatten(&limited));
+        assert_eq!(result.is_ok(), succeeds);
+        drop(result);
+        assert_eq!(limited.current_query_memory_bytes(), 0);
+    }
+}

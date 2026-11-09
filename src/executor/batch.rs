@@ -3,6 +3,10 @@ mod operator_memory;
 pub(crate) use operator_memory::OperatorMemory;
 
 #[cfg(test)]
+#[path = "batch/single_lookup_tests.rs"]
+mod single_lookup_tests;
+
+#[cfg(test)]
 #[path = "batch/operator_memory_tests.rs"]
 mod operator_memory_tests;
 
@@ -73,6 +77,9 @@ impl BatchRow {
     }
 
     pub(crate) fn get(&self, name: &str) -> Option<&Value> {
+        if self.aliases.is_empty() && self.values.len() == 1 && self.values[0].0 == name {
+            return Some(&self.values[0].1);
+        }
         let lookup = self
             .lookup
             .get_or_init(|| build_lookup(self.values.as_slice(), self.aliases.as_slice()));
@@ -210,6 +217,9 @@ impl BatchRow {
     }
 
     fn column_type(&self, name: &str) -> Option<&DataType> {
+        if self.aliases.is_empty() && self.values.len() == 1 && self.values[0].0 == name {
+            return self.data_types().first();
+        }
         let lookup = self
             .lookup
             .get_or_init(|| build_lookup(&self.values, &self.aliases));

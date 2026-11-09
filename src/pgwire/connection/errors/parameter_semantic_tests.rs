@@ -32,6 +32,76 @@ fn diagnostic() -> ParameterSemanticDiagnostic {
 }
 
 #[test]
+fn should_admit_hint_with_the_semantic_error_frame_at_the_exact_peak() {
+    // Arrange
+    let diagnostic = ParameterSemanticDiagnostic::ToCharTimeTz { qualified: false };
+    let hint = "No function matches the given name and argument types. You might need to add explicit type casts.";
+    let generous = controls(65_536);
+    let measured =
+        PgWireError::parameter_semantic(diagnostic, &generous).expect("measure hint frame");
+    let peak = generous.peak_query_memory_bytes();
+    drop(measured);
+    let exact = controls(peak);
+    let below = controls(peak - 1);
+
+    // Act
+    let success = PgWireError::parameter_semantic(diagnostic, &exact).expect("exact hint frame");
+    let failure = PgWireError::parameter_semantic(diagnostic, &below);
+
+    // Assert
+    assert_eq!(success.hint.as_deref(), Some(hint));
+    let encoded = success.encoded_semantic_frame().expect("owned frame");
+    let field = format!("H{hint}\0");
+    assert!(encoded
+        .windows(field.len())
+        .any(|window| window == field.as_bytes()));
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert!(exact.current_query_memory_bytes() > 0);
+    drop(success);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+    assert_eq!(below.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_cancel_during_semantic_hint_copy_and_release_every_owner() {
+    // Arrange
+    use super::parameter_semantic::{admitted_error_frame_observing, FrameCopyPhase};
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let mut error = PgWireError::new(
+        super::PgWireSeverity::Error,
+        "42883",
+        "missing function".to_owned(),
+    );
+    error.hint = Some("No function matches the given name and argument types. You might need to add explicit type casts.".to_owned());
+    let memory = controls
+        .reserve_query_memory(
+            std::mem::size_of::<PgWireError>()
+                + error.message.len()
+                + error.hint.as_ref().expect("hint").len(),
+        )
+        .expect("owner admission");
+    let mut observed = false;
+
+    // Act
+    let result = admitted_error_frame_observing(error, &controls, memory, |phase| {
+        if phase == FrameCopyPhase::Hint {
+            observed = true;
+            cancellation.cancel();
+        }
+    });
+
+    // Assert
+    assert!(observed);
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_retain_semantic_error_memory_until_the_owned_error_retires() {
     // Arrange
     let controls = controls(65_536);
@@ -269,6 +339,39 @@ impl AsyncWrite for PendingWrite {
 
     fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
+    }
+}
+
+#[test]
+fn should_retain_the_hint_owner_while_a_semantic_frame_is_pending() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    for pending_flush in [false, true] {
+        let controls = controls(65_536);
+        let diagnostic = ParameterSemanticDiagnostic::ToCharTimeTz { qualified: false };
+        let error =
+            Box::new(PgWireError::parameter_semantic(diagnostic, &controls).expect("error"));
+        let retained = controls.current_query_memory_bytes();
+        let mut writer = PendingWrite { pending_flush };
+        let mut send = Box::pin(async move {
+            super::super::writers::write_error_response(&mut writer, &error).await
+        });
+
+        // Act
+        runtime.block_on(poll_fn(|context| {
+            assert!(send.as_mut().poll(context).is_pending());
+            Poll::Ready(())
+        }));
+        let pending = controls.current_query_memory_bytes();
+        drop(send);
+
+        // Assert
+        assert!(retained > 0);
+        assert_eq!(pending, retained);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
 

@@ -83,6 +83,9 @@ impl Fold<'_, '_> {
             }
             return Ok(summary);
         }
+        if self.reject_timetz_to_char(function, frame)? {
+            return Ok(Summary::known(25));
+        }
         if let Some(metadata) = boolean_metadata {
             let star = matches!(function.args.as_slice(), [ast::Expr::Column(name)] if name == "*");
             if function.args.len() != 1 || star {

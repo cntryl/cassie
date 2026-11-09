@@ -9,6 +9,8 @@ mod clock_observation_contracts;
 mod formatted_input;
 #[path = "offset_formatting.rs"]
 mod offset_formatting;
+#[path = "timetz_format_signature.rs"]
+mod timetz_format_signature;
 
 #[test]
 fn should_describe_temporal_function_results_with_postgresql_types() {

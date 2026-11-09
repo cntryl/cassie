@@ -23,6 +23,8 @@ mod declared_functions;
 mod math_signatures;
 #[path = "row_predicates.rs"]
 mod row_predicates;
+#[path = "temporal_signatures.rs"]
+mod temporal_signatures;
 
 pub(super) fn validate_boolean_aggregate(
     function: &mut crate::sql::ast::FunctionCall,
@@ -31,6 +33,7 @@ pub(super) fn validate_boolean_aggregate(
     super::json_functions::qualify(function, types)?;
     super::bytea_functions::qualify(function, types)?;
     math_signatures::validate(function, types)?;
+    temporal_signatures::validate(function, types)?;
     if let Some(metadata) =
         crate::sql::functions::function(&function.name).filter(|metadata| metadata.is_aggregate)
     {

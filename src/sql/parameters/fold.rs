@@ -28,6 +28,8 @@ mod nodes;
 mod subqueries;
 #[path = "fold_table_sources.rs"]
 mod table_sources;
+#[path = "fold_temporal_functions.rs"]
+mod temporal_functions;
 
 #[derive(Clone, Copy)]
 enum Expected {

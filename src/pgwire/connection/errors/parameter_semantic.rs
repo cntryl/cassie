@@ -130,6 +130,11 @@ impl PgWireError {
         };
         let mut error = Self::new(PgWireSeverity::Error, diagnostic.code(), message);
         error.detail = detail;
+        if let Some(hint) = diagnostic.hint() {
+            let mut owned_hint = admitted_string(hint.len(), controls, &mut memory)?;
+            owned_hint.push_str(hint);
+            error.hint = Some(owned_hint);
+        }
         admitted_error_frame(error, controls, memory)
     }
 
@@ -235,6 +240,7 @@ fn append_text_checked(
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum FrameCopyPhase {
     Message,
+    Hint,
     Frame,
 }
 
@@ -281,6 +287,9 @@ pub(super) fn admitted_error_frame_observing(
     if let Some(detail) = &owned.error.detail {
         payload_size = add(payload_size, add(detail.len(), 2)?)?;
     }
+    if let Some(hint) = &owned.error.hint {
+        payload_size = add(payload_size, add(hint.len(), 2)?)?;
+    }
     let frame_length = add(payload_size, 4)?;
     if frame_length > super::super::writers::MAX_BACKEND_FRAME_BYTES {
         return Err(CassieError::ResourceLimit(
@@ -293,12 +302,15 @@ pub(super) fn admitted_error_frame_observing(
         (b'C', Some(owned.error.code)),
         (b'M', Some(owned.error.message.as_str())),
         (b'D', owned.error.detail.as_deref()),
+        (b'H', owned.error.hint.as_deref()),
     ] {
         if let Some(value) = value {
             payload.push(tag);
             append_bytes_checked(&mut payload, value.as_bytes(), controls, || {
                 if tag == b'M' {
                     progress(FrameCopyPhase::Message);
+                } else if tag == b'H' {
+                    progress(FrameCopyPhase::Hint);
                 }
             })?;
             payload.push(0);

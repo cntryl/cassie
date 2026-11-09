@@ -20,6 +20,7 @@ pub(crate) mod series_signature;
 mod source_identity;
 mod source_types;
 pub(crate) mod table_sources;
+pub(crate) mod timetz_format_signature;
 pub(crate) use source_identity::physical_collection;
 pub(crate) use source_types::{
     source_field_type_map_with_ctes, source_field_type_map_with_parameters,

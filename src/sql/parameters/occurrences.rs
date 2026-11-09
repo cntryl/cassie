@@ -106,6 +106,20 @@ pub(super) struct Occurrences<'a> {
 }
 
 impl<'a> Occurrences<'a> {
+    pub(super) fn original_wire_oid(&self, slot: usize) -> Option<i32> {
+        match self.input {
+            PrivateParameterTypeInput::Wire(oids) => oids.get(slot).copied(),
+            PrivateParameterTypeInput::Embedded { .. } => None,
+        }
+    }
+
+    pub(super) fn to_char_timetz(
+        &mut self,
+        qualified: bool,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::ToCharTimeTz { qualified })
+    }
+
     pub(super) fn stops_on_error(&self) -> bool {
         self.stop_on_error
     }

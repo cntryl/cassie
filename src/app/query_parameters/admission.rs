@@ -160,6 +160,14 @@ fn project_error(error: ParameterAdmissionError) -> CassieError {
             drop(reservation);
             error
         }
+        ParameterAdmissionError::Semantic(diagnostic) if diagnostic.hint().is_some() => {
+            let mut error =
+                crate::app::DiagnosticError::new(diagnostic.code(), diagnostic.message());
+            if let Some(hint) = diagnostic.hint() {
+                error = error.with_hint(hint);
+            }
+            error.into()
+        }
         // The existing public error shape has no ownership/detail/SQLSTATE carrier.
         ParameterAdmissionError::Semantic(diagnostic) if diagnostic.code() == "0A000" => {
             CassieError::Unsupported(diagnostic.message())

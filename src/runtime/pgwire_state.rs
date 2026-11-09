@@ -510,6 +510,35 @@ mod tests {
     }
 
     #[test]
+    fn should_leave_pending_pause_for_a_new_query_when_a_portal_resumes() {
+        // Arrange
+        let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
+        let target = runtime.register_pgwire_backend();
+        let suspended = target.begin_query().suspend();
+        let (_guard, selected, resume) = runtime
+            .pause_backend_after_aggregate_input(target.process_id(), target.secret_key())
+            .expect("arm backend");
+
+        // Act
+        let resumed = target.resume_query(suspended);
+        let limits = CassieRuntimeLimits::default();
+        let resumed_controls =
+            QueryExecutionControls::with_cancellation(&limits, Instant::now(), resumed.handle());
+        let resumed_result = resumed_controls.aggregate_input_retained();
+        let query = target.begin_query();
+        let controls =
+            QueryExecutionControls::with_cancellation(&limits, Instant::now(), query.handle());
+        let worker = std::thread::spawn(move || controls.aggregate_input_retained());
+        let reached = selected.recv_timeout(Duration::from_secs(1));
+        resume.send(()).expect("resume new query");
+
+        // Assert
+        assert!(resumed_result.is_ok());
+        reached.expect("new query claims the pending pause");
+        assert!(worker.join().expect("worker").is_ok());
+    }
+
+    #[test]
     fn should_ignore_wrong_pgwire_cancel_secret() {
         // Arrange
         let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));

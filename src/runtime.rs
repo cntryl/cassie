@@ -27,9 +27,7 @@ mod adaptive_metrics;
 #[path = "runtime/admission.rs"]
 mod admission;
 #[path = "runtime/aggregate_test_pause.rs"]
-mod aggregate_test_pause;
-#[cfg(test)]
-pub(crate) use aggregate_test_pause::pause_direct_handle_after_aggregate_input;
+pub(crate) mod aggregate_test_pause;
 #[path = "runtime/cache_state.rs"]
 mod cache_state;
 #[path = "runtime/column_batch_metrics.rs"]

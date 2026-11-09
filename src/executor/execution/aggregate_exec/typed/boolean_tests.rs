@@ -123,7 +123,9 @@ fn should_cancel_boolean_typed_input_after_the_last_transition() {
     // Arrange
     let mut cancellation = crate::runtime::QueryCancellationHandle::new();
     let (selected, resume) =
-        crate::runtime::pause_direct_handle_after_aggregate_input(&mut cancellation);
+        crate::runtime::aggregate_test_pause::pause_direct_handle_after_aggregate_input(
+            &mut cancellation,
+        );
     let controls = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),

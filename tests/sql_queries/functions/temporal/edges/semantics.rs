@@ -5,6 +5,33 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_return_null_for_an_empty_temporal_to_char_template() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-empty-temporal-to-char", &[]);
+
+    // Act
+    let nulls = fixture.execute(
+        "SELECT to_char(TIMESTAMP '2000-01-01', '') IS NULL, to_char(TIMESTAMPTZ '2000-01-01 00:00:00+00', '') IS NULL, to_char(DATE '2000-01-01', '') IS NULL, to_char(INTERVAL '1 day', '') IS NULL, to_char(TIMESTAMP 'infinity', '') IS NULL",
+    );
+    let quoted_empty = fixture.execute("SELECT to_char(INTERVAL '1 day', '\"\"')");
+    let ordinary = fixture.execute("SELECT to_char(TIMESTAMP '2000-01-01', 'YYYY')");
+
+    // Assert
+    assert_eq!(
+        nulls.expect("empty temporal formats").rows(),
+        &[vec![Value::Bool(true); 5]]
+    );
+    assert_eq!(
+        quoted_empty.expect("quoted empty literal").rows(),
+        &[vec![Value::String(String::new())]]
+    );
+    assert_eq!(
+        ordinary.expect("nonempty format").rows(),
+        &[vec![Value::String("2000".to_owned())]]
+    );
+}
+
+#[test]
 fn should_format_interval_centuries_by_truncating_signed_years() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-century", &[]);

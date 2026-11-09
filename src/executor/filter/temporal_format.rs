@@ -108,7 +108,7 @@ fn to_char(value: &Value, template: &str, session: &TemporalSession) -> Result<V
     let Value::Typed(value) = value else {
         return Ok(Value::Null);
     };
-    if !ops::is_finite(value) {
+    if template.is_empty() || !ops::is_finite(value) {
         return Ok(Value::Null);
     }
     let out_of_range = || type_error(range_error("timestamp out of range"));

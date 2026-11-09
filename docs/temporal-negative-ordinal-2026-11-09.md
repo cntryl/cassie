@@ -102,8 +102,13 @@ probes are unexecuted. Existing Jiff zone-range behavior, timezone-info String
 ownership and cancellation remain open. For timestamp without time zone,
 PostgreSQL 18.6 renders an empty TZ abbreviation and zero-valued TZH/TZM/OF
 fields independently of the session zone. The SQL timestamp path now supplies
-that zero displacement without changing public `Moment` behavior. `FMOF`
-formatting remains a separate gap. The SQL probes are unexecuted.
+that zero displacement without changing public `Moment` behavior. PostgreSQL
+18.6's `OF` renders a signed hour and, if the subhour offset is nonzero,
+minutes, dropping offset seconds; `FMOF` removes the hour's leading zero.
+Even an offset of only 30 seconds retains a `:00` minute field. This formatter is separate
+from the shared timezone-abbreviation formatter, whose behavior is unchanged.
+Oracle cases cover zero, positive and negative offsets, including historical
+offset seconds. The SQL probes are unexecuted.
 
 For interval `Q`, PostgreSQL 18.6 emits nothing when the decomposed month
 component is zero, including interval zero and positive or negative whole

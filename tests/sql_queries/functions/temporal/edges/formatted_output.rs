@@ -5,6 +5,39 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_offset_fields_without_seconds_and_honor_fill_mode() {
+    // Arrange
+    let kolkata = sql_fixture(
+        "issue-815-format-offset-east",
+        &["SET TIME ZONE 'Asia/Kolkata'"],
+    );
+    let new_york = sql_fixture(
+        "issue-815-format-offset-west",
+        &["SET TIME ZONE 'America/New_York'"],
+    );
+
+    // Act
+    let east = kolkata.execute("SELECT to_char(TIMESTAMPTZ '1900-01-01 00:00:00+00', 'OF|FMOF|TZH:TZM'), to_char(TIMESTAMP '2000-01-01', 'OF|FMOF|TZH:TZM')");
+    let west = new_york.execute("SELECT to_char(TIMESTAMPTZ '1800-01-01 00:00:00+00', 'OF|FMOF|TZH:TZM'), to_char(TIMESTAMPTZ '1900-01-01 00:00:00+00', 'OF|FMOF|TZH:TZM')");
+
+    // Assert
+    assert_eq!(
+        east.expect("eastern and unzoned offsets").rows(),
+        &[vec![
+            Value::String("+05:21|+5:21|+05:21".to_owned()),
+            Value::String("+00|+0|+00:00".to_owned()),
+        ]]
+    );
+    assert_eq!(
+        west.expect("western offsets").rows(),
+        &[vec![
+            Value::String("-04:56|-4:56|-04:56".to_owned()),
+            Value::String("-05|-5|-05:00".to_owned()),
+        ]]
+    );
+}
+
+#[test]
 fn should_format_timestamp_without_zone_with_zero_numeric_offsets() {
     // Arrange
     let kolkata = sql_fixture(

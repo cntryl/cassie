@@ -3,7 +3,6 @@ use super::calendar::{
     date2j, days_in_month, iso_week, iso_week_to_julian, iso_year, iso_year_day, j2date, j2day,
     Fields, USECS_PER_SEC,
 };
-use super::zone::offset_abbreviation;
 use crate::types::extended::TypeInputError;
 
 #[path = "format_zone_catalog.rs"]
@@ -271,7 +270,7 @@ fn render_name_field(
         "of" => (
             moment
                 .zone_east
-                .map(offset_abbreviation)
+                .map(|east| zone::format_offset(east, fill))
                 .unwrap_or_default(),
             None,
         ),

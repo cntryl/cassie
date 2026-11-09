@@ -47,3 +47,12 @@ that SQL settings can install the synthetic instance. Jiff features can unify in
 downstream consumers, so bundled-zone provenance must not be assumed. Proving
 real setting reachability and a public way to inspect the actual zone's complete
 raw type table remain open. No new classification is promoted on this basis.
+
+Jev selected an isolated test-only classifier as the next step
+(`target/assembly-review/temporal-dynamic-classification-contract-*`). A
+reachable-interval scan compares both offset and daylight-saving flag, checks
+interruption during traversal, and classifies a known spelling as fixed or
+varying. The PostgreSQL raw-type distinction, final-date application, token
+masks, cache, SQL-cast wiring, owner and resource bounds remain unproved. The
+bundled data inspection cannot discriminate all actual Jiff zone databases; no
+production path is selected or enabled by this prototype.

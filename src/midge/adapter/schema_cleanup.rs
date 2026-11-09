@@ -215,6 +215,7 @@ impl Midge {
                 "deferred index cleanup requires a nontransactional storage scope".to_owned(),
             ));
         }
+        let _fresh_reads = super::StatementReadScope::enter(None);
         let canonical = self.canonical_collection_name(table);
         let gate = self.collection_write_gate(&canonical);
         let _guard = gate.lock();
@@ -288,6 +289,91 @@ mod tests {
     use super::{key_encoding, Midge, Uuid};
     use crate::catalog::{IndexKind, IndexMeta};
     use crate::midge::adapter::StorageFamily;
+
+    #[test]
+    fn should_use_current_index_metadata_during_cleanup_inside_a_stale_read_scope() {
+        // Arrange
+        let midge = std::sync::Arc::new(Midge::new_in_memory("postgres").expect("create Midge"));
+        midge
+            .create_collection(
+                "cleanup_snapshot",
+                crate::types::Schema {
+                    fields: vec![crate::types::FieldSchema {
+                        name: "id".to_owned(),
+                        data_type: crate::types::DataType::Int,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("create collection");
+        midge
+            .put_document(
+                "cleanup_snapshot",
+                Some("row".to_owned()),
+                serde_json::json!({"id": 1}),
+            )
+            .expect("row");
+        let controls = crate::runtime::QueryExecutionControls::with_cancellation(
+            &crate::config::CassieRuntimeLimits::default(),
+            std::time::Instant::now(),
+            crate::runtime::QueryCancellationHandle::new(),
+        );
+        let snapshot =
+            crate::midge::adapter::StatementDataRead::capture(&midge, "postgres", &controls)
+                .expect("old snapshot");
+        let index = IndexMeta {
+            definition_semantics_version: 0,
+            collection: "cleanup_snapshot".to_owned(),
+            name: "cleanup_snapshot_idx".to_owned(),
+            field: "id".to_owned(),
+            fields: vec!["id".to_owned()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
+        midge.put_index(&index).expect("index");
+        let stored = midge
+            .get_index(&index.collection, &index.name)
+            .expect("read")
+            .expect("index");
+        let prefix = Midge::scalar_index_data_prefix(
+            stored.relation_id().expect("relation"),
+            stored.storage_id().expect("index id"),
+        );
+        assert!(!midge
+            .raw_scan_prefix(StorageFamily::Data, &prefix)
+            .expect("entries")
+            .is_empty());
+        midge
+            .defer_drop_index(&index.collection, &index.name, 0)
+            .expect("defer");
+        let cleanup = midge
+            .pending_schema_cleanups()
+            .expect("scan")
+            .pop()
+            .expect("marker");
+
+        // Act
+        {
+            let _scope = crate::midge::adapter::StatementReadScope::enter(Some(&snapshot));
+            midge
+                .complete_pending_schema_cleanup(&cleanup)
+                .expect("current cleanup");
+        }
+
+        // Assert
+        assert!(midge
+            .raw_scan_prefix(StorageFamily::Data, &prefix)
+            .expect("entries")
+            .is_empty());
+        assert!(midge
+            .get_index(&index.collection, &index.name)
+            .expect("read")
+            .is_none());
+    }
 
     #[test]
     fn should_ignore_a_stale_cleanup_record_after_a_name_is_reused() {

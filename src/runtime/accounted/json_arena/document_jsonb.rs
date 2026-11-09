@@ -68,6 +68,35 @@ pub(crate) fn parse_field(
     })
 }
 
+// Array fallback uses this only after the same immutable field has already
+// completed JSONB canonical validation in its envelope pass.
+pub(in crate::runtime::accounted::json_arena) fn reparse_compact_field(
+    source: &[u8],
+    column: usize,
+    controls: &QueryExecutionControls,
+) -> Result<OwnedJsonText, JsonbFieldError> {
+    controls
+        .check_interruption()
+        .map_err(JsonbFieldError::Control)?;
+    let Some((&version, body)) = source.split_first() else {
+        return Err(fixed(FixedError::Missing, column, controls));
+    };
+    if version != 1 {
+        return Err(fixed(FixedError::Version(version), column, controls));
+    }
+    let sources = SourceStack::from_bytes(body, controls).map_err(|error| match error {
+        CursorError::InvalidUtf8 => fixed(FixedError::Utf8, column, controls),
+        CursorError::Interrupted(error) => JsonbFieldError::Control(error),
+        _ => JsonbFieldError::Control(CassieError::Execution(
+            "unexpected JSONB source error".into(),
+        )),
+    })?;
+    let parsed = Document::parse_sources(sources, controls, |_| {})
+        .map_err(|error| document_error(error, column, controls))?;
+    super::super::forest::output::serialize(&parsed.forest, parsed.root)
+        .map_err(JsonbFieldError::Control)
+}
+
 fn document_error(
     error: DocumentError,
     column: usize,

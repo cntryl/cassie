@@ -79,7 +79,10 @@ impl<'a> Stack<'a> {
     }
 }
 
-fn serialize(forest: &Forest, root: NodeId) -> Result<OwnedJsonText, CassieError> {
+pub(in crate::runtime::accounted::json_arena) fn serialize(
+    forest: &Forest,
+    root: NodeId,
+) -> Result<OwnedJsonText, CassieError> {
     serialize_with_observer(forest, root, |_| {})
 }
 

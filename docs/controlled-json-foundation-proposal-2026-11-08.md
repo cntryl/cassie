@@ -617,3 +617,19 @@ If constructing the admitted response encounters a query limit or cancellation,
 the existing generic pgwire mapper supplies the resource or cancellation error;
 the normal COPY failure/rollback and ReadyForQuery path still runs, and the
 original JSONB diagnostic remains owned until that response completes.
+
+## JSONB array envelope and dual output
+
+Jev selected an isolated JSONB array prototype retaining the existing array
+decoder's six-dimension maximum and all error order. Validate header and the
+minimum element-length area first; validate each non-null JSONB element in wire
+order before checking trailer, null flag, document-null rejection and final
+shape. SQL NULL and JSON document null are distinct. Keep the payload owner and
+admit each retained element range and every rendering workspace. After validation,
+reparse retained element slices for output: this makes a later query-memory or
+control failure possible, but does not silently change accepted values or input
+syntax. Normal output uses the existing SQL-array quoting and dimensions; when
+the existing bounds formatter fails despite a valid shape, output the original
+compact nested JSON representation instead of canonical JSONB. Preserve the
+existing empty-array and exact element error diagnostics. The prototype does
+not wire a live array route, qualify synchronous teardown or claim executed tests.

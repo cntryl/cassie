@@ -7,6 +7,10 @@ mod directory;
 mod document;
 #[path = "json_arena/forest.rs"]
 mod forest;
+#[path = "json_arena/jsonb_array_envelope.rs"]
+pub(crate) mod jsonb_array_envelope;
+#[path = "json_arena/jsonb_array_output.rs"]
+pub(crate) mod jsonb_array_output;
 #[path = "json_arena/object.rs"]
 mod object;
 #[path = "json_arena/slots.rs"]

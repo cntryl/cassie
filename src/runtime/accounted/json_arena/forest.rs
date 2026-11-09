@@ -19,9 +19,8 @@ mod jsonb_number;
 mod jsonb_order;
 #[path = "jsonb_output.rs"]
 pub(super) mod jsonb_output;
-#[cfg(test)]
 #[path = "output.rs"]
-mod output;
+pub(super) mod output;
 
 #[path = "retirement.rs"]
 mod retirement;

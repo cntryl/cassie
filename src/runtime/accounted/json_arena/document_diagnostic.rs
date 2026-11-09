@@ -11,7 +11,7 @@ use super::{CursorError, DocumentError, Position, SyntaxKind, WrappedCause};
 mod tests;
 
 #[derive(Debug)]
-pub(super) enum DiagnosticError {
+pub(in crate::runtime::accounted::json_arena) enum DiagnosticError {
     Control(CassieError),
     NotSemantic,
 }
@@ -78,12 +78,14 @@ pub(super) fn render(
     finish(&stack, controls)
 }
 
-pub(super) enum FixedError {
+pub(in crate::runtime::accounted::json_arena) enum FixedError {
     Missing,
     Version(u8),
     Utf8,
     Numeric,
     Nul,
+    ArrayInvalid,
+    ArrayDocumentNull,
 }
 
 impl fmt::Display for FixedError {
@@ -94,11 +96,15 @@ impl fmt::Display for FixedError {
             Self::Utf8 => out.write_str("invalid byte sequence for encoding UTF8"),
             Self::Numeric => out.write_str("value overflows numeric format"),
             Self::Nul => out.write_str("unsupported Unicode escape sequence: \\u0000"),
+            Self::ArrayInvalid => out.write_str("invalid binary array value"),
+            Self::ArrayDocumentNull => {
+                out.write_str("binary format is not supported for array OID 37802")
+            }
         }
     }
 }
 
-pub(super) fn render_fixed(
+pub(in crate::runtime::accounted::json_arena) fn render_fixed(
     message: FixedError,
     column: usize,
     controls: &QueryExecutionControls,

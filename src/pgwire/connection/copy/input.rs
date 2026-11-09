@@ -451,6 +451,22 @@ pub(super) fn parse_binary_payload(
                 row_memory.absorb(text_memory);
                 continue;
             }
+            if type_oid == 3807 {
+                use crate::runtime::accounted::json_arena::jsonb_array_output::{
+                    render, OutputError,
+                };
+                let output = match render(bytes, column_index + 1, controls) {
+                    Ok(output) => output,
+                    Err(OutputError::Control(error)) => return Err(error.into()),
+                    Err(OutputError::Diagnostic(owner)) => {
+                        return Err(super::filter::CopyWhereError::Jsonb(owner))
+                    }
+                };
+                let (text, text_memory) = output.into_parts();
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
             let value =
                 super::super::codecs::binary_to_value(bytes, type_oid).map_err(|error| {
                     if let Some(input) = super::super::codecs::timetz_copy_error(&error) {

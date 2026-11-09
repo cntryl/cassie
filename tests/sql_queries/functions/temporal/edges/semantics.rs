@@ -5,6 +5,51 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_render_interval_twelve_hour_clock_at_multiples_of_twelve() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-hour12", &[]);
+    let cases = [
+        (-25, "-01|-1|-01st|-01|-25"),
+        (-24, "012|12|012th|012|-24"),
+        (-13, "-01|-1|-01st|-01|-13"),
+        (-12, "012|12|012th|012|-12"),
+        (-11, "-11|-11|-11th|-11|-11"),
+        (-1, "-01|-1|-01st|-01|-01"),
+        (0, "12|12|12th|12|00"),
+        (1, "01|1|01st|01|01"),
+        (11, "11|11|11th|11|11"),
+        (12, "12|12|12th|12|12"),
+        (13, "01|1|01st|01|13"),
+        (24, "12|12|12th|12|24"),
+        (25, "01|1|01st|01|25"),
+    ];
+
+    for (hours, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{hours} hours', 'HH12|FMHH12|HH12th|HH|HH24')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval twelve-hour format").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 hour format for {hours} hours"
+        );
+    }
+
+    // Act
+    let timestamp =
+        fixture.execute("SELECT to_char(TIMESTAMP '2000-01-01 00:00:00', 'HH12|FMHH12|HH24')");
+
+    // Assert
+    assert_eq!(
+        timestamp.expect("timestamp twelve-hour format").rows(),
+        &[vec![Value::String("12|12|00".to_owned())]]
+    );
+}
+
+#[test]
 fn should_keep_fraction_width_for_fill_mode_and_negative_intervals() {
     // Arrange
     let fixture = sql_fixture("issue-815-fraction-format-width", &[]);

@@ -1,6 +1,18 @@
-//! Interval-specific `to_char` day-of-year and week calculations.
+//! Interval-specific `to_char` field calculations.
 
 use super::super::calendar::Fields;
+
+pub(super) fn hour12(hour: i64, fill: bool) -> (String, Option<i64>) {
+    let remainder = hour % 12;
+    let value = if remainder == 0 { 12 } else { remainder };
+    let text = if fill {
+        value.to_string()
+    } else {
+        let width = if hour < 0 { 3 } else { 2 };
+        format!("{value:0width$}")
+    };
+    (text, Some(value))
+}
 
 /// PostgreSQL's `fmt_tm` uses signed 32-bit fields, with wrapping arithmetic in
 /// the pinned PostgreSQL build. The width includes a negative sign.

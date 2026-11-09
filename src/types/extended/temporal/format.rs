@@ -232,12 +232,11 @@ fn render_clock_field(
     let numeric = |value: i64, width: usize| (number(value, width, fill), Some(value));
     Some(match keyword {
         "hh" | "hh12" => {
-            let twelve = if moment.is_interval {
-                hour % 12
+            if moment.is_interval {
+                interval::hour12(hour, fill)
             } else {
-                (hour + 11) % 12 + 1
-            };
-            numeric(twelve, 2)
+                numeric((hour + 11) % 12 + 1, 2)
+            }
         }
         "hh24" => numeric(hour, 2),
         "mi" => numeric(i64::from(fields.minute), 2),

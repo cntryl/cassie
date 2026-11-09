@@ -46,3 +46,10 @@ zero padding. Fractional values truncate toward zero to the requested digits;
 ordinal suffixes use the resulting magnitude. This applies to timestamps as
 well as intervals. PostgreSQL oracle cases cover positive, negative and
 sub-millisecond fractions, FM and suffixes. Cassie regressions are unexecuted.
+
+For interval `HH` and `HH12`, PostgreSQL 18.6 displays a zero remainder
+modulo 12 as `12`. The non-FM minimum width is selected from the original hour:
+negative multiples such as -12 and -24 therefore render `012`, while `FM`
+renders `12`. Nonmultiples retain their signed remainder and timestamp handling
+is unchanged. The SQL regression covers negative, zero and positive hours and
+is unexecuted.

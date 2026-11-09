@@ -58,6 +58,15 @@ fn overflow() -> CassieError {
     CassieError::ResourceLimit("numeric tie formatting capacity overflow".into())
 }
 
+#[cfg(test)]
+fn format_integer_error(error: QueryError) -> CassieError {
+    match error {
+        QueryError::Cassie(error) => error,
+        QueryError::General(message) => CassieError::Execution(message),
+        error @ (QueryError::FloatPowerOverflow | QueryError::FloatPowerUnderflow) => error.into(),
+    }
+}
+
 fn format_observing(
     value: &Numeric,
     controls: &QueryExecutionControls,

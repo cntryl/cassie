@@ -13,6 +13,8 @@ use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
 
 #[cfg(test)]
+mod bit_key_tests;
+#[cfg(test)]
 mod numeric_key_tests;
 #[cfg(test)]
 mod tests;
@@ -437,6 +439,7 @@ impl EvalInput<'_> {
             let mut admitted = 0;
             let mut vector_type = None;
             let mut numeric_type = None;
+            let mut bit_type = None;
             if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
                 memory.try_grow(accounting::type_scratch(
                     row,
@@ -456,11 +459,13 @@ impl EvalInput<'_> {
                 {
                     admitted = add(admitted, extra)?;
                     numeric_type = data_type;
+                } else if super::array_order::sort_bit::eligible(&value, data_type.as_ref()) {
+                    bit_type = data_type;
                 }
                 memory.try_grow(admitted)?;
             }
             retention.before(SortRetentionPhase::SemanticPart)?;
-            let (semantic, vector_retained) = if let (Some(data_type), Some(controls)) =
+            let (semantic, known_retained) = if let (Some(data_type), Some(controls)) =
                 (vector_type.as_ref(), controls)
             {
                 super::array_order::sort_vector_key(
@@ -473,6 +478,15 @@ impl EvalInput<'_> {
                 )?
             } else if let (Some(data_type), Some(controls)) = (numeric_type.as_ref(), controls) {
                 super::array_order::sort_numeric_key(
+                    row,
+                    &order.expr,
+                    &value,
+                    self.user_functions,
+                    data_type,
+                    controls,
+                )?
+            } else if let (Some(data_type), Some(controls)) = (bit_type.as_ref(), controls) {
+                super::array_order::sort_bit_key(
                     row,
                     &order.expr,
                     &value,
@@ -493,7 +507,7 @@ impl EvalInput<'_> {
                 )
             };
             if let Some(memory) = memory.as_mut() {
-                let retained = match vector_retained {
+                let retained = match known_retained {
                     Some(retained) => retained,
                     None => accounting::semantic_heap(&semantic)?,
                 };

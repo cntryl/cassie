@@ -10,6 +10,7 @@ use crate::types::{DataType, Schema, Value};
 use super::batch::RowAccess;
 use super::semantic::SemanticValue;
 
+pub(super) mod sort_bit;
 pub(super) mod sort_numeric;
 pub(super) mod sort_vector;
 
@@ -124,6 +125,29 @@ pub(super) fn sort_numeric_key<R: RowAccess + ?Sized>(
     };
     if matches {
         let (key, retained) = sort_numeric::build(value, controls)?;
+        return Ok((key, Some(retained)));
+    }
+    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
+}
+
+pub(super) fn sort_bit_key<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    expected: &DataType,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(SemanticValue, Option<usize>), crate::app::CassieError> {
+    if let Some(key) = super::search_lineage::extract(row, expr, Some(controls))? {
+        return Ok((key, None));
+    }
+    let matches = match expr {
+        Expr::Column(name) => row.column_type(name) == Some(expected),
+        Expr::Cast { data_type, .. } => data_type == expected,
+        _ => expression_type(row, expr, functions).as_ref() == Some(expected),
+    };
+    if matches {
+        let (key, retained) = sort_bit::build(value, controls)?;
         return Ok((key, Some(retained)));
     }
     key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))

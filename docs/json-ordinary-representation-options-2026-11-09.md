@@ -60,6 +60,55 @@ public API breaks were rejected. The public materialization/serialization
 old-reader compatibility (0.84) leads require probes before any activation.
 Receipt: `target/assembly-review/json-raw-result-boundary-contract-{request,response}.json`.
 
+### Prerequisites for a real row-to-pgwire path
+
+A source-reviewed, test-only candidate carries synthetic existing-format
+`TYPE_JSON` field bytes through an admitted directory, a plain-object cell,
+and an admitted single-column DataRow. The candidate has no live callers and
+its tests have not run. It proves no actual storage, SQL, socket or public API
+handoff. PostgreSQL preserves JSON input spelling while Cassie's current
+`Value::Json` writer compacts it; JSONB uses canonical text and binary version
+byte 1. The selected wire behavior and its compatibility impact require
+qualification, not an assumption that the two writers are byte-identical.
+
+The first live path needs the following connected changes before activation:
+
+1. **Preserve the input before it is lost.** Extended text Bind currently
+   builds `Value::Json` via serde parsing, and JSONB first calls
+   `jsonb::canonical`; `Midge::put_document` receives a serde Value and
+   `encode_row` serializes that Value. A SQL write/read witness for a sentinel
+   object requires a schema-typed owner through input, DML and row encoding,
+   plus an unchanged TYPE_JSON byte layout. A synthetic row alone does not
+   prove that fresh SQL writes preserve the object. Earlier transformed rows
+   cannot be reconstructed.
+2. **Carry the private cell through scans and execution.** Batched
+   `scan_row_blobs_batched` and controlled `streaming_scans` currently call
+   `decode_row` or a projected decoder and create public `DocumentRef` with
+   `payload: serde_json::Value`; `AccountedDocument` owns that representation.
+   `BatchRow` contains `(String, Value)` entries and its lookup and consuming
+   handoffs expose those Values. A private sidecar or parallel internal row
+   needs explicit per-field schema identity, SQL NULL, alias, query/operator
+   owner transfer and fallible clone semantics through the actual chosen scan,
+   projection and every supported operator. A fast path cannot silently skip
+   authorization, filters, aliases, ordering or snapshot rules. Unsupported
+   shapes must retain their established semantics; merely passing a raw JSON
+   String as a `Value` does not satisfy this prerequisite.
+3. **Carry the result to real consumers.** The existing public `QueryResult`
+   and simple/extended pgwire paths consume `Vec<Value>` rows. The private
+   result must survive worker and portal lifetimes and feed the real writer;
+   public embedded and REST consumers must use a separately proven fallible
+   materialization or remain on an explicitly compatible route. The isolated
+   frame's lease ends at the frame owner and does not establish network-buffer
+   or socket-flush ownership. Error mapping and resource/cancellation ordering
+   must be preserved or explicitly selected and tested.
+
+No one of these changes independently repairs #809. Qualification needs a
+fresh write, scan, SQL projection and text/binary wire round trip for ordinary
+and nested sentinel objects, SQL/JSON null, duplicate keys and malformed input,
+as well as public-result compatibility, legacy stored rows, admission,
+interruption and owner-drop probes. Midge remains the direct published byte
+storage API; no new storage layer or upstream engine changes are implied.
+
 Option B preserves all current signatures and builds serde Values directly
 from the plain-object arena. This avoids sentinel-aware deserialization at the
 initial conversion, but every later deserialization must also use the plain

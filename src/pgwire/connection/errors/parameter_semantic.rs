@@ -188,7 +188,7 @@ impl PgWireError {
         Self::controlled_diagnostic(PgWireSeverity::Error, sqlstate, message, controls)
     }
 
-    pub(super) fn controlled_diagnostic(
+    pub(in crate::pgwire::connection) fn controlled_diagnostic(
         severity: PgWireSeverity,
         sqlstate: &'static str,
         message: &str,

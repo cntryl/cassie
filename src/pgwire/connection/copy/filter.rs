@@ -11,6 +11,7 @@ mod tests;
 pub(super) enum CopyWhereError {
     Cassie(CassieError),
     Undefined(super::filter_text::WhereText),
+    Jsonb(crate::runtime::accounted::json_arena::JsonbDiagnostic),
 }
 
 impl From<CassieError> for CopyWhereError {

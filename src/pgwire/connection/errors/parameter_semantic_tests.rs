@@ -431,6 +431,88 @@ fn should_admit_copy_unknown_column_diagnostic_at_exact_peak() {
 }
 
 #[test]
+fn should_admit_jsonb_copy_diagnostic_and_frame_with_source_overlap() {
+    fn prepare(
+        controls: &QueryExecutionControls,
+        message: &str,
+    ) -> Result<(crate::runtime::QueryMemoryReservation, PgWireError), CassieError> {
+        let source_memory = controls.reserve_query_memory(message.len())?;
+        let frame = PgWireError::controlled_diagnostic(
+            super::PgWireSeverity::Error,
+            "42601",
+            message,
+            controls,
+        )?;
+        Ok((source_memory, frame))
+    }
+    // Arrange
+    let message = "COPY binary field 1 is invalid: invalid input syntax for type jsonb: trailing comma at line 1 column 4";
+    let generous = controls(65_536);
+    let pair = prepare(&generous, message).expect("measure");
+    let peak = generous.peak_query_memory_bytes();
+    drop(pair);
+    let exact = controls(peak);
+    let below = controls(peak - 1);
+    // Act
+    let (source, frame) = prepare(&exact, message).expect("exact");
+    let failure = prepare(&below, message);
+    // Assert
+    assert_eq!(frame.code, "42601");
+    assert_eq!(frame.message, message);
+    assert!(frame
+        .encoded_semantic_frame()
+        .expect("frame")
+        .windows(7)
+        .any(|window| window == b"C42601\0"));
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(below.current_query_memory_bytes(), 0);
+    drop(frame);
+    drop(source);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_retain_jsonb_copy_diagnostic_and_frame_during_pending_write() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let controls = controls(65_536);
+    let message = "COPY binary field 1 is invalid: value overflows numeric format";
+    let source = controls
+        .reserve_query_memory(message.len())
+        .expect("source owner");
+    let frame = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        "42601",
+        message,
+        &controls,
+    )
+    .expect("frame");
+    let retained = controls.current_query_memory_bytes();
+    let mut send = Box::pin(async move {
+        let mut writer = PendingWrite {
+            pending_flush: false,
+        };
+        let result = super::super::writers::write_error_response(&mut writer, &frame).await;
+        drop(source);
+        result
+    });
+    // Act
+    runtime.block_on(poll_fn(|context| {
+        assert!(send.as_mut().poll(context).is_pending());
+        Poll::Ready(())
+    }));
+    let pending = controls.current_query_memory_bytes();
+    drop(send);
+    // Assert
+    assert!(retained > message.len());
+    assert_eq!(pending, retained);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_release_cancelled_copy_unknown_column_diagnostic() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();

@@ -100,6 +100,36 @@ fn should_interrupt_owned_json_during_actual_reader_consumption() {
 }
 
 #[test]
+fn should_report_cancellation_observed_while_serde_unwinds_a_prior_visitor_error() {
+    // Arrange
+    let prefix = r#"{"$serde_json::private::Number":"-xY""#;
+    let mut input = String::from(prefix);
+    input.push_str(&" ".repeat(1024));
+    input.push('}');
+    let expected =
+        serde_json::from_str::<serde_json::Value>(&input).expect_err("number sentinel error");
+    assert_eq!(expected.classify(), serde_json::error::Category::Data);
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+
+    // Act
+    let result = super::parse_observed(input.as_bytes(), &controls, || cancellation.cancel());
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(super::ParseError::Controlled(
+            crate::app::CassieError::QueryCancelled
+        ))
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_validate_utf8_across_checked_input_boundaries() {
     // Arrange
     let text = format!("\"{}é\"", "a".repeat(4094));

@@ -14,6 +14,9 @@ mod binary_float8;
 mod binary_inet;
 #[path = "input/binary_interval.rs"]
 mod binary_interval;
+#[cfg(test)]
+#[path = "input/binary_jsonb_owner_tests.rs"]
+mod binary_jsonb_owner_tests;
 #[path = "input/binary_name.rs"]
 mod binary_name;
 #[path = "input/binary_network.rs"]
@@ -202,7 +205,7 @@ pub(super) fn parse_binary_payload(
         Vec<Vec<Option<String>>>,
         crate::runtime::QueryMemoryReservation,
     ),
-    CassieError,
+    super::filter::CopyWhereError,
 > {
     controls.check_interruption()?;
     let schema = cassie
@@ -227,9 +230,9 @@ pub(super) fn parse_binary_payload(
         CassieError::Parse("COPY binary payload has a truncated flags field".to_string())
     })?);
     if flags != 0 {
-        return Err(CassieError::Unsupported(
-            "COPY binary flags are not supported".to_string(),
-        ));
+        return Err(
+            CassieError::Unsupported("COPY binary flags are not supported".to_string()).into(),
+        );
     }
     let extension_length = i32::from_be_bytes(
         take(payload, &mut cursor, 4)?
@@ -253,21 +256,24 @@ pub(super) fn parse_binary_payload(
             if cursor != payload.len() {
                 return Err(CassieError::Parse(
                     "COPY binary payload has trailing bytes after its trailer".into(),
-                ));
+                )
+                .into());
             }
             return Ok((rows, memory));
         }
         if field_count < 0 {
             return Err(CassieError::Parse(
                 "COPY binary row has an invalid field count".to_string(),
-            ));
+            )
+            .into());
         }
         let expected = i16::try_from(column_types.len())
             .map_err(|_| CassieError::ResourceLimit("COPY column count exceeds int16".into()))?;
         if field_count != expected {
             return Err(CassieError::Parse(format!(
                 "COPY binary row has {field_count} columns but target expects {expected}"
-            )));
+            ))
+            .into());
         }
         let mut row_memory = controls.reserve_query_memory(0)?;
         let mut row = Vec::new();
@@ -403,7 +409,7 @@ pub(super) fn parse_binary_payload(
                     match crate::runtime::accounted::json::controlled_parse::parse(bytes, controls)
                     {
                         Ok(owner) => owner,
-                        Err(ParseError::Controlled(error)) => return Err(error),
+                        Err(ParseError::Controlled(error)) => return Err(error.into()),
                         Err(ParseError::InvalidJson {
                             error,
                             _memory: memory,
@@ -413,17 +419,33 @@ pub(super) fn parse_binary_payload(
                             return Err(CassieError::Parse(format!(
                                 "COPY binary field {} is invalid: invalid binary json value",
                                 column_index + 1
-                            )));
+                            ))
+                            .into());
                         }
                         Err(ParseError::InvalidUtf8) => {
                             return Err(CassieError::Parse(format!(
                                 "COPY binary field {} is invalid: invalid binary json value",
                                 column_index + 1
-                            )));
+                            ))
+                            .into());
                         }
                     };
                 let output =
                     crate::runtime::accounted::compact_json::serialize(owner.get(), controls)?;
+                let (text, text_memory) = output.into_parts();
+                row.push(Some(text));
+                row_memory.absorb(text_memory);
+                continue;
+            }
+            if type_oid == 3802 {
+                use crate::runtime::accounted::json_arena::{parse_jsonb_field, JsonbFieldError};
+                let output = match parse_jsonb_field(bytes, column_index + 1, controls) {
+                    Ok(output) => output,
+                    Err(JsonbFieldError::Control(error)) => return Err(error.into()),
+                    Err(JsonbFieldError::Diagnostic(owner)) => {
+                        return Err(super::filter::CopyWhereError::Jsonb(owner))
+                    }
+                };
                 let (text, text_memory) = output.into_parts();
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

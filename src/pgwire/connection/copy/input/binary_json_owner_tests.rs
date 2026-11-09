@@ -54,7 +54,7 @@ fn should_parse_binary_json_with_value_semantics_and_preserve_error_mapping() {
             super::super::super::codecs::binary_to_value(field, 114).expect_err("invalid");
         let result = super::parse_binary_payload(&payload(field), &cassie, &statement, &controls);
         assert!(
-            matches!(result, Err(CassieError::Parse(message)) if message == format!("COPY binary field 1 is invalid: {original}"))
+            matches!(result, Err(super::super::filter::CopyWhereError::Cassie(CassieError::Parse(message))) if message == format!("COPY binary field 1 is invalid: {original}"))
         );
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

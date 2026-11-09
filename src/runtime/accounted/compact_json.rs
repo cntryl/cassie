@@ -22,7 +22,7 @@ impl OwnedJsonText {
 }
 
 #[derive(Clone, Copy)]
-enum Progress {
+pub(super) enum Progress {
     Scan,
     Copy,
     FrameMove,
@@ -97,15 +97,31 @@ impl<'a> Stack<'a> {
     }
 }
 
-struct Sink<'a> {
+pub(super) struct Sink<'a> {
     text: String,
     memory: QueryMemoryReservation,
     controls: &'a QueryExecutionControls,
     count: Option<usize>,
 }
 
-impl Sink<'_> {
-    fn write(
+impl<'a> Sink<'a> {
+    pub(super) fn for_arena(controls: &'a QueryExecutionControls) -> Result<Self, CassieError> {
+        Ok(Self {
+            text: String::new(),
+            memory: controls.reserve_query_memory(0)?,
+            controls,
+            count: None,
+        })
+    }
+
+    pub(super) fn finish_output(self) -> OwnedJsonText {
+        OwnedJsonText {
+            text: self.text,
+            memory: self.memory,
+        }
+    }
+
+    pub(super) fn write(
         &mut self,
         text: &str,
         progress: &mut impl FnMut(Progress),
@@ -139,7 +155,7 @@ impl Sink<'_> {
         copy_chunks(&mut self.text, text, self.controls, progress)
     }
 
-    fn quoted(
+    pub(super) fn quoted(
         &mut self,
         text: &str,
         progress: &mut impl FnMut(Progress),

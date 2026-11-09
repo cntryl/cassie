@@ -166,7 +166,11 @@ fn to_char(value: &Value, template: &str, session: &TemporalSession) -> Result<V
         }
         _ => return Ok(Value::Null),
     };
-    Ok(Value::String(format::to_char(
-        &moment, template, &zone_name,
+    let hour = match value {
+        TypedValue::Interval(interval) => interval.micros / USECS_PER_HOUR,
+        _ => i64::from(moment.fields.hour),
+    };
+    Ok(Value::String(format::to_char_with_hour(
+        &moment, template, &zone_name, hour,
     )))
 }

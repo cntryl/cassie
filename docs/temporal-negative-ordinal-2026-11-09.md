@@ -53,3 +53,15 @@ negative multiples such as -12 and -24 therefore render `012`, while `FM`
 renders `12`. Nonmultiples retain their signed remainder and timestamp handling
 is unchanged. The SQL regression covers negative, zero and positive hours and
 is unexecuted.
+
+PostgreSQL's interval formatter retains the 64-bit whole-hour component. The
+SQL path now passes that exact component privately to the clock renderer,
+while the public `Fields`, `Moment` and `to_char` signatures and their existing
+adapter behavior remain unchanged. This fixes `HH`, `HH12`, `HH24`, `SSSS`
+and meridiem fields above the signed 32-bit hour range without narrowing or
+altering the minute, second, fractional or non-interval paths. PostgreSQL 18.6
+oracle cases cover both sides of the i32 boundary, positive/negative large
+hours, nearly full-range microseconds, meridiem and remainders. Jev selected
+the private handoff (0.98); its sign/remainder, public adapter and overflow
+leads are covered by the authored, unexecuted regressions. This does not
+qualify arbitrary public `Moment` values or formatter allocation/cancellation.

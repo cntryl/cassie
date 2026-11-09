@@ -8,6 +8,8 @@ use crate::types::extended::TypeInputError;
 
 #[path = "format_zone_catalog.rs"]
 mod catalog;
+#[path = "format_clock.rs"]
+mod clock;
 #[path = "format_fraction.rs"]
 mod fraction;
 #[path = "format_interval.rs"]
@@ -192,6 +194,15 @@ fn era_year(year: i32, interval: bool) -> i64 {
 /// `to_char` for a timestamp, timestamptz, date or interval.
 #[must_use]
 pub fn to_char(moment: &Moment, template: &str, zone_name: &str) -> String {
+    to_char_with_hour(moment, template, zone_name, i64::from(moment.fields.hour))
+}
+
+pub(crate) fn to_char_with_hour(
+    moment: &Moment,
+    template: &str,
+    zone_name: &str,
+    hour: i64,
+) -> String {
     let mut out = String::new();
     for node in parse_template(template) {
         match node {
@@ -202,7 +213,7 @@ pub fn to_char(moment: &Moment, template: &str, zone_name: &str) -> String {
                 fill,
                 ordinal,
             } => {
-                let (text, value) = render_field(moment, keyword, &spelling, fill, zone_name);
+                let (text, value) = render_field(moment, keyword, &spelling, fill, zone_name, hour);
                 out.push_str(&text);
                 if let (Some(upper), Some(value)) = (ordinal, value) {
                     out.push_str(ordinal_suffix(value, upper));
@@ -219,50 +230,6 @@ fn padded(text: &str, fill: bool, width: usize) -> String {
     } else {
         format!("{text:<width$}")
     }
-}
-
-fn render_clock_field(
-    moment: &Moment,
-    keyword: &str,
-    spelling: &str,
-    fill: bool,
-) -> Option<(String, Option<i64>)> {
-    let fields = moment.fields;
-    let hour = i64::from(fields.hour);
-    let numeric = |value: i64, width: usize| (number(value, width, fill), Some(value));
-    Some(match keyword {
-        "hh" | "hh12" => {
-            if moment.is_interval {
-                interval::hour12(hour, fill)
-            } else {
-                numeric((hour + 11) % 12 + 1, 2)
-            }
-        }
-        "hh24" => numeric(hour, 2),
-        "mi" => numeric(i64::from(fields.minute), 2),
-        "ss" => numeric(i64::from(fields.second), 2),
-        "ms" => fraction::field(fields.micros, 3),
-        "us" => fraction::field(fields.micros, 6),
-        "ff1" | "ff2" | "ff3" | "ff4" | "ff5" | "ff6" => {
-            let digits = usize::from(keyword.as_bytes()[2] - b'0');
-            fraction::field(fields.micros, digits)
-        }
-        "ssss" | "sssss" => numeric(
-            hour * 3600 + i64::from(fields.minute) * 60 + i64::from(fields.second),
-            0,
-        ),
-        "am" | "pm" | "a.m." | "p.m." => {
-            let pm = hour % 24 >= 12;
-            let text = match (keyword.len() > 2, pm) {
-                (false, false) => "am",
-                (false, true) => "pm",
-                (true, false) => "a.m.",
-                (true, true) => "p.m.",
-            };
-            (case_like(spelling, text), None)
-        }
-        _ => return None,
-    })
 }
 
 fn render_name_field(
@@ -330,8 +297,9 @@ fn render_field(
     spelling: &str,
     fill: bool,
     zone_name: &str,
+    hour: i64,
 ) -> (String, Option<i64>) {
-    if let Some(rendered) = render_clock_field(moment, keyword, spelling, fill)
+    if let Some(rendered) = clock::render_clock_field(moment, keyword, spelling, fill, hour)
         .or_else(|| render_name_field(moment, keyword, spelling, fill, zone_name))
     {
         return rendered;

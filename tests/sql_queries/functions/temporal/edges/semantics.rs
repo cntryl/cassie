@@ -5,6 +5,70 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_format_interval_hours_beyond_the_i32_range() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-wide-hour", &[]);
+    let template = "HH24|FMHH24|HH12|HH24th|MI|SS|SSSS|AM";
+    let cases = [
+        (
+            "2147483647 hours",
+            "2147483647|2147483647|07|2147483647th|00|00|7730941129200|AM",
+        ),
+        (
+            "2147483648 hours 2 minutes 3.000001 seconds",
+            "2147483648|2147483648|08|2147483648th|02|03|7730941132923|AM",
+        ),
+        (
+            "-2147483648 hours",
+            "-2147483648|-2147483648|-08|-2147483648th|00|00|-7730941132800|AM",
+        ),
+        (
+            "-2147483649 hours -2 minutes -3.000001 seconds",
+            "-2147483649|-2147483649|-09|-2147483649th|-02|-03|-7730941136523|AM",
+        ),
+        (
+            "2562047788 hours",
+            "2562047788|2562047788|04|2562047788th|00|00|9223372036800|AM",
+        ),
+        (
+            "-2562047788 hours",
+            "-2562047788|-2562047788|-04|-2562047788th|00|00|-9223372036800|AM",
+        ),
+    ];
+
+    for (interval, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{interval}', '{template}')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("wide interval hour format").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 wide interval hour: {interval}"
+        );
+    }
+
+    // Act
+    let boundary = fixture.execute("SELECT to_char(INTERVAL '2562047788 hours 54.775806 seconds', 'HH24|MI|SS|US|SSSS'), to_char(INTERVAL '-2562047788 hours -54.775806 seconds', 'HH24|MI|SS|US|SSSS'), to_char(INTERVAL '2147483652 hours', 'HH24|HH12|SSSS|AM'), to_char(INTERVAL '-2147483652 hours', 'HH24|HH12|SSSS|AM'), to_char(TIMESTAMP '2000-01-01 13:00:00', 'HH24|HH12|SSSS|AM'), to_char(INTERVAL 'infinity', 'HH24') IS NULL, to_char(NULL::interval, 'HH24') IS NULL");
+
+    // Assert
+    assert_eq!(
+        boundary.expect("wide interval hour boundaries").rows(),
+        &[vec![
+            Value::String("2562047788|00|54|775806|9223372036854".to_owned()),
+            Value::String("-2562047788|00|-54|-775806|-9223372036854".to_owned()),
+            Value::String("2147483652|12|7730941147200|PM".to_owned()),
+            Value::String("-2147483652|012|-7730941147200|AM".to_owned()),
+            Value::String("13|01|46800|PM".to_owned()),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
 fn should_render_interval_twelve_hour_clock_at_multiples_of_twelve() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-hour12", &[]);

@@ -24,6 +24,8 @@ mod sources;
 
 pub(crate) use document::comparison::compare as compare_jsonb_candidate;
 pub(crate) use document::diagnostic::OwnedDiagnostic as JsonbDiagnostic;
+#[cfg(test)]
+pub(crate) use document::exists::cancel_existence_parse_once;
 pub(crate) use document::exists::parse as parse_existence_candidate;
 pub(crate) use document::jsonb::{parse_field as parse_jsonb_field, JsonbFieldError};
 pub(crate) use document::text_array::{parse as parse_text_array_candidate, OwnedTextArray};
@@ -31,3 +33,4 @@ pub(crate) use document::text_array::{parse as parse_text_array_candidate, Owned
 pub(crate) use forest::comparison::{
     cancel_comparison_frame_move_once, cancel_comparison_reverse_once, cancel_comparison_work_once,
 };
+pub(crate) use forest::InspectionRoot;

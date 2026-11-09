@@ -9,6 +9,10 @@ use std::borrow::Cow;
 #[path = "json_exists_function_tests.rs"]
 mod exists_function_tests;
 
+#[cfg(test)]
+#[path = "json_inspection_root_tests.rs"]
+mod inspection_root_tests;
+
 #[path = "json_unique_keys.rs"]
 mod unique_keys;
 
@@ -148,23 +152,53 @@ fn inspect(
             ))
         }
         JsonFunction::Typeof(_) => {
-            let document = document(&args[0])?;
-            let kind = match document.as_ref() {
-                serde_json::Value::Null => "null",
-                serde_json::Value::Bool(_) => "boolean",
-                serde_json::Value::Number(_) => "number",
-                serde_json::Value::String(_) => "string",
-                serde_json::Value::Array(_) => "array",
-                serde_json::Value::Object(_) => "object",
+            use crate::runtime::accounted::json_arena::InspectionRoot;
+            let kind = if let Some(root) = controlled_root(&args[0], controls)? {
+                match root {
+                    InspectionRoot::Null => "null",
+                    InspectionRoot::Boolean => "boolean",
+                    InspectionRoot::Number => "number",
+                    InspectionRoot::String => "string",
+                    InspectionRoot::Array(_) => "array",
+                    InspectionRoot::Object => "object",
+                }
+            } else {
+                let document = document(&args[0])?;
+                match document.as_ref() {
+                    serde_json::Value::Null => "null",
+                    serde_json::Value::Bool(_) => "boolean",
+                    serde_json::Value::Number(_) => "number",
+                    serde_json::Value::String(_) => "string",
+                    serde_json::Value::Array(_) => "array",
+                    serde_json::Value::Object(_) => "object",
+                }
             };
             Value::String(kind.to_owned())
         }
         JsonFunction::ArrayLength(_) => {
-            let document = document(&args[0])?;
-            let array = document.as_array().ok_or_else(|| {
-                CassieError::InvalidParameterValue("cannot get array length of a non-array".into())
-            })?;
-            let length = i32::try_from(array.len())
+            use crate::runtime::accounted::json_arena::InspectionRoot;
+            let length = if let Some(root) = controlled_root(&args[0], controls)? {
+                match root {
+                    InspectionRoot::Array(length) => length,
+                    _ => {
+                        return Err(CassieError::InvalidParameterValue(
+                            "cannot get array length of a non-array".into(),
+                        )
+                        .into())
+                    }
+                }
+            } else {
+                let document = document(&args[0])?;
+                document
+                    .as_array()
+                    .ok_or_else(|| {
+                        CassieError::InvalidParameterValue(
+                            "cannot get array length of a non-array".into(),
+                        )
+                    })?
+                    .len()
+            };
+            let length = i32::try_from(length)
                 .map_err(|_| CassieError::ResourceLimit("JSON array length exceeds INT4".into()))?;
             Value::Int64(i64::from(length))
         }
@@ -196,6 +230,21 @@ fn inspect(
         controls.check_interruption()?;
     }
     Ok(result)
+}
+
+fn controlled_root(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Option<crate::runtime::accounted::json_arena::InspectionRoot>, QueryError> {
+    let (Value::String(text), Some(controls)) = (value, controls) else {
+        return Ok(None);
+    };
+    let Some(document) =
+        crate::runtime::accounted::json_arena::parse_existence_candidate(text, controls)?
+    else {
+        return Ok(None);
+    };
+    document.inspection_root().map(Some).map_err(Into::into)
 }
 
 fn document(value: &Value) -> Result<Cow<'_, serde_json::Value>, QueryError> {

@@ -63,6 +63,16 @@ enum Progress {
     TextCopy,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum InspectionRoot {
+    Null,
+    Boolean,
+    String,
+    Number,
+    Array(usize),
+    Object,
+}
+
 pub(super) struct Forest {
     nodes: ValueSlots<Node>,
     controls: QueryExecutionControls,
@@ -75,6 +85,16 @@ pub(super) enum TextArrayElement<'a> {
 }
 
 impl Forest {
+    pub(super) fn inspection_root(&self, root: NodeId) -> Result<InspectionRoot, CassieError> {
+        Ok(match &self.nodes.get(root)?.kind {
+            Kind::Scalar => InspectionRoot::Null,
+            Kind::Boolean(_) => InspectionRoot::Boolean,
+            Kind::Text(_) => InspectionRoot::String,
+            Kind::Number(_) => InspectionRoot::Number,
+            Kind::Array(array) => InspectionRoot::Array(array.len()),
+            Kind::Object(_) => InspectionRoot::Object,
+        })
+    }
     pub(super) fn key_exists(&self, root: NodeId, key: &str) -> Result<bool, CassieError> {
         self.key_exists_observing(root, key, || {})
     }

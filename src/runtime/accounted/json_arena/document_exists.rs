@@ -10,11 +10,26 @@ use super::{
 #[path = "document_exists_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+thread_local! {
+    static CANCEL_EXISTENCE_PARSE: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+#[cfg(test)]
+pub(crate) fn cancel_existence_parse_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_EXISTENCE_PARSE.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
 pub(crate) struct OwnedExistence {
     parsed: Parsed,
 }
 
 impl OwnedExistence {
+    pub(crate) fn inspection_root(
+        &self,
+    ) -> Result<super::super::forest::InspectionRoot, CassieError> {
+        self.parsed.forest.inspection_root(self.parsed.root)
+    }
+
     pub(crate) fn contains(&self, key: &str) -> Result<bool, CassieError> {
         self.parsed.forest.key_exists(self.parsed.root, key)
     }
@@ -41,6 +56,12 @@ fn parse_observing(
     match Document::parse_sources(sources, controls, |progress| {
         if matches!(progress, DocumentProgress::FramePushed) {
             observe();
+            #[cfg(test)]
+            CANCEL_EXISTENCE_PARSE.with(|slot| {
+                if let Some(handle) = slot.borrow_mut().take() {
+                    handle.cancel();
+                }
+            });
         }
     }) {
         Ok(parsed) => Ok(Some(OwnedExistence { parsed })),

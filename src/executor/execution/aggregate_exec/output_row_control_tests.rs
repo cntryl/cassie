@@ -378,3 +378,104 @@ fn should_reject_a_forged_nonnull_array_before_alias_publication() {
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_cancel_discrete_string_array_during_second_alias_copy() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let text = "λ".repeat(2048);
+    let source = controls.reserve_query_memory(text.len()).expect("source");
+    let result = string_array_output(
+        2,
+        &source,
+        &controls,
+        |index| Ok((index == 0).then_some(text.as_str())),
+        |_, _| {},
+    )
+    .expect("result");
+    drop(source);
+    let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
+    let completed = std::cell::Cell::new(0);
+    let mut cancelled = false;
+
+    // Act
+    let status = output.append_with_progress(
+        result,
+        &["pct".into(), "alias".into()],
+        || completed.set(completed.get() + 1),
+        &mut |progress| {
+            if completed.get() == 1 && matches!(progress, OutputProgress::ValueCopy) {
+                cancelled = true;
+                cancellation.cancel();
+            }
+        },
+    );
+
+    // Assert
+    assert!(cancelled);
+    assert_eq!(completed.get(), 1);
+    assert_eq!(output.values.len(), 1);
+    assert!(matches!(
+        status,
+        Err(QueryError::Cassie(CassieError::QueryCancelled))
+    ));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reject_a_forged_string_array_before_alias_publication() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let memory = controls
+        .reserve_query_memory(2 * std::mem::size_of::<serde_json::Value>())
+        .expect("owner");
+    let forged = AggregateOutput {
+        value: Value::Json(serde_json::json!(["valid", 1])),
+        memory: Some(memory),
+        copy_mode: OutputCopyMode::StringArray,
+    };
+    let mut output = row(&controls);
+
+    // Act
+    let result = output.append(forged, &["pct".into()]);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert!(output.values.is_empty());
+    drop(output);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_reject_string_array_source_from_another_tracker() {
+    // Arrange
+    let first =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let second =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let source = first.reserve_query_memory(32).expect("source");
+
+    // Act
+    let result = string_array_output(1, &source, &second, |_| Ok(Some("value")), |_, _| {});
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
+    ));
+    assert_eq!(first.current_query_memory_bytes(), 32);
+    assert_eq!(second.current_query_memory_bytes(), 0);
+    drop(source);
+    assert_eq!(first.current_query_memory_bytes(), 0);
+}

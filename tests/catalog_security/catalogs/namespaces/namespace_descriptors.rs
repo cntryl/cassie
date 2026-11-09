@@ -96,6 +96,53 @@ fn should_preserve_namespace_oid_above_signed_integer_range() {
 }
 
 #[test]
+fn should_round_trip_maximum_namespace_oid_in_binary_pgwire() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let cassie = support_sql::new_in_memory_cassie().expect("Cassie");
+        cassie.startup().expect("startup");
+        cassie
+            .catalog
+            .register_namespace_meta(cassie::catalog::NamespaceMeta {
+                name: "postgres.wire_high_oid".to_owned(),
+                description: None,
+                object_id: u64::from(u32::MAX) - 16_384,
+            });
+        let server = support_pgwire::spawn_server(cassie).await;
+        let mut config = tokio_postgres::Config::new();
+        config
+            .host("127.0.0.1")
+            .port(server.addr.port())
+            .user("root")
+            .password(crate::support_sql::test_root_password())
+            .dbname("postgres");
+        let (client, connection) = config.connect(NoTls).await.expect("connect");
+        let connection = tokio::spawn(connection);
+
+        // Act
+        let row = client
+            .query_one(
+                "SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = 'wire_high_oid'",
+                &[],
+            )
+            .await
+            .expect("binary OID");
+
+        // Assert
+        assert_eq!(row.columns()[0].type_().oid(), 26);
+        assert_eq!(row.get::<_, u32>(0), u32::MAX);
+        drop(client);
+        connection.abort();
+        let _ = connection.await;
+        server.stop().await;
+    });
+}
+
+#[test]
 fn should_join_and_preserve_namespace_identity_across_rollback() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

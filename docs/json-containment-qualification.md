@@ -110,3 +110,18 @@ allocator transients, teardown and sentinel/storage migration remain open.
 PostgreSQL 18.6 yields false for `{"a":[1]} @> {"a":1}`, true for
 `[1] @> 1`, true for `{"a":1,"a":2} @> {"a":2}`, and true for
 `{"a":[1,2]} @> {"a":[2]}` with JSONB operands.
+
+## Pair failure lifetime correction
+
+The existing pair declares both raw boxes before their reservation, but
+destructuring them into separate locals declares the reservation last. Rust
+drops those locals in reverse order on a scalar or parser error, releasing the
+lease while the boxes can still be live. Keep the Pair structurally intact
+through fallible work; when a root array comparison moves its required scalar
+into the temporary array, that array must drop before the remaining Pair on
+error. Transfer the reservation into a successful frame only after those
+operations. A test-only hook cancels after the actual raw pair was built;
+other probes cover required-scalar array success and error cleanup. The hook
+checks release, not the exact timing of a String destructor. No production
+interruption point is added. Other parser, transition, memory estimate and
+nested-container limits remain open; these probes are unexecuted.

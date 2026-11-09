@@ -143,3 +143,7 @@ mod number_tests;
 #[cfg(test)]
 #[path = "json_containment_root_object_tests.rs"]
 mod root_object_tests;
+
+#[cfg(test)]
+#[path = "json_containment_pair_tests.rs"]
+mod pair_tests;

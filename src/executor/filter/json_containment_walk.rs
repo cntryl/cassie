@@ -8,6 +8,16 @@ use super::{json_document, kind, CassieError, JsonKind, QueryError};
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_PAIR: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn cancel_after_pair_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_PAIR.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
 #[path = "json_containment_number.rs"]
 mod numbers;
 #[cfg(test)]
@@ -261,26 +271,32 @@ enum Comparison {
 
 fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryError> {
     work.check()?;
-    let Pair {
-        candidate,
-        required,
-        memory,
-    } = pair;
-    let state = match (kind(&candidate), kind(&required)) {
+    #[cfg(test)]
+    {
+        CANCEL_AFTER_PAIR.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+        work.check()?;
+    }
+    let state = match (kind(&pair.candidate), kind(&pair.required)) {
         (JsonKind::Object, JsonKind::Object) => State::Objects {
-            candidate: json_document::parse_object(candidate.get())?.0,
-            required: json_document::parse_object(required.get())?.0.into_iter(),
+            candidate: json_document::parse_object(pair.candidate.get())?.0,
+            required: json_document::parse_object(pair.required.get())?
+                .0
+                .into_iter(),
         },
         (JsonKind::Array, required_kind)
             if required_kind == JsonKind::Array || (root && required_kind.is_scalar()) =>
         {
             let required = if required_kind == JsonKind::Array {
-                json_document::parse_array(required.get())?
+                json_document::parse_array(pair.required.get())?
             } else {
-                vec![required]
+                vec![pair.required]
             };
             State::Arrays {
-                candidate: json_document::parse_array(candidate.get())?,
+                candidate: json_document::parse_array(pair.candidate.get())?,
                 required: required.into_iter(),
                 current: None,
                 next_candidate: 0,
@@ -291,7 +307,7 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
         | (JsonKind::Boolean, JsonKind::Boolean)
         | (JsonKind::Null, JsonKind::Null) => {
             return work
-                .scalar_equal(&candidate, &required)
+                .scalar_equal(&pair.candidate, &pair.required)
                 .map(|matched| Comparison::Result {
                     matched,
                     scalar: true,
@@ -307,7 +323,7 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
     Ok(Comparison::Container(Box::new(Frame {
         state,
         parent: None,
-        _memory: memory,
+        _memory: pair.memory,
     })))
 }
 

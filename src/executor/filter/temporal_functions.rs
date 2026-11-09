@@ -14,8 +14,6 @@ use crate::types::Value;
 mod extract;
 #[path = "temporal_sleep.rs"]
 mod sleep;
-#[path = "temporal_zone_operand.rs"]
-mod zone_operand;
 
 const TIMESTAMPTZ: ExtendedType = ExtendedType::TimestampTz { precision: None };
 const TIMESTAMP: ExtendedType = ExtendedType::Timestamp { precision: None };
@@ -362,13 +360,7 @@ fn dispatch(
         ("overlaps", [first, second, third, fourth]) => {
             overlaps([first, second, third, fourth], session)
         }
-        ("timezone", [zone, value]) => {
-            let resolved = match zone_operand::resolve(zone, value, session, controls)? {
-                Some(zone) => zone,
-                None => zone_argument(zone, session)?,
-            };
-            timezone(&resolved, value, session)
-        }
+        ("timezone", [zone, value]) => timezone(&zone_argument(zone, session)?, value, session),
         ("timezone", [value]) => timezone(&session.zone, value, session),
         ("date_add" | "date_subtract", [value, span, rest @ ..]) => {
             let TypedValue::TimestampTz(instant) = coerce(value, TIMESTAMPTZ, session)? else {
@@ -647,3 +639,7 @@ fn timezone(zone: &Zone, value: &Value, session: &TemporalSession) -> Result<Val
         _ => return Err(execution("function timezone does not exist for this type")),
     }))
 }
+
+#[cfg(test)]
+#[path = "temporal_timezone_regression_tests.rs"]
+mod timezone_regression_tests;

@@ -312,37 +312,11 @@ impl AbbreviationSet {
             .find(|(name, _, _)| *name == abbreviation)
             .map(|(_, east, dst)| (*east, *dst))
     }
-
-    pub(crate) fn lookup_with_index(self, abbreviation: &str) -> Option<(usize, i32, bool)> {
-        let (overrides, base): (&[(&str, i32, bool)], usize) = match self {
-            Self::Default => (&[], 0),
-            Self::Australia => (AUSTRALIA, 0),
-            Self::India => (INDIA, AUSTRALIA.len()),
-        };
-        overrides
-            .iter()
-            .enumerate()
-            .find(|(_, (name, _, _))| name.eq_ignore_ascii_case(abbreviation))
-            .map(|(index, (_, east, dst))| (base + index, *east, *dst))
-            .or_else(|| {
-                DEFAULT_ABBREVIATIONS
-                    .iter()
-                    .enumerate()
-                    .find(|(_, (name, _, _))| name.eq_ignore_ascii_case(abbreviation))
-                    .map(|(index, (_, east, dst))| {
-                        (AUSTRALIA.len() + INDIA.len() + index, *east, *dst)
-                    })
-            })
-    }
 }
 
 const fn hm(hours: i32, minutes: i32) -> i32 {
     hours * 3600 + if hours < 0 { -minutes } else { minutes } * 60
 }
-
-const INDIA: &[(&str, i32, bool)] = &[("ist", 19_800, false)];
-pub(crate) const ABBREVIATION_CACHE_WORDS: usize =
-    (AUSTRALIA.len() + INDIA.len() + DEFAULT_ABBREVIATIONS.len()).div_ceil(64);
 
 const AUSTRALIA: &[(&str, i32, bool)] = &[
     ("acst", hm(9, 30), false),
@@ -429,10 +403,7 @@ const DEFAULT_ABBREVIATIONS: &[(&str, i32, bool)] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        lookup_zone, offset_abbreviation, AbbreviationSet, ABBREVIATION_CACHE_WORDS, AUSTRALIA,
-        DEFAULT_ABBREVIATIONS, INDIA,
-    };
+    use super::{lookup_zone, offset_abbreviation, AbbreviationSet};
     use crate::types::extended::temporal::calendar::{fields_to_timestamp, Fields};
 
     #[test]
@@ -459,30 +430,6 @@ mod tests {
         // Assert
         assert_eq!(result, Err("cancelled"));
         assert_eq!(checks, 2);
-    }
-
-    #[test]
-    fn should_assign_cache_indices_to_all_global_abbreviations() {
-        // Arrange
-        let sets = [
-            AbbreviationSet::Default,
-            AbbreviationSet::Australia,
-            AbbreviationSet::India,
-        ];
-
-        // Act and assert
-        for set in sets {
-            for (name, _, _) in AUSTRALIA.iter().chain(INDIA).chain(DEFAULT_ABBREVIATIONS) {
-                if let Some((index, east, dst)) = set.lookup_with_index(name) {
-                    assert!(index < ABBREVIATION_CACHE_WORDS * 64);
-                    assert_eq!(Some((east, dst)), set.lookup(name));
-                    assert_eq!(
-                        set.lookup_with_index(&name.to_ascii_uppercase()),
-                        Some((index, east, dst))
-                    );
-                }
-            }
-        }
     }
 
     fn local(year: i32, month: i32, day: i32, hour: i32, minute: i32) -> i64 {

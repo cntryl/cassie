@@ -307,7 +307,9 @@ pub(crate) fn project_batches(
         .collect()
 }
 
-pub(crate) use json_object_keys::OwnedExpanded;
+#[cfg(test)]
+pub(crate) use json_object_keys::cancel_expand_once as cancel_object_key_expansion_once;
+pub(crate) use json_object_keys::{OwnedExpanded, OwnedExpandedIter};
 
 pub(crate) fn expand_json_object_keys(
     batches: Vec<Batch>,

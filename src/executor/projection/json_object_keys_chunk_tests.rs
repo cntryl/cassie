@@ -234,3 +234,72 @@ fn should_admit_measured_flatten_overlap_and_release_on_below_peak() {
         assert_eq!(limited.current_query_memory_bytes(), 0);
     }
 }
+
+#[test]
+fn should_hold_chunk_reservation_through_partial_pull_iterator_drop() {
+    // Arrange
+    let controls = controls(16 * 1024 * 1024);
+    let (batches, projection) = fixture(1025);
+    let expanded = json_object_keys::expand(batches, &projection, &controls).expect("expansion");
+    let bytes = expanded.chunk_bytes();
+    let mut iterator = expanded.into_rows();
+    // Act
+    let row = iterator.next().expect("first row");
+    // Assert
+    assert!(bytes > 0);
+    assert!(controls.current_query_memory_bytes() >= bytes);
+    drop(row);
+    drop(iterator);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_multibatch_pull_order_and_release_after_exhaustion() {
+    // Arrange
+    let controls = controls(16 * 1024 * 1024);
+    let (batches, projection) = fixture(2051);
+    let expanded = json_object_keys::expand(batches, &projection, &controls).expect("expansion");
+    let bytes = expanded.chunk_bytes();
+    let mut iterator = expanded.into_rows();
+    // Act
+    for index in 0..2051 {
+        let row = iterator.next().expect("row");
+        assert_eq!(row.entries()[0].1, Value::String(index.to_string()));
+    }
+    // Assert
+    assert!(iterator.next().is_none());
+    assert!(controls.current_query_memory_bytes() >= bytes);
+    drop(iterator);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_iterate_untracked_empty_and_nonempty_batches_in_order() {
+    // Arrange
+    let first = BatchRow::new(vec![("k".into(), Value::Int64(1))]);
+    let second = BatchRow::new(vec![("k".into(), Value::Int64(2))]);
+    let batches = vec![Vec::new(), vec![first], Vec::new(), vec![second]];
+    // Act
+    let mut rows = OwnedExpanded::untracked(batches).into_rows();
+    // Assert
+    assert_eq!(rows.next().expect("first").entries()[0].1, Value::Int64(1));
+    assert_eq!(rows.next().expect("second").entries()[0].1, Value::Int64(2));
+    assert!(rows.next().is_none());
+}
+
+#[test]
+fn should_not_record_additional_batch_buffers_when_pull_iterator_consumes_chunks() {
+    // Arrange
+    let controls = controls(16 * 1024 * 1024);
+    let (batches, projection) = fixture(2051);
+    let _ = crate::executor::batch::take_local_batch_buffers();
+    let expanded = json_object_keys::expand(batches, &projection, &controls).expect("expansion");
+    assert_eq!(crate::executor::batch::take_local_batch_buffers(), 3);
+    // Act
+    let mut rows = expanded.into_rows();
+    while rows.next().is_some() {}
+    // Assert
+    assert_eq!(crate::executor::batch::take_local_batch_buffers(), 0);
+    drop(rows);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

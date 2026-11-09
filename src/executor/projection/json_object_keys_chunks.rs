@@ -38,6 +38,17 @@ impl OwnedExpanded {
             chunk_memory: None,
         }
     }
+    pub(crate) fn into_rows(self) -> OwnedExpandedIter {
+        let Self {
+            batches,
+            chunk_memory,
+        } = self;
+        OwnedExpandedIter {
+            current: Vec::new().into_iter(),
+            batches: batches.into_iter(),
+            _chunk_memory: chunk_memory,
+        }
+    }
     pub(crate) fn batches(&self) -> &Vec<Batch> {
         &self.batches
     }
@@ -88,6 +99,25 @@ impl OwnedExpanded {
             .map_or(0, QueryMemoryReservation::bytes)
     }
 }
+pub(crate) struct OwnedExpandedIter {
+    current: std::vec::IntoIter<BatchRow>,
+    batches: std::vec::IntoIter<Batch>,
+    _chunk_memory: Option<QueryMemoryReservation>,
+}
+
+impl Iterator for OwnedExpandedIter {
+    type Item = BatchRow;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(row) = self.current.next() {
+                observe(Progress::PullMove);
+                return Some(row);
+            }
+            self.current = self.batches.next()?.into_iter();
+        }
+    }
+}
+
 impl std::ops::Deref for OwnedExpanded {
     type Target = [Batch];
     fn deref(&self) -> &Self::Target {

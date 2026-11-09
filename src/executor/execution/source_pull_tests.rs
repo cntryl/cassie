@@ -403,3 +403,135 @@ fn should_apply_source_pagination_to_each_existing_expanded_projection_row() {
         &[vec![Value::String("b".to_owned())]]
     );
 }
+
+#[test]
+fn should_preserve_object_key_expansion_in_outer_and_nested_pull_cursors() {
+    // Arrange
+    let cassie = fixture();
+    let session = cassie.create_session("tester", None);
+    for (sql, expected) in [
+        (
+            r#"SELECT json_object_keys('{"a":1,"b":2}') AS k FROM generate_series(1,2) OFFSET 1 LIMIT 2"#,
+            vec![
+                vec![Value::String("b".into())],
+                vec![Value::String("a".into())],
+            ],
+        ),
+        (
+            r#"SELECT d.k FROM (SELECT json_object_keys('{"a":1,"b":2}') AS k FROM generate_series(1,2)) d OFFSET 1 LIMIT 2"#,
+            vec![
+                vec![Value::String("b".into())],
+                vec![Value::String("a".into())],
+            ],
+        ),
+        (
+            r#"SELECT json_object_keys('{}') AS k FROM generate_series(1,2)"#,
+            Vec::new(),
+        ),
+    ] {
+        let controls = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits::default(),
+            Instant::now(),
+        );
+        // Act
+        let result = cassie
+            .execute_sql_with_controls(&session, sql, vec![], ExecutionMode::SimpleQuery, &controls)
+            .expect("pull result");
+        // Assert
+        assert_eq!(result.rows(), expected, "{sql}");
+        drop(result);
+        assert_eq!(controls.current_query_memory_bytes(), 0, "{sql}");
+    }
+}
+
+#[test]
+fn should_release_pull_owners_when_cancelled_during_actual_object_key_pull_move() {
+    // Arrange
+    let cassie = fixture();
+    let session = cassie.create_session("tester", None);
+    for sql in [
+        r#"SELECT json_object_keys('{"a":1,"b":2}') AS k FROM generate_series(1,2)"#,
+        r#"SELECT d.k FROM (SELECT json_object_keys('{"a":1,"b":2}') AS k FROM generate_series(1,2)) d"#,
+    ] {
+        let cancel = QueryCancellationHandle::new();
+        let controls = QueryExecutionControls::with_cancellation(
+            &crate::config::CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancel.clone(),
+        );
+        crate::executor::projection::cancel_object_key_expansion_once(cancel.clone(), 10);
+        // Act
+        let result = cassie.execute_sql_with_controls(
+            &session,
+            sql,
+            vec![],
+            ExecutionMode::SimpleQuery,
+            &controls,
+        );
+        // Assert
+        assert!(cancel.is_cancelled(), "{sql}");
+        assert!(result.is_err(), "{sql}");
+        assert_eq!(controls.current_query_memory_bytes(), 0, "{sql}");
+    }
+}
+
+#[test]
+fn should_release_pull_resources_when_object_key_projection_fails() {
+    // Arrange
+    let cassie = fixture();
+    let session = cassie.create_session("tester", None);
+    let controls = QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        Instant::now(),
+    );
+    // Act
+    let result = cassie.execute_sql_with_controls(
+        &session,
+        "SELECT json_object_keys('1') FROM generate_series(1,2)",
+        vec![],
+        ExecutionMode::SimpleQuery,
+        &controls,
+    );
+    // Assert
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_enforce_measured_pull_expansion_peak_and_release_on_failure() {
+    // Arrange
+    let cassie = fixture();
+    let session = cassie.create_session("tester", None);
+    let sql = r#"SELECT json_object_keys('{"a":1,"b":2}') AS k FROM generate_series(1,2) OFFSET 1 LIMIT 2"#;
+    let generous = QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        Instant::now(),
+    );
+    let result = cassie
+        .execute_sql_with_controls(&session, sql, vec![], ExecutionMode::SimpleQuery, &generous)
+        .expect("baseline");
+    let peak = generous.peak_query_memory_bytes();
+    drop(result);
+    assert_eq!(generous.current_query_memory_bytes(), 0);
+    // Act / Assert
+    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+        let controls = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits {
+                query_memory_budget_bytes: budget,
+                query_timeout_ms: 0,
+                ..crate::config::CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let result = cassie.execute_sql_with_controls(
+            &session,
+            sql,
+            vec![],
+            ExecutionMode::SimpleQuery,
+            &controls,
+        );
+        assert_eq!(result.is_ok(), succeeds);
+        drop(result);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

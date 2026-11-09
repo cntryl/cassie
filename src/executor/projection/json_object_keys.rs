@@ -8,7 +8,7 @@ use crate::types::Value;
 
 #[path = "json_object_keys_chunks.rs"]
 mod chunks;
-pub(crate) use chunks::OwnedExpanded;
+pub(crate) use chunks::{OwnedExpanded, OwnedExpandedIter};
 
 #[path = "json_object_keys_output.rs"]
 mod output;
@@ -32,6 +32,7 @@ enum Progress {
     ChunkDirectory,
     Flatten,
     FlattenMove,
+    PullMove,
 }
 
 #[cfg(test)]
@@ -40,7 +41,7 @@ thread_local! {
     static OBSERVE_SOURCE: std::cell::RefCell<Option<(std::sync::Weak<crate::runtime::QueryMemoryReservation>, std::rc::Rc<std::cell::Cell<bool>>)>> = const { std::cell::RefCell::new(None) };
 }
 #[cfg(test)]
-pub(super) fn cancel_expand_once(handle: crate::runtime::QueryCancellationHandle, stage: u8) {
+pub(crate) fn cancel_expand_once(handle: crate::runtime::QueryCancellationHandle, stage: u8) {
     CANCEL_EXPAND.with(|slot| *slot.borrow_mut() = Some((handle, stage)));
 }
 #[cfg(test)]
@@ -70,6 +71,7 @@ fn observe(progress: Progress) {
         Progress::ChunkDirectory => 7,
         Progress::Flatten => 8,
         Progress::FlattenMove => 9,
+        Progress::PullMove => 10,
     };
     CANCEL_EXPAND.with(|slot| {
         let mut slot = slot.borrow_mut();

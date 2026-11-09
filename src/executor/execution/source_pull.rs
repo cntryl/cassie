@@ -28,7 +28,7 @@ struct QueryCursor<'a> {
     plan: LogicalPlan,
     qualifier: String,
     outer: Option<BatchRow>,
-    pending: std::vec::IntoIter<BatchRow>,
+    pending: super::projection::OwnedExpandedIter,
     skipped: usize,
     emitted: usize,
     predicate: Option<Predicate>,
@@ -220,7 +220,7 @@ impl<'a> Cursor<'a> {
                 plan,
                 qualifier: alias.clone(),
                 outer: outer.cloned(),
-                pending: Vec::new().into_iter(),
+                pending: super::projection::OwnedExpanded::untracked(Vec::new()).into_rows(),
                 skipped: 0,
                 emitted: 0,
                 predicate: None,
@@ -301,7 +301,7 @@ impl<'a> QueryCursor<'a> {
                 continue;
             }
             let batches = projected(env, &self.plan, ctes, batches)?;
-            self.pending = super::batch::flatten_batches(batches).into_iter();
+            self.pending = batches.into_rows();
         }
         Ok(None)
     }
@@ -375,9 +375,10 @@ fn projected(
     plan: &LogicalPlan,
     ctes: &mut CteContext,
     batches: Vec<super::Batch>,
-) -> Result<Vec<super::Batch>, QueryError> {
+) -> Result<super::projection::OwnedExpanded, QueryError> {
     if super::super::exists_projection::contains(&plan.projection) {
         super::exists_projection_phase::apply(env, batches, plan, ctes, None)
+            .map(super::projection::OwnedExpanded::untracked)
     } else {
         super::apply_projection_phase(
             batches,
@@ -524,7 +525,7 @@ pub(super) fn try_execute(
             continue;
         }
         let batches = projected(env, plan, ctes, batches)?;
-        for row in batches.into_iter().flatten() {
+        for row in batches.into_rows() {
             if skipped < offset {
                 skipped += 1;
                 continue;

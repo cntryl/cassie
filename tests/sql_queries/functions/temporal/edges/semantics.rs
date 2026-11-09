@@ -313,3 +313,82 @@ fn should_keep_null_and_explicit_timezone_priority_for_truncation() {
         matches!(invalid_zone, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22023" && error.message == "time zone \"NoSuch/Zone\" not recognized")
     );
 }
+
+#[test]
+fn should_extract_interval_weeks_by_truncating_signed_days() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-week-parts", &[]);
+    let cases = [
+        ("6 days", 0),
+        ("7 days", 1),
+        ("8 days", 1),
+        ("-6 days", 0),
+        ("-7 days", -1),
+        ("-8 days", -1),
+        ("1 month 15 days 23:59:59", 2),
+        ("-1 month -15 days -23:59:59", -2),
+    ];
+
+    for (input, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT date_part('week', INTERVAL '{input}') = {expected} AND EXTRACT(WEEK FROM INTERVAL '{input}') = {expected}"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval week parts").rows(),
+            &[vec![Value::Bool(true)]],
+            "{input}"
+        );
+    }
+}
+
+#[test]
+fn should_reject_unsupported_fields_on_infinite_intervals() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-infinite-interval-parts", &[]);
+    let units = [
+        "timezone",
+        "timezone_hour",
+        "timezone_minute",
+        "dow",
+        "doy",
+        "isodow",
+        "isoyear",
+        "julian",
+    ];
+
+    for value in ["infinity", "-infinity"] {
+        for unit in units {
+            for sql in [
+                format!("SELECT date_part('{unit}', INTERVAL '{value}')"),
+                format!("SELECT EXTRACT({unit} FROM INTERVAL '{value}')"),
+            ] {
+                // Act
+                let result = fixture.execute(&sql);
+
+                // Assert
+                assert!(
+                    matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "0A000"),
+                    "{sql}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn should_preserve_null_parts_for_infinite_interval_weeks_and_timestamp_timezone() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-infinite-week-parts", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT date_part('week', INTERVAL 'infinity') IS NULL AND EXTRACT(WEEK FROM INTERVAL '-infinity') IS NULL AND date_part('timezone', TIMESTAMP 'infinity') IS NULL AND EXTRACT(TIMEZONE FROM TIMESTAMP '-infinity') IS NULL");
+
+    // Assert
+    assert_eq!(
+        result.expect("infinite parts").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}

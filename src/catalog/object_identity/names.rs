@@ -133,10 +133,10 @@ fn split_arguments(text: &str) -> Vec<String> {
 /// the SQL-standard spellings, typmods and array suffixes.
 pub(super) fn builtin_type_oid(text: &str) -> Result<Option<u32>, ObjectIdentifierError> {
     let mut base = text.trim();
-    let mut array_depth = 0_u32;
+    let mut has_array_suffix = false;
     while let Some(stripped) = base.strip_suffix("[]") {
         base = stripped.trim_end();
-        array_depth += 1;
+        has_array_suffix = true;
     }
     let base = strip_typmod(base);
     let canonical = standard_type_name(&base);
@@ -151,16 +151,14 @@ pub(super) fn builtin_type_oid(text: &str) -> Result<Option<u32>, ObjectIdentifi
         }
     };
     let identities = builtin_identities();
-    let Some(mut row) = identities.type_by_name(&name) else {
+    let Some(row) = identities.type_by_name(&name) else {
         return Ok(None);
     };
-    for _ in 0..array_depth {
-        let Some(array) = identities.type_by_oid(row.array) else {
-            return Ok(None);
-        };
-        row = array;
-    }
-    Ok(Some(row.oid))
+    Ok(if has_array_suffix {
+        identities.type_by_oid(row.array).map(|array| array.oid)
+    } else {
+        Some(row.oid)
+    })
 }
 
 /// Drops a type modifier such as `(10)` or `(3)`, keeping any trailing words
@@ -311,6 +309,41 @@ mod tests {
                 Some(1043),
                 Some(1007),
                 Some(1184)
+            ]
+        );
+    }
+
+    #[test]
+    fn should_resolve_repeated_array_dimensions_to_one_array_type() {
+        // Arrange
+        let names = [
+            "int[]",
+            "int[][]",
+            "pg_catalog.int4[][][]",
+            "pg_catalog.\"int4\"[][]",
+            "integer[] []",
+            "text[][]",
+            "anyelement",
+            "_int4[]",
+            "missing_type[][]",
+        ];
+
+        // Act
+        let actual = names.map(|name| builtin_type_oid(name).expect("valid type spelling"));
+
+        // Assert
+        assert_eq!(
+            actual,
+            [
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1009),
+                Some(2283),
+                None,
+                None
             ]
         );
     }

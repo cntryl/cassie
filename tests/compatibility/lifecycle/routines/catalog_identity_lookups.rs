@@ -242,6 +242,46 @@ fn should_return_null_for_missing_regtype_lookup() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_resolve_multidimensional_regtype_and_routine_arguments() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("regtype_multidimensional").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let row = client
+            .query_one(
+                "SELECT 'int[][]'::regtype::oid::bigint, \
+                    'pg_catalog.int4[][][]'::regtype::oid::bigint, \
+                    to_regtype('text[][]')::oid::bigint, \
+                    to_regtype('_int4[]') IS NULL, \
+                    to_regtype('missing_type[][]') IS NULL, \
+                    to_regprocedure('array_fill(anyelement,integer[][])')::oid::bigint",
+                &[],
+            )
+            .await
+            .expect("resolve multidimensional type spellings");
+
+        // Assert
+        assert_eq!(row.get::<_, i64>(0), 1007);
+        assert_eq!(row.get::<_, i64>(1), 1007);
+        assert_eq!(row.get::<_, i64>(2), 1009);
+        assert!(row.get::<_, bool>(3));
+        assert!(row.get::<_, bool>(4));
+        assert_eq!(row.get::<_, i64>(5), 1193);
+        let error = client
+            .query("SELECT '_int4[]'::regtype", &[])
+            .await
+            .expect_err("an explicit array-of-array name remains undefined");
+        assert_eq!(db_error(&error).code().code(), "42704");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
 #[test]
 fn should_return_null_for_missing_regprocedure_lookup() {
     // Arrange

@@ -46,6 +46,19 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     } = op
     {
         let document = json_concat::as_json_document(&left_value)?;
+        if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+            if let Some(value) = json_delete::controlled_extraction(
+                &document,
+                &right_value,
+                *path,
+                *as_text,
+                *jsonb,
+                controls,
+                owner,
+            )? {
+                return Ok(value);
+            }
+        }
         return json_extract::evaluate(&document, &right_value, *path, *as_text, *jsonb);
     }
     if matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)

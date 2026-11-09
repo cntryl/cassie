@@ -421,6 +421,13 @@ pub(in crate::executor::filter) fn render_array_without_arena_keys<'a>(
     )
 }
 
+pub(super) fn render_value<'a>(
+    source: &'a str,
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
+    render_frames(Frame::Value(source), controls, |_| {})
+}
+
 fn render_frames<'a>(
     first: Frame<'a>,
     controls: &'a QueryExecutionControls,
@@ -668,7 +675,7 @@ fn matches_key(
     }
 }
 
-fn array_scanner<'a>(
+pub(super) fn array_scanner<'a>(
     source: &'a str,
     controls: &'a QueryExecutionControls,
 ) -> Result<Scanner<'a, fn(ScanProgress)>, RenderError> {
@@ -688,7 +695,10 @@ fn array_scanner<'a>(
     Ok(scanner)
 }
 
-fn array_count(source: &str, controls: &QueryExecutionControls) -> Result<usize, RenderError> {
+pub(super) fn array_count(
+    source: &str,
+    controls: &QueryExecutionControls,
+) -> Result<usize, RenderError> {
     let mut scanner = array_scanner(source, controls)?;
     scanner.next()?;
     let mut count = 0_usize;

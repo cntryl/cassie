@@ -19,6 +19,18 @@ mod raw_scan;
 #[path = "json_delete_owned_path.rs"]
 mod owned_path;
 
+pub(super) fn controlled_extraction(
+    document: &ScalarValue,
+    selector: &ScalarValue,
+    path: bool,
+    as_text: bool,
+    jsonb: bool,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<Option<ScalarValue>, QueryError> {
+    raw_scan::extract::evaluate(document, selector, path, as_text, jsonb, controls, owner)
+}
+
 #[cfg(test)]
 thread_local! {
     static CANCEL_AFTER_OWNED_PATH: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };

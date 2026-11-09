@@ -44,6 +44,10 @@ pub(super) fn deletion_required<R: RowAccess>(
                     ..
                 } => true,
                 crate::sql::ast::Expr::Binary {
+                    op: crate::sql::ast::BinaryOp::JsonExtract { .. },
+                    ..
+                } => true,
+                crate::sql::ast::Expr::Binary {
                     left,
                     op: crate::sql::ast::BinaryOp::Sub,
                     ..

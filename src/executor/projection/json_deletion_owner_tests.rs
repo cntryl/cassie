@@ -47,6 +47,41 @@ fn should_retain_session_controlled_deletion_output_on_the_projected_row() {
 }
 
 #[test]
+fn should_retain_session_controlled_extraction_until_last_row_clone() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let session = CassieSession::new("root".into(), None)
+        .with_statement_text("SELECT 1", &controls)
+        .expect("session");
+    let baseline = controls.current_query_memory_bytes();
+    let row = typed_json_row(serde_json::json!({"a":"payload"}));
+    let parsed = crate::sql::parse_statement("SELECT doc ->> 'a' FROM records").expect("SQL");
+    let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
+        panic!("SELECT")
+    };
+    // Act
+    let rows = project_rows(
+        vec![row],
+        &select.projection,
+        &[],
+        None,
+        &std::collections::HashMap::new(),
+        Some(&session),
+    )
+    .expect("projection");
+    let last = rows[0].clone();
+    drop(rows);
+    // Assert
+    assert!(matches!(&last.entries()[0].1, Value::String(text) if text == "payload"));
+    assert!(controls.current_query_memory_bytes() > baseline);
+    drop(last);
+    assert_eq!(controls.current_query_memory_bytes(), baseline);
+    drop(session);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_retain_dynamic_json_subtraction_on_an_untyped_column() {
     // Arrange
     let controls =

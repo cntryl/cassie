@@ -1,11 +1,17 @@
 //! Bounded SELECT-list expansion for the selected JSON object-key functions.
-use super::{Batch, BatchRow, QueryError};
+#[cfg(test)]
+use super::BatchRow;
+use super::{Batch, QueryError};
 use crate::executor::batch::chunk_rows;
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::SelectItem;
 use crate::types::Value;
-use std::sync::Arc;
+
+#[path = "json_object_keys_output.rs"]
+mod output;
+#[cfg(test)]
+pub(super) use output::cancel_after_output_attachment_once;
 
 #[path = "json_object_keys_row.rs"]
 mod row;
@@ -101,13 +107,18 @@ pub(super) fn expand(
             }
         }
     }
-    let (mut rows, reservation) = expanded.into_parts();
-    let reservation = Arc::new(reservation);
-    for row in &mut rows {
-        *row = std::mem::replace(row, BatchRow::new(Vec::new()))
-            .with_query_memory(Some(reservation.clone()));
-    }
+    let (rows, reservation) = expanded.into_parts();
+    let rows = output::retain(rows, reservation, controls)?;
     Ok(chunk_rows(rows, crate::executor::batch::DEFAULT_BATCH_SIZE))
+}
+
+#[cfg(test)]
+pub(super) fn retain_output_for_test(
+    rows: Vec<BatchRow>,
+    reservation: crate::runtime::QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, crate::app::CassieError> {
+    output::retain(rows, reservation, controls)
 }
 
 pub(super) fn requires_owner(projection: &[SelectItem]) -> bool {

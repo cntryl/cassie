@@ -35,8 +35,14 @@ pub(super) fn prepare(
     entries.push((name, Value::String(key)));
     observe(Progress::Entries);
     controls.check_interruption()?;
-    let row = BatchRow::from_projected_values(entries)
-        .with_optional_data_types(source.shared_data_types());
+    let data_types = source.shared_data_types();
+    let retain_source = data_types.is_some();
+    let mut row = BatchRow::from_projected_values(entries).with_optional_data_types(data_types);
+    if retain_source {
+        row = row
+            .with_query_memory(source.query_memory())
+            .with_operator_memory(source.operator_memory());
+    }
     Ok(PreparedRow { row, memory })
 }
 

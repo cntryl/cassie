@@ -303,3 +303,128 @@ fn should_retain_source_lease_until_independent_expanded_rows_exist() {
     drop(result);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_keep_typed_source_query_and_operator_parents_through_last_expanded_clone() {
+    // Arrange
+    for mode in 0..3 {
+        let controls =
+            QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+        let (mut batches, projection) = expansion_fixture(serde_json::json!(["a", "b"]));
+        let mut row = batches[0].remove(0);
+        row.set_data_types(vec![crate::types::DataType::Jsonb].into());
+        let mut query_weak = None;
+        if mode != 1 {
+            let query = std::sync::Arc::new(controls.reserve_query_memory(64).expect("query"));
+            query_weak = Some(std::sync::Arc::downgrade(&query));
+            row = row.with_query_memory(Some(query));
+        }
+        let mut operator_weak = None;
+        if mode != 0 {
+            let operator_lease =
+                std::sync::Arc::new(controls.reserve_query_memory(96).expect("operator"));
+            row.attach_operator_memory(&controls, operator_lease)
+                .expect("operator parent");
+            operator_weak = row
+                .operator_memory()
+                .as_ref()
+                .map(std::sync::Arc::downgrade);
+        }
+        batches[0].push(row);
+        // Act
+        let rows = json_object_keys::expand(batches, &projection, &controls).expect("expansion");
+        let last = rows[0][0].clone();
+        drop(rows);
+        // Assert
+        if let Some(weak) = &query_weak {
+            assert!(weak.upgrade().is_some());
+        }
+        if let Some(weak) = &operator_weak {
+            assert!(weak.upgrade().is_some());
+        }
+        drop(last);
+        if let Some(weak) = &query_weak {
+            assert!(weak.upgrade().is_none());
+        }
+        if let Some(weak) = &operator_weak {
+            assert!(weak.upgrade().is_none());
+        }
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_retain_foreign_typed_source_owners_without_absorbing_them() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let foreign =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let (mut batches, projection) = expansion_fixture(serde_json::json!(["a"]));
+    let mut row = batches[0].remove(0);
+    row.set_data_types(vec![crate::types::DataType::Jsonb].into());
+    let query = std::sync::Arc::new(foreign.reserve_query_memory(64).expect("query"));
+    let weak = std::sync::Arc::downgrade(&query);
+    row = row.with_query_memory(Some(query));
+    let operator = std::sync::Arc::new(foreign.reserve_query_memory(96).expect("operator"));
+    row.attach_operator_memory(&foreign, operator)
+        .expect("operator parent");
+    batches[0].push(row);
+    // Act
+    let rows = json_object_keys::expand(batches, &projection, &controls).expect("expansion");
+    // Assert
+    assert!(weak.upgrade().is_some());
+    assert!(foreign.current_query_memory_bytes() > 0);
+    drop(rows);
+    assert!(weak.upgrade().is_none());
+    assert_eq!(foreign.current_query_memory_bytes(), 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_all_parent_and_output_owners_after_actual_first_attachment_cancellation() {
+    // Arrange
+    let cancel = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let (mut batches, projection) = expansion_fixture(serde_json::json!(["a", "b"]));
+    batches[0][0].set_data_types(vec![crate::types::DataType::Jsonb].into());
+    let source = std::sync::Arc::new(controls.reserve_query_memory(64).expect("source"));
+    let weak = std::sync::Arc::downgrade(&source);
+    batches[0][0] = batches[0][0].clone().with_query_memory(Some(source));
+    json_object_keys::cancel_after_output_attachment_once(cancel.clone());
+    // Act
+    let result = json_object_keys::expand(batches, &projection, &controls);
+    // Assert
+    assert!(cancel.is_cancelled());
+    assert!(result.is_err());
+    assert!(weak.upgrade().is_none());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_empty_and_foreign_output_reservations() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let foreign =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let empty = foreign.reserve_query_memory(32).expect("empty lease");
+    // Act
+    let rows =
+        json_object_keys::retain_output_for_test(Vec::new(), empty, &controls).expect("empty");
+    let foreign_lease = foreign.reserve_query_memory(64).expect("foreign lease");
+    let result = json_object_keys::retain_output_for_test(
+        vec![BatchRow::new(vec![])],
+        foreign_lease,
+        &controls,
+    );
+    // Assert
+    assert!(rows.is_empty());
+    assert!(result.is_err());
+    assert_eq!(foreign.current_query_memory_bytes(), 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

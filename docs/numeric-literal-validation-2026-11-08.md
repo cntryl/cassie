@@ -75,25 +75,25 @@ SimpleQuery, ExtendedQuery and REST paths must be audited and switched to the
 new fallible conversion as applicable; no end-to-end accounting claim is valid
 until every such transfer, clone, response frame and network write is covered.
 
-The draft carrier now retains its syntax/range message reservation and the
+The integrated carrier retains its syntax/range message reservation and the
 pgwire conversion constructs a separately admitted complete frame. Its owned
 message and frame copies check interruption in bounded chunks; conversion
 preserves requested ERROR/FATAL severity. An owned REST encoder uses checked
 JSON escaping and `Bytes::from_owner` to keep its reservation through the last
 body-byte owner. The internal server's admin query execute, validate and explain
-path is drafted to return this response directly, while public `route_request`
+path returns this response directly, while public `route_request`
 continues its legacy `(StatusCode, String)` error return and is therefore an
 explicit unbounded escape. The existing unrelated REST route mappings still
 need reachability audit before any broader REST claim.
 
-All of this remains unexecuted. The draft wires the validator at binding for
+All of this remains unexecuted. The integrated code wires the validator at binding for
 Numeric-identity casts to Extended NUMERIC, including power-generated casts.
 Nested Parse rejection detection and the parameter fold now pass controls and
 propagate interruption/admission failures. Their semantic ordering and coverage,
 non-admin REST reachability, exact-budget diagnostic overlap, and review of the
 new conversion boundaries remain open. Synchronized scan/write cancellation probes are authored but
-unexecuted. Do not integrate it or
-claim #813 complete until these are resolved and the deferred full gate passes.
+unexecuted. Do not claim #813 complete until these are resolved and the deferred
+full gate passes.
 
 The REST encoding reservation covers the output buffer, the pinned `bytes`
 owner overhead and boxed body estimate. It does not establish admission of

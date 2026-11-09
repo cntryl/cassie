@@ -8,6 +8,10 @@ the PostgreSQL oracle. Cassie's signed remainder previously selected `th` for
 all negative fields. The shared suffix helper now uses the unsigned magnitude,
 including for `i64::MIN`, without changing the field value or spelling.
 
-This change does not address the separate negative interval day-field padding
-difference (PostgreSQL renders -1 day as `-1` for `DD`). The SQL regression is
-authored but unexecuted; the consolidated build and test gates remain pending.
+For interval `DD`, PostgreSQL counts the sign in the two-character minimum
+width. Thus -1 through -9 render as `-1` through `-9`, not `-01` through
+`-09`; `FM` continues to omit padding, and positive values retain two digits.
+This field-specific correction follows PostgreSQL 18.6's `DCH_DD` formatter;
+it does not change padding for clock or other template fields. The SQL
+regressions are authored but unexecuted; the consolidated build and test gates
+remain pending.

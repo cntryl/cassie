@@ -5,6 +5,41 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_count_the_sign_in_negative_interval_day_padding() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-negative-interval-day-padding", &[]);
+    let cases = [
+        (-99, "-99|-99|-99th|-99TH"),
+        (-21, "-21|-21|-21st|-21ST"),
+        (-11, "-11|-11|-11th|-11TH"),
+        (-10, "-10|-10|-10th|-10TH"),
+        (-9, "-9|-9|-9th|-9TH"),
+        (-3, "-3|-3|-3rd|-3RD"),
+        (-2, "-2|-2|-2nd|-2ND"),
+        (-1, "-1|-1|-1st|-1ST"),
+        (0, "00|0|00th|00TH"),
+        (1, "01|1|01st|01ST"),
+        (9, "09|9|09th|09TH"),
+        (10, "10|10|10th|10TH"),
+        (99, "99|99|99th|99TH"),
+    ];
+
+    for (days, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{days} days', 'DD|FMDD|DDth|DDTH')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval day formatting").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 day formatting for {days} days"
+        );
+    }
+}
+
+#[test]
 fn should_render_negative_interval_ordinal_suffixes_from_the_magnitude() {
     // Arrange
     let fixture = sql_fixture("issue-815-negative-interval-ordinal", &[]);

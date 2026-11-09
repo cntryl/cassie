@@ -378,6 +378,9 @@ fn render_field(
             i64::from(iso_year_day(fields.year, fields.month, fields.day)),
             3,
         ),
+        "dd" if moment.is_interval && fields.day < 0 && !fill => {
+            (format!("{:02}", fields.day), Some(i64::from(fields.day)))
+        }
         "dd" => numeric(i64::from(fields.day), 2),
         "d" => numeric(i64::from(j2day(julian())) + 1, 1),
         "id" => {

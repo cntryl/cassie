@@ -935,3 +935,7 @@ mod qualification_tests;
 
 #[cfg(test)]
 mod statistical_tests;
+
+#[cfg(test)]
+#[path = "window_exec/row_size_tests.rs"]
+mod row_size_tests;

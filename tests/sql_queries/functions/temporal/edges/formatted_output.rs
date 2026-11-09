@@ -5,6 +5,49 @@ use cassie::types::Value;
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
+fn should_use_original_interval_year_sign_for_year_tail_padding() {
+    // Arrange
+    let fixture = sql_fixture("issue-815-interval-year-tail", &[]);
+    let cases = [
+        (-1001, "-001|-1|-001st|-01|-1|-01st|-1"),
+        (-1000, "0000|0|0000th|000|0|000th|0"),
+        (-999, "-999|-999|-999th|-99|-99|-99th|-9"),
+        (-101, "-101|-101|-101st|-01|-1|-01st|-1"),
+        (-100, "-100|-100|-100th|000|0|000th|0"),
+        (-99, "-099|-99|-099th|-99|-99|-99th|-9"),
+        (-1, "-001|-1|-001st|-01|-1|-01st|-1"),
+        (0, "000|0|000th|00|0|00th|0"),
+        (1, "001|1|001st|01|1|01st|1"),
+        (99, "099|99|099th|99|99|99th|9"),
+        (100, "100|100|100th|00|0|00th|0"),
+        (1000, "000|0|000th|00|0|00th|0"),
+    ];
+
+    for (years, expected) in cases {
+        // Act
+        let result = fixture.execute(&format!(
+            "SELECT to_char(INTERVAL '{years} years', 'YYY|FMYYY|YYYth|YY|FMYY|YYth|Y')"
+        ));
+
+        // Assert
+        assert_eq!(
+            result.expect("interval year tail").rows(),
+            &[vec![Value::String(expected.to_owned())]],
+            "PostgreSQL 18.6 year tail: {years}"
+        );
+    }
+
+    // Act
+    let timestamp = fixture.execute("SELECT to_char(TIMESTAMP '2000-01-01', 'YYY|YY|Y')");
+
+    // Assert
+    assert_eq!(
+        timestamp.expect("timestamp year tail").rows(),
+        &[vec![Value::String("000|00|0".to_owned())]]
+    );
+}
+
+#[test]
 fn should_format_offset_fields_without_seconds_and_honor_fill_mode() {
     // Arrange
     let kolkata = sql_fixture(

@@ -2,6 +2,22 @@
 
 use super::super::calendar::Fields;
 
+pub(super) fn year_tail(
+    year: i64,
+    divisor: i64,
+    width: usize,
+    fill: bool,
+) -> (String, Option<i64>) {
+    let value = year % divisor;
+    let text = if fill {
+        value.to_string()
+    } else {
+        let width = width + usize::from(year < 0);
+        format!("{value:0width$}")
+    };
+    (text, Some(value))
+}
+
 pub(super) fn roman_month(fields: Fields) -> usize {
     let month = i64::from(fields.month);
     let index = if month == 0 {

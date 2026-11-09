@@ -328,7 +328,9 @@ fn render_field(
         }
         "y,yyy" => (format!("{},{:03}", year / 1000, year % 1000), Some(year)),
         "yyyy" => numeric(year, 4),
+        "yyy" if moment.is_interval => interval::year_tail(year, 1000, 3, fill),
         "yyy" => numeric(year % 1000, 3),
+        "yy" if moment.is_interval => interval::year_tail(year, 100, 2, fill),
         "yy" => numeric(year % 100, 2),
         "y" => numeric(year % 10, 1),
         "iyyy" | "iyy" | "iy" | "i" => {

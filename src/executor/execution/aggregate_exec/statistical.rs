@@ -419,7 +419,7 @@ fn numeric_error(error: crate::types::extended::TypeInputError) -> QueryError {
 
 #[cfg(test)]
 mod tests {
-    use super::{numeric_heap_bytes, FunctionId, StatisticalAccumulator};
+    use super::{numeric_heap_bytes, FunctionId, Moments, ResultFamily, StatisticalAccumulator};
     use crate::sql::ast::FunctionCall;
     use crate::types::extended::numeric::{math as numeric_math, Numeric};
     use crate::types::Value;
@@ -467,6 +467,62 @@ mod tests {
         // Assert
         assert_eq!(before, 5); // 256 uses two bytes; its square uses three.
         assert_eq!(left.retained_heap_bytes(), 3); // Sum is zero; squares total 131072.
+    }
+
+    #[test]
+    fn should_preserve_right_exact_statistical_state_after_merge() {
+        // Arrange
+        let mut left = accumulator(FunctionId::VarPop);
+        let mut right = accumulator(FunctionId::VarPop);
+        left.update("var_pop", &Value::Int64(1))
+            .expect("left input");
+        right
+            .update("var_pop", &Value::Int64(3))
+            .expect("right input");
+        right
+            .update("var_pop", &Value::Int64(5))
+            .expect("right input");
+        let right_before = right.clone().finish().expect("right result");
+
+        // Act
+        left.merge(&right).expect("exact partial merge");
+
+        // Assert
+        assert_eq!(
+            right.finish().expect("unchanged right result"),
+            right_before
+        );
+        let expected = numeric_math::divide(&Numeric::from_i128(8), &Numeric::from_i128(3))
+            .expect("expected variance");
+        assert_eq!(
+            left.finish().expect("merged result"),
+            Value::Typed(crate::types::typed::TypedValue::Numeric(expected))
+        );
+    }
+
+    #[test]
+    fn should_leave_left_moments_empty_when_exact_merge_count_overflows() {
+        // Arrange
+        let mut left = accumulator(FunctionId::VarPop);
+        let mut right = accumulator(FunctionId::VarPop);
+        left.update("var_pop", &Value::Int64(1))
+            .expect("left input");
+        right
+            .update("var_pop", &Value::Int64(2))
+            .expect("right input");
+        let Moments::Exact(state) = &mut left.moments else {
+            panic!("exact moments");
+        };
+        state.count = usize::MAX;
+
+        // Act
+        let result = left.merge(&right);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(left.moments, Moments::Empty));
+        assert!(left.result_family == Some(ResultFamily::Numeric));
+        assert!(matches!(right.moments, Moments::Exact(_)));
     }
 
     fn accumulator(id: FunctionId) -> StatisticalAccumulator {

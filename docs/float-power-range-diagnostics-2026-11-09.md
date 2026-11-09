@@ -16,6 +16,14 @@ error-variant change to preserve PostgreSQL's distinct operation diagnostics.
 Other FLOAT8 input conversion failures keep their existing variant. Platform
 `pow`/`errno` behavior for subnormal results is outside this scoped correction.
 
+The public pre-release `QueryError` enum also gains `FloatPowerOverflow` and
+`FloatPowerUnderflow` variants. They preserve operation-specific provenance
+through constant planning and are converted to the `TypeInput` shape above at
+the embedded error boundary. Existing consumers that exhaustively match
+`QueryError` must handle the new variants. Other `TypeInput` diagnostics are
+not newly classified as constant-folding errors, and power range failures are
+not query interruptions.
+
 The pinned PostgreSQL 18.6 oracle confirmed the messages for both call and
 operator forms, and `NaN^0`, `1^NaN`, and negative-infinity powers. Authored
 pgwire regressions cover those cases, parameter/result descriptors, Sync and

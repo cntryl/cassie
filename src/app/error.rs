@@ -648,6 +648,18 @@ pub(crate) fn unsupported_sql_error(sql: &str) -> Option<CassieError> {
 impl From<QueryError> for CassieError {
     fn from(value: QueryError) -> Self {
         match value {
+            QueryError::FloatPowerOverflow => {
+                CassieError::TypeInput(crate::types::extended::TypeInputError::new(
+                    "22003",
+                    "value out of range: overflow".into(),
+                ))
+            }
+            QueryError::FloatPowerUnderflow => {
+                CassieError::TypeInput(crate::types::extended::TypeInputError::new(
+                    "22003",
+                    "value out of range: underflow".into(),
+                ))
+            }
             QueryError::General(message)
                 if message.eq_ignore_ascii_case("query timeout exceeded") =>
             {

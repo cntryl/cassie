@@ -58,10 +58,15 @@ pub(crate) fn format_integer(
     mantissa: &num_bigint::BigInt,
     controls: &QueryExecutionControls,
 ) -> Result<NumericText, CassieError> {
-    format_finite_observing(mantissa, 0, controls, |_| {}).map_err(|error| match error {
+    format_finite_observing(mantissa, 0, controls, |_| {}).map_err(format_integer_error)
+}
+
+fn format_integer_error(error: QueryError) -> CassieError {
+    match error {
         QueryError::Cassie(error) => error,
         QueryError::General(message) => CassieError::Execution(message),
-    })
+        error @ (QueryError::FloatPowerOverflow | QueryError::FloatPowerUnderflow) => error.into(),
+    }
 }
 
 fn overflow() -> CassieError {

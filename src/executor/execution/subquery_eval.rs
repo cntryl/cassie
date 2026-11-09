@@ -184,6 +184,7 @@ fn bounded(mut logical: LogicalPlan, kind: &SubqueryKind) -> LogicalPlan {
 
 pub(super) fn is_interruption(error: &QueryError) -> bool {
     match error {
+        QueryError::FloatPowerOverflow | QueryError::FloatPowerUnderflow => false,
         QueryError::General(message) => {
             message.eq_ignore_ascii_case("query canceled")
                 || message.eq_ignore_ascii_case("query timeout exceeded")

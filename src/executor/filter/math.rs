@@ -33,21 +33,15 @@ pub(in crate::executor::filter) fn power(left: f64, right: f64) -> Result<f64, Q
     }
     let result = left.powf(right);
     if left.is_finite() && right.is_finite() {
-        let message = if result.is_infinite() {
-            Some("value out of range: overflow")
+        let error = if result.is_infinite() {
+            Some(QueryError::FloatPowerOverflow)
         } else if result == 0.0 && left != 0.0 {
-            Some("value out of range: underflow")
+            Some(QueryError::FloatPowerUnderflow)
         } else {
             None
         };
-        if let Some(message) = message {
-            return Err(
-                CassieError::TypeInput(crate::types::extended::TypeInputError::new(
-                    "22003",
-                    message.to_string(),
-                ))
-                .into(),
-            );
+        if let Some(error) = error {
+            return Err(error);
         }
     }
     Ok(result)

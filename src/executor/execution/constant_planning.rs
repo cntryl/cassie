@@ -791,6 +791,9 @@ const fn is_literal(expr: &Expr) -> bool {
 fn is_folding_error(error: &QueryError) -> bool {
     matches!(
         error,
+        QueryError::FloatPowerOverflow | QueryError::FloatPowerUnderflow
+    ) || matches!(
+        error,
         QueryError::Cassie(
             crate::app::CassieError::SizeInput(_)
                 | crate::app::CassieError::FloatInput(_)

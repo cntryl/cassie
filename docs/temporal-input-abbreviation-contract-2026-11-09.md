@@ -35,7 +35,7 @@ selection is not executable qualification or #815 completion.
 
 
 A separate raw-TZif parity boundary applies to both the old bounded lookup and
-the integrated checked lookup. PostgreSQL's `pg_timezone_abbrev_is_known`
+the earlier, subsequently withdrawn checked lookup. PostgreSQL's `pg_timezone_abbrev_is_known`
 scans every raw local-time type, including an unreferenced nonzero type; Jiff's
 public preceding/following transition API exposes transition-reachable types.
 The pinned jiff-core 0.1.2 parser explicitly accepts unreferenced types. A
@@ -72,3 +72,79 @@ uses a raw-data CRC32, so this is not a claim that every public operation sees
 the same object; a checksum is not collision-free access to designation indices.
 A correct promotion must preserve or obtain the actual source designation
 identity; no such Jiff API or safe provenance discriminator has yet been shown.
+
+## Selected narrow punt and implementation dependency
+
+Full PostgreSQL-compatible session-zone abbreviation handling for ordinary
+`date`, `timestamp` and `timestamptz` text input is **punted** pending a
+source-coupled raw designation identity and a controlled tokenizer/SQL owner
+flow. This is a specific open #815 obligation, not a claim that all timezone
+handling is impossible or unsupported. Keep current behavior for unproved
+paths; do not replace it with a reachable-transition approximation, a
+name/checksum guess, or a restriction that rejects otherwise supported zones.
+
+The consolidated candidate separately contains the narrowly scoped typed
+`timezone()` POSIX provenance route described in its
+`docs/posix-abbreviation-provenance-2026-11-09.md`.
+It covers only its documented typed timestamp/timestamptz operands and verified
+rule grammar; it is preserved by this decision. This older prototype branch
+contains the subsequently withdrawn broader operand-time route and must not be
+cherry-picked wholesale. Neither that withdrawal nor the scoped POSIX route
+solves normal temporal text input, arbitrary TZif sources, or #815 as a whole.
+
+PostgreSQL 18.6's
+[`localtime.c`](https://github.com/postgres/postgres/blob/REL_18_6/src/timezone/localtime.c)
+first finds the matching raw designation index and scans every local-time type,
+including unreferenced types. Its
+[`datetime.c`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/utils/adt/datetime.c)
+checks abbreviations before ordinary keywords and defers dynamic abbreviation
+offset resolution until the final date is known. The branch prototype probes
+using partially accumulated date fields or the transaction start and cannot
+preserve all of that ordering. The documented MSK operand, gap/fold and
+invalid-input oracle cases remain part of acceptance.
+
+Pinned Jiff 0.2.39 exposes `TimeZone::get`, `TimeZone::tzif`, `iana_name`,
+`preceding` and `following`, but not the raw designation table of an existing
+zone. Its jiff-core 0.1.2 TZif parser interns equal abbreviation strings; the
+public transition view also omits unreferenced local-time types. A zone name or
+CRC32 is not proof of the original raw indices. `jiff-tzdb` 0.1.9 exposes
+bundled TZif bytes and Jiff can construct a zone from supplied bytes, so a
+future source-coupled owner is possible to investigate. It is not yet proven
+equivalent to the actual `TimeZone::get` instance: system/TZDIR database
+features can be enabled through feature unification, and public `Zone::Rules`
+and `TemporalSession.zone` permit externally constructed zones. Forcing a
+bundled source would be a separate compatibility change, not a silent fix.
+
+The actual SQL cast route is `cast_expr` → `casts::scalar` → `cast_scalar` →
+`temporal::cast` → `ExtendedType::cast_from_in` → `temporal_types::parse_text`
+→ the relevant temporal `parse_*` → `decode_datetime`. Query controls select
+the temporal session but are not passed to the tokenizer or abbreviation
+resolver. The branch's `decode_datetime_checked` and reachable-interval
+classifier are test-only. `tokens::tokenize` currently collects input into a
+`Vec<char>` and builds token Strings and a Vec without a checked owner or
+interruption. Implicit temporal operands, functions, `source_series`, Bind,
+`time_input`, public no-controls callers and errors require their own routing
+audit. A resolver callback or a checked transition loop alone is not an
+end-to-end control or diagnostic proof.
+
+The focused Jev gate selected this precise punt at 0.95, with raw/API 0.93,
+SQL/control 0.87 and approximation 0.81 gap leads. After the integrated typed
+POSIX path and the actual bundled raw-byte API were included, the follow-up
+selected the precise punt at 1.00, with source selection 0.89 and
+timing/ownership 0.92 gap leads. Receipts are
+`target/assembly-review/815-temporal-input-abbreviation-{request,response}.json`
+and `target/assembly-review/815-temporal-input-abbreviation-followup-{request,response}.json`.
+Jev selects a direction; it does not establish correctness or impossibility.
+
+Before activation, specify how the exact raw bytes and zone are constructed
+and retained together, with a compatible public API and explicit source policy
+for bundled, system/TZDIR, POSIX and externally supplied zones. Prove raw
+paired-designation-index and orphan-type classification, final-date resolution,
+session/global/keyword and error precedence, same-owner lifetimes and the
+fallible SQL/public handoffs. Add actual-work synchronized cancellation,
+exact/below-budget, diagnostic and teardown probes with no new arbitrary cap.
+The paired-index and orphan TZif fixtures, checked-decoder probes and SQL
+acceptance witnesses in this isolated branch are authored but **unexecuted**;
+the oracle observations are not Cassie execution evidence. Full build, tests,
+strict Clippy and the remaining ordered gates are deferred to the consolidated
+bundle. #815 remains open.

@@ -129,3 +129,36 @@ fn should_hold_operator_parents_through_public_row_materialization() {
     drop(guard);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_keep_outer_parent_and_operator_lease_until_last_row_clone_drops() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let parent_lease = Arc::new(controls.reserve_query_memory(512).expect("parent lease"));
+    let parent = Arc::new(
+        BatchRow::new(vec![("outer".into(), Value::String("parent".into()))])
+            .with_query_memory(Some(parent_lease)),
+    );
+    let weak_parent = Arc::downgrade(&parent);
+    let operator = Arc::new(controls.reserve_query_memory(1024).expect("operator lease"));
+    let weak_operator = Arc::downgrade(&operator);
+    let row = BatchRow::new(vec![("inner".into(), Value::String("child".into()))])
+        .with_outer_scope(parent)
+        .retain_operator_memory(&controls, operator)
+        .expect("operator owner");
+
+    // Act
+    let cloned = row.clone();
+    drop(row);
+
+    // Assert
+    assert!(weak_parent.upgrade().is_some());
+    assert!(weak_operator.upgrade().is_some());
+    assert_eq!(cloned.get("inner"), Some(&Value::String("child".into())));
+    assert!(controls.current_query_memory_bytes() >= 1536);
+    drop(cloned);
+    assert!(weak_parent.upgrade().is_none());
+    assert!(weak_operator.upgrade().is_none());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

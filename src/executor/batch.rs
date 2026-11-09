@@ -20,7 +20,6 @@ pub(crate) type RowAliases = Vec<(String, usize)>;
 
 #[derive(Debug, Clone)]
 pub(crate) struct BatchRow {
-    operator_memory: Option<Arc<operator_memory::OperatorMemory>>,
     values: RowEntries,
     aliases: RowAliases,
     lookup: OnceLock<HashMap<String, usize>>,
@@ -28,6 +27,8 @@ pub(crate) struct BatchRow {
     data_types: Option<Arc<Vec<DataType>>>,
     // A clone keeps its origin alive; this lease never admits the clone's new allocations.
     query_memory: Option<Arc<crate::runtime::QueryMemoryReservation>>,
+    // Row-owned allocations must be destroyed before their operator reservation.
+    operator_memory: Option<Arc<operator_memory::OperatorMemory>>,
 }
 
 impl BatchRow {

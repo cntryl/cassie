@@ -23,6 +23,19 @@ rollback behavior remain issue #843 obligations; this inventory does not
 manufacture their rows. Likewise #828's relation and domain semantics cannot be
 made complete by a catalog-only change or by model judgment.
 
+The live #843 issue references several extension acceptance files that are
+absent from this source tree. The registered extension test currently present,
+`tests/compatibility/lifecycle/extensions/dependency_targets.rs`, asserts that
+`CREATE EXTENSION pgcrypto` is unsupported; it is a boundary witness, not
+evidence that installation or the catalog contract works. The catalog identity
+TSV files contain PostgreSQL names for `pg_extension` and
+`pg_available_extensions`, but a name in that identity dataset does not supply
+a queryable relation, installed extension state, or implementation. Before
+changing that rejection, author focused create, lifecycle, catalog, rollback,
+schema and digest regressions against the selected #843 profile. Preserve the
+boundary test until the corresponding runtime behavior is implemented, then
+replace its obsolete expectation rather than claiming it passes unchanged.
+
 ## Materialized view vector identity increment
 
 The existing experimental scalar vector registry derives synthetic `vector(n)`

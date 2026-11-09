@@ -56,12 +56,28 @@ impl OwnedExpanded {
         mut self,
         controls: &QueryExecutionControls,
     ) -> Result<Vec<BatchRow>, QueryError> {
-        if self.chunk_memory.is_some() {
-            observe(Progress::Flatten);
-            controls.check_interruption()?;
+        let Some(memory) = self.chunk_memory.as_ref() else {
+            return Ok(batch::flatten_batches(std::mem::take(&mut self.batches)));
+        };
+        observe(Progress::Flatten);
+        controls.check_interruption()?;
+        let count = self.batches.iter().try_fold(0_usize, |count, batch| {
+            count.checked_add(batch.len()).ok_or_else(|| {
+                CassieError::ResourceLimit("JSON object-key flatten directory overflow".into())
+            })
+        })?;
+        let (rows, memory) = crate::runtime::owned_memory::try_reserve_vec(count, memory)?;
+        let mut pending = PendingFlatten { rows, memory };
+        for batch in std::mem::take(&mut self.batches) {
+            for row in batch {
+                controls.check_interruption()?;
+                pending.rows.push(row);
+                observe(Progress::FlattenMove);
+                controls.check_interruption()?;
+            }
         }
-        let batches = std::mem::take(&mut self.batches);
-        let rows = batch::flatten_batches(batches);
+        let PendingFlatten { rows, memory } = pending;
+        drop(memory);
         drop(self);
         Ok(rows)
     }
@@ -77,6 +93,11 @@ impl std::ops::Deref for OwnedExpanded {
     fn deref(&self) -> &Self::Target {
         &self.batches
     }
+}
+
+struct PendingFlatten {
+    rows: Vec<BatchRow>,
+    memory: QueryMemoryReservation,
 }
 
 struct PendingInput {

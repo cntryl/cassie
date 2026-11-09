@@ -26,3 +26,11 @@ may change budget/error priority. DISTINCT-created directories, flatten output,
 input source physical capacity, Arc deallocation, allocator transient excess,
 lookup and teardown remain unqualified; the guard's lifetime claim is limited
 to the audited private caller and does not qualify other bare Vec consumers.
+
+The selected flatten allocates a distinct, separately admitted destination and
+moves each row under interruption checks. This guarantees that input inner
+buffers cannot be reused as the returned destination; input directories die
+before their chunk lease. The destination's temporary lease covers its build,
+but the returned bare `Vec<BatchRow>` has no directory owner after the handoff.
+The added destination overlap and move checks may change budget or cancellation
+priority. Untracked paths retain the original flatten implementation.

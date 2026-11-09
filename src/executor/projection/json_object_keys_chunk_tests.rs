@@ -192,3 +192,23 @@ fn should_record_one_batch_buffer_metric_for_each_emitted_chunk() {
     drop(expanded);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_release_both_directory_leases_after_actual_flatten_move_cancellation() {
+    // Arrange
+    let cancel = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancel.clone(),
+    );
+    let (batches, projection) = fixture(2);
+    let expanded = json_object_keys::expand(batches, &projection, &controls).expect("expansion");
+    json_object_keys::cancel_expand_once(cancel.clone(), 9);
+    // Act
+    let result = expanded.flatten(&controls);
+    // Assert
+    assert!(cancel.is_cancelled());
+    assert!(result.is_err());
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

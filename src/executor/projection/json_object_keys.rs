@@ -31,6 +31,7 @@ enum Progress {
     ChunkMove,
     ChunkDirectory,
     Flatten,
+    FlattenMove,
 }
 
 #[cfg(test)]
@@ -68,6 +69,7 @@ fn observe(progress: Progress) {
         Progress::ChunkMove => 6,
         Progress::ChunkDirectory => 7,
         Progress::Flatten => 8,
+        Progress::FlattenMove => 9,
     };
     CANCEL_EXPAND.with(|slot| {
         let mut slot = slot.borrow_mut();

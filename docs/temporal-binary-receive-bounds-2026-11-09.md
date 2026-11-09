@@ -27,7 +27,6 @@ All authored Cassie probes remain unexecuted pending consolidated gates; this
 does not complete #815 or qualify unrelated decoding/resource boundaries.
 
 For scalar Bind with a valid timestamp prefix followed by extra bytes, the
-SQLSTATE is 22P03 but the existing generic Cassie codec message names the type;
-PostgreSQL instead includes the one-based Bind parameter index. Carrying that
-ordinal into this generic error path remains open. Array and COPY-specific
-extra-data messages use the scoped forms above.
+scoped ordinal follow-up in `timestamp-bind-extra-ordinal-2026-11-09.md`
+uses PostgreSQL's one-based parameter index in the 22P03 message. Array and
+COPY-specific extra-data messages use the scoped forms above.

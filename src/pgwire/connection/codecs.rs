@@ -990,3 +990,7 @@ pub(super) fn timestamp_copy_error(
 ) -> Option<crate::types::extended::TypeInputError> {
     timestamp_error::copy_error(error)
 }
+
+pub(super) fn timestamp_scalar_excess(error: &io::Error) -> bool {
+    error.get_ref().is_some_and(timestamp_error::scalar_excess)
+}

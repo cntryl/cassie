@@ -19,7 +19,7 @@ pub(super) fn decode(bytes: &[u8], zoned: bool) -> io::Result<Value> {
     }))
 }
 
-fn scalar_excess(error: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
+pub(super) fn scalar_excess(error: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
     error
         .downcast_ref::<super::ExcessBinaryData>()
         .is_some_and(|error| matches!(error.0, "timestamp" | "timestamptz"))

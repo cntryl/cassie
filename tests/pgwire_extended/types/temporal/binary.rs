@@ -385,3 +385,112 @@ fn should_preserve_binary_timestamp_array_element_error_order() {
         );
     }
 }
+
+#[test]
+fn should_report_timestamp_excess_bind_parameter_ordinal_and_recover() {
+    // Arrange
+    use cassie::types::extended::temporal::calendar::END_TIMESTAMP;
+    let good_integer = 1_i32.to_be_bytes();
+    let extra_valid = [0_i64.to_be_bytes().as_slice(), &[0]].concat();
+    let extra_invalid = [END_TIMESTAMP.to_be_bytes().as_slice(), &[0]].concat();
+    let mut steps = Vec::new();
+    for (index, explicit) in [false, true].into_iter().enumerate() {
+        let first = format!("timestamp_extra_first_{index}");
+        let second = format!("timestamp_extra_second_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &first,
+            "SELECT $1, $2",
+            &[1114, 23],
+        )));
+        steps.push(Step::ParseFlush(wire::parse_frame_with_types(
+            &second,
+            "SELECT $1, $2",
+            &[23, 1184],
+        )));
+        if explicit {
+            steps.push(Step::ThroughReady(vec![wire::simple_query_frame("BEGIN")]));
+        }
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                &first,
+                &[1],
+                &[Some(&extra_valid), Some(&good_integer)],
+                &[],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+        if explicit {
+            steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+                "ROLLBACK",
+            )]));
+        }
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                &second,
+                &[1],
+                &[Some(&good_integer), Some(&extra_valid)],
+                &[],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                "",
+                &second,
+                &[1],
+                &[Some(&good_integer), Some(&extra_invalid)],
+                &[],
+            ),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats("", &first, &[1], &[None, Some(&good_integer)], &[]),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 45",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("timestamp-bind-extra-ordinal", steps);
+
+    // Assert
+    for (first, second, invalid, null, recovery) in [(2, 3, 4, 5, 6), (10, 12, 13, 14, 15)] {
+        for (index, ordinal) in [(first, 1), (second, 2)] {
+            assert_eq!(wire::error_code(&batches[index]).as_deref(), Some("22P03"));
+            let fields = wire::parse_error_fields(
+                &batches[index]
+                    .iter()
+                    .find(|frame| frame.0 == b'E')
+                    .expect("error response")
+                    .1,
+            );
+            assert!(fields.iter().any(|(field, message)| *field == 'M'
+                && message
+                    == &format!("incorrect binary data format in bind parameter {ordinal}")));
+        }
+        assert_eq!(
+            wire::error_code(&batches[invalid]).as_deref(),
+            Some("22008")
+        );
+        assert_eq!(
+            wire::data_rows(&batches[null]),
+            vec![vec![None, Some("1".to_owned())]]
+        );
+        assert_eq!(
+            wire::data_rows(&batches[recovery]),
+            vec![vec![Some("45".to_owned())]]
+        );
+    }
+    assert_eq!(
+        batches[10].last().map(|frame| frame.1.as_slice()),
+        Some(&b"E"[..])
+    );
+}

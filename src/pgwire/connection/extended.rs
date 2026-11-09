@@ -345,6 +345,7 @@ async fn handle_bind(
                 parameter.as_deref(),
                 format_for_index(&parameter_formats, index),
                 prepared.parameter_types[index],
+                index,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -807,6 +808,7 @@ fn decode_parameter(
     parameter: Option<&[u8]>,
     format: i16,
     oid: i32,
+    index: usize,
 ) -> Result<Value, ExtendedQueryError> {
     if let Some(oid) = unknown_high_bit_parameter_oid(oid) {
         return Err(ExtendedQueryError::unknown_type_oid(oid));
@@ -817,7 +819,7 @@ fn decode_parameter(
     if format == 0 {
         return decode_text_parameter(parameter, oid);
     }
-    decode_binary_parameter(parameter, oid)
+    decode_binary_parameter(parameter, oid, index)
 }
 
 pub(super) fn benchmark_decode_parameter(
@@ -825,12 +827,32 @@ pub(super) fn benchmark_decode_parameter(
     format: i16,
     oid: i32,
 ) -> Result<Value, String> {
-    decode_parameter(Some(parameter), format, oid).map_err(|error| error.pg_error.message.clone())
+    decode_parameter(Some(parameter), format, oid, 0)
+        .map_err(|error| error.pg_error.message.clone())
 }
 
-fn decode_binary_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQueryError> {
-    binary_to_value(parameter, i64::from(oid))
-        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))
+fn decode_binary_parameter(
+    parameter: &[u8],
+    oid: i32,
+    index: usize,
+) -> Result<Value, ExtendedQueryError> {
+    binary_to_value(parameter, i64::from(oid)).map_err(|error| {
+        if super::codecs::timestamp_scalar_excess(&error) {
+            ExtendedQueryError {
+                pg_error: Box::new(PgWireError::new(
+                    PgWireSeverity::Error,
+                    "22P03",
+                    format!(
+                        "incorrect binary data format in bind parameter {}",
+                        index + 1
+                    ),
+                )),
+                record_protocol_error: false,
+            }
+        } else {
+            ExtendedQueryError::protocol_from_io(&error)
+        }
+    })
 }
 
 fn missing_statement_error(name: &str) -> ExtendedQueryError {

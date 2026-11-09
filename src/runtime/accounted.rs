@@ -6,6 +6,8 @@ use super::{QueryExecutionControls, QueryMemoryReservation};
 
 #[path = "accounted/json.rs"]
 pub(crate) mod json;
+#[path = "accounted/compact_json.rs"]
+pub(crate) mod compact_json;
 
 /// A retained value paired with the query-memory reservation that owns its budget.
 ///

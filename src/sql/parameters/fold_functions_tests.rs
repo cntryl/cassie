@@ -1,3 +1,4 @@
+use super::super::super::{diagnostics, occurrences};
 use super::{all_unknown_bucket_parameters, ast, Summary};
 
 fn unknown() -> Summary {
@@ -68,9 +69,9 @@ fn should_detect_an_earlier_unqualified_parameter_demand() {
         &crate::config::CassieRuntimeLimits::default(),
         std::time::Instant::now(),
     );
-    let mut occurrences = super::super::occurrences::Occurrences::new(
+    let mut occurrences = occurrences::Occurrences::new(
         1,
-        super::super::occurrences::PrivateParameterTypeInput::Wire(&[]),
+        occurrences::PrivateParameterTypeInput::Wire(&[]),
         &controls,
         true,
     )
@@ -95,9 +96,9 @@ fn should_report_a_fresh_shared_parameter_as_an_inconsistent_type() {
         &crate::config::CassieRuntimeLimits::default(),
         std::time::Instant::now(),
     );
-    let mut occurrences = super::super::occurrences::Occurrences::new(
+    let mut occurrences = occurrences::Occurrences::new(
         1,
-        super::super::occurrences::PrivateParameterTypeInput::Wire(&[]),
+        occurrences::PrivateParameterTypeInput::Wire(&[]),
         &controls,
         true,
     )
@@ -115,7 +116,7 @@ fn should_report_a_fresh_shared_parameter_as_an_inconsistent_type() {
     assert!(matches!(
         result,
         Err(super::super::ParameterAdmissionError::Semantic(
-            super::super::diagnostics::ParameterSemanticDiagnostic::Inconsistent {
+            diagnostics::ParameterSemanticDiagnostic::Inconsistent {
                 slot: 0,
                 previous: 701,
                 requested: 23,
@@ -253,9 +254,9 @@ fn should_preserve_a_prior_count_cast_when_an_operand_snapshot_was_unknown() {
         &crate::config::CassieRuntimeLimits::default(),
         std::time::Instant::now(),
     );
-    let mut occurrences = super::super::occurrences::Occurrences::new(
+    let mut occurrences = occurrences::Occurrences::new(
         1,
-        super::super::occurrences::PrivateParameterTypeInput::Wire(&[]),
+        occurrences::PrivateParameterTypeInput::Wire(&[]),
         &controls,
         true,
     )
@@ -275,7 +276,7 @@ fn should_preserve_a_prior_count_cast_when_an_operand_snapshot_was_unknown() {
     assert!(matches!(
         result,
         Err(super::super::ParameterAdmissionError::Semantic(
-            super::super::diagnostics::ParameterSemanticDiagnostic::Inconsistent {
+            diagnostics::ParameterSemanticDiagnostic::Inconsistent {
                 slot: 0,
                 previous: 23,
                 requested: 701,
@@ -291,9 +292,9 @@ fn should_preserve_a_prior_smallint_count_cast_when_operand_snapshot_was_unknown
         &crate::config::CassieRuntimeLimits::default(),
         std::time::Instant::now(),
     );
-    let mut occurrences = super::super::occurrences::Occurrences::new(
+    let mut occurrences = occurrences::Occurrences::new(
         1,
-        super::super::occurrences::PrivateParameterTypeInput::Wire(&[]),
+        occurrences::PrivateParameterTypeInput::Wire(&[]),
         &controls,
         true,
     )
@@ -313,7 +314,7 @@ fn should_preserve_a_prior_smallint_count_cast_when_operand_snapshot_was_unknown
     assert!(matches!(
         result,
         Err(super::super::ParameterAdmissionError::Semantic(
-            super::super::diagnostics::ParameterSemanticDiagnostic::Inconsistent {
+            diagnostics::ParameterSemanticDiagnostic::Inconsistent {
                 slot: 0,
                 previous: 21,
                 requested: 701,

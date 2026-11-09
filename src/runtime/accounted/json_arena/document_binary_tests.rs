@@ -106,12 +106,8 @@ fn should_validate_utf8_before_starting_binary_document_parsing() {
     let mut parser_started = false;
 
     // Act
-    let result = binary_json_text_observed(
-        b"[1,]\xff",
-        &controls,
-        |_| parser_started = true,
-        |_| {},
-    );
+    let result =
+        binary_json_text_observed(b"[1,]\xff", &controls, |_| parser_started = true, |_| {});
 
     // Assert
     assert!(matches!(result, Err(BinaryJsonError::Invalid)));

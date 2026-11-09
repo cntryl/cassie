@@ -15,7 +15,10 @@ fn should_preserve_json_identity_through_scalar_extraction_chains() {
 
     // Assert
     fixture::assert_success(&batches[0]);
-    assert_eq!(wire::data_rows(&batches[0]), vec![vec![None, Some("1".into()), None, Some("null".into())]]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![None, Some("1".into()), None, Some("null".into())]]
+    );
 }
 
 #[test]
@@ -34,12 +37,21 @@ fn should_respect_json_parameter_identity_when_indexing_a_scalar() {
     for frames in &batches {
         fixture::assert_success(frames);
     }
-    let parameters = batches[0].iter().find(|(tag, _)| *tag == b't').expect("JSON parameter description");
+    let parameters = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("JSON parameter description");
     assert_eq!(wire::parse_parameter_description(&parameters.1), [114]);
-    let parameters = batches[1].iter().find(|(tag, _)| *tag == b't').expect("JSONB parameter description");
+    let parameters = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("JSONB parameter description");
     assert_eq!(wire::parse_parameter_description(&parameters.1), [3802]);
     assert_eq!(wire::data_rows(&batches[0]), vec![vec![None, None]]);
-    assert_eq!(wire::data_rows(&batches[1]), vec![vec![Some("1".into()), Some("1".into())]]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("1".into()), Some("1".into())]]
+    );
 }
 
 #[test]

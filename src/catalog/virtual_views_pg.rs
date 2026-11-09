@@ -8,6 +8,7 @@ use super::VirtualRow;
 
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
+#[path = "virtual_views_pg/type_identity.rs"]
 mod type_identity;
 
 pub(super) fn namespace_schema() -> Vec<(String, DataType)> {

@@ -353,6 +353,67 @@ fn should_resolve_regprocedure_signature_aliases_including_missing_overloads() {
 }
 
 #[test]
+fn should_resolve_bounded_array_type_names_for_regtype_and_regprocedure() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regtype-array-bounds", &[]);
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let selected = fixture
+        .execute(
+            "SELECT 'integer[ ]'::regtype::oid, \
+                    to_regtype('pg_catalog.int4 [2]')::oid, \
+                    to_regtype('integer[ 2 ][3]')::oid, \
+                    to_regtype('numeric(5, 2)[3]')::oid, \
+                    to_regtype('integer[1_0]')::oid, \
+                    to_regtype('integer[0x2]')::oid, \
+                    to_regtype('integer[0o2]')::oid, \
+                    to_regtype('integer[0b10]')::oid, \
+                    to_regtype('integer/* type */[2]')::oid, \
+                    to_regtype('integer[ /* bound */ 2 /* close */ ]')::oid, \
+                    to_regtype('integer[2] /* between dimensions */ [3]')::oid, \
+                    to_regtype('integer[-- bound comment\n2]')::oid, \
+                    to_regprocedure('pg_catalog.array_fill(anyelement, integer[2])')::oid, \
+                    to_regtype('_int4[]') IS NULL, \
+                    to_regtype('_int4[2]') IS NULL, \
+                    to_regtype('integer[1__0]') IS NULL, \
+                    to_regtype('integer[2147483648]') IS NULL, \
+                    to_regtype('integer[0x80000000]') IS NULL, \
+                    to_regtype('integer[\u{00a0}2]') IS NULL",
+        )
+        .expect("resolve builtin array dimensions in object identifier names");
+
+    // Assert
+    assert_eq!(
+        selected.rows(),
+        vec![vec![
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1_231),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1007),
+            Value::Int64(1_193),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+
+    // The explicit cast path remains an error for invalid input.
+    assert!(fixture.execute("SELECT 'integer[1__0]'::regtype").is_err());
+}
+
+#[test]
 fn should_preserve_overload_identity_through_regprocedure_casts() {
     // Arrange
     let fixture = sql_fixture("issue-818-regprocedure-oid-identity", &[]);

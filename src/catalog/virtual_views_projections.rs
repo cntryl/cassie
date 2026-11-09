@@ -5,7 +5,6 @@ use super::{
     virtual_views_repair, VirtualRow,
 };
 use crate::catalog::Catalog;
-use crate::types::DataType;
 
 pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
     match name {

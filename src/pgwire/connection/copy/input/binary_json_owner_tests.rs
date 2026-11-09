@@ -176,7 +176,8 @@ fn should_leave_binary_json_array_on_its_existing_array_codec_route() {
 
     // Act
     let (rows, memory) =
-        super::parse_binary_payload(&payload(&array), &cassie, &statement, &controls).expect("copy");
+        super::parse_binary_payload(&payload(&array), &cassie, &statement, &controls)
+            .expect("copy");
 
     // Assert
     assert_eq!(rows, vec![vec![Some(expected)]]);

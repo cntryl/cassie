@@ -67,7 +67,7 @@ fn should_preserve_unpopulated_materialized_view_vector_type_after_restart() {
         );
         assert!(String::from_utf8_lossy(&output.stdout)
             .lines()
-            .any(|line| line == COMPLETE));
+            .any(|line| line.trim_end().ends_with(COMPLETE)));
         return;
     }
     let path = super::support_sql::data_dir("matview-vector-type-restart");

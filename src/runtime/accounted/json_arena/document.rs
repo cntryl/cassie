@@ -13,10 +13,10 @@ use super::sources::SourceStack;
 #[path = "sentinel_type.rs"]
 mod sentinel_type;
 use sentinel_type::{Expected, TypeDiagnostic};
-#[path = "document_diagnostic.rs"]
-pub(super) mod diagnostic;
 #[path = "document_binary.rs"]
 pub(super) mod binary;
+#[path = "document_diagnostic.rs"]
+pub(super) mod diagnostic;
 #[path = "document_jsonb.rs"]
 pub(super) mod jsonb;
 #[path = "document_unwind.rs"]

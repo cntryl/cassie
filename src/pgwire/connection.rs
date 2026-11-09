@@ -56,8 +56,8 @@ mod writers;
 use blocking::run_pgwire_blocking;
 use errors::{cassie_pg_error, PgWireError, PgWireSeverity};
 use readers::{
-    read_frontend_message, read_frontend_message_after_tag, read_frontend_tag,
-    read_password_message, read_simple_query_message, read_startup_frame,
+    read_frontend_message, read_frontend_tag, read_password_message, read_simple_query_message,
+    read_startup_frame,
 };
 use startup_params::{apply_startup_parameters, validate_startup_parameters};
 use state::{

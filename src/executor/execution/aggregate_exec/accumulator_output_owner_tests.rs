@@ -1,5 +1,5 @@
-use super::*;
 use super::super::collection_json as aggregate_json;
+use super::*;
 use crate::runtime::QueryCancellationHandle;
 
 #[test]
@@ -54,8 +54,7 @@ fn should_release_owner_after_cancellation_during_alias_append() {
     let memory = controls
         .reserve_query_memory(128)
         .expect("accumulator owner");
-    let output =
-        aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
+    let output = aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
     let mut row = aggregate_json::OutputRow::new(Vec::new(), &[], &controls).expect("row");
     let mut appended = 0;
     // Act
@@ -76,8 +75,7 @@ fn should_reject_foreign_accumulator_reservation_before_absorbing() {
     let controls = controls_with_budget(8192);
     let foreign = controls_with_budget(8192);
     let memory = foreign.reserve_query_memory(128).expect("foreign owner");
-    let output =
-        aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
+    let output = aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
     let mut row = aggregate_json::OutputRow::new(Vec::new(), &[], &controls).expect("row");
     // Act
     let result = row.append(output, &["first".into()]);
@@ -93,8 +91,7 @@ fn should_admit_accumulator_and_output_overlap_at_exact_budget() {
     // Arrange
     let baseline = controls_with_budget(8192);
     let memory = baseline.reserve_query_memory(128).expect("accumulator");
-    let output =
-        aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
+    let output = aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
     let mut row = aggregate_json::OutputRow::new(Vec::new(), &[], &baseline).expect("row");
     row.append(output, &["first".into()]).expect("measure");
     let peak = baseline.peak_query_memory_bytes();
@@ -124,8 +121,7 @@ fn should_preserve_existing_json_output_reservation() {
     let mut row = aggregate_json::OutputRow::new(Vec::new(), &specs, &controls).expect("JSON row");
     let before = controls.current_query_memory_bytes();
     let memory = controls.reserve_query_memory(128).expect("accumulator");
-    let output =
-        aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
+    let output = aggregate_json::AggregateOutput::from_owned(Value::String("value".into()), memory);
     // Act
     row.append(output, &["alias".into()]).expect("append");
     let row = row.finish();

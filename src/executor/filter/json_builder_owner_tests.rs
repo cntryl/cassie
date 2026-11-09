@@ -1,6 +1,4 @@
-use super::{
-    build_array_query, evaluate, retain_builder_output, EvalContext, FunctionCall, Value,
-};
+use super::{build_array_query, evaluate, retain_builder_output, EvalContext, FunctionCall, Value};
 use crate::config::CassieRuntimeLimits;
 use crate::executor::filter::EvaluationMemory;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};

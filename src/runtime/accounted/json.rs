@@ -1,3 +1,6 @@
+#[path = "json/controlled_parse.rs"]
+pub(crate) mod controlled_parse;
+
 use std::mem::size_of;
 
 use crate::app::CassieError;

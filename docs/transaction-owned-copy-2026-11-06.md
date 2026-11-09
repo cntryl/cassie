@@ -395,3 +395,21 @@ focused source checks and probes. Formatter allocation evidence is specific to
 the inspected Rust toolchain. Other codecs and diagnostics remain pending;
 probes are unexecuted. Receipt:
 `target/assembly-review/copy-binary-vector-{request,response}.json`.
+
+Jev selected (0.84) an explicitly partial controlled JSON parser foundation:
+validate UTF-8 first in checked chunks, parse the complete binary JSON document
+through a checked reader, and couple its `serde_json::Value` to the existing
+serialized-decode reservation through the actual caller. JSON OID 114 keeps its
+existing generic invalid-binary diagnostic; JSONB remains unchanged. The
+existing 192× reservation is a documented estimate whose complete peak proof
+for pinned serde/Rust, duplicate replacement, map/Vec growth and overlapping
+scratch is still pending. Reader checks do not bound post-read UTF-8 validation,
+BTree key comparisons or recursive Value drop. Existing output serialization
+and its pre-admission/cancellation are also pending; this is not general JSON
+resource qualification. Tests are authored and unexecuted. Receipt:
+`target/assembly-review/json-parser-foundation-{request,response}.json`.
+The new checked UTF-8 pass and parser admission may report cancellation or a
+resource limit before the old unchecked parser would have reported a later
+syntax error; invalid UTF-8 is still recognized before parser admission. The
+binary JSON caller drops a serde error before releasing its reservation, then
+emits the same generic invalid-binary diagnostic as before.

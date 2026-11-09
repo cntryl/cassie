@@ -5,6 +5,10 @@ mod hypothetical;
 #[path = "ordered_set_mode.rs"]
 mod mode;
 
+#[cfg(test)]
+#[path = "ordered_set_fraction_tests.rs"]
+mod fraction_tests;
+
 use std::mem::size_of;
 
 use num_traits::ToPrimitive;

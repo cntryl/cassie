@@ -100,7 +100,18 @@ fn should_encode_all_json_escapes_and_utf8_like_serde_json() {
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let message = "quote\" slash\\ newline\n tab\t back\x08 form\x0c nul\0 unit\x1f café 🦀";
     let expected = serde_json::to_vec(&serde_json::json!({"error": message})).expect("json");
+    let mut counter = Writer {
+        controls: &controls,
+        bytes: None,
+        length: 0,
+        failure: None,
+    };
+    encode_error(message, &mut counter).expect("measure");
+    assert_eq!(counter.length, expected.len());
     let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(counter.length)
+        .expect("reserve output");
     let mut writer = Writer {
         controls: &controls,
         bytes: Some(&mut bytes),
@@ -169,7 +180,17 @@ fn should_interrupt_numeric_error_encoding_during_actual_scan_and_output() {
             cancellation.clone(),
         );
         let message = "a".repeat(8192);
+        let mut counter = Writer {
+            controls: &controls,
+            bytes: None,
+            length: 0,
+            failure: None,
+        };
+        encode_error(&message, &mut counter).expect("measure");
         let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(counter.length)
+            .expect("reserve output");
         let mut writer = Writer {
             controls: &controls,
             bytes: Some(&mut bytes),

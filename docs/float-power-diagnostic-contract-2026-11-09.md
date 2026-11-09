@@ -44,6 +44,9 @@ pre-release API change selected to preserve the distinct power provenance.
 Audit every exhaustive `QueryError` match. In particular,
 `subquery_eval::is_interruption` must keep these range failures classified as
 ordinary errors, not interruptions, matching the previous `FloatInput` path.
+`numeric_controlled_text::format_integer` also converts `QueryError` directly;
+map the new variants there without changing its existing `General`-to-
+`Execution` behavior.
 
 Regression coverage must keep constant-folding order and laziness intact, and
 verify the embedded error shape, function/operator SQLSTATE and message, Parse

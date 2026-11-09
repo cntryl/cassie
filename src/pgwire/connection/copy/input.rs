@@ -416,34 +416,18 @@ pub(super) fn parse_binary_payload(
                 continue;
             }
             if type_oid == 114 {
-                use crate::runtime::accounted::json::controlled_parse::ParseError;
-                let owner =
-                    match crate::runtime::accounted::json::controlled_parse::parse(bytes, controls)
-                    {
-                        Ok(owner) => owner,
-                        Err(ParseError::Controlled(error)) => return Err(error.into()),
-                        Err(ParseError::InvalidJson {
-                            error,
-                            _memory: memory,
-                        }) => {
-                            drop(error);
-                            drop(memory);
-                            return Err(CassieError::Parse(format!(
-                                "COPY binary field {} is invalid: invalid binary json value",
-                                column_index + 1
-                            ))
-                            .into());
-                        }
-                        Err(ParseError::InvalidUtf8) => {
-                            return Err(CassieError::Parse(format!(
-                                "COPY binary field {} is invalid: invalid binary json value",
-                                column_index + 1
-                            ))
-                            .into());
-                        }
-                    };
-                let output =
-                    crate::runtime::accounted::compact_json::serialize(owner.get(), controls)?;
+                use crate::runtime::accounted::json_arena::{binary_json_text, BinaryJsonError};
+                let output = match binary_json_text(bytes, controls) {
+                    Ok(output) => output,
+                    Err(BinaryJsonError::Controlled(error)) => return Err(error.into()),
+                    Err(BinaryJsonError::Invalid) => {
+                        return Err(CassieError::Parse(format!(
+                            "COPY binary field {} is invalid: invalid binary json value",
+                            column_index + 1
+                        ))
+                        .into());
+                    }
+                };
                 let (text, text_memory) = output.into_parts();
                 row.push(Some(text));
                 row_memory.absorb(text_memory);

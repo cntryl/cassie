@@ -618,6 +618,33 @@ the existing generic pgwire mapper supplies the resource or cancellation error;
 the normal COPY failure/rollback and ReadyForQuery path still runs, and the
 original JSONB diagnostic remains owned until that response completes.
 
+## Binary COPY JSON OID 114 follow-up
+
+The selected scalar OID 114 route validates the complete input as UTF-8,
+parses it in the existing serde-compatible Value mode, emits compact text,
+and transfers that text's same-tracker reservation to the COPY row owner. The
+existing generic invalid-binary-JSON error remains distinct from cancellation,
+deadline, and resource errors. JSONB, array codecs, other input routes, and
+the public JSON representation are unchanged. The source buffer and arena
+remain live through output; the independently admitted output survives their
+retirement. An interruption or a tracked allocation may now win earlier
+than on the previous 192-times serialized-size reservation and serde reader.
+
+The earlier focused Jev choice selected this OID 114 consumer (0.83) under
+`cassie/target/assembly-review/json-arena-copy-promotion-contract-{request,response}.json`.
+Its parity (0.79), lifetime (0.49), control (0.93) and routing (0.85) leads
+require the focused differential, owner, cancellation, budget and unchanged
+array-route probes. The earlier
+prototype's claim that compact serialization loses its production callers is
+outdated. Current scalar leaf and JSONB array comparisons still use it. The
+legacy controlled reader's sole production caller is OID 114; its differential
+tests remain available with the reader gated to tests. This selection preserves
+private-sentinel Value behavior and does not resolve the separate ordinary-key
+round-trip guarantee in [the #809 gate](json-sentinel-roundtrip-gate-2026-11-09.md).
+Allocator transient excess, parser parity, diagnostics' separate allocations,
+Midge, and synchronous arena teardown remain unqualified. Focused probes are
+authored and unexecuted; no build or test has been run for this increment.
+
 ## JSONB array envelope and dual output
 
 Jev selected an isolated JSONB array prototype retaining the existing array

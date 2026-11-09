@@ -24,7 +24,7 @@ enum Frame {
 }
 
 #[derive(Clone, Copy)]
-enum OutputProgress {
+pub(in crate::runtime::accounted::json_arena) enum OutputProgress {
     SinkScan,
     SinkCopy,
     FrameCopy,
@@ -87,7 +87,7 @@ pub(in crate::runtime::accounted::json_arena) fn serialize(
 }
 
 #[cfg(test)]
-fn serialize_observed(
+pub(in crate::runtime::accounted::json_arena) fn serialize_observed(
     forest: &Forest,
     root: NodeId,
     observer: impl FnMut(OutputProgress),

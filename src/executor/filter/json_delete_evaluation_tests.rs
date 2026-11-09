@@ -301,6 +301,55 @@ fn should_route_a_typed_json_column_and_native_path_through_the_owner() {
 }
 
 #[test]
+fn should_keep_a_source_argument_deletion_in_its_existing_expression_owner() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let row = typed_json_row(serde_json::json!({"drop":1,"keep":"payload"}));
+    let expression = crate::sql::parser::parse_expression("doc - 'drop'").expect("expression");
+    let functions = HashMap::new();
+    // Act
+    let result =
+        evaluate_source_argument(&row, &expression, &[], &functions, None, &controls, &owner)
+            .expect("source expression");
+    // Assert
+    assert!(matches!(&result, Value::String(text) if text == r#"{"keep": "payload"}"#));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_keep_a_resolved_source_argument_deletion_in_its_existing_owner() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let row = typed_json_row(serde_json::json!({"drop":1,"keep":2}));
+    let expression = crate::sql::parser::parse_expression("doc - 'drop'").expect("expression");
+    let functions = HashMap::new();
+    let resolver = |expr: &Expr| Ok(expr.clone());
+    let context = ExistsValueContext {
+        params: &[],
+        search: None,
+        functions: &functions,
+        session: None,
+        resolver: &resolver,
+    };
+    // Act
+    let result = evaluate_source_argument_resolving(&row, &expression, context, &controls, &owner)
+        .expect("source expression");
+    // Assert
+    assert!(matches!(&result, Value::String(text) if text == r#"{"keep": 2}"#));
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_preserve_dynamic_array_subtraction_error_but_allow_typed_json_deletion() {
     // Arrange
     let expression = crate::sql::parser::parse_expression("doc - $1").expect("expression");

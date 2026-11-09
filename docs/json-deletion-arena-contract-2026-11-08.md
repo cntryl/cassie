@@ -130,6 +130,14 @@ fallback. Native array right operands keep the old array-first dispatch. An unty
 column remains on its existing generic route. Source JSON scalar
 construction, casts/routines and their clones, projection row clones, aggregate,
 window, DML and other consumers are not yet qualified by this handoff.
+Source-argument evaluation also uses its existing expression owner for deletion;
+the VALUES and set-function paths hold that owner through their existing value
+admission, and schema USING holds it through prepared-payload admission. Those
+callers' generic clone/conversion estimates and downstream payload ownership
+remain separately unqualified.
+VALUES now checks interruption after expression evaluation and before output
+admission, so cancellation can precede a transfer-budget error. Its exact/
+below and post-evaluation cancellation probes are authored but unexecuted.
 The path index scanner checks each byte, but its invalid-index diagnostic still
 uses `format!` to copy the complete path element without admission or bounded
 interruption; error-message ownership and delivery remain open.

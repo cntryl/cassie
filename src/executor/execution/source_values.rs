@@ -7,6 +7,20 @@ use crate::executor::retained_memory::{add, lookup_bytes, mul, value_clone_bytes
 use std::mem::size_of;
 use std::sync::Arc;
 
+#[cfg(test)]
+#[path = "source_values_json_delete_tests.rs"]
+mod json_delete_tests;
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_VALUE: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn cancel_after_value_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_VALUE.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
 pub(super) fn execute(
     env: &SourceExecutionEnv<'_>,
     rows: &[Vec<Expr>],
@@ -94,6 +108,13 @@ pub(super) fn execute(
                 env.controls,
                 &evaluation,
             )?;
+            #[cfg(test)]
+            CANCEL_AFTER_VALUE.with(|slot| {
+                if let Some(handle) = slot.borrow_mut().take() {
+                    handle.cancel();
+                }
+            });
+            check_timeout(env.controls)?;
             memory.try_grow(value_clone_bytes(&value)?)?;
             values.push((format!("column{}", index + 1), value));
             drop(evaluation);

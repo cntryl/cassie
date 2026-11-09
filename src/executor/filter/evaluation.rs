@@ -126,7 +126,7 @@ pub(crate) fn evaluate_source_argument<R: RowAccess + ?Sized>(
             exists: None,
             controls: Some(controls),
             memory: Some(memory),
-            deletion_memory: None,
+            deletion_memory: Some(memory),
         },
     )
 }
@@ -151,7 +151,7 @@ pub(crate) fn evaluate_source_argument_resolving<R: RowAccess + ?Sized>(
             exists: Some(context.resolver),
             controls: Some(controls),
             memory: Some(memory),
-            deletion_memory: None,
+            deletion_memory: Some(memory),
         },
     )
 }

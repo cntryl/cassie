@@ -20,6 +20,9 @@ pub(super) mod jsonb;
 #[path = "document_unwind.rs"]
 mod unwind;
 
+#[path = "document_text_array.rs"]
+pub(super) mod text_array;
+
 #[cfg(test)]
 #[path = "document_tests.rs"]
 mod tests;

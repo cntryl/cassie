@@ -18,6 +18,7 @@ enum Ancestor<'a> {
 enum PathView<'a> {
     Owned(&'a [Option<String>]),
     Native(&'a [crate::types::Value]),
+    Arena(&'a crate::runtime::accounted::json_arena::OwnedTextArray),
 }
 
 impl<'a> PathView<'a> {
@@ -25,17 +26,20 @@ impl<'a> PathView<'a> {
         match self {
             Self::Owned(values) => values.len(),
             Self::Native(values) => values.len(),
+            Self::Arena(values) => values.len(),
         }
     }
 
-    fn get(self, index: usize) -> Option<Option<&'a str>> {
+    fn get(self, index: usize) -> Result<Option<Option<&'a str>>, CassieError> {
         match self {
-            Self::Owned(values) => values.get(index).map(Option::as_deref),
-            Self::Native(values) => values.get(index).map(|value| match value {
+            Self::Owned(values) => Ok(values.get(index).map(Option::as_deref)),
+            Self::Native(values) => Ok(values.get(index).map(|value| match value {
                 crate::types::Value::String(text) => Some(text.as_str()),
                 crate::types::Value::Null => None,
                 _ => unreachable!("native path elements were validated"),
-            }),
+            })),
+            Self::Arena(values) if index < values.len() => values.get(index).map(Some),
+            Self::Arena(_) => Ok(None),
         }
     }
 }
@@ -148,6 +152,14 @@ pub(in crate::executor::filter) fn render_native_path<'a>(
     render_view(source, PathView::Native(path), controls, || {})
 }
 
+pub(in crate::executor::filter) fn render_arena_path<'a>(
+    source: &'a str,
+    path: &'a crate::runtime::accounted::json_arena::OwnedTextArray,
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
+    render_view(source, PathView::Arena(path), controls, || {})
+}
+
 fn render_view<'a>(
     source: &'a str,
     path: PathView<'a>,
@@ -192,7 +204,7 @@ fn render_view<'a>(
     let mut position = 0;
     let mut output = loop {
         controls.check_interruption()?;
-        let Some(head) = path.get(position) else {
+        let Some(head) = path.get(position)? else {
             break render_frames(Frame::Value(current), controls, |_| {})?;
         };
         let Some(head) = head else {

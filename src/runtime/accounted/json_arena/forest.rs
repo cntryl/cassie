@@ -66,7 +66,35 @@ pub(super) struct Forest {
     controls: QueryExecutionControls,
 }
 
+pub(super) enum TextArrayElement<'a> {
+    Text(&'a str),
+    Null,
+    Other,
+}
+
 impl Forest {
+    pub(super) fn text_array_len(&self, root: NodeId) -> Result<Option<usize>, CassieError> {
+        Ok(match &self.nodes.get(root)?.kind {
+            Kind::Array(index) => Some(index.len()),
+            _ => None,
+        })
+    }
+
+    pub(super) fn text_array_element(
+        &self,
+        root: NodeId,
+        position: usize,
+    ) -> Result<TextArrayElement<'_>, CassieError> {
+        let Kind::Array(index) = &self.nodes.get(root)?.kind else {
+            return Err(invalid_owner());
+        };
+        let child = index.get(position).ok_or_else(invalid_owner)?;
+        Ok(match &self.nodes.get(child)?.kind {
+            Kind::Text(text) => TextArrayElement::Text(text.as_str()),
+            Kind::Scalar => TextArrayElement::Null,
+            _ => TextArrayElement::Other,
+        })
+    }
     pub(super) fn new(controls: &QueryExecutionControls) -> Result<Self, CassieError> {
         Ok(Self {
             nodes: ValueSlots::new(controls)?,

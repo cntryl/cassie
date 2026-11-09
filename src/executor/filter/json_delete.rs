@@ -83,14 +83,24 @@ pub(super) fn controlled_operator(
     reject_multidimensional_array(right)?;
     let document = json_document(left)?;
     if let ScalarValue::Json(text) = right {
-        let Some(path) = owned_path::parse(text, controls)? else {
+        let output = if let Some(path) = owned_path::parse(text, controls)? {
+            after_owned_path(controls)?;
+            match controlled_head(document, controls)? {
+                Some('{') => render::render_object_without_keys(document, path.values(), controls),
+                Some('[') => render::render_array_without_keys(document, path.values(), controls),
+                _ => return Err(invalid_parameter("cannot delete from scalar")),
+            }
+        } else if let Some(path) =
+            crate::runtime::accounted::json_arena::parse_text_array_candidate(text, controls)?
+        {
+            after_owned_path(controls)?;
+            match controlled_head(document, controls)? {
+                Some('{') => render::render_object_without_arena_keys(document, &path, controls),
+                Some('[') => render::render_array_without_arena_keys(document, &path, controls),
+                _ => return Err(invalid_parameter("cannot delete from scalar")),
+            }
+        } else {
             return Ok(None);
-        };
-        after_owned_path(controls)?;
-        let output = match controlled_head(document, controls)? {
-            Some('{') => render::render_object_without_keys(document, path.values(), controls),
-            Some('[') => render::render_array_without_keys(document, path.values(), controls),
-            _ => return Err(invalid_parameter("cannot delete from scalar")),
         }
         .map_err(render::RenderError::into_query_error)?;
         return adopt_output(output, owner, controls).map(Some);
@@ -152,11 +162,17 @@ pub(super) fn controlled_path(
             raw_scan::render::path::render_native_path(document, array.elements(), controls)
         }
         ScalarValue::Str(text) | ScalarValue::Json(text) => {
-            let Some(path) = owned_path::parse(text, controls)? else {
+            if let Some(path) = owned_path::parse(text, controls)? {
+                after_owned_path(controls)?;
+                raw_scan::render::path::render_path(document, path.values(), controls)
+            } else if let Some(path) =
+                crate::runtime::accounted::json_arena::parse_text_array_candidate(text, controls)?
+            {
+                after_owned_path(controls)?;
+                raw_scan::render::path::render_arena_path(document, &path, controls)
+            } else {
                 return Ok(None);
-            };
-            after_owned_path(controls)?;
-            raw_scan::render::path::render_path(document, path.values(), controls)
+            }
         }
         _ => return Ok(None),
     }

@@ -33,8 +33,8 @@ pending until independently proved. Interim source review does not replace
 the consolidated build, test and clippy gate.
 
 The controlled deletion handoff covers flat PostgreSQL brace literals without
-a dimension prefix; nested/dimensioned and JSON-array inputs retain the old
-route, including its existing unowned allocations.
+a dimension prefix; nested/dimensioned brace inputs retain the old route,
+including its existing unowned allocations.
 It checks the whole input for nested brace syntax before constructing a path,
 then parses quoted/unquoted elements with owned string and directory buffers.
 That preflight and the new admission may surface cancellation or a resource
@@ -47,3 +47,14 @@ An interruption check occurs after parsing and before document traversal, so
 cancellation may precede a document-shape or rendering error at that boundary.
 This does not qualify consumers without a deletion owner, the fallback forms,
 diagnostic delivery, allocator transients or unexecuted probes.
+
+The JSON-array handoff uses the existing serde-Value-compatible owned arena for
+JSON-array-shaped TEXT[] input, borrowing decoded String elements from the
+arena through deletion. It must validate the complete Value document before
+checking element types, preserve first-key sentinel behavior and Unicode outer
+trimming, and transfer no unowned String. Semantic parse/type failures and
+dimension-prefix forms continue on the legacy path until their diagnostic
+handoffs are proved. Cancellation or memory failure is propagated rather than
+falling back. Arena retention and a preflight can tighten budgets and change
+cancellation priority; no executable or end-to-end claim follows from this
+handoff alone.

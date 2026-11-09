@@ -90,6 +90,7 @@ enum KeySkip<'a> {
     One(&'a str),
     Many(&'a [Option<String>]),
     Native(&'a [crate::types::Value]),
+    Arena(&'a crate::runtime::accounted::json_arena::OwnedTextArray),
 }
 
 enum Frame<'a> {
@@ -371,6 +372,55 @@ pub(in crate::executor::filter) fn render_array_without_native_keys<'a>(
     )
 }
 
+pub(in crate::executor::filter) fn render_object_without_arena_keys<'a>(
+    source: &'a str,
+    keys: &'a crate::runtime::accounted::json_arena::OwnedTextArray,
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
+    let fields = object::parse(source, controls)?.into_ordered(controls)?;
+    render_frames(
+        Frame::Object {
+            fields,
+            next: 0,
+            emitted: false,
+            skip: Some(KeySkip::Arena(keys)),
+            replace: None,
+        },
+        controls,
+        |_| {},
+    )
+}
+
+pub(in crate::executor::filter) fn render_array_without_arena_keys<'a>(
+    source: &'a str,
+    keys: &'a crate::runtime::accounted::json_arena::OwnedTextArray,
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
+    array_count(source, controls)?;
+    let mut has_key = false;
+    for index in 0..keys.len() {
+        controls.check_interruption()?;
+        if keys.get(index)?.is_some() {
+            has_key = true;
+            break;
+        }
+    }
+    let mut scanner = array_scanner(source, controls)?;
+    scanner.next()?;
+    render_frames(
+        Frame::Array {
+            source,
+            scanner,
+            next: 0,
+            emitted: false,
+            skip: has_key.then_some(ArraySkip::Keys(KeySkip::Arena(keys))),
+            replace: None,
+        },
+        controls,
+        |_| {},
+    )
+}
+
 fn render_frames<'a>(
     first: Frame<'a>,
     controls: &'a QueryExecutionControls,
@@ -597,6 +647,17 @@ fn matches_key(
             for key in keys {
                 controls.check_interruption()?;
                 if let crate::types::Value::String(key) = key {
+                    if object::equal(value, key, controls)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
+        }
+        KeySkip::Arena(keys) => {
+            for index in 0..keys.len() {
+                controls.check_interruption()?;
+                if let Some(key) = keys.get(index)? {
                     if object::equal(value, key, controls)? {
                         return Ok(true);
                     }

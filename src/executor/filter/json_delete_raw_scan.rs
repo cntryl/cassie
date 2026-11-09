@@ -158,8 +158,31 @@ struct Scanner<'a, F> {
     observe: F,
 }
 
+#[cfg(test)]
+thread_local! {
+    static CANCEL_SCAN_ONCE: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(in crate::executor::filter) fn cancel_scan_once(
+    handle: Option<crate::runtime::QueryCancellationHandle>,
+) {
+    CANCEL_SCAN_ONCE.with(|slot| *slot.borrow_mut() = handle);
+}
+
 fn scan(input: &str, controls: &QueryExecutionControls) -> Result<Range<usize>, ScanError> {
-    scan_observing(input, controls, |_| {})
+    scan_observing(input, controls, |progress| {
+        #[cfg(test)]
+        if matches!(progress, Progress::Input) {
+            CANCEL_SCAN_ONCE.with(|slot| {
+                if let Some(handle) = slot.borrow_mut().take() {
+                    handle.cancel();
+                }
+            });
+        }
+        #[cfg(not(test))]
+        let _ = progress;
+    })
 }
 
 #[cfg(test)]

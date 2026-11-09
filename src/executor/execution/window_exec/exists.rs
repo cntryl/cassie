@@ -3,6 +3,10 @@ use super::{typed, Batch, SelectItem, WindowExecutionContext};
 use crate::executor::execution::{source::SourceExecutionEnv, CteContext, QueryError, QuerySource};
 use crate::executor::filter::SearchContext;
 
+#[cfg(test)]
+#[path = "exists_tests.rs"]
+mod tests;
+
 pub(in crate::executor::execution) fn apply_resolving(
     env: &SourceExecutionEnv<'_>,
     ctes: &CteContext,

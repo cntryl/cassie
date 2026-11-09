@@ -43,6 +43,11 @@ pub(super) fn controlled_function_extraction(
 }
 
 #[cfg(test)]
+pub(crate) fn cancel_raw_scan_once(handle: Option<crate::runtime::QueryCancellationHandle>) {
+    raw_scan::cancel_scan_once(handle);
+}
+
+#[cfg(test)]
 pub(super) fn cancel_function_path_scan_once(handle: crate::runtime::QueryCancellationHandle) {
     raw_scan::extract::cancel_function_scan_once(handle);
 }

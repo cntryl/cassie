@@ -36,6 +36,8 @@ mod json_concat;
 mod json_containment;
 #[path = "filter/json_delete.rs"]
 mod json_delete;
+#[cfg(test)]
+pub(crate) use json_delete::cancel_raw_scan_once;
 #[path = "filter/json_document.rs"]
 mod json_document;
 #[path = "filter/json_extract.rs"]

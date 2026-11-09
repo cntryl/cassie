@@ -31,7 +31,9 @@ Test-first probes cover rank/order and differently spelled equal keys, DESC,
 FILTER, NULL and empty/no-row behavior, the actual construction/copy boundaries,
 foreign tracker, exact/below measured peak, aliases and last-row-clone lifetime,
 forged payload rejection, TEXT/VARCHAR descriptors, and mixed/non-String/CONT
-fallback. Input evaluation,
+fallback. The last-row-clone probe establishes only survival of the shared
+lease: `BatchRow::clone` does not admit or check allocations made by the clone.
+Input evaluation,
 comparison, numeric/nested/non-String results, scalar SQL Array cloning,
 generic array cloning, allocator transients, group payloads and synchronous
 teardown remain unqualified. These probes are authored and unexecuted; this

@@ -130,40 +130,8 @@ fn decode_with_observer(
         return Err(invalid(column, false));
     }
     let fraction_groups = scale.div_ceil(4);
-    let mut first_integer = None;
-    let mut nonzero = false;
-    for index in 0..count {
-        if index.is_multiple_of(128) {
-            if index != 0 {
-                observer();
-            }
-            controls.check_interruption()?;
-        }
-        let offset = 8 + index * 2;
-        let digit = u16::from_be_bytes([bytes[offset], bytes[offset + 1]]);
-        if digit >= 10_000 {
-            return Err(invalid(column, false));
-        }
-        let exponent = weight - i32::try_from(index).expect("u16 group count");
-        if exponent >= 0 && digit != 0 {
-            if first_integer.is_none() {
-                first_integer = Some((exponent, digit));
-            }
-            nonzero = true;
-        } else if exponent < 0 {
-            let position = usize::try_from(-exponent).expect("negative exponent");
-            if position <= fraction_groups {
-                let retained = if position == fraction_groups && !scale.is_multiple_of(4) {
-                    scale % 4
-                } else {
-                    4
-                };
-                if digit / 10_u16.pow(u32::try_from(4 - retained).expect("decimal width")) != 0 {
-                    nonzero = true;
-                }
-            }
-        }
-    }
+    let (first_integer, nonzero) =
+        scan_numeric_groups(bytes, count, weight, scale, controls, &mut observer)?;
     controls.check_interruption()?;
     let integer_length = first_integer.map_or(1, |(exponent, digit)| {
         width(digit) + usize::try_from(exponent).expect("nonnegative exponent") * 4
@@ -227,4 +195,50 @@ fn decode_with_observer(
     }
     controls.check_interruption()?;
     Ok(Some((text, memory)))
+}
+
+fn scan_numeric_groups(
+    bytes: &[u8],
+    count: usize,
+    weight: i32,
+    scale: usize,
+    controls: &QueryExecutionControls,
+    observer: &mut impl FnMut(),
+) -> Result<(Option<(i32, u16)>, bool), CassieError> {
+    let fraction_groups = scale.div_ceil(4);
+    let mut first_integer = None;
+    let mut nonzero = false;
+    for index in 0..count {
+        if index.is_multiple_of(128) {
+            if index != 0 {
+                observer();
+            }
+            controls.check_interruption()?;
+        }
+        let offset = 8 + index * 2;
+        let digit = u16::from_be_bytes([bytes[offset], bytes[offset + 1]]);
+        if digit >= 10_000 {
+            return Err(invalid(column, false));
+        }
+        let exponent = weight - i32::try_from(index).expect("u16 group count");
+        if exponent >= 0 && digit != 0 {
+            if first_integer.is_none() {
+                first_integer = Some((exponent, digit));
+            }
+            nonzero = true;
+        } else if exponent < 0 {
+            let position = usize::try_from(-exponent).expect("negative exponent");
+            if position <= fraction_groups {
+                let retained = if position == fraction_groups && !scale.is_multiple_of(4) {
+                    scale % 4
+                } else {
+                    4
+                };
+                if digit / 10_u16.pow(u32::try_from(4 - retained).expect("decimal width")) != 0 {
+                    nonzero = true;
+                }
+            }
+        }
+    }
+    Ok((first_integer, nonzero))
 }

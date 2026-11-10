@@ -165,12 +165,14 @@ fn should_reclaim_only_retired_rows_after_a_recreated_target_commits() {
     // Assert
     assert!(old_id > 0 && new_id > 0);
     assert_ne!(old_id, new_id);
-    assert!(fixture
-        .cassie
-        .midge
-        .raw_scan_prefix(StorageFamily::Data, &Midge::row_prefix(old_id))
-        .expect("retired rows")
-        .is_empty());
+    assert_eq!(
+        fixture
+            .cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &Midge::row_prefix(old_id))
+            .expect("retired rows"),
+        Vec::new()
+    );
     assert_eq!(fixture.payloads(), ["legacy-new", "new"]);
     assert_eq!(
         fixture

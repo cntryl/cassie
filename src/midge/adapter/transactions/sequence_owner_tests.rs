@@ -345,7 +345,7 @@ fn should_keep_fork_only_sequence_epoch_through_prune_and_publication() {
         .attach_sequence_fork_lease(Some(&controls))
         .expect("fork lease");
     let fork = Arc::new(parking_lot::Mutex::new(fork_value));
-    let _fork_scope = midge
+    let fork_scope = midge
         .enter_transactional_ddl_scope("postgres", Arc::clone(&fork), true)
         .expect("fork scope");
     midge
@@ -367,7 +367,7 @@ fn should_keep_fork_only_sequence_epoch_through_prune_and_publication() {
     let mut published = fork.lock().clone();
     published.clear_sequence_fork_lease();
     *parent.lock() = published;
-    drop(_fork_scope);
+    drop(fork_scope);
     drop(fork);
     let after = midge
         .update_sequence_retrying("fork_epoch", |value| value.advance().map_err(Into::into))
@@ -477,7 +477,7 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_cancelled()
         ..CassieRuntimeLimits::default()
     };
     let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
-    let _controls = PublicationControlScope::enter(Some(&controls));
+    let controls_scope = PublicationControlScope::enter(Some(&controls));
     let midge = crate::midge::Midge::new_in_memory("postgres").expect("memory Midge");
     midge.ensure_families_ready().expect("families");
     let parent = Arc::new(parking_lot::Mutex::new(StorageOverlay::default()));
@@ -492,7 +492,7 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_cancelled()
             value.advance().map_err(Into::into)
         })
         .expect("first");
-    drop(_controls);
+    drop(controls_scope);
     let cancellation = QueryCancellationHandle::new();
     let cancelled_controls =
         QueryExecutionControls::with_cancellation(&limits, Instant::now(), cancellation.clone());
@@ -662,7 +662,7 @@ fn should_interrupt_metadata_writer_at_a_deterministic_chunk_boundary() {
     cancellation.cancel();
 
     // Act
-    let result = writer.write(&[b'x']);
+    let result = writer.write(b"x");
 
     // Assert
     assert!(result.is_err());

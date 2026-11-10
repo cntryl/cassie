@@ -165,7 +165,7 @@ pub(super) async fn try_handle_simple_copy_query(
                 binding,
                 session,
                 request,
-                statement,
+                *statement,
                 cancellation.cloned(),
                 reader,
                 write_half,
@@ -207,117 +207,122 @@ async fn bind_copy_request(
         cassie.check_storage_recovery_required()?;
         match request.direction {
             CopyDirection::FromStdin => {
-                let binding_sql = request.table_binding_sql().ok_or_else(|| {
-                    CassieError::Parse("COPY FROM STDIN requires a table target".to_string())
-                })?;
-                let parsed = crate::sql::parser::parse_statement(&binding_sql)?;
-                session_for_parse.authorize_statement(&parsed.statement)?;
-                Cassie::ensure_transaction_recovery(&session_for_parse, &parsed)?;
-                session_for_parse.ensure_transaction_writable()?;
-                let started = std::time::Instant::now();
-                let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
-                    &cassie.runtime.limits(),
-                    started,
-                    cancellation.unwrap_or_default(),
-                );
-                session_for_parse.apply_statement_timeout(&mut controls, started);
-                cassie.prepare_transaction_read_view(&session_for_parse, &parsed, &controls)?;
-                let crate::sql::ast::QueryStatement::Copy(copy) = &parsed.statement else {
-                    return Err(CassieError::Parse(
-                        "COPY FROM STDIN did not parse as a table copy".into(),
-                    ));
-                };
-                let (owner, owned_context) = if session_for_parse.is_transaction_active() {
-                    let (owner, context) = cassie.capture_bound_copy_command_owner(
-                        &session_for_parse,
-                        &copy.table,
-                        &controls,
-                    )?;
-                    (Some(owner), Some(context))
-                } else {
-                    (None, None)
-                };
-                let fallback_context = owner
-                    .is_none()
-                    .then(|| binding_context(&cassie, &session_for_parse));
-                let context = owned_context
-                    .as_ref()
-                    .map(|context| context.context())
-                    .or(fallback_context.as_ref())
-                    .expect("COPY binding context");
-                let scoped = owner.as_ref().map_or_else(
-                    || (*cassie).clone(),
-                    |owner| cassie.with_copy_command_owner(&session_for_parse, owner),
-                );
-                session_for_parse.mark_transaction_query();
-                let bound =
-                    crate::sql::binder::bind_with_context(parsed, &scoped.catalog, context)?;
-                let crate::sql::ast::QueryStatement::Copy(statement) = bound.statement.statement
-                else {
-                    return Err(CassieError::Parse(
-                        "COPY FROM STDIN did not bind as a table copy".into(),
-                    ));
-                };
-                if owner
-                    .as_ref()
-                    .is_some_and(|owner| !owner.matches_target(&statement.table))
-                {
-                    return Err(CassieError::Execution(
-                        "COPY target changed during binding".into(),
-                    ));
-                }
-                validation::validate_force_columns(&scoped, &request, &statement)?;
-                Ok(Some(BoundCopyRequest::From(
-                    request,
-                    statement,
-                    CopyFromBinding {
-                        cassie: Arc::new(scoped),
-                        owner,
-                        controls,
-                    },
-                )))
+                bind_copy_from_stdin(&cassie, &session_for_parse, request, cancellation).map(Some)
             }
             CopyDirection::ToStdout => {
-                let context = binding_context(&cassie, &session_for_parse);
-                let table_columns = match &request.target {
-                    request::CopyTarget::Table {
-                        relation, columns, ..
-                    } if columns.is_empty() => {
-                        let resolved = crate::sql::binder::resolve_relation_name(
-                            relation,
-                            &cassie.catalog,
-                            &context,
-                        )?;
-                        cassie.catalog.get_schema(&resolved).map(|schema| {
-                            schema
-                                .fields
-                                .iter()
-                                .map(|field| {
-                                    crate::catalog::object_identity::quote_identifier(&field.name)
-                                })
-                                .collect::<Vec<_>>()
-                        })
-                    }
-                    _ => None,
-                };
-                let query_sql = request.query_sql(table_columns.as_deref());
-                let parsed = crate::sql::parser::parse_statement(&query_sql)?;
-                if !matches!(
-                    &parsed.statement,
-                    crate::sql::ast::QueryStatement::Select(_)
-                ) {
-                    return Err(CassieError::Unsupported(
-                        "COPY TO STDOUT requires a SELECT query".to_string(),
-                    ));
-                }
-                session_for_parse.authorize_statement(&parsed.statement)?;
-                Cassie::ensure_transaction_recovery(&session_for_parse, &parsed)?;
-                session_for_parse.mark_transaction_query();
-                Ok(Some(BoundCopyRequest::To(request, query_sql)))
+                bind_copy_to_stdout(&cassie, &session_for_parse, request).map(Some)
             }
         }
     })
     .await
+}
+
+fn bind_copy_from_stdin(
+    cassie: &Cassie,
+    session: &CassieSession,
+    request: CopyRequest,
+    cancellation: Option<crate::runtime::QueryCancellationHandle>,
+) -> Result<BoundCopyRequest, CassieError> {
+    let binding_sql = request
+        .table_binding_sql()
+        .ok_or_else(|| CassieError::Parse("COPY FROM STDIN requires a table target".to_string()))?;
+    let parsed = crate::sql::parser::parse_statement(&binding_sql)?;
+    session.authorize_statement(&parsed.statement)?;
+    Cassie::ensure_transaction_recovery(session, &parsed)?;
+    session.ensure_transaction_writable()?;
+    let started = std::time::Instant::now();
+    let mut controls = crate::runtime::QueryExecutionControls::with_cancellation(
+        &cassie.runtime.limits(),
+        started,
+        cancellation.unwrap_or_default(),
+    );
+    session.apply_statement_timeout(&mut controls, started);
+    cassie.prepare_transaction_read_view(session, &parsed, &controls)?;
+    let crate::sql::ast::QueryStatement::Copy(copy) = &parsed.statement else {
+        return Err(CassieError::Parse(
+            "COPY FROM STDIN did not parse as a table copy".into(),
+        ));
+    };
+    let (owner, owned_context) = if session.is_transaction_active() {
+        let (owner, context) =
+            cassie.capture_bound_copy_command_owner(session, &copy.table, &controls)?;
+        (Some(owner), Some(context))
+    } else {
+        (None, None)
+    };
+    let fallback_context = owner.is_none().then(|| binding_context(cassie, session));
+    let context = owned_context
+        .as_ref()
+        .map(crate::app::CopyBindingContext::context)
+        .or(fallback_context.as_ref())
+        .expect("COPY binding context");
+    let scoped = owner.as_ref().map_or_else(
+        || (*cassie).clone(),
+        |owner| cassie.with_copy_command_owner(session, owner),
+    );
+    session.mark_transaction_query();
+    let bound = crate::sql::binder::bind_with_context(parsed, &scoped.catalog, context)?;
+    let crate::sql::ast::QueryStatement::Copy(statement) = bound.statement.statement else {
+        return Err(CassieError::Parse(
+            "COPY FROM STDIN did not bind as a table copy".into(),
+        ));
+    };
+    if owner
+        .as_ref()
+        .is_some_and(|owner| !owner.matches_target(&statement.table))
+    {
+        return Err(CassieError::Execution(
+            "COPY target changed during binding".into(),
+        ));
+    }
+    validation::validate_force_columns(&scoped, &request, &statement)?;
+    Ok(BoundCopyRequest::From(
+        request,
+        Box::new(statement),
+        CopyFromBinding {
+            cassie: Arc::new(scoped),
+            owner,
+            controls,
+        },
+    ))
+}
+
+fn bind_copy_to_stdout(
+    cassie: &Cassie,
+    session: &CassieSession,
+    request: CopyRequest,
+) -> Result<BoundCopyRequest, CassieError> {
+    let context = binding_context(cassie, session);
+    let table_columns = match &request.target {
+        request::CopyTarget::Table {
+            relation, columns, ..
+        } if columns.is_empty() => {
+            let resolved =
+                crate::sql::binder::resolve_relation_name(relation, &cassie.catalog, &context)?;
+            cassie.catalog.get_schema(&resolved).map(|schema| {
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| crate::catalog::object_identity::quote_identifier(&field.name))
+                    .collect::<Vec<_>>()
+            })
+        }
+        _ => None,
+    };
+    let query_sql = request.query_sql(table_columns.as_deref());
+    let parsed = crate::sql::parser::parse_statement(&query_sql)?;
+    if !matches!(
+        &parsed.statement,
+        crate::sql::ast::QueryStatement::Select(_)
+    ) {
+        return Err(CassieError::Unsupported(
+            "COPY TO STDOUT requires a SELECT query".to_string(),
+        ));
+    }
+    session.authorize_statement(&parsed.statement)?;
+    Cassie::ensure_transaction_recovery(session, &parsed)?;
+    session.mark_transaction_query();
+    Ok(BoundCopyRequest::To(request, query_sql))
 }
 
 struct CopyFromBinding {
@@ -327,7 +332,7 @@ struct CopyFromBinding {
 }
 
 enum BoundCopyRequest {
-    From(CopyRequest, CopyStatement, CopyFromBinding),
+    From(CopyRequest, Box<CopyStatement>, CopyFromBinding),
     To(CopyRequest, String),
 }
 

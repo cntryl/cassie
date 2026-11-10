@@ -393,10 +393,12 @@ mod tests {
             stored.relation_id().expect("relation"),
             stored.storage_id().expect("index id"),
         );
-        assert!(!midge
-            .raw_scan_prefix(StorageFamily::Data, &prefix)
-            .expect("entries")
-            .is_empty());
+        assert_ne!(
+            midge
+                .raw_scan_prefix(StorageFamily::Data, &prefix)
+                .expect("entries"),
+            Vec::new()
+        );
         midge
             .defer_drop_index(&index.collection, &index.name, 0)
             .expect("defer");
@@ -415,10 +417,12 @@ mod tests {
         }
 
         // Assert
-        assert!(midge
-            .raw_scan_prefix(StorageFamily::Data, &prefix)
-            .expect("entries")
-            .is_empty());
+        assert_eq!(
+            midge
+                .raw_scan_prefix(StorageFamily::Data, &prefix)
+                .expect("entries"),
+            Vec::new()
+        );
         assert!(midge
             .get_index(&index.collection, &index.name)
             .expect("read")
@@ -544,10 +548,12 @@ mod tests {
         assert!(midge.defer_drop_collection("legacy_zero_a", 0).is_err());
         assert!(midge.drop_collection("legacy_zero_b").is_err());
         assert!(midge.collection_schema("legacy_zero_b").is_some());
-        assert!(midge
-            .pending_schema_cleanups()
-            .expect("no deferred cleanup")
-            .is_empty());
+        assert_eq!(
+            midge
+                .pending_schema_cleanups()
+                .expect("no deferred cleanup"),
+            Vec::new()
+        );
 
         let mut replacement_schema = midge.row_schema("legacy_zero_a").expect("row schema");
         replacement_schema.relation_id = 77;

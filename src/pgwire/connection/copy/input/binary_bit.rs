@@ -47,13 +47,10 @@ fn decode_with_observer(
     let Some((length, payload)) = valid_length(bytes) else {
         // Each failed precheck reaches an error in receive_binary before its
         // payload Vec allocation; retain the original error and priority.
-        let error = match super::super::super::codecs::binary_to_value(bytes, oid) {
-            Err(error) => error,
-            Ok(_) => {
-                return Err(CassieError::Execution(
-                    "binary COPY bit validation disagrees with codec".into(),
-                ));
-            }
+        let Err(error) = super::super::super::codecs::binary_to_value(bytes, oid) else {
+            return Err(CassieError::Execution(
+                "binary COPY bit validation disagrees with codec".into(),
+            ));
         };
         return Err(CassieError::Parse(format!(
             "COPY binary field {} is invalid: {error}",

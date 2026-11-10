@@ -1,4 +1,4 @@
-//! Fixed-stack MAC and pg_lsn output for admitted binary COPY fields.
+//! Fixed-stack MAC and `pg_lsn` output for admitted binary COPY fields.
 
 use crate::app::CassieError;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};

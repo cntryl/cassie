@@ -18,7 +18,7 @@ struct CheckingReader<'a> {
 
 impl Read for CheckingReader<'_> {
     fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
-        if self.position % 4096 == 0 {
+        if self.position.is_multiple_of(4096) {
             self.controls
                 .check_interruption()
                 .map_err(|_| io::Error::other("query interrupted"))?;

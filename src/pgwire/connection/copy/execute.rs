@@ -110,24 +110,38 @@ pub(super) fn execute_copy_payload(
         },
         owner,
     )?;
-    let mut notices = Vec::new();
-    if request.log_verbosity == CopyLogVerbosity::Verbose {
-        for skipped in &result.skipped {
-            notices.push(format!(
-                "skipping row due to data type incompatibility at line {} for column \"{}\": \"{}\"",
-                skipped.line, skipped.column, skipped.value
-            ));
-        }
-        if !result.skipped.is_empty() {
-            let count = result.skipped.len();
-            let noun = if count == 1 { "row was" } else { "rows were" };
-            notices.push(format!(
-                "{count} {noun} skipped due to data type incompatibility"
-            ));
-        }
-    }
+    let notices = if request.log_verbosity == CopyLogVerbosity::Verbose {
+        skipped_row_notices(result.skipped.iter().map(|skipped| {
+            (
+                skipped.line,
+                skipped.column.as_str(),
+                skipped.value.as_str(),
+            )
+        }))
+    } else {
+        Vec::new()
+    };
     Ok(CopyCompletion {
         command: format!("COPY {}", result.count),
         notices,
     })
+}
+
+fn skipped_row_notices<'a>(
+    skipped: impl Iterator<Item = (usize, &'a str, &'a str)>,
+) -> Vec<String> {
+    let mut notices = Vec::new();
+    for (line, column, value) in skipped {
+        notices.push(format!(
+            "skipping row due to data type incompatibility at line {line} for column \"{column}\": \"{value}\""
+        ));
+    }
+    if !notices.is_empty() {
+        let count = notices.len();
+        let noun = if count == 1 { "row was" } else { "rows were" };
+        notices.push(format!(
+            "{count} {noun} skipped due to data type incompatibility"
+        ));
+    }
+    notices
 }

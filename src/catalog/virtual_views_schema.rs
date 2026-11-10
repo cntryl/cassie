@@ -73,16 +73,16 @@ fn information_schema_schema(name: &str) -> Option<SchemaFactory> {
         }),
         "information_schema.schemata" => Some(|| vec![text("catalog_name"), text("schema_name")]),
         "information_schema.sequences" => {
-            Some(|| virtual_views_sequences::information_schema_sequences_schema())
+            Some(virtual_views_sequences::information_schema_sequences_schema)
         }
         "information_schema.table_constraints" => {
-            Some(|| virtual_views_constraints::table_constraints_schema())
+            Some(virtual_views_constraints::table_constraints_schema)
         }
         "information_schema.key_column_usage" => {
-            Some(|| virtual_views_constraints::key_column_usage_schema())
+            Some(virtual_views_constraints::key_column_usage_schema)
         }
         "information_schema.referential_constraints" => {
-            Some(|| virtual_views_constraints::referential_constraints_schema())
+            Some(virtual_views_constraints::referential_constraints_schema)
         }
         _ => None,
     }
@@ -102,18 +102,18 @@ fn pg_catalog_core_schema(name: &str) -> Option<SchemaFactory> {
         }),
         "pg_catalog.pg_extension" => Some(virtual_views_extensions::installed_schema),
         "pg_catalog.pg_available_extensions" => Some(virtual_views_extensions::available_schema),
-        "pg_catalog.pg_namespace" => Some(|| virtual_views_pg::namespace_schema()),
-        "pg_catalog.pg_class" => Some(|| virtual_views_pg::class_schema()),
-        "pg_catalog.pg_am" => Some(|| virtual_views_pg::access_method_schema()),
-        "pg_catalog.pg_collation" => Some(|| virtual_views_pg::collation_schema()),
-        "pg_catalog.pg_attribute" => Some(|| virtual_views_pg::attribute_schema()),
-        "pg_catalog.pg_indexes" => Some(|| virtual_views_pg::indexes_schema()),
-        "pg_catalog.pg_index" => Some(|| virtual_views_pg::index_schema()),
-        "pg_catalog.pg_attrdef" => Some(|| virtual_views_pg::attrdef_schema()),
-        "pg_catalog.pg_table_storage" => Some(|| virtual_views_storage::schema()),
-        "pg_catalog.pg_constraint" => Some(|| virtual_views_constraints::pg_constraint_schema()),
-        "pg_catalog.pg_depend" => Some(|| virtual_views_dependencies::schema()),
-        "pg_catalog.pg_shdepend" => Some(|| virtual_views_shared_dependencies::schema()),
+        "pg_catalog.pg_namespace" => Some(virtual_views_pg::namespace_schema),
+        "pg_catalog.pg_class" => Some(virtual_views_pg::class_schema),
+        "pg_catalog.pg_am" => Some(virtual_views_pg::access_method_schema),
+        "pg_catalog.pg_collation" => Some(virtual_views_pg::collation_schema),
+        "pg_catalog.pg_attribute" => Some(virtual_views_pg::attribute_schema),
+        "pg_catalog.pg_indexes" => Some(virtual_views_pg::indexes_schema),
+        "pg_catalog.pg_index" => Some(virtual_views_pg::index_schema),
+        "pg_catalog.pg_attrdef" => Some(virtual_views_pg::attrdef_schema),
+        "pg_catalog.pg_table_storage" => Some(virtual_views_storage::schema),
+        "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint_schema),
+        "pg_catalog.pg_depend" => Some(virtual_views_dependencies::schema),
+        "pg_catalog.pg_shdepend" => Some(virtual_views_shared_dependencies::schema),
         "pg_catalog.pg_roles" => {
             Some(|| vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")])
         }
@@ -158,8 +158,8 @@ fn pg_catalog_core_schema(name: &str) -> Option<SchemaFactory> {
                 text("fallback_reason"),
             ]
         }),
-        "pg_catalog.pg_type" => Some(|| virtual_views_pg::type_schema()),
-        "pg_catalog.pg_proc" => Some(|| virtual_views_procedures::schema()),
+        "pg_catalog.pg_type" => Some(virtual_views_pg::type_schema),
+        "pg_catalog.pg_proc" => Some(virtual_views_procedures::schema),
         _ => None,
     }
 }

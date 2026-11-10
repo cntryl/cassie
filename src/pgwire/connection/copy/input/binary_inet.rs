@@ -23,8 +23,8 @@ impl fmt::Write for Output {
 
 fn format_v6(out: &mut Output, addr: &[u8; 16]) -> fmt::Result {
     let mut words = [0_u16; 8];
-    for (word, pair) in words.iter_mut().zip(addr.chunks_exact(2)) {
-        *word = u16::from_be_bytes([pair[0], pair[1]]);
+    for (word, pair) in words.iter_mut().zip(addr.as_chunks::<2>().0) {
+        *word = u16::from_be_bytes(*pair);
     }
     let (mut best, mut current) = ((None::<usize>, 0_usize), (None::<usize>, 0_usize));
     for (index, word) in words.iter().enumerate() {

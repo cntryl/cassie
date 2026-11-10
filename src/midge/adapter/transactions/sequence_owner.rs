@@ -125,7 +125,7 @@ struct CheckingReader<'a> {
 
 impl Read for CheckingReader<'_> {
     fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
-        if self.position % 4096 == 0 {
+        if self.position.is_multiple_of(4096) {
             self.controls
                 .check_interruption()
                 .map_err(|_| io::Error::other("query interrupted"))?;
@@ -213,7 +213,7 @@ impl Write for CheckingWriter<'_> {
     }
 }
 
-/// Emit JSON string fragments in bounded scans. serde_json's ordinary string
+/// Emit JSON string fragments in bounded scans. `serde_json`'s ordinary string
 /// serializer scans a complete unescaped string before calling its writer.
 fn write_json_string(
     writer: &mut impl Write,
@@ -332,6 +332,34 @@ fn encode_sequence_metadata(
     }
 }
 
+fn encode_metadata(
+    metadata: &SequenceMeta,
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<u8>, QueryMemoryReservation), CassieError> {
+    let mut counter = Counter {
+        position: 0,
+        controls,
+    };
+    encode_sequence_metadata(&mut counter, metadata, controls)?;
+    let base = controls.reserve_query_memory(0)?;
+    let (mut encoded, memory) =
+        crate::runtime::owned_memory::try_reserve_vec(counter.position, &base)?;
+    {
+        let mut writer = CheckingWriter {
+            output: &mut encoded,
+            position: 0,
+            controls,
+        };
+        encode_sequence_metadata(&mut writer, metadata, controls)?;
+    }
+    if encoded.len() != counter.position {
+        return Err(CassieError::Execution(
+            "sequence serialization changed size".into(),
+        ));
+    }
+    Ok((encoded, memory))
+}
+
 impl SequenceOwner {
     pub(crate) fn advance<T>(
         &self,
@@ -447,27 +475,7 @@ impl Midge {
             .next_epoch
             .checked_add(1)
             .ok_or_else(|| CassieError::ResourceLimit("sequence epoch exhausted".into()))?;
-        let mut counter = Counter {
-            position: 0,
-            controls: &controls,
-        };
-        encode_sequence_metadata(&mut counter, &metadata, &controls)?;
-        let base = controls.reserve_query_memory(0)?;
-        let (mut encoded, _encoded_memory) =
-            crate::runtime::owned_memory::try_reserve_vec(counter.position, &base)?;
-        {
-            let mut writer = CheckingWriter {
-                output: &mut encoded,
-                position: 0,
-                controls: &controls,
-            };
-            encode_sequence_metadata(&mut writer, &metadata, &controls)?;
-        }
-        if encoded.len() != counter.position {
-            return Err(CassieError::Execution(
-                "sequence serialization changed size".into(),
-            ));
-        }
+        let (encoded, _encoded_memory) = encode_metadata(&metadata, &controls)?;
         let count = overlay
             .sequence_epochs
             .as_ref()
@@ -475,7 +483,7 @@ impl Midge {
         let selection_bytes = count
             .checked_add(1)
             .and_then(|entries| entries.checked_mul(CURSOR_BYTES))
-            .and_then(|bytes| bytes.checked_add(counter.position))
+            .and_then(|bytes| bytes.checked_add(encoded.len()))
             .ok_or_else(|| {
                 CassieError::ResourceLimit("sequence epoch accounting overflow".into())
             })?;
@@ -577,12 +585,12 @@ impl Midge {
                             "sequence preimage has no stable identity".into(),
                         ));
                     }
-                    if previous.object_id == metadata.object_id {
-                        if original.replace(other_key).is_some() {
-                            return Err(CassieError::Unsupported(
-                                "ambiguous sequence identity".into(),
-                            ));
-                        }
+                    if previous.object_id == metadata.object_id
+                        && original.replace(other_key).is_some()
+                    {
+                        return Err(CassieError::Unsupported(
+                            "ambiguous sequence identity".into(),
+                        ));
                     }
                 }
             }
@@ -608,7 +616,7 @@ impl Midge {
 
     pub(crate) fn advance_private_sequence<T>(
         &self,
-        original: SequenceMeta,
+        original: &SequenceMeta,
         owner: &SequenceOwner,
         overlay: &Mutex<StorageOverlay>,
         epoch: u64,

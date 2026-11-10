@@ -323,7 +323,7 @@ pub(super) fn admitted_error_frame_observing(
     bytes.push(b'E');
     bytes.extend_from_slice(&encoded_length.to_be_bytes());
     append_bytes_checked(&mut bytes, &payload, controls, || {
-        progress(FrameCopyPhase::Frame)
+        progress(FrameCopyPhase::Frame);
     })?;
     let payload_capacity = payload.capacity();
     drop(payload);

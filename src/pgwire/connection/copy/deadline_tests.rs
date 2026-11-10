@@ -150,7 +150,7 @@ fn should_close_partial_copy_frame_when_cancel_and_deadline_overlap() {
         let read = tokio::spawn(async move {
             read_test(Some(&reader_cancellation), Some(deadline), &mut reader).await
         });
-        writer.write_all(&[b'd']).await.expect("send tag");
+        writer.write_all(b"d").await.expect("send tag");
         observed.await.expect("reader consumed tag");
         // Act
         cancellation.cancel();
@@ -299,13 +299,13 @@ fn should_reject_copy_fail_with_missing_null_or_invalid_utf8() {
     // Arrange
     let runtime = runtime();
     runtime.block_on(async {
-        for payload in [&[b'x'][..], &[0xff, 0][..]] {
+        for payload in [b"x".as_slice(), &[0xff, 0][..]] {
             let controls = crate::runtime::QueryExecutionControls::from_limits(
                 &crate::config::CassieRuntimeLimits::default(),
                 Instant::now(),
             );
             let (mut writer, mut reader) = tokio::io::duplex(64);
-            writer.write_all(&[b'f']).await.expect("tag");
+            writer.write_all(b"f").await.expect("tag");
             writer
                 .write_all(&(i32::try_from(payload.len() + 4).expect("length")).to_be_bytes())
                 .await
@@ -343,7 +343,7 @@ fn should_report_invalid_utf8_before_trailing_bytes_in_copy_fail() {
         // Assert
         match outcome {
             CopyReadOutcome::AdmittedMessage(Err(super::HandshakeError::Invalid(message))) => {
-                assert_eq!(message, "invalid UTF-8 in startup option")
+                assert_eq!(message, "invalid UTF-8 in startup option");
             }
             _ => panic!("expected invalid UTF-8"),
         }

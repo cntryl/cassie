@@ -106,7 +106,7 @@ fn should_preserve_malformed_exact_and_scan_list_skip_behavior() {
     assert!(
         matches!(exact, Err(CassieError::Parse(message)) if message.contains("invalid index metadata"))
     );
-    assert!(midge.list_indexes().expect("skip malformed").is_empty());
+    assert_eq!(midge.list_indexes().expect("skip malformed"), Vec::new());
     // Arrange
     let other = Midge::index_key(&meta.collection, "bad_legacy");
     midge

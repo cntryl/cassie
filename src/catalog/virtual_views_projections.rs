@@ -7,6 +7,10 @@ use super::{
 use crate::catalog::Catalog;
 
 pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
+    projection_schema_factory(name).or_else(|| projection_report_schema_factory(name))
+}
+
+fn projection_schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
     match name {
         "pg_catalog.pg_projection_checkpoints" => Some(|| {
             vec![
@@ -107,10 +111,16 @@ pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::
                 text("last_error"),
             ]
         }),
-        "pg_catalog.pg_projection_consistency_reports" => {
-            Some(|| virtual_views_consistency::schema())
-        }
-        "pg_catalog.pg_projection_repair_reports" => Some(|| virtual_views_repair::schema()),
+        _ => None,
+    }
+}
+
+fn projection_report_schema_factory(
+    name: &str,
+) -> Option<super::virtual_views_schema::SchemaFactory> {
+    match name {
+        "pg_catalog.pg_projection_consistency_reports" => Some(virtual_views_consistency::schema),
+        "pg_catalog.pg_projection_repair_reports" => Some(virtual_views_repair::schema),
         _ => None,
     }
 }

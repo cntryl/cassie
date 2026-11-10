@@ -43,9 +43,9 @@ fn should_keep_jsonb_copy_diagnostic_owned_with_original_message() {
         payload.extend_from_slice(&i32::try_from(field.len()).expect("length").to_be_bytes());
         payload.extend_from_slice(field);
         payload.extend_from_slice(&(-1_i16).to_be_bytes());
-        let error = match super::parse_binary_payload(&payload, &cassie, &statement, &controls) {
-            Ok(_) => panic!("accepted"),
-            Err(error) => error,
+        let Err(error) = super::parse_binary_payload(&payload, &cassie, &statement, &controls)
+        else {
+            panic!("accepted");
         };
         let super::super::filter::CopyWhereError::Jsonb(owner) = error else {
             panic!("owned JSONB error")

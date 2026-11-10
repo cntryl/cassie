@@ -41,7 +41,7 @@ pub(super) fn decode_observed(
                 end -= 1;
             }
             if end == start {
-                return Err(invalid_text(&bytes[start..start + 1], oid, column));
+                return Err(invalid_text(&bytes[start..=start], oid, column));
             }
             if std::str::from_utf8(&bytes[start..end]).is_err() {
                 return Err(invalid_text(&bytes[start..end], oid, column));

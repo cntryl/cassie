@@ -3,6 +3,8 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::CopyStatement;
 use crate::types::{DataType, Value};
 
+type CopyRowsWithMemory = (Vec<Vec<Option<String>>>, QueryMemoryReservation);
+
 #[cfg(test)]
 #[path = "filter_tests.rs"]
 mod tests;
@@ -29,7 +31,7 @@ impl From<crate::app::DiagnosticError> for CopyWhereError {
 fn reserve_filter_rows(
     count: usize,
     controls: &QueryExecutionControls,
-) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CassieError> {
+) -> Result<CopyRowsWithMemory, CassieError> {
     controls.check_interruption()?;
     let base = controls.reserve_query_memory(0)?;
     crate::runtime::owned_memory::try_reserve_vec(count, &base)
@@ -42,7 +44,7 @@ pub(super) fn filter_rows(
     rows: Vec<Vec<Option<String>>>,
     predicate: &str,
     controls: &QueryExecutionControls,
-) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CopyWhereError> {
+) -> Result<CopyRowsWithMemory, CopyWhereError> {
     let schema = cassie
         .catalog
         .get_schema(&statement.table)

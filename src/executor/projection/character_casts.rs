@@ -40,11 +40,9 @@ pub(super) fn deletion_required<R: RowAccess>(
         ProjectionOp::ScalarFunction { expr, .. } => {
             expr.any_descendant_or_self(&mut |expr| match expr {
                 crate::sql::ast::Expr::Binary {
-                    op: crate::sql::ast::BinaryOp::JsonbDeletePath,
-                    ..
-                } => true,
-                crate::sql::ast::Expr::Binary {
-                    op: crate::sql::ast::BinaryOp::JsonExtract { .. },
+                    op:
+                        crate::sql::ast::BinaryOp::JsonbDeletePath
+                        | crate::sql::ast::BinaryOp::JsonExtract { .. },
                     ..
                 } => true,
                 crate::sql::ast::Expr::Binary {

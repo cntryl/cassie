@@ -367,10 +367,7 @@ fn sql_array<'a, F: FnMut(usize)>(
     })
 }
 
-fn visit<'a, F: FnMut(usize)>(
-    stack: &mut Stack<'a>,
-    sink: &mut Sink<'_, F>,
-) -> Result<(), QueryError> {
+fn visit<F: FnMut(usize)>(stack: &mut Stack<'_>, sink: &mut Sink<'_, F>) -> Result<(), QueryError> {
     while let Some(frame) = stack.frames.pop() {
         sink.controls.check_interruption()?;
         match frame {

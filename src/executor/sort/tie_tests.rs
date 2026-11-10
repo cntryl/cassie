@@ -4,6 +4,7 @@ use crate::config::CassieRuntimeLimits;
 use crate::executor::batch::{row_tie_key, BatchRow};
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::types::{ArrayDimension, SqlArray, Value};
+use std::fmt::Write as _;
 use std::time::Instant;
 
 #[test]
@@ -99,17 +100,19 @@ fn should_preserve_wrapping_prefix_and_nested_json_for_public_edge_shapes() {
         .chain(std::iter::once(valid_min))
         .chain(malformed)
     {
-        let prefix = array
-            .dimensions()
-            .iter()
-            .map(|dim| {
-                format!(
-                    "[{}:{}]",
-                    dim.lower_bound,
-                    dim.lower_bound.wrapping_add(dim.length).wrapping_sub(1)
-                )
-            })
-            .collect::<String>();
+        let mut prefix = String::new();
+        for dimension in array.dimensions() {
+            write!(
+                &mut prefix,
+                "[{}:{}]",
+                dimension.lower_bound,
+                dimension
+                    .lower_bound
+                    .wrapping_add(dimension.length)
+                    .wrapping_sub(1)
+            )
+            .expect("string writes do not fail");
+        }
         let expected = format!("{prefix}{}", array.to_nested_json());
         let row = BatchRow::new(vec![("a".into(), Value::Array(array))]);
         // Act

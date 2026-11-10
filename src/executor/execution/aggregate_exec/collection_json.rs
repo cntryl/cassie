@@ -34,6 +34,11 @@ enum OutputCopyMode {
     PrimitiveArray,
 }
 
+struct OutputReplacement {
+    values: Vec<(String, Value)>,
+    memory: QueryMemoryReservation,
+}
+
 pub(super) fn primitive_array_output(owned: OwnedPrimitiveArray) -> AggregateOutput {
     let (value, memory) = owned.into_parts();
     AggregateOutput {
@@ -604,53 +609,11 @@ fn push_output_mode_observing(
         values.push((name.to_owned(), value.clone()));
         return Ok(());
     };
-    controls.check_interruption()?;
-    let old_capacity = values.capacity();
-    if values.len() == old_capacity {
-        let capacity = values.len().checked_add(1).ok_or_else(output_overflow)?;
-        let backing = mul(capacity, std::mem::size_of::<(String, Value)>())?;
-        struct Replacement {
-            values: Vec<(String, Value)>,
-            memory: QueryMemoryReservation,
-        }
-        let mut replacement = Replacement {
-            values: Vec::new(),
-            memory: memory.try_sibling(backing)?,
-        };
-        replacement
-            .values
-            .try_reserve_exact(capacity)
-            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
-        if replacement.values.capacity() > capacity {
-            return Err(output_overflow().into());
-        }
-        while let Some(item) = values.pop() {
-            controls.check_interruption()?;
-            replacement.values.push(item);
-            progress(OutputProgress::DirectoryMove);
-            controls.check_interruption()?;
-        }
-        let len = replacement.values.len();
-        for index in 0..len / 2 {
-            controls.check_interruption()?;
-            replacement.values.swap(index, len - index - 1);
-        }
-        controls.check_interruption()?;
-        let old = std::mem::replace(values, replacement.values);
-        drop(old);
-        memory.absorb(replacement.memory);
-        let old_bytes = mul(old_capacity, std::mem::size_of::<(String, Value)>())?;
-        let retained = memory
-            .bytes()
-            .checked_sub(old_bytes)
-            .ok_or_else(output_overflow)?;
-        memory.shrink_to(retained);
-    }
+    prepare_output_directory(values, memory, controls, progress)?;
     let value_bytes = match (mode, value) {
         (OutputCopyMode::NullArray, Value::Json(serde_json::Value::Array(values))) => {
             mul(values.len(), std::mem::size_of::<serde_json::Value>())?
         }
-        (OutputCopyMode::NullArray, _) => return Err(output_overflow().into()),
         (OutputCopyMode::StringArray, Value::Json(serde_json::Value::Array(values))) => {
             let mut bytes = mul(values.len(), std::mem::size_of::<serde_json::Value>())?;
             for value in values {
@@ -664,12 +627,16 @@ fn push_output_mode_observing(
             controls.check_interruption()?;
             bytes
         }
-        (OutputCopyMode::StringArray, _) => return Err(output_overflow().into()),
         (OutputCopyMode::PrimitiveArray, Value::Array(_)) => 0,
-        (OutputCopyMode::PrimitiveArray, _) => return Err(output_overflow().into()),
         (OutputCopyMode::Ordinary, _) => {
             crate::executor::retained_memory::value_clone_bytes(value)?
         }
+        (
+            OutputCopyMode::NullArray
+            | OutputCopyMode::StringArray
+            | OutputCopyMode::PrimitiveArray,
+            _,
+        ) => return Err(output_overflow().into()),
     };
     memory.try_grow(add(name.len(), value_bytes)?)?;
     let name = copy_output_string(
@@ -710,11 +677,61 @@ fn push_output_mode_observing(
             progress,
         )?),
         (OutputCopyMode::Ordinary, _) => value.clone(),
-        (OutputCopyMode::NullArray, _) => return Err(output_overflow().into()),
-        (OutputCopyMode::StringArray, _) => return Err(output_overflow().into()),
-        (OutputCopyMode::PrimitiveArray, _) => return Err(output_overflow().into()),
+        (
+            OutputCopyMode::NullArray
+            | OutputCopyMode::StringArray
+            | OutputCopyMode::PrimitiveArray,
+            _,
+        ) => return Err(output_overflow().into()),
     };
     values.push((name, value));
+    Ok(())
+}
+
+fn prepare_output_directory(
+    values: &mut Vec<(String, Value)>,
+    memory: &mut QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+    progress: &mut impl FnMut(OutputProgress),
+) -> Result<(), QueryError> {
+    controls.check_interruption()?;
+    let old_capacity = values.capacity();
+    if values.len() == old_capacity {
+        let capacity = values.len().checked_add(1).ok_or_else(output_overflow)?;
+        let backing = mul(capacity, std::mem::size_of::<(String, Value)>())?;
+        let mut replacement = OutputReplacement {
+            values: Vec::new(),
+            memory: memory.try_sibling(backing)?,
+        };
+        replacement
+            .values
+            .try_reserve_exact(capacity)
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        if replacement.values.capacity() > capacity {
+            return Err(output_overflow().into());
+        }
+        while let Some(item) = values.pop() {
+            controls.check_interruption()?;
+            replacement.values.push(item);
+            progress(OutputProgress::DirectoryMove);
+            controls.check_interruption()?;
+        }
+        let len = replacement.values.len();
+        for index in 0..len / 2 {
+            controls.check_interruption()?;
+            replacement.values.swap(index, len - index - 1);
+        }
+        controls.check_interruption()?;
+        let old = std::mem::replace(values, replacement.values);
+        drop(old);
+        memory.absorb(replacement.memory);
+        let old_bytes = mul(old_capacity, std::mem::size_of::<(String, Value)>())?;
+        let retained = memory
+            .bytes()
+            .checked_sub(old_bytes)
+            .ok_or_else(output_overflow)?;
+        memory.shrink_to(retained);
+    }
     Ok(())
 }
 

@@ -717,13 +717,20 @@ fn should_preserve_width_bucket_resolution_when_a_distinct_arity_routine_is_visi
         .expect("create distinct-arity routine");
 
     // Act
-    let result =
+    let user_function = fixture.execute("SELECT WIDTH_BUCKET(7)");
+    let builtin =
+        fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::int)");
+    let unsupported_count =
         fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::bigint)");
 
     // Assert
-    assert!(
-        !matches!(result, Err(cassie::app::CassieError::Execution(message)) if message.starts_with("function width_bucket(") && message.ends_with(" does not exist"))
-    );
+    assert_eq!(user_function.expect("one-argument routine").rows(), &[vec![Value::Int64(7)]]);
+    assert_eq!(builtin.expect("four-argument builtin").rows(), &[vec![Value::Int64(1)]]);
+    assert!(matches!(
+        unsupported_count,
+        Err(cassie::app::CassieError::Execution(message))
+            if message.starts_with("function width_bucket(") && message.ends_with(" does not exist")
+    ));
 }
 
 #[test]
@@ -756,7 +763,7 @@ fn should_coerce_unknown_width_bucket_count_literals_as_int4_before_nulls() {
 }
 
 #[test]
-fn should_leave_width_bucket_count_literal_unchanged_for_a_visible_routine() {
+fn should_validate_width_bucket_count_literal_for_a_visible_distinct_arity_routine() {
     // Arrange
     let fixture = sql_fixture("issue-813-width-bucket-literal-visible-routine", &[]);
     fixture
@@ -767,9 +774,11 @@ fn should_leave_width_bucket_count_literal_unchanged_for_a_visible_routine() {
     let result = fixture.execute("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 'bad')");
 
     // Assert
-    assert!(
-        !matches!(result, Err(cassie::app::CassieError::Execution(message)) if message == "invalid input syntax for type integer: \"bad\"")
-    );
+    assert!(matches!(
+        result,
+        Err(cassie::app::CassieError::Execution(message))
+            if message == "invalid input syntax for type integer: \"bad\""
+    ));
 }
 
 #[test]

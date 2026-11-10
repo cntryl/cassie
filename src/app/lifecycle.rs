@@ -100,7 +100,7 @@ impl Cassie {
             metadata_write_catalog: catalog.clone(),
             catalog_owner: None,
             catalog,
-            catalog_publication: Arc::new(parking_lot::RwLock::new(())),
+            catalog_publication: Arc::new(parking_lot::RecursiveRwLock::new(())),
             transaction_unique_waits: Arc::new(super::TransactionUniqueWaits::default()),
             embedding_provider,
             runtime,

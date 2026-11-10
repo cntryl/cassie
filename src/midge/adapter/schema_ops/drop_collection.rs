@@ -44,6 +44,11 @@ impl Midge {
         let relation_id = Self::load_row_schema_from_tx(&schema_tx, name)?
             .ok_or_else(|| CassieError::Parse("missing row schema metadata".to_string()))?
             .relation_id;
+        if relation_id == 0 {
+            return Err(CassieError::Unsupported(
+                "collection drop requires a persisted relation identity".to_string(),
+            ));
+        }
 
         let vector_prefix = Self::vector_index_collection_prefix(name);
         let vector_indexes = collect_scan(
@@ -136,6 +141,11 @@ impl Midge {
         relation_id: Option<u64>,
         remove_name_keys: bool,
     ) -> Result<(), CassieError> {
+        if relation_id == Some(0) {
+            return Err(CassieError::Unsupported(
+                "collection cleanup requires a persisted relation identity".to_string(),
+            ));
+        }
         let canonical_name = self.canonical_collection_name(name);
         let mut data_tx = self.begin_data_rw_tx_for(name)?;
         let mut document_keys = Vec::new();

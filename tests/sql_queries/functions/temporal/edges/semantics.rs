@@ -192,15 +192,21 @@ fn should_extract_every_supported_field_from_dates_beyond_timestamp_range() {
         nulls.expect("date nulls").rows(),
         &[vec![Value::Bool(true), Value::Bool(true)]]
     );
+    let numeric = numeric.expect("date numeric type and scale");
     assert_eq!(
-        numeric.expect("date numeric type and scale").rows(),
+        numeric
+            .columns()
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        [1700, 1700],
+        "EXTRACT columns retain PostgreSQL NUMERIC descriptors"
+    );
+    assert_eq!(
+        numeric.rows(),
         &[vec![
-            Value::Typed(cassie::types::typed::TypedValue::Numeric(
-                cassie::types::extended::numeric::Numeric::from_i64(5_874_897)
-            )),
-            Value::Typed(cassie::types::typed::TypedValue::Numeric(
-                cassie::types::extended::numeric::Numeric::from_i64(185_331_706_992_000)
-            )),
+            Value::String("5874897".to_owned()),
+            Value::String("185331706992000".to_owned()),
         ]]
     );
 }

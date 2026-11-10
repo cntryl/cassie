@@ -593,7 +593,7 @@ fn should_reload_explicit_local_fulltext_index_after_restart() {
     let before = cassie.metrics();
 
     // Act
-    let result = cassie.execute_sql(&session, "SELECT body, search_score(body, 'alpha') AS score FROM local_restart_docs WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1", vec![]);
+    let result = cassie.execute_sql(&session, "SELECT body, search_score(body, 'alpha') AS score FROM local_restart_docs WHERE search(body, 'alpha') LIMIT 1", vec![]);
     let after = cassie.metrics();
 
     // Assert

@@ -21,7 +21,7 @@ pub(crate) struct CopyCommandOwner {
     catalog: Arc<ControlledCatalogSnapshot>,
     storage: Arc<CopyStorageSnapshot>,
     publication_catalog: Catalog,
-    publication_guard: Arc<parking_lot::RwLock<()>>,
+    publication_guard: Arc<parking_lot::RecursiveRwLock<()>>,
     _memory: QueryMemoryReservation,
     _database_memory: QueryMemoryReservation,
     _default_database_memory: QueryMemoryReservation,
@@ -43,7 +43,7 @@ impl CopyCommandOwner {
     pub(crate) fn lock_catalog<'a>(
         &'a self,
         controls: &QueryExecutionControls,
-    ) -> Result<parking_lot::RwLockReadGuard<'a, ()>, CassieError> {
+    ) -> Result<parking_lot::RecursiveRwLockReadGuard<'a, ()>, CassieError> {
         lock_publication(&self.publication_guard, controls)
     }
 
@@ -296,9 +296,9 @@ fn copy_binding_context(
 }
 
 fn lock_publication<'a>(
-    guard: &'a parking_lot::RwLock<()>,
+    guard: &'a parking_lot::RecursiveRwLock<()>,
     controls: &QueryExecutionControls,
-) -> Result<parking_lot::RwLockReadGuard<'a, ()>, CassieError> {
+) -> Result<parking_lot::RecursiveRwLockReadGuard<'a, ()>, CassieError> {
     loop {
         controls.check_interruption()?;
         if let Some(read) = guard.try_read_for(Duration::from_millis(2)) {
@@ -489,7 +489,7 @@ impl CassieSession {
         &self,
         owner: &CopyCommandOwner,
         controls: &QueryExecutionControls,
-        _publication: &parking_lot::RwLockReadGuard<'_, ()>,
+        _publication: &parking_lot::RecursiveRwLockReadGuard<'_, ()>,
     ) -> Result<StatementMutationBatch, CassieError> {
         let _controls = crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         self.fork_statement_batch_checked(|transaction| {

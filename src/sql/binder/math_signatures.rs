@@ -2,7 +2,7 @@
 use super::super::coalesce_results::ResultTypes;
 use crate::app::CassieError;
 use crate::sql::ast::{CastIdentity, Expr, FunctionCall};
-use crate::sql::functions::{FunctionId, MathFunction};
+use crate::sql::functions::{self, FunctionId, MathFunction};
 use crate::types::extended::ExtendedType;
 use crate::types::DataType;
 
@@ -45,6 +45,18 @@ fn bucket_literal_family(data_type: Option<DataType>) -> Option<bool> {
     }
 }
 
+fn has_applicable_declared_routine(function: &FunctionCall, types: &ResultTypes) -> bool {
+    types
+        .declared_function(&function.name)
+        .is_some_and(|metadata| {
+            !functions::has_distinct_builtin_arity(
+                &function.name,
+                function.args.len(),
+                metadata.args.len(),
+            )
+        })
+}
+
 /// `round(double precision, integer)`, `trunc(double precision, integer)` and
 /// `log(double precision, double precision)` do not exist (SQLSTATE 42883).
 pub(super) fn validate(
@@ -58,7 +70,7 @@ pub(super) fn validate(
         return Ok(());
     };
     if math == MathFunction::WidthBucket && function.args.len() == 4 {
-        if types.declared_function(&function.name).is_none() {
+        if !has_applicable_declared_routine(function, types) {
             let first = bucket_literal_family(types.expression_type(&function.args[0]));
             if first.is_some()
                 && function.args[1..3]
@@ -88,7 +100,7 @@ pub(super) fn validate(
                 }
             }
         }
-        if types.declared_function(&function.name).is_none()
+        if !has_applicable_declared_routine(function, types)
             && function.args[..3]
                 .iter()
                 .all(|argument| is_numeric_argument(types.expression_type(argument)))

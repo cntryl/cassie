@@ -256,10 +256,7 @@ fn complete_sqlstate(payload: &[u8]) -> Option<&str> {
 fn should_require_exact_error_count_and_sqlstate_for_each_script_step() {
     // Arrange
     let success = vec![(b'Z', b"I".to_vec())];
-    let failure = vec![(
-        b'E',
-        b"SERROR\0C22012\0Mdivision by zero\0\0".to_vec(),
-    )];
+    let failure = vec![(b'E', b"SERROR\0C22012\0Mdivision by zero\0\0".to_vec())];
 
     // Act / Assert
     assert_script_response(&success, 0, None);

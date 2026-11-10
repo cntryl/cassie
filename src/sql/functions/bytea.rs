@@ -1,4 +1,4 @@
-//! Fixed BYTEA builtins; qualified lookup shares their canonical metadata.
+//! Fixed BYTEA builtins and shared signature-selection helpers.
 use super::{FunctionArity, FunctionId, FunctionReturnType, ScalarFunction};
 pub(crate) const fn is_bytea_function(id: FunctionId) -> bool {
     matches!(
@@ -140,6 +140,7 @@ pub(crate) fn has_distinct_builtin_arity(name: &str, actual: usize, declared: us
         && super::function(name).is_some_and(|metadata| {
             (is_bytea_function(metadata.id)
                 || metadata.id == FunctionId::Lower
+                || metadata.id == FunctionId::Math(super::MathFunction::WidthBucket)
                 || matches!(metadata.id, FunctionId::Json(_)))
                 && metadata.arity.matches(actual)
         })

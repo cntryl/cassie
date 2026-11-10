@@ -40,6 +40,18 @@ pub(super) fn validate_function_calls(
             }
             continue;
         }
+        let lookup = function.name.to_ascii_lowercase();
+        if let Some(metadata) = user_functions.get(&lookup).filter(|metadata| {
+            function.args.len() == metadata.args.len()
+                && !crate::sql::functions::has_distinct_builtin_arity(
+                    &function.name,
+                    function.args.len(),
+                    metadata.args.len(),
+                )
+        }) {
+            crate::sql::definition_guard::legacy_expression_sql(&metadata.body)?;
+            continue;
+        }
         if let Some(metadata) = crate::sql::functions::function(&function.name) {
             if metadata.bypass_arity_validation {
                 continue;
@@ -69,7 +81,6 @@ pub(super) fn validate_function_calls(
         if crate::sql::functions::is_server_control_helper(&function.name) {
             return Err(crate::sql::functions::reject_server_control());
         }
-        let lookup = function.name.to_ascii_lowercase();
         let Some(metadata) = user_functions.get(&lookup) else {
             return Err(CassieError::Planner(format!(
                 "unsupported function '{}'",

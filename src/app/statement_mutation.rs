@@ -87,6 +87,11 @@ impl Cassie {
         transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
     ) -> Result<CommittedWriteBatch, CassieError> {
         let mut writes = transaction_write_batches(staging);
+        if let Some((database, overlay)) = transactional_ddl {
+            // A staged DROP already removes this relation's name and rows from
+            // the transactional overlay; skip earlier row batches for it.
+            writes.retain(|collection, _| !overlay.drops_collection(collection, database));
+        }
         if writes.is_empty() {
             check_publication_controls(controls)?;
             if let Some((database, overlay)) = transactional_ddl {

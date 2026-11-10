@@ -56,6 +56,37 @@ impl StorageOverlay {
             .collect()
     }
 
+    pub(crate) fn drops_collection(&self, collection: &str, default_database: &str) -> bool {
+        let canonical = match parse_name(collection) {
+            Ok(ParsedName::Unqualified(name)) => {
+                canonical_relation_name(default_database, crate::catalog::DEFAULT_SCHEMA, &name)
+            }
+            Ok(ParsedName::SchemaQualified { schema, name }) => {
+                if is_system_schema(&schema) {
+                    format!("{schema}.{name}")
+                } else {
+                    canonical_relation_name(default_database, &schema, &name)
+                }
+            }
+            Ok(ParsedName::DatabaseQualified {
+                database,
+                schema,
+                name,
+            }) => canonical_relation_name(&database, &schema, &name),
+            Err(_) => collection.to_string(),
+        };
+        [
+            Midge::collection_schema_key(&canonical),
+            Midge::row_schema_key(&canonical),
+        ]
+        .iter()
+        .any(|key| {
+            self.changes
+                .get(key)
+                .is_some_and(|change| change.value.is_none())
+        })
+    }
+
     pub(crate) fn with_sequence_cursors(
         mut self,
         controls: &crate::runtime::QueryExecutionControls,

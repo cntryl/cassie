@@ -40,7 +40,7 @@ fn lock_publication<'a>(
     cassie: &'a Cassie,
     controls: &QueryExecutionControls,
     mut before_wait: impl FnMut(),
-) -> Result<parking_lot::RwLockWriteGuard<'a, ()>, CassieError> {
+) -> Result<parking_lot::RecursiveRwLockWriteGuard<'a, ()>, CassieError> {
     loop {
         controls.check_interruption()?;
         before_wait();

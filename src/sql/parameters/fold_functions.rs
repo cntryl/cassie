@@ -190,6 +190,13 @@ impl Fold<'_, '_> {
         }) && function.args.len() == 4
         {
             let summaries = &self.summaries.values[frame.start..frame.start + 4];
+            if let Some((slot, previous, requested)) =
+                mixed_bucket_count_conflict(&function.args, summaries)
+            {
+                self.occurrences
+                    .inconsistent_parameter_type(slot, previous, requested)?;
+                return Ok(Summary::known(23));
+            }
             let fresh = std::array::from_fn(|index| {
                 let summary = &summaries[index];
                 summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
@@ -940,6 +947,76 @@ fn mixed_bucket_targets(
         return None;
     }
     Some([anchor, anchor, anchor, 23])
+}
+
+fn mixed_bucket_count_conflict(
+    arguments: &[ast::Expr],
+    summaries: &[Summary],
+) -> Option<(usize, i32, i32)> {
+    if arguments.len() != 4 || summaries.len() != 4 || !matches!(summaries[3].oid, 21 | 23) {
+        return None;
+    }
+    let mut anchor = None;
+    for summary in &summaries[..3] {
+        if matches!(summary.oid, 701 | 1700) {
+            if anchor.is_some_and(|known| known != summary.oid) {
+                return None;
+            }
+            anchor = Some(summary.oid);
+        }
+    }
+    let requested = anchor?;
+    for index in 0..3 {
+        let ast::Expr::Param(slot) = &arguments[index] else {
+            continue;
+        };
+        if !summaries[index].qualified
+            || !matches!(summaries[index].oid, 0 | 705)
+            || !contains_integer_cast_of_parameter(&arguments[3], *slot)
+        {
+            continue;
+        }
+        return Some((*slot, summaries[3].oid, requested));
+    }
+    None
+}
+
+fn contains_integer_cast_of_parameter(expression: &ast::Expr, slot: usize) -> bool {
+    if let ast::Expr::Cast {
+        expr, data_type, ..
+    } = expression
+    {
+        if matches!(data_type, DataType::SmallInt | DataType::Int) && contains_parameter(expr, slot)
+        {
+            return true;
+        }
+    }
+    let mut found = false;
+    let _ = expression.try_for_each_child(|child| {
+        if contains_integer_cast_of_parameter(child, slot) {
+            found = true;
+            std::ops::ControlFlow::Break(())
+        } else {
+            std::ops::ControlFlow::Continue(())
+        }
+    });
+    found
+}
+
+fn contains_parameter(expression: &ast::Expr, slot: usize) -> bool {
+    if matches!(expression, ast::Expr::Param(index) if *index == slot) {
+        return true;
+    }
+    let mut found = false;
+    let _ = expression.try_for_each_child(|child| {
+        if contains_parameter(child, slot) {
+            found = true;
+            std::ops::ControlFlow::Break(())
+        } else {
+            std::ops::ControlFlow::Continue(())
+        }
+    });
+    found
 }
 
 fn unknown_bucket_literal_operands(

@@ -186,6 +186,8 @@ fn needs_function_qualification(function: &FunctionCall) -> bool {
     functions::function(&function.name).is_some_and(|metadata| {
         functions::is_bytea_function(metadata.id)
             || metadata.id == functions::FunctionId::Lower
+            || metadata.id == functions::FunctionId::Power
+            || metadata.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
             || matches!(metadata.id, functions::FunctionId::Json(_))
             || matches!(
                 functions::input_signature(metadata.id),

@@ -6,8 +6,8 @@ use super::{Cassie, CassieError};
 use crate::runtime::QueryExecutionControls;
 
 pub(super) enum CatalogCommitGuard<'a> {
-    Read(parking_lot::RwLockReadGuard<'a, ()>),
-    Write(parking_lot::RwLockWriteGuard<'a, ()>),
+    Read(parking_lot::RecursiveRwLockReadGuard<'a, ()>),
+    Write(parking_lot::RecursiveRwLockWriteGuard<'a, ()>),
 }
 
 impl CatalogCommitGuard<'_> {
@@ -24,7 +24,7 @@ impl Cassie {
         &'a self,
         write: bool,
         repeatable_write: bool,
-        held: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+        held: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
         controls: &QueryExecutionControls,
     ) -> Result<Option<CatalogCommitGuard<'a>>, CassieError> {
         if let Some(held) = held {

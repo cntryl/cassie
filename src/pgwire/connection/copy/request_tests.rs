@@ -6,7 +6,9 @@ fn should_parse_copy_where_at_the_start_of_the_option_tail() {
     let sql = "COPY copy_unknown_where FROM STDIN WHERE (\"missing_é\" = 1)";
 
     // Act
-    let request = parse_copy_request(sql).expect("valid COPY").expect("COPY request");
+    let request = parse_copy_request(sql)
+        .expect("valid COPY")
+        .expect("COPY request");
 
     // Assert
     assert_eq!(request.where_clause.as_deref(), Some("\"missing_é\" = 1"));
@@ -23,7 +25,10 @@ fn should_ignore_quoted_nested_and_non_boundary_where_text() {
     let (prefix, predicate) = split_copy_where(options);
 
     // Assert
-    assert_eq!(prefix, "WITH (FORMAT CSV, NULL ' WHERE ', FORCE_NULL (\"where\"))");
+    assert_eq!(
+        prefix,
+        "WITH (FORMAT CSV, NULL ' WHERE ', FORCE_NULL (\"where\"))"
+    );
     assert_eq!(predicate.as_deref(), Some("id = 1"));
     assert_eq!(split_copy_where(no_boundary), (no_boundary, None));
     assert_eq!(split_copy_where(no_space), (no_space, None));

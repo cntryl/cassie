@@ -270,7 +270,7 @@ impl Cassie {
         cancellation: Option<&QueryCancellationHandle>,
         options: CopyIngestOptions<'_>,
         owner: Option<&crate::app::CopyCommandOwner>,
-        publication: Option<&parking_lot::RwLockReadGuard<'_, ()>>,
+        publication: Option<&parking_lot::RecursiveRwLockReadGuard<'_, ()>>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<
         (

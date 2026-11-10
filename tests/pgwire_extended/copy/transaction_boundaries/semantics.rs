@@ -460,7 +460,7 @@ fn should_copy_to_staged_search_path_schema_instead_of_public_collision() {
     // Assert
     assert_eq!(wire::error_code(&frames[5]), None);
     assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("7".into())]]);
-    assert!(wire::data_rows(&frames[7]).is_empty());
+    assert_eq!(wire::data_rows(&frames[7]), [] as [std::vec::Vec<std::option::Option<std::string::String>>; 0]);
 }
 
 #[test]

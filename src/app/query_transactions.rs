@@ -145,7 +145,7 @@ impl Cassie {
     pub(super) fn commit_transaction_holding_catalog<'a>(
         &'a self,
         session: &CassieSession,
-        publication: parking_lot::RwLockWriteGuard<'a, ()>,
+        publication: parking_lot::RecursiveRwLockWriteGuard<'a, ()>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
         self.commit_transaction_using_catalog_guard(session, Some(publication), controls)
@@ -154,7 +154,7 @@ impl Cassie {
     fn commit_transaction_using_catalog_guard<'a>(
         &'a self,
         session: &CassieSession,
-        held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+        held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
         let repeatable_write = session.is_repeatable_read_write();
@@ -168,7 +168,7 @@ impl Cassie {
     fn commit_transaction_inner<'a>(
         &'a self,
         session: &CassieSession,
-        held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+        held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
         let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);

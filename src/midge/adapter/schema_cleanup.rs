@@ -1,4 +1,6 @@
-use super::{key_encoding, CassieError, IndexKind, Midge, Uuid};
+use super::{
+    key_encoding, CassieError, IndexKind, Midge, RowSchema, Schema, TransactionMode, Uuid,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
@@ -122,6 +124,11 @@ impl Midge {
             return Err(CassieError::CollectionNotFound(table));
         }
         let relation_id = self.row_schema(&table)?.relation_id;
+        if relation_id == 0 {
+            return Err(CassieError::Unsupported(
+                "deferred collection drop requires a persisted relation identity".to_string(),
+            ));
+        }
         self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
@@ -190,13 +197,15 @@ impl Midge {
     ) -> Result<(), CassieError> {
         match &cleanup.action {
             PendingSchemaCleanupAction::Table { table, relation_id } => {
+                if *relation_id == 0 {
+                    return Err(CassieError::Unsupported(
+                        "collection cleanup requires a persisted relation identity".to_string(),
+                    ));
+                }
                 let _fresh_reads = super::StatementReadScope::enter(None);
                 let gate = self.collection_write_gate(table);
                 let _guard = gate.lock();
-                let current_identity = self
-                    .collection_schema(table)
-                    .map(|_| self.row_schema(table).map(|schema| schema.relation_id))
-                    .transpose()?;
+                let current_identity = self.current_collection_relation_id_for_cleanup(table)?;
                 match current_identity {
                     Some(current) if current == *relation_id => self.drop_collection(table)?,
                     Some(_) => {
@@ -222,6 +231,27 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
+    }
+
+    fn current_collection_relation_id_for_cleanup(
+        &self,
+        collection: &str,
+    ) -> Result<Option<u64>, CassieError> {
+        let canonical = self.canonical_collection_name(collection);
+        let tx = self.database_tx_for_collection(&canonical, TransactionMode::ReadOnly)?;
+        if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, &canonical)? {
+            return Ok(Some(row_schema.relation_id));
+        }
+        let Some(raw) = tx
+            .get(&Self::collection_schema_key(&canonical))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        let schema: Schema = serde_json::from_slice(&raw).map_err(|error| {
+            CassieError::Parse(format!("invalid schema for '{canonical}': {error}"))
+        })?;
+        Ok(Some(RowSchema::from_schema(&schema).relation_id))
     }
 
     fn complete_current_index_cleanup(
@@ -306,7 +336,7 @@ impl Midge {
 
 #[cfg(test)]
 mod tests {
-    use super::{key_encoding, Midge, Uuid};
+    use super::{key_encoding, Midge, PendingSchemaCleanup, PendingSchemaCleanupAction, Uuid};
     use crate::catalog::{IndexKind, IndexMeta};
     use crate::midge::adapter::StorageFamily;
 
@@ -468,6 +498,193 @@ mod tests {
         assert!(midge
             .get_index(&index.collection, &index.name)
             .expect("read")
+            .is_some());
+    }
+
+    #[test]
+    fn should_preserve_shared_relation_zero_rows_when_reaping_a_retired_collection() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("create Midge");
+        let schema = crate::types::Schema {
+            fields: vec![crate::types::FieldSchema {
+                name: "id".to_owned(),
+                data_type: crate::types::DataType::Int,
+                nullable: false,
+            }],
+        };
+        midge
+            .create_collection("legacy_zero_a", schema.clone())
+            .expect("create first legacy collection");
+        midge
+            .create_collection("legacy_zero_b", schema)
+            .expect("create second legacy collection");
+        for table in ["legacy_zero_a", "legacy_zero_b"] {
+            let canonical = midge.canonical_collection_name(table);
+            let mut row_schema = midge.row_schema(table).expect("row schema");
+            row_schema.relation_id = 0;
+            midge
+                .raw_put(
+                    StorageFamily::Data,
+                    &Midge::row_schema_key(&canonical),
+                    &serde_json::to_vec(&row_schema).expect("encode row schema"),
+                )
+                .expect("store legacy row schema");
+            midge
+                .put_document(
+                    table,
+                    Some(format!("{table}_row")),
+                    serde_json::json!({"id": 1}),
+                )
+                .expect("write legacy row");
+        }
+        let relation_zero_rows = midge
+            .raw_scan_prefix(StorageFamily::Data, &Midge::row_prefix(0))
+            .expect("scan shared relation-zero rows");
+        assert_eq!(relation_zero_rows.len(), 2);
+        assert!(midge.defer_drop_collection("legacy_zero_a", 0).is_err());
+        assert!(midge.drop_collection("legacy_zero_b").is_err());
+        assert!(midge.collection_schema("legacy_zero_b").is_some());
+        assert!(midge
+            .pending_schema_cleanups()
+            .expect("no deferred cleanup")
+            .is_empty());
+
+        let mut replacement_schema = midge.row_schema("legacy_zero_a").expect("row schema");
+        replacement_schema.relation_id = 77;
+        let first_table = midge.canonical_collection_name("legacy_zero_a");
+        midge
+            .raw_put(
+                StorageFamily::Data,
+                &Midge::row_schema_key(&first_table),
+                &serde_json::to_vec(&replacement_schema).expect("encode replacement schema"),
+            )
+            .expect("store replacement identity");
+        let cleanup = PendingSchemaCleanup {
+            cleanup_id: Uuid::new_v4().to_string(),
+            blocked_by_epoch: 0,
+            action: PendingSchemaCleanupAction::Table {
+                table: first_table,
+                relation_id: 0,
+            },
+        };
+        midge
+            .save_pending_schema_cleanup(&cleanup)
+            .expect("save legacy cleanup marker");
+
+        // Act
+        let result = midge.complete_pending_schema_cleanup(&cleanup);
+
+        // Assert
+        assert!(result.is_err(), "relation-zero cleanup must fail closed");
+        assert_eq!(
+            midge
+                .raw_scan_prefix(StorageFamily::Data, &Midge::row_prefix(0))
+                .expect("scan shared relation-zero rows")
+                .len(),
+            2,
+        );
+        assert!(midge.collection_schema("legacy_zero_a").is_some());
+        assert!(midge.collection_schema("legacy_zero_b").is_some());
+        assert_eq!(
+            midge
+                .pending_schema_cleanups()
+                .expect("pending cleanups")
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn should_preserve_collection_data_when_cleanup_cannot_decode_current_identity() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("create Midge");
+        midge
+            .create_collection(
+                "cleanup_unreadable",
+                crate::types::Schema {
+                    fields: vec![crate::types::FieldSchema {
+                        name: "id".to_owned(),
+                        data_type: crate::types::DataType::Int,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("create collection");
+        midge
+            .put_document(
+                "cleanup_unreadable",
+                Some("row".to_owned()),
+                serde_json::json!({"id": 1}),
+            )
+            .expect("write row");
+        let relation_id = midge
+            .row_schema("cleanup_unreadable")
+            .expect("row schema")
+            .relation_id;
+        let canonical = midge.canonical_collection_name("cleanup_unreadable");
+        midge
+            .raw_put(
+                StorageFamily::Data,
+                &Midge::doc_key(&canonical, "row"),
+                b"legacy document",
+            )
+            .expect("seed legacy name-scoped document");
+        let cleanup = PendingSchemaCleanup {
+            cleanup_id: Uuid::new_v4().to_string(),
+            blocked_by_epoch: 0,
+            action: PendingSchemaCleanupAction::Table {
+                table: canonical.clone(),
+                relation_id,
+            },
+        };
+        midge
+            .save_pending_schema_cleanup(&cleanup)
+            .expect("save cleanup marker");
+        midge
+            .raw_put(
+                StorageFamily::Data,
+                &Midge::row_schema_key(&canonical),
+                b"{",
+            )
+            .expect("corrupt row schema");
+        midge
+            .raw_put(
+                StorageFamily::Data,
+                &Midge::collection_schema_key(&canonical),
+                b"{",
+            )
+            .expect("corrupt collection schema");
+        let row_prefix = Midge::row_prefix(relation_id);
+        assert_eq!(
+            midge
+                .raw_scan_prefix(StorageFamily::Data, &row_prefix)
+                .expect("scan rows")
+                .len(),
+            1,
+        );
+
+        // Act
+        let result = midge.complete_pending_schema_cleanup(&cleanup);
+
+        // Assert
+        assert!(result.is_err(), "identity decode failure must propagate");
+        assert_eq!(
+            midge
+                .raw_scan_prefix(StorageFamily::Data, &row_prefix)
+                .expect("scan rows")
+                .len(),
+            1,
+        );
+        assert_eq!(
+            midge
+                .pending_schema_cleanups()
+                .expect("pending cleanups")
+                .len(),
+            1
+        );
+        assert!(midge
+            .raw_get(StorageFamily::Data, &Midge::doc_key(&canonical, "row"))
+            .expect("read name-scoped document")
             .is_some());
     }
 

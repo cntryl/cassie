@@ -69,6 +69,16 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
             Ok::<Value, QueryError>(value)
         })
         .collect::<Result<Vec<_>, _>>()?;
+
+    if name == "width_bucket"
+        && context
+            .user_functions
+            .get(&name)
+            .is_some_and(|metadata| metadata.args.len() == function.args.len())
+    {
+        return evaluate_user_defined_function(&name, row, context, args);
+    }
+
     if let Some(memory) = context.memory {
         let bytes = args.iter().try_fold(1024, |bytes, value| {
             crate::executor::retained_memory::add(

@@ -503,6 +503,19 @@ impl<'a> Occurrences<'a> {
         })
     }
 
+    pub(super) fn inconsistent_parameter_type(
+        &mut self,
+        slot: usize,
+        previous: i32,
+        requested: i32,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::Inconsistent {
+            slot,
+            previous,
+            requested,
+        })
+    }
+
     fn report(
         &mut self,
         diagnostic: ParameterSemanticDiagnostic,

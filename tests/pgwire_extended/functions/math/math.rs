@@ -829,7 +829,8 @@ fn should_infer_int4_width_bucket_count_for_typed_operands() {
 }
 
 #[test]
-fn should_preserve_width_bucket_parameter_occurrences_and_declared_types() {
+fn should_preserve_width_bucket_parameter_types_and_reject_unsupported_count_with_distinct_arity_routine(
+) {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame(
@@ -875,7 +876,8 @@ fn should_preserve_width_bucket_parameter_occurrences_and_declared_types() {
         );
     }
     assert_eq!(wire::error_code(&batches[4]), None);
-    assert_eq!(batches[5].first().map(|frame| frame.0), Some(b'1'));
+    assert_eq!(batches[5].first().map(|frame| frame.0), Some(b'E'));
+    assert_eq!(wire::error_code(&batches[5]).as_deref(), Some("42883"));
 }
 
 #[test]

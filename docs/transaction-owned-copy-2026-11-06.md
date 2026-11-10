@@ -118,6 +118,15 @@ bounded checked reader and admits scratch. The Midge `get` result is obtained
 before its byte length can be reserved; this pre-existing API overlap remains
 separately pending rather than being represented as fully admitted.
 
+Deferred collection cleanup reads current identity through a fallible fresh
+transaction in the active DDL overlay. Storage or descriptor decode errors
+preserve data and the cleanup marker instead of being interpreted as a missing
+replacement. Legacy descriptors with relation ID 0 cannot safely address
+relation-owned prefixes shared with other legacy tables, so direct or deferred
+physical collection cleanup punts before mutation; no global relation-zero
+prefix is reclaimed. Focused regressions for both boundaries remain unexecuted
+until the consolidated validation gate.
+
 Catalog/storage snapshot and the first physical-ID pin must be captured while
 holding the same collection gate. A target may be provisionally resolved to
 choose the gate, but must be resolved again from the gated snapshot; a changed

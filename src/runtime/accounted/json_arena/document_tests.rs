@@ -124,9 +124,8 @@ fn should_match_ordinary_container_error_categories_and_positions() {
     // Act / Assert
     for input in inputs {
         let expected = serde_json::from_str::<serde_json::Value>(input).expect_err("serde");
-        let error = match Document::parse(input, &controls) {
-            Ok(_) => panic!("accepted {input:?}"),
-            Err(error) => error,
+        let Err(error) = Document::parse(input, &controls) else {
+            panic!("accepted {input:?}");
         };
         let (category, line, column) = error.test_diagnostic().expect("diagnostic");
         assert_eq!(
@@ -149,9 +148,8 @@ fn should_match_serde_nesting_limit_without_a_new_depth_limit() {
     let parsed = Document::parse(&accepted, &controls).expect("127 nested arrays");
     drop(parsed);
     let expected = serde_json::from_str::<serde_json::Value>(&rejected).expect_err("serde limit");
-    let error = match Document::parse(&rejected, &controls) {
-        Ok(_) => panic!("accepted depth"),
-        Err(error) => error,
+    let Err(error) = Document::parse(&rejected, &controls) else {
+        panic!("accepted depth");
     };
     let (category, line, column) = error.test_diagnostic().expect("diagnostic");
     assert_eq!(
@@ -199,9 +197,8 @@ fn should_match_raw_sentinel_nested_errors_and_outer_map_precedence() {
     // Act / Assert
     for input in inputs {
         let expected = serde_json::from_str::<serde_json::Value>(input).expect_err("serde");
-        let error = match Document::parse(input, &controls) {
-            Ok(_) => panic!("accepted {input:?}"),
-            Err(error) => error,
+        let Err(error) = Document::parse(input, &controls) else {
+            panic!("accepted {input:?}");
         };
         assert_eq!(
             error.test_diagnostic(),
@@ -244,9 +241,8 @@ fn should_wrap_nested_raw_depth_errors_with_inner_position_and_message() {
     let expected = serde_json::from_str::<serde_json::Value>(&input).expect_err("serde");
 
     // Act
-    let error = match Document::parse(&input, &controls) {
-        Ok(_) => panic!("accepted depth"),
-        Err(error) => error,
+    let Err(error) = Document::parse(&input, &controls) else {
+        panic!("accepted depth");
     };
 
     // Assert
@@ -268,9 +264,8 @@ fn should_preserve_wrapped_number_sentinel_error_through_raw_nesting() {
     let expected = serde_json::from_str::<serde_json::Value>(&input).expect_err("serde");
 
     // Act
-    let error = match Document::parse(&input, &controls) {
-        Ok(_) => panic!("accepted nested error"),
-        Err(error) => error,
+    let Err(error) = Document::parse(&input, &controls) else {
+        panic!("accepted nested error");
     };
 
     // Assert
@@ -302,9 +297,8 @@ fn should_preserve_each_nested_raw_error_cause_and_message() {
         let encoded = serde_json::to_string(nested).expect("encode source");
         let input = format!(r#"{{"$serde_json::private::RawValue":{encoded},"outer":1}}"#);
         let expected = serde_json::from_str::<serde_json::Value>(&input).expect_err("serde");
-        let error = match Document::parse(&input, &controls) {
-            Ok(_) => panic!("accepted {nested:?}"),
-            Err(error) => error,
+        let Err(error) = Document::parse(&input, &controls) else {
+            panic!("accepted {nested:?}");
         };
         assert_eq!(
             error.test_diagnostic(),
@@ -332,9 +326,8 @@ fn should_match_non_string_raw_sentinel_errors_against_serde() {
     for payload in payloads {
         let input = format!(r#"{{"$serde_json::private::RawValue":{payload}}}"#);
         let expected = serde_json::from_str::<serde_json::Value>(&input).expect_err("serde");
-        let error = match Document::parse(&input, &controls) {
-            Ok(_) => panic!("accepted {input:?}"),
-            Err(error) => error,
+        let Err(error) = Document::parse(&input, &controls) else {
+            panic!("accepted {input:?}");
         };
         assert_eq!(
             error.test_diagnostic(),
@@ -363,10 +356,10 @@ fn should_keep_raw_source_and_decoded_value_owned_together() {
     // Act
     let parsed = Document::parse_observed(input, &controls, |progress| match progress {
         DocumentProgress::RawSourcePushed => {
-            source_ready = Some(controls.current_query_memory_bytes())
+            source_ready = Some(controls.current_query_memory_bytes());
         }
         DocumentProgress::RawValueReady => {
-            value_ready = Some(controls.current_query_memory_bytes())
+            value_ready = Some(controls.current_query_memory_bytes());
         }
         _ => {}
     })
@@ -494,9 +487,8 @@ fn should_unwind_every_entered_array_while_preserving_the_first_error() {
     });
 
     // Assert
-    let error = match result {
-        Ok(_) => panic!("accepted"),
-        Err(error) => error,
+    let Err(error) = result else {
+        panic!("accepted");
     };
     assert_eq!(
         error.test_diagnostic(),
@@ -522,9 +514,8 @@ fn should_unwind_number_sentinel_then_consume_parent_array_comma_and_space() {
     });
 
     // Assert
-    let error = match result {
-        Ok(_) => panic!("accepted"),
-        Err(error) => error,
+    let Err(error) = result else {
+        panic!("accepted");
     };
     assert_eq!(
         error.test_diagnostic(),
@@ -550,9 +541,8 @@ fn should_unwind_nested_raw_source_before_wrapping_and_scanning_the_outer_array(
     });
 
     // Assert
-    let error = match result {
-        Ok(_) => panic!("accepted"),
-        Err(error) => error,
+    let Err(error) = result else {
+        panic!("accepted");
     };
     assert_eq!(
         error.test_diagnostic(),
@@ -656,9 +646,8 @@ fn should_match_number_sentinel_error_position_and_outer_end_precedence() {
     // Act / Assert
     for input in inputs {
         let expected = serde_json::from_str::<serde_json::Value>(input).expect_err("serde");
-        let error = match Document::parse(input, &controls) {
-            Ok(_) => panic!("accepted {input:?}"),
-            Err(error) => error,
+        let Err(error) = Document::parse(input, &controls) else {
+            panic!("accepted {input:?}");
         };
         assert_eq!(
             error.test_diagnostic(),
@@ -687,10 +676,10 @@ fn should_keep_nested_number_source_owned_until_strict_scan_completes() {
     // Act
     let parsed = Document::parse_observed(input, &controls, |progress| match progress {
         DocumentProgress::NumberSourceReady => {
-            source_ready = Some(controls.current_query_memory_bytes())
+            source_ready = Some(controls.current_query_memory_bytes());
         }
         DocumentProgress::NumberDecoded => {
-            number_ready = Some(controls.current_query_memory_bytes())
+            number_ready = Some(controls.current_query_memory_bytes());
         }
         DocumentProgress::FramePushed
         | DocumentProgress::NumberTypeScanned
@@ -805,9 +794,8 @@ fn should_match_non_string_number_sentinel_type_errors_against_serde() {
     for payload in payloads {
         let input = format!(r#"{{"$serde_json::private::Number":{payload}}}"#);
         let expected = serde_json::from_str::<serde_json::Value>(&input).expect_err("serde");
-        let error = match Document::parse(&input, &controls) {
-            Ok(_) => panic!("accepted {input:?}"),
-            Err(error) => error,
+        let Err(error) = Document::parse(&input, &controls) else {
+            panic!("accepted {input:?}");
         };
         assert_eq!(
             error.test_diagnostic(),

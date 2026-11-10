@@ -131,11 +131,11 @@ fn serialize_with_observer(
         match frame {
             Frame::Value(id) => match &forest.nodes.get(id)?.kind {
                 Kind::Scalar => {
-                    sink.write("null", &mut |event| sink_event(event, &mut observer))?
+                    sink.write("null", &mut |event| sink_event(event, &mut observer))?;
                 }
                 Kind::Boolean(value) => sink
                     .write(if *value { "true" } else { "false" }, &mut |event| {
-                        sink_event(event, &mut observer)
+                        sink_event(event, &mut observer);
                     })?,
                 Kind::Text(text) => quoted(&mut sink, text.as_str(), controls, &mut observer)?,
                 Kind::Number(number) => {
@@ -158,7 +158,7 @@ fn serialize_with_observer(
                 Kind::Object(index) => {
                     sink.write("{", &mut |event| sink_event(event, &mut observer))?;
                     let order = sorted(index, controls, &mut || {
-                        observer(OutputProgress::SortCompare)
+                        observer(OutputProgress::SortCompare);
                     })?;
                     stack.push(Frame::Object {
                         node: id,

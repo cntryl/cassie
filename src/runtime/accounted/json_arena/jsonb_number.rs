@@ -27,7 +27,7 @@ pub(in crate::runtime::accounted::json_arena) enum Progress {
 
 pub(in crate::runtime::accounted::json_arena) struct OwnedNumberText {
     text: String,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl OwnedNumberText {
@@ -38,7 +38,7 @@ impl OwnedNumberText {
     pub(in crate::runtime::accounted::json_arena) fn into_parts(
         self,
     ) -> (String, QueryMemoryReservation) {
-        (self.text, self._memory)
+        (self.text, self.memory)
     }
 }
 
@@ -67,6 +67,47 @@ pub(in crate::runtime::accounted::json_arena) fn format_number_with_observer(
     mut observer: impl FnMut(Progress),
 ) -> Result<OwnedNumberText, FormatError> {
     controls.check_interruption()?;
+    let layout = layout(input, controls, &mut observer)?;
+    let memory = controls.reserve_query_memory(layout.length)?;
+    let mut text = String::new();
+    text.try_reserve_exact(layout.length)
+        .map_err(|_| CassieError::ResourceLimit("JSONB numeric output allocation failed".into()))?;
+    if text.capacity() > layout.length {
+        return Err(CassieError::ResourceLimit(
+            "JSONB numeric output exceeded its admission".into(),
+        )
+        .into());
+    }
+    let mut writer = Writer {
+        text,
+        memory,
+        controls,
+        observer: &mut observer,
+        emitted: 0,
+    };
+    write_value(input.as_bytes(), &layout, &mut writer)?;
+    controls.check_interruption()?;
+    Ok(OwnedNumberText {
+        text: writer.text,
+        memory: writer.memory,
+    })
+}
+
+struct Layout {
+    first: Option<usize>,
+    significant: usize,
+    integer_digits: usize,
+    displayed_scale: usize,
+    scale: i64,
+    negative: bool,
+    length: usize,
+}
+
+fn layout(
+    input: &str,
+    controls: &QueryExecutionControls,
+    observer: &mut impl FnMut(Progress),
+) -> Result<Layout, FormatError> {
     let bytes = input.as_bytes();
     let mut fraction = 0_usize;
     let mut in_fraction = false;
@@ -141,61 +182,62 @@ pub(in crate::runtime::accounted::json_arena) fn format_number_with_observer(
         .and_then(|n| n.checked_add(usize::from(displayed_scale != 0)))
         .and_then(|n| n.checked_add(usize::from(negative)))
         .ok_or(FormatError::Overflow)?;
-    let memory = controls.reserve_query_memory(length)?;
-    let mut text = String::new();
-    text.try_reserve_exact(length)
-        .map_err(|_| CassieError::ResourceLimit("JSONB numeric output allocation failed".into()))?;
-    if text.capacity() > length {
-        return Err(CassieError::ResourceLimit(
-            "JSONB numeric output exceeded its admission".into(),
-        )
-        .into());
-    }
-    let mut writer = Writer {
-        text,
-        memory,
-        controls,
-        observer: &mut observer,
-        emitted: 0,
-    };
-    if negative {
+    Ok(Layout {
+        first,
+        significant,
+        integer_digits,
+        displayed_scale,
+        scale,
+        negative,
+        length,
+    })
+}
+
+fn write_value<F: FnMut(Progress)>(
+    bytes: &[u8],
+    layout: &Layout,
+    writer: &mut Writer<'_, F>,
+) -> Result<(), FormatError> {
+    if layout.negative {
         writer.push('-')?;
     }
-    if first.is_none() {
-        writer.push('0')?;
-        if displayed_scale != 0 {
-            writer.push('.')?;
-            writer.zeros(displayed_scale)?;
-        }
-    } else {
-        if integer_digits == 0 {
+    match layout.first {
+        None => {
             writer.push('0')?;
-            writer.push('.')?;
-            writer.zeros(displayed_scale - significant)?;
-        }
-        let mut digits = 0_usize;
-        for byte in bytes[first.expect("nonzero coefficient")..].iter().copied() {
-            if matches!(byte, b'e' | b'E') {
-                break;
-            }
-            if byte == b'.' {
-                continue;
-            }
-            if integer_digits != 0 && displayed_scale != 0 && digits == integer_digits {
+            if layout.displayed_scale != 0 {
                 writer.push('.')?;
+                writer.zeros(layout.displayed_scale)?;
             }
-            writer.push(char::from(byte))?;
-            digits += 1;
         }
-        if scale < 0 {
-            writer.zeros(usize::try_from(-scale).map_err(|_| FormatError::Overflow)?)?;
+        Some(first) => {
+            if layout.integer_digits == 0 {
+                writer.push('0')?;
+                writer.push('.')?;
+                writer.zeros(layout.displayed_scale - layout.significant)?;
+            }
+            let mut digits = 0_usize;
+            for byte in bytes[first..].iter().copied() {
+                if matches!(byte, b'e' | b'E') {
+                    break;
+                }
+                if byte == b'.' {
+                    continue;
+                }
+                if layout.integer_digits != 0
+                    && layout.displayed_scale != 0
+                    && digits == layout.integer_digits
+                {
+                    writer.push('.')?;
+                }
+                writer.push(char::from(byte))?;
+                digits += 1;
+            }
+            if layout.scale < 0 {
+                writer.zeros(usize::try_from(-layout.scale).map_err(|_| FormatError::Overflow)?)?;
+            }
         }
     }
-    controls.check_interruption()?;
-    Ok(OwnedNumberText {
-        text: writer.text,
-        _memory: writer.memory,
-    })
+    Ok(())
 }
 
 struct Writer<'a, F> {

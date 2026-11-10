@@ -7,7 +7,9 @@ use crate::runtime::QueryExecutionControls;
 
 use super::document::diagnostic::{render_fixed, DiagnosticError, FixedError, OwnedDiagnostic};
 use super::document::jsonb::{parse_field, reparse_compact_field, JsonbFieldError};
-use super::jsonb_array_envelope::{decode, DecodeError, Progress as EnvelopeProgress};
+use super::jsonb_array_envelope::{
+    decode, DecodeError, Element, Envelope, Progress as EnvelopeProgress,
+};
 
 #[cfg(test)]
 #[path = "jsonb_array_output_tests.rs"]
@@ -91,17 +93,12 @@ fn render_with_observer(
         DecodeError::Control(error) => OutputError::Control(error),
     })?;
     let mut sink = Sink::for_arena(controls)?;
-    let mut lengths = [0_usize; 6];
-    let mut lowers = [0_i32; 6];
-    let mut count = 0;
-    let mut nonstandard = false;
-    for (length, lower) in envelope.dimensions() {
-        lengths[count] = usize::try_from(length)
-            .map_err(|_| CassieError::Execution("invalid validated JSONB dimension".into()))?;
-        lowers[count] = lower;
-        nonstandard |= lower != 1;
-        count += 1;
-    }
+    let Dimensions {
+        lengths,
+        lowers,
+        count,
+        nonstandard,
+    } = dimensions(&envelope)?;
     if count == 0 {
         write_text(&mut sink, "{}", &mut observer)?;
         return Ok(sink.finish_output());
@@ -154,12 +151,12 @@ fn render_with_observer(
             .element(element)
             .ok_or_else(|| CassieError::Execution("missing validated JSONB element".into()))?
         {
-            None => write_text(
+            Element::SqlNull => write_text(
                 &mut sink,
                 if compact { "null" } else { "NULL" },
                 &mut observer,
             )?,
-            Some(field) => {
+            Element::Value(field) => {
                 let text = if compact {
                     reparse_compact_field(field, column, controls)?
                 } else {
@@ -179,6 +176,30 @@ fn render_with_observer(
     Ok(sink.finish_output())
 }
 
+struct Dimensions {
+    lengths: [usize; 6],
+    lowers: [i32; 6],
+    count: usize,
+    nonstandard: bool,
+}
+
+fn dimensions(envelope: &Envelope<'_>) -> Result<Dimensions, CassieError> {
+    let mut dimensions = Dimensions {
+        lengths: [0; 6],
+        lowers: [0; 6],
+        count: 0,
+        nonstandard: false,
+    };
+    for (length, lower) in envelope.dimensions() {
+        dimensions.lengths[dimensions.count] = usize::try_from(length)
+            .map_err(|_| CassieError::Execution("invalid validated JSONB dimension".into()))?;
+        dimensions.lowers[dimensions.count] = lower;
+        dimensions.nonstandard |= lower != 1;
+        dimensions.count += 1;
+    }
+    Ok(dimensions)
+}
+
 fn write_text(
     sink: &mut Sink<'_>,
     text: &str,
@@ -186,7 +207,7 @@ fn write_text(
 ) -> Result<(), CassieError> {
     sink.write(text, &mut |event| {
         if matches!(event, SinkProgress::Copy) {
-            observer(Progress::OutputCopy)
+            observer(Progress::OutputCopy);
         }
     })
 }
@@ -233,7 +254,7 @@ fn write_array_element(
 }
 
 fn fixed(error: FixedError, column: usize, controls: &QueryExecutionControls) -> OutputError {
-    match render_fixed(error, column, controls) {
+    match render_fixed(&error, column, controls) {
         Ok(error) => OutputError::Diagnostic(error),
         Err(DiagnosticError::Control(error)) => OutputError::Control(error),
         Err(DiagnosticError::NotSemantic) => OutputError::Control(CassieError::Execution(

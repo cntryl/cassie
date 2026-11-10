@@ -36,6 +36,11 @@ pub(crate) struct Envelope<'a> {
     compact_fallback: bool,
 }
 
+pub(super) enum Element<'a> {
+    SqlNull,
+    Value(&'a [u8]),
+}
+
 impl<'a> Envelope<'a> {
     pub(super) fn compact_fallback(&self) -> bool {
         self.compact_fallback
@@ -45,10 +50,11 @@ impl<'a> Envelope<'a> {
             .iter()
             .map(|dimension| (dimension.length, dimension.lower))
     }
-    pub(super) fn element(&self, position: usize) -> Option<Option<&'a [u8]>> {
-        self.elements
-            .get(position)
-            .map(|range| range.as_ref().map(|range| &self.source[range.clone()]))
+    pub(super) fn element(&self, position: usize) -> Option<Element<'a>> {
+        self.elements.get(position).map(|range| match range {
+            None => Element::SqlNull,
+            Some(range) => Element::Value(&self.source[range.clone()]),
+        })
     }
 }
 

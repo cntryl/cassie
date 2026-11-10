@@ -22,7 +22,7 @@ fn should_reject_a_key_owned_by_another_query_tracker() {
 
     // Assert
     assert!(matches!(result, Err(CassieError::Execution(_))));
-    assert!(object.test_order().is_empty());
+    assert_eq!(object.test_order(), []);
     assert_eq!(other_controls.current_query_memory_bytes(), 0);
     assert_eq!(owner_controls.current_query_memory_bytes(), 0);
 }
@@ -280,7 +280,7 @@ fn should_order_decoded_unicode_keys_by_rust_string_order() {
             .expect("insert");
     }
     let mut expected = keys.to_vec();
-    expected.sort();
+    expected.sort_unstable();
     // Assert
     assert_eq!(object.test_order(), expected);
     assert!(object.test_invariants());

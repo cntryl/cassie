@@ -120,7 +120,7 @@ fn document_error(
 }
 
 fn fixed(error: FixedError, column: usize, controls: &QueryExecutionControls) -> JsonbFieldError {
-    match diagnostic::render_fixed(error, column, controls) {
+    match diagnostic::render_fixed(&error, column, controls) {
         Ok(error) => JsonbFieldError::Diagnostic(error),
         Err(DiagnosticError::Control(error)) => JsonbFieldError::Control(error),
         Err(DiagnosticError::NotSemantic) => {

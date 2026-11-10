@@ -293,7 +293,7 @@ fn render<'a>(
             Frame::Value(value) => match value {
                 serde_json::Value::Null => sink.write("null", &mut progress)?,
                 serde_json::Value::Bool(value) => {
-                    sink.write(if *value { "true" } else { "false" }, &mut progress)?
+                    sink.write(if *value { "true" } else { "false" }, &mut progress)?;
                 }
                 serde_json::Value::Number(value) => sink.write(value.as_str(), &mut progress)?,
                 serde_json::Value::String(value) => sink.quoted(value, &mut progress)?,

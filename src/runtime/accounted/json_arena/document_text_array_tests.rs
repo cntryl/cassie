@@ -111,7 +111,7 @@ fn should_match_existing_value_mode_text_arrays() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let inputs = [
-        r#"[]"#,
+        r"[]",
         r#"["",null,"NULL","a\\b"]"#,
         r#"["é", "\ud834\udd1e"]"#,
     ];

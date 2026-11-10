@@ -105,7 +105,7 @@ impl fmt::Display for FixedError {
 }
 
 pub(in crate::runtime::accounted::json_arena) fn render_fixed(
-    message: FixedError,
+    message: &FixedError,
     column: usize,
     controls: &QueryExecutionControls,
 ) -> Result<OwnedDiagnostic, DiagnosticError> {
@@ -149,13 +149,13 @@ fn write_document(error: &DocumentError, out: &mut impl Write) -> Result<(), Dia
         DocumentError::Control(_) => return Err(DiagnosticError::NotSemantic),
         DocumentError::Token(error) => write_token(error, out)?,
         DocumentError::Syntax(kind, position) => {
-            write_syntax(*kind, *position, out).map_err(overflow)?
+            write_syntax(*kind, *position, out).map_err(overflow)?;
         }
         DocumentError::NumberSentinel(error) => error.write_message(out).map_err(overflow)?,
         DocumentError::SentinelType(error) => error.write_message(out).map_err(overflow)?,
         DocumentError::Wrapped(cause) => match cause {
             WrappedCause::Syntax(kind, position) => {
-                write_syntax(*kind, *position, out).map_err(overflow)?
+                write_syntax(*kind, *position, out).map_err(overflow)?;
             }
             WrappedCause::Token(error) => write_token(error, out)?,
             WrappedCause::Number(error) => error.write_message(out).map_err(overflow)?,

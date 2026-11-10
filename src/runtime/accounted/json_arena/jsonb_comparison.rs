@@ -236,123 +236,164 @@ pub(in crate::runtime::accounted::json_arena) fn compare(
     stack.push(Task::Pair(left_root, right_root), controls)?;
     while let Some(task) = stack.tasks.pop() {
         controls.check_interruption()?;
-        match task {
-            Task::Pair(a, b) => {
-                let a_kind = &left.nodes.get(a)?.kind;
-                let b_kind = &right.nodes.get(b)?.kind;
-                let class = rank(a_kind).cmp(&rank(b_kind));
-                if !class.is_eq() {
-                    return Ok(Some(class));
-                }
-                let order = match (a_kind, b_kind) {
-                    (Kind::Scalar, Kind::Scalar) => Ordering::Equal,
-                    (Kind::Boolean(a), Kind::Boolean(b)) => a.cmp(b),
-                    (Kind::Text(a), Kind::Text(b)) => {
-                        bytes(a.as_str().as_bytes(), b.as_str().as_bytes(), controls)?
-                    }
-                    (Kind::Number(a), Kind::Number(b)) => {
-                        let Some(order) = number(a.as_str(), b.as_str(), controls)? else {
-                            return Ok(None);
-                        };
-                        order
-                    }
-                    (Kind::Array(a_index), Kind::Array(b_index)) => {
-                        let order = a_index.len().cmp(&b_index.len());
-                        if order.is_eq() {
-                            stack.push(
-                                Task::Array {
-                                    left: a,
-                                    right: b,
-                                    index: 0,
-                                },
-                                controls,
-                            )?;
-                        }
-                        order
-                    }
-                    (Kind::Object(a_index), Kind::Object(b_index)) => {
-                        let order = a_index.values_len().cmp(&b_index.values_len());
-                        if order.is_eq() {
-                            let left_order = jsonb_order::sorted(a_index, controls, &mut || {})?;
-                            let right_order = jsonb_order::sorted(b_index, controls, &mut || {})?;
-                            stack.push(
-                                Task::Object {
-                                    left: a,
-                                    right: b,
-                                    index: 0,
-                                    left_order,
-                                    right_order,
-                                },
-                                controls,
-                            )?;
-                        }
-                        order
-                    }
-                    _ => return Ok(None),
-                };
-                if !order.is_eq() {
-                    return Ok(Some(order));
-                }
+        let order = match task {
+            task @ Task::Pair(..) => compare_pair(left, right, task, &mut stack, controls)?,
+            task @ Task::Array { .. } => compare_array(left, right, task, &mut stack, controls)?,
+            task @ Task::Object { .. } => {
+                compare_object(left, right, task, &mut stack, controls)?
             }
+        };
+        let Some(order) = order else {
+            return Ok(None);
+        };
+        if !order.is_eq() {
+            return Ok(Some(order));
+        }
+    }
+    Ok(Some(Ordering::Equal))
+}
+
+fn compare_pair(
+    left: &Forest,
+    right: &Forest,
+    task: Task,
+    stack: &mut Stack,
+    controls: &QueryExecutionControls,
+) -> Result<Option<Ordering>, CassieError> {
+    let Task::Pair(a, b) = task else {
+        unreachable!("pair comparison task")
+    };
+    let a_kind = &left.nodes.get(a)?.kind;
+    let b_kind = &right.nodes.get(b)?.kind;
+    let class = rank(a_kind).cmp(&rank(b_kind));
+    if !class.is_eq() {
+        return Ok(Some(class));
+    }
+    let order = match (a_kind, b_kind) {
+        (Kind::Scalar, Kind::Scalar) => Ordering::Equal,
+        (Kind::Boolean(a), Kind::Boolean(b)) => a.cmp(b),
+        (Kind::Text(a), Kind::Text(b)) => {
+            bytes(a.as_str().as_bytes(), b.as_str().as_bytes(), controls)?
+        }
+        (Kind::Number(a), Kind::Number(b)) => {
+            let Some(order) = number(a.as_str(), b.as_str(), controls)? else {
+                return Ok(None);
+            };
+            order
+        }
+        (Kind::Array(a_index), Kind::Array(b_index)) => {
+            let order = a_index.len().cmp(&b_index.len());
+            if order.is_eq() {
+                stack.push(
+                    Task::Array {
+                        left: a,
+                        right: b,
+                        index: 0,
+                    },
+                    controls,
+                )?;
+            }
+            order
+        }
+        (Kind::Object(a_index), Kind::Object(b_index)) => {
+            let order = a_index.values_len().cmp(&b_index.values_len());
+            if order.is_eq() {
+                let left_order = jsonb_order::sorted(a_index, controls, &mut || {})?;
+                let right_order = jsonb_order::sorted(b_index, controls, &mut || {})?;
+                stack.push(
+                    Task::Object {
+                        left: a,
+                        right: b,
+                        index: 0,
+                        left_order,
+                        right_order,
+                    },
+                    controls,
+                )?;
+            }
+            order
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(order))
+}
+
+fn compare_array(
+    left: &Forest,
+    right: &Forest,
+    task: Task,
+    stack: &mut Stack,
+    controls: &QueryExecutionControls,
+) -> Result<Option<Ordering>, CassieError> {
+    let Task::Array {
+        left: a,
+        right: b,
+        index,
+    } = task
+    else {
+        unreachable!("array comparison task")
+    };
+    let (Kind::Array(a_index), Kind::Array(b_index)) =
+        (&left.nodes.get(a)?.kind, &right.nodes.get(b)?.kind)
+    else {
+        return Ok(None);
+    };
+    if index < a_index.len() {
+        let a_child = a_index.get(index).ok_or_else(super::invalid_owner)?;
+        let b_child = b_index.get(index).ok_or_else(super::invalid_owner)?;
+        stack.push(
             Task::Array {
                 left: a,
                 right: b,
-                index,
-            } => {
-                let (Kind::Array(a_index), Kind::Array(b_index)) =
-                    (&left.nodes.get(a)?.kind, &right.nodes.get(b)?.kind)
-                else {
-                    return Ok(None);
-                };
-                if index < a_index.len() {
-                    let a_child = a_index.get(index).ok_or_else(super::invalid_owner)?;
-                    let b_child = b_index.get(index).ok_or_else(super::invalid_owner)?;
-                    stack.push(
-                        Task::Array {
-                            left: a,
-                            right: b,
-                            index: index + 1,
-                        },
-                        controls,
-                    )?;
-                    stack.push(Task::Pair(a_child, b_child), controls)?;
-                }
-            }
+                index: index + 1,
+            },
+            controls,
+        )?;
+        stack.push(Task::Pair(a_child, b_child), controls)?;
+    }
+    Ok(Some(Ordering::Equal))
+}
+
+fn compare_object(
+    left: &Forest,
+    right: &Forest,
+    task: Task,
+    stack: &mut Stack,
+    controls: &QueryExecutionControls,
+) -> Result<Option<Ordering>, CassieError> {
+    let Task::Object {
+        left: a,
+        right: b,
+        index,
+        left_order,
+        right_order,
+    } = task
+    else {
+        unreachable!("object comparison task")
+    };
+    let (Kind::Object(a_index), Kind::Object(b_index)) =
+        (&left.nodes.get(a)?.kind, &right.nodes.get(b)?.kind)
+    else {
+        return Ok(None);
+    };
+    if index < a_index.values_len() {
+        let (a_key, a_child) = a_index.item(left_order.get(index).ok_or_else(super::invalid_owner)?);
+        let (b_key, b_child) = b_index.item(right_order.get(index).ok_or_else(super::invalid_owner)?);
+        let order = bytes(a_key.as_bytes(), b_key.as_bytes(), controls)?;
+        if !order.is_eq() {
+            return Ok(Some(order));
+        }
+        stack.push(
             Task::Object {
                 left: a,
                 right: b,
-                index,
+                index: index + 1,
                 left_order,
                 right_order,
-            } => {
-                let (Kind::Object(a_index), Kind::Object(b_index)) =
-                    (&left.nodes.get(a)?.kind, &right.nodes.get(b)?.kind)
-                else {
-                    return Ok(None);
-                };
-                if index < a_index.values_len() {
-                    let (a_key, a_child) =
-                        a_index.item(left_order.get(index).ok_or_else(super::invalid_owner)?);
-                    let (b_key, b_child) =
-                        b_index.item(right_order.get(index).ok_or_else(super::invalid_owner)?);
-                    let order = bytes(a_key.as_bytes(), b_key.as_bytes(), controls)?;
-                    if !order.is_eq() {
-                        return Ok(Some(order));
-                    }
-                    stack.push(
-                        Task::Object {
-                            left: a,
-                            right: b,
-                            index: index + 1,
-                            left_order,
-                            right_order,
-                        },
-                        controls,
-                    )?;
-                    stack.push(Task::Pair(a_child, b_child), controls)?;
-                }
-            }
-        }
+            },
+            controls,
+        )?;
+        stack.push(Task::Pair(a_child, b_child), controls)?;
     }
     Ok(Some(Ordering::Equal))
 }

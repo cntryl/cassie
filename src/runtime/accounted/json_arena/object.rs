@@ -13,7 +13,7 @@ mod tests;
 
 pub(super) struct Key {
     text: String,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl Key {
@@ -29,7 +29,7 @@ impl Key {
         let (text, memory) = token.into_parts();
         Ok(Self {
             text,
-            _memory: memory,
+            memory,
         })
     }
 
@@ -62,7 +62,7 @@ impl Key {
         controls.check_interruption()?;
         Ok(Self {
             text: copy,
-            _memory: memory,
+            memory,
         })
     }
 }
@@ -254,7 +254,7 @@ impl<V: Copy> ObjectIndex<V> {
             ));
         }
         self.controls.check_interruption()?;
-        if !key._memory.shares_tracker(&self.controls) {
+        if !key.memory.shares_tracker(&self.controls) {
             return Err(CassieError::Execution(
                 "JSON object key uses a different query tracker".into(),
             ));

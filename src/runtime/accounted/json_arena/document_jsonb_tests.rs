@@ -55,9 +55,8 @@ fn should_preserve_version_utf8_parse_and_format_error_order() {
     ];
     // Act / Assert
     for (field, expected) in cases {
-        let error = match parse_field(field, 2, &controls) {
-            Ok(_) => panic!("accepted invalid field"),
-            Err(error) => error,
+        let Err(error) = parse_field(field, 2, &controls) else {
+            panic!("accepted invalid field");
         };
         assert!(matches!(&error, JsonbFieldError::Diagnostic(_)));
         assert_eq!(
@@ -88,9 +87,8 @@ fn should_match_existing_jsonb_error_messages_for_nested_and_malformed_documents
         let expected = crate::types::jsonb::canonical(input).expect_err("invalid JSONB");
         let mut field = vec![1];
         field.extend_from_slice(input.as_bytes());
-        let error = match parse_field(&field, 1, &controls) {
-            Ok(_) => panic!("accepted"),
-            Err(error) => error,
+        let Err(error) = parse_field(&field, 1, &controls) else {
+            panic!("accepted");
         };
         assert_eq!(
             error.message(),
@@ -113,9 +111,8 @@ fn should_keep_admitted_error_until_drop_and_propagate_cancellation() {
         cancellation,
     );
     // Act
-    let error = match parse_field(b"\x01[", 1, &controls) {
-        Ok(_) => panic!("accepted"),
-        Err(error) => error,
+    let Err(error) = parse_field(b"\x01[", 1, &controls) else {
+        panic!("accepted");
     };
     let admitted = controls.current_query_memory_bytes();
     let cancelled_result = parse_field(b"\x01null", 1, &cancelled);

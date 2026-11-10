@@ -62,9 +62,8 @@ fn should_render_original_jsonb_copy_diagnostic_for_serde_error_variants() {
     // Act / Assert
     for input in inputs {
         let expected = serde_json::from_str::<serde_json::Value>(input).expect_err("invalid");
-        let error = match Document::parse(input, &controls) {
-            Ok(_) => panic!("accepted {input}"),
-            Err(error) => error,
+        let Err(error) = Document::parse(input, &controls) else {
+            panic!("accepted {input}");
         };
         let actual = render(&error, 9, &controls).expect("diagnostic");
         assert_eq!(
@@ -89,9 +88,8 @@ fn should_render_nested_raw_and_recursion_diagnostics_with_inner_position() {
     // Act / Assert
     for input in [nested, deep.as_str()] {
         let expected = serde_json::from_str::<serde_json::Value>(input).expect_err("invalid");
-        let error = match Document::parse(input, &controls) {
-            Ok(_) => panic!("accepted"),
-            Err(error) => error,
+        let Err(error) = Document::parse(input, &controls) else {
+            panic!("accepted");
         };
         let actual = render(&error, 1, &controls).expect("diagnostic");
         assert_eq!(

@@ -42,10 +42,10 @@ impl<'a> SourceFrame<'a> {
         }
     }
 
-    fn step<T>(
-        &mut self,
+    fn step<'cursor, T>(
+        &'cursor mut self,
         controls: &QueryExecutionControls,
-        action: impl FnOnce(&mut Cursor<'_>) -> Result<T, CursorError>,
+        action: impl FnOnce(&mut Cursor<'cursor>) -> Result<T, CursorError>,
     ) -> Result<T, CursorError> {
         let mut cursor = Cursor::restore_validated(self.source.bytes(), self.position, controls);
         let result = action(&mut cursor);
@@ -143,9 +143,9 @@ impl<'a> SourceStack<'a> {
         Ok(())
     }
 
-    pub(super) fn step<T>(
-        &mut self,
-        action: impl FnOnce(&mut Cursor<'_>) -> Result<T, CursorError>,
+    pub(super) fn step<'cursor, T>(
+        &'cursor mut self,
+        action: impl FnOnce(&mut Cursor<'cursor>) -> Result<T, CursorError>,
     ) -> Result<T, CursorError> {
         self.frames
             .get_mut(self.length - 1)

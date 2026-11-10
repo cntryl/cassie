@@ -43,12 +43,7 @@ impl<'a> Stack<'a> {
     }
     fn push(&mut self, frame: Frame<'a>) -> Result<(), CassieError> {
         if self.frames.len() == self.frames.capacity() {
-            let capacity = self
-                .frames
-                .len()
-                .checked_mul(2)
-                .unwrap_or(usize::MAX)
-                .max(4);
+            let capacity = self.frames.len().saturating_mul(2).max(4);
             let bytes = capacity
                 .checked_mul(size_of::<Frame<'a>>())
                 .ok_or_else(overflow)?;

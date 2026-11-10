@@ -169,10 +169,10 @@ fn should_retain_json_error_owner_and_match_serde_diagnostic() {
 fn should_match_serde_private_keys_and_exponent_normalization() {
     // Arrange
     let inputs = [
-        r#"1E2"#,
-        r#"1e2"#,
-        r#"1e-02"#,
-        r#"-0"#,
+        r"1E2",
+        r"1e2",
+        r"1e-02",
+        r"-0",
         r#"{"$serde_json::private::Number":"123"}"#,
         r#"{"$serde_json::private::Number":"not-a-number"}"#,
         r#"{"$serde_json::private::RawValue":"{\"a\":1}"}"#,
@@ -186,10 +186,10 @@ fn should_match_serde_private_keys_and_exponent_normalization() {
         let actual = super::parse(text.as_bytes(), &controls);
         match (expected, actual) {
             (Ok(expected), Ok(actual)) => assert_eq!(actual.get(), &expected, "{text}"),
-            (Err(expected), Err(super::ParseError::InvalidJson { error, _memory })) => {
+            (Err(expected), Err(super::ParseError::InvalidJson { error, _memory: memory })) => {
                 assert_eq!(error.to_string(), expected.to_string(), "{text}");
                 drop(error);
-                drop(_memory);
+                drop(memory);
             }
             (expected, actual) => panic!("mismatch for {text}: {expected:?}, {actual:?}"),
         }

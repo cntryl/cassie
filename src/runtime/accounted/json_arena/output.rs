@@ -110,17 +110,17 @@ fn serialize_with_observer(
         match frame {
             Frame::Value(id) => match &forest.nodes.get(id)?.kind {
                 Kind::Scalar => {
-                    sink.write("null", &mut |event| sink_event(event, &mut observer))?
+                    sink.write("null", &mut |event| sink_event(event, &mut observer))?;
                 }
                 Kind::Boolean(value) => sink
                     .write(if *value { "true" } else { "false" }, &mut |event| {
-                        sink_event(event, &mut observer)
+                        sink_event(event, &mut observer);
                     })?,
                 Kind::Text(value) => sink.quoted(value.as_str(), &mut |event| {
-                    sink_event(event, &mut observer)
+                    sink_event(event, &mut observer);
                 })?,
                 Kind::Number(value) => sink.write(value.as_str(), &mut |event| {
-                    sink_event(event, &mut observer)
+                    sink_event(event, &mut observer);
                 })?,
                 Kind::Array(_) => {
                     sink.write("[", &mut |event| sink_event(event, &mut observer))?;

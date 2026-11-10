@@ -15,7 +15,7 @@ fn should_preserve_cursor_position_and_reset_nested_source_depth() {
     // Arrange
     let controls = controls();
     let mut sources = SourceStack::from_str("a\nb", &controls).expect("root");
-    assert_eq!(sources.step(|cursor| cursor.next()).expect("a"), Some(b'a'));
+    assert_eq!(sources.step(Cursor::next).expect("a"), Some(b'a'));
     sources.test_set_remaining(23);
     let mut token_cursor = Cursor::from_str("\"nested\"", &controls);
     let nested = token_cursor.read_string().expect("nested");
@@ -26,13 +26,13 @@ fn should_preserve_cursor_position_and_reset_nested_source_depth() {
     // Assert
     assert_eq!(sources.test_remaining(), 128);
     assert_eq!(
-        sources.step(|cursor| cursor.next()).expect("nested byte"),
+        sources.step(Cursor::next).expect("nested byte"),
         Some(b'n')
     );
     sources.pop().expect("pop");
     assert_eq!(sources.test_remaining(), 23);
     assert_eq!(
-        sources.step(|cursor| cursor.next()).expect("newline"),
+        sources.step(Cursor::next).expect("newline"),
         Some(b'\n')
     );
     let position = sources.test_position();
@@ -55,7 +55,7 @@ fn should_reuse_popped_frame_positions_and_release_nested_owners() {
             .push_owned(cursor.read_string().expect("token"))
             .expect("push");
         assert_eq!(
-            sources.step(|cursor| cursor.next()).expect("byte"),
+            sources.step(Cursor::next).expect("byte"),
             Some(b'a')
         );
         sources.pop().expect("pop");
@@ -81,7 +81,7 @@ fn should_reject_a_nested_source_from_another_tracker() {
     assert!(matches!(result, Err(CassieError::Execution(_))));
     assert_eq!(other_controls.current_query_memory_bytes(), 0);
     assert_eq!(
-        sources.step(|cursor| cursor.next()).expect("root"),
+        sources.step(Cursor::next).expect("root"),
         Some(b'r')
     );
     drop(sources);
@@ -152,7 +152,7 @@ fn should_save_consumed_position_even_when_a_cursor_step_fails() {
     assert!(matches!(result, Err(CursorError::InvalidUtf8)));
     assert_eq!(sources.test_position().offset, 1);
     assert_eq!(
-        sources.step(|cursor| cursor.next()).expect("next"),
+        sources.step(Cursor::next).expect("next"),
         Some(b'b')
     );
     assert!(sources.pop().is_err());

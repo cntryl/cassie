@@ -19,7 +19,7 @@ fn should_match_existing_retained_estimate_for_nested_values_and_capacities() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let mut text = String::with_capacity(256);
-    text.push_str("é");
+    text.push('é');
     let mut array = Vec::with_capacity(8);
     array.push(serde_json::Value::String(text));
     let mut emptied = serde_json::Map::new();

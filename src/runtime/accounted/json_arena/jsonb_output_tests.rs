@@ -26,7 +26,7 @@ fn should_match_jsonb_canonical_values_and_byte_length_key_order() {
         r#"{"abc":1,"z":2,"é":3,"aa":4,"a":0,"a":5}"#,
         r#"{"z":[null,true,"\b\f\n\r\t\u0001\\\"é🙂"],"a":1.2300}"#,
         r#"{"$serde_json::private::RawValue":"{\"λ\":[1,2]}"}"#,
-        r#"{"éa":1,"é":2,"aa":3,"é":4,"a":5,"🙂":6,"ab":7}"#,
+        r#"{"éa":1,"é":2,"aa":3,"e\u0301":4,"a":5,"🙂":6,"ab":7}"#,
     ];
 
     // Act / Assert

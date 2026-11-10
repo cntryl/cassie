@@ -408,7 +408,7 @@ impl<'a> Document<'a> {
                             Some(b']') => return Err(self.syntax(SyntaxKind::TrailingComma)?),
                             None => return Err(self.syntax(SyntaxKind::EofValue)?),
                             Some(_) => {
-                                self.frames.top_mut().expect("frame").phase = Phase::ArrayValue
+                                self.frames.top_mut().expect("frame").phase = Phase::ArrayValue;
                             }
                         }
                     }
@@ -431,7 +431,7 @@ impl<'a> Document<'a> {
                             Some(b'}') => return Err(self.syntax(SyntaxKind::TrailingComma)?),
                             None => return Err(self.syntax(SyntaxKind::EofValue)?),
                             Some(_) => {
-                                self.frames.top_mut().expect("frame").phase = Phase::ObjectKey
+                                self.frames.top_mut().expect("frame").phase = Phase::ObjectKey;
                             }
                         }
                     }
@@ -472,15 +472,15 @@ impl<'a> Document<'a> {
                 Ok(None)
             }
             Some(b'"') => {
-                let value = self.sources.step(|cursor| cursor.read_string())?;
+                let value = self.sources.step(Cursor::read_string)?;
                 Ok(Some(self.forest.adopt_text(value)?))
             }
             Some(b'-' | b'0'..=b'9') => {
-                let value = self.sources.step(|cursor| cursor.read_number())?;
+                let value = self.sources.step(Cursor::read_number)?;
                 Ok(Some(self.forest.adopt_number(value)?))
             }
             Some(b'n' | b't' | b'f') => {
-                let value = self.sources.step(|cursor| cursor.read_literal())?;
+                let value = self.sources.step(Cursor::read_literal)?;
                 let node = match value {
                     Literal::Null => self.forest.scalar()?,
                     Literal::True => self.forest.boolean(true)?,
@@ -498,7 +498,7 @@ impl<'a> Document<'a> {
             Some(b'"') => {}
             Some(_) => return Err(self.syntax(SyntaxKind::ExpectedKey)?),
         }
-        let key = self.sources.step(|cursor| cursor.read_string())?;
+        let key = self.sources.step(Cursor::read_string)?;
         let number_sentinel =
             matches!(phase, Phase::ObjectFirst) && key.as_str() == "$serde_json::private::Number";
         let raw_sentinel =
@@ -531,7 +531,7 @@ impl<'a> Document<'a> {
             None => return Err(self.syntax(SyntaxKind::EofValue)?),
             Some(_) => return Err(self.unexpected_sentinel_type(Expected::NumberString, observer)?),
         }
-        let source = self.sources.step(|cursor| cursor.read_string())?;
+        let source = self.sources.step(Cursor::read_string)?;
         observer(DocumentProgress::NumberSourceReady);
         self.controls.check_interruption()?;
         let number = {
@@ -570,7 +570,7 @@ impl<'a> Document<'a> {
             None => return Err(self.syntax(SyntaxKind::EofValue)?),
             Some(_) => return Err(self.unexpected_sentinel_type(Expected::RawValue, observer)?),
         }
-        let source = self.sources.step(|cursor| cursor.read_string())?;
+        let source = self.sources.step(Cursor::read_string)?;
         self.sources.push_owned(source)?;
         self.frames.top_mut().expect("raw frame").phase = Phase::RawWaiting;
         observer(DocumentProgress::RawSourcePushed);
@@ -610,14 +610,14 @@ impl<'a> Document<'a> {
 
     fn whitespace(&mut self) -> Result<Option<u8>, DocumentError> {
         self.sources
-            .step(|cursor| cursor.skip_whitespace())
+            .step(Cursor::skip_whitespace)
             .map_err(Into::into)
     }
 
     fn consume(&mut self) -> Result<(), DocumentError> {
         let _ = self
             .sources
-            .step(|cursor| cursor.next())
+            .step(Cursor::next)
             .map_err(DocumentError::from)?;
         Ok(())
     }

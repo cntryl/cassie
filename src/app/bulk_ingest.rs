@@ -41,6 +41,7 @@ pub(crate) struct CopyIngestResult {
     pub(crate) skipped: Vec<CopySkippedRow>,
 }
 
+#[derive(Clone, Copy)]
 struct CopyRowsContext<'a, 'guard, 'options> {
     session: &'a CassieSession,
     statement: &'a CopyStatement,
@@ -246,7 +247,7 @@ impl Cassie {
                 .with_transaction_write_gates(&collections, true, &controls, || {
                     self.stage_and_apply_copy_rows(
                         rows,
-                        CopyRowsContext {
+                        &CopyRowsContext {
                             session,
                             statement: &statement,
                             columns: &columns,
@@ -277,7 +278,7 @@ impl Cassie {
     fn stage_and_apply_copy_rows(
         &self,
         rows: Vec<Vec<Option<String>>>,
-        context: CopyRowsContext<'_, '_, '_>,
+        context: &CopyRowsContext<'_, '_, '_>,
     ) -> Result<
         (
             usize,
@@ -295,7 +296,7 @@ impl Cassie {
             owner,
             publication,
             controls,
-        } = context;
+        } = *context;
         let transactional = session.is_transaction_active();
         let batch = if let Some(owner) = owner {
             let publication = publication

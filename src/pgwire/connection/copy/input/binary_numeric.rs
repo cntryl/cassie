@@ -131,7 +131,7 @@ fn decode_with_observer(
     }
     let fraction_groups = scale.div_ceil(4);
     let (first_integer, nonzero) =
-        scan_numeric_groups(bytes, count, weight, scale, controls, &mut observer)?;
+        scan_numeric_groups(bytes, count, weight, scale, column, controls, &mut observer)?;
     controls.check_interruption()?;
     let integer_length = first_integer.map_or(1, |(exponent, digit)| {
         width(digit) + usize::try_from(exponent).expect("nonnegative exponent") * 4
@@ -202,6 +202,7 @@ fn scan_numeric_groups(
     count: usize,
     weight: i32,
     scale: usize,
+    column: usize,
     controls: &QueryExecutionControls,
     observer: &mut impl FnMut(),
 ) -> Result<(Option<(i32, u16)>, bool), CassieError> {

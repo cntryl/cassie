@@ -58,7 +58,7 @@ pub(super) fn find(chars: &[char], set: AbbreviationSet) -> Option<(ZoneAbbrevia
         .map(|(name, rule)| {
             (
                 ZoneAbbreviation {
-                    name: *name,
+                    name,
                     rule: *rule,
                 },
                 name.len(),

@@ -468,7 +468,7 @@ fn visit_sql_value<'a, F: FnMut(usize)>(
 }
 
 fn visit_vector<F: FnMut(usize)>(
-    value: &crate::types::VectorValue,
+    value: &crate::types::Vector,
     sink: &mut Sink<'_, F>,
 ) -> Result<(), QueryError> {
     sink.write("[")?;

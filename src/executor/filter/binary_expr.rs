@@ -100,7 +100,7 @@ fn evaluate_json_dispatch<R: RowAccess + ?Sized>(
         controls,
     )?;
     let dispatch = try_json_delete(row, left, op, dispatch, context, controls)?;
-    let dispatch = try_json_containment(row, left, op, right, dispatch, context, controls)?;
+    let dispatch = try_json_containment(row, left, op, right, dispatch, controls)?;
     try_json_concat(row, left, op, right, dispatch, context, controls)
 }
 

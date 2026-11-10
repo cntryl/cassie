@@ -189,51 +189,51 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
 
     // Act / Assert
     assert_eq!(
-        super::mixed_bucket_targets(&args, &summaries, &fresh),
+        super::mixed_bucket_targets(&args, &summaries, fresh),
         Some([701, 701, 701, 23])
     );
-    assert_eq!(super::mixed_bucket_targets(&args, &mixed, &fresh), None);
+    assert_eq!(super::mixed_bucket_targets(&args, &mixed, fresh), None);
     assert_eq!(
-        super::mixed_bucket_targets(&args, &prior_resolved, &fresh),
+        super::mixed_bucket_targets(&args, &prior_resolved, fresh),
         None
     );
     assert_eq!(
-        super::mixed_bucket_targets(&args, &unqualified, &fresh),
+        super::mixed_bucket_targets(&args, &unqualified, fresh),
         None
     );
     assert_eq!(
-        super::mixed_bucket_targets(&args, &contextual_null, &fresh),
+        super::mixed_bucket_targets(&args, &contextual_null, fresh),
         None
     );
     assert_eq!(
-        super::mixed_bucket_targets(&args, &summaries, &[false; 4]),
+        super::mixed_bucket_targets(&args, &summaries, [false; 4]),
         None
     );
     assert_eq!(
-        super::mixed_bucket_targets(&supplied_anchor, &summaries, &fresh),
+        super::mixed_bucket_targets(&supplied_anchor, &summaries, fresh),
         None
     );
     assert_eq!(
-        super::mixed_bucket_targets(&same_slot, &unknown_count, &[true, false, false, true]),
+        super::mixed_bucket_targets(&same_slot, &unknown_count, [true, false, false, true]),
         None
     );
     assert_eq!(
-        super::mixed_bucket_targets(&distinct_count, &unknown_count, &[true, false, false, true]),
-        Some([701, 701, 701, 23])
-    );
-    assert_eq!(
-        super::mixed_bucket_targets(&args, &small_count, &fresh),
+        super::mixed_bucket_targets(&distinct_count, &unknown_count, [true, false, false, true]),
         Some([701, 701, 701, 23])
     );
     assert_eq!(
-        super::mixed_bucket_targets(&no_anchor_args, &no_anchor, &[true, true, true, false]),
+        super::mixed_bucket_targets(&args, &small_count, fresh),
+        Some([701, 701, 701, 23])
+    );
+    assert_eq!(
+        super::mixed_bucket_targets(&no_anchor_args, &no_anchor, [true, true, true, false]),
         Some([701, 701, 701, 23])
     );
     assert_eq!(
         super::mixed_bucket_targets(
             &no_anchor_args,
             &no_anchor_small,
-            &[true, true, true, false]
+            [true, true, true, false]
         ),
         Some([701, 701, 701, 23])
     );
@@ -241,7 +241,7 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
         super::mixed_bucket_targets(
             &no_anchor_args,
             &no_anchor_prior,
-            &[true, true, true, false]
+            [true, true, true, false]
         ),
         None
     );
@@ -352,29 +352,29 @@ fn should_select_only_fresh_unknown_bucket_operands_with_literal_count() {
 
     // Act / Assert
     assert!(super::unknown_bucket_literal_operands(
-        &operands, &summaries, &[true; 3]
+        &operands, &summaries, [true; 3]
     ));
     assert!(super::unknown_bucket_literal_operands(
         &null_count,
         &summaries,
-        &[true; 3]
+        [true; 3]
     ));
     assert!(!super::unknown_bucket_literal_operands(
         &unknown_count,
         &summaries,
-        &[true; 3]
+        [true; 3]
     ));
     assert!(!super::unknown_bucket_literal_operands(
         &operands,
         &contextual_null,
-        &[true; 3]
+        [true; 3]
     ));
     assert!(!super::unknown_bucket_literal_operands(
-        &operands, &known, &[true; 3]
+        &operands, &known, [true; 3]
     ));
     assert!(!super::unknown_bucket_literal_operands(
         &operands,
         &summaries,
-        &[false, true, true]
+        [false, true, true]
     ));
 }

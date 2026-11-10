@@ -22,7 +22,7 @@ fn should_reject_a_key_owned_by_another_query_tracker() {
 
     // Assert
     assert!(matches!(result, Err(CassieError::Execution(_))));
-    assert_eq!(object.test_order(), []);
+    assert_eq!(object.test_order(), Vec::<&str>::new());
     assert_eq!(other_controls.current_query_memory_bytes(), 0);
     assert_eq!(owner_controls.current_query_memory_bytes(), 0);
 }

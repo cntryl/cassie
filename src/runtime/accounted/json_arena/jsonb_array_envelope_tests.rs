@@ -51,8 +51,11 @@ fn should_keep_validated_ranges_and_select_existing_sql_or_compact_fallback() {
     // Assert
     assert!(!first.compact_fallback());
     assert_eq!(first.dimensions().collect::<Vec<_>>(), vec![(2, 1)]);
-    assert_eq!(first.element(0), Some(Some(&b"\x011"[..])));
-    assert_eq!(first.element(1), Some(None));
+    assert!(matches!(
+        first.element(0),
+        Some(super::Element::Value(value)) if value == b"\x011"
+    ));
+    assert!(matches!(first.element(1), Some(super::Element::SqlNull)));
     assert!(second.compact_fallback());
     assert_eq!(second.dimensions().collect::<Vec<_>>(), vec![(1, i32::MAX)]);
     drop((first, second));

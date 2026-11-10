@@ -13,7 +13,7 @@ fn keys(values: Vec<Value>) -> ScalarValue {
 }
 
 #[test]
-fn should_match_value_existence_for_duplicate_strings_and_null_keys() {
+fn should_match_value_existence_for_duplicate_strings_with_null_keys() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -65,6 +65,7 @@ fn should_match_value_existence_for_duplicate_strings_and_null_keys() {
         let actual = evaluate_controlled(&left, &op, &rhs, &controls)
             .expect("controlled")
             .expect("supported");
+        // Assert
         assert!(
             matches!((actual, expected), (ScalarValue::Bool(a), ScalarValue::Bool(b)) if a == b)
         );
@@ -73,7 +74,7 @@ fn should_match_value_existence_for_duplicate_strings_and_null_keys() {
 }
 
 #[test]
-fn should_preserve_value_sentinel_and_document_before_operand_errors() {
+fn should_preserve_value_sentinel_with_document_before_operand_errors() {
     // Arrange
     let controls = controls();
     let invalid_documents = ["[}", r#"{"$serde_json::private::Number":"bad"}"#];
@@ -103,6 +104,7 @@ fn should_validate_all_native_keys_before_short_circuiting() {
     let left = ScalarValue::Json(r#"{"a":1}"#.into());
     let rhs = keys(vec![Value::String("a".into()), Value::Int64(1)]);
     // Act / Assert
+    // Assert
     assert!(
         evaluate_controlled(&left, &BinaryOp::JsonbKeyExistsAny, &rhs, &controls)
             .expect("fallback")
@@ -153,6 +155,7 @@ fn should_match_value_existence_with_owned_string_backed_key_arrays() {
                 let actual = evaluate_controlled(&left, &op, &right, &controls)
                     .expect("controlled")
                     .expect("owned key array");
+                // Assert
                 assert!(
                     matches!((actual, expected), (ScalarValue::Bool(a), ScalarValue::Bool(b)) if a == b),
                     "{document} {text}"
@@ -164,13 +167,13 @@ fn should_match_value_existence_with_owned_string_backed_key_arrays() {
 }
 
 #[test]
-fn should_leave_malformed_string_keys_and_document_errors_on_legacy_paths() {
+fn should_leave_malformed_string_keys_with_document_errors_on_legacy_paths() {
     // Arrange
     let controls = controls();
     let malformed_keys = ScalarValue::Str("{a,}".into());
     let valid = ScalarValue::Json("{}".into());
-    let invalid = ScalarValue::Json("[}".into());
-    // Act / Assert
+    let invalid = ScalarValue::Json("[\u{7d}".into());
+    // Act
     for document in [&valid, &invalid] {
         let expected = evaluate(document, &BinaryOp::JsonbKeyExistsAny, &malformed_keys)
             .expect_err("legacy error")
@@ -182,6 +185,7 @@ fn should_leave_malformed_string_keys_and_document_errors_on_legacy_paths() {
             &controls,
         )
         .expect("fallback");
+        // Assert
         assert!(candidate.is_none());
         let actual = evaluate(document, &BinaryOp::JsonbKeyExistsAny, &malformed_keys)
             .expect_err("fallback error")
@@ -192,7 +196,7 @@ fn should_leave_malformed_string_keys_and_document_errors_on_legacy_paths() {
 }
 
 #[test]
-fn should_enforce_string_backed_key_and_document_owner_overlap() {
+fn should_enforce_string_backed_key_with_document_owner_overlap() {
     // Arrange
     let left = ScalarValue::Json(r#"{"a":1,"b":2}"#.into());
     let right = ScalarValue::Str(r#"["a","b"]"#.into());
@@ -201,6 +205,7 @@ fn should_enforce_string_backed_key_and_document_owner_overlap() {
         .expect("baseline");
     let peak = baseline.peak_query_memory_bytes();
     drop(result);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -218,7 +223,7 @@ fn should_enforce_string_backed_key_and_document_owner_overlap() {
 }
 
 #[test]
-fn should_release_string_keys_and_document_after_parse_cancellation() {
+fn should_release_string_keys_with_document_after_parse_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -276,12 +281,12 @@ fn should_flatten_multidimensional_text_array_literals_for_key_existence() {
 }
 
 #[test]
-fn should_preserve_ragged_array_and_document_error_priority_for_key_existence() {
+fn should_preserve_ragged_array_with_document_error_priority_for_key_existence() {
     // Arrange
     let controls = controls();
     let ragged = ScalarValue::Str("{{a},{b,c}}".into());
     let document = ScalarValue::Json("{}".into());
-    let invalid_document = ScalarValue::Json("[}".into());
+    let invalid_document = ScalarValue::Json("[\u{7d}".into());
     // Act
     let ragged_error = super::super::binary::binary_scalar_with_controls(
         &document,
@@ -304,7 +309,7 @@ fn should_preserve_ragged_array_and_document_error_priority_for_key_existence() 
 }
 
 #[test]
-fn should_keep_native_one_dimensional_and_json_array_key_parity() {
+fn should_keep_native_one_dimensional_with_json_array_key_parity() {
     // Arrange
     let controls = controls();
     let document = ScalarValue::Json(r#"{"a":1,"b":2}"#.into());

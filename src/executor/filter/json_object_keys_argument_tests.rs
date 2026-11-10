@@ -29,7 +29,7 @@ fn context<'a>(
 }
 
 #[test]
-fn should_avoid_direct_column_and_parameter_value_clones_only_on_selected_route() {
+fn should_avoid_direct_column_with_parameter_value_clones_only_on_selected_route() {
     // Arrange
     let controls = controls();
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -78,7 +78,7 @@ fn should_avoid_direct_column_and_parameter_value_clones_only_on_selected_route(
 }
 
 #[test]
-fn should_preserve_local_argument_precedence_missing_null_and_builtin_dispatch() {
+fn should_preserve_local_argument_precedence_missing_null_with_builtin_dispatch() {
     // Arrange
     let controls = controls();
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -147,7 +147,7 @@ fn should_release_borrowed_source_after_actual_key_copy_cancellation() {
 }
 
 #[test]
-fn should_preserve_session_scratch_and_source_lease_through_borrowed_result() {
+fn should_preserve_session_scratch_with_source_lease_through_borrowed_result() {
     // Arrange
     let controls = controls();
     let session = crate::app::CassieSession::new("root".into(), None)
@@ -189,7 +189,7 @@ fn should_preserve_session_scratch_and_source_lease_through_borrowed_result() {
 }
 
 #[test]
-fn should_preserve_general_owner_fallback_and_foreign_tracker_failure() {
+fn should_preserve_general_owner_fallback_with_foreign_tracker_failure() {
     // Arrange
     let controls = controls();
     let foreign = self::controls();
@@ -229,7 +229,7 @@ fn should_preserve_general_owner_fallback_and_foreign_tracker_failure() {
 }
 
 #[test]
-fn should_keep_qualified_complex_and_invalid_arity_on_owned_argument_route() {
+fn should_keep_qualified_complex_with_invalid_arity_on_owned_argument_route() {
     // Arrange
     let controls = controls();
     let owner = EvaluationMemory::new(&controls).expect("owner");

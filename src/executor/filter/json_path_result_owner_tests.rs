@@ -38,6 +38,7 @@ fn should_retain_extraction_workspace_for_all_json_path_function_variants() {
         let result = evaluate(name, &input, Some(&controls), Some(&owner))
             .expect("selected")
             .expect("result");
+        // Assert
         assert_eq!(result, expected);
         assert!(owner.bytes() > 0);
     }
@@ -46,7 +47,7 @@ fn should_retain_extraction_workspace_for_all_json_path_function_variants() {
 }
 
 #[test]
-fn should_preserve_missing_null_and_invalid_path_results_without_retaining_a_lease() {
+fn should_preserve_missing_null_with_invalid_path_results_without_retaining_a_lease() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -67,7 +68,7 @@ fn should_preserve_missing_null_and_invalid_path_results_without_retaining_a_lea
     .expect("selected");
     let invalid = evaluate(
         "jsonb_extract_path",
-        &[Value::String("[}".into()), Value::String("a".into())],
+        &[Value::String("[\u{7d}".into()), Value::String("a".into())],
         Some(&controls),
         Some(&owner),
     )
@@ -140,7 +141,7 @@ fn should_grow_or_release_a_synthetic_undersized_extraction_owner() {
 }
 
 #[test]
-fn should_preserve_ownerless_general_owner_and_foreign_tracker_paths() {
+fn should_preserve_ownerless_general_owner_with_foreign_tracker_paths() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -157,6 +158,7 @@ fn should_preserve_ownerless_general_owner_and_foreign_tracker_paths() {
     let ownerless = evaluate("jsonb_extract_path", &input, Some(&owner_controls), None)
         .expect("selected")
         .expect("result");
+    // Assert
     assert_eq!(owner_controls.current_query_memory_bytes(), 0);
     drop(ownerless);
     let foreign_result =

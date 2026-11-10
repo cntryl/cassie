@@ -66,7 +66,7 @@ fn should_reject_mismatched_tracker_without_losing_either_reservation() {
 }
 
 #[test]
-fn should_charge_header_and_link_at_exact_budget_and_release_after_partial_attach_cancel() {
+fn should_charge_header_with_link_at_exact_budget_with_release_after_partial_attach_cancel() {
     // Arrange
     let header = std::mem::size_of::<QueryMemoryReservation>() + 2 * std::mem::size_of::<usize>();
     let link = std::mem::size_of::<crate::executor::batch::OperatorMemory>()

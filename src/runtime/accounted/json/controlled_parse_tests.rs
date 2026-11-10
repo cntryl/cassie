@@ -4,7 +4,7 @@ use crate::config::CassieRuntimeLimits;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
 #[test]
-fn should_match_owned_json_value_parse_and_retain_its_reservation() {
+fn should_match_owned_json_value_parse_with_retain_its_reservation() {
     // Arrange
     let inputs = [
         r#"{"b":1,"a":2,"b":3}"#,
@@ -19,6 +19,7 @@ fn should_match_owned_json_value_parse_and_retain_its_reservation() {
     for text in inputs {
         let expected: serde_json::Value = serde_json::from_str(text).expect("original");
         let owned = super::parse(text.as_bytes(), &controls).expect("owned parse");
+        // Assert
         assert_eq!(owned.get(), &expected);
         assert!(controls.current_query_memory_bytes() > 0);
         drop(owned);
@@ -27,13 +28,13 @@ fn should_match_owned_json_value_parse_and_retain_its_reservation() {
 }
 
 #[test]
-fn should_reject_invalid_json_and_utf8_without_retaining_memory() {
+fn should_reject_invalid_json_with_utf8_without_retaining_memory() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let cases: &[&[u8]] = &[
         b"",
-        b"{",
+        b"\x7b",
         b"true trailing",
         b"\xff",
         b"{bad\xff}",
@@ -41,13 +42,14 @@ fn should_reject_invalid_json_and_utf8_without_retaining_memory() {
     ];
     // Act / Assert
     for bytes in cases {
+        // Assert
         assert!(super::parse(bytes, &controls).is_err());
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
 
 #[test]
-fn should_admit_owned_json_at_exact_budget_and_deny_below() {
+fn should_admit_owned_json_at_exact_budget_with_deny_below() {
     // Arrange
     let input = br#"{"x":[1,2]}"#;
     let needed = super::super::serialized_decode_bytes(input.len()).expect("bound");
@@ -145,7 +147,7 @@ fn should_validate_utf8_across_checked_input_boundaries() {
 }
 
 #[test]
-fn should_retain_json_error_owner_and_match_serde_diagnostic() {
+fn should_retain_json_error_owner_with_match_serde_diagnostic() {
     // Arrange
     let text = "{\"x\": [1,\n}";
     let expected = serde_json::from_str::<serde_json::Value>(text)
@@ -166,7 +168,7 @@ fn should_retain_json_error_owner_and_match_serde_diagnostic() {
 }
 
 #[test]
-fn should_match_serde_private_keys_and_exponent_normalization() {
+fn should_match_serde_private_keys_with_exponent_normalization() {
     // Arrange
     let inputs = [
         r"1E2",
@@ -176,7 +178,7 @@ fn should_match_serde_private_keys_and_exponent_normalization() {
         r#"{"$serde_json::private::Number":"123"}"#,
         r#"{"$serde_json::private::Number":"not-a-number"}"#,
         r#"{"$serde_json::private::RawValue":"{\"a\":1}"}"#,
-        r#"{"$serde_json::private::RawValue":"{", "other": }"#,
+        "\u{7b}\"$serde_json::private::RawValue\":\"{\", \"other\": }",
     ];
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -185,6 +187,7 @@ fn should_match_serde_private_keys_and_exponent_normalization() {
         let expected = serde_json::from_str::<serde_json::Value>(text);
         let actual = super::parse(text.as_bytes(), &controls);
         match (expected, actual) {
+            // Assert
             (Ok(expected), Ok(actual)) => assert_eq!(actual.get(), &expected, "{text}"),
             (
                 Err(expected),

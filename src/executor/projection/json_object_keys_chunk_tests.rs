@@ -33,7 +33,7 @@ fn fixture(count: usize) -> (Vec<Batch>, Vec<SelectItem>) {
 }
 
 #[test]
-fn should_preserve_empty_boundary_and_multiple_chunk_order() {
+fn should_preserve_empty_boundary_with_multiple_chunk_order() {
     // Arrange
     for count in [0, 1, 1024, 1025, 2051] {
         let controls = controls(64 * 1024 * 1024);
@@ -73,7 +73,7 @@ fn should_hold_chunk_directories_after_rows_are_drained_until_guard_drops() {
 }
 
 #[test]
-fn should_release_chunk_and_source_owners_after_actual_directory_or_move_cancellation() {
+fn should_release_chunk_with_source_owners_after_actual_directory_or_move_cancellation() {
     // Arrange
     for stage in [6, 7] {
         let cancel = QueryCancellationHandle::new();
@@ -154,7 +154,7 @@ fn should_leave_unselected_batches_untracked_by_chunk_guard() {
 }
 
 #[test]
-fn should_enforce_measured_chunk_handoff_peak_and_release_below_budget() {
+fn should_enforce_measured_chunk_handoff_peak_with_release_below_budget() {
     // Arrange
     let generous = controls(64 * 1024 * 1024);
     let (batches, projection) = fixture(1025);
@@ -214,7 +214,7 @@ fn should_release_both_directory_leases_after_actual_flatten_move_cancellation()
 }
 
 #[test]
-fn should_admit_measured_flatten_overlap_and_release_on_below_peak() {
+fn should_admit_measured_flatten_overlap_with_release_on_below_peak() {
     // Arrange
     let generous = controls(64 * 1024 * 1024);
     let (batches, projection) = fixture(1025);
@@ -222,6 +222,7 @@ fn should_admit_measured_flatten_overlap_and_release_on_below_peak() {
     let rows = expanded.flatten(&generous).expect("flatten");
     let peak = generous.peak_query_memory_bytes();
     drop(rows);
+    // Assert
     assert_eq!(generous.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -254,7 +255,7 @@ fn should_hold_chunk_reservation_through_partial_pull_iterator_drop() {
 }
 
 #[test]
-fn should_preserve_multibatch_pull_order_and_release_after_exhaustion() {
+fn should_preserve_multibatch_pull_order_with_release_after_exhaustion() {
     // Arrange
     let controls = controls(16 * 1024 * 1024);
     let (batches, projection) = fixture(2051);
@@ -274,7 +275,7 @@ fn should_preserve_multibatch_pull_order_and_release_after_exhaustion() {
 }
 
 #[test]
-fn should_iterate_untracked_empty_and_nonempty_batches_in_order() {
+fn should_iterate_untracked_empty_with_nonempty_batches_in_order() {
     // Arrange
     let first = BatchRow::new(vec![("k".into(), Value::Int64(1))]);
     let second = BatchRow::new(vec![("k".into(), Value::Int64(2))]);

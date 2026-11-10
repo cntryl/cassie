@@ -13,7 +13,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_jsonb_canonical_values_and_byte_length_key_order() {
+fn should_match_jsonb_canonical_values_with_byte_length_key_order() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -34,6 +34,7 @@ fn should_match_jsonb_canonical_values_and_byte_length_key_order() {
         let expected = crate::types::jsonb::canonical(input).expect("canonical");
         let document = Document::parse_for_output(input, &controls).expect("document");
         let actual = serialize(&document.forest, document.root).expect("output");
+        // Assert
         assert_eq!(actual.as_str(), expected, "{input}");
         drop(actual);
         drop(document);
@@ -64,6 +65,7 @@ fn should_admit_both_sort_buffers_at_the_exact_overlap_boundary() {
         };
         let result = sorted(index, &controls, &mut || {});
         if expected {
+            // Assert
             assert!(result.is_ok());
         } else {
             assert!(matches!(&result, Err(CassieError::ResourceLimit(_))));
@@ -82,7 +84,7 @@ fn should_admit_both_sort_buffers_at_the_exact_overlap_boundary() {
 }
 
 #[test]
-fn should_release_nested_order_and_frames_when_child_sort_is_cancelled() {
+fn should_release_nested_order_with_frames_when_child_sort_is_cancelled() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -115,7 +117,7 @@ fn should_release_nested_order_and_frames_when_child_sort_is_cancelled() {
 }
 
 #[test]
-fn should_release_source_output_and_workspace_on_string_and_numeric_cancellation() {
+fn should_release_source_output_with_workspace_on_string_with_numeric_cancellation() {
     for (input, phase) in [
         (format!("\"{}\"", "x".repeat(2048)), 0),
         ("0e-1500".to_owned(), 1),
@@ -158,7 +160,7 @@ fn should_release_source_output_and_workspace_on_string_and_numeric_cancellation
 }
 
 #[test]
-fn should_report_first_sorted_key_or_value_failure_and_discard_overwritten_values() {
+fn should_report_first_sorted_key_or_value_failure_with_discard_overwritten_values() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -174,6 +176,7 @@ fn should_report_first_sorted_key_or_value_failure_and_discard_overwritten_value
         let document = Document::parse_for_output(input, &controls).expect("document");
         let result = serialize(&document.forest, document.root);
         match (expected, result) {
+            // Assert
             (Ok(expected), Ok(actual)) => assert_eq!(actual.as_str(), expected),
             (Err(expected), Err(actual)) => assert_eq!(
                 (actual.sqlstate(), actual.message()),
@@ -187,7 +190,7 @@ fn should_report_first_sorted_key_or_value_failure_and_discard_overwritten_value
 }
 
 #[test]
-fn should_cancel_during_checked_sort_comparison_and_release_workspaces() {
+fn should_cancel_during_checked_sort_comparison_with_release_workspaces() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

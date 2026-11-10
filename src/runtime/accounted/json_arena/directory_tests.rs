@@ -14,7 +14,7 @@ fn value(number: usize, controls: &QueryExecutionControls) -> Accounted<usize> {
 }
 
 #[test]
-fn should_preserve_values_and_route_mutation_after_interrupted_migration() {
+fn should_preserve_values_with_route_mutation_after_interrupted_migration() {
     // Arrange
     let controls = controls();
     let mut directory = Directory::new(&controls).expect("directory");
@@ -75,7 +75,7 @@ fn should_leave_old_directory_unchanged_when_replacement_initialization_is_inter
 }
 
 #[test]
-fn should_release_both_directories_and_every_item_after_interrupted_migration() {
+fn should_release_both_directories_with_every_item_after_interrupted_migration() {
     // Arrange
     let controls = controls();
     let mut directory = Directory::new(&controls).expect("directory");
@@ -200,6 +200,7 @@ fn should_resume_repeatedly_without_duplicating_or_losing_owners() {
             Progress::Moved(moved) if moved == boundary => Err(CassieError::QueryCancelled),
             _ => Ok(()),
         });
+        // Assert
         assert!(matches!(result, Err(CassieError::QueryCancelled)));
         assert_eq!(directory.test_frontier(), Some(boundary));
         for number in 0..4 {

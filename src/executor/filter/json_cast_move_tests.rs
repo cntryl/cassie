@@ -38,7 +38,7 @@ fn run(
 }
 
 #[test]
-fn should_move_json_cast_input_and_retain_the_deletion_owner() {
+fn should_move_json_cast_input_with_retain_the_deletion_owner() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -73,7 +73,7 @@ fn should_move_json_cast_input_and_retain_the_deletion_owner() {
 }
 
 #[test]
-fn should_preserve_json_cast_null_scalar_and_jsonb_canonicalization() {
+fn should_preserve_json_cast_null_scalar_with_jsonb_canonicalization() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -81,6 +81,7 @@ fn should_preserve_json_cast_null_scalar_and_jsonb_canonicalization() {
     let expression = Expr::Column("doc".into());
     // Act / Assert
     let null = BatchRow::new(vec![("doc".into(), Value::Null)]);
+    // Assert
     assert!(matches!(
         run(
             &null,

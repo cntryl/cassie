@@ -40,7 +40,7 @@ fn should_reject_text_copy_row_directory_before_allocating_over_budget() {
 }
 
 #[test]
-fn should_preserve_text_copy_escape_and_final_record_behavior() {
+fn should_preserve_text_copy_escape_with_final_record_behavior() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -156,7 +156,7 @@ fn should_stop_binary_column_lookup_when_copy_is_cancelled() {
 }
 
 #[test]
-fn should_decode_binary_text_and_bytea_with_admitted_output() {
+fn should_decode_binary_text_with_bytea_with_admitted_output() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -216,7 +216,7 @@ fn should_deny_binary_bytea_output_while_input_uses_budget() {
 }
 
 #[test]
-fn should_preserve_binary_utf8_at_chunk_boundary_and_reject_truncated_sequence() {
+fn should_preserve_binary_utf8_at_chunk_boundary_with_reject_truncated_sequence() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -310,7 +310,7 @@ fn should_match_existing_binary_fixed_width_outputs() {
 }
 
 #[test]
-fn should_preserve_fixed_width_short_and_excess_errors() {
+fn should_preserve_fixed_width_short_with_excess_errors() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -339,7 +339,7 @@ fn should_preserve_fixed_width_short_and_excess_errors() {
 }
 
 #[test]
-fn should_enforce_binary_fixed_text_overlap_budget_and_cancellation() {
+fn should_enforce_binary_fixed_text_overlap_budget_with_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 21,
@@ -368,7 +368,7 @@ fn should_enforce_binary_fixed_text_overlap_budget_and_cancellation() {
 }
 
 #[test]
-fn should_match_uuid_binary_text_and_length_errors() {
+fn should_match_uuid_binary_text_with_length_errors() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -428,7 +428,7 @@ fn should_admit_uuid_output_at_exact_input_overlap_budget() {
 }
 
 #[test]
-fn should_match_name_binary_width_utf8_and_nul_behavior() {
+fn should_match_name_binary_width_utf8_with_nul_behavior() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -486,7 +486,7 @@ fn should_enforce_name_binary_input_output_budget_overlap() {
 }
 
 #[test]
-fn should_admit_name_binary_at_exact_budget_and_honor_cancellation() {
+fn should_admit_name_binary_at_exact_budget_with_honor_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 8,
@@ -518,7 +518,7 @@ fn should_admit_name_binary_at_exact_budget_and_honor_cancellation() {
 }
 
 #[test]
-fn should_match_binary_mac_and_lsn_text_and_width_errors() {
+fn should_match_binary_mac_with_lsn_text_with_width_errors() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -582,7 +582,7 @@ fn should_enforce_binary_mac_output_overlap_budget() {
 }
 
 #[test]
-fn should_deny_binary_mac_output_below_overlap_budget_and_release() {
+fn should_deny_binary_mac_output_below_overlap_budget_with_release() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 22,
@@ -611,7 +611,7 @@ fn network_frame(family: u8, bits: u8, address: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn should_match_binary_inet_and_cidr_formatting_and_errors() {
+fn should_match_binary_inet_with_cidr_formatting_with_errors() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -719,7 +719,7 @@ fn should_enforce_binary_inet_output_overlap_budget() {
 }
 
 #[test]
-fn should_deny_binary_inet_below_overlap_budget_and_honor_cancellation() {
+fn should_deny_binary_inet_below_overlap_budget_with_honor_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 16,
@@ -771,7 +771,7 @@ fn should_admit_maximum_binary_cidr_spelling_at_exact_budget() {
 }
 
 #[test]
-fn should_match_binary_real_text_and_error_order() {
+fn should_match_binary_real_text_with_error_order() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -827,7 +827,7 @@ fn should_match_binary_real_text_and_error_order() {
 }
 
 #[test]
-fn should_enforce_binary_real_input_output_overlap_and_cancellation() {
+fn should_enforce_binary_real_input_output_overlap_with_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 7,
@@ -877,7 +877,7 @@ fn should_deny_binary_real_below_output_overlap_budget() {
 }
 
 #[test]
-fn should_match_binary_float8_formatting_and_error_order() {
+fn should_match_binary_float8_formatting_with_error_order() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -925,7 +925,7 @@ fn should_match_binary_float8_formatting_and_error_order() {
 }
 
 #[test]
-fn should_enforce_binary_float8_input_output_budget_and_cancellation() {
+fn should_enforce_binary_float8_input_output_budget_with_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 11,

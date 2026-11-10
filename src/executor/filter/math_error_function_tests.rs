@@ -1,7 +1,7 @@
 use super::{erf, erfc};
 
 #[test]
-fn should_terminate_at_signed_zero_and_subnormal_inputs() {
+fn should_terminate_at_signed_zero_with_subnormal_inputs() {
     // Arrange
     let positive_zero = 0.0_f64;
     let negative_zero = -0.0_f64;
@@ -35,7 +35,7 @@ fn should_terminate_at_signed_zero_and_subnormal_inputs() {
 }
 
 #[test]
-fn should_preserve_large_and_special_error_function_results() {
+fn should_preserve_large_with_special_error_function_results() {
     // Arrange
     let inputs = [f64::MAX, -f64::MAX, f64::INFINITY, f64::NEG_INFINITY];
 

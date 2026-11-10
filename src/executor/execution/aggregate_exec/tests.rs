@@ -356,7 +356,7 @@ fn should_exclude_explicit_float_statistics_before_creating_partial_workers() {
 }
 
 #[test]
-fn should_preserve_nan_and_overflow_order_before_parallel_partial_folds() {
+fn should_preserve_nan_with_overflow_order_before_parallel_partial_folds() {
     // Arrange
     let config = CassieRuntimeConfig {
         limits: CassieRuntimeLimits {

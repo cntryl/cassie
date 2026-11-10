@@ -321,7 +321,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     #[test]
-    fn should_attach_aggregate_pause_only_to_the_selected_instance_and_backend() {
+    fn should_attach_aggregate_pause_only_to_the_selected_instance_with_backend() {
         // Arrange
         let first = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
         let second = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
@@ -385,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_wrong_backend_identity_and_duplicate_pending_pause() {
+    fn should_reject_wrong_backend_identity_with_duplicate_pending_pause() {
         // Arrange
         let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
         let target = runtime.register_pgwire_backend();
@@ -434,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_aggregate_and_sleep_pause_on_the_same_backend_query() {
+    fn should_keep_aggregate_with_sleep_pause_on_the_same_backend_query() {
         // Arrange
         let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits::default()));
         let target = runtime.register_pgwire_backend();

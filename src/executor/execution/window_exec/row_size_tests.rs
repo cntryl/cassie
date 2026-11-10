@@ -45,7 +45,7 @@ fn rows() -> Vec<BatchRow> {
 }
 
 #[test]
-fn should_match_prior_serialized_row_accounting_for_mixed_values_and_metadata() {
+fn should_match_prior_serialized_row_accounting_for_mixed_values_with_metadata() {
     // Arrange
     let rows = rows();
     let controls = controls(10 * 1024 * 1024);
@@ -65,7 +65,7 @@ fn should_match_prior_serialized_row_accounting_for_mixed_values_and_metadata() 
 }
 
 #[test]
-fn should_interrupt_actual_window_row_string_count_and_release_workspace() {
+fn should_interrupt_actual_window_row_string_count_with_release_workspace() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -95,7 +95,7 @@ fn should_interrupt_actual_window_row_string_count_and_release_workspace() {
 }
 
 #[test]
-fn should_interrupt_actual_window_json_and_array_counting() {
+fn should_interrupt_actual_window_json_with_array_counting() {
     // Arrange
     let values = [
         Value::Json(serde_json::json!({"payload": "é".repeat(2048)})),
@@ -159,7 +159,7 @@ fn should_interrupt_actual_window_numeric_counting() {
 }
 
 #[test]
-fn should_admit_exact_transient_count_workspace_and_release_it() {
+fn should_admit_exact_transient_count_workspace_with_release_it() {
     // Arrange
     let rows = rows();
     let baseline = controls(10 * 1024 * 1024);

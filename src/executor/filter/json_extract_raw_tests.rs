@@ -27,7 +27,7 @@ fn should_select_the_last_decoded_object_key_without_reformatting() {
 }
 
 #[test]
-fn should_match_index_and_scalar_selection_rules() {
+fn should_match_index_with_scalar_selection_rules() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -42,6 +42,7 @@ fn should_match_index_and_scalar_selection_rules() {
     ];
     // Act / Assert
     for (source, selector, jsonb, expected) in cases {
+        // Assert
         assert_eq!(
             select(source, selector, jsonb, &controls).expect("selection"),
             expected
@@ -111,7 +112,7 @@ fn should_release_selection_memory_after_actual_scan_cancellation() {
 }
 
 #[test]
-fn should_preserve_raw_decoded_and_jsonb_formatted_output() {
+fn should_preserve_raw_decoded_with_jsonb_formatted_output() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -126,6 +127,7 @@ fn should_preserve_raw_decoded_and_jsonb_formatted_output() {
         let output = render_selected(raw, as_text, jsonb, &controls).expect("output");
         match (output, expected) {
             (Output::Null, None) => {}
+            // Assert
             (Output::Text(value), Some(expected)) => assert_eq!(value.as_str(), expected),
             _ => panic!("output mismatch for {raw}"),
         }
@@ -134,7 +136,7 @@ fn should_preserve_raw_decoded_and_jsonb_formatted_output() {
 }
 
 #[test]
-fn should_match_legacy_path_index_boundaries_and_duplicate_selection() {
+fn should_match_legacy_path_index_boundaries_with_duplicate_selection() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -160,6 +162,7 @@ fn should_match_legacy_path_index_boundaries_and_duplicate_selection() {
         match (legacy, actual) {
             (crate::executor::filter::ScalarValue::Null, None) => {}
             (crate::executor::filter::ScalarValue::Json(expected), Some(actual)) => {
+                // Assert
                 assert_eq!(actual, expected);
             }
             _ => panic!("selection mismatch for {source:?} / {key:?}"),
@@ -169,7 +172,7 @@ fn should_match_legacy_path_index_boundaries_and_duplicate_selection() {
 }
 
 #[test]
-fn should_match_legacy_reached_key_error_and_keep_nested_spans_borrowed() {
+fn should_match_legacy_reached_key_error_with_keep_nested_spans_borrowed() {
     // Arrange
     let controls = controls();
     let invalid = r#"{"ok":1,"\ud800":2}"#;
@@ -230,7 +233,7 @@ fn should_match_legacy_text_extraction_error_for_lone_surrogate() {
 }
 
 #[test]
-fn should_release_decoded_and_output_owners_after_actual_copy_cancellation() {
+fn should_release_decoded_with_output_owners_after_actual_copy_cancellation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -262,13 +265,14 @@ fn should_release_decoded_and_output_owners_after_actual_copy_cancellation() {
 }
 
 #[test]
-fn should_enforce_measured_decoded_source_and_output_overlap() {
+fn should_enforce_measured_decoded_source_with_output_overlap() {
     // Arrange
     let raw = r#""abcdefghijklmno\nαβγ""#;
     let baseline = controls();
     let output = render_selected(raw, true, false, &baseline).expect("baseline");
     let peak = baseline.peak_query_memory_bytes();
     drop(output);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {

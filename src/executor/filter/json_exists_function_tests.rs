@@ -26,7 +26,7 @@ fn run(
 }
 
 #[test]
-fn should_match_legacy_existence_function_results_and_errors() {
+fn should_match_legacy_existence_function_results_with_errors() {
     // Arrange
     let native = Value::Array(
         SqlArray::from_elements(vec![Value::String("a".into()), Value::Null]).expect("array"),
@@ -43,15 +43,16 @@ fn should_match_legacy_existence_function_results_and_errors() {
             Value::Json(serde_json::json!({"$serde_json::private::Number":"7"})),
             Value::String("{a}".into()),
         ],
-        vec![Value::String("[}".into()), Value::Int64(9)],
+        vec![Value::String("[\u{7d}".into()), Value::Int64(9)],
         vec![Value::String("{}".into()), Value::String("{a,}".into())],
         vec![Value::Null, Value::String("{a}".into())],
         vec![Value::String("{}".into()), Value::Null],
     ];
     let controls = controls(32 * 1024 * 1024);
-    // Act / Assert
+    // Act
     for name in ["jsonb_exists_any", "jsonb_exists_all"] {
         for args in &cases {
+            // Assert
             assert_eq!(
                 run(name, args, Some(&controls)),
                 run(name, args, None),
@@ -63,7 +64,7 @@ fn should_match_legacy_existence_function_results_and_errors() {
 }
 
 #[test]
-fn should_release_function_scratch_document_and_path_after_actual_path_cancellation() {
+fn should_release_function_scratch_document_with_path_after_actual_path_cancellation() {
     // Arrange
     let args = [
         Value::String(r#"{"a":1,"b":2}"#.into()),
@@ -86,13 +87,14 @@ fn should_release_function_scratch_document_and_path_after_actual_path_cancellat
 }
 
 #[test]
-fn should_enforce_function_scratch_arena_and_path_overlap() {
+fn should_enforce_function_scratch_arena_with_path_overlap() {
     // Arrange
     let args = [
         Value::String(r#"{"a":1,"b":2}"#.into()),
         Value::String("[4:5]={a,b}".into()),
     ];
     let baseline = controls(32 * 1024 * 1024);
+    // Assert
     assert!(matches!(
         run("jsonb_exists_all", &args, Some(&baseline)),
         Ok(Value::Bool(true))

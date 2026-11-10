@@ -63,7 +63,7 @@ fn should_admit_hint_with_the_semantic_error_frame_at_the_exact_peak() {
 }
 
 #[test]
-fn should_cancel_during_semantic_hint_copy_and_release_every_owner() {
+fn should_cancel_during_semantic_hint_copy_with_release_every_owner() {
     // Arrange
     use super::parameter_semantic::{admitted_error_frame_observing, FrameCopyPhase};
     let cancellation = QueryCancellationHandle::new();
@@ -534,7 +534,7 @@ fn should_admit_copy_unknown_column_diagnostic_at_exact_peak() {
 }
 
 #[test]
-fn should_admit_jsonb_copy_diagnostic_and_frame_with_source_overlap() {
+fn should_admit_jsonb_copy_diagnostic_with_frame_with_source_overlap() {
     fn prepare(
         controls: &QueryExecutionControls,
         message: &str,
@@ -575,7 +575,7 @@ fn should_admit_jsonb_copy_diagnostic_and_frame_with_source_overlap() {
 }
 
 #[test]
-fn should_retain_jsonb_copy_diagnostic_and_frame_during_pending_write() {
+fn should_retain_jsonb_copy_diagnostic_with_frame_during_pending_write() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -664,7 +664,7 @@ fn should_keep_copy_unknown_column_admission_until_write_finishes() {
 }
 
 #[test]
-fn should_hold_owned_numeric_error_and_encoded_frame_through_delivery() {
+fn should_hold_owned_numeric_error_with_encoded_frame_through_delivery() {
     // Arrange
     let controls = controls(1_048_576);
     let input = format!("{}é!", "1".repeat(4095));

@@ -41,6 +41,7 @@ fn should_match_raw_serde_syntax_without_decoding_surrogates() {
     for input in inputs {
         let expected = serde_json::from_str::<&RawValue>(input);
         let actual = scan(input, &controls);
+        // Assert
         assert_eq!(actual.is_ok(), expected.is_ok(), "{input:?}");
         if let (Err(actual), Err(expected)) = (actual, expected) {
             assert_eq!(actual.to_string(), expected.to_string(), "{input:?}");
@@ -72,7 +73,7 @@ fn should_release_raw_scan_stack_after_actual_input_cancellation() {
 }
 
 #[test]
-fn should_release_old_and_new_stacks_after_actual_move_cancellation() {
+fn should_release_old_with_new_stacks_after_actual_move_cancellation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = controls(cancellation.clone());
@@ -107,6 +108,7 @@ fn should_enforce_the_measured_raw_scan_stack_overlap_budget() {
         };
         let limited = QueryExecutionControls::from_limits(&limits, Instant::now());
         let result = scan(&input, &limited);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(result);
         assert_eq!(limited.current_query_memory_bytes(), 0);
@@ -134,6 +136,7 @@ fn should_honor_cancellation_before_empty_or_invalid_input() {
     // Act / Assert
     for input in ["", "?"] {
         let result = scan(input, &controls);
+        // Assert
         assert!(matches!(
             result,
             Err(super::ScanError::Control(

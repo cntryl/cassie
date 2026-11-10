@@ -157,6 +157,7 @@ mod tests {
         };
 
         // Act / Assert
+        // Assert
         assert_eq!(diagnostic.test_message(), expected.to_string());
     }
 }

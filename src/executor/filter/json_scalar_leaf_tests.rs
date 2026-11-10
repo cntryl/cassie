@@ -17,7 +17,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_compact_json_value_spelling_and_hold_its_owner() {
+fn should_match_compact_json_value_spelling_with_hold_its_owner() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -42,6 +42,7 @@ fn should_match_compact_json_value_spelling_and_hold_its_owner() {
     for json in values {
         let expected = json.to_string();
         let actual = from_value(&Value::Json(json), context).expect("value");
+        // Assert
         assert!(matches!(actual, ScalarValue::Json(text) if text == expected));
     }
     assert!(controls.current_query_memory_bytes() > 0);
@@ -50,7 +51,7 @@ fn should_match_compact_json_value_spelling_and_hold_its_owner() {
 }
 
 #[test]
-fn should_keep_general_owner_and_ownerless_fallbacks_unchanged() {
+fn should_keep_general_owner_with_ownerless_fallbacks_unchanged() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let general = EvaluationMemory::new(&controls).expect("general");
@@ -82,6 +83,7 @@ fn should_keep_general_owner_and_ownerless_fallbacks_unchanged() {
             ..base
         },
     ] {
+        // Assert
         assert!(
             matches!(from_value(&value, context), Ok(ScalarValue::Json(text)) if text == r#"{"a":1}"#)
         );
@@ -90,7 +92,7 @@ fn should_keep_general_owner_and_ownerless_fallbacks_unchanged() {
 }
 
 #[test]
-fn should_retain_compact_json_text_with_a_shared_general_and_deletion_owner() {
+fn should_retain_compact_json_text_with_a_shared_general_with_deletion_owner() {
     // Arrange
     let foreign = controls(10 * 1024 * 1024);
     let controls = controls(10 * 1024 * 1024);
@@ -261,7 +263,7 @@ fn should_release_partial_leaf_after_actual_copy_cancellation() {
 }
 
 #[test]
-fn should_reject_foreign_tracker_and_admit_measured_leaf_peak() {
+fn should_reject_foreign_tracker_with_admit_measured_leaf_peak() {
     // Arrange
     let baseline = controls(10 * 1024 * 1024);
     let foreign = controls(10 * 1024 * 1024);
@@ -279,6 +281,7 @@ fn should_reject_foreign_tracker_and_admit_measured_leaf_peak() {
         memory: None,
         deletion_memory: Some(&owner),
     };
+    // Assert
     assert!(from_value(
         &value,
         EvalContext {
@@ -317,7 +320,7 @@ fn should_reject_foreign_tracker_and_admit_measured_leaf_peak() {
 }
 
 #[test]
-fn should_retain_column_and_parameter_serializations_through_extraction() {
+fn should_retain_column_with_parameter_serializations_through_extraction() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::evaluate_expr_value_with_context;
@@ -345,6 +348,7 @@ fn should_retain_column_and_parameter_serializations_through_extraction() {
         let expression = crate::sql::parser::parse_expression(sql).expect("expression");
         let result =
             evaluate_expr_value_with_context(&row, &expression, context).expect("extraction");
+        // Assert
         assert!(matches!(&result, Value::String(text) if text == "payload"));
         assert!(controls.current_query_memory_bytes() > 0);
         drop(result);

@@ -26,7 +26,7 @@ fn array_field(value: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn should_preserve_interval_binary_errors_in_scalar_and_array_copy() {
+fn should_preserve_interval_binary_errors_in_scalar_with_array_copy() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("Cassie");
     cassie.startup().expect("startup");

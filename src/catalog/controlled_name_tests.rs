@@ -4,7 +4,7 @@ use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use std::time::Instant;
 
 #[test]
-fn should_match_existing_identifier_suffix_and_quote_behavior() {
+fn should_match_existing_identifier_suffix_with_quote_behavior() {
     // Arrange
     let cases = [
         ("postgres.public.orders", "orders"),
@@ -21,6 +21,7 @@ fn should_match_existing_identifier_suffix_and_quote_behavior() {
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     // Act / Assert
     for (stored, requested) in cases {
+        // Assert
         assert_eq!(
             name_matches_controlled(stored, requested, &controls).expect("lookup"),
             crate::catalog::name_matches(stored, requested),
@@ -81,6 +82,7 @@ fn should_match_controlled_namespace_lookup_against_catalog_behavior() {
         "missing",
         "bad..schema",
     ] {
+        // Assert
         assert_eq!(
             catalog
                 .namespace_exists_controlled(name, &controls)

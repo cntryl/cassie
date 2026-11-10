@@ -22,7 +22,7 @@ fn input(value: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn should_admit_exact_peak_and_release_array_output_owners() {
+fn should_admit_exact_peak_with_release_array_output_owners() {
     // Arrange
     let bytes = input(b"\x01{\"x\":1,\"y\":[2,3]}");
     let generous =
@@ -38,6 +38,7 @@ fn should_admit_exact_peak_and_release_array_output_owners() {
     let below = QueryExecutionControls::from_limits(&limits(peak - 1), Instant::now());
     // Act / Assert
     let output = render(&bytes, 1, &exact).expect("exact");
+    // Assert
     assert!(matches!(
         render(&bytes, 1, &below),
         Err(OutputError::Control(CassieError::ResourceLimit(_)))
@@ -48,7 +49,7 @@ fn should_admit_exact_peak_and_release_array_output_owners() {
 }
 
 #[test]
-fn should_cancel_after_actual_array_element_validation_and_during_output_copy() {
+fn should_cancel_after_actual_array_element_validation_with_during_output_copy() {
     for target in [0, 1] {
         // Arrange
         let bytes = input(b"\x01{\"x\":[1,2]}");

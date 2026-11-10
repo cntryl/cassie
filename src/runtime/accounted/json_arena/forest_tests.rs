@@ -11,7 +11,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_move_one_unattached_child_and_detach_the_replaced_subtree() {
+fn should_move_one_unattached_child_with_detach_the_replaced_subtree() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");
@@ -36,7 +36,7 @@ fn should_move_one_unattached_child_and_detach_the_replaced_subtree() {
 }
 
 #[test]
-fn should_reject_duplicate_attachment_and_ancestor_cycles() {
+fn should_reject_duplicate_attachment_with_ancestor_cycles() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");
@@ -47,6 +47,7 @@ fn should_reject_duplicate_attachment_and_ancestor_cycles() {
     forest.insert(inner, "child", child).expect("edge");
 
     // Act / Assert
+    // Assert
     assert!(forest.insert(inner, "self", inner).is_err());
     assert!(forest.insert(inner, "cycle", outer).is_err());
     assert!(forest.insert(outer, "again", child).is_err());
@@ -68,6 +69,7 @@ fn should_preserve_a_root_until_it_is_explicitly_detached() {
     forest.mark_root(child).expect("root");
 
     // Act / Assert
+    // Assert
     assert!(forest.insert(parent, "child", child).is_err());
     assert_eq!(forest.parent(child).expect("child"), Owner::Root);
     assert_eq!(forest.member(parent, "child").expect("lookup"), None);
@@ -79,7 +81,7 @@ fn should_preserve_a_root_until_it_is_explicitly_detached() {
 }
 
 #[test]
-fn should_reject_cross_arena_and_stale_nodes_before_mutation() {
+fn should_reject_cross_arena_with_stale_nodes_before_mutation() {
     // Arrange
     let controls = controls();
     let mut first = Forest::new(&controls).expect("first");
@@ -91,6 +93,7 @@ fn should_reject_cross_arena_and_stale_nodes_before_mutation() {
     let replacement = first.scalar().expect("replacement");
 
     // Act / Assert
+    // Assert
     assert!(first.insert(parent, "foreign", foreign).is_err());
     assert!(first.insert(parent, "stale", retired).is_err());
     assert_eq!(
@@ -168,7 +171,7 @@ fn should_preserve_duplicate_edge_when_cancelled_before_insertion() {
 }
 
 #[test]
-fn should_leave_edge_and_candidate_unmodified_when_key_admission_fails() {
+fn should_leave_edge_with_candidate_unmodified_when_key_admission_fails() {
     // Arrange
     let limit = 4096;
     let limits = CassieRuntimeLimits {
@@ -239,7 +242,7 @@ fn should_retire_a_displaced_subtree_without_touching_survivors() {
 }
 
 #[test]
-fn should_reject_retiring_attached_and_stale_roots() {
+fn should_reject_retiring_attached_with_stale_roots() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");
@@ -250,6 +253,7 @@ fn should_reject_retiring_attached_and_stale_roots() {
     forest.retire_empty(stale).expect("retire");
 
     // Act / Assert
+    // Assert
     assert!(forest.retire_subtree(child).is_err());
     assert!(forest.retire_subtree(stale).is_err());
     assert_eq!(forest.member(parent, "child").expect("member"), Some(child));
@@ -378,7 +382,7 @@ fn should_reuse_retired_node_slots_without_reviving_old_handles() {
 }
 
 #[test]
-fn should_preserve_array_order_and_reject_repeated_or_cyclic_edges() {
+fn should_preserve_array_order_with_reject_repeated_or_cyclic_edges() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");
@@ -389,6 +393,7 @@ fn should_preserve_array_order_and_reject_repeated_or_cyclic_edges() {
     forest.append(inner, child).expect("child edge");
 
     // Act / Assert
+    // Assert
     assert!(forest.append(inner, outer).is_err());
     assert!(forest.append(inner, inner).is_err());
     assert!(forest.append(outer, child).is_err());
@@ -401,7 +406,7 @@ fn should_preserve_array_order_and_reject_repeated_or_cyclic_edges() {
 }
 
 #[test]
-fn should_reject_stale_and_foreign_array_children() {
+fn should_reject_stale_with_foreign_array_children() {
     // Arrange
     let controls = controls();
     let mut first = Forest::new(&controls).expect("first");
@@ -413,6 +418,7 @@ fn should_reject_stale_and_foreign_array_children() {
     let replacement = first.scalar().expect("replacement");
 
     // Act / Assert
+    // Assert
     assert!(first.append(array, stale).is_err());
     assert!(first.append(array, foreign).is_err());
     assert_eq!(first.element(array, 0).expect("empty"), None);
@@ -426,7 +432,7 @@ fn should_reject_stale_and_foreign_array_children() {
 }
 
 #[test]
-fn should_retire_mixed_array_and_object_descendants() {
+fn should_retire_mixed_array_with_object_descendants() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");
@@ -552,7 +558,7 @@ fn should_own_scalar_payloads_through_mixed_tree_retirement() {
 }
 
 #[test]
-fn should_drop_partial_text_and_its_lease_after_actual_copy_cancellation() {
+fn should_drop_partial_text_with_its_lease_after_actual_copy_cancellation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -613,7 +619,7 @@ fn should_leave_forest_unchanged_when_text_admission_is_denied() {
 }
 
 #[test]
-fn should_retain_and_retire_an_empty_string() {
+fn should_retain_with_retire_an_empty_string() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");
@@ -663,7 +669,7 @@ fn should_release_copied_text_if_following_node_growth_is_denied() {
 }
 
 #[test]
-fn should_adopt_string_and_number_tokens_without_copying_or_changing_tags() {
+fn should_adopt_string_with_number_tokens_without_copying_or_changing_tags() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");
@@ -690,7 +696,7 @@ fn should_adopt_string_and_number_tokens_without_copying_or_changing_tags() {
 }
 
 #[test]
-fn should_reject_foreign_tracker_token_and_release_its_payload() {
+fn should_reject_foreign_tracker_token_with_release_its_payload() {
     // Arrange
     let owner_controls = controls();
     let other_controls = controls();
@@ -708,7 +714,7 @@ fn should_reject_foreign_tracker_token_and_release_its_payload() {
 }
 
 #[test]
-fn should_keep_existing_key_and_release_new_key_after_token_adoption() {
+fn should_keep_existing_key_with_release_new_key_after_token_adoption() {
     // Arrange
     let controls = controls();
     let mut forest = Forest::new(&controls).expect("forest");

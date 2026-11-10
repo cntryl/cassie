@@ -20,7 +20,7 @@ fn contains() -> BinaryOp {
 }
 
 #[test]
-fn should_match_legacy_string_containment_and_error_positions() {
+fn should_match_legacy_string_containment_with_error_positions() {
     // Arrange
     let cases = [
         (r#""a""#, r#""\u0061""#),
@@ -39,6 +39,7 @@ fn should_match_legacy_string_containment_and_error_positions() {
         let actual = evaluate_with_controls(&contains(), &left, &right, Some(&controls))
             .map_err(|error| error.to_string());
         match (legacy, actual) {
+            // Assert
             (Ok(ScalarValue::Bool(a)), Ok(ScalarValue::Bool(b))) => assert_eq!(a, b),
             (Err(a), Err(b)) => assert_eq!(a, b),
             _ => panic!("containment parity"),
@@ -48,7 +49,7 @@ fn should_match_legacy_string_containment_and_error_positions() {
 }
 
 #[test]
-fn should_release_string_owners_after_actual_copy_and_comparison_cancellation() {
+fn should_release_string_owners_after_actual_copy_with_comparison_cancellation() {
     // Arrange
     for during_compare in [false, true] {
         let cancel = QueryCancellationHandle::new();
@@ -78,6 +79,7 @@ fn should_admit_the_measured_string_comparison_overlap() {
     let baseline = controls(10 * 1024 * 1024);
     let result = evaluate_with_controls(&contains(), &candidate, &candidate, Some(&baseline))
         .expect("baseline");
+    // Assert
     assert!(matches!(result, ScalarValue::Bool(true)));
     let peak = baseline.peak_query_memory_bytes();
     assert_eq!(baseline.current_query_memory_bytes(), 0);

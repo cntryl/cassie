@@ -63,7 +63,7 @@ fn run(name: &str, direction: &str, rows: &[BatchRow], params: &[Value]) -> Valu
 }
 
 #[test]
-fn should_preserve_discrete_string_array_order_filter_and_original_values() {
+fn should_preserve_discrete_string_array_order_filter_with_original_values() {
     // Arrange
     let rows = [
         row(Value::String("c".into()), true),
@@ -74,6 +74,7 @@ fn should_preserve_discrete_string_array_order_filter_and_original_values() {
     let params = fractions(vec![Value::Float64(0.0), Value::Null, Value::Float64(1.0)]);
 
     // Act / Assert
+    // Assert
     assert_eq!(
         run("percentile_disc", "ASC", &rows, &params),
         Value::Json(serde_json::json!(["a", null, "c"]))
@@ -101,7 +102,7 @@ fn should_preserve_discrete_string_array_order_filter_and_original_values() {
 }
 
 #[test]
-fn should_preserve_discrete_array_fallback_and_null_fraction_paths() {
+fn should_preserve_discrete_array_fallback_with_null_fraction_paths() {
     // Arrange
     let rows = [row(Value::Int64(1), true), row(Value::Int64(2), true)];
     let mixed = [
@@ -113,6 +114,7 @@ fn should_preserve_discrete_array_fallback_and_null_fraction_paths() {
     let empty = fractions(vec![]);
 
     // Act / Assert
+    // Assert
     assert_eq!(
         run("percentile_disc", "ASC", &rows, &params),
         Value::Json(serde_json::json!([1, 2]))
@@ -136,7 +138,7 @@ fn should_preserve_discrete_array_fallback_and_null_fraction_paths() {
 }
 
 #[test]
-fn should_retain_discrete_string_array_through_aliases_and_last_row_clone() {
+fn should_retain_discrete_string_array_through_aliases_with_last_row_clone() {
     // Arrange
     let plan = plan("percentile_disc", "ASC");
     let specs = super::super::aggregate_specs(&plan);
@@ -259,9 +261,10 @@ fn run_with_budget(budget: usize) -> (bool, usize) {
 }
 
 #[test]
-fn should_admit_string_array_result_and_aliases_at_measured_peak() {
+fn should_admit_string_array_result_with_aliases_at_measured_peak() {
     // Arrange
     let (success, peak) = run_with_budget(1_000_000);
+    // Assert
     assert!(success && peak > 0);
 
     // Act / Assert

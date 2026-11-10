@@ -16,7 +16,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_legacy_scalar_conversion_for_escapes_and_float_boundaries() {
+fn should_match_legacy_scalar_conversion_for_escapes_with_float_boundaries() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let values = [
@@ -42,6 +42,7 @@ fn should_match_legacy_scalar_conversion_for_escapes_and_float_boundaries() {
         let actual = OwnedOperand::convert(value, &controls).map_err(|error| error.to_string());
         match (expected, actual) {
             (Ok(ScalarValue::Json(a)), Ok(actual)) => {
+                // Assert
                 assert!(matches!(actual.value(), ScalarValue::Json(b) if &a == b));
             }
             (Ok(ScalarValue::Null), Ok(actual)) => {
@@ -166,6 +167,7 @@ fn should_retain_both_converted_operands_at_the_measured_peak() {
     let peak = baseline.peak_query_memory_bytes();
     drop(second);
     drop(first);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {

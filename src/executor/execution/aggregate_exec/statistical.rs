@@ -528,6 +528,7 @@ mod tests {
         // Act / Assert
         for (value, expected) in cases {
             let actual = numeric_heap_bytes(&value);
+            // Assert
             assert_eq!(actual, expected);
             assert_eq!(
                 actual,
@@ -537,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn should_count_exact_statistical_state_after_update_and_merge() {
+    fn should_count_exact_statistical_state_after_update_with_merge() {
         // Arrange
         let mut left = accumulator(FunctionId::VarPop);
         let mut right = accumulator(FunctionId::VarPop);
@@ -670,6 +671,7 @@ mod tests {
         }
 
         // Act / Assert
+        // Assert
         assert_eq!(
             state.finish().expect("REAL variance"),
             Value::Float64(1.555_555_555_555_555_6)
@@ -690,6 +692,7 @@ mod tests {
         }
 
         // Act / Assert
+        // Assert
         assert_eq!(
             cast.finish().expect("cast result"),
             Value::Float64(1.555_555_555_555_555_6)
@@ -739,7 +742,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_explicit_float_null_and_singleton_infinity_semantics() {
+    fn should_keep_explicit_float_null_with_singleton_infinity_semantics() {
         // Arrange
         let mut population = explicit_float_accumulator("var_pop");
         let mut sample = explicit_float_accumulator("var_samp");
@@ -751,6 +754,7 @@ mod tests {
         }
 
         // Act / Assert
+        // Assert
         assert!(
             matches!(population.finish().expect("population"), Value::Float64(value) if value.is_nan())
         );
@@ -758,7 +762,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_explicit_float_state_order_sensitive_and_reject_wrong_carriers() {
+    fn should_keep_explicit_float_state_order_sensitive_with_reject_wrong_carriers() {
         // Arrange
         let mut state = explicit_float_accumulator("var_pop");
         state

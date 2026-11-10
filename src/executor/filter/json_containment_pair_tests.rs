@@ -30,7 +30,7 @@ fn should_release_pair_after_cancellation_at_actual_raw_pair_handoff() {
 }
 
 #[test]
-fn should_preserve_array_scalar_pair_success_and_nested_decode_error() {
+fn should_preserve_array_scalar_pair_success_with_nested_decode_error() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

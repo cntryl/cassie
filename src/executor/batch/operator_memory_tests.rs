@@ -131,7 +131,7 @@ fn should_hold_operator_parents_through_public_row_materialization() {
 }
 
 #[test]
-fn should_keep_outer_parent_and_operator_lease_until_last_row_clone_drops() {
+fn should_keep_outer_parent_with_operator_lease_until_last_row_clone_drops() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

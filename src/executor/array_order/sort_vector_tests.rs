@@ -30,7 +30,7 @@ fn fixture(values: Vec<f32>) -> (Value, DataType) {
 }
 
 #[test]
-fn should_cover_wide_vector_expansion_and_match_legacy_key() {
+fn should_cover_wide_vector_expansion_with_match_legacy_key() {
     // Arrange
     let (value, data_type) = fixture(vec![1.0; 4096]);
     let controls = controls(1_000_000, QueryCancellationHandle::new());
@@ -57,7 +57,7 @@ fn should_cover_wide_vector_expansion_and_match_legacy_key() {
 }
 
 #[test]
-fn should_preserve_special_floats_nulls_and_shape() {
+fn should_preserve_special_floats_nulls_with_shape() {
     // Arrange
     let (value, data_type) = fixture(vec![0.0, -0.0, f32::INFINITY, f32::NEG_INFINITY, f32::NAN]);
     let controls = controls(1_000_000, QueryCancellationHandle::new());
@@ -75,7 +75,7 @@ fn should_preserve_special_floats_nulls_and_shape() {
 }
 
 #[test]
-fn should_cancel_after_an_actual_component_and_release_reservation() {
+fn should_cancel_after_an_actual_component_with_release_reservation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = controls(1_000_000, cancellation.clone());
@@ -107,6 +107,7 @@ fn should_leave_other_array_shapes_on_the_existing_path() {
     let (value, data_type) = fixture(vec![1.0]);
     let other = Value::Array(SqlArray::from_elements(vec![Value::Int64(1)]).expect("array"));
     // Act / Assert
+    // Assert
     assert!(bound(&value, None, &controls)
         .expect("inferred fallback")
         .is_none());

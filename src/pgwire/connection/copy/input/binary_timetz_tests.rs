@@ -9,7 +9,7 @@ fn frame(time: i64, zone: i32) -> Vec<u8> {
 }
 
 #[test]
-fn should_match_binary_timetz_output_and_error_precedence() {
+fn should_match_binary_timetz_output_with_error_precedence() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -32,6 +32,7 @@ fn should_match_binary_timetz_output_and_error_precedence() {
         let (actual, memory) = super::decode(1266, &bytes, 0, &controls)
             .expect("decode")
             .expect("handled");
+        // Assert
         assert_eq!(actual, expected, "time {time} zone {zone}");
         drop((actual, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -49,7 +50,7 @@ fn should_match_binary_timetz_output_and_error_precedence() {
 }
 
 #[test]
-fn should_enforce_binary_timetz_overlap_budget_and_cancellation() {
+fn should_enforce_binary_timetz_overlap_budget_with_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 23,

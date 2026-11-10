@@ -17,7 +17,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_legacy_jsonb_order_for_ranks_objects_numbers_and_sentinels() {
+fn should_match_legacy_jsonb_order_for_ranks_objects_numbers_with_sentinels() {
     // Arrange
     let cases = [
         ("[]", "null"),
@@ -34,7 +34,7 @@ fn should_match_legacy_jsonb_order_for_ranks_objects_numbers_and_sentinels() {
         ("999.1", "1000"),
         ("[1e9999999999]", "[true]"),
         ("[1e9999999999]", "[1]"),
-        ("null", "[}"),
+        ("null", "[\u{7d}"),
         ("100e-2", "1"),
         ("18446744073709551615", "18446744073709551616"),
         (r#"{"$serde_json::private::Number":"7"}"#, "7"),
@@ -44,11 +44,12 @@ fn should_match_legacy_jsonb_order_for_ranks_objects_numbers_and_sentinels() {
         ),
         (r#"{"a":1e9999999999}"#, r#"{"b":0}"#),
         ("1e131072", "1"),
-        ("[}", "{}"),
+        ("[\u{7d}", "{}"),
     ];
     let controls = controls(100 * 1024 * 1024);
-    // Act / Assert
+    // Act
     for (left, right) in cases {
+        // Assert
         assert_eq!(
             compare_controlled(left, right, &controls).expect("controlled"),
             compare(left, right),
@@ -59,10 +60,11 @@ fn should_match_legacy_jsonb_order_for_ranks_objects_numbers_and_sentinels() {
 }
 
 #[test]
-fn should_preserve_null_and_invalid_input_comparison_behavior() {
+fn should_preserve_null_with_invalid_input_comparison_behavior() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     // Act / Assert
+    // Assert
     assert!(matches!(
         evaluate_controlled(
             &ScalarValue::Null,
@@ -82,7 +84,7 @@ fn should_preserve_null_and_invalid_input_comparison_behavior() {
         Ok(ScalarValue::Bool(true))
     ));
     assert!(evaluate_controlled(
-        &ScalarValue::Json("[}".into()),
+        &ScalarValue::Json("[\u{7d}".into()),
         RowComparisonOp::Eq,
         &ScalarValue::Json("1".into()),
         &controls
@@ -92,7 +94,7 @@ fn should_preserve_null_and_invalid_input_comparison_behavior() {
 }
 
 #[test]
-fn should_release_arena_after_actual_comparison_and_frame_move_cancellation() {
+fn should_release_arena_after_actual_comparison_with_frame_move_cancellation() {
     // Arrange
     for frames in [false, true] {
         let cancel = QueryCancellationHandle::new();
@@ -120,10 +122,11 @@ fn should_release_arena_after_actual_comparison_and_frame_move_cancellation() {
 }
 
 #[test]
-fn should_admit_exact_comparison_peak_and_release_all_owners() {
+fn should_admit_exact_comparison_peak_with_release_all_owners() {
     // Arrange
     let value = r#"{"a":[{"x":1},{"y":"payload"}]}"#;
     let baseline = controls(10 * 1024 * 1024);
+    // Assert
     assert!(compare_controlled(value, value, &baseline)
         .expect("baseline")
         .is_some());

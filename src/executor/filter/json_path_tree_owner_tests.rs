@@ -22,7 +22,7 @@ fn arguments() -> [Value; 2] {
 }
 
 #[test]
-fn should_retain_existing_jsonpath_tree_lease_for_array_and_first_variants() {
+fn should_retain_existing_jsonpath_tree_lease_for_array_with_first_variants() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -39,6 +39,7 @@ fn should_retain_existing_jsonpath_tree_lease_for_array_and_first_variants() {
         let result = evaluate(name, &arguments(), Some(&controls), Some(&owner))
             .expect("selected")
             .expect("result");
+        // Assert
         assert_eq!(result, expected);
         assert!(matches!(result, Value::Json(_)));
         assert!(owner.bytes() > 0);
@@ -151,7 +152,7 @@ fn should_not_transfer_for_missing_null_boolean_or_ownerless_results() {
 }
 
 #[test]
-fn should_release_tree_after_post_result_cancel_and_reject_foreign_owner() {
+fn should_release_tree_after_post_result_cancel_with_reject_foreign_owner() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let run_controls = QueryExecutionControls::with_cancellation(
@@ -205,6 +206,7 @@ fn should_admit_measured_jsonpath_tree_workspace_peak() {
     let peak = baseline.peak_query_memory_bytes();
     drop(result);
     drop(owner);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -272,6 +274,7 @@ fn should_grow_existing_tree_lease_to_the_retained_estimate_or_release_it() {
         crate::runtime::accounted::json::tree_estimate::estimate(&json, &probe).expect("scratch");
     let scratch = probe.peak_query_memory_bytes();
     let budget = scratch + 1;
+    // Assert
     assert!(budget < expected);
     // Act / Assert
     for (limit, succeeds) in [(10 * 1024 * 1024, true), (budget, false)] {
@@ -301,7 +304,7 @@ fn should_grow_existing_tree_lease_to_the_retained_estimate_or_release_it() {
 }
 
 #[test]
-fn should_release_the_tree_and_workspace_after_actual_estimator_move_cancellation() {
+fn should_release_the_tree_with_workspace_after_actual_estimator_move_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

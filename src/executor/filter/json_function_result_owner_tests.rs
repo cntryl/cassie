@@ -16,7 +16,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_preserve_function_result_variants_and_scalar_errors() {
+fn should_preserve_function_result_variants_with_scalar_errors() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -52,6 +52,7 @@ fn should_preserve_function_result_variants_and_scalar_errors() {
         let actual = function_json_result(value, context).map_err(|error| error.to_string());
         match (expected, actual) {
             (Ok(ScalarValue::Json(a)), Ok(ScalarValue::Json(b))) | (Err(a), Err(b)) => {
+                // Assert
                 assert_eq!(a, b);
             }
             (Ok(ScalarValue::Null), Ok(ScalarValue::Null)) => {}
@@ -63,7 +64,7 @@ fn should_preserve_function_result_variants_and_scalar_errors() {
 }
 
 #[test]
-fn should_retain_builtin_jsonpath_result_and_call_function_once() {
+fn should_retain_builtin_jsonpath_result_with_call_function_once() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -99,7 +100,7 @@ fn should_retain_builtin_jsonpath_result_and_call_function_once() {
 }
 
 #[test]
-fn should_preserve_user_json_function_and_null_or_error_once() {
+fn should_preserve_user_json_function_with_null_or_error_once() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let row = BatchRow::new(vec![]);
@@ -150,7 +151,7 @@ fn should_preserve_user_json_function_and_null_or_error_once() {
 }
 
 #[test]
-fn should_cancel_during_actual_builtin_result_copy_and_release_owners() {
+fn should_cancel_during_actual_builtin_result_copy_with_release_owners() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -188,7 +189,7 @@ fn should_cancel_during_actual_builtin_result_copy_and_release_owners() {
 }
 
 #[test]
-fn should_keep_function_general_owner_and_ownerless_fallbacks() {
+fn should_keep_function_general_owner_with_ownerless_fallbacks() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let general = EvaluationMemory::new(&controls).expect("general");
@@ -221,6 +222,7 @@ fn should_keep_function_general_owner_and_ownerless_fallbacks() {
     ] {
         let result =
             function_json_result(Value::Json(serde_json::json!({"a":1})), context).expect("result");
+        // Assert
         assert!(matches!(result, ScalarValue::Json(text) if text == r#"{"a":1}"#));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -248,6 +250,7 @@ fn should_admit_measured_function_result_output_overlap() {
     let peak = baseline.peak_query_memory_bytes();
     drop(result);
     drop(owner);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {

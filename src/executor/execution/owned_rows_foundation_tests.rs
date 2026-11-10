@@ -45,7 +45,7 @@ fn should_retain_empty_allocated_directory_until_owner_drops() {
 }
 
 #[test]
-fn should_reject_foreign_tracker_and_undercovered_directory() {
+fn should_reject_foreign_tracker_with_undercovered_directory() {
     // Arrange
     let source = controls(1024 * 1024);
     let other = controls(1024 * 1024);
@@ -65,7 +65,7 @@ fn should_reject_foreign_tracker_and_undercovered_directory() {
 }
 
 #[test]
-fn should_retain_source_iterator_on_partial_move_and_cancellation() {
+fn should_retain_source_iterator_on_partial_move_with_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -127,7 +127,7 @@ fn should_overlap_independently_admitted_destination_until_input_iterator_drops(
 }
 
 #[test]
-fn should_enforce_exact_and_below_source_destination_overlap() {
+fn should_enforce_exact_with_below_source_destination_overlap() {
     // Arrange
     let slot = std::mem::size_of::<BatchRow>();
     let required = 5 * slot;

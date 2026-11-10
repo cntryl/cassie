@@ -73,6 +73,7 @@ fn should_preserve_postgres_interval_writer_for_signed_extremes() {
         };
         let mut output = String::new();
         interval.format_postgres_to(&mut output).expect("format");
+        // Assert
         assert_eq!(output, prior_postgres(&interval));
     }
 }

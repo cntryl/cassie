@@ -87,7 +87,7 @@ fn should_reject_foreign_accumulator_reservation_before_absorbing() {
 }
 
 #[test]
-fn should_admit_accumulator_and_output_overlap_at_exact_budget() {
+fn should_admit_accumulator_with_output_overlap_at_exact_budget() {
     // Arrange
     let baseline = controls_with_budget(8192);
     let memory = baseline.reserve_query_memory(128).expect("accumulator");

@@ -84,6 +84,7 @@ fn should_retain_workspace_for_selected_json_builder_variants() {
         let output = evaluate(&function, &row, &values, context)
             .expect("selected")
             .expect("output");
+        // Assert
         assert!(matches!(output, Value::String(_)));
         assert!(controls.current_query_memory_bytes() > 0);
     }
@@ -177,7 +178,7 @@ fn should_release_completed_builder_output_after_cancellation_before_transfer() 
 }
 
 #[test]
-fn should_leave_general_and_ownerless_paths_unchanged_and_reject_foreign_owner() {
+fn should_leave_general_with_ownerless_paths_unchanged_with_reject_foreign_owner() {
     // Arrange
     let owner_controls = controls(10 * 1024 * 1024);
     let foreign = controls(10 * 1024 * 1024);
@@ -214,6 +215,7 @@ fn should_leave_general_and_ownerless_paths_unchanged_and_reject_foreign_owner()
             Some(&owner_controls),
         )
         .expect("fallback");
+        // Assert
         assert!(matches!(result, Value::String(_)));
         assert_eq!(owner.bytes(), 0);
         assert_eq!(owner_controls.current_query_memory_bytes(), 0);
@@ -236,7 +238,7 @@ fn should_leave_general_and_ownerless_paths_unchanged_and_reject_foreign_owner()
 }
 
 #[test]
-fn should_preserve_builder_null_and_error_cleanup() {
+fn should_preserve_builder_null_with_error_cleanup() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");

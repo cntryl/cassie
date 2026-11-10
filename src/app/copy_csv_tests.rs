@@ -16,7 +16,7 @@ fn options<'a>() -> CopyCsvOptions<'a> {
 }
 
 #[test]
-fn should_admit_csv_quoted_null_empty_and_newline_fields() {
+fn should_admit_csv_quoted_null_empty_with_newline_fields() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -69,7 +69,7 @@ fn should_preserve_embedded_empty_unquoted_null_policy() {
 }
 
 #[test]
-fn should_preserve_unicode_force_null_and_not_null_controls() {
+fn should_preserve_unicode_force_null_with_not_null_controls() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

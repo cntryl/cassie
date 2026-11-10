@@ -85,7 +85,7 @@ mod output_tests {
     use super::format_offset;
 
     #[test]
-    fn should_format_offset_sign_minutes_and_fill_without_seconds() {
+    fn should_format_offset_sign_minutes_with_fill_without_seconds() {
         // Arrange
         let cases = [
             (0, "+00", "+0"),

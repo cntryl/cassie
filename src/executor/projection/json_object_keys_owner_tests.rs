@@ -4,7 +4,7 @@ use crate::runtime::QueryExecutionControls;
 use std::time::Instant;
 
 #[test]
-fn should_retain_owned_object_keys_through_projection_expansion_and_last_row() {
+fn should_retain_owned_object_keys_through_projection_expansion_with_last_row() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -120,6 +120,7 @@ fn should_select_only_the_existing_single_bare_object_keys_projection() {
         let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
             panic!("SELECT")
         };
+        // Assert
         assert_eq!(
             json_object_keys::requires_owner(&select.projection),
             expected,
@@ -191,7 +192,7 @@ fn expansion_fixture(keys: serde_json::Value) -> (Vec<Batch>, Vec<crate::sql::as
 }
 
 #[test]
-fn should_release_prepared_object_key_rows_after_actual_copy_directory_and_slot_cancellation() {
+fn should_release_prepared_object_key_rows_after_actual_copy_directory_with_slot_cancellation() {
     // Arrange
     for stage in 0..4 {
         let cancel = crate::runtime::QueryCancellationHandle::new();
@@ -213,7 +214,7 @@ fn should_release_prepared_object_key_rows_after_actual_copy_directory_and_slot_
 }
 
 #[test]
-fn should_preserve_expanded_alias_unicode_order_and_last_row_owner() {
+fn should_preserve_expanded_alias_unicode_order_with_last_row_owner() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -237,7 +238,7 @@ fn should_preserve_expanded_alias_unicode_order_and_last_row_owner() {
 }
 
 #[test]
-fn should_preserve_null_and_nontext_error_order_while_releasing_partial_expansion() {
+fn should_preserve_null_with_nontext_error_order_while_releasing_partial_expansion() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -263,6 +264,7 @@ fn should_enforce_measured_prepared_expansion_peak() {
     let result = json_object_keys::expand(batches, &projection, &baseline).expect("baseline");
     let peak = baseline.peak_query_memory_bytes();
     drop(result);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -305,7 +307,7 @@ fn should_retain_source_lease_until_independent_expanded_rows_exist() {
 }
 
 #[test]
-fn should_keep_typed_source_query_and_operator_parents_through_last_expanded_clone() {
+fn should_keep_typed_source_query_with_operator_parents_through_last_expanded_clone() {
     // Arrange
     for mode in 0..3 {
         let controls =
@@ -382,7 +384,7 @@ fn should_retain_foreign_typed_source_owners_without_absorbing_them() {
 }
 
 #[test]
-fn should_release_all_parent_and_output_owners_after_actual_first_attachment_cancellation() {
+fn should_release_all_parent_with_output_owners_after_actual_first_attachment_cancellation() {
     // Arrange
     let cancel = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -406,7 +408,7 @@ fn should_release_all_parent_and_output_owners_after_actual_first_attachment_can
 }
 
 #[test]
-fn should_release_empty_and_foreign_output_reservations() {
+fn should_release_empty_with_foreign_output_reservations() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -430,7 +432,7 @@ fn should_release_empty_and_foreign_output_reservations() {
 }
 
 #[test]
-fn should_release_replacement_rows_and_source_after_actual_move_and_reverse_cancellation() {
+fn should_release_replacement_rows_with_source_after_actual_move_with_reverse_cancellation() {
     // Arrange
     for stage in [4, 5] {
         let cancel = crate::runtime::QueryCancellationHandle::new();
@@ -475,6 +477,7 @@ fn should_enforce_measured_replacement_directory_overlap() {
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         let (batches, projection) = make();
         let result = json_object_keys::expand(batches, &projection, &controls);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(result);
         assert_eq!(controls.current_query_memory_bytes(), 0);

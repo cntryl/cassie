@@ -13,7 +13,7 @@ fn controls(cancel: QueryCancellationHandle) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_legacy_flat_brace_values_and_errors() {
+fn should_match_legacy_flat_brace_values_with_errors() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let inputs = [
@@ -62,18 +62,19 @@ fn should_release_a_partial_element_after_actual_copy_cancellation() {
 }
 
 #[test]
-fn should_leave_nested_multidimensional_and_json_array_forms_on_the_existing_path() {
+fn should_leave_nested_multidimensional_with_json_array_forms_on_the_existing_path() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     // Act / Assert
     for input in ["{{a},{b}}", "[0:1][1:1]={{a},{b}}", r#"["a",null]"#] {
+        // Assert
         assert!(parse(input, &controls).expect("probe").is_none());
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
 
 #[test]
-fn should_release_old_and_new_value_directories_after_actual_move_cancellation() {
+fn should_release_old_with_new_value_directories_after_actual_move_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = controls(cancel.clone());
@@ -92,12 +93,13 @@ fn should_release_old_and_new_value_directories_after_actual_move_cancellation()
 }
 
 #[test]
-fn should_enforce_measured_path_directory_and_string_overlap() {
+fn should_enforce_measured_path_directory_with_string_overlap() {
     // Arrange
     let input = r#"{"alpha","beta",NULL,"delta","epsilon"}"#;
     let baseline = controls(QueryCancellationHandle::new());
     let path = parse(input, &baseline).expect("probe").expect("path");
     let peak = baseline.peak_query_memory_bytes();
+    // Assert
     assert!(baseline.current_query_memory_bytes() > 0);
     drop(path);
     // Act / Assert
@@ -190,7 +192,7 @@ fn should_validate_flat_path_before_rejecting_a_scalar_document() {
 }
 
 #[test]
-fn should_preserve_empty_and_null_flat_path_semantics() {
+fn should_preserve_empty_with_null_flat_path_semantics() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
@@ -208,6 +210,7 @@ fn should_preserve_empty_and_null_flat_path_semantics() {
             .map_err(|error| error.to_string());
         match (actual, expected) {
             (Ok(ScalarValue::Json(actual)), Ok(ScalarValue::Json(expected))) => {
+                // Assert
                 assert_eq!(actual, expected);
             }
             (Err(actual), Err(expected)) => assert_eq!(actual, expected),
@@ -237,7 +240,7 @@ fn should_release_the_parsed_path_when_cancelled_before_rendering() {
 }
 
 #[test]
-fn should_enforce_the_measured_parsed_path_and_output_overlap_budget() {
+fn should_enforce_the_measured_parsed_path_with_output_overlap_budget() {
     // Arrange
     let left = ScalarValue::Json(r#"{"a":{"b":1,"keep":2}}"#.into());
     let right = ScalarValue::Str("{a,b}".into());
@@ -257,6 +260,7 @@ fn should_enforce_the_measured_parsed_path_and_output_overlap_budget() {
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
         let result = json_delete::controlled_path(&left, &right, &controls, &owner);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(result);
         drop(owner);
@@ -265,7 +269,7 @@ fn should_enforce_the_measured_parsed_path_and_output_overlap_budget() {
 }
 
 #[test]
-fn should_transfer_json_array_key_operand_and_result_owners() {
+fn should_transfer_json_array_key_operand_with_result_owners() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
@@ -318,7 +322,7 @@ fn should_release_the_json_array_arena_when_cancelled_before_rendering() {
 }
 
 #[test]
-fn should_enforce_the_json_array_arena_and_output_overlap_budget() {
+fn should_enforce_the_json_array_arena_with_output_overlap_budget() {
     // Arrange
     let left = ScalarValue::Json(r#"{"a":{"b":1,"keep":2}}"#.into());
     let right = ScalarValue::Str(r#"["a","b"]"#.into());
@@ -328,6 +332,7 @@ fn should_enforce_the_json_array_arena_and_output_overlap_budget() {
     let peak = baseline.peak_query_memory_bytes();
     drop(result);
     drop(owner);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -347,7 +352,7 @@ fn should_enforce_the_json_array_arena_and_output_overlap_budget() {
 }
 
 #[test]
-fn should_preserve_json_array_path_null_error_and_empty_root_order() {
+fn should_preserve_json_array_path_null_error_with_empty_root_order() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let owner = crate::executor::filter::EvaluationMemory::new(&controls).expect("owner");
@@ -365,6 +370,7 @@ fn should_preserve_json_array_path_null_error_and_empty_root_order() {
             .map_err(|error| error.to_string());
         match (actual, expected) {
             (Ok(ScalarValue::Json(actual)), Ok(ScalarValue::Json(expected))) => {
+                // Assert
                 assert_eq!(actual, expected);
             }
             (Err(actual), Err(expected)) => assert_eq!(actual, expected),
@@ -395,7 +401,7 @@ fn should_release_extraction_path_after_actual_parse_before_selection() {
 }
 
 #[test]
-fn should_enforce_measured_extraction_path_and_output_overlap_budget() {
+fn should_enforce_measured_extraction_path_with_output_overlap_budget() {
     // Arrange
     let document = ScalarValue::Json(r#"{"a":{"b":"payload"}}"#.into());
     let path = ScalarValue::Str(r#"["a","b"]"#.into());
@@ -407,6 +413,7 @@ fn should_enforce_measured_extraction_path_and_output_overlap_budget() {
     let peak = baseline.peak_query_memory_bytes();
     drop(value);
     drop(owner);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -428,7 +435,7 @@ fn should_enforce_measured_extraction_path_and_output_overlap_budget() {
 }
 
 #[test]
-fn should_match_legacy_single_dimension_paths_and_leave_invalid_forms_to_fallback() {
+fn should_match_legacy_single_dimension_paths_with_leave_invalid_forms_to_fallback() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let valid = [
@@ -454,6 +461,7 @@ fn should_match_legacy_single_dimension_paths_and_leave_invalid_forms_to_fallbac
     for input in valid {
         let expected = json_delete::text_array(&ScalarValue::Str(input.into())).expect("legacy");
         let actual = parse(input, &controls).expect("parse").expect("owned");
+        // Assert
         assert_eq!(actual.values(), expected.as_slice(), "{input:?}");
         drop(actual);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -468,7 +476,7 @@ fn should_match_legacy_single_dimension_paths_and_leave_invalid_forms_to_fallbac
 }
 
 #[test]
-fn should_release_prefix_and_path_owners_after_actual_dimension_scan_cancellation() {
+fn should_release_prefix_with_path_owners_after_actual_dimension_scan_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = controls(cancel.clone());
@@ -503,6 +511,7 @@ fn should_enforce_dimension_path_owner_overlap_budget() {
         };
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         let result = parse(input, &controls);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(result);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -529,7 +538,7 @@ fn should_transfer_dimensioned_deletion_path_through_the_expression_owner() {
 }
 
 #[test]
-fn should_handoff_dimensioned_extraction_and_existence_operands() {
+fn should_handoff_dimensioned_extraction_with_existence_operands() {
     // Arrange
     use crate::executor::filter::{json_key_exists, BinaryOp};
     let controls = controls(QueryCancellationHandle::new());

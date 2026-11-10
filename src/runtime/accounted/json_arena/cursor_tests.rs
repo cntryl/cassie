@@ -10,12 +10,13 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_track_consumed_and_peek_positions_as_utf8_bytes() {
+fn should_track_consumed_with_peek_positions_as_utf8_bytes() {
     // Arrange
     let controls = controls();
     let mut cursor = Cursor::from_str("a\né", &controls);
 
     // Act / Assert
+    // Assert
     assert_eq!(
         cursor.position(),
         Position {
@@ -83,9 +84,10 @@ fn should_skip_only_json_whitespace() {
 fn should_validate_full_binary_utf8_before_exposing_cursor() {
     // Arrange
     let controls = controls();
-    let invalid_syntax_then_invalid_utf8 = b"{x\xff";
+    let invalid_syntax_then_invalid_utf8 = b"\x7bx\xff";
 
     // Act / Assert
+    // Assert
     assert!(matches!(
         Cursor::from_bytes(invalid_syntax_then_invalid_utf8, &controls),
         Err(CursorError::InvalidUtf8)
@@ -119,7 +121,7 @@ fn should_validate_utf8_that_crosses_a_validation_chunk_boundary() {
 }
 
 #[test]
-fn should_validate_each_multibyte_split_and_reject_invalid_continuations() {
+fn should_validate_each_multibyte_split_with_reject_invalid_continuations() {
     // Arrange
     let controls = controls();
 
@@ -128,6 +130,7 @@ fn should_validate_each_multibyte_split_and_reject_invalid_continuations() {
         for split in 1..scalar.len() {
             let mut bytes = vec![b'x'; 1024 - split];
             bytes.extend_from_slice(scalar.as_bytes());
+            // Assert
             assert!(
                 Cursor::from_bytes(&bytes, &controls).is_ok(),
                 "{scalar} split {split}"
@@ -148,13 +151,14 @@ fn should_validate_each_multibyte_split_and_reject_invalid_continuations() {
 }
 
 #[test]
-fn should_cap_peek_position_at_empty_and_newline_end_of_input() {
+fn should_cap_peek_position_at_empty_with_newline_end_of_input() {
     // Arrange
     let controls = controls();
     let empty = Cursor::from_str("", &controls);
     let mut newline = Cursor::from_str("\n", &controls);
 
     // Act / Assert
+    // Assert
     assert_eq!(
         empty.peek_position().expect("empty"),
         Position {

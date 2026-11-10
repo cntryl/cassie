@@ -24,7 +24,7 @@ fn op(reverse: bool) -> BinaryOp {
 }
 
 #[test]
-fn should_match_legacy_nested_object_order_errors_and_duplicates() {
+fn should_match_legacy_nested_object_order_errors_with_duplicates() {
     // Arrange
     let cases = [
         (r#"[{"z":1e9999999999}]"#, r#"[{"z":1e9999999999,"aa":1}]"#),
@@ -45,6 +45,7 @@ fn should_match_legacy_nested_object_order_errors_and_duplicates() {
             let actual = evaluate_with_controls(&op(reverse), &left, &right, Some(&controls))
                 .map_err(|error| error.to_string());
             match (legacy, actual) {
+                // Assert
                 (Ok(ScalarValue::Bool(a)), Ok(ScalarValue::Bool(b))) => assert_eq!(a, b),
                 (Err(a), Err(b)) => assert_eq!(a, b),
                 _ => panic!("containment parity"),
@@ -95,6 +96,7 @@ fn should_admit_measured_nested_object_overlap() {
     // Arrange
     let value = ScalarValue::Json(r#"[{"z":1,"aa":2}]"#.into());
     let baseline = controls(10 * 1024 * 1024);
+    // Assert
     assert!(matches!(
         evaluate_with_controls(&op(false), &value, &value, Some(&baseline)),
         Ok(ScalarValue::Bool(true))

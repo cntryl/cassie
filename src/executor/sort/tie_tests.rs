@@ -69,7 +69,7 @@ fn should_match_existing_tie_text_for_supported_value_families() {
 }
 
 #[test]
-fn should_preserve_wrapping_prefix_and_nested_json_for_public_edge_shapes() {
+fn should_preserve_wrapping_prefix_with_nested_json_for_public_edge_shapes() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -157,6 +157,7 @@ fn should_stop_stride_at_zero_before_unreachable_negative_or_overflow() {
         },
     ];
     // Act / Assert
+    // Assert
     assert_eq!(
         array_stride(&zero_then_negative, &controls).expect("zero first"),
         0
@@ -195,7 +196,7 @@ fn should_visit_nested_array_stride_dimensions_only_linearly() {
 }
 
 #[test]
-fn should_preserve_empty_and_rank_one_array_ties() {
+fn should_preserve_empty_with_rank_one_array_ties() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

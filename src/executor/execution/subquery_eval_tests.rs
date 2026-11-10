@@ -43,7 +43,7 @@ fn should_check_scalar_cardinality_before_destination_budget() {
 }
 
 #[test]
-fn should_admit_both_directories_and_release_the_result_owner() {
+fn should_admit_both_directories_with_release_the_result_owner() {
     // Arrange
     let controls = make_controls(4096, QueryCancellationHandle::new());
     let rows = vec![row(Value::String("hello".into())), row(Value::Int64(9))];
@@ -110,7 +110,7 @@ fn should_hold_both_source_owners_through_the_actual_move() {
 }
 
 #[test]
-fn should_require_source_and_destination_admission_to_overlap() {
+fn should_require_source_with_destination_admission_to_overlap() {
     // Arrange
     let controls = make_controls(8192, QueryCancellationHandle::new());
     let source = Arc::new(controls.reserve_query_memory(128).expect("source owner"));
@@ -144,7 +144,7 @@ fn should_require_source_and_destination_admission_to_overlap() {
 }
 
 #[test]
-fn should_release_destination_and_source_owners_on_move_cancellation_and_width_error() {
+fn should_release_destination_with_source_owners_on_move_cancellation_with_width_error() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = make_controls(8192, cancellation.clone());
@@ -192,6 +192,7 @@ fn should_treat_float_power_range_failures_as_non_interruptions() {
 
     // Act / Assert
     for error in &errors {
+        // Assert
         assert!(!is_interruption(error));
     }
     assert!(is_interruption(&QueryError::Cassie(

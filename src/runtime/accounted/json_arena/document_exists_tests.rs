@@ -62,6 +62,7 @@ fn should_enforce_the_measured_value_arena_overlap_budget() {
     let value = parse(document, &baseline)
         .expect("parse")
         .expect("document");
+    // Assert
     assert!(value.contains("a").expect("lookup"));
     let peak = baseline.peak_query_memory_bytes();
     drop(value);

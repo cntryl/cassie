@@ -5,7 +5,7 @@ use crate::runtime::QueryCancellationHandle;
 use std::time::Instant;
 
 #[test]
-fn should_cancel_actual_index_initialization_inverse_and_inner_swaps() {
+fn should_cancel_actual_index_initialization_inverse_with_inner_swaps() {
     // Arrange
     for boundary in [
         SortProgress::Initialize,

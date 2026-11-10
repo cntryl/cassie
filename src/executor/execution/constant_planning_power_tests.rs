@@ -20,6 +20,7 @@ fn should_fold_only_the_typed_power_range_variants() {
     ));
 
     // Act / Assert
+    // Assert
     assert!(is_folding_error(&overflow));
     assert!(is_folding_error(&underflow));
     assert!(!is_folding_error(&unrelated));

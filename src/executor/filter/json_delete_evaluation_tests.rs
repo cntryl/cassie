@@ -107,7 +107,7 @@ fn should_release_the_per_row_deletion_owner_after_filtering() {
 }
 
 #[test]
-fn should_reject_a_foreign_owner_and_release_the_new_output() {
+fn should_reject_a_foreign_owner_with_release_the_new_output() {
     // Arrange
     let first =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -264,7 +264,7 @@ fn should_keep_dynamic_json_subtraction_owned_with_or_without_a_json_column_type
 }
 
 #[test]
-fn should_route_a_typed_json_column_and_native_path_through_the_owner() {
+fn should_route_a_typed_json_column_with_native_path_through_the_owner() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -302,7 +302,7 @@ fn should_route_a_typed_json_column_and_native_path_through_the_owner() {
 }
 
 #[test]
-fn should_route_a_typed_json_column_and_flat_text_path_through_the_owner() {
+fn should_route_a_typed_json_column_with_flat_text_path_through_the_owner() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -333,7 +333,7 @@ fn should_route_a_typed_json_column_and_flat_text_path_through_the_owner() {
 }
 
 #[test]
-fn should_route_a_typed_json_column_and_json_array_path_through_the_owner() {
+fn should_route_a_typed_json_column_with_json_array_path_through_the_owner() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -513,7 +513,7 @@ fn should_retain_controlled_json_extraction_output_through_value_handoff() {
 }
 
 #[test]
-fn should_match_legacy_controlled_extraction_results_and_owner_release() {
+fn should_match_legacy_controlled_extraction_results_with_owner_release() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -545,6 +545,7 @@ fn should_match_legacy_controlled_extraction_results_and_owner_release() {
             (ScalarValue::Null, ScalarValue::Null) => {}
             (ScalarValue::Str(actual), ScalarValue::Str(expected))
             | (ScalarValue::Json(actual), ScalarValue::Json(expected)) => {
+                // Assert
                 assert_eq!(actual, expected);
             }
             _ => panic!("extraction mismatch for {source}"),
@@ -577,17 +578,17 @@ fn should_reject_foreign_extraction_owner_without_leaking_output() {
 }
 
 #[test]
-fn should_preserve_extraction_null_fallback_and_native_path_error_order() {
+fn should_preserve_extraction_null_fallback_with_native_path_error_order() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let owner = EvaluationMemory::new(&controls).expect("owner");
-    let malformed = ScalarValue::Json("[}".into());
+    let malformed = ScalarValue::Json("[\u{7d}".into());
     let unsupported = ScalarValue::Bool(true);
     let invalid_path = ScalarValue::Array(
         crate::types::SqlArray::from_elements(vec![Value::Int64(1)]).expect("path"),
     );
-    // Act / Assert
+    // Act
     for (document, selector, path) in [
         (&ScalarValue::Null, &unsupported, false),
         (&malformed, &ScalarValue::Null, false),
@@ -599,6 +600,7 @@ fn should_preserve_extraction_null_fallback_and_native_path_error_order() {
         )
         .expect("controlled")
         .expect("supported null");
+        // Assert
         assert!(matches!(
             (actual, expected),
             (ScalarValue::Null, ScalarValue::Null)
@@ -670,7 +672,7 @@ fn should_keep_extraction_owner_live_in_controlled_where() {
 }
 
 #[test]
-fn should_extract_with_owned_string_backed_paths_and_preserve_legacy_results() {
+fn should_extract_with_owned_string_backed_paths_with_preserve_legacy_results() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -689,6 +691,7 @@ fn should_extract_with_owned_string_backed_paths_and_preserve_legacy_results() {
         .expect("owned path");
         match (&actual, &expected) {
             (ScalarValue::Null, ScalarValue::Null) => {}
+            // Assert
             (ScalarValue::Str(actual), ScalarValue::Str(expected)) => assert_eq!(actual, expected),
             _ => panic!("path mismatch: {path}"),
         }
@@ -705,9 +708,10 @@ fn should_leave_invalid_string_path_diagnostics_to_the_legacy_extractor() {
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let owner = EvaluationMemory::new(&controls).expect("owner");
     let valid_document = ScalarValue::Json(r#"{"a":1}"#.into());
-    let malformed_document = ScalarValue::Json("[}".into());
+    let malformed_document = ScalarValue::Json("[\u{7d}".into());
     let malformed_path = ScalarValue::Str("{a,}".into());
-    // Act / Assert
+    // Act
+    // Assert
     assert!(super::json_delete::controlled_extraction(
         &valid_document,
         &malformed_path,
@@ -770,7 +774,7 @@ fn should_retain_string_backed_path_extraction_through_expression_handoff() {
 }
 
 #[test]
-fn should_preserve_string_path_empty_scalar_array_and_sentinel_cases() {
+fn should_preserve_string_path_empty_scalar_array_with_sentinel_cases() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -800,6 +804,7 @@ fn should_preserve_string_path_empty_scalar_array_and_sentinel_cases() {
         match (&actual, &expected) {
             (ScalarValue::Null, ScalarValue::Null) => {}
             (ScalarValue::Json(actual), ScalarValue::Json(expected)) => {
+                // Assert
                 assert_eq!(actual, expected);
             }
             _ => panic!("path mismatch: {source:?} / {path:?}"),

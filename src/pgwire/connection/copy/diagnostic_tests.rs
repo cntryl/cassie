@@ -98,7 +98,7 @@ fn should_close_copy_for_oversized_jsonb_diagnostic_without_writing() {
 }
 
 #[test]
-fn should_report_jsonb_frame_admission_and_cancellation_failures_and_fail_transaction() {
+fn should_report_jsonb_frame_admission_with_cancellation_failures_with_fail_transaction() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -24,7 +24,7 @@ fn op(reverse: bool) -> BinaryOp {
 }
 
 #[test]
-fn should_match_legacy_root_objects_including_lexical_order_and_nested_rules() {
+fn should_match_legacy_root_objects_including_lexical_order_with_nested_rules() {
     // Arrange
     let cases = [
         (r#"{"z":1e9999999999}"#, r#"{"z":1e9999999999,"aa":1}"#),
@@ -36,8 +36,8 @@ fn should_match_legacy_root_objects_including_lexical_order_and_nested_rules() {
         ("\n  {\"\\ud800\":1}", "{}"),
         ("{}", "\n  {\"\\udfff\":1}"),
         (r#"{"a":1}"#, r#"{"a":1,"z":2}"#),
-        ("{]", "{]"),
-        (r#"{"a":1}"#, "{]"),
+        ("\u{7b}]", "\u{7b}]"),
+        (r#"{"a":1}"#, "\u{7b}]"),
         (r#"{"é":1,"aa":2}"#, r#"{"é":1}"#),
     ];
     let controls = controls(10 * 1024 * 1024);
@@ -51,6 +51,7 @@ fn should_match_legacy_root_objects_including_lexical_order_and_nested_rules() {
             let actual = evaluate_with_controls(&op(reverse), &left, &right, Some(&controls))
                 .map_err(|error| error.to_string());
             match (legacy, actual) {
+                // Assert
                 (Ok(ScalarValue::Bool(a)), Ok(ScalarValue::Bool(b))) => assert_eq!(a, b),
                 (Err(a), Err(b)) => assert_eq!(a, b),
                 _ => panic!("containment parity"),
@@ -82,7 +83,7 @@ fn should_preserve_scalar_observer_through_root_object_children() {
 }
 
 #[test]
-fn should_release_root_object_after_actual_sort_and_merge_cancellation() {
+fn should_release_root_object_after_actual_sort_with_merge_cancellation() {
     // Arrange
     for sorting in [false, true] {
         let cancel = QueryCancellationHandle::new();
@@ -112,6 +113,7 @@ fn should_admit_measured_root_object_overlap() {
     let left = ScalarValue::Json(r#"{"z":1,"aa":2}"#.into());
     let right = ScalarValue::Json(r#"{"z":1,"aa":2}"#.into());
     let baseline = controls(10 * 1024 * 1024);
+    // Assert
     assert!(matches!(
         evaluate_with_controls(&op(false), &left, &right, Some(&baseline)),
         Ok(ScalarValue::Bool(true))

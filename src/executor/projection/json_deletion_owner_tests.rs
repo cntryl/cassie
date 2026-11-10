@@ -352,7 +352,7 @@ fn should_retain_duplicate_deletion_projections_until_the_last_row_clone_drops()
 }
 
 #[test]
-fn should_leave_numeric_and_temporal_subtraction_outside_deletion_owner_detection() {
+fn should_leave_numeric_with_temporal_subtraction_outside_deletion_owner_detection() {
     // Arrange
     let row = BatchRow::new(vec![("n".into(), Value::Int64(2))]);
     let functions = std::collections::HashMap::new();
@@ -363,6 +363,7 @@ fn should_leave_numeric_and_temporal_subtraction_outside_deletion_owner_detectio
     };
     let ops = compile_projection_ops(&select.projection);
     // Act / Assert
+    // Assert
     assert!(!character_casts::deletion_required(
         &ops,
         &row,

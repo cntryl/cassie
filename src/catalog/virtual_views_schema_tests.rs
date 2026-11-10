@@ -1,7 +1,7 @@
 use crate::types::DataType;
 
 #[test]
-fn should_preserve_virtual_schema_dispatch_and_normalized_existence() {
+fn should_preserve_virtual_schema_dispatch_with_normalized_existence() {
     // Arrange
     let cases = [
         ("information_schema.schemata", "catalog_name"),
@@ -16,6 +16,7 @@ fn should_preserve_virtual_schema_dispatch_and_normalized_existence() {
     // Act / Assert
     for (name, first) in cases {
         let schema = super::schema(name).expect("virtual schema");
+        // Assert
         assert_eq!(
             schema.first().map(|field| field.0.as_str()),
             Some(first),
@@ -133,6 +134,7 @@ fn should_retain_every_existing_virtual_schema_name() {
     ];
     // Act / Assert
     for name in names {
+        // Assert
         assert!(super::schema_exists(name), "{name}");
         assert!(super::schema(name).is_some(), "{name}");
     }

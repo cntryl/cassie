@@ -63,7 +63,7 @@ fn should_keep_source_owners_until_assignment_values_are_consumed() {
 }
 
 #[test]
-fn should_check_cardinality_before_budget_and_width_after_a_move() {
+fn should_check_cardinality_before_budget_with_width_after_a_move() {
     // Arrange
     let controls = make_controls(0, QueryCancellationHandle::new());
     let rows = vec![row(vec![Value::Int64(1)]), row(vec![Value::Int64(2)])];
@@ -93,7 +93,7 @@ fn should_check_cardinality_before_budget_and_width_after_a_move() {
 }
 
 #[test]
-fn should_admit_empty_and_nonempty_directories_at_exact_budget_and_cancel_mid_move() {
+fn should_admit_empty_with_nonempty_directories_at_exact_budget_with_cancel_mid_move() {
     // Arrange
     let bytes = std::mem::size_of::<Value>();
     for empty in [false, true] {

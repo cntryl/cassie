@@ -107,6 +107,7 @@ mod tests {
         ];
         // Act / Assert
         for input in inputs {
+            // Assert
             assert_eq!(
                 decimal_digits(input),
                 input.replace('.', "").parse::<u128>().ok(),

@@ -50,7 +50,7 @@ fn should_reject_numeric_diagnostic_when_its_owner_exceeds_budget() {
 }
 
 #[test]
-fn should_hold_numeric_range_diagnostic_and_preserve_its_exact_message() {
+fn should_hold_numeric_range_diagnostic_with_preserve_its_exact_message() {
     // Arrange
     let controls = controls(4096);
 

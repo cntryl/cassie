@@ -57,6 +57,7 @@ fn should_keep_timetz_binary_receive_sqlstates_in_copy() {
         payload.extend_from_slice(&field);
         payload.extend_from_slice(&(-1_i16).to_be_bytes());
         let result = super::parse_binary_payload(&payload, &cassie, &statement, &controls);
+        // Assert
         assert!(
             matches!(result, Err(super::super::filter::CopyWhereError::Cassie(CassieError::TypeInput(error))) if error.sqlstate == state && error.message == message)
         );
@@ -124,6 +125,7 @@ fn should_keep_timetz_array_element_binary_errors_in_copy() {
         payload.extend_from_slice(&array);
         payload.extend_from_slice(&(-1_i16).to_be_bytes());
         let result = super::parse_binary_payload(&payload, &cassie, &statement, &controls);
+        // Assert
         assert!(
             matches!(result, Err(super::super::filter::CopyWhereError::Cassie(CassieError::TypeInput(error))) if error.sqlstate == state && error.message == message)
         );
@@ -189,6 +191,7 @@ fn should_report_flattened_timetz_array_element_excess_before_later_missing_data
         payload.extend_from_slice(&array);
         payload.extend_from_slice(&(-1_i16).to_be_bytes());
         let result = super::parse_binary_payload(&payload, &cassie, &statement, &controls);
+        // Assert
         assert!(
             matches!(result, Err(super::super::filter::CopyWhereError::Cassie(CassieError::TypeInput(error)))
             if error.sqlstate == "22P03" && error.message == format!("improper binary format in array element {ordinal}"))

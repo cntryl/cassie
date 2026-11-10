@@ -17,7 +17,7 @@ fn frame(values: &[f32]) -> Vec<u8> {
 }
 
 #[test]
-fn should_match_binary_vector_display_and_error_precedence() {
+fn should_match_binary_vector_display_with_error_precedence() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -69,7 +69,7 @@ fn should_match_binary_vector_display_and_error_precedence() {
 }
 
 #[test]
-fn should_enforce_binary_vector_overlap_budget_and_cancellation() {
+fn should_enforce_binary_vector_overlap_budget_with_cancellation() {
     // Arrange
     let bytes = frame(&[0.0, 1.0, -0.5]);
     let limits = CassieRuntimeLimits {

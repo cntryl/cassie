@@ -31,7 +31,7 @@ fn array(values: Vec<Value>, lower: i32) -> SqlArray {
 }
 
 #[test]
-fn should_match_native_array_element_null_and_dimension_order() {
+fn should_match_native_array_element_null_with_dimension_order() {
     // Arrange
     let cases = [
         (array(vec![json("1.0")], 1), array(vec![json("1")], 1)),
@@ -54,6 +54,7 @@ fn should_match_native_array_element_null_and_dimension_order() {
     let controls = controls(20 * 1024 * 1024);
     // Act / Assert
     for (left, right) in cases {
+        // Assert
         assert_eq!(
             compare_arrays_controlled(&left, &right, &controls).expect("comparison"),
             compare_arrays(&left, &right)
@@ -63,7 +64,7 @@ fn should_match_native_array_element_null_and_dimension_order() {
 }
 
 #[test]
-fn should_release_both_serialized_values_and_arenas_after_real_comparison_cancellation() {
+fn should_release_both_serialized_values_with_arenas_after_real_comparison_cancellation() {
     // Arrange
     let text = format!("\"{}\"", "x".repeat(2_048));
     let left = array(vec![json(&text)], 1);
@@ -89,6 +90,7 @@ fn should_enforce_the_measured_array_comparison_overlap() {
     let left = array(vec![json(r#"{"a":[1,2]}"#)], 1);
     let right = array(vec![json(r#"{"a":[1,3]}"#)], 1);
     let baseline = controls(10 * 1024 * 1024);
+    // Assert
     assert!(compare_arrays_controlled(&left, &right, &baseline)
         .expect("baseline")
         .is_some());
@@ -106,7 +108,7 @@ fn should_enforce_the_measured_array_comparison_overlap() {
 }
 
 #[test]
-fn should_propagate_comparison_cancellation_through_binary_and_between() {
+fn should_propagate_comparison_cancellation_through_binary_with_between() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -177,7 +179,7 @@ fn should_release_left_owner_after_actual_right_serialization_cancellation() {
 }
 
 #[test]
-fn should_borrow_evaluated_jsonb_arrays_for_binary_and_between() {
+fn should_borrow_evaluated_jsonb_arrays_for_binary_with_between() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -225,7 +227,7 @@ fn should_borrow_evaluated_jsonb_arrays_for_binary_and_between() {
 }
 
 #[test]
-fn should_preserve_parameter_null_and_non_json_array_fallback() {
+fn should_preserve_parameter_null_with_non_json_array_fallback() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -264,6 +266,7 @@ fn should_preserve_parameter_null_and_non_json_array_fallback() {
     let mixed = crate::sql::parser::parse_expression("x = x").expect("mixed");
     // Act / Assert
     crate::executor::filter::take_array_value_clone_count();
+    // Assert
     assert!(matches!(
         evaluate_expr_value_with_context(&row, &parameter, context),
         Ok(Value::Bool(true))
@@ -283,7 +286,7 @@ fn should_preserve_parameter_null_and_non_json_array_fallback() {
 }
 
 #[test]
-fn should_borrow_qualified_jsonb_columns_and_preserve_ownerless_path() {
+fn should_borrow_qualified_jsonb_columns_with_preserve_ownerless_path() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -316,6 +319,7 @@ fn should_borrow_qualified_jsonb_columns_and_preserve_ownerless_path() {
     };
     // Act / Assert
     crate::executor::filter::take_array_value_clone_count();
+    // Assert
     assert!(matches!(
         evaluate_expr_value_with_context(&row, &expression, context),
         Ok(Value::Bool(true))

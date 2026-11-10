@@ -26,7 +26,7 @@ fn input(text: &str) -> Value {
 }
 
 #[test]
-fn should_match_legacy_numeric_keys_and_cross_type_order() {
+fn should_match_legacy_numeric_keys_with_cross_type_order() {
     // Arrange
     let controls = controls(1_000_000, QueryCancellationHandle::new());
     for text in [
@@ -88,7 +88,7 @@ fn should_match_legacy_numeric_keys_and_cross_type_order() {
 }
 
 #[test]
-fn should_share_integer_equality_and_hash_at_i64_boundaries() {
+fn should_share_integer_equality_with_hash_at_i64_boundaries() {
     // Arrange
     let controls = controls(8192, QueryCancellationHandle::new());
     for (text, integer) in [
@@ -122,7 +122,7 @@ fn should_share_integer_equality_and_hash_at_i64_boundaries() {
 }
 
 #[test]
-fn should_preserve_public_extreme_scale_and_zero_normalization() {
+fn should_preserve_public_extreme_scale_with_zero_normalization() {
     // Arrange
     let controls = controls(8192, QueryCancellationHandle::new());
     for mantissa in [num_bigint::BigInt::from(100), num_bigint::BigInt::from(0)] {
@@ -179,7 +179,7 @@ fn should_preserve_search_lineage_before_numeric_builder() {
 }
 
 #[test]
-fn should_cancel_after_real_limb_division_and_release_workspace() {
+fn should_cancel_after_real_limb_division_with_release_workspace() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = controls(1_000_000, cancel.clone());
@@ -206,7 +206,7 @@ fn should_cancel_after_real_limb_division_and_release_workspace() {
 }
 
 #[test]
-fn should_admit_output_and_workspace_overlap_at_exact_budget() {
+fn should_admit_output_with_workspace_overlap_at_exact_budget() {
     // Arrange
     let value = input("12345000000000000000000000000000000000000000000000");
     let baseline = controls(1_000_000, QueryCancellationHandle::new());
@@ -237,10 +237,11 @@ fn should_admit_output_and_workspace_overlap_at_exact_budget() {
 }
 
 #[test]
-fn should_keep_special_and_other_values_on_the_legacy_path() {
+fn should_keep_special_with_other_values_on_the_legacy_path() {
     // Arrange
     let special = Value::Typed(TypedValue::Numeric(numeric::Numeric::NaN));
     // Act / Assert
+    // Assert
     assert!(bound(&special, Some(&numeric_type()))
         .expect("special")
         .is_none());

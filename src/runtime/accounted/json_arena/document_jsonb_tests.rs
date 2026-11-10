@@ -26,6 +26,7 @@ fn should_match_original_jsonb_canonical_text_for_valid_binary_fields() {
         field.extend_from_slice(input.as_bytes());
         let expected = crate::types::jsonb::canonical(input).expect("canonical");
         let output = parse_field(&field, 1, &controls).expect("field");
+        // Assert
         assert_eq!(output.as_str(), expected);
         drop(output);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -33,7 +34,7 @@ fn should_match_original_jsonb_canonical_text_for_valid_binary_fields() {
 }
 
 #[test]
-fn should_preserve_version_utf8_parse_and_format_error_order() {
+fn should_preserve_version_utf8_parse_with_format_error_order() {
     // Arrange
     let controls = controls();
     let cases: &[(&[u8], &str)] = &[
@@ -58,6 +59,7 @@ fn should_preserve_version_utf8_parse_and_format_error_order() {
         let Err(error) = parse_field(field, 2, &controls) else {
             panic!("accepted invalid field");
         };
+        // Assert
         assert!(matches!(&error, JsonbFieldError::Diagnostic(_)));
         assert_eq!(
             error.message(),
@@ -69,16 +71,16 @@ fn should_preserve_version_utf8_parse_and_format_error_order() {
 }
 
 #[test]
-fn should_match_existing_jsonb_error_messages_for_nested_and_malformed_documents() {
+fn should_match_existing_jsonb_error_messages_for_nested_with_malformed_documents() {
     // Arrange
     let controls = controls();
     let inputs = [
         "[1,]",
-        "{\"a\":",
+        "\u{7b}\"a\":",
         "\"\\u12G4\"",
         r#"{"$serde_json::private::Number":"-xY"}"#,
-        r#"{"$serde_json::private::RawValue":"{\"a\":]"}"#,
-        r#"{"a":"\u0000","b":]"#,
+        "\u{7b}\"$serde_json::private::RawValue\":\"{\\\"a\\\":]\"}",
+        "\u{7b}\"a\":\"\\u0000\",\"b\":]",
         r#"{"a":"\u0000","b":1e+131072}"#,
         r#"{"a":1e+131072,"b":"\u0000"}"#,
     ];
@@ -90,6 +92,7 @@ fn should_match_existing_jsonb_error_messages_for_nested_and_malformed_documents
         let Err(error) = parse_field(&field, 1, &controls) else {
             panic!("accepted");
         };
+        // Assert
         assert_eq!(
             error.message(),
             Some(format!("COPY binary field 1 is invalid: {}", expected.message).as_str())
@@ -100,7 +103,7 @@ fn should_match_existing_jsonb_error_messages_for_nested_and_malformed_documents
 }
 
 #[test]
-fn should_keep_admitted_error_until_drop_and_propagate_cancellation() {
+fn should_keep_admitted_error_until_drop_with_propagate_cancellation() {
     // Arrange
     let controls = controls();
     let cancellation = QueryCancellationHandle::new();

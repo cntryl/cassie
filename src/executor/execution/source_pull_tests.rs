@@ -405,7 +405,7 @@ fn should_apply_source_pagination_to_each_existing_expanded_projection_row() {
 }
 
 #[test]
-fn should_preserve_object_key_expansion_in_outer_and_nested_pull_cursors() {
+fn should_preserve_object_key_expansion_in_outer_with_nested_pull_cursors() {
     // Arrange
     let cassie = fixture();
     let session = cassie.create_session("tester", None);
@@ -498,7 +498,7 @@ fn should_release_pull_resources_when_object_key_projection_fails() {
 }
 
 #[test]
-fn should_enforce_measured_pull_expansion_peak_and_release_on_failure() {
+fn should_enforce_measured_pull_expansion_peak_with_release_on_failure() {
     // Arrange
     let cassie = fixture();
     let session = cassie.create_session("tester", None);
@@ -512,6 +512,7 @@ fn should_enforce_measured_pull_expansion_peak_and_release_on_failure() {
         .expect("baseline");
     let peak = generous.peak_query_memory_bytes();
     drop(result);
+    // Assert
     assert_eq!(generous.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {

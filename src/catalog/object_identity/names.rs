@@ -556,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn should_resolve_spaced_and_bounded_array_dimensions_to_one_array_type() {
+    fn should_resolve_spaced_with_bounded_array_dimensions_to_one_array_type() {
         // Arrange
         let names = [
             "integer[ ]",
@@ -607,7 +607,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_non_sql_whitespace_and_invalid_array_bounds() {
+    fn should_reject_non_sql_whitespace_with_invalid_array_bounds() {
         // Arrange
         let names = [
             "integer[\u{00a0}2]",

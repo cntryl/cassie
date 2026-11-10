@@ -4,7 +4,7 @@ use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use std::time::Instant;
 
 #[test]
-fn should_admit_copy_payload_growth_overlapping_retained_owner_and_release() {
+fn should_admit_copy_payload_growth_overlapping_retained_owner_with_release() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 16,
@@ -53,7 +53,7 @@ fn should_leave_copy_payload_unchanged_when_growth_is_cancelled() {
 }
 
 #[test]
-fn should_admit_exact_copy_failure_error_text_and_release_it() {
+fn should_admit_exact_copy_failure_error_text_with_release_it() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

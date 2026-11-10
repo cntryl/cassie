@@ -27,7 +27,7 @@ fn controls(budget: usize, cancel: QueryCancellationHandle) -> QueryExecutionCon
 }
 
 #[test]
-fn should_keep_peer_and_sort_key_reservations_until_drop() {
+fn should_keep_peer_with_sort_key_reservations_until_drop() {
     // Arrange
     let function = call();
     let row = BatchRow::new(vec![("n".into(), Value::String("payload".repeat(64)))]);
@@ -54,7 +54,7 @@ fn should_keep_peer_and_sort_key_reservations_until_drop() {
 }
 
 #[test]
-fn should_keep_equal_partition_order_and_release_every_reservation() {
+fn should_keep_equal_partition_order_with_release_every_reservation() {
     // Arrange
     let function = call();
     let rows = vec![BatchRow::new(vec![("n".into(), Value::Int64(1))]); 3];
@@ -176,7 +176,7 @@ fn should_retain_key_after_its_source_row_owner_drops() {
 }
 
 #[test]
-fn should_preserve_integral_numeric_and_integer_peer_equality() {
+fn should_preserve_integral_numeric_with_integer_peer_equality() {
     // Arrange
     let function = call();
     let controls = controls(1_000_000, QueryCancellationHandle::new());
@@ -213,7 +213,7 @@ fn should_preserve_integral_numeric_and_integer_peer_equality() {
 }
 
 #[test]
-fn should_preserve_jsonb_fallback_peer_equality_and_sorting() {
+fn should_preserve_jsonb_fallback_peer_equality_with_sorting() {
     // Arrange
     let function = call();
     let controls = controls(1_000_000, QueryCancellationHandle::new());

@@ -22,7 +22,7 @@ fn varbit_type() -> DataType {
 }
 
 #[test]
-fn should_match_legacy_key_for_bit_varbit_empty_and_raw_padding() {
+fn should_match_legacy_key_for_bit_varbit_empty_with_raw_padding() {
     // Arrange
     let controls = controls(1_000_000, QueryCancellationHandle::new());
     let padded: BitString =
@@ -76,10 +76,11 @@ fn should_cancel_after_a_real_bit_byte_chunk() {
 }
 
 #[test]
-fn should_preserve_untyped_and_unrelated_type_fallbacks() {
+fn should_preserve_untyped_with_unrelated_type_fallbacks() {
     // Arrange
     let value = Value::Typed(TypedValue::Bit(BitString::from_bits([true])));
     // Act / Assert
+    // Assert
     assert!(!eligible(&value, None));
     assert!(!eligible(&value, Some(&DataType::Text)));
 }

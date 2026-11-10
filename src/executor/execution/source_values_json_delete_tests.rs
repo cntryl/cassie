@@ -97,6 +97,7 @@ fn should_enforce_measured_values_deletion_overlap_budget() {
             ..env
         };
         let result = execute(&env, &input(), None);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(result);
         assert_eq!(controls.current_query_memory_bytes(), 0);

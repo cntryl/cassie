@@ -38,7 +38,7 @@ fn call() -> WindowFunctionCall {
 }
 
 #[test]
-fn should_admit_frame_positions_before_allocating_and_hold_until_drop() {
+fn should_admit_frame_positions_before_allocating_with_hold_until_drop() {
     // Arrange
     let function = call();
     let frame = function.frame.as_ref().expect("explicit frame");
@@ -90,7 +90,7 @@ fn should_admit_frame_positions_before_allocating_and_hold_until_drop() {
 }
 
 #[test]
-fn should_cancel_during_unordered_frame_construction_and_release_its_reservation() {
+fn should_cancel_during_unordered_frame_construction_with_release_its_reservation() {
     // Arrange
     let function = call();
     let frame = function.frame.as_ref().expect("explicit frame");
@@ -129,7 +129,7 @@ fn should_cancel_during_unordered_frame_construction_and_release_its_reservation
 }
 
 #[test]
-fn should_admit_peer_groups_and_cancel_while_scanning_unordered_rows() {
+fn should_admit_peer_groups_with_cancel_while_scanning_unordered_rows() {
     // Arrange
     let function = call();
     let rows = (0..3)

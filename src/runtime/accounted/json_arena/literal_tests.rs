@@ -11,26 +11,27 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_read_literals_on_demand_and_leave_following_input() {
+fn should_read_literals_on_demand_with_leave_following_input() {
     // Arrange
     let controls = controls();
     let cases = [
         ("true,", Literal::True),
         ("false]", Literal::False),
-        ("null}", Literal::Null),
+        ("null\u{7d}", Literal::Null),
     ];
 
-    // Act / Assert
+    // Act
     for (input, expected) in cases {
         let mut cursor = Cursor::from_str(input, &controls);
+        // Assert
         assert_eq!(cursor.read_literal().expect("literal"), expected);
-        assert!(matches!(cursor.peek(), Some(b',' | b']' | b'}')));
+        assert!(matches!(cursor.peek(), Some(b',' | b']' | b'\x7d')));
     }
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_match_serde_literal_error_categories_and_positions() {
+fn should_match_serde_literal_error_categories_with_positions() {
     // Arrange
     let controls = controls();
     let inputs = ["", "X", "trXe", "tr", "falze", "nu"];
@@ -48,6 +49,7 @@ fn should_match_serde_literal_error_categories_and_positions() {
         } else {
             serde_json::error::Category::Syntax
         };
+        // Assert
         assert_eq!(expected.classify(), category, "{input:?}");
         assert_eq!(
             (expected.line(), expected.column()),

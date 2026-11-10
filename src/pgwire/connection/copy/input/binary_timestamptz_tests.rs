@@ -5,7 +5,7 @@ use crate::config::CassieRuntimeLimits;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
 #[test]
-fn should_match_binary_timestamptz_default_utc_and_range_behavior() {
+fn should_match_binary_timestamptz_default_utc_with_range_behavior() {
     // Arrange
     use crate::types::extended::temporal::calendar::{
         fields_to_timestamp, Fields, END_TIMESTAMP, MIN_TIMESTAMP,
@@ -57,6 +57,7 @@ fn should_match_binary_timestamptz_default_utc_and_range_behavior() {
         let (actual, memory) = super::decode(1184, &bytes, 0, &controls)
             .expect("decode")
             .expect("handled");
+        // Assert
         assert_eq!(actual, expected, "timestamptz {value}");
         drop((actual, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -100,7 +101,7 @@ fn should_match_binary_timestamptz_default_utc_and_range_behavior() {
 }
 
 #[test]
-fn should_admit_binary_timestamptz_output_and_honor_cancellation() {
+fn should_admit_binary_timestamptz_output_with_honor_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 30,

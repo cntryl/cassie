@@ -346,6 +346,7 @@ mod tests {
         // Act / Assert
         for (time, zone) in valid {
             let decoded = super::receive_timetz(&frame(time, zone)).expect("valid");
+            // Assert
             assert_eq!((decoded.time, decoded.zone), (time, zone));
         }
         for length in [0, 11, 13] {

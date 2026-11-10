@@ -10,7 +10,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_build_ordinary_nested_values_and_replace_duplicate_keys() {
+fn should_build_ordinary_nested_values_with_replace_duplicate_keys() {
     // Arrange
     let controls = controls();
     let input = r#"{"a":[null,true,"x",1E2],"a":{"b":false}}"#;
@@ -38,7 +38,7 @@ fn should_build_ordinary_nested_values_and_replace_duplicate_keys() {
 }
 
 #[test]
-fn should_accept_empty_containers_and_later_sentinel_shaped_keys() {
+fn should_accept_empty_containers_with_later_sentinel_shaped_keys() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -51,12 +51,13 @@ fn should_accept_empty_containers_and_later_sentinel_shaped_keys() {
     for input in inputs {
         let parsed = Document::parse(input, &controls).expect("document");
         drop(parsed);
+        // Assert
         assert_eq!(controls.current_query_memory_bytes(), 0, "{input}");
     }
 }
 
 #[test]
-fn should_retain_each_ordinary_scalar_and_nested_container_in_order() {
+fn should_retain_each_ordinary_scalar_with_nested_container_in_order() {
     // Arrange
     let controls = controls();
     let input = r#"[null,true,false,"hé",1E2,{},[]]"#;
@@ -98,7 +99,7 @@ fn should_retain_each_ordinary_scalar_and_nested_container_in_order() {
 }
 
 #[test]
-fn should_match_ordinary_container_error_categories_and_positions() {
+fn should_match_ordinary_container_error_categories_with_positions() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -108,12 +109,12 @@ fn should_match_ordinary_container_error_categories_and_positions() {
         "[1,]",
         "[, ]",
         "[1 2]",
-        "{",
-        "{\"a\"",
+        "\u{7b}",
+        "\u{7b}\"a\"",
         "{\"a\"}",
-        "{\"a\":",
-        "{\"a\":1",
-        "{\"a\":1,",
+        "\u{7b}\"a\":",
+        "\u{7b}\"a\":1",
+        "\u{7b}\"a\":1,",
         "{\"a\":1,}",
         "{,}",
         "{\"a\":1,2}",
@@ -128,6 +129,7 @@ fn should_match_ordinary_container_error_categories_and_positions() {
             panic!("accepted {input:?}");
         };
         let (category, line, column) = error.test_diagnostic().expect("diagnostic");
+        // Assert
         assert_eq!(
             (category, line, column),
             (expected.classify(), expected.line(), expected.column()),
@@ -152,6 +154,7 @@ fn should_match_serde_nesting_limit_without_a_new_depth_limit() {
         panic!("accepted depth");
     };
     let (category, line, column) = error.test_diagnostic().expect("diagnostic");
+    // Assert
     assert_eq!(
         (category, line, column),
         (expected.classify(), expected.line(), expected.column())
@@ -182,7 +185,7 @@ fn should_parse_nested_raw_value_sentinels_without_losing_number_spelling() {
 }
 
 #[test]
-fn should_match_raw_sentinel_nested_errors_and_outer_map_precedence() {
+fn should_match_raw_sentinel_nested_errors_with_outer_map_precedence() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -200,6 +203,7 @@ fn should_match_raw_sentinel_nested_errors_and_outer_map_precedence() {
         let Err(error) = Document::parse(input, &controls) else {
             panic!("accepted {input:?}");
         };
+        // Assert
         assert_eq!(
             error.test_diagnostic(),
             Some((expected.classify(), expected.line(), expected.column())),
@@ -225,6 +229,7 @@ fn should_reset_the_serde_depth_limit_for_nested_raw_sources() {
     let input = format!(r#"{{"$serde_json::private::RawValue":{encoded}}}"#);
 
     // Act / Assert
+    // Assert
     assert!(serde_json::from_str::<serde_json::Value>(&input).is_ok());
     let parsed = Document::parse(&input, &controls).expect("nested source depth");
     drop(parsed);
@@ -232,7 +237,7 @@ fn should_reset_the_serde_depth_limit_for_nested_raw_sources() {
 }
 
 #[test]
-fn should_wrap_nested_raw_depth_errors_with_inner_position_and_message() {
+fn should_wrap_nested_raw_depth_errors_with_inner_position_with_message() {
     // Arrange
     let controls = controls();
     let nested = format!("{}0{}", "[".repeat(128), "]".repeat(128));
@@ -278,7 +283,7 @@ fn should_preserve_wrapped_number_sentinel_error_through_raw_nesting() {
 }
 
 #[test]
-fn should_preserve_each_nested_raw_error_cause_and_message() {
+fn should_preserve_each_nested_raw_error_cause_with_message() {
     // Arrange
     let controls = controls();
     let nested_sources = [
@@ -300,6 +305,7 @@ fn should_preserve_each_nested_raw_error_cause_and_message() {
         let Err(error) = Document::parse(&input, &controls) else {
             panic!("accepted {nested:?}");
         };
+        // Assert
         assert_eq!(
             error.test_diagnostic(),
             Some((expected.classify(), expected.line(), expected.column())),
@@ -329,6 +335,7 @@ fn should_match_non_string_raw_sentinel_errors_against_serde() {
         let Err(error) = Document::parse(&input, &controls) else {
             panic!("accepted {input:?}");
         };
+        // Assert
         assert_eq!(
             error.test_diagnostic(),
             Some((expected.classify(), expected.line(), expected.column())),
@@ -346,7 +353,7 @@ fn should_match_non_string_raw_sentinel_errors_against_serde() {
 }
 
 #[test]
-fn should_keep_raw_source_and_decoded_value_owned_together() {
+fn should_keep_raw_source_with_decoded_value_owned_together() {
     // Arrange
     let controls = controls();
     let mut source_ready = None;
@@ -408,7 +415,7 @@ fn should_release_nested_raw_source_after_actual_push_cancellation() {
 }
 
 #[test]
-fn should_release_raw_source_and_result_after_actual_value_ready_cancellation() {
+fn should_release_raw_source_with_result_after_actual_value_ready_cancellation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -499,7 +506,7 @@ fn should_unwind_every_entered_array_while_preserving_the_first_error() {
 }
 
 #[test]
-fn should_unwind_number_sentinel_then_consume_parent_array_comma_and_space() {
+fn should_unwind_number_sentinel_then_consume_parent_array_comma_with_space() {
     // Arrange
     let controls = controls();
     let input = r#"[{"$serde_json::private::Number":"-xY",   "other":1}]"#;
@@ -526,7 +533,7 @@ fn should_unwind_number_sentinel_then_consume_parent_array_comma_and_space() {
 }
 
 #[test]
-fn should_unwind_nested_raw_source_before_wrapping_and_scanning_the_outer_array() {
+fn should_unwind_nested_raw_source_before_wrapping_with_scanning_the_outer_array() {
     // Arrange
     let controls = controls();
     let input = r#"[{"$serde_json::private::RawValue":"[1,]",   "other":1}]"#;
@@ -596,6 +603,7 @@ fn should_parse_quoted_number_sentinel_with_serde_spelling() {
             .expect("serde")
             .to_string();
         let parsed = Document::parse(input, &controls).expect("sentinel");
+        // Assert
         assert_eq!(
             parsed.forest.number_value(parsed.root).expect("number"),
             Some(expected.as_str())
@@ -629,7 +637,7 @@ fn should_attach_a_number_sentinel_inside_an_array() {
 }
 
 #[test]
-fn should_match_number_sentinel_error_position_and_outer_end_precedence() {
+fn should_match_number_sentinel_error_position_with_outer_end_precedence() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -649,6 +657,7 @@ fn should_match_number_sentinel_error_position_and_outer_end_precedence() {
         let Err(error) = Document::parse(input, &controls) else {
             panic!("accepted {input:?}");
         };
+        // Assert
         assert_eq!(
             error.test_diagnostic(),
             Some((expected.classify(), expected.line(), expected.column())),
@@ -797,6 +806,7 @@ fn should_match_non_string_number_sentinel_type_errors_against_serde() {
         let Err(error) = Document::parse(&input, &controls) else {
             panic!("accepted {input:?}");
         };
+        // Assert
         assert_eq!(
             error.test_diagnostic(),
             Some((expected.classify(), expected.line(), expected.column())),

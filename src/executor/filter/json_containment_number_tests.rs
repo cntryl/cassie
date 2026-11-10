@@ -20,7 +20,7 @@ fn contains() -> BinaryOp {
 }
 
 #[test]
-fn should_match_legacy_numeric_equality_range_and_error_order() {
+fn should_match_legacy_numeric_equality_range_with_error_order() {
     // Arrange
     let cases = [
         ("1", "1.000"),
@@ -46,6 +46,7 @@ fn should_match_legacy_numeric_equality_range_and_error_order() {
         let actual = evaluate_with_controls(&contains(), &left, &right, Some(&controls))
             .map_err(|error| error.to_string());
         match (legacy, actual) {
+            // Assert
             (Ok(ScalarValue::Bool(a)), Ok(ScalarValue::Bool(b))) => assert_eq!(a, b),
             (Err(a), Err(b)) => assert_eq!(a, b),
             _ => panic!("numeric containment parity"),
@@ -55,7 +56,7 @@ fn should_match_legacy_numeric_equality_range_and_error_order() {
 }
 
 #[test]
-fn should_cancel_after_actual_numeric_format_and_equality_work() {
+fn should_cancel_after_actual_numeric_format_with_equality_work() {
     // Arrange
     for during_compare in [false, true] {
         let cancel = QueryCancellationHandle::new();
@@ -83,6 +84,7 @@ fn should_admit_measured_numeric_comparison_overlap() {
     // Arrange
     let value = ScalarValue::Json("123456.0000000000000001".into());
     let baseline = controls(10 * 1024 * 1024);
+    // Assert
     assert!(matches!(
         evaluate_with_controls(&contains(), &value, &value, Some(&baseline)),
         Ok(ScalarValue::Bool(true))

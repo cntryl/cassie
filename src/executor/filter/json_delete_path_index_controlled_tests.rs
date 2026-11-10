@@ -12,7 +12,7 @@ fn controls(cancel: QueryCancellationHandle) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_existing_path_index_syntax_and_bounds() {
+fn should_match_existing_path_index_syntax_with_bounds() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let inputs = [
@@ -35,6 +35,7 @@ fn should_match_existing_path_index_syntax_and_bounds() {
         let old = super::super::super::super::super::parse_path_index(input, 3, 2)
             .map_err(|error| error.to_string());
         let new = parse(input, 3, 2, &controls).map_err(|error| error.to_string());
+        // Assert
         assert_eq!(new, old, "{input:?}");
     }
 }

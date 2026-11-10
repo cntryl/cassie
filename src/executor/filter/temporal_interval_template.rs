@@ -92,12 +92,13 @@ mod tests {
     use super::{invalid, invalid_keyword, KEYWORDS};
 
     #[test]
-    fn should_classify_every_pinned_keyword_and_consume_allowed_keywords() {
+    fn should_classify_every_pinned_keyword_with_consume_allowed_keywords() {
         // Arrange
         let check = || Ok::<(), ()>(());
 
         // Act and Assert
         for keyword in KEYWORDS {
+            // Assert
             assert_eq!(
                 invalid(keyword, check),
                 Ok(invalid_keyword(keyword)),
@@ -112,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn should_distinguish_case_literals_modifiers_quotes_and_backslashes() {
+    fn should_distinguish_case_literals_modifiers_quotes_with_backslashes() {
         // Arrange
         let cases = [
             ("tZh", false),

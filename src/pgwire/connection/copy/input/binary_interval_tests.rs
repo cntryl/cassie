@@ -14,7 +14,7 @@ fn frame(micros: i64, days: i32, months: i32) -> Vec<u8> {
 }
 
 #[test]
-fn should_match_binary_interval_default_style_and_error_precedence() {
+fn should_match_binary_interval_default_style_with_error_precedence() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -42,6 +42,7 @@ fn should_match_binary_interval_default_style_and_error_precedence() {
         let (actual, memory) = super::decode(1186, &bytes, 0, &controls)
             .expect("decode")
             .expect("handled");
+        // Assert
         assert_eq!(
             actual, expected,
             "micros {micros} days {days} months {months}"
@@ -63,7 +64,7 @@ fn should_match_binary_interval_default_style_and_error_precedence() {
 }
 
 #[test]
-fn should_enforce_binary_interval_overlap_budget_and_cancellation() {
+fn should_enforce_binary_interval_overlap_budget_with_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 24,

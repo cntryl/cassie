@@ -15,7 +15,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_existing_retained_estimate_for_nested_values_and_capacities() {
+fn should_match_existing_retained_estimate_for_nested_values_with_capacities() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let mut text = String::with_capacity(256);
@@ -34,6 +34,7 @@ fn should_match_existing_retained_estimate_for_nested_values_and_capacities() {
     ];
     // Act / Assert
     for value in values {
+        // Assert
         assert_eq!(
             estimate(&value, &controls).expect("iterative"),
             crate::runtime::accounted::json::retained_bytes(&value).expect("legacy")
@@ -75,6 +76,7 @@ fn should_admit_exact_estimator_stack_peak() {
     let baseline = controls(10 * 1024 * 1024);
     let expected = estimate(&value, &baseline).expect("baseline");
     let peak = baseline.peak_query_memory_bytes();
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {

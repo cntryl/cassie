@@ -68,7 +68,7 @@ fn should_keep_source_owners_through_the_batch_writer() {
 }
 
 #[test]
-fn should_preserve_duplicate_field_replacement_and_identifier() {
+fn should_preserve_duplicate_field_replacement_with_identifier() {
     // Arrange
     let controls = controls(8192, QueryCancellationHandle::new());
     let input = BatchRow::from_projected_values(vec![
@@ -94,7 +94,7 @@ fn should_preserve_duplicate_field_replacement_and_identifier() {
 }
 
 #[test]
-fn should_release_owners_on_width_conversion_and_batch_write_errors() {
+fn should_release_owners_on_width_conversion_with_batch_write_errors() {
     // Arrange
     for failure in 0..4 {
         let controls = controls(8192, QueryCancellationHandle::new());
@@ -136,7 +136,7 @@ fn should_release_owners_on_width_conversion_and_batch_write_errors() {
 }
 
 #[test]
-fn should_admit_both_directories_and_cancel_after_a_real_field() {
+fn should_admit_both_directories_with_cancel_after_a_real_field() {
     // Arrange
     let bytes = 2
         * (std::mem::size_of::<(String, serde_json::Value)>()

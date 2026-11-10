@@ -55,7 +55,7 @@ fn should_admit_both_sort_directories_before_comparison() {
 }
 
 #[test]
-fn should_cancel_stable_sort_during_a_comparison_and_release_directories() {
+fn should_cancel_stable_sort_during_a_comparison_with_release_directories() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

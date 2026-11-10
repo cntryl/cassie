@@ -27,7 +27,7 @@ fn run(
 }
 
 #[test]
-fn should_match_legacy_finite_path_functions_and_error_priority() {
+fn should_match_legacy_finite_path_functions_with_error_priority() {
     // Arrange
     let cases = [
         vec![
@@ -45,8 +45,8 @@ fn should_match_legacy_finite_path_functions_and_error_priority() {
             Value::String("missing".into()),
             Value::Int64(9),
         ],
-        vec![Value::String("[}".into()), Value::Int64(9)],
-        vec![Value::String("[}".into()), Value::Null],
+        vec![Value::String("[\u{7d}".into()), Value::Int64(9)],
+        vec![Value::String("[\u{7d}".into()), Value::Null],
         vec![
             Value::String(r#"{"a":"\ud800"}"#.into()),
             Value::String("a".into()),
@@ -57,7 +57,7 @@ fn should_match_legacy_finite_path_functions_and_error_priority() {
         ],
         vec![Value::String("{}".into())],
     ];
-    // Act / Assert
+    // Act
     for name in [
         "json_extract_path",
         "json_extract_path_text",
@@ -69,6 +69,7 @@ fn should_match_legacy_finite_path_functions_and_error_priority() {
             let owner = EvaluationMemory::new(&controls).expect("owner");
             let expected = run(name, args, Some(&controls), None);
             let actual = run(name, args, Some(&controls), Some(&owner));
+            // Assert
             assert_eq!(actual, expected, "{name} {args:?}");
             drop(owner);
             assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -106,7 +107,7 @@ fn should_release_workspace_after_actual_function_document_scan_cancellation() {
 }
 
 #[test]
-fn should_release_both_function_output_and_workspace_after_actual_copy_cancellation() {
+fn should_release_both_function_output_with_workspace_after_actual_copy_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -135,7 +136,7 @@ fn should_release_both_function_output_and_workspace_after_actual_copy_cancellat
 }
 
 #[test]
-fn should_enforce_measured_function_workspace_and_output_overlap() {
+fn should_enforce_measured_function_workspace_with_output_overlap() {
     // Arrange
     let args = [
         Value::String(r#"{"a":"payload"}"#.into()),
@@ -153,6 +154,7 @@ fn should_enforce_measured_function_workspace_and_output_overlap() {
     let peak = baseline.peak_query_memory_bytes();
     drop(value);
     drop(owner);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -172,7 +174,7 @@ fn should_enforce_measured_function_workspace_and_output_overlap() {
 }
 
 #[test]
-fn should_preserve_foreign_owner_diagnostic_and_release_both_trackers() {
+fn should_preserve_foreign_owner_diagnostic_with_release_both_trackers() {
     // Arrange
     let source_controls = controls(10 * 1024 * 1024);
     let foreign_controls = controls(10 * 1024 * 1024);

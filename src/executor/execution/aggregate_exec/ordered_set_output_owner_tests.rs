@@ -184,6 +184,7 @@ fn should_admit_null_result_array_at_exact_overlapping_budget() {
         let controls = controls(budget);
         let source = controls.reserve_query_memory(source_bytes).expect("source");
         let result = null_array_output(3, &source, &controls, |_| {});
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         if let Ok(output) = result {
             assert_eq!(
@@ -220,7 +221,7 @@ fn should_reject_foreign_null_result_owner_before_admission() {
 }
 
 #[test]
-fn should_cancel_during_null_result_construction_and_release_output() {
+fn should_cancel_during_null_result_construction_with_release_output() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -292,7 +293,7 @@ fn should_retain_empty_null_array_through_aliases() {
 }
 
 #[test]
-fn should_retain_null_array_for_continuous_and_discrete_filtered_percentiles() {
+fn should_retain_null_array_for_continuous_with_discrete_filtered_percentiles() {
     // Arrange
     let catalog = crate::catalog::Catalog::new();
     catalog.register_collection(

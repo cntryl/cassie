@@ -24,7 +24,7 @@ fn error_class(result: Result<(), ValidationError>) -> Result<(), &'static str> 
 }
 
 #[test]
-fn should_match_existing_numeric_input_grammar_and_error_precedence() {
+fn should_match_existing_numeric_input_grammar_with_error_precedence() {
     // Arrange
     let controls = controls(16 * 1024 * 1024);
     let inputs = [
@@ -64,6 +64,7 @@ fn should_match_existing_numeric_input_grammar_and_error_precedence() {
         let expected = crate::types::extended::numeric::parse_text(input)
             .map(|_| ())
             .map_err(|error| error.sqlstate);
+        // Assert
         assert_eq!(
             error_class(validate(input, Some(&controls))),
             expected,
@@ -74,7 +75,7 @@ fn should_match_existing_numeric_input_grammar_and_error_precedence() {
 }
 
 #[test]
-fn should_enforce_exact_small_radix_and_decimal_digit_boundaries() {
+fn should_enforce_exact_small_radix_with_decimal_digit_boundaries() {
     // Arrange
     let controls = controls(1_048_576);
     let limits = Limits {
@@ -99,6 +100,7 @@ fn should_enforce_exact_small_radix_and_decimal_digit_boundaries() {
 
     // Act / Assert
     for (input, expected) in cases {
+        // Assert
         assert_eq!(
             error_class(validate_with_limits_observing(
                 input,
@@ -132,7 +134,7 @@ fn should_check_the_real_radix_integer_limit_exactly() {
 }
 
 #[test]
-fn should_interrupt_radix_conversion_and_release_temporary_limbs() {
+fn should_interrupt_radix_conversion_with_release_temporary_limbs() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

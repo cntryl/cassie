@@ -262,7 +262,7 @@ fn should_reject_unsafe_index_replacement_before_durable_or_catalog_publication(
 }
 
 #[test]
-fn should_preserve_collision_and_identity_errors_before_definition_checks() {
+fn should_preserve_collision_with_identity_errors_before_definition_checks() {
     // Arrange
     let (midge, _catalog, collection, name) = index_metadata_fixture();
     let mut metadata = midge
@@ -356,8 +356,13 @@ fn should_reject_unknown_index_definition_version_before_update_or_publication()
             .expect("read"),
         original
     );
+}
 
+#[test]
+fn should_reject_unknown_index_definition_version_before_rename_or_update() {
     // Arrange
+    let (midge, _catalog, collection, name) = index_metadata_fixture();
+    let key = Midge::index_key(&collection, &name);
     let mut unknown = midge
         .get_index(&collection, &name)
         .expect("read")

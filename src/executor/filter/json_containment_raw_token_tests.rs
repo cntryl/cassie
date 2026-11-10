@@ -20,7 +20,7 @@ fn contains() -> BinaryOp {
 }
 
 #[test]
-fn should_match_legacy_raw_pair_syntax_whitespace_and_nested_values() {
+fn should_match_legacy_raw_pair_syntax_whitespace_with_nested_values() {
     // Arrange
     let cases = [
         ("  [1,2] \n", " [2] "),
@@ -44,6 +44,7 @@ fn should_match_legacy_raw_pair_syntax_whitespace_and_nested_values() {
         let actual = evaluate_with_controls(&contains(), &left, &right, Some(&controls))
             .map_err(|error| error.to_string());
         match (expected, actual) {
+            // Assert
             (Ok(ScalarValue::Bool(a)), Ok(ScalarValue::Bool(b))) => assert_eq!(a, b),
             (Err(a), Err(b)) => assert_eq!(a, b),
             _ => panic!("raw pair parity"),
@@ -53,7 +54,7 @@ fn should_match_legacy_raw_pair_syntax_whitespace_and_nested_values() {
 }
 
 #[test]
-fn should_release_pair_after_actual_scan_and_either_token_copy_cancellation() {
+fn should_release_pair_after_actual_scan_with_either_token_copy_cancellation() {
     // Arrange
     for phase in 0..3 {
         let cancel = QueryCancellationHandle::new();
@@ -86,10 +87,11 @@ fn should_release_pair_after_actual_scan_and_either_token_copy_cancellation() {
 }
 
 #[test]
-fn should_admit_measured_raw_pair_and_scanner_overlap() {
+fn should_admit_measured_raw_pair_with_scanner_overlap() {
     // Arrange
     let value = ScalarValue::Json("[[1,2],[3,4]]".into());
     let baseline = controls(10 * 1024 * 1024);
+    // Assert
     assert!(matches!(
         evaluate_with_controls(&contains(), &value, &value, Some(&baseline)),
         Ok(ScalarValue::Bool(true))

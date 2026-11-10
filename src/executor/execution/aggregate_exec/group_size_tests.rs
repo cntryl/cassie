@@ -11,7 +11,7 @@ fn typed_numeric() -> Value {
 }
 
 #[test]
-fn should_match_serde_entry_size_for_scalar_values_and_escaping() {
+fn should_match_serde_entry_size_for_scalar_values_with_escaping() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -44,6 +44,7 @@ fn should_match_serde_entry_size_for_scalar_values_and_escaping() {
     ];
 
     // Act / Assert
+    // Assert
     assert_eq!(
         json_bytes_controlled(&values, &controls).expect("controlled"),
         json_bytes(&values)
@@ -56,7 +57,7 @@ fn should_match_serde_entry_size_for_scalar_values_and_escaping() {
 }
 
 #[test]
-fn should_match_serde_for_mixed_scalar_and_numeric_entries() {
+fn should_match_serde_for_mixed_scalar_with_numeric_entries() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -65,6 +66,7 @@ fn should_match_serde_for_mixed_scalar_and_numeric_entries() {
         ("typed".into(), typed_numeric()),
     ];
     // Act / Assert
+    // Assert
     assert_eq!(
         json_bytes_controlled(&values, &controls).expect("fallback"),
         json_bytes(&values)
@@ -215,6 +217,7 @@ fn should_match_serde_size_for_vector_float_boundaries_without_scratch() {
         ),
     ];
     // Act / Assert
+    // Assert
     assert_eq!(
         json_bytes_controlled(&values, &controls).expect("count"),
         json_bytes(&values)
@@ -251,7 +254,7 @@ fn should_cancel_during_actual_vector_element_count() {
 }
 
 #[test]
-fn should_match_serde_for_shaped_nested_arrays_and_numeric_values() {
+fn should_match_serde_for_shaped_nested_arrays_with_numeric_values() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -277,6 +280,7 @@ fn should_match_serde_for_shaped_nested_arrays_and_numeric_values() {
 
     // Act / Assert
     for values in [&supported, &numeric] {
+        // Assert
         assert_eq!(
             json_bytes_controlled(values, &controls).expect("size"),
             json_bytes(values)
@@ -397,6 +401,7 @@ fn should_match_serde_for_all_fixed_width_typed_values_without_scratch() {
         .collect::<Vec<_>>();
 
     // Act / Assert
+    // Assert
     assert_eq!(
         json_bytes_controlled(&values, &controls).expect("count"),
         json_bytes(&values)
@@ -415,6 +420,7 @@ fn should_count_fixed_typed_values_inside_arrays() {
     .expect("array");
     let values = vec![("array".into(), Value::Array(array))];
     // Act / Assert
+    // Assert
     assert_eq!(
         json_bytes_controlled(&values, &controls).expect("count"),
         json_bytes(&values)
@@ -423,7 +429,7 @@ fn should_count_fixed_typed_values_inside_arrays() {
 }
 
 #[test]
-fn should_count_bit_strings_with_stored_padding_and_nested_arrays() {
+fn should_count_bit_strings_with_stored_padding_with_nested_arrays() {
     // Arrange
     use crate::types::extended::bit_string::BitString;
     use crate::types::typed::TypedValue;
@@ -443,6 +449,7 @@ fn should_count_bit_strings_with_stored_padding_and_nested_arrays() {
         ("nested".into(), Value::Array(nested)),
     ];
     // Act / Assert
+    // Assert
     assert_eq!(
         json_bytes_controlled(&values, &controls).expect("count"),
         json_bytes(&values)
@@ -465,6 +472,7 @@ fn should_count_flat_bit_values_with_zero_scratch_budget() {
     let bits = BitString::from_bits((0..4097).map(|index| index % 2 == 0));
     let values = vec![("bits".into(), Value::Typed(TypedValue::Bit(bits)))];
     // Act / Assert
+    // Assert
     assert_eq!(
         json_bytes_controlled(&values, &controls).expect("count"),
         json_bytes(&values)
@@ -501,7 +509,7 @@ fn should_cancel_during_actual_stored_bit_byte_count() {
 }
 
 #[test]
-fn should_match_serde_for_numeric_group_values_and_nested_arrays() {
+fn should_match_serde_for_numeric_group_values_with_nested_arrays() {
     // Arrange
     use crate::types::extended::numeric::parse_text;
     use crate::types::typed::TypedValue;
@@ -531,6 +539,7 @@ fn should_match_serde_for_numeric_group_values_and_nested_arrays() {
 
     // Act / Assert
     for values in [&values, &nested] {
+        // Assert
         assert_eq!(
             json_bytes_controlled(values, &controls).expect("count"),
             json_bytes(values)

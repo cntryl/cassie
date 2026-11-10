@@ -11,7 +11,7 @@ fn frame(length: i32, payload: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn should_match_bit_binary_output_and_malformed_error_precedence() {
+fn should_match_bit_binary_output_with_malformed_error_precedence() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -33,6 +33,7 @@ fn should_match_bit_binary_output_and_malformed_error_precedence() {
             let (actual, memory) = super::decode(oid, bytes, 0, &controls)
                 .expect("decode")
                 .expect("handled");
+            // Assert
             assert_eq!(actual, expected);
             drop((actual, memory));
             assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -57,7 +58,7 @@ fn should_match_bit_binary_output_and_malformed_error_precedence() {
 }
 
 #[test]
-fn should_admit_bit_output_at_exact_budget_and_deny_below() {
+fn should_admit_bit_output_at_exact_budget_with_deny_below() {
     // Arrange
     let bytes = frame(9, &[0xaa, 0xff]);
     let limits = CassieRuntimeLimits {

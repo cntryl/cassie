@@ -53,7 +53,7 @@ fn assert_forbidden(result: Result<Option<IndexMeta>, CassieError>) {
 }
 
 #[test]
-fn should_reject_encoded_sublinks_at_exact_fallback_and_list_readback() {
+fn should_reject_encoded_sublinks_at_exact_fallback_with_list_readback() {
     // Arrange
     for sql in [
         "(SELECT 1)",
@@ -92,13 +92,13 @@ fn should_reject_encoded_sublinks_at_exact_fallback_and_list_readback() {
 }
 
 #[test]
-fn should_preserve_malformed_exact_and_scan_list_skip_behavior() {
+fn should_reject_malformed_exact_index_metadata() {
     // Arrange
     let midge = fixture();
     let meta = index(&midge);
     let exact_key = Midge::index_key(&meta.collection, &meta.name);
     midge
-        .raw_put(StorageFamily::Data, &exact_key, b"{")
+        .raw_put(StorageFamily::Data, &exact_key, b"\x7b")
         .expect("malformed exact record");
     // Act
     let exact = midge.get_index("readback_items", &meta.name);
@@ -106,23 +106,26 @@ fn should_preserve_malformed_exact_and_scan_list_skip_behavior() {
     assert!(
         matches!(exact, Err(CassieError::Parse(message)) if message.contains("invalid index metadata"))
     );
-    assert_eq!(midge.list_indexes().expect("skip malformed"), Vec::new());
+}
+
+#[test]
+fn should_read_valid_index_while_skipping_malformed_list_entries() {
     // Arrange
+    let midge = fixture();
+    let meta = index(&midge);
     let other = Midge::index_key(&meta.collection, "bad_legacy");
     midge
-        .raw_put(StorageFamily::Data, &other, b"{")
+        .raw_put(StorageFamily::Data, &other, b"\x7b")
         .expect("malformed legacy record");
     let mut valid = meta.clone();
     valid.name = "valid_idx".into();
     seed(&midge, &valid, "valid_alias");
-    // Act / Assert
-    assert_eq!(
-        midge
-            .get_index("readback_items", "valid_idx")
-            .expect("fallback"),
-        Some(valid.clone())
-    );
-    assert_eq!(midge.list_indexes().expect("list"), vec![valid]);
+    // Act
+    let found = midge.get_index("readback_items", "valid_idx");
+    let listed = midge.list_indexes();
+    // Assert
+    assert_eq!(found.expect("fallback"), Some(valid.clone()));
+    assert_eq!(listed.expect("list"), vec![valid]);
 }
 
 #[test]

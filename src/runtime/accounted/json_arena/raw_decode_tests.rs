@@ -26,6 +26,7 @@ fn should_match_serde_decoding_for_reached_raw_strings() {
         let expected = serde_json::from_str::<String>(value);
         let actual = decode(value, &controls);
         match (actual, expected) {
+            // Assert
             (Ok(actual), Ok(expected)) => assert_eq!(actual.get(), &expected),
             (Err(actual), Err(expected)) => assert_eq!(actual.to_string(), expected.to_string()),
             _ => panic!("decoder mismatch for {value}"),

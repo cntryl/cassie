@@ -15,7 +15,7 @@ fn payload(field: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn should_parse_binary_json_with_value_semantics_and_preserve_error_mapping() {
+fn should_parse_binary_json_with_value_semantics_with_preserve_error_mapping() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("Cassie");
     cassie.startup().expect("startup");
@@ -50,12 +50,13 @@ fn should_parse_binary_json_with_value_semantics_and_preserve_error_mapping() {
         let (rows, memory) =
             super::parse_binary_payload(&payload(field), &cassie, &statement, &controls)
                 .expect("parse");
+        // Assert
         assert_eq!(rows, vec![vec![Some(expected)]]);
         drop((rows, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
     for field in [
-        b"{bad".as_slice(),
+        b"\x7bbad".as_slice(),
         b"true trailing",
         b"{bad\xff}",
         br#"{"$serde_json::private::Number":"-xY","other":1}"#,

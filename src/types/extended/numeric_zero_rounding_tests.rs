@@ -39,7 +39,7 @@ fn should_keep_zero_display_scale_when_rescaling_or_truncating() {
 }
 
 #[test]
-fn should_preserve_half_away_rounding_and_truncation_at_the_boundary() {
+fn should_preserve_half_away_rounding_with_truncation_at_the_boundary() {
     // Arrange
     let cases = [
         (4, 0, 0),

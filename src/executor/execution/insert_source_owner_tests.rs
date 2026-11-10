@@ -20,7 +20,7 @@ fn row(value: Value) -> BatchRow {
 }
 
 #[test]
-fn should_hold_both_source_owners_through_filter_and_lazy_consumption() {
+fn should_hold_both_source_owners_through_filter_with_lazy_consumption() {
     // Arrange
     for (query_owned, operator_owned) in [(true, false), (false, true), (true, true)] {
         let controls = controls(8192, QueryCancellationHandle::new());
@@ -87,7 +87,7 @@ fn should_release_source_after_partial_iterator_failure() {
 }
 
 #[test]
-fn should_admit_sidecar_exactly_and_cancel_after_a_moved_row() {
+fn should_admit_sidecar_exactly_with_cancel_after_a_moved_row() {
     // Arrange
     let bytes = 2 * std::mem::size_of::<SourceOwners>();
     for (budget, succeeds) in [(bytes, true), (bytes - 1, false)] {

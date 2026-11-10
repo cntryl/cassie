@@ -15,7 +15,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_preserve_scalar_null_empty_and_both_fraction_array_carriers() {
+fn should_preserve_scalar_null_empty_with_both_fraction_array_carriers() {
     // Arrange
     let controls = controls(4096);
     let input = controls.reserve_query_memory(64).expect("input owner");
@@ -31,6 +31,7 @@ fn should_preserve_scalar_null_empty_and_both_fraction_array_carriers() {
     let json = Value::Json(serde_json::json!([0.0, null, 0.5, 1.0]));
 
     // Act / Assert
+    // Assert
     assert!(
         collect_fractions(&Value::Null, false, &controls, &input, |_| {})
             .expect("NULL")
@@ -88,6 +89,7 @@ fn should_admit_fraction_directory_with_input_owner_at_exact_budget() {
             .reserve_query_memory(input_bytes)
             .expect("input owner");
         let result = collect_fractions(&value, false, &controls, &input, |_| {});
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         if let Ok(Some(owner)) = result {
             assert_eq!(
@@ -103,7 +105,7 @@ fn should_admit_fraction_directory_with_input_owner_at_exact_budget() {
 }
 
 #[test]
-fn should_cancel_after_an_actual_fraction_element_and_release_output() {
+fn should_cancel_after_an_actual_fraction_element_with_release_output() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -159,7 +161,7 @@ fn should_reject_foreign_fraction_tracker_before_admission() {
 }
 
 #[test]
-fn should_preserve_fraction_errors_and_allow_earlier_resource_failure() {
+fn should_preserve_fraction_errors_with_allow_earlier_resource_failure() {
     // Arrange
     let input_bytes = 64;
     let value = Value::Json(serde_json::json!([0.5, 1.5]));
@@ -190,7 +192,7 @@ fn should_preserve_fraction_errors_and_allow_earlier_resource_failure() {
 }
 
 #[test]
-fn should_reject_first_later_malformed_and_nonfinite_fraction_elements() {
+fn should_reject_first_later_malformed_with_nonfinite_fraction_elements() {
     // Arrange
     let controls = controls(4096);
     let input = controls.reserve_query_memory(64).expect("input");
@@ -211,6 +213,7 @@ fn should_reject_first_later_malformed_and_nonfinite_fraction_elements() {
     for (index, value) in cases.iter().enumerate() {
         let result = collect_fractions(value, false, &controls, &input, |_| {});
         if index < 2 {
+            // Assert
             assert!(matches!(result, Err(QueryError::General(_))));
         } else {
             assert!(
@@ -321,7 +324,7 @@ fn should_report_invalid_fraction_before_reaching_sorted_value_errors() {
 }
 
 #[test]
-fn should_retain_fraction_owner_during_actual_sort_and_release_on_cancel_or_empty() {
+fn should_retain_fraction_owner_during_actual_sort_with_release_on_cancel_or_empty() {
     // Arrange
     let catalog = crate::catalog::Catalog::new();
     catalog.register_collection(

@@ -2,7 +2,7 @@ use super::*;
 use crate::runtime::QueryCancellationHandle;
 
 #[test]
-fn should_preserve_duplicate_and_empty_group_results_at_measured_budget() {
+fn should_preserve_duplicate_with_empty_group_results_at_measured_budget() {
     // Arrange
     let plan = aggregate_plan("SELECT tenant, COUNT(*) FROM events GROUP BY tenant");
     let specs = aggregate_specs(&plan);

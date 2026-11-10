@@ -63,7 +63,7 @@ fn should_preserve_ties_to_even_for_fractional_interval_seconds() {
 }
 
 #[test]
-fn should_preserve_float_component_and_infinity_error_priority() {
+fn should_preserve_float_component_with_infinity_error_priority() {
     // Arrange
     let cases = [
         ([0; 6], 1e308, "22003", "value out of range: overflow"),

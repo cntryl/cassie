@@ -36,6 +36,7 @@ fn should_only_admit_fresh_shared_count_slots_into_unknown_bucket_inference() {
     resolved[0] = Summary::known(25);
 
     // Act / Assert
+    // Assert
     assert!(all_unknown_bucket_parameters(&distinct, &unknowns, false));
     assert!(all_unknown_bucket_parameters(
         &repeated_operands,
@@ -151,6 +152,7 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
     contextual_null[0].literal = true;
 
     // Act / Assert
+    // Assert
     assert_eq!(
         super::mixed_bucket_targets(&args, &summaries, fresh),
         Some([701, 701, 701, 23])
@@ -229,6 +231,7 @@ fn should_limit_mixed_bucket_count_inference_to_distinct_unknown_slots() {
     no_anchor_prior[0] = Summary::known(23);
 
     // Act / Assert
+    // Assert
     assert_eq!(
         super::mixed_bucket_targets(&supplied_anchor, &summaries, fresh),
         None
@@ -363,6 +366,7 @@ fn should_select_only_fresh_unknown_bucket_operands_with_literal_count() {
     known[0] = Summary::known(701);
 
     // Act / Assert
+    // Assert
     assert!(super::unknown_bucket_literal_operands(
         &operands, &summaries, [true; 3]
     ));

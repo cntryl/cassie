@@ -43,6 +43,7 @@ fn should_match_existing_object_deletion_on_nested_raw_values() {
             panic!("JSON result")
         };
         let output = render_object_without_key(source, key, &controls).expect("raw deletion");
+        // Assert
         assert_eq!(output.as_str(), expected, "{source}");
         drop(output);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -50,7 +51,7 @@ fn should_match_existing_object_deletion_on_nested_raw_values() {
 }
 
 #[test]
-fn should_match_existing_array_index_deletion_and_leave_removed_values_opaque() {
+fn should_match_existing_array_index_deletion_with_leave_removed_values_opaque() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let values = [
@@ -73,6 +74,7 @@ fn should_match_existing_array_index_deletion_and_leave_removed_values_opaque() 
             panic!("JSON result")
         };
         let output = render_array_without_index(source, index, &controls).expect("raw deletion");
+        // Assert
         assert_eq!(output.as_str(), expected, "{source} {index}");
         drop(output);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -93,6 +95,7 @@ fn should_match_direct_array_visitor_errors_before_index_selection() {
             Ok(_) => panic!("accepted {source}"),
             Err(error) => error.into_query_error(),
         };
+        // Assert
         assert!(
             matches!((error, old),
             (crate::executor::QueryError::General(actual), Err(crate::executor::QueryError::General(expected))) if actual == expected),
@@ -145,7 +148,7 @@ fn should_treat_invalid_array_string_as_nonmatch_before_survivor_formatting() {
 }
 
 #[test]
-fn should_match_text_array_deletion_for_objects_and_arrays() {
+fn should_match_text_array_deletion_for_objects_with_arrays() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let keys = [Some("a".to_owned()), None, Some("b".to_owned())];
@@ -164,12 +167,13 @@ fn should_match_text_array_deletion_for_objects_and_arrays() {
         let ScalarValue::Json(expected) = old else {
             panic!("JSON result")
         };
-        let result = if source.starts_with('{') {
+        let result = if source.starts_with('\u{7b}') {
             render_object_without_keys(source, &keys, &controls)
         } else {
             render_array_without_keys(source, &keys, &controls)
         }
         .expect("raw deletion");
+        // Assert
         assert_eq!(result.as_str(), expected);
         drop(result);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -194,12 +198,13 @@ fn should_match_borrowed_native_key_arrays_for_both_container_shapes() {
         let ScalarValue::Json(expected) = old else {
             panic!("JSON result")
         };
-        let result = if source.starts_with('{') {
+        let result = if source.starts_with('\u{7b}') {
             super::render_object_without_native_keys(source, &keys, &controls)
         } else {
             super::render_array_without_native_keys(source, &keys, &controls)
         }
         .expect("raw deletion");
+        // Assert
         assert_eq!(result.as_str(), expected);
         drop(result);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -233,7 +238,7 @@ fn should_preserve_all_null_key_array_survivor_errors() {
 }
 
 #[test]
-fn should_match_lazy_nested_path_deletion_and_missing_paths() {
+fn should_match_lazy_nested_path_deletion_with_missing_paths() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let cases = [
@@ -271,6 +276,7 @@ fn should_match_lazy_nested_path_deletion_and_missing_paths() {
             panic!("JSON result")
         };
         let actual = render_path(source, &path, &controls).expect("raw path deletion");
+        // Assert
         assert_eq!(actual.as_str(), expected);
         drop(actual);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -278,7 +284,7 @@ fn should_match_lazy_nested_path_deletion_and_missing_paths() {
 }
 
 #[test]
-fn should_match_reached_null_and_invalid_index_path_errors() {
+fn should_match_reached_null_with_invalid_index_path_errors() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let cases = [
@@ -312,6 +318,7 @@ fn should_match_reached_null_and_invalid_index_path_errors() {
             Ok(_) => panic!("new path unexpectedly succeeded"),
             Err(error) => error.into_query_error().to_string(),
         };
+        // Assert
         assert_eq!(actual, old);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -423,6 +430,7 @@ fn should_enforce_the_measured_bottom_up_path_overlap() {
     let output = render_path(source, &path, &baseline).expect("path");
     let peak = baseline.peak_query_memory_bytes();
     drop(output);
+    // Assert
     assert_eq!(baseline.current_query_memory_bytes(), 0);
     // Act / Assert
     for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
@@ -507,6 +515,7 @@ fn should_keep_the_measured_output_overlap_until_the_result_drops() {
     let baseline = controls(QueryCancellationHandle::new());
     let output = render_object_without_key(source, "drop", &baseline).expect("baseline");
     let peak = baseline.peak_query_memory_bytes();
+    // Assert
     assert!(baseline.current_query_memory_bytes() > 0);
     drop(output);
     assert_eq!(baseline.current_query_memory_bytes(), 0);

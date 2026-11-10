@@ -67,7 +67,7 @@ fn run(values: &[Value], direction: &str) -> (Value, Vec<ModeProgress>) {
 }
 
 #[test]
-fn should_preserve_string_ties_strict_winners_and_first_equal_representative() {
+fn should_preserve_string_ties_strict_winners_with_first_equal_representative() {
     // Arrange
     let strings = ["b", "a", "b", "a"].map(|value| Value::String(value.into()));
     let winner = ["a", "a", "b", "b", "b"].map(|value| Value::String(value.into()));
@@ -76,6 +76,7 @@ fn should_preserve_string_ties_strict_winners_and_first_equal_representative() {
     let equivalent = [Value::String(legacy.into()), Value::String(fixed.into())];
 
     // Act / Assert
+    // Assert
     assert_eq!(run(&strings, "ASC").0, Value::String("a".into()));
     assert_eq!(run(&strings, "DESC").0, Value::String("b".into()));
     assert_eq!(run(&winner, "ASC").0, Value::String("b".into()));
@@ -147,7 +148,7 @@ fn should_preserve_nonstring_candidate_cloning_in_mixed_winner_transitions() {
 }
 
 #[test]
-fn should_preserve_mode_null_filter_and_empty_input_behavior() {
+fn should_preserve_mode_null_filter_with_empty_input_behavior() {
     // Arrange
     let plan = plan("SELECT mode() WITHIN GROUP (ORDER BY value) FILTER (WHERE keep) FROM events");
     let specs = super::super::super::aggregate_specs(&plan);
@@ -183,7 +184,7 @@ fn should_preserve_mode_null_filter_and_empty_input_behavior() {
 }
 
 #[test]
-fn should_retain_mode_string_through_aliases_and_last_row_clone() {
+fn should_retain_mode_string_through_aliases_with_last_row_clone() {
     // Arrange
     let plan = plan("SELECT mode() WITHIN GROUP (ORDER BY value) FROM events");
     let specs = super::super::super::aggregate_specs(&plan);

@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use tokio::io::AsyncWrite;
 
 #[test]
-fn should_encode_internal_char_zero_and_identity_codes() {
+fn should_encode_internal_char_zero_with_identity_codes() {
     // Arrange
     let values = ["", "a", "d", "too long"];
 

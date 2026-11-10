@@ -11,7 +11,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_preserve_cursor_position_and_reset_nested_source_depth() {
+fn should_preserve_cursor_position_with_reset_nested_source_depth() {
     // Arrange
     let controls = controls();
     let mut sources = SourceStack::from_str("a\nb", &controls).expect("root");
@@ -36,7 +36,7 @@ fn should_preserve_cursor_position_and_reset_nested_source_depth() {
 }
 
 #[test]
-fn should_reuse_popped_frame_positions_and_release_nested_owners() {
+fn should_reuse_popped_frame_positions_with_release_nested_owners() {
     // Arrange
     let controls = controls();
     let mut sources = SourceStack::from_str("root", &controls).expect("root");
@@ -48,6 +48,7 @@ fn should_reuse_popped_frame_positions_and_release_nested_owners() {
         sources
             .push_owned(cursor.read_string().expect("token"))
             .expect("push");
+        // Assert
         assert_eq!(sources.step(Cursor::next).expect("byte"), Some(b'a'));
         sources.pop().expect("pop");
         assert_eq!(controls.current_query_memory_bytes(), baseline);
@@ -117,8 +118,9 @@ fn should_reject_invalid_binary_source_before_any_cursor_step() {
     let controls = controls();
 
     // Act / Assert
+    // Assert
     assert!(matches!(
-        SourceStack::from_bytes(b"{x\xff", &controls),
+        SourceStack::from_bytes(b"\x7bx\xff", &controls),
         Err(CursorError::InvalidUtf8)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -146,7 +148,7 @@ fn should_save_consumed_position_even_when_a_cursor_step_fails() {
 }
 
 #[test]
-fn should_admit_old_and_new_frame_directories_before_growth() {
+fn should_admit_old_with_new_frame_directories_before_growth() {
     fn check(limit: usize, should_succeed: bool) {
         let limits = CassieRuntimeLimits {
             query_memory_budget_bytes: limit,
@@ -165,6 +167,7 @@ fn should_admit_old_and_new_frame_directories_before_growth() {
         let token = cursor.read_string().expect("candidate");
         let result = sources.push_owned(token);
         if should_succeed {
+            // Assert
             assert!(result.is_ok());
             assert_eq!(sources.test_len(), 5);
         } else {

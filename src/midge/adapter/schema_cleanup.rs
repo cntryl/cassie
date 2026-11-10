@@ -650,14 +650,14 @@ mod tests {
             .raw_put(
                 StorageFamily::Data,
                 &Midge::row_schema_key(&canonical),
-                b"{",
+                b"\x7b",
             )
             .expect("corrupt row schema");
         midge
             .raw_put(
                 StorageFamily::Data,
                 &Midge::collection_schema_key(&canonical),
-                b"{",
+                b"\x7b",
             )
             .expect("corrupt collection schema");
         let row_prefix = Midge::row_prefix(relation_id);

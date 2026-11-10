@@ -61,7 +61,7 @@ fn select(rows: &[BatchRow], direction: &str, fraction: Value) -> Value {
 }
 
 #[test]
-fn should_preserve_discrete_string_rank_filter_and_null_semantics() {
+fn should_preserve_discrete_string_rank_filter_with_null_semantics() {
     // Arrange
     let rows = [
         row(Value::String("c".into()), true),
@@ -71,6 +71,7 @@ fn should_preserve_discrete_string_rank_filter_and_null_semantics() {
     ];
 
     // Act / Assert
+    // Assert
     assert_eq!(
         select(&rows, "ASC", Value::Float64(0.0)),
         Value::String("a".into())
@@ -122,7 +123,7 @@ fn should_preserve_discrete_string_rank_filter_and_null_semantics() {
 }
 
 #[test]
-fn should_retain_discrete_string_through_aliases_and_last_row_clone() {
+fn should_retain_discrete_string_through_aliases_with_last_row_clone() {
     // Arrange
     let plan = plan("ASC");
     let specs = super::super::aggregate_specs(&plan);
@@ -238,7 +239,7 @@ fn should_reject_a_discrete_string_source_from_another_tracker() {
 }
 
 #[test]
-fn should_cancel_during_discrete_string_copy_with_sorted_and_fraction_owners() {
+fn should_cancel_during_discrete_string_copy_with_sorted_with_fraction_owners() {
     // Arrange
     let plan = plan("ASC");
     let specs = super::super::aggregate_specs(&plan);
@@ -321,6 +322,7 @@ fn run_with_budget(budget: usize) -> (bool, usize) {
 fn should_admit_discrete_string_copy_at_measured_overlapping_budget() {
     // Arrange
     let (succeeded, peak) = run_with_budget(1_000_000);
+    // Assert
     assert!(succeeded && peak > 0);
 
     // Act / Assert

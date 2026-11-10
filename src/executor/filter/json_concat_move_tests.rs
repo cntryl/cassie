@@ -19,7 +19,7 @@ fn should_move_json_carrier_without_copying_its_buffer() {
 }
 
 #[test]
-fn should_preserve_null_scalar_conversion_and_error_results() {
+fn should_preserve_null_scalar_conversion_with_error_results() {
     // Arrange
     let values = [
         ScalarValue::Null,
@@ -37,6 +37,7 @@ fn should_preserve_null_scalar_conversion_and_error_results() {
         let actual = into_json_document(value).map_err(|error| error.to_string());
         match (expected, actual) {
             (Ok(ScalarValue::Json(a)), Ok(ScalarValue::Json(b))) | (Err(a), Err(b)) => {
+                // Assert
                 assert_eq!(a, b);
             }
             (Ok(ScalarValue::Null), Ok(ScalarValue::Null)) => {}

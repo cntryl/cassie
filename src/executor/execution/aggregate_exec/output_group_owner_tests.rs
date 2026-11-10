@@ -22,7 +22,7 @@ fn should_retain_serial_group_memory_through_output_lifetime() {
 }
 
 #[test]
-fn should_retain_partition_and_merge_memory_through_output_lifetime() {
+fn should_retain_partition_with_merge_memory_through_output_lifetime() {
     // Arrange
     let plan = aggregate_plan("SELECT tenant, COUNT(*) FROM events GROUP BY tenant");
     let specs = aggregate_specs(&plan);

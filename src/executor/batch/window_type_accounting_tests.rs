@@ -18,7 +18,7 @@ fn row(types: Arc<Vec<DataType>>) -> BatchRow {
 }
 
 #[test]
-fn should_match_type_metadata_count_for_shared_distinct_and_empty_buffers() {
+fn should_match_type_metadata_count_for_shared_distinct_with_empty_buffers() {
     // Arrange
     let shared = Arc::new(vec![DataType::Array(Box::new(DataType::Array(Box::new(
         DataType::Int,
@@ -45,7 +45,7 @@ fn should_match_type_metadata_count_for_shared_distinct_and_empty_buffers() {
 }
 
 #[test]
-fn should_admit_type_directory_at_the_exact_budget_and_release_it() {
+fn should_admit_type_directory_at_the_exact_budget_with_release_it() {
     // Arrange
     let rows = vec![
         row(Arc::new(vec![DataType::Int])),
@@ -64,6 +64,7 @@ fn should_admit_type_directory_at_the_exact_budget_and_release_it() {
             .reserve_query_memory(retained_bytes)
             .expect("existing owner");
         let result = row_type_bytes_controlled(&rows, &controls);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         assert_eq!(controls.current_query_memory_bytes(), retained_bytes);
         drop(retained);
@@ -84,7 +85,7 @@ fn should_reject_type_vector_size_overflow() {
 }
 
 #[test]
-fn should_order_type_buffer_identities_for_odd_even_and_duplicate_inputs() {
+fn should_order_type_buffer_identities_for_odd_even_with_duplicate_inputs() {
     // Arrange
     let first = vec![DataType::Int];
     let second = vec![DataType::Text];
@@ -99,6 +100,7 @@ fn should_order_type_buffer_identities_for_odd_even_and_duplicate_inputs() {
     // Act / Assert
     for mut values in cases {
         window_type_accounting::sort(&mut values, &controls, &mut |_| {}).expect("sort");
+        // Assert
         assert!(values
             .windows(2)
             .all(|pair| { (pair[0].as_ptr() as usize) <= (pair[1].as_ptr() as usize) }));
@@ -107,7 +109,7 @@ fn should_order_type_buffer_identities_for_odd_even_and_duplicate_inputs() {
 }
 
 #[test]
-fn should_cancel_actual_type_collection_heap_sift_and_array_walk() {
+fn should_cancel_actual_type_collection_heap_sift_with_array_walk() {
     // Arrange
     let rows = vec![
         row(Arc::new(vec![DataType::Array(Box::new(DataType::Array(

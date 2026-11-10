@@ -98,7 +98,7 @@ fn should_release_owned_output_after_cancellation_during_string_copy() {
 }
 
 #[test]
-fn should_keep_duplicate_names_and_enforce_output_budget_boundary() {
+fn should_keep_duplicate_names_with_enforce_output_budget_boundary() {
     // Arrange
     let value = Value::String("escaped \"Ω".repeat(256));
     let names = ["alias".to_owned(), "alias".to_owned()];
@@ -244,6 +244,7 @@ fn should_enforce_null_array_alias_copy_budget_at_exact_peak() {
         );
         let mut output = row(&controls);
         let result = output.append(make_output(&controls), &names);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(output);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -319,6 +320,7 @@ fn should_enforce_owned_mode_string_alias_budget_at_measured_peak() {
         );
         let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
         let result = output.append(make_output(&controls), &names);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(output);
         assert_eq!(controls.current_query_memory_bytes(), 0);

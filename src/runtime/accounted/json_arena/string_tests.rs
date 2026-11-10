@@ -11,7 +11,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_decode_value_string_escapes_and_surrogate_pairs() {
+fn should_decode_value_string_escapes_with_surrogate_pairs() {
     // Arrange
     let controls = controls();
     let mut cursor = Cursor::from_str(r#""\/\"\\\b\f\n\r\t\uD83D\uDE42""#, &controls);
@@ -27,7 +27,7 @@ fn should_decode_value_string_escapes_and_surrogate_pairs() {
 }
 
 #[test]
-fn should_match_value_string_error_kinds_and_consumed_positions() {
+fn should_match_value_string_error_kinds_with_consumed_positions() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -45,6 +45,7 @@ fn should_match_value_string_error_kinds_and_consumed_positions() {
     // Act / Assert
     for (input, kind, offset, line, column) in cases {
         let mut cursor = Cursor::from_str(input, &controls);
+        // Assert
         assert!(
             matches!(cursor.read_string(), Err(CursorError::Syntax(Diagnostic { kind: actual, position: Position { offset: at, line: row, column: col } })) if actual == kind && at == offset && row == line && col == column),
             "{input:?}"
@@ -67,7 +68,7 @@ fn should_match_value_string_error_kinds_and_consumed_positions() {
 }
 
 #[test]
-fn should_admit_string_capacity_and_release_on_denial() {
+fn should_admit_string_capacity_with_release_on_denial() {
     // Arrange
     let exact = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {
@@ -88,6 +89,7 @@ fn should_admit_string_capacity_and_release_on_denial() {
 
     // Act / Assert
     let value = exact_cursor.read_string().expect("exact capacity");
+    // Assert
     assert_eq!(value.as_str(), "abc");
     assert_eq!(exact.current_query_memory_bytes(), 4);
     assert!(matches!(
@@ -134,6 +136,7 @@ fn should_observe_cancellation_before_inspecting_a_string_token() {
     cancellation.cancel();
 
     // Act / Assert
+    // Assert
     assert!(matches!(
         cursor.read_string(),
         Err(CursorError::Interrupted(CassieError::QueryCancelled))
@@ -199,6 +202,7 @@ fn should_admit_both_string_buffers_during_growth() {
 
     // Act / Assert
     let value = exact_cursor.read_string().expect("old and new admitted");
+    // Assert
     assert_eq!(value.as_str(), "abcde");
     assert_eq!(exact.current_query_memory_bytes(), 8);
     assert!(matches!(

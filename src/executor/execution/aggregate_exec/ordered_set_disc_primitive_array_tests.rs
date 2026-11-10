@@ -180,7 +180,7 @@ fn should_cancel_during_selected_primitive_array_copy() {
 }
 
 #[test]
-fn should_preserve_invalid_and_null_fraction_before_array_output() {
+fn should_preserve_invalid_with_null_fraction_before_array_output() {
     // Arrange
     let plan = plan();
     let specs = super::super::aggregate_specs(&plan);
@@ -268,9 +268,10 @@ fn run_with_budget(budget: usize) -> (bool, usize) {
 }
 
 #[test]
-fn should_admit_array_result_and_aliases_at_measured_peak() {
+fn should_admit_array_result_with_aliases_at_measured_peak() {
     // Arrange
     let (success, peak) = run_with_budget(1_000_000);
+    // Assert
     assert!(success && peak > 0);
 
     // Act / Assert

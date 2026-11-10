@@ -34,6 +34,7 @@ fn should_match_serde_compact_output_for_arena_values() {
             .to_string();
         let parsed = Document::parse_for_output(input, &controls).expect("document");
         let output = serialize(&parsed.forest, parsed.root).expect("output");
+        // Assert
         assert_eq!(output.as_str(), expected, "{input}");
         drop(output);
         drop(parsed);
@@ -42,7 +43,7 @@ fn should_match_serde_compact_output_for_arena_values() {
 }
 
 #[test]
-fn should_admit_output_and_frame_capacity_while_forest_remains_owned() {
+fn should_admit_output_with_frame_capacity_while_forest_remains_owned() {
     fn check(allowance: usize, succeeds: bool) {
         let limit = 16384;
         let limits = CassieRuntimeLimits {
@@ -58,6 +59,7 @@ fn should_admit_output_and_frame_capacity_while_forest_remains_owned() {
         let result = serialize(&parsed.forest, parsed.root);
         if succeeds {
             let output = result.expect("exact");
+            // Assert
             assert_eq!(output.as_str(), "null");
             drop(output);
         } else {
@@ -77,7 +79,7 @@ fn should_admit_output_and_frame_capacity_while_forest_remains_owned() {
 }
 
 #[test]
-fn should_release_output_and_stack_when_cancelled_during_key_comparison() {
+fn should_release_output_with_stack_when_cancelled_during_key_comparison() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

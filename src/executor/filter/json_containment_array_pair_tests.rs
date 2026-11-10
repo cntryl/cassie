@@ -24,7 +24,7 @@ fn op(reverse: bool) -> BinaryOp {
 }
 
 #[test]
-fn should_match_legacy_array_containment_retry_and_root_rules() {
+fn should_match_legacy_array_containment_retry_with_root_rules() {
     // Arrange
     let cases = [
         ("[1,2]", "[2]"),
@@ -50,6 +50,7 @@ fn should_match_legacy_array_containment_retry_and_root_rules() {
             let actual = evaluate_with_controls(&op(reverse), &left, &right, Some(&controls))
                 .map_err(|error| error.to_string());
             match (expected, actual) {
+                // Assert
                 (Ok(ScalarValue::Bool(a)), Ok(ScalarValue::Bool(b))) => assert_eq!(a, b),
                 (Err(a), Err(b)) => assert_eq!(a, b),
                 _ => panic!("array containment parity"),
@@ -107,6 +108,7 @@ fn should_admit_measured_array_directory_overlap() {
     let candidate = ScalarValue::Json("[1,2,3,4,5,6,7]".into());
     let required = ScalarValue::Json("[7,1]".into());
     let baseline = controls(10 * 1024 * 1024);
+    // Assert
     assert!(matches!(
         evaluate_with_controls(&op(false), &candidate, &required, Some(&baseline)),
         Ok(ScalarValue::Bool(true))

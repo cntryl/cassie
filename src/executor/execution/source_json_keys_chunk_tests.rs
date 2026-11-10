@@ -5,7 +5,7 @@ use crate::runtime::QueryExecutionControls;
 use std::time::Instant;
 
 #[test]
-fn should_hold_input_chunk_lease_through_both_distinct_paths_and_flatten() {
+fn should_hold_input_chunk_lease_through_both_distinct_paths_with_flatten() {
     // Arrange
     for scalar in [false, true] {
         let controls =

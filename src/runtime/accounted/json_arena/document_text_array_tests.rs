@@ -12,7 +12,7 @@ fn controls(cancel: QueryCancellationHandle) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_retain_value_mode_json_string_and_null_elements() {
+fn should_retain_value_mode_json_string_with_null_elements() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let input = "\u{2003}[\"a\", null, \"b\\u0063\"]\u{2003}";
@@ -31,7 +31,7 @@ fn should_retain_value_mode_json_string_and_null_elements() {
 }
 
 #[test]
-fn should_leave_malformed_nonstring_sentinel_and_dimension_forms_to_legacy() {
+fn should_leave_malformed_nonstring_sentinel_with_dimension_forms_to_legacy() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let inputs = [
@@ -44,6 +44,7 @@ fn should_leave_malformed_nonstring_sentinel_and_dimension_forms_to_legacy() {
     ];
     // Act / Assert
     for input in inputs {
+        // Assert
         assert!(
             parse(input, &controls).expect("candidate").is_none(),
             "{input}"
@@ -123,6 +124,7 @@ fn should_match_existing_value_mode_text_arrays() {
         let actual = parse(input, &controls)
             .expect("candidate")
             .expect("text array");
+        // Assert
         assert_eq!(actual.len(), expected.len());
         for (index, value) in expected.iter().enumerate() {
             assert_eq!(actual.get(index).expect("element"), value.as_str());
@@ -149,6 +151,7 @@ fn should_enforce_the_measured_value_arena_overlap_budget() {
         };
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         let result = parse(input, &controls);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(result);
         assert_eq!(controls.current_query_memory_bytes(), 0);

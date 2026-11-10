@@ -50,6 +50,7 @@ fn should_keep_jsonb_copy_diagnostic_owned_with_original_message() {
         let super::super::filter::CopyWhereError::Jsonb(owner) = error else {
             panic!("owned JSONB error")
         };
+        // Assert
         assert_eq!(
             owner.as_str(),
             format!("COPY binary field 1 is invalid: {original}")
@@ -105,7 +106,7 @@ fn should_keep_jsonb_array_binary_codec_error_text_in_owned_copy_error() {
 }
 
 #[test]
-fn should_match_legacy_jsonb_array_envelope_and_element_error_precedence() {
+fn should_match_legacy_jsonb_array_envelope_with_element_error_precedence() {
     use crate::runtime::accounted::json_arena::jsonb_array_envelope::{decode, DecodeError};
     use crate::types::Value;
 
@@ -182,6 +183,7 @@ fn should_match_legacy_jsonb_array_envelope_and_element_error_precedence() {
                     DecodeError::Element(error) => error.to_string(),
                     DecodeError::Control(error) => panic!("unexpected control: {error}"),
                 };
+                // Assert
                 assert_eq!(message, old.to_string());
             }
             _ => panic!("array codec disagreement"),
@@ -191,7 +193,7 @@ fn should_match_legacy_jsonb_array_envelope_and_element_error_precedence() {
 }
 
 #[test]
-fn should_match_legacy_jsonb_array_text_and_compact_fallback() {
+fn should_match_legacy_jsonb_array_text_with_compact_fallback() {
     use crate::runtime::accounted::json_arena::jsonb_array_output::render;
 
     fn make(dimensions: &[(i32, i32)], fields: &[Option<&[u8]>]) -> Vec<u8> {
@@ -239,6 +241,7 @@ fn should_match_legacy_jsonb_array_text_and_compact_fallback() {
             super::super::super::codecs::binary_to_value(&input, 3807).expect("legacy value");
         let expected = super::super::super::codecs::value_to_text(&value, 3807);
         let actual = render(&input, 1, &controls).expect("controlled output");
+        // Assert
         assert_eq!(actual.as_str(), expected);
         drop(actual);
         assert_eq!(controls.current_query_memory_bytes(), 0);

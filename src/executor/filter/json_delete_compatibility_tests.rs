@@ -100,7 +100,7 @@ fn should_decode_keys_of_reached_objects_but_not_removed_subtrees() {
 }
 
 #[test]
-fn should_preserve_branch_specific_key_and_later_syntax_error_order() {
+fn should_preserve_branch_specific_key_with_later_syntax_error_order() {
     // Arrange
     let document = "{\n  \"\\ud800\": 0, \"later\": [}";
     let source = ScalarValue::Json(document.into());

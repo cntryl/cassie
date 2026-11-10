@@ -40,7 +40,7 @@ fn array(dimensions: &[(i32, i32)], has_null: i32, fields: &[Option<&[u8]>]) -> 
 }
 
 #[test]
-fn should_keep_validated_ranges_and_select_existing_sql_or_compact_fallback() {
+fn should_keep_validated_ranges_with_select_existing_sql_or_compact_fallback() {
     // Arrange
     let controls = controls(4096);
     let normal = array(&[(2, 1)], 1, &[Some(b"\x011"), None]);
@@ -63,7 +63,7 @@ fn should_keep_validated_ranges_and_select_existing_sql_or_compact_fallback() {
 }
 
 #[test]
-fn should_preserve_element_error_before_later_trailer_and_shape_errors() {
+fn should_preserve_element_error_before_later_trailer_with_shape_errors() {
     // Arrange
     let controls = controls(4096);
     let mut bytes = array(&[(1, i32::MAX)], 0, &[Some(b"bad")]);
@@ -86,7 +86,7 @@ fn should_preserve_element_error_before_later_trailer_and_shape_errors() {
 }
 
 #[test]
-fn should_distinguish_sql_null_document_null_and_late_envelope_errors() {
+fn should_distinguish_sql_null_document_null_with_late_envelope_errors() {
     // Arrange
     let controls = controls(4096);
     let sql_null = array(&[(1, 1)], 1, &[None]);
@@ -94,6 +94,7 @@ fn should_distinguish_sql_null_document_null_and_late_envelope_errors() {
     let json_null = array(&[(1, 1)], 0, &[Some(b"\x01null")]);
     let zero_dimension = array(&[(0, 1)], 0, &[]);
     // Act / Assert
+    // Assert
     assert!(decode(&sql_null, &controls, |_| Ok::<_, ()>(false), |_| {}).is_ok());
     assert!(matches!(
         decode(&missing_flag, &controls, |_| Ok::<_, ()>(true), |_| {}),
@@ -111,7 +112,7 @@ fn should_distinguish_sql_null_document_null_and_late_envelope_errors() {
 }
 
 #[test]
-fn should_admit_range_directory_exactly_and_cancel_after_real_element_validation() {
+fn should_admit_range_directory_exactly_with_cancel_after_real_element_validation() {
     // Arrange
     let bytes = array(&[(1, 1)], 0, &[Some(b"\x011")]);
     let exact = std::mem::size_of::<Option<std::ops::Range<usize>>>();
@@ -126,6 +127,7 @@ fn should_admit_range_directory_exactly_and_cancel_after_real_element_validation
     let mut called = false;
     // Act / Assert
     let owner = decode(&bytes, &admitted, |_| Ok::<_, ()>(false), |_| {}).expect("exact");
+    // Assert
     assert!(matches!(
         decode(&bytes, &denied, |_| Ok::<_, ()>(false), |_| {}),
         Err(DecodeError::Control(CassieError::ResourceLimit(_)))

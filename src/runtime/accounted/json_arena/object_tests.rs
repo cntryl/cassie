@@ -28,7 +28,7 @@ fn should_reject_a_key_owned_by_another_query_tracker() {
 }
 
 #[test]
-fn should_keep_avl_order_and_balance_for_all_rotation_shapes() {
+fn should_keep_avl_order_with_balance_for_all_rotation_shapes() {
     // Arrange
     let controls = controls();
     let shapes = [
@@ -42,6 +42,7 @@ fn should_keep_avl_order_and_balance_for_all_rotation_shapes() {
         let mut object: ObjectIndex<usize> = ObjectIndex::new(&controls).expect("object");
         for (value, key) in keys.into_iter().enumerate() {
             let owned = Key::new(key, &controls).expect("key");
+            // Assert
             assert_eq!(object.insert(owned, value).expect("insert"), None);
         }
         assert_eq!(object.test_order(), ["a", "b", "c"]);
@@ -52,7 +53,7 @@ fn should_keep_avl_order_and_balance_for_all_rotation_shapes() {
 }
 
 #[test]
-fn should_keep_existing_key_and_return_old_value_on_duplicate() {
+fn should_keep_existing_key_with_return_old_value_on_duplicate() {
     // Arrange
     let controls = controls();
     let mut object: ObjectIndex<usize> = ObjectIndex::new(&controls).expect("object");
@@ -220,6 +221,7 @@ fn should_balance_monotonic_object_insertions_without_count_cap() {
         object
             .insert(Key::new(&key, &controls).expect("key"), index)
             .expect("insert");
+        // Assert
         assert!(object.test_invariants(), "index {index}");
     }
     let order = object.test_order();

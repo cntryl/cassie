@@ -61,6 +61,7 @@ fn should_preserve_all_path_function_results_with_a_shared_owner() {
         .expect("legacy result");
         let actual =
             evaluate_expr_value_with_context(&row, &expression, context).expect("owned result");
+        // Assert
         assert_eq!(actual, legacy, "{name}");
         assert!(owner.bytes() > 0, "{name} must retain admission");
     }
@@ -205,7 +206,7 @@ fn should_release_shared_owner_after_actual_function_output_copy_cancellation() 
 }
 
 #[test]
-fn should_reject_a_foreign_owner_and_release_both_query_trackers() {
+fn should_reject_a_foreign_owner_with_release_both_query_trackers() {
     // Arrange
     let owner_controls = controls(10 * 1024 * 1024);
     let run_controls = controls(10 * 1024 * 1024);
@@ -241,12 +242,12 @@ fn should_reject_a_foreign_owner_and_release_both_query_trackers() {
 }
 
 #[test]
-fn should_preserve_null_before_invalid_document_and_release_failed_work() {
+fn should_preserve_null_before_invalid_document_with_release_failed_work() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
     let functions = HashMap::new();
-    let row = BatchRow::new(vec![("doc".into(), Value::String("[}".into()))]);
+    let row = BatchRow::new(vec![("doc".into(), Value::String("[\u{7d}".into()))]);
     let context = EvalContext {
         params: &[],
         search_context: None,

@@ -51,7 +51,7 @@ fn should_reject_rounded_seconds_outside_the_valid_range() {
 }
 
 #[test]
-fn should_keep_end_of_day_and_timestamp_field_validation() {
+fn should_keep_end_of_day_with_timestamp_field_validation() {
     // Arrange
     let end = make_time(24, 0, -0.000_000_5);
     let over = make_time(24, 0, 0.000_000_6);

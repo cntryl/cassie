@@ -86,6 +86,7 @@ fn should_retain_workspace_for_mutation_output_variants() {
         let result = evaluate(name, &args, Some(&controls), Some(&owner))
             .expect("selected")
             .expect("result");
+        // Assert
         assert!(matches!(result, Value::String(_)));
         assert!(owner.bytes() > 0);
     }
@@ -94,7 +95,7 @@ fn should_retain_workspace_for_mutation_output_variants() {
 }
 
 #[test]
-fn should_preserve_mutation_null_and_lax_error_without_a_retained_lease() {
+fn should_preserve_mutation_null_with_lax_error_without_a_retained_lease() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
     let owner = EvaluationMemory::new(&controls).expect("owner");
@@ -183,7 +184,7 @@ fn should_grow_or_release_a_synthetic_undersized_mutation_output_owner() {
 }
 
 #[test]
-fn should_preserve_ownerless_and_general_owner_routes_and_reject_foreign_tracker() {
+fn should_preserve_ownerless_with_general_owner_routes_with_reject_foreign_tracker() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -197,6 +198,7 @@ fn should_preserve_ownerless_and_general_owner_routes_and_reject_foreign_tracker
     let ownerless = evaluate("jsonb_pretty", &input, Some(&owner_controls), None)
         .expect("selected")
         .expect("result");
+    // Assert
     assert_eq!(owner_controls.current_query_memory_bytes(), 0);
     drop(ownerless);
     let foreign_result =

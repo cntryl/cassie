@@ -192,7 +192,7 @@ fn should_skip_the_argument_when_exists_window_filter_is_false_or_null() {
 }
 
 #[test]
-fn should_retain_result_and_enforce_measured_exists_window_overlap() {
+fn should_retain_result_with_enforce_measured_exists_window_overlap() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");

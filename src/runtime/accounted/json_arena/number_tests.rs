@@ -37,6 +37,7 @@ fn should_normalize_value_numbers_like_the_pinned_serde_value() {
             .to_string();
         let mut cursor = Cursor::from_str(input, &controls);
         let value = cursor.read_number().expect("number");
+        // Assert
         assert_eq!(value.as_str(), expected, "{input}");
         assert_eq!(cursor.peek(), None);
         drop(value);
@@ -63,6 +64,7 @@ fn should_match_value_number_errors_against_serde() {
         } else {
             serde_json::error::Category::Syntax
         };
+        // Assert
         assert_eq!(expected.classify(), category, "{input:?}");
         assert_eq!(
             (expected.line(), expected.column()),
@@ -74,7 +76,7 @@ fn should_match_value_number_errors_against_serde() {
 }
 
 #[test]
-fn should_leave_delimiters_in_value_mode_and_reject_them_in_strict_mode() {
+fn should_leave_delimiters_in_value_mode_with_reject_them_in_strict_mode() {
     // Arrange
     let controls = controls();
     let mut prefix = Cursor::from_str("1E2,", &controls);
@@ -83,6 +85,7 @@ fn should_leave_delimiters_in_value_mode_and_reject_them_in_strict_mode() {
 
     // Act / Assert
     let value = prefix.read_number().expect("prefix");
+    // Assert
     assert_eq!(value.as_str(), "1e+2");
     assert_eq!(prefix.peek(), Some(b','));
     assert!(matches!(
@@ -112,7 +115,7 @@ fn should_leave_delimiters_in_value_mode_and_reject_them_in_strict_mode() {
 }
 
 #[test]
-fn should_match_strict_number_errors_and_override_positions_against_serde() {
+fn should_match_strict_number_errors_with_override_positions_against_serde() {
     // Arrange
     let controls = controls();
     let inputs = ["", "-", "-xY", "1 ", "1e+xZ", "\n", "01"];
@@ -131,6 +134,7 @@ fn should_match_strict_number_errors_and_override_positions_against_serde() {
         } else {
             serde_json::error::Category::Syntax
         };
+        // Assert
         assert_eq!(expected.classify(), category, "{input:?}");
         assert_eq!(
             (expected.line(), expected.column()),
@@ -142,7 +146,7 @@ fn should_match_strict_number_errors_and_override_positions_against_serde() {
 }
 
 #[test]
-fn should_admit_number_buffers_and_release_them_on_growth_failure() {
+fn should_admit_number_buffers_with_release_them_on_growth_failure() {
     // Arrange
     let exact = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {
@@ -163,6 +167,7 @@ fn should_admit_number_buffers_and_release_them_on_growth_failure() {
 
     // Act / Assert
     let value = first.read_number().expect("exact");
+    // Assert
     assert_eq!(value.as_str(), "12345");
     assert!(matches!(
         second.read_number(),
@@ -174,7 +179,7 @@ fn should_admit_number_buffers_and_release_them_on_growth_failure() {
 }
 
 #[test]
-fn should_cancel_during_number_buffer_growth_and_release_both_owners() {
+fn should_cancel_during_number_buffer_growth_with_release_both_owners() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -210,6 +215,7 @@ fn should_never_return_a_number_token_for_invalid_or_non_numeric_input() {
     // Act / Assert
     for input in ["-", "01", "1e+", "true", "\"1\""] {
         let mut cursor = Cursor::from_str(input, &controls);
+        // Assert
         assert!(
             matches!(cursor.read_number(), Err(CursorError::Number(_))),
             "{input:?}"

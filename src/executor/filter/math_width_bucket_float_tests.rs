@@ -23,7 +23,7 @@ fn should_bucket_finite_values_when_the_bound_span_overflows() {
 }
 
 #[test]
-fn should_reject_equal_positive_and_negative_zero_bounds() {
+fn should_reject_equal_positive_with_negative_zero_bounds() {
     // Arrange
     let bounds = [(0.0, -0.0), (-0.0, 0.0)];
 

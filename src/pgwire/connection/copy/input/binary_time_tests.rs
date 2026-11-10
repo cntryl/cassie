@@ -5,7 +5,7 @@ use crate::config::CassieRuntimeLimits;
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
 #[test]
-fn should_match_binary_time_output_and_error_precedence() {
+fn should_match_binary_time_output_with_error_precedence() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -31,6 +31,7 @@ fn should_match_binary_time_output_and_error_precedence() {
         let (actual, memory) = super::decode(1083, &bytes, 0, &controls)
             .expect("decode")
             .expect("handled");
+        // Assert
         assert_eq!(actual, expected, "micros {time}");
         drop((actual, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -64,7 +65,7 @@ fn should_match_binary_time_output_and_error_precedence() {
 }
 
 #[test]
-fn should_admit_binary_time_output_and_honor_cancellation() {
+fn should_admit_binary_time_output_with_honor_cancellation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 16,

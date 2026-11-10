@@ -27,18 +27,18 @@ fn run(
 }
 
 #[test]
-fn should_match_legacy_object_key_order_duplicates_sentinels_and_errors() {
+fn should_match_legacy_object_key_order_duplicates_sentinels_with_errors() {
     // Arrange
     let inputs = [
         Value::String(r#"{"z":1,"aa":2,"a":3,"a":4,"é":5}"#.into()),
         Value::String(r#"{"\u0061":1,"a":2,"\u0000":3}"#.into()),
         Value::String(r#"{"$serde_json::private::Number":"7"}"#.into()),
         Value::String("[1]".into()),
-        Value::String("[}".into()),
+        Value::String("[\u{7d}".into()),
         Value::Null,
         Value::Json(serde_json::json!({"z":1,"a":2})),
     ];
-    // Act / Assert
+    // Act
     for name in ["json_object_keys", "jsonb_object_keys"] {
         for input in &inputs {
             let controls = controls(16 * 1024 * 1024);
@@ -47,6 +47,7 @@ fn should_match_legacy_object_key_order_duplicates_sentinels_and_errors() {
                 .expect("known")
                 .map_err(|error| error.to_string());
             let actual = run(name, input.clone(), Some(&controls), Some(&owner));
+            // Assert
             assert_eq!(actual, expected, "{name} {input:?}");
             drop(actual);
             drop(expected);
@@ -57,7 +58,7 @@ fn should_match_legacy_object_key_order_duplicates_sentinels_and_errors() {
 }
 
 #[test]
-fn should_release_object_key_output_on_actual_copy_and_traversal_cancellation() {
+fn should_release_object_key_output_on_actual_copy_with_traversal_cancellation() {
     // Arrange
     for copy in [true, false] {
         let cancel = QueryCancellationHandle::new();
@@ -88,7 +89,7 @@ fn should_release_object_key_output_on_actual_copy_and_traversal_cancellation() 
 }
 
 #[test]
-fn should_enforce_object_key_scratch_arena_and_output_overlap() {
+fn should_enforce_object_key_scratch_arena_with_output_overlap() {
     // Arrange
     let input = Value::String(r#"{"first":1,"second":2,"third":3}"#.into());
     let baseline = controls(16 * 1024 * 1024);
@@ -101,6 +102,7 @@ fn should_enforce_object_key_scratch_arena_and_output_overlap() {
     )
     .expect("result");
     let peak = baseline.peak_query_memory_bytes();
+    // Assert
     assert!(owner.bytes() > 0);
     drop(value);
     drop(owner);
@@ -143,7 +145,7 @@ fn should_reject_foreign_object_key_owner_without_retaining_allocations() {
 }
 
 #[test]
-fn should_leave_general_owner_and_ownerless_calls_on_legacy_construction() {
+fn should_leave_general_owner_with_ownerless_calls_on_legacy_construction() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -182,7 +184,7 @@ fn should_leave_general_owner_and_ownerless_calls_on_legacy_construction() {
 }
 
 #[test]
-fn should_match_value_backed_object_keys_across_unicode_prefixes_and_sentinels() {
+fn should_match_value_backed_object_keys_across_unicode_prefixes_with_sentinels() {
     // Arrange
     let mut map = serde_json::Map::new();
     for key in ["é", "aa", "a", "", "\0", "$serde_json::private::Number"] {
@@ -202,6 +204,7 @@ fn should_match_value_backed_object_keys_across_unicode_prefixes_and_sentinels()
                 .expect("known")
                 .map_err(|error| error.to_string());
             let actual = run(name, input.clone(), Some(&controls), Some(&owner));
+            // Assert
             assert_eq!(actual, expected, "{name} {input:?}");
             if matches!(input, Value::Json(serde_json::Value::Object(_))) {
                 assert!(owner.bytes() > 0);
@@ -215,7 +218,7 @@ fn should_match_value_backed_object_keys_across_unicode_prefixes_and_sentinels()
 }
 
 #[test]
-fn should_release_value_key_sort_and_output_after_actual_work_cancellation() {
+fn should_release_value_key_sort_with_output_after_actual_work_cancellation() {
     // Arrange
     for stage in 0..3 {
         let cancel = QueryCancellationHandle::new();
@@ -248,7 +251,7 @@ fn should_release_value_key_sort_and_output_after_actual_work_cancellation() {
 }
 
 #[test]
-fn should_enforce_value_key_sort_source_and_output_overlap() {
+fn should_enforce_value_key_sort_source_with_output_overlap() {
     // Arrange
     let input = Value::Json(serde_json::json!({"first":1,"second":2,"third":3}));
     let baseline = controls(16 * 1024 * 1024);
@@ -261,6 +264,7 @@ fn should_enforce_value_key_sort_source_and_output_overlap() {
     )
     .expect("result");
     let peak = baseline.peak_query_memory_bytes();
+    // Assert
     assert!(owner.bytes() > 0);
     drop(value);
     drop(owner);
@@ -318,6 +322,7 @@ fn should_count_selected_object_input_exactly_like_legacy_serde_writer() {
         let expected =
             crate::executor::retained_memory::serialized_json_bytes(&value).expect("legacy count");
         let actual = super::selected_object_key_size(&value, &controls).expect("checked count");
+        // Assert
         assert_eq!(actual, expected);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

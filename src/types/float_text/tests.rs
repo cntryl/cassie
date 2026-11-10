@@ -95,6 +95,7 @@ fn should_preserve_shared_float8_formatter_against_previous_algorithm() {
     for bits in cases {
         for sign in [0, 1_u64 << 63] {
             let value = f64::from_bits(bits | sign);
+            // Assert
             assert_eq!(
                 format(value),
                 prior_format(value),

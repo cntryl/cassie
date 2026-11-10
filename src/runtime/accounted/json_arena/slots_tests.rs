@@ -56,13 +56,14 @@ fn should_retire_a_slot_instead_of_wrapping_its_generation() {
 }
 
 #[test]
-fn should_reject_stale_and_out_of_range_slot_removal() {
+fn should_reject_stale_with_out_of_range_slot_removal() {
     // Arrange
     let controls = controls();
     let mut slots = ValueSlots::new(&controls).expect("slots");
     let first = slots.insert(value(1, &controls)).expect("insert");
     drop(slots.remove(first).expect("remove"));
     // Act / Assert
+    // Assert
     assert!(slots.remove(first).is_err());
     assert!(slots
         .remove(NodeId::new(first.namespace, usize::MAX, 1))
@@ -254,6 +255,7 @@ fn should_reject_handles_from_another_arena_on_the_same_tracker() {
     let first_id = first.insert(value(1, &controls)).expect("first value");
     let second_id = second.insert(value(2, &controls)).expect("second value");
     // Act / Assert
+    // Assert
     assert_ne!(first_id, second_id);
     assert!(second.get(first_id).is_err());
     assert!(second.remove(first_id).is_err());
@@ -287,6 +289,7 @@ fn should_reject_handle_after_original_arena_has_been_dropped() {
     let mut second = ValueSlots::new(&controls).expect("second");
     let new = second.insert(value(2, &controls)).expect("value");
     // Act / Assert
+    // Assert
     assert!(second.get(old).is_err());
     assert!(second.remove(old).is_err());
     assert_eq!(*second.get(new).expect("live"), 2);

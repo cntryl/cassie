@@ -16,7 +16,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_preserve_array_dimensions_values_and_float_bits() {
+fn should_preserve_array_dimensions_values_with_float_bits() {
     // Arrange
     let nan = f64::from_bits(0x7ff8_0000_0000_1234);
     let array = SqlArray::new(
@@ -102,6 +102,7 @@ fn should_leave_nonprimitive_array_families_on_the_existing_path() {
 
     // Act / Assert
     for array in arrays {
+        // Assert
         assert!(copy_primitive_array(&array, &source, &controls, |_| {})
             .expect("inspect")
             .is_none());
@@ -111,7 +112,7 @@ fn should_leave_nonprimitive_array_families_on_the_existing_path() {
 }
 
 #[test]
-fn should_cancel_during_actual_dimension_and_element_copy() {
+fn should_cancel_during_actual_dimension_with_element_copy() {
     // Arrange
     let array = SqlArray::new(
         vec![ArrayDimension {

@@ -38,7 +38,7 @@ fn physical_rows(
 }
 
 #[test]
-fn should_keep_selected_flat_directory_owned_through_independent_result_and_last_clone() {
+fn should_keep_selected_flat_directory_owned_through_independent_result_with_last_clone() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
@@ -73,7 +73,7 @@ fn should_keep_selected_flat_directory_owned_through_independent_result_and_last
 }
 
 #[test]
-fn should_release_selected_source_and_partial_result_on_actual_handoff_cancellation() {
+fn should_release_selected_source_with_partial_result_on_actual_handoff_cancellation() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
@@ -96,7 +96,7 @@ fn should_release_selected_source_and_partial_result_on_actual_handoff_cancellat
 }
 
 #[test]
-fn should_leave_pagination_and_logical_execution_as_legacy_fallbacks() {
+fn should_leave_pagination_with_logical_execution_as_legacy_fallbacks() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
@@ -112,7 +112,7 @@ fn should_leave_pagination_and_logical_execution_as_legacy_fallbacks() {
 }
 
 #[test]
-fn should_reject_foreign_result_tracker_and_release_source_directory() {
+fn should_reject_foreign_result_tracker_with_release_source_directory() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
@@ -130,13 +130,14 @@ fn should_reject_foreign_result_tracker_and_release_source_directory() {
 }
 
 #[test]
-fn should_enforce_measured_source_and_result_overlap_peak() {
+fn should_enforce_measured_source_with_result_overlap_peak() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
     let generous = controls(32 * 1024 * 1024);
     let plan = plan(&cassie, "");
     let rows = physical_rows(&cassie, &plan, &generous).expect("rows");
+    // Assert
     assert!(rows.directory_bytes() > 0);
     let result = build_select_result(&cassie, None, &plan, rows, &HashMap::new(), &generous)
         .expect("result");
@@ -156,7 +157,7 @@ fn should_enforce_measured_source_and_result_overlap_peak() {
 }
 
 #[test]
-fn should_keep_distinct_selected_output_owned_and_leave_empty_or_set_outputs_legacy() {
+fn should_keep_distinct_selected_output_owned_with_leave_empty_or_set_outputs_legacy() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");

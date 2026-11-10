@@ -79,7 +79,7 @@ fn should_render_original_jsonb_copy_diagnostic_for_serde_error_variants() {
 }
 
 #[test]
-fn should_render_nested_raw_and_recursion_diagnostics_with_inner_position() {
+fn should_render_nested_raw_with_recursion_diagnostics_with_inner_position() {
     // Arrange
     let controls = controls(1_048_576);
     let nested =
@@ -92,6 +92,7 @@ fn should_render_nested_raw_and_recursion_diagnostics_with_inner_position() {
             panic!("accepted");
         };
         let actual = render(&error, 1, &controls).expect("diagnostic");
+        // Assert
         assert_eq!(
             actual.as_str(),
             format!(
@@ -104,7 +105,7 @@ fn should_render_nested_raw_and_recursion_diagnostics_with_inner_position() {
 }
 
 #[test]
-fn should_render_maximum_positions_and_column_without_unbounded_scratch() {
+fn should_render_maximum_positions_with_column_without_unbounded_scratch() {
     // Arrange
     let controls = controls(1024);
     let position = Position {
@@ -120,7 +121,7 @@ fn should_render_maximum_positions_and_column_without_unbounded_scratch() {
 }
 
 #[test]
-fn should_admit_exact_diagnostic_and_release_on_denial_or_cancellation() {
+fn should_admit_exact_diagnostic_with_release_on_denial_or_cancellation() {
     // Arrange
     let generous = controls(1024);
     let error = DocumentError::Syntax(
@@ -145,6 +146,7 @@ fn should_admit_exact_diagnostic_and_release_on_denial_or_cancellation() {
     );
     // Act / Assert
     let admitted = render(&error, 1, &exact).expect("exact");
+    // Assert
     assert!(matches!(
         render(&error, 1, &below),
         Err(DiagnosticError::Control(CassieError::ResourceLimit(_)))

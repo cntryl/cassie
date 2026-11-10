@@ -94,7 +94,7 @@ fn should_return_admitted_numeric_error_from_admin_query_worker() {
 }
 
 #[test]
-fn should_encode_all_json_escapes_and_utf8_like_serde_json() {
+fn should_encode_all_json_escapes_with_utf8_like_serde_json() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -170,7 +170,7 @@ fn should_preserve_legacy_admin_query_error_tuple() {
 }
 
 #[test]
-fn should_interrupt_numeric_error_encoding_during_actual_scan_and_output() {
+fn should_interrupt_numeric_error_encoding_during_actual_scan_with_output() {
     // Arrange
     for phase in [EncodingPhase::Scan, EncodingPhase::Emit] {
         let cancellation = crate::runtime::QueryCancellationHandle::new();
@@ -215,7 +215,7 @@ fn should_interrupt_numeric_error_encoding_during_actual_scan_and_output() {
 }
 
 #[test]
-fn should_admit_numeric_error_and_response_overlap_at_exact_budget() {
+fn should_admit_numeric_error_with_response_overlap_at_exact_budget() {
     // Arrange
     let generous = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {

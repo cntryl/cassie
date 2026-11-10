@@ -9,7 +9,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_raw_concat_for_objects_arrays_scalars_and_sentinels() {
+fn should_match_raw_concat_for_objects_arrays_scalars_with_sentinels() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -31,6 +31,7 @@ fn should_match_raw_concat_for_objects_arrays_scalars_and_sentinels() {
         let actual = concatenate_controlled(&left, &right, &controls, &owner)
             .expect("controlled")
             .expect("supported");
+        // Assert
         assert!(
             matches!((actual, expected), (ScalarValue::Json(a), ScalarValue::Json(b)) if a == b)
         );
@@ -40,7 +41,7 @@ fn should_match_raw_concat_for_objects_arrays_scalars_and_sentinels() {
 }
 
 #[test]
-fn should_preserve_concat_document_and_survivor_error_order() {
+fn should_preserve_concat_document_with_survivor_error_order() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -74,6 +75,7 @@ fn should_leave_unsupported_concat_operands_to_legacy_dispatch() {
     let left = ScalarValue::Json("{}".into());
     let right = ScalarValue::Bool(true);
     // Act / Assert
+    // Assert
     assert!(concatenate_controlled(&left, &right, &controls, &owner)
         .expect("fallback")
         .is_none());
@@ -83,7 +85,7 @@ fn should_leave_unsupported_concat_operands_to_legacy_dispatch() {
 }
 
 #[test]
-fn should_preserve_sql_null_and_reject_foreign_output_owner() {
+fn should_preserve_sql_null_with_reject_foreign_output_owner() {
     // Arrange
     let owner_controls = controls();
     let other_controls = controls();
@@ -91,6 +93,7 @@ fn should_preserve_sql_null_and_reject_foreign_output_owner() {
     let left = ScalarValue::Json("{}".into());
     let right = ScalarValue::Json("{}".into());
     // Act / Assert
+    // Assert
     assert!(matches!(
         concatenate_controlled(&left, &ScalarValue::Null, &owner_controls, &owner),
         Ok(Some(ScalarValue::Null))
@@ -124,7 +127,7 @@ fn should_release_concat_owners_after_an_actual_output_copy_is_cancelled() {
 }
 
 #[test]
-fn should_admit_exact_concat_overlap_and_release_its_result_owner() {
+fn should_admit_exact_concat_overlap_with_release_its_result_owner() {
     // Arrange
     let baseline = controls();
     let left = ScalarValue::Json(r#"{"a":"payload","long":2}"#.into());
@@ -134,6 +137,7 @@ fn should_admit_exact_concat_overlap_and_release_its_result_owner() {
         .expect("result")
         .expect("supported");
     let peak = baseline.peak_query_memory_bytes();
+    // Assert
     assert!(baseline.current_query_memory_bytes() > 0);
     drop(value);
     drop(owner);
@@ -196,7 +200,7 @@ fn should_retain_a_typed_concat_expression_result() {
 }
 
 #[test]
-fn should_preserve_unrelated_null_and_array_dispatch_with_an_owner_present() {
+fn should_preserve_unrelated_null_with_array_dispatch_with_an_owner_present() {
     // Arrange
     use crate::executor::batch::BatchRow;
     use crate::executor::filter::{evaluate_expr_value_with_context, EvalContext};
@@ -237,6 +241,7 @@ fn should_preserve_unrelated_null_and_array_dispatch_with_an_owner_present() {
             },
         )
         .map_err(|error| error.to_string());
+        // Assert
         assert_eq!(actual, legacy);
     }
     drop(owner);

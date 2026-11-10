@@ -15,7 +15,7 @@ fn should_parse_copy_where_at_the_start_of_the_option_tail() {
 }
 
 #[test]
-fn should_ignore_quoted_nested_and_non_boundary_where_text() {
+fn should_ignore_quoted_nested_with_non_boundary_where_text() {
     // Arrange
     let options = "WITH (FORMAT CSV, NULL ' WHERE ', FORCE_NULL (\"where\")) WHERE (id = 1)";
     let no_boundary = "WHEREVER id = 1";

@@ -114,7 +114,8 @@ fn should_enforce_deep_semantic_estimate_frame_budget() {
 
 #[test]
 fn should_report_root_estimate_overflow_as_resource_limit() {
-    // Arrange / Act
+    // Arrange
+    // Act
     let result = checked_root_add(usize::MAX, 1);
     // Assert
     assert!(matches!(result, Err(CassieError::ResourceLimit(_))));

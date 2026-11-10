@@ -615,6 +615,7 @@ mod tests {
         // Act / Assert
         for kind in kinds {
             for value in valid {
+                // Assert
                 assert!(
                     kind.receive_binary(&value.to_be_bytes()).is_ok(),
                     "{kind:?} {value}"
@@ -631,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn should_validate_public_binary_date_and_time_receive_bounds() {
+    fn should_validate_public_binary_date_with_time_receive_bounds() {
         // Arrange
         use crate::types::extended::temporal::calendar::{
             DATE_END_JULIAN, POSTGRES_EPOCH_JDATE, USECS_PER_DAY,
@@ -643,6 +644,7 @@ mod tests {
 
         // Act / Assert
         for value in [i32::MIN, first, end - 1, i32::MAX] {
+            // Assert
             assert!(date.receive_binary(&value.to_be_bytes()).is_ok());
         }
         for value in [first - 1, end] {

@@ -25,7 +25,7 @@ fn run(
 }
 
 #[test]
-fn should_match_legacy_root_kind_array_length_sentinel_and_error_behavior() {
+fn should_match_legacy_root_kind_array_length_sentinel_with_error_behavior() {
     // Arrange
     let values = [
         Value::String("null".into()),
@@ -35,14 +35,14 @@ fn should_match_legacy_root_kind_array_length_sentinel_and_error_behavior() {
         Value::String("[]".into()),
         Value::String("[1,2]".into()),
         Value::String(r#"{"a":1}"#.into()),
-        Value::String("[}".into()),
+        Value::String("[\u{7d}".into()),
         Value::String(r#"{"$serde_json::private::Number":"7"}"#.into()),
         Value::String(r#"{"$serde_json::private::RawValue":"[1,2]"}"#.into()),
         Value::Json(serde_json::json!([1, 2])),
         Value::Null,
     ];
     let controls = controls(16 * 1024 * 1024);
-    // Act / Assert
+    // Act
     for name in [
         "json_typeof",
         "jsonb_typeof",
@@ -50,6 +50,7 @@ fn should_match_legacy_root_kind_array_length_sentinel_and_error_behavior() {
         "jsonb_array_length",
     ] {
         for input in &values {
+            // Assert
             assert_eq!(
                 run(name, input.clone(), Some(&controls)),
                 run(name, input.clone(), None),
@@ -61,7 +62,7 @@ fn should_match_legacy_root_kind_array_length_sentinel_and_error_behavior() {
 }
 
 #[test]
-fn should_release_inspection_scratch_and_arena_after_actual_parse_cancellation() {
+fn should_release_inspection_scratch_with_arena_after_actual_parse_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -84,10 +85,11 @@ fn should_release_inspection_scratch_and_arena_after_actual_parse_cancellation()
 }
 
 #[test]
-fn should_enforce_inspection_scratch_and_arena_overlap() {
+fn should_enforce_inspection_scratch_with_arena_overlap() {
     // Arrange
     let input = Value::String(r#"[{"a":1},{"b":2}]"#.into());
     let baseline = controls(16 * 1024 * 1024);
+    // Assert
     assert!(matches!(
         run("jsonb_array_length", input.clone(), Some(&baseline)),
         Ok(Value::Int64(2))

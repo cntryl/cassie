@@ -5,7 +5,7 @@ use crate::runtime::QueryCancellationHandle;
 use std::time::Instant;
 
 #[test]
-fn should_match_serde_compact_output_for_nested_values_and_all_escapes() {
+fn should_match_serde_compact_output_for_nested_values_with_all_escapes() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -161,7 +161,7 @@ fn should_release_frame_owners_after_cancellation_during_replacement_move() {
 }
 
 #[test]
-fn should_preserve_deep_output_and_enforce_measured_budget_boundary() {
+fn should_preserve_deep_output_with_enforce_measured_budget_boundary() {
     // Arrange
     let mut value = serde_json::json!({"escaped":"line\nΩ"});
     for _ in 0..80 {
@@ -197,7 +197,7 @@ fn should_preserve_deep_output_and_enforce_measured_budget_boundary() {
 }
 
 #[test]
-fn should_count_exact_compact_bytes_for_nested_values_and_all_escapes() {
+fn should_count_exact_compact_bytes_for_nested_values_with_all_escapes() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -214,6 +214,7 @@ fn should_count_exact_compact_bytes_for_nested_values_and_all_escapes() {
 
     // Act / Assert
     for value in &values {
+        // Assert
         assert_eq!(
             count(value, &controls).expect("size"),
             value.to_string().len()

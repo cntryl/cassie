@@ -13,7 +13,7 @@ fn controls(cancel: QueryCancellationHandle) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_index_reached_keys_and_leave_raw_child_strings_undecoded() {
+fn should_index_reached_keys_with_leave_raw_child_strings_undecoded() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let input = r#"{"$serde_json::private::Number":"\ud800","a":1,"a":2}"#;
@@ -53,7 +53,7 @@ fn should_report_the_first_reached_key_error_before_later_raw_syntax() {
 }
 
 #[test]
-fn should_release_key_and_directory_owners_after_actual_entry_cancellation() {
+fn should_release_key_with_directory_owners_after_actual_entry_cancellation() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = controls(cancel.clone());
@@ -72,16 +72,16 @@ fn should_release_key_and_directory_owners_after_actual_entry_cancellation() {
 }
 
 #[test]
-fn should_match_raw_object_error_positions_and_categories() {
+fn should_match_raw_object_error_positions_with_categories() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let values = [
-        "{",
+        "\u{7b}",
         "{,}",
         "{\"a\"}",
         "{\"a\":}",
         "{\"a\":1,}",
-        "{\"a\":1,",
+        "\u{7b}\"a\":1,",
         "{\"a\":1 \"b\":2}",
         "{\"a\": [1,]}",
         "{\n \"é\":1, \"\\ud800\":0}",
@@ -95,6 +95,7 @@ fn should_match_raw_object_error_positions_and_categories() {
         let Err(actual) = parse(value, &controls) else {
             panic!("accepted {value:?}")
         };
+        // Assert
         assert_eq!(actual.to_string(), expected, "{value:?}");
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -124,7 +125,7 @@ fn should_release_both_object_directories_after_actual_move_cancellation() {
 }
 
 #[test]
-fn should_enforce_measured_object_key_and_directory_overlap_budget() {
+fn should_enforce_measured_object_key_with_directory_overlap_budget() {
     // Arrange
     let input = r#"{"é":1,"a":2,"b":3,"c":4,"d":5}"#;
     let baseline = controls(QueryCancellationHandle::new());
@@ -140,6 +141,7 @@ fn should_enforce_measured_object_key_and_directory_overlap_budget() {
         };
         let limited = QueryExecutionControls::from_limits(&limits, Instant::now());
         let result = parse(input, &limited);
+        // Assert
         assert_eq!(result.is_ok(), succeeds);
         drop(result);
         assert_eq!(limited.current_query_memory_bytes(), 0);
@@ -199,6 +201,7 @@ fn should_admit_the_measured_two_buffer_order_overlap() {
     let retained = baseline.current_query_memory_bytes();
     let order = fields.ordered(&baseline).expect("order");
     let peak = baseline.peak_query_memory_bytes();
+    // Assert
     assert!(peak >= retained + 2 * fields.entries.len() * std::mem::size_of::<usize>());
     drop(order);
     drop(fields);
@@ -225,7 +228,7 @@ fn should_admit_the_measured_two_buffer_order_overlap() {
 }
 
 #[test]
-fn should_keep_fields_and_order_owned_together_during_output() {
+fn should_keep_fields_with_order_owned_together_during_output() {
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let source = r#"{"b":1,"a":2,"a":3}"#;

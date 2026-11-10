@@ -257,6 +257,7 @@ fn should_check_cancellation_after_current_retention_before_later_input_errors()
     // Act / Assert
     for (stage, sql, values) in cases {
         let (result, reached, bytes) = reached_cancellation_case(sql, &values, stage);
+        // Assert
         assert!(reached);
         assert!(
             matches!(result, Err(QueryError::General(ref message)) if message == "query canceled")
@@ -277,6 +278,7 @@ fn should_preserve_current_input_parse_errors_before_retention_check() {
     // Act / Assert
     for (stage, sql, values) in cases {
         let (result, reached, bytes) = reached_cancellation_case(sql, &values, stage);
+        // Assert
         assert!(!reached);
         assert!(matches!(
             result,

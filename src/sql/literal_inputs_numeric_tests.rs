@@ -18,7 +18,7 @@ fn numeric_type() -> DataType {
 }
 
 #[test]
-fn should_reject_numeric_syntax_during_binding_and_retain_the_error_owner() {
+fn should_reject_numeric_syntax_during_binding_with_retain_the_error_owner() {
     // Arrange
     let controls = controls(1_048_576);
     let text = format!("{}x", "1".repeat(4096));

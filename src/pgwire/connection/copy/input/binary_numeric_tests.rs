@@ -17,7 +17,7 @@ fn frame(weight: i16, sign: u16, scale: u16, digits: &[u16]) -> Vec<u8> {
 }
 
 #[test]
-fn should_match_binary_numeric_conversion_and_validation_order() {
+fn should_match_binary_numeric_conversion_with_validation_order() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -40,6 +40,7 @@ fn should_match_binary_numeric_conversion_and_validation_order() {
         let (actual, memory) = super::decode(1700, &bytes, 0, &controls)
             .expect("decode")
             .expect("handled");
+        // Assert
         assert_eq!(actual, expected);
         drop((actual, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -66,7 +67,7 @@ fn should_match_binary_numeric_conversion_and_validation_order() {
 }
 
 #[test]
-fn should_bound_binary_numeric_zero_weight_output_and_overlap() {
+fn should_bound_binary_numeric_zero_weight_output_with_overlap() {
     // Arrange
     let bytes = frame(i16::MAX, 0x4000, 0, &[0]);
     let limits = CassieRuntimeLimits {
@@ -88,7 +89,7 @@ fn should_bound_binary_numeric_zero_weight_output_and_overlap() {
 }
 
 #[test]
-fn should_interrupt_binary_numeric_group_scan_and_release() {
+fn should_interrupt_binary_numeric_group_scan_with_release() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -124,7 +125,7 @@ fn should_deny_large_binary_numeric_output_before_allocation() {
 }
 
 #[test]
-fn should_preserve_zero_with_extreme_negative_weight_and_scale() {
+fn should_preserve_zero_with_extreme_negative_weight_with_scale() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -140,7 +141,7 @@ fn should_preserve_zero_with_extreme_negative_weight_and_scale() {
 }
 
 #[test]
-fn should_preserve_zero_with_extreme_positive_weight_and_scale() {
+fn should_preserve_zero_with_extreme_positive_weight_with_scale() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -179,6 +180,7 @@ fn should_match_bounded_binary_numeric_group_combinations() {
         let (actual, memory) = super::decode(1700, &bytes, 0, &controls)
             .expect("decode")
             .expect("handled");
+        // Assert
         assert_eq!(actual, expected, "case {case}");
         drop((actual, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);

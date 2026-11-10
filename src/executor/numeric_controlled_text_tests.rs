@@ -176,6 +176,7 @@ fn should_match_display_for_public_mantissas_across_scale_boundaries() {
                 scale,
             };
             let result = format(&value, &controls).expect("controlled format");
+            // Assert
             assert_eq!(result.text(), value.to_string());
         }
     }
@@ -192,6 +193,7 @@ fn should_preserve_integer_format_error_mapping_for_non_power_errors() {
     let power = crate::executor::QueryError::FloatPowerUnderflow;
 
     // Act / Assert
+    // Assert
     assert!(
         matches!(super::format_integer_error(cancelled), crate::app::CassieError::Execution(ref message) if message == "query canceled")
     );

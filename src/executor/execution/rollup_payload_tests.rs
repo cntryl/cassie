@@ -20,7 +20,7 @@ fn input(value: Value) -> BatchRow {
 }
 
 #[test]
-fn should_keep_query_and_operator_owners_until_each_payload_is_published() {
+fn should_keep_query_with_operator_owners_until_each_payload_is_published() {
     // Arrange
     for (query_owned, operator_owned) in [(true, false), (false, true), (true, true)] {
         let controls = controls(8192, QueryCancellationHandle::new());
@@ -57,7 +57,7 @@ fn should_keep_query_and_operator_owners_until_each_payload_is_published() {
 }
 
 #[test]
-fn should_preserve_duplicate_name_replacement_and_field_order() {
+fn should_preserve_duplicate_name_replacement_with_field_order() {
     // Arrange
     let controls = controls(8192, QueryCancellationHandle::new());
     let row = BatchRow::from_projected_values(vec![
@@ -135,7 +135,7 @@ fn should_release_source_owner_after_a_later_field_conversion_fails() {
 }
 
 #[test]
-fn should_admit_directory_at_exact_budget_and_release_on_field_cancellation() {
+fn should_admit_directory_at_exact_budget_with_release_on_field_cancellation() {
     // Arrange
     let bytes = 2 * std::mem::size_of::<OwnedRollupRow>();
     for (budget, succeeds) in [(bytes, true), (bytes - 1, false)] {

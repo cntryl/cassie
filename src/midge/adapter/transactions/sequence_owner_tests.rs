@@ -19,7 +19,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_bound_and_retire_transaction_cursor_owners_across_statements() {
+fn should_bound_with_retire_transaction_cursor_owners_across_statements() {
     // Arrange
     let overlay = StorageOverlay::default();
     let owner = &overlay.sequence_cursors;
@@ -87,7 +87,7 @@ fn should_bound_and_retire_transaction_cursor_owners_across_statements() {
 }
 
 #[test]
-fn should_admit_and_interrupt_sequence_metadata_decode_at_its_boundary() {
+fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
     // Arrange
     let metadata = SequenceMeta::new("sequence", DataType::BigInt);
     let raw = serde_json::to_vec(&metadata).expect("sequence metadata");
@@ -316,7 +316,7 @@ fn should_reference_count_duplicate_fork_cursor_leases() {
 }
 
 #[test]
-fn should_keep_fork_only_sequence_epoch_through_prune_and_publication() {
+fn should_keep_fork_only_sequence_epoch_through_prune_with_publication() {
     // Arrange
     use std::sync::Arc;
     let controls = QueryExecutionControls::from_limits(

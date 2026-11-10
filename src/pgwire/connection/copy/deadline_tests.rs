@@ -161,7 +161,7 @@ fn should_close_partial_copy_frame_when_cancel_and_deadline_overlap() {
 }
 
 #[test]
-fn should_drain_denied_frame_and_preserve_the_following_copy_frame() {
+fn should_drain_denied_frame_with_preserve_the_following_copy_frame() {
     // Arrange
     let runtime = runtime();
     runtime.block_on(async {
@@ -239,7 +239,7 @@ fn should_reject_malformed_copy_frame_length_without_leaking_admission() {
 }
 
 #[test]
-fn should_reject_unexpected_copy_frame_without_decoding_and_keep_alignment() {
+fn should_reject_unexpected_copy_frame_without_decoding_with_keep_alignment() {
     // Arrange
     let runtime = runtime();
     runtime.block_on(async {

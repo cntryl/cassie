@@ -11,7 +11,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_value_mode_output_and_retain_the_output_tracker() {
+fn should_match_value_mode_output_with_retain_the_output_tracker() {
     // Arrange
     let foreign = controls();
     let controls = controls();
@@ -36,7 +36,7 @@ fn should_match_value_mode_output_and_retain_the_output_tracker() {
 }
 
 #[test]
-fn should_match_the_previous_reader_for_value_mode_documents_and_failures() {
+fn should_match_the_previous_reader_for_value_mode_documents_with_failures() {
     // Arrange
     use crate::runtime::accounted::json::controlled_parse::{parse, ParseError};
     let controls = controls();
@@ -63,13 +63,14 @@ fn should_match_the_previous_reader_for_value_mode_documents_and_failures() {
             Err(BinaryJsonError::Invalid) => None,
             Err(BinaryJsonError::Controlled(error)) => panic!("unexpected control error: {error}"),
         };
+        // Assert
         assert_eq!(current, previous, "input: {input:?}");
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
 
 #[test]
-fn should_preserve_invalid_and_control_error_categories() {
+fn should_preserve_invalid_with_control_error_categories() {
     // Arrange
     let controls = controls();
     let invalid: &[&[u8]] = &[
@@ -86,6 +87,7 @@ fn should_preserve_invalid_and_control_error_categories() {
 
     // Act / Assert
     for input in invalid {
+        // Assert
         assert!(matches!(
             binary_json_text(input, &controls),
             Err(BinaryJsonError::Invalid)
@@ -128,6 +130,7 @@ fn should_observe_cancellation_before_invalid_utf8_or_syntax() {
 
     // Act / Assert
     for input in [b"{bad\xff}".as_slice(), b"[1,]".as_slice()] {
+        // Assert
         assert!(matches!(
             binary_json_text(input, &controls),
             Err(BinaryJsonError::Controlled(CassieError::QueryCancelled))
@@ -137,7 +140,7 @@ fn should_observe_cancellation_before_invalid_utf8_or_syntax() {
 }
 
 #[test]
-fn should_admit_parse_and_output_at_measured_peak_and_deny_below() {
+fn should_admit_parse_with_output_at_measured_peak_with_deny_below() {
     // Arrange
     let input = br#"{"z":[1,true],"a":"x"}"#;
     let baseline = controls();
@@ -196,7 +199,7 @@ fn should_cancel_after_an_actual_binary_grammar_frame_is_published() {
 }
 
 #[test]
-fn should_release_arena_and_output_after_actual_binary_output_copy_cancellation() {
+fn should_release_arena_with_output_after_actual_binary_output_copy_cancellation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

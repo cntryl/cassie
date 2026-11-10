@@ -10,7 +10,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_numeric_parse_and_display_for_valid_json_numbers() {
+fn should_match_numeric_parse_with_display_for_valid_json_numbers() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -43,6 +43,7 @@ fn should_match_numeric_parse_and_display_for_valid_json_numbers() {
             .expect("numeric")
             .to_string();
         let actual = format_number(input, &controls).expect("formatted");
+        // Assert
         assert_eq!(actual.as_str(), expected, "{input}");
         drop(actual);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -50,7 +51,7 @@ fn should_match_numeric_parse_and_display_for_valid_json_numbers() {
 }
 
 #[test]
-fn should_match_numeric_overflow_state_and_message() {
+fn should_match_numeric_overflow_state_with_message() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -64,6 +65,7 @@ fn should_match_numeric_overflow_state_and_message() {
     // Act / Assert
     for input in inputs {
         let expected = crate::types::extended::numeric::parse_text(input).expect_err("overflow");
+        // Assert
         assert_eq!(
             (expected.sqlstate, expected.message.as_str()),
             ("22003", "value overflows numeric format")
@@ -77,7 +79,7 @@ fn should_match_numeric_overflow_state_and_message() {
 }
 
 #[test]
-fn should_admit_exact_decimal_output_capacity_and_deny_below() {
+fn should_admit_exact_decimal_output_capacity_with_deny_below() {
     // Arrange
     let exact = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {
@@ -96,6 +98,7 @@ fn should_admit_exact_decimal_output_capacity_and_deny_below() {
 
     // Act / Assert
     let output = format_number("1.25", &exact).expect("exact");
+    // Assert
     assert_eq!(output.as_str(), "1.25");
     assert!(matches!(
         format_number("1.25", &below),
@@ -107,7 +110,7 @@ fn should_admit_exact_decimal_output_capacity_and_deny_below() {
 }
 
 #[test]
-fn should_cancel_during_actual_decimal_scan_and_release_owners() {
+fn should_cancel_during_actual_decimal_scan_with_release_owners() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -136,7 +139,7 @@ fn should_cancel_during_actual_decimal_scan_and_release_owners() {
 }
 
 #[test]
-fn should_cancel_during_actual_decimal_output_and_release_owners() {
+fn should_cancel_during_actual_decimal_output_with_release_owners() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

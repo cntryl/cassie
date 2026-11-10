@@ -50,7 +50,7 @@ fn staged_copy_binary_row() -> Vec<u8> {
 }
 
 #[test]
-fn should_recover_jsonb_binary_copy_error_in_implicit_and_explicit_transactions() {
+fn should_recover_jsonb_binary_copy_errors_across_transaction_modes() {
     // Arrange
     let mut payload = b"PGCOPY\n\xff\r\n\0".to_vec();
     payload.extend_from_slice(&0_i32.to_be_bytes());
@@ -102,7 +102,7 @@ fn should_recover_jsonb_binary_copy_error_in_implicit_and_explicit_transactions(
 }
 
 #[test]
-fn should_recover_jsonb_array_binary_copy_error_in_implicit_and_explicit_transactions() {
+fn should_recover_jsonb_array_copy_errors_across_transaction_modes() {
     // Arrange
     let mut array = Vec::new();
     for value in [1_i32, 0, 3802, 1, 1, 5] {
@@ -218,7 +218,7 @@ fn should_copy_into_transaction_owned_table_across_wire_formats() {
 }
 
 #[test]
-fn should_copy_into_a_transaction_recreated_target_and_restore_the_original() {
+fn should_restore_original_target_after_transactional_copy_recreation() {
     // Arrange
     let script = vec![
         vec![wire::simple_query_frame("BEGIN")],
@@ -358,7 +358,7 @@ fn should_copy_into_an_unchanged_published_table_after_unrelated_ddl() {
 }
 
 #[test]
-fn should_publish_staged_copy_rows_and_catalog_together_to_other_sessions() {
+fn should_publish_staged_copy_rows_with_catalog_changes_to_other_sessions() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -464,7 +464,7 @@ fn should_copy_to_staged_search_path_schema_instead_of_public_collision() {
 }
 
 #[test]
-fn should_report_unknown_quoted_copy_where_column_and_recover() {
+fn should_recover_unknown_quoted_copy_where_column() {
     // Arrange
     let script = vec![
         vec![wire::simple_query_frame(
@@ -490,7 +490,7 @@ fn should_report_unknown_quoted_copy_where_column_and_recover() {
 }
 
 #[test]
-fn should_recover_binary_timestamp_range_errors_in_implicit_and_explicit_transactions() {
+fn should_recover_binary_timestamp_range_errors_across_transaction_modes() {
     // Arrange
     use cassie::types::extended::temporal::calendar::END_TIMESTAMP;
     let mut payload = b"PGCOPY\n\xff\r\n\0".to_vec();
@@ -546,7 +546,7 @@ fn should_recover_binary_timestamp_range_errors_in_implicit_and_explicit_transac
 }
 
 #[test]
-fn should_recover_binary_date_time_range_errors_in_implicit_and_explicit_transactions() {
+fn should_recover_binary_date_time_range_errors_across_transaction_modes() {
     // Arrange
     let cases = [
         ("DATE", (-2_451_546_i32).to_be_bytes().to_vec()),
@@ -605,7 +605,7 @@ fn should_recover_binary_date_time_range_errors_in_implicit_and_explicit_transac
 }
 
 #[test]
-fn should_recover_binary_interval_framing_errors_in_implicit_and_explicit_transactions() {
+fn should_recover_binary_interval_framing_errors_across_transaction_modes() {
     // Arrange
     for (value, expected) in [(vec![0; 15], "08P01"), (vec![0; 17], "22P03")] {
         let mut payload = b"PGCOPY\n\xff\r\n\0".to_vec();

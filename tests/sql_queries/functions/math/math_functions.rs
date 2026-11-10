@@ -650,7 +650,7 @@ fn should_reject_four_argument_width_bucket_results_above_int4() {
 }
 
 #[test]
-fn should_preserve_width_bucket_in_range_null_and_error_priority() {
+fn should_preserve_width_bucket_error_priority() {
     // Arrange
     let fixture = sql_fixture("issue-813-width-bucket-int4-boundary", &[]);
 

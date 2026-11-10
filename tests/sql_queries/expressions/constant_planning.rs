@@ -162,9 +162,10 @@ fn should_propagate_folded_float_power_range_with_embedded_type_input() {
         ("SELECT COALESCE(id::float8, 1e-300::float8 ^ 2::float8) FROM cp", "underflow"),
     ];
 
-    // Act / Assert
+    // Act
     for (sql, expected) in cases {
         let result = fixture.execute(sql);
+        // Assert
         assert!(
             matches!(result, Err(CassieError::TypeInput(ref error))
             if error.sqlstate == "22003" && error.message == format!("value out of range: {expected}")),
@@ -185,14 +186,15 @@ fn should_prune_unreached_float_power_range_constants() {
         ("SELECT CASE WHEN false THEN (SELECT power(1e308::float8, 2::float8)) ELSE 3::float8 END FROM cp WHERE id = 1", vec![vec![Value::Float64(3.0)]]),
     ];
 
-    // Act / Assert
+    // Act
     for (sql, expected) in cases {
+        // Assert
         assert_eq!(fixture.rows(sql), expected, "{sql}");
     }
 }
 
 #[test]
-fn should_preserve_bound_and_reached_subquery_power_range_diagnostics() {
+fn should_preserve_bound_subquery_power_range_diagnostics() {
     // Arrange
     let fixture = planning_fixture("constant_planning_float_power_bound_subquery");
     let cases = [
@@ -208,9 +210,10 @@ fn should_preserve_bound_and_reached_subquery_power_range_diagnostics() {
         ),
     ];
 
-    // Act / Assert
+    // Act
     for (sql, params, expected) in cases {
         let result = fixture.cassie.execute_sql(&fixture.session, sql, params);
+        // Assert
         assert!(
             matches!(result, Err(CassieError::TypeInput(ref error))
             if error.sqlstate == "22003" && error.message == format!("value out of range: {expected}")),

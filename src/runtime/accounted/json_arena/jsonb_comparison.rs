@@ -243,9 +243,7 @@ pub(in crate::runtime::accounted::json_arena) fn compare(
                 right: b,
                 index,
             } => compare_array(left, right, a, b, index, &mut stack, controls)?,
-            task @ Task::Object { .. } => {
-                compare_object(left, right, task, &mut stack, controls)?
-            }
+            task @ Task::Object { .. } => compare_object(left, right, task, &mut stack, controls)?,
         };
         let Some(order) = order else {
             return Ok(None);
@@ -373,8 +371,10 @@ fn compare_object(
         return Ok(None);
     };
     if index < a_index.values_len() {
-        let (a_key, a_child) = a_index.item(left_order.get(index).ok_or_else(super::invalid_owner)?);
-        let (b_key, b_child) = b_index.item(right_order.get(index).ok_or_else(super::invalid_owner)?);
+        let (a_key, a_child) =
+            a_index.item(left_order.get(index).ok_or_else(super::invalid_owner)?);
+        let (b_key, b_child) =
+            b_index.item(right_order.get(index).ok_or_else(super::invalid_owner)?);
         let order = bytes(a_key.as_bytes(), b_key.as_bytes(), controls)?;
         if !order.is_eq() {
             return Ok(Some(order));

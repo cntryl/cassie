@@ -73,20 +73,17 @@ pub(super) fn validate(
         if !has_applicable_declared_routine(function, types) {
             let first = bucket_literal_family(types.expression_type(&function.args[0]).as_ref());
             if first.is_some()
-                && function.args[1..3]
-                    .iter()
-                    .all(|argument| {
-                        bucket_literal_family(types.expression_type(argument).as_ref()) == first
-                    })
+                && function.args[1..3].iter().all(|argument| {
+                    bucket_literal_family(types.expression_type(argument).as_ref()) == first
+                })
             {
                 if let Expr::StringLiteral(input) = &function.args[3] {
                     if let Some(controls) = types.controls() {
                         controls.check_interruption()?;
                     }
-                    let Ok(value) = crate::types::integer::parse(
-                        input,
-                        crate::types::IntegerWidth::I32,
-                    ) else {
+                    let Ok(value) =
+                        crate::types::integer::parse(input, crate::types::IntegerWidth::I32)
+                    else {
                         crate::sql::literal_inputs::validate_with_controls(
                             &function.args[3],
                             &DataType::Int,

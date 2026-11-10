@@ -1,5 +1,5 @@
 #[test]
-fn should_describe_namespace_identity_in_text_and_binary_results() {
+fn should_describe_namespace_identity_in_both_wire_formats() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -32,7 +32,7 @@ fn should_describe_namespace_identity_in_text_and_binary_results() {
 }
 
 #[test]
-fn should_keep_namespace_descriptor_and_rows_database_scoped() {
+fn should_scope_namespace_rows_to_the_current_database() {
     // Arrange
     let fixture = sql_fixture(
         "namespace_descriptor_database_scope",
@@ -69,7 +69,7 @@ fn should_keep_namespace_descriptor_and_rows_database_scoped() {
         vec![26, 19]
     );
     assert_eq!(owner.rows().len(), 1);
-    assert!(other.rows().is_empty());
+    assert_eq!(other.rows(), Vec::<Vec<cassie::types::Value>>::new());
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn should_round_trip_maximum_namespace_oid_in_binary_pgwire() {
 }
 
 #[test]
-fn should_join_and_preserve_namespace_identity_across_rollback() {
+fn should_preserve_namespace_identity_across_rollback() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

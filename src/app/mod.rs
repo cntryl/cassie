@@ -99,8 +99,8 @@ pub use error::{
 pub use session::CassieSession;
 pub(crate) use session::{
     BoundReadScope, BoundReadView, CommandCatalogScope, CopyBindingContext, CopyCommandOwner,
-    SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch,
-    StatementOverlay, TransactionConflictIntent, TransactionRowChange,
+    SessionRandom, SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
+    TransactionConflictIntent, TransactionRowChange,
 };
 pub(crate) use session::{
     CursorOptions, SessionCursor, SessionPrepared, MAX_CURSORS_PER_SESSION,

@@ -186,7 +186,13 @@ fn should_match_serde_private_keys_and_exponent_normalization() {
         let actual = super::parse(text.as_bytes(), &controls);
         match (expected, actual) {
             (Ok(expected), Ok(actual)) => assert_eq!(actual.get(), &expected, "{text}"),
-            (Err(expected), Err(super::ParseError::InvalidJson { error, _memory: memory })) => {
+            (
+                Err(expected),
+                Err(super::ParseError::InvalidJson {
+                    error,
+                    _memory: memory,
+                }),
+            ) => {
                 assert_eq!(error.to_string(), expected.to_string(), "{text}");
                 drop(error);
                 drop(memory);

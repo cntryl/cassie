@@ -55,15 +55,7 @@ pub(super) fn find(chars: &[char], set: AbbreviationSet) -> Option<(ZoneAbbrevia
         .chain(overrides)
         .filter(|(name, _)| text.starts_with(*name))
         .max_by_key(|(name, _)| name.len())
-        .map(|(name, rule)| {
-            (
-                ZoneAbbreviation {
-                    name,
-                    rule: *rule,
-                },
-                name.len(),
-            )
-        })
+        .map(|(name, rule)| (ZoneAbbreviation { name, rule: *rule }, name.len()))
 }
 
 const DEFAULT: &[(&str, ZoneRule)] = &[

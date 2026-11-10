@@ -218,7 +218,7 @@ fn should_report_predicate_then_key_then_include_for_invalid_duplicate_indexes()
 }
 
 #[test]
-fn should_preserve_existing_skip_for_duplicate_options_and_function_predicates() {
+fn should_preserve_duplicate_index_skip_validation_order() {
     // Arrange
     let fixture = crate::support_sql_fixture::sql_fixture(
         "index-duplicate-validation-fallback",
@@ -262,12 +262,13 @@ fn should_report_missing_unqualified_predicate_columns_on_either_side() {
         ],
     );
 
-    // Act / Assert
+    // Act
     for sql in [
         "CREATE INDEX IF NOT EXISTS stable_idx ON indexed_rows (v) WHERE 1 = missing_right",
         "CREATE INDEX IF NOT EXISTS stable_idx ON indexed_rows (v) WHERE \"MissingQuoted\" = 1",
     ] {
         let error = fixture.execute(sql).expect_err("missing predicate column");
+        // Assert
         assert!(matches!(
             error,
             cassie::app::CassieError::UndefinedColumn(_)

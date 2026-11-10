@@ -1,6 +1,18 @@
 //! Deferred PostgreSQL 18.6 witnesses for unknown literal `#-` selectors.
 use super::{fixture, wire};
 
+const JSON_DELETE_PATH_INPUT_CASES: [(&str, &str); 3] = [
+    (r#"SELECT '{"a":1}'::JSONB #- '{a}'::TEXT"#, "42883"),
+    (r#"SELECT '{"a":1}'::JSONB #- '{{a,b}}'"#, "2202E"),
+    (r#"SELECT '{"a":1}'::JSONB #- '{a'"#, "22P02"),
+];
+
+const JSON_DELETE_PATH_PRIORITY_CASES: [(&str, &str); 3] = [
+    ("SELECT 'bad'::JSONB #- '{a'", "json"),
+    ("SELECT NULL::JSONB #- '{a'", "array"),
+    ("SELECT 'bad'::JSONB #- NULL", "json"),
+];
+
 #[test]
 fn should_coerce_unknown_delete_paths_to_text_array_without_changing_other_overloads() {
     // Arrange
@@ -42,41 +54,31 @@ fn should_coerce_unknown_delete_paths_to_text_array_without_changing_other_overl
 }
 
 #[test]
-fn should_keep_explicit_text_and_bad_array_literal_diagnostics() {
+fn should_preserve_json_delete_path_input_diagnostics() {
     // Arrange
-    let cases = [
-        (r#"SELECT '{"a":1}'::JSONB #- '{a}'::TEXT"#, "42883"),
-        (r#"SELECT '{"a":1}'::JSONB #- '{{a,b}}'"#, "2202E"),
-        (r#"SELECT '{"a":1}'::JSONB #- '{a'"#, "22P02"),
-    ];
-    let cycles = cases
+    let cycles = JSON_DELETE_PATH_INPUT_CASES
         .iter()
         .map(|(sql, _)| fixture::execute_cycle(sql, None, 0, true))
         .collect();
     // Act
     let frames = fixture::run_cycles("jsonb-delete-unknown-path-errors", &[], cycles);
     // Assert
-    for ((_, expected), frames) in cases.iter().zip(frames) {
+    for ((_, expected), frames) in JSON_DELETE_PATH_INPUT_CASES.iter().zip(frames) {
         assert_eq!(wire::error_code(&frames).as_deref(), Some(*expected));
     }
 }
 
 #[test]
-fn should_preserve_delete_path_cast_error_priority_and_nulls() {
+fn should_preserve_json_delete_path_cast_error_priority() {
     // Arrange
-    let cases = [
-        ("SELECT 'bad'::JSONB #- '{a'", "json"),
-        ("SELECT NULL::JSONB #- '{a'", "array"),
-        ("SELECT 'bad'::JSONB #- NULL", "json"),
-    ];
-    let cycles = cases
+    let cycles = JSON_DELETE_PATH_PRIORITY_CASES
         .iter()
         .map(|(sql, _)| fixture::execute_cycle(sql, None, 0, true))
         .collect();
     // Act
     let frames = fixture::run_cycles("jsonb-delete-unknown-path-priority", &[], cycles);
     // Assert
-    for ((_, expected), frames) in cases.iter().zip(frames) {
+    for ((_, expected), frames) in JSON_DELETE_PATH_PRIORITY_CASES.iter().zip(frames) {
         assert_eq!(wire::error_code(&frames).as_deref(), Some("22P02"));
         let fields = frames
             .iter()
@@ -94,7 +96,7 @@ fn should_preserve_delete_path_cast_error_priority_and_nulls() {
 }
 
 #[test]
-fn should_keep_native_array_parameter_and_unbound_function_body_paths() {
+fn should_preserve_json_delete_path_native_inputs() {
     // Arrange
     let setup = [(
         r#"CREATE FUNCTION nested_delete_path() RETURNS TEXT AS "jsonb_build_object('a', jsonb_build_object('b', 7, 'c', 8)) #- '{a,b}'""#,

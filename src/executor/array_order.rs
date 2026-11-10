@@ -365,10 +365,12 @@ pub(super) fn compare_direct_jsonb_arrays<R: RowAccess + ?Sized>(
     ) {
         return Ok(DirectJsonbArrayComparison::NotApplicable);
     }
-    Ok(match crate::executor::filter::compare_sql_arrays_controlled(left.1, right.1, controls)? {
-        Some(ordering) => DirectJsonbArrayComparison::Ordered(ordering),
-        None => DirectJsonbArrayComparison::Unordered,
-    })
+    Ok(
+        match crate::executor::filter::compare_sql_arrays_controlled(left.1, right.1, controls)? {
+            Some(ordering) => DirectJsonbArrayComparison::Ordered(ordering),
+            None => DirectJsonbArrayComparison::Unordered,
+        },
+    )
 }
 
 fn comparison_types<R: RowAccess + ?Sized>(

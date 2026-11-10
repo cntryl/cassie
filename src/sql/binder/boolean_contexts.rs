@@ -412,44 +412,9 @@ fn validate_expression(
             left,
             op: BinaryOp::And | BinaryOp::Or,
             right,
-        } => {
-            require_boolean(left, types, "Boolean operator")?;
-            require_boolean(right, types, "Boolean operator")?;
-            validate_expression(left, types, catalog, context)?;
-            validate_expression(right, types, catalog, context)?;
-        }
+        } => validate_logical_binary(left, right, types, catalog, context)?,
         Expr::Binary { left, op, right } => {
-            if matches!(
-                op,
-                BinaryOp::Eq
-                    | BinaryOp::NotEq
-                    | BinaryOp::IsDistinctFrom
-                    | BinaryOp::IsNotDistinctFrom
-                    | BinaryOp::Lt
-                    | BinaryOp::Lte
-                    | BinaryOp::Gt
-                    | BinaryOp::Gte
-            ) {
-                validate_collation_pair(left, right)?;
-                null_safe_comparison::qualify(op, left, right, types)?;
-                canonicalize_boolean_pair(left, right, types)?;
-                decimal_literals::narrow_pair(left, right, types);
-                coerce_numeric_pair(left, right, types, catalog);
-                validate_concatenation_comparison(left, right, types)?;
-            }
-            validate_expression(left, types, catalog, context)?;
-            validate_expression(right, types, catalog, context)?;
-            if matches!(op, BinaryOp::Power) {
-                let [left_changed, right_changed] = super::power_coercion::pair(left, right, types);
-                if left_changed {
-                    validate_expression(left, types, catalog, context)?;
-                }
-                if right_changed {
-                    validate_expression(right, types, catalog, context)?;
-                }
-            }
-            resolve_integer_operator(left, op, right, types)?;
-            super::character_comparison::qualify(op, left, right, types);
+            validate_binary(left, op, right, types, catalog, context)?;
         }
         prefix @ (Expr::Not { .. } | Expr::UnaryNumeric { .. }) => {
             validate_prefix(prefix, types, catalog, context)?;
@@ -512,6 +477,61 @@ fn validate_expression(
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }
+    Ok(())
+}
+
+fn validate_logical_binary(
+    left: &mut Expr,
+    right: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    require_boolean(left, types, "Boolean operator")?;
+    require_boolean(right, types, "Boolean operator")?;
+    validate_expression(left, types, catalog, context)?;
+    validate_expression(right, types, catalog, context)
+}
+
+fn validate_binary(
+    left: &mut Expr,
+    op: &mut BinaryOp,
+    right: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    if matches!(
+        op,
+        BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+    ) {
+        validate_collation_pair(left, right)?;
+        null_safe_comparison::qualify(op, left, right, types)?;
+        canonicalize_boolean_pair(left, right, types)?;
+        decimal_literals::narrow_pair(left, right, types);
+        coerce_numeric_pair(left, right, types, catalog);
+        validate_concatenation_comparison(left, right, types)?;
+    }
+    validate_expression(left, types, catalog, context)?;
+    validate_expression(right, types, catalog, context)?;
+    if matches!(op, BinaryOp::Power) {
+        let [left_changed, right_changed] = super::power_coercion::pair(left, right, types);
+        if left_changed {
+            validate_expression(left, types, catalog, context)?;
+        }
+        if right_changed {
+            validate_expression(right, types, catalog, context)?;
+        }
+    }
+    resolve_integer_operator(left, op, right, types)?;
+    super::character_comparison::qualify(op, left, right, types);
     Ok(())
 }
 

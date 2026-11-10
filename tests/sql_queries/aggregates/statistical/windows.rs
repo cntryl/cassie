@@ -26,7 +26,7 @@ const REGRESSION: [&str; 12] = [
 ];
 
 #[test]
-fn should_construct_and_read_unfiltered_window_calls_from_the_public_ast() {
+fn should_build_unfiltered_window_calls_from_the_public_ast() {
     // Arrange
     use cassie::sql::ast::WindowFunctionCall;
     let call = WindowFunctionCall {

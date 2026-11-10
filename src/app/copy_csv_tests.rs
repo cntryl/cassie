@@ -27,7 +27,7 @@ fn should_admit_csv_quoted_null_empty_and_newline_fields() {
     assert_eq!(
         rows,
         vec![
-        vec![None, Some(String::new()), Some("a\n\"b".into())],
+            vec![None, Some(String::new()), Some("a\n\"b".into())],
             vec![Some("x".into()), Some("y".into()), Some("z".into())]
         ]
     );

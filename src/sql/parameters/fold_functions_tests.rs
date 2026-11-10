@@ -149,6 +149,47 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
     unqualified[0].qualified = false;
     let mut contextual_null = summaries;
     contextual_null[0].literal = true;
+
+    // Act / Assert
+    assert_eq!(
+        super::mixed_bucket_targets(&args, &summaries, fresh),
+        Some([701, 701, 701, 23])
+    );
+    assert_eq!(super::mixed_bucket_targets(&args, &mixed, fresh), None);
+    assert_eq!(
+        super::mixed_bucket_targets(&args, &prior_resolved, fresh),
+        None
+    );
+    assert_eq!(
+        super::mixed_bucket_targets(&args, &unqualified, fresh),
+        None
+    );
+    assert_eq!(
+        super::mixed_bucket_targets(&args, &contextual_null, fresh),
+        None
+    );
+    assert_eq!(
+        super::mixed_bucket_targets(&args, &summaries, [false; 4]),
+        None
+    );
+}
+
+#[test]
+fn should_limit_mixed_bucket_count_inference_to_distinct_unknown_slots() {
+    // Arrange
+    let args = [
+        ast::Expr::Param(0),
+        ast::Expr::IntegerLiteral(0),
+        ast::Expr::IntegerLiteral(1),
+        ast::Expr::IntegerLiteral(2),
+    ];
+    let summaries = [
+        unknown(),
+        Summary::known(701),
+        Summary::known(701),
+        Summary::known(23),
+    ];
+    let fresh = [true, false, false, false];
     let supplied_anchor = [
         ast::Expr::Param(0),
         ast::Expr::Param(1),
@@ -189,27 +230,6 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
 
     // Act / Assert
     assert_eq!(
-        super::mixed_bucket_targets(&args, &summaries, fresh),
-        Some([701, 701, 701, 23])
-    );
-    assert_eq!(super::mixed_bucket_targets(&args, &mixed, fresh), None);
-    assert_eq!(
-        super::mixed_bucket_targets(&args, &prior_resolved, fresh),
-        None
-    );
-    assert_eq!(
-        super::mixed_bucket_targets(&args, &unqualified, fresh),
-        None
-    );
-    assert_eq!(
-        super::mixed_bucket_targets(&args, &contextual_null, fresh),
-        None
-    );
-    assert_eq!(
-        super::mixed_bucket_targets(&args, &summaries, [false; 4]),
-        None
-    );
-    assert_eq!(
         super::mixed_bucket_targets(&supplied_anchor, &summaries, fresh),
         None
     );
@@ -230,19 +250,11 @@ fn should_restrict_mixed_bucket_inference_to_fresh_uniform_anchors() {
         Some([701, 701, 701, 23])
     );
     assert_eq!(
-        super::mixed_bucket_targets(
-            &no_anchor_args,
-            &no_anchor_small,
-            [true, true, true, false]
-        ),
+        super::mixed_bucket_targets(&no_anchor_args, &no_anchor_small, [true, true, true, false]),
         Some([701, 701, 701, 23])
     );
     assert_eq!(
-        super::mixed_bucket_targets(
-            &no_anchor_args,
-            &no_anchor_prior,
-            [true, true, true, false]
-        ),
+        super::mixed_bucket_targets(&no_anchor_args, &no_anchor_prior, [true, true, true, false]),
         None
     );
 }

@@ -112,7 +112,7 @@ fn should_resolve_unknown_power_operand_to_numeric_when_the_other_is_numeric() {
 }
 
 #[test]
-fn should_resolve_mixed_numeric_and_float_power_to_float8() {
+fn should_resolve_mixed_power_operands_to_float8() {
     // Arrange
     let sql = "SELECT power(2::numeric, 3::float8) AS output";
 
@@ -180,7 +180,7 @@ fn should_infer_power_parameter_from_the_selected_overload() {
 }
 
 #[test]
-fn should_reject_numeric_to_float_overflow_and_underflow_for_mixed_power() {
+fn should_reject_mixed_power_numeric_to_float_range_errors() {
     // Arrange
     let cases = [
         "SELECT power(1e1000::numeric, 2::float8)",

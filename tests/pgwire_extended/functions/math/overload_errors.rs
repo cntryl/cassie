@@ -4,6 +4,7 @@ use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 type Frames = Vec<(u8, Vec<u8>)>;
+type WidthBucketInferenceCase<'a> = (&'a str, &'a [i32], &'a [i32], &'a [&'a str], &'a str);
 
 #[test]
 fn should_reject_numeric_ceiling_format_carry_without_partial_rows() {
@@ -309,7 +310,7 @@ fn should_return_22012_given_a_supported_div_control_when_the_divisor_is_zero() 
 }
 
 #[test]
-fn should_report_width_bucket_int4_overflow_and_keep_wire_session_usable() {
+fn should_report_width_bucket_int4_overflow_on_wire() {
     // Arrange
     let queries = [
         "SELECT WIDTH_BUCKET(1::float8, 0::float8, 1::float8, 2147483647)",
@@ -442,7 +443,7 @@ fn should_validate_unknown_width_bucket_count_literals_during_parse() {
 }
 
 #[test]
-fn should_reject_width_bucket_parameter_shared_by_operand_and_count() {
+fn should_reject_shared_width_bucket_operand_count_parameter() {
     // Arrange
     let cases = [
         "SELECT WIDTH_BUCKET($1, $2, $3, $1)",
@@ -717,7 +718,7 @@ fn should_infer_unknown_width_bucket_operands_with_a_known_int4_count() {
 }
 
 #[test]
-fn should_preserve_known_count_null_later_cast_and_declared_routine_paths() {
+fn should_preserve_width_bucket_resolution_with_known_count() {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame(
@@ -770,7 +771,7 @@ fn should_preserve_known_count_null_later_cast_and_declared_routine_paths() {
 #[test]
 fn should_infer_width_bucket_operands_when_the_count_is_smallint() {
     // Arrange
-    let cases: [(&str, &[i32], &[i32], &[&str], &str); 3] = [
+    let cases: [WidthBucketInferenceCase<'_>; 3] = [
         (
             "SELECT WIDTH_BUCKET($1, $2, $3, 2::smallint)",
             &[],
@@ -851,7 +852,7 @@ fn should_infer_width_bucket_operands_when_the_count_is_smallint() {
 }
 
 #[test]
-fn should_preserve_smallint_width_bucket_null_error_and_visible_routine_behavior() {
+fn should_preserve_smallint_width_bucket_null_resolution() {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame(
@@ -924,9 +925,9 @@ fn should_use_float_width_bucket_for_binary_bigint_parameters() {
                 statement,
                 &[1],
                 &[
-                    Some(&9007199254740993_i64.to_be_bytes()),
-                    Some(&9007199254740992_i64.to_be_bytes()),
-                    Some(&9007199254740994_i64.to_be_bytes()),
+                    Some(&9_007_199_254_740_993_i64.to_be_bytes()),
+                    Some(&9_007_199_254_740_992_i64.to_be_bytes()),
+                    Some(&9_007_199_254_740_994_i64.to_be_bytes()),
                 ],
                 &[],
             ),

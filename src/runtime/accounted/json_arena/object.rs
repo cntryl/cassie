@@ -27,10 +27,7 @@ impl Key {
             ));
         }
         let (text, memory) = token.into_parts();
-        Ok(Self {
-            text,
-            memory,
-        })
+        Ok(Self { text, memory })
     }
 
     pub(super) fn as_str(&self) -> &str {
@@ -60,10 +57,7 @@ impl Key {
             start = end;
         }
         controls.check_interruption()?;
-        Ok(Self {
-            text: copy,
-            memory,
-        })
+        Ok(Self { text: copy, memory })
     }
 }
 

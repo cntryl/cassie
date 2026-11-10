@@ -2,10 +2,12 @@
 use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
+type UnknownLiteralCase<'a> = (&'a str, &'a [i32], &'a [&'a str], Option<&'a str>);
+
 #[test]
 fn should_infer_unknown_operands_with_a_literal_or_null_count() {
     // Arrange
-    let cases: [(&str, &[i32], &[&str], Option<&str>); 3] = [
+    let cases: [UnknownLiteralCase<'_>; 3] = [
         (
             "SELECT WIDTH_BUCKET($1, $2, $3, '2')",
             &[701, 701, 701],
@@ -99,7 +101,7 @@ fn should_report_bad_literal_count_before_unknown_parameter_binding() {
 }
 
 #[test]
-fn should_preserve_later_cast_and_visible_routine_selection() {
+fn should_preserve_width_bucket_resolution_for_later_casts() {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame(

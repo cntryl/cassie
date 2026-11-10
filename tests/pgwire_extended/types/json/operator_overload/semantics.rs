@@ -1,5 +1,5 @@
 #[test]
-fn should_distinguish_scalar_indexing_between_json_and_jsonb() {
+fn should_distinguish_json_scalar_indexing_from_jsonb() {
     // Arrange
     let cycle = fixture::execute_cycle(
         "SELECT '1'::json -> 0, '1'::json -> -1, '1'::json ->> 0, \

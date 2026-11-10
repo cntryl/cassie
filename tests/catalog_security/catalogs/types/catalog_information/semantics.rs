@@ -217,7 +217,7 @@ fn should_report_builtin_int4_array_type_links_in_pg_type() {
 }
 
 #[test]
-fn should_report_builtin_type_kind_and_category_from_postgresql_identity() {
+fn should_report_postgresql_builtin_type_metadata() {
     // Arrange
     let fixture = sql_fixture("issue-817-pg-type-kind-category", &[]);
     fixture.cassie.startup().expect("startup");

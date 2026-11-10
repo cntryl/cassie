@@ -31,7 +31,10 @@ fn should_match_serde_entry_size_for_scalar_values_and_escaping() {
         ("subnormal".into(), Value::Float64(f64::from_bits(1))),
         ("maxfloat".into(), Value::Float64(f64::MAX)),
         ("minfloat".into(), Value::Float64(f64::MIN)),
-        ("finite".into(), Value::Float64(1.234_567_890_123_456_7e-200)),
+        (
+            "finite".into(),
+            Value::Float64(1.234_567_890_123_456_7e-200),
+        ),
         ("nan".into(), Value::Float64(f64::NAN)),
         ("infinity".into(), Value::Float64(f64::INFINITY)),
         (

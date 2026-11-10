@@ -139,7 +139,7 @@ fn should_reject_explicit_always_identity_before_allocating_default_cells() {
 }
 
 #[test]
-fn should_preserve_select_identity_policy_and_width_errors() {
+fn should_preserve_select_identity_policy_error_priority() {
     // Arrange
     let fixture = sql_fixture(
         "insert-select-identity-owner",

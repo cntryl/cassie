@@ -3,7 +3,7 @@ use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]
-fn should_distinguish_float_power_overflow_and_underflow_for_calls_and_operators() {
+fn should_distinguish_float_power_range_errors_by_call_form() {
     // Arrange
     let cases = [
         ("SELECT power(1e308::float8, 2::float8)", "overflow"),
@@ -42,7 +42,7 @@ fn should_distinguish_float_power_overflow_and_underflow_for_calls_and_operators
 }
 
 #[test]
-fn should_report_bound_float_power_overflow_and_recover_after_sync() {
+fn should_report_bound_float_power_overflow_after_sync() {
     // Arrange
     let statement = "float_power_range";
     let portal = "float_power_range_portal";
@@ -94,7 +94,7 @@ fn should_report_bound_float_power_overflow_and_recover_after_sync() {
 }
 
 #[test]
-fn should_preserve_float_power_special_and_null_results() {
+fn should_preserve_float_power_special_cases() {
     // Arrange
     let sql = "SELECT power('NaN'::float8, 0::float8), \
         power(1::float8, 'NaN'::float8), \
@@ -121,7 +121,7 @@ fn should_preserve_float_power_special_and_null_results() {
 }
 
 #[test]
-fn should_report_folded_power_range_at_bind_and_recover_after_sync() {
+fn should_report_folded_power_range_at_bind() {
     // Arrange
     let cases = [
         (

@@ -244,7 +244,7 @@ fn should_return_null_for_missing_regtype_lookup() {
 }
 
 #[test]
-fn should_resolve_multidimensional_regtype_and_routine_arguments() {
+fn should_resolve_multidimensional_regtype_routine_signatures() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

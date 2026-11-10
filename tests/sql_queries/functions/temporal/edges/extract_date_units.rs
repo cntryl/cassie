@@ -4,7 +4,7 @@ use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 
 #[test]
-fn should_classify_date_extract_reserved_and_unknown_units() {
+fn should_classify_date_extract_invalid_units() {
     // Arrange
     let fixture = sql_fixture("issue-815-extract-date-unit-diagnostics", &[]);
     let cases = [
@@ -37,7 +37,6 @@ fn should_classify_date_extract_reserved_and_unknown_units() {
         }
     }
 
-    // Act
     let null = fixture.execute("SELECT EXTRACT('bogus' FROM NULL::date) IS NULL");
     let widened = fixture.execute("SELECT DATE_PART('year', DATE '294277-01-01')");
     let supported = fixture.execute("SELECT EXTRACT('epoch' FROM DATE 'infinity')::text, EXTRACT('yrs' FROM DATE '5874897-12-31')::text");

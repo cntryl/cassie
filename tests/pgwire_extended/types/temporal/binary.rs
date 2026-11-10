@@ -1,3 +1,18 @@
+type BinaryDateTimeBoundsCase<'a> = (i32, Vec<(Vec<u8>, Option<&'a str>)>);
+
+fn assert_bind_parameter_error(batch: &[(u8, Vec<u8>)], ordinal: usize) {
+    assert_eq!(wire::error_code(batch).as_deref(), Some("22P03"));
+    let fields = wire::parse_error_fields(
+        &batch
+            .iter()
+            .find(|frame| frame.0 == b'E')
+            .expect("error")
+            .1,
+    );
+    assert!(fields.iter().any(|(field, message)| *field == 'M'
+        && message == &format!("incorrect binary data format in bind parameter {ordinal}")));
+}
+
 #[test]
 fn should_return_postgresql_binary_temporal_encodings() {
     // Arrange
@@ -204,7 +219,7 @@ fn should_accept_binary_temporal_parameters_with_explicit_postgresql_oids() {
 }
 
 #[test]
-fn should_validate_timetz_binary_bounds_and_recover_on_same_connection() {
+fn should_validate_timetz_binary_bounds_on_same_connection() {
     // Arrange
     let frame = |time: i64, zone: i32| {
         [time.to_be_bytes().as_slice(), zone.to_be_bytes().as_slice()].concat()
@@ -271,7 +286,7 @@ fn should_validate_timetz_binary_bounds_and_recover_on_same_connection() {
 }
 
 #[test]
-fn should_validate_binary_timestamp_and_timestamptz_bounds_and_recover() {
+fn should_validate_binary_timestamp_bounds_on_same_connection() {
     // Arrange
     use cassie::types::extended::temporal::calendar::{END_TIMESTAMP, MIN_TIMESTAMP};
     let mut steps = Vec::new();
@@ -387,7 +402,7 @@ fn should_preserve_binary_timestamp_array_element_error_order() {
 }
 
 #[test]
-fn should_report_timestamp_excess_bind_parameter_ordinal_and_recover() {
+fn should_report_timestamp_excess_parameter_ordinal() {
     // Arrange
     use cassie::types::extended::temporal::calendar::END_TIMESTAMP;
     let good_integer = 1_i32.to_be_bytes();
@@ -496,14 +511,14 @@ fn should_report_timestamp_excess_bind_parameter_ordinal_and_recover() {
 }
 
 #[test]
-fn should_validate_binary_date_and_time_bounds_and_recover() {
+fn should_validate_binary_date_time_bounds() {
     // Arrange
     use cassie::types::extended::temporal::calendar::{
         DATE_END_JULIAN, POSTGRES_EPOCH_JDATE, USECS_PER_DAY,
     };
     let first = -POSTGRES_EPOCH_JDATE;
     let end = i32::try_from(DATE_END_JULIAN - i64::from(POSTGRES_EPOCH_JDATE)).expect("end");
-    let cases: [(i32, Vec<(Vec<u8>, Option<&str>)>); 2] = [
+    let cases: [BinaryDateTimeBoundsCase<'_>; 2] = [
         (
             1082,
             vec![
@@ -698,7 +713,7 @@ fn should_preserve_date_time_binary_array_element_error_order() {
 }
 
 #[test]
-fn should_report_timetz_excess_bind_parameter_ordinal_and_recover() {
+fn should_report_timetz_excess_parameter_ordinal() {
     // Arrange
     let integer = 1_i32.to_be_bytes();
     let frame = |time: i64, zone: i32| {
@@ -784,16 +799,7 @@ fn should_report_timetz_excess_bind_parameter_ordinal_and_recover() {
 
     // Assert
     for (index, ordinal) in [(3, 1), (5, 2)] {
-        assert_eq!(wire::error_code(&batches[index]).as_deref(), Some("22P03"));
-        let fields = wire::parse_error_fields(
-            &batches[index]
-                .iter()
-                .find(|frame| frame.0 == b'E')
-                .expect("error")
-                .1,
-        );
-        assert!(fields.iter().any(|(field, message)| *field == 'M'
-            && message == &format!("incorrect binary data format in bind parameter {ordinal}")));
+        assert_bind_parameter_error(&batches[index], ordinal);
     }
     assert_eq!(
         batches[3].last().map(|frame| frame.1.as_slice()),
@@ -812,7 +818,7 @@ fn should_report_timetz_excess_bind_parameter_ordinal_and_recover() {
 }
 
 #[test]
-fn should_preserve_binary_interval_framing_and_bind_ordinal() {
+fn should_preserve_binary_interval_bind_framing() {
     // Arrange
     let valid = [
         i64::MIN.to_be_bytes().as_slice(),

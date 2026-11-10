@@ -133,10 +133,11 @@ fn serialize_with_observer(
                 Kind::Scalar => {
                     sink.write("null", &mut |event| sink_event(event, &mut observer))?;
                 }
-                Kind::Boolean(value) => sink
-                    .write(if *value { "true" } else { "false" }, &mut |event| {
+                Kind::Boolean(value) => {
+                    sink.write(if *value { "true" } else { "false" }, &mut |event| {
                         sink_event(event, &mut observer);
-                    })?,
+                    })?;
+                }
                 Kind::Text(text) => quoted(&mut sink, text.as_str(), controls, &mut observer)?,
                 Kind::Number(number) => {
                     let text = format_number_with_observer(number.as_str(), controls, |progress| {

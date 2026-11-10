@@ -4,6 +4,39 @@ use super::{Cassie, CommittedCollection, CommittedWriteBatch};
 use crate::config::CassieRuntimeConfig;
 use crate::types::Value;
 
+#[derive(Debug, PartialEq)]
+struct MaintenanceSnapshot {
+    projection: serde_json::Value,
+    hashes: serde_json::Value,
+    debt: serde_json::Value,
+}
+
+fn maintenance_snapshot(cassie: &Cassie, target: &str) -> MaintenanceSnapshot {
+    MaintenanceSnapshot {
+        projection: serde_json::to_value(
+            cassie
+                .midge
+                .projection_metadata(target)
+                .expect("projection metadata"),
+        )
+        .expect("projection value"),
+        hashes: serde_json::to_value(
+            cassie
+                .midge
+                .projection_hash_summary(target)
+                .expect("hash metadata"),
+        )
+        .expect("hash value"),
+        debt: serde_json::to_value(
+            cassie
+                .midge
+                .list_maintenance_debt()
+                .expect("maintenance debt"),
+        )
+        .expect("debt value"),
+    }
+}
+
 #[test]
 fn should_skip_retired_batch_maintenance_after_a_same_generation_replacement() {
     // Arrange
@@ -57,27 +90,7 @@ fn should_skip_retired_batch_maintenance_after_a_same_generation_replacement() {
         .row_schema(&target)
         .expect("new descriptor")
         .relation_id;
-    let projection_before = serde_json::to_value(
-        cassie
-            .midge
-            .projection_metadata(&target)
-            .expect("projection metadata"),
-    )
-    .expect("projection value");
-    let hashes_before = serde_json::to_value(
-        cassie
-            .midge
-            .projection_hash_summary(&target)
-            .expect("hash metadata"),
-    )
-    .expect("hash value");
-    let debt_before = serde_json::to_value(
-        cassie
-            .midge
-            .list_maintenance_debt()
-            .expect("maintenance debt"),
-    )
-    .expect("debt value");
+    let before = maintenance_snapshot(&cassie, &target);
 
     // Act
     cassie.finish_staged_write_batches(delayed, None);
@@ -93,30 +106,10 @@ fn should_skip_retired_batch_maintenance_after_a_same_generation_replacement() {
         old_generation,
         "generation equality cannot authorize retired work"
     );
-    assert_eq!(
-        serde_json::to_value(
-            cassie
-                .midge
-                .projection_metadata(&target)
-                .expect("projection")
-        )
-        .expect("value"),
-        projection_before
-    );
-    assert_eq!(
-        serde_json::to_value(
-            cassie
-                .midge
-                .projection_hash_summary(&target)
-                .expect("hashes")
-        )
-        .expect("value"),
-        hashes_before
-    );
-    assert_eq!(
-        serde_json::to_value(cassie.midge.list_maintenance_debt().expect("debt")).expect("value"),
-        debt_before
-    );
+    let after = maintenance_snapshot(&cassie, &target);
+    assert_eq!(after.projection, before.projection);
+    assert_eq!(after.hashes, before.hashes);
+    assert_eq!(after.debt, before.debt);
     let rows = cassie
         .execute_sql(
             &session,

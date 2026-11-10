@@ -4,7 +4,7 @@ use crate::support_parameter_occurrence_wire::{run_script, Step};
 use crate::support_pgwire as wire;
 
 #[test]
-fn should_reject_timetz_format_signatures_during_parse_and_recover() {
+fn should_reject_timetz_format_signatures_during_parse() {
     // Arrange
     let cases: [(&str, &[i32], &str); 4] = [
         ("SELECT to_char(NULL::timetz, 'HH24')", &[], "to_char"),
@@ -61,7 +61,7 @@ fn should_reject_timetz_format_signatures_during_parse_and_recover() {
 }
 
 #[test]
-fn should_leave_non_null_timetz_casts_and_visible_routines_outside_the_scoped_rejection() {
+fn should_preserve_timetz_casts_outside_scoped_rejection() {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame_with_types(
@@ -91,7 +91,7 @@ fn should_leave_non_null_timetz_casts_and_visible_routines_outside_the_scoped_re
 }
 
 #[test]
-fn should_fail_and_recover_an_explicit_transaction_after_the_parse_error() {
+fn should_fail_explicit_transaction_after_timetz_parse_error() {
     // Arrange
     let steps = vec![
         Step::ThroughReady(vec![wire::simple_query_frame("BEGIN")]),

@@ -80,7 +80,6 @@ fn should_use_original_interval_year_sign_for_year_tail_padding() {
         );
     }
 
-    // Act
     let timestamp = fixture.execute("SELECT to_char(TIMESTAMP '2000-01-01', 'YYY|YY|Y')");
 
     // Assert
@@ -91,7 +90,7 @@ fn should_use_original_interval_year_sign_for_year_tail_padding() {
 }
 
 #[test]
-fn should_format_offset_fields_without_seconds_and_honor_fill_mode() {
+fn should_format_offset_fields_with_fill_mode() {
     // Arrange
     let kolkata = sql_fixture(
         "issue-815-format-offset-east",
@@ -246,7 +245,6 @@ fn should_validate_date_conversion_before_an_empty_but_not_null_format() {
         }
     }
 
-    // Act
     let safe = fixed.execute("SELECT to_char(DATE '4714-11-25 BC', 'YYYY-MM-DD HH24:MI TZ TZH:TZM'), to_char(DATE '294276-12-31', 'YYYY-MM-DD HH24:MI TZH:TZM'), to_char(DATE '5874897-12-31', NULL) IS NULL, to_char(DATE 'infinity', '') IS NULL, to_char(DATE '-infinity', 'YYYY') IS NULL");
     let utc_min = utc.execute("SELECT to_char(DATE '4714-11-24 BC', 'YYYY-MM-DD HH24:MI TZH:TZM')");
     let west_edges = west.execute("SELECT to_char(DATE '4714-11-24 BC', 'YYYY-MM-DD HH24:MI TZH:TZM'), to_char(DATE '294276-12-31', 'YYYY-MM-DD HH24:MI TZH:TZM')");
@@ -308,7 +306,6 @@ fn should_omit_interval_quarter_for_a_zero_month_component() {
         );
     }
 
-    // Act
     let controls = fixture
         .execute("SELECT to_char(TIMESTAMP '2000-01-01', 'Q'), to_char(INTERVAL '0', '\"Q\"')");
 
@@ -357,7 +354,6 @@ fn should_format_interval_week_in_month_at_signed_day_boundaries() {
         );
     }
 
-    // Act
     let timestamp = fixture.execute("SELECT to_char(TIMESTAMP '2024-02-29', 'W')");
 
     // Assert
@@ -399,7 +395,6 @@ fn should_format_interval_roman_months_using_interval_components() {
         );
     }
 
-    // Act
     let controls = fixture.execute(
         "SELECT to_char(TIMESTAMP '2000-01-01', 'FMRM'), to_char(INTERVAL '-1 month', '\"RM\"')",
     );
@@ -438,7 +433,6 @@ fn should_reject_postgresql_interval_only_invalid_format_fields() {
         );
     }
 
-    // Act
     let literal = fixture.execute("SELECT to_char(INTERVAL '1 day', '\"DAY\"'), to_char(INTERVAL '1 day', 'DD \"DAY\" HH24'), to_char(INTERVAL 'infinity', 'DAY') IS NULL, to_char(NULL::interval, 'DAY') IS NULL");
     let mixed_case_timezone = fixture.execute("SELECT to_char(INTERVAL '1 day', 'tZh')");
     let mixed_case_month = fixture.execute("SELECT to_char(INTERVAL '1 day', 'mOnTh')");
@@ -513,7 +507,6 @@ fn should_format_interval_hours_beyond_the_i32_range() {
         );
     }
 
-    // Act
     let boundary = fixture.execute("SELECT to_char(INTERVAL '2562047788 hours 54.775806 seconds', 'HH24|MI|SS|US|SSSS'), to_char(INTERVAL '-2562047788 hours -54.775806 seconds', 'HH24|MI|SS|US|SSSS'), to_char(INTERVAL '2147483652 hours', 'HH24|HH12|SSSS|AM'), to_char(INTERVAL '-2147483652 hours', 'HH24|HH12|SSSS|AM'), to_char(TIMESTAMP '2000-01-01 13:00:00', 'HH24|HH12|SSSS|AM'), to_char(INTERVAL 'infinity', 'HH24') IS NULL, to_char(NULL::interval, 'HH24') IS NULL");
 
     // Assert
@@ -565,7 +558,6 @@ fn should_render_interval_twelve_hour_clock_at_multiples_of_twelve() {
         );
     }
 
-    // Act
     let timestamp =
         fixture.execute("SELECT to_char(TIMESTAMP '2000-01-01 00:00:00', 'HH12|FMHH12|HH24')");
 
@@ -577,7 +569,7 @@ fn should_render_interval_twelve_hour_clock_at_multiples_of_twelve() {
 }
 
 #[test]
-fn should_keep_fraction_width_for_fill_mode_and_negative_intervals() {
+fn should_preserve_interval_fraction_width_for_fill_mode() {
     // Arrange
     let fixture = sql_fixture("issue-815-fraction-format-width", &[]);
     let template =
@@ -605,7 +597,6 @@ fn should_keep_fraction_width_for_fill_mode_and_negative_intervals() {
         );
     }
 
-    // Act
     let timestamp = fixture.execute(
         "SELECT to_char(TIMESTAMP '2000-01-01 00:00:00.005006', 'MS|FMMS|US|FMUS|FF3|FMFF3')",
     );
@@ -620,7 +611,7 @@ fn should_keep_fraction_width_for_fill_mode_and_negative_intervals() {
 }
 
 #[test]
-fn should_format_interval_day_of_year_and_week_from_approximate_span() {
+fn should_format_interval_calendar_fields_from_approximate_span() {
     // Arrange
     let fixture = sql_fixture("issue-815-interval-day-of-year-week", &[]);
     let cases = [
@@ -650,7 +641,6 @@ fn should_format_interval_day_of_year_and_week_from_approximate_span() {
         );
     }
 
-    // Act
     let extremes = fixture.execute("SELECT to_char(INTERVAL '2147483647 months', 'DDD|WW'), to_char(INTERVAL '-2147483648 months', 'DDD|WW'), to_char(INTERVAL '2147483647 days', 'DDD|WW'), to_char(INTERVAL '-2147483648 days', 'DDD|WW'), to_char(INTERVAL '2147483647 months 2147483647 days', 'DDD|WW')");
     let date = fixture.execute("SELECT to_char(TIMESTAMP '2024-12-31', 'DDD|WW')");
 
@@ -733,7 +723,6 @@ fn should_format_interval_centuries_by_truncating_signed_years() {
         );
     }
 
-    // Act
     let dates = fixture.execute("SELECT to_char(TIMESTAMP '0001-01-01', 'CC'), to_char(TIMESTAMP '0001-01-01 BC', 'CC'), to_char(TIMESTAMP '2000-01-01', 'CC')");
 
     // Assert

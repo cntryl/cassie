@@ -27,8 +27,8 @@ fn should_evaluate_error_functions_at_zero_without_hanging() {
     let row = &result.rows()[0];
     assert!(matches!(&row[0], Value::Float64(value) if value.to_bits() == 0));
     assert!(matches!(&row[1], Value::Float64(value) if value.to_bits() == (1_u64 << 63)));
-    assert!(matches!(&row[2], Value::Float64(value) if *value == 1.0));
-    assert!(matches!(&row[3], Value::Float64(value) if *value == 1.0));
+    assert!(matches!(&row[2], Value::Float64(value) if value.to_bits() == 1.0_f64.to_bits()));
+    assert!(matches!(&row[3], Value::Float64(value) if value.to_bits() == 1.0_f64.to_bits()));
 }
 
 struct CompatibilityServer {

@@ -34,7 +34,7 @@ fn should_preserve_ordered_set_percentile_array_results_with_exact_oids() {
 }
 
 #[test]
-fn should_preserve_string_carried_percentile_array_values_and_oids() {
+fn should_preserve_string_carried_percentile_array_metadata() {
     // Arrange
     let fixture = sql_fixture(
         "issue-806-ordered-set-string-array-result-oids",
@@ -69,7 +69,7 @@ fn should_preserve_string_carried_percentile_array_values_and_oids() {
 }
 
 #[test]
-fn should_preserve_scalar_discrete_sql_array_values_and_oids() {
+fn should_preserve_scalar_discrete_array_metadata() {
     // Arrange
     let fixture = sql_fixture(
         "issue-806-discrete-native-array-result-oids",

@@ -112,10 +112,11 @@ fn serialize_with_observer(
                 Kind::Scalar => {
                     sink.write("null", &mut |event| sink_event(event, &mut observer))?;
                 }
-                Kind::Boolean(value) => sink
-                    .write(if *value { "true" } else { "false" }, &mut |event| {
+                Kind::Boolean(value) => {
+                    sink.write(if *value { "true" } else { "false" }, &mut |event| {
                         sink_event(event, &mut observer);
-                    })?,
+                    })?;
+                }
                 Kind::Text(value) => sink.quoted(value.as_str(), &mut |event| {
                     sink_event(event, &mut observer);
                 })?,

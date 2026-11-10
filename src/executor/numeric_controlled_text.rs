@@ -6,6 +6,8 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::extended::numeric::Numeric;
 use num_bigint::Sign;
 
+const DECIMAL_BASE: u128 = 10_000_000_000_000_000_000;
+
 #[cfg(test)]
 #[path = "numeric_controlled_text_tests.rs"]
 mod tests;
@@ -121,15 +123,14 @@ fn format_finite_observing(
         return Err(overflow().into());
     }
 
-    const BASE: u128 = 10_000_000_000_000_000_000;
     let mut steps = 0_usize;
     for word in mantissa.iter_u64_digits().rev() {
         controls.check_interruption()?;
         let mut carry = u128::from(word);
         for digit in &mut limbs {
             let number = (u128::from(*digit) << 64) + carry;
-            *digit = u64::try_from(number % BASE).map_err(|_| overflow())?;
-            carry = number / BASE;
+            *digit = u64::try_from(number % DECIMAL_BASE).map_err(|_| overflow())?;
+            carry = number / DECIMAL_BASE;
             steps = steps.wrapping_add(1);
             if steps.is_multiple_of(256) {
                 progress(NumericPhase::Arithmetic);
@@ -140,8 +141,8 @@ fn format_finite_observing(
             if limbs.len() == limb_capacity {
                 return Err(overflow().into());
             }
-            limbs.push(u64::try_from(carry % BASE).map_err(|_| overflow())?);
-            carry /= BASE;
+            limbs.push(u64::try_from(carry % DECIMAL_BASE).map_err(|_| overflow())?);
+            carry /= DECIMAL_BASE;
             steps = steps.wrapping_add(1);
             if steps.is_multiple_of(256) {
                 progress(NumericPhase::Arithmetic);
@@ -161,12 +162,14 @@ fn format_finite_observing(
     let digits = add(mul(limbs.len() - 1, 19)?, highest_digits)?;
     let scale = usize::try_from(scale).map_err(|_| overflow())?;
     let output = write_decimal_text(
-        &limbs,
-        highest_digits,
-        digits,
-        decimal_bound,
-        scale,
-        mantissa.sign() == Sign::Minus,
+        &DecimalTextInput {
+            limbs: &limbs,
+            highest_digits,
+            digits,
+            decimal_bound,
+            scale,
+            negative: mantissa.sign() == Sign::Minus,
+        },
         controls,
         progress,
     )?;
@@ -175,16 +178,29 @@ fn format_finite_observing(
     Ok(output)
 }
 
-fn write_decimal_text(
-    limbs: &[u64],
+#[derive(Clone, Copy)]
+struct DecimalTextInput<'a> {
+    limbs: &'a [u64],
     highest_digits: usize,
     digits: usize,
     decimal_bound: usize,
     scale: usize,
     negative: bool,
+}
+
+fn write_decimal_text(
+    input: &DecimalTextInput<'_>,
     controls: &QueryExecutionControls,
     mut progress: impl FnMut(NumericPhase),
 ) -> Result<NumericText, QueryError> {
+    let DecimalTextInput {
+        limbs,
+        highest_digits,
+        digits,
+        decimal_bound,
+        scale,
+        negative,
+    } = *input;
     let capacity = add(decimal_bound.max(add(scale, 1)?), 2)?;
     let output_memory = controls.reserve_query_memory(capacity)?;
     let mut text = String::new();

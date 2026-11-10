@@ -49,7 +49,7 @@ fn should_assign_multiple_update_columns_from_a_scalar_subquery() {
 }
 
 #[test]
-fn should_apply_row_subqueries_in_update_and_conflict_assignments() {
+fn should_apply_row_subqueries_through_conflict_assignments() {
     // Arrange
     let fixture = sql_fixture(
         "dml-row-subquery-owner",

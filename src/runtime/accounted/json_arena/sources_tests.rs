@@ -25,16 +25,10 @@ fn should_preserve_cursor_position_and_reset_nested_source_depth() {
 
     // Assert
     assert_eq!(sources.test_remaining(), 128);
-    assert_eq!(
-        sources.step(Cursor::next).expect("nested byte"),
-        Some(b'n')
-    );
+    assert_eq!(sources.step(Cursor::next).expect("nested byte"), Some(b'n'));
     sources.pop().expect("pop");
     assert_eq!(sources.test_remaining(), 23);
-    assert_eq!(
-        sources.step(Cursor::next).expect("newline"),
-        Some(b'\n')
-    );
+    assert_eq!(sources.step(Cursor::next).expect("newline"), Some(b'\n'));
     let position = sources.test_position();
     assert_eq!((position.offset, position.line, position.column), (2, 2, 0));
     drop(sources);
@@ -54,10 +48,7 @@ fn should_reuse_popped_frame_positions_and_release_nested_owners() {
         sources
             .push_owned(cursor.read_string().expect("token"))
             .expect("push");
-        assert_eq!(
-            sources.step(Cursor::next).expect("byte"),
-            Some(b'a')
-        );
+        assert_eq!(sources.step(Cursor::next).expect("byte"), Some(b'a'));
         sources.pop().expect("pop");
         assert_eq!(controls.current_query_memory_bytes(), baseline);
     }
@@ -80,10 +71,7 @@ fn should_reject_a_nested_source_from_another_tracker() {
     // Assert
     assert!(matches!(result, Err(CassieError::Execution(_))));
     assert_eq!(other_controls.current_query_memory_bytes(), 0);
-    assert_eq!(
-        sources.step(Cursor::next).expect("root"),
-        Some(b'r')
-    );
+    assert_eq!(sources.step(Cursor::next).expect("root"), Some(b'r'));
     drop(sources);
     assert_eq!(owner_controls.current_query_memory_bytes(), 0);
 }
@@ -151,10 +139,7 @@ fn should_save_consumed_position_even_when_a_cursor_step_fails() {
     // Assert
     assert!(matches!(result, Err(CursorError::InvalidUtf8)));
     assert_eq!(sources.test_position().offset, 1);
-    assert_eq!(
-        sources.step(Cursor::next).expect("next"),
-        Some(b'b')
-    );
+    assert_eq!(sources.step(Cursor::next).expect("next"), Some(b'b'));
     assert!(sources.pop().is_err());
     drop(sources);
     assert_eq!(controls.current_query_memory_bytes(), 0);

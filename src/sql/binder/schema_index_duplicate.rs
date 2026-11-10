@@ -28,7 +28,7 @@ fn atom(expression: &Expr) -> Option<PredicateAtom<'_>> {
     }
 }
 
-fn column(atom: &PredicateAtom<'_>) -> Option<&str> {
+fn column<'a>(atom: &PredicateAtom<'a>) -> Option<&'a str> {
     match atom {
         PredicateAtom::Column(name) => Some(name),
         PredicateAtom::Literal => None,
@@ -38,7 +38,7 @@ fn column(atom: &PredicateAtom<'_>) -> Option<&str> {
 fn predicate_columns(expression: &Expr) -> Option<[Option<&str>; 2]> {
     match expression {
         Expr::Column(name) => Some([Some(name), None]),
-        Expr::Binary { left, right, .. } => Some([column(&atom(left)?), column(&atom(right)?)])
+        Expr::Binary { left, right, .. } => Some([column(&atom(left)?), column(&atom(right)?)]),
         _ => None,
     }
 }

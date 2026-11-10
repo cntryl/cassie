@@ -229,7 +229,7 @@ fn should_cancel_idle_copy_from_stdin_inside_implicit_transaction() {
 }
 
 #[test]
-fn should_cancel_copy_into_a_transaction_owned_table_and_recover_at_savepoint() {
+fn should_recover_transaction_owned_copy_at_savepoint() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

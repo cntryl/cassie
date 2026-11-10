@@ -164,7 +164,10 @@ fn should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence() {
     // Assert
     assert!(publication.is_err());
     assert_eq!((first, next), (1, 2));
-    assert_eq!(session.transaction_write_collections(), Vec::<String>::new());
+    assert_eq!(
+        session.transaction_write_collections(),
+        Vec::<String>::new()
+    );
 }
 
 #[test]

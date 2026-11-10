@@ -253,33 +253,43 @@ fn complete_sqlstate(payload: &[u8]) -> Option<&str> {
 }
 
 #[test]
-fn should_require_exact_error_count_and_sqlstate_for_each_script_step() {
+fn should_validate_script_step_error_counts() {
     // Arrange
     let success = vec![(b'Z', b"I".to_vec())];
     let failure = vec![(b'E', b"SERROR\0C22012\0Mdivision by zero\0\0".to_vec())];
 
-    // Act / Assert
-    assert_script_response(&success, 0, None);
-    assert_script_response(&failure, 1, Some("22012"));
-    assert!(std::panic::catch_unwind(|| assert_script_response(&failure, 1, None)).is_err());
-    assert!(
-        std::panic::catch_unwind(|| assert_script_response(&failure, 1, Some("42601"))).is_err()
-    );
-    assert!(
-        std::panic::catch_unwind(|| assert_script_response(&success, 1, Some("22012"))).is_err()
-    );
+    // Act
+    let accepts_success =
+        std::panic::catch_unwind(|| assert_script_response(&success, 0, None)).is_ok();
+    let accepts_failure =
+        std::panic::catch_unwind(|| assert_script_response(&failure, 1, Some("22012"))).is_ok();
+    let rejects_missing_error =
+        std::panic::catch_unwind(|| assert_script_response(&failure, 1, None)).is_err();
+    let rejects_wrong_state =
+        std::panic::catch_unwind(|| assert_script_response(&failure, 1, Some("42601"))).is_err();
+    let rejects_unexpected_error =
+        std::panic::catch_unwind(|| assert_script_response(&success, 1, Some("22012"))).is_err();
     let duplicate = vec![failure[0].clone(), failure[0].clone()];
-    assert!(
-        std::panic::catch_unwind(|| assert_script_response(&duplicate, 1, Some("22012"))).is_err()
-    );
+    let rejects_duplicate_errors =
+        std::panic::catch_unwind(|| assert_script_response(&duplicate, 1, Some("22012"))).is_err();
     let duplicate_code = vec![(b'E', b"C22012\0C42601\0\0".to_vec())];
     let unterminated = vec![(b'E', b"C22012\0".to_vec())];
-    assert!(std::panic::catch_unwind(|| {
+    let rejects_duplicate_codes = std::panic::catch_unwind(|| {
         assert_script_response(&duplicate_code, 1, Some("22012"));
     })
-    .is_err());
-    assert!(std::panic::catch_unwind(|| {
+    .is_err();
+    let rejects_unterminated_fields = std::panic::catch_unwind(|| {
         assert_script_response(&unterminated, 1, Some("22012"));
     })
-    .is_err());
+    .is_err();
+
+    // Assert
+    assert!(accepts_success);
+    assert!(accepts_failure);
+    assert!(rejects_missing_error);
+    assert!(rejects_wrong_state);
+    assert!(rejects_unexpected_error);
+    assert!(rejects_duplicate_errors);
+    assert!(rejects_duplicate_codes);
+    assert!(rejects_unterminated_fields);
 }

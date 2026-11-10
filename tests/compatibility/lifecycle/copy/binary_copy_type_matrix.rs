@@ -160,7 +160,7 @@ fn should_decode_pg_type_kind_as_internal_char() {
 }
 
 #[test]
-fn should_describe_and_decode_pg_type_kind_and_category_as_internal_chars() {
+fn should_decode_pg_type_kind_metadata_as_internal_chars() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -250,7 +250,7 @@ fn should_keep_wildcard_duplicate_alias_as_text() {
 }
 
 #[test]
-fn should_describe_and_decode_builtin_type_pass_by_value_as_bool() {
+fn should_decode_builtin_type_pass_by_value_as_bool() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -288,7 +288,7 @@ fn should_describe_and_decode_builtin_type_pass_by_value_as_bool() {
 }
 
 #[test]
-fn should_describe_and_decode_attribute_identity_codes_as_internal_chars() {
+fn should_decode_attribute_identity_codes_as_internal_chars() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

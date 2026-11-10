@@ -353,7 +353,7 @@ fn should_resolve_regprocedure_signature_aliases_including_missing_overloads() {
 }
 
 #[test]
-fn should_resolve_bounded_array_type_names_for_regtype_and_regprocedure() {
+fn should_resolve_bounded_array_lookup_signatures() {
     // Arrange
     let fixture = sql_fixture("issue-818-regtype-array-bounds", &[]);
     fixture.cassie.startup().expect("startup");

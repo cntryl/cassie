@@ -829,8 +829,7 @@ fn should_infer_int4_width_bucket_count_for_typed_operands() {
 }
 
 #[test]
-fn should_preserve_width_bucket_parameter_types_and_reject_unsupported_count_with_distinct_arity_routine(
-) {
+fn should_reject_unsupported_width_bucket_count_for_distinct_arity_routine() {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame(
@@ -881,7 +880,7 @@ fn should_preserve_width_bucket_parameter_types_and_reject_unsupported_count_wit
 }
 
 #[test]
-fn should_infer_all_unknown_width_bucket_parameters_and_repeated_operands() {
+fn should_infer_repeated_width_bucket_operand_parameters() {
     // Arrange
     let cases: [(&str, &[i32], &[&str], &str); 2] = [
         (
@@ -951,7 +950,7 @@ fn should_infer_all_unknown_width_bucket_parameters_and_repeated_operands() {
 }
 
 #[test]
-fn should_preserve_later_casts_supplied_types_and_declared_width_bucket_routines() {
+fn should_preserve_width_bucket_inference_for_declared_routines() {
     // Arrange
     let steps = vec![
         Step::ParseFlush(wire::parse_frame(

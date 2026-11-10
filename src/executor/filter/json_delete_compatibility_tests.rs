@@ -114,8 +114,7 @@ fn should_preserve_branch_specific_key_and_later_syntax_error_order() {
         .expect("invalid key")
         .to_string();
     let expected_raw = serde_json::from_str::<Box<serde_json::value::RawValue>>(document)
-        .err()
-        .expect("invalid syntax")
+        .expect_err("invalid syntax")
         .to_string();
     // Act
     let direct = delete_operator(&source, &key);

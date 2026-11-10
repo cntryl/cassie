@@ -72,7 +72,7 @@ fn should_preserve_scalar_observer_through_root_object_children() {
     let expected = evaluate_observing(&op(false), &left, &right, None, |value| legacy.push(value))
         .expect("legacy");
     let result = evaluate_observing(&op(false), &left, &right, Some(&controls), |value| {
-        actual.push(value)
+        actual.push(value);
     })
     .expect("controlled");
     // Assert

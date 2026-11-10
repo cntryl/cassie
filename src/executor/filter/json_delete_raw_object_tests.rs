@@ -44,9 +44,8 @@ fn should_report_the_first_reached_key_error_before_later_raw_syntax() {
         .expect_err("invalid key")
         .to_string();
     // Act
-    let actual = match parse(input, &controls) {
-        Ok(_) => panic!("invalid key was accepted"),
-        Err(error) => error,
+    let Err(actual) = parse(input, &controls) else {
+        panic!("invalid key was accepted")
     };
     // Assert
     assert_eq!(actual.to_string(), expected);
@@ -93,9 +92,8 @@ fn should_match_raw_object_error_positions_and_categories() {
             serde_json::from_str::<std::collections::BTreeMap<String, Box<RawValue>>>(value)
                 .expect_err("invalid object")
                 .to_string();
-        let actual = match parse(value, &controls) {
-            Ok(_) => panic!("accepted {value:?}"),
-            Err(error) => error,
+        let Err(actual) = parse(value, &controls) else {
+            panic!("accepted {value:?}")
         };
         assert_eq!(actual.to_string(), expected, "{value:?}");
         assert_eq!(controls.current_query_memory_bytes(), 0);

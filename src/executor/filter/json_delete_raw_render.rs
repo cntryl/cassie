@@ -20,7 +20,7 @@ use path::render_path;
 pub(in crate::executor::filter::json_delete) enum RenderError {
     Control(CassieError),
     Scan(ScanError),
-    Object(ObjectError),
+    Object(Box<ObjectError>),
     Decode(raw_decode::DecodeError),
     InvalidValue,
     Numeric,
@@ -61,7 +61,7 @@ impl From<ScanError> for RenderError {
     fn from(error: ScanError) -> Self {
         match error {
             ScanError::Control(error) => Self::Control(error),
-            other => Self::Scan(other),
+            other @ ScanError::Syntax { .. } => Self::Scan(other),
         }
     }
 }
@@ -70,7 +70,7 @@ impl From<ObjectError> for RenderError {
     fn from(error: ObjectError) -> Self {
         match error {
             ObjectError::Control(error) => Self::Control(error),
-            other => Self::Object(other),
+            other => Self::Object(Box::new(other)),
         }
     }
 }
@@ -139,12 +139,7 @@ impl<'a> Stack<'a> {
         report: &mut impl FnMut(SinkProgress),
     ) -> Result<(), CassieError> {
         if self.frames.len() == self.frames.capacity() {
-            let capacity = self
-                .frames
-                .len()
-                .checked_mul(2)
-                .unwrap_or(usize::MAX)
-                .max(4);
+            let capacity = self.frames.len().saturating_mul(2).max(4);
             let bytes = capacity
                 .checked_mul(std::mem::size_of::<Frame<'_>>())
                 .ok_or_else(|| CassieError::ResourceLimit("JSON output frame overflow".into()))?;
@@ -450,186 +445,230 @@ fn render_frames<'a>(
     stack.push(first, &mut report)?;
     while let Some(frame) = stack.frames.pop() {
         controls.check_interruption()?;
-        match frame {
-            Frame::Value(source) => {
-                // Every value frame comes from an exact scanner span.
-                let token = source;
-                match token.as_bytes().first().copied() {
-                    Some(b'{') => {
-                        let fields = object::parse(token, controls)?.into_ordered(controls)?;
-                        sink.write("{", &mut report)?;
-                        stack.push(
-                            Frame::Object {
-                                fields,
-                                next: 0,
-                                emitted: false,
-                                skip: None,
-                                replace: None,
-                            },
-                            &mut report,
-                        )?;
-                    }
-                    Some(b'[') => {
-                        scan(token, controls)?;
-                        let mut scanner = Scanner {
-                            input: token.as_bytes(),
-                            position: 0,
-                            line: 1,
-                            column: 0,
-                            controls,
-                            observe: ignore_scan as fn(ScanProgress),
-                        };
-                        let _consumed = scanner.next()?;
-                        sink.write("[", &mut report)?;
-                        stack.push(
-                            Frame::Array {
-                                source: token,
-                                scanner,
-                                next: 0,
-                                emitted: false,
-                                skip: None,
-                                replace: None,
-                            },
-                            &mut report,
-                        )?;
-                    }
-                    Some(b'"') => {
-                        let text =
-                            raw_decode::decode(token, controls).map_err(|error| {
-                                match error.into_control() {
-                                    Ok(error) => RenderError::Control(error),
-                                    Err(error) => RenderError::Decode(error),
-                                }
-                            })?;
-                        sink.quoted(text.get(), &mut report)?;
-                    }
-                    Some(b'-' | b'0'..=b'9') => {
-                        let text =
-                            raw_number::format(token, controls).map_err(|error| match error {
-                                raw_number::RawNumberError::Overflow => RenderError::Numeric,
-                                raw_number::RawNumberError::Control(error) => {
-                                    RenderError::Control(error)
-                                }
-                            })?;
-                        sink.write(text.get(), &mut report)?;
-                    }
-                    Some(b'n' | b't' | b'f') => sink.write(token, &mut report)?,
-                    _ => return Err(RenderError::InvalidValue),
-                }
-            }
-            Frame::Object {
-                fields,
-                mut next,
-                mut emitted,
-                skip,
-                replace,
-            } => {
-                let mut selected = None;
-                while let Some((name, value)) = fields.get(next) {
-                    controls.check_interruption()?;
-                    next += 1;
-                    if let Some(skip) = skip {
-                        if matches_key(name, skip, controls)? {
-                            continue;
-                        }
-                    }
-                    if emitted {
-                        sink.write(", ", &mut report)?;
-                    }
-                    sink.quoted(name, &mut report)?;
-                    sink.write(": ", &mut report)?;
-                    emitted = true;
-                    selected = Some(if let Some((target, replacement)) = replace {
-                        if object::equal(name, target, controls)? {
-                            replacement
-                        } else {
-                            value
-                        }
-                    } else {
-                        value
-                    });
-                    break;
-                }
-                if let Some(value) = selected {
-                    stack.push(
-                        Frame::Object {
-                            fields,
-                            next,
-                            emitted,
-                            skip,
-                            replace,
-                        },
-                        &mut report,
-                    )?;
-                    stack.push(Frame::Value(value), &mut report)?;
-                } else {
-                    sink.write("}", &mut report)?;
-                }
-            }
-            Frame::Array {
-                source,
-                mut scanner,
-                next,
-                mut emitted,
-                skip,
-                replace,
-            } => {
-                scanner.whitespace()?;
-                if scanner.peek() == Some(b']') {
-                    let _consumed = scanner.next()?;
-                    sink.write("]", &mut report)?;
-                    continue;
-                }
-                if next > 0 {
-                    let _consumed = scanner.next()?;
-                    scanner.whitespace()?;
-                }
-                let span = scanner.value_span()?;
-                let child = &source[span];
-                let following = next.checked_add(1).ok_or_else(|| {
-                    CassieError::ResourceLimit("JSON array index overflow".into())
-                })?;
-                let removed = match skip {
-                    Some(ArraySkip::Index(index)) => index == next,
-                    Some(ArraySkip::Keys(keys)) if child.starts_with('"') => {
-                        match raw_decode::decode(child, controls) {
-                            Ok(decoded) => matches_key(decoded.get(), keys, controls)?,
-                            Err(error) => match error.into_control() {
-                                Ok(error) => return Err(error.into()),
-                                Err(_) => false,
-                            },
-                        }
-                    }
-                    Some(ArraySkip::Keys(_)) | None => false,
-                };
-                if !removed && emitted {
-                    sink.write(", ", &mut report)?;
-                }
-                if !removed {
-                    emitted = true;
-                }
-                stack.push(
-                    Frame::Array {
-                        source,
-                        scanner,
-                        next: following,
-                        emitted,
-                        skip,
-                        replace,
-                    },
-                    &mut report,
-                )?;
-                if !removed {
-                    let child = match replace {
-                        Some((index, replacement)) if index == next => replacement,
-                        _ => child,
-                    };
-                    stack.push(Frame::Value(child), &mut report)?;
-                }
-            }
-        }
+        render_frame(frame, controls, &mut sink, &mut stack, &mut report)?;
     }
     Ok(sink.finish_output())
+}
+
+fn render_frame<'a>(
+    frame: Frame<'a>,
+    controls: &'a QueryExecutionControls,
+    sink: &mut Sink<'a>,
+    stack: &mut Stack<'a>,
+    report: &mut impl FnMut(SinkProgress),
+) -> Result<(), RenderError> {
+    match frame {
+        Frame::Value(source) => render_value_frame(source, controls, sink, stack, report),
+        Frame::Object {
+            fields,
+            next,
+            emitted,
+            skip,
+            replace,
+        } => render_object_frame(
+            fields, next, emitted, skip, replace, controls, sink, stack, report,
+        ),
+        Frame::Array {
+            source,
+            scanner,
+            next,
+            emitted,
+            skip,
+            replace,
+        } => render_array_frame(
+            source, scanner, next, emitted, skip, replace, controls, sink, stack, report,
+        ),
+    }
+}
+
+fn render_value_frame<'a>(
+    token: &'a str,
+    controls: &'a QueryExecutionControls,
+    sink: &mut Sink<'a>,
+    stack: &mut Stack<'a>,
+    report: &mut impl FnMut(SinkProgress),
+) -> Result<(), RenderError> {
+    match token.as_bytes().first().copied() {
+        Some(b'{') => {
+            let fields = object::parse(token, controls)?.into_ordered(controls)?;
+            sink.write("{", report)?;
+            stack.push(
+                Frame::Object {
+                    fields,
+                    next: 0,
+                    emitted: false,
+                    skip: None,
+                    replace: None,
+                },
+                report,
+            )?;
+        }
+        Some(b'[') => {
+            scan(token, controls)?;
+            let mut scanner = Scanner {
+                input: token.as_bytes(),
+                position: 0,
+                line: 1,
+                column: 0,
+                controls,
+                observe: ignore_scan as fn(ScanProgress),
+            };
+            let _consumed = scanner.next()?;
+            sink.write("[", report)?;
+            stack.push(
+                Frame::Array {
+                    source: token,
+                    scanner,
+                    next: 0,
+                    emitted: false,
+                    skip: None,
+                    replace: None,
+                },
+                report,
+            )?;
+        }
+        Some(b'"') => {
+            let text = raw_decode::decode(token, controls).map_err(|error| {
+                match error.into_control() {
+                    Ok(error) => RenderError::Control(error),
+                    Err(error) => RenderError::Decode(error),
+                }
+            })?;
+            sink.quoted(text.get(), report)?;
+        }
+        Some(b'-' | b'0'..=b'9') => {
+            let text = raw_number::format(token, controls).map_err(|error| match error {
+                raw_number::RawNumberError::Overflow => RenderError::Numeric,
+                raw_number::RawNumberError::Control(error) => RenderError::Control(error),
+            })?;
+            sink.write(text.get(), report)?;
+        }
+        Some(b'n' | b't' | b'f') => sink.write(token, report)?,
+        _ => return Err(RenderError::InvalidValue),
+    }
+    Ok(())
+}
+
+fn render_object_frame<'a>(
+    fields: OrderedFields<'a>,
+    mut next: usize,
+    mut emitted: bool,
+    skip: Option<KeySkip<'a>>,
+    replace: Option<(&'a str, &'a str)>,
+    controls: &'a QueryExecutionControls,
+    sink: &mut Sink<'a>,
+    stack: &mut Stack<'a>,
+    report: &mut impl FnMut(SinkProgress),
+) -> Result<(), RenderError> {
+    let mut selected = None;
+    while let Some((name, value)) = fields.get(next) {
+        controls.check_interruption()?;
+        next += 1;
+        if let Some(skip) = skip {
+            if matches_key(name, skip, controls)? {
+                continue;
+            }
+        }
+        if emitted {
+            sink.write(", ", report)?;
+        }
+        sink.quoted(name, report)?;
+        sink.write(": ", report)?;
+        emitted = true;
+        selected = Some(if let Some((target, replacement)) = replace {
+            if object::equal(name, target, controls)? {
+                replacement
+            } else {
+                value
+            }
+        } else {
+            value
+        });
+        break;
+    }
+    if let Some(value) = selected {
+        stack.push(
+            Frame::Object {
+                fields,
+                next,
+                emitted,
+                skip,
+                replace,
+            },
+            report,
+        )?;
+        stack.push(Frame::Value(value), report)?;
+    } else {
+        sink.write("}", report)?;
+    }
+    Ok(())
+}
+
+fn render_array_frame<'a>(
+    source: &'a str,
+    mut scanner: Scanner<'a, fn(ScanProgress)>,
+    next: usize,
+    mut emitted: bool,
+    skip: Option<ArraySkip<'a>>,
+    replace: Option<(usize, &'a str)>,
+    controls: &'a QueryExecutionControls,
+    sink: &mut Sink<'a>,
+    stack: &mut Stack<'a>,
+    report: &mut impl FnMut(SinkProgress),
+) -> Result<(), RenderError> {
+    scanner.whitespace()?;
+    if scanner.peek() == Some(b']') {
+        let _consumed = scanner.next()?;
+        sink.write("]", report)?;
+        return Ok(());
+    }
+    if next > 0 {
+        let _consumed = scanner.next()?;
+        scanner.whitespace()?;
+    }
+    let span = scanner.value_span()?;
+    let child = &source[span];
+    let following = next
+        .checked_add(1)
+        .ok_or_else(|| CassieError::ResourceLimit("JSON array index overflow".into()))?;
+    let removed = match skip {
+        Some(ArraySkip::Index(index)) => index == next,
+        Some(ArraySkip::Keys(keys)) if child.starts_with('"') => {
+            match raw_decode::decode(child, controls) {
+                Ok(decoded) => matches_key(decoded.get(), keys, controls)?,
+                Err(error) => match error.into_control() {
+                    Ok(error) => return Err(error.into()),
+                    Err(_) => false,
+                },
+            }
+        }
+        Some(ArraySkip::Keys(_)) | None => false,
+    };
+    if !removed && emitted {
+        sink.write(", ", report)?;
+    }
+    if !removed {
+        emitted = true;
+    }
+    stack.push(
+        Frame::Array {
+            source,
+            scanner,
+            next: following,
+            emitted,
+            skip,
+            replace,
+        },
+        report,
+    )?;
+    if !removed {
+        let child = match replace {
+            Some((index, replacement)) if index == next => replacement,
+            _ => child,
+        };
+        stack.push(Frame::Value(child), report)?;
+    }
+    Ok(())
 }
 
 fn ignore_scan(_: ScanProgress) {}

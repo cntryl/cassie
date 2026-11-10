@@ -94,5 +94,7 @@ fn should_extract_timestamptz_epoch_without_local_offset_saturation() {
     );
 
     // Assert
-    assert!(matches!(result, Ok(Value::Float64(value)) if value == 9_224_318_016_000.0));
+    assert!(
+        matches!(result, Ok(Value::Float64(value)) if value.to_bits() == 9_224_318_016_000.0_f64.to_bits())
+    );
 }

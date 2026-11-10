@@ -68,11 +68,11 @@ fn should_preserve_array_scalar_observer_order() {
     let (mut expected, mut actual) = (Vec::new(), Vec::new());
     // Act
     let legacy = evaluate_observing(&op(false), &left, &right, None, |value| {
-        expected.push(value)
+        expected.push(value);
     })
     .expect("legacy");
     let controlled = evaluate_observing(&op(false), &left, &right, Some(&controls), |value| {
-        actual.push(value)
+        actual.push(value);
     })
     .expect("controlled");
     // Assert

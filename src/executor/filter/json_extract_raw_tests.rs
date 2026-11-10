@@ -160,7 +160,7 @@ fn should_match_legacy_path_index_boundaries_and_duplicate_selection() {
         match (legacy, actual) {
             (crate::executor::filter::ScalarValue::Null, None) => {}
             (crate::executor::filter::ScalarValue::Json(expected), Some(actual)) => {
-                assert_eq!(actual, expected)
+                assert_eq!(actual, expected);
             }
             _ => panic!("selection mismatch for {source:?} / {key:?}"),
         }
@@ -209,7 +209,7 @@ fn should_match_legacy_text_extraction_error_for_lone_surrogate() {
     // Arrange
     let controls = controls();
     let raw = r#""\ud800""#;
-    let source = format!("[{}]", raw);
+    let source = format!("[{raw}]");
     let legacy = crate::executor::filter::json_extract::evaluate(
         &crate::executor::filter::ScalarValue::Json(source),
         &crate::executor::filter::ScalarValue::Int(0),

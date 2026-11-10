@@ -54,9 +54,9 @@ fn should_match_existing_array_index_deletion_and_leave_removed_values_opaque() 
     // Arrange
     let controls = controls(QueryCancellationHandle::new());
     let values = [
-        (r#"[0,1,2]"#, 1),
-        (r#"[0,1,2]"#, -1),
-        (r#"[0,1,2]"#, 99),
+        ("[0,1,2]", 1),
+        ("[0,1,2]", -1),
+        ("[0,1,2]", 99),
         (" \t[1]", i64::MIN),
         ("[]", i64::MAX),
         ("[7]", -1),

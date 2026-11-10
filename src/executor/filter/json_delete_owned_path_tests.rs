@@ -208,7 +208,7 @@ fn should_preserve_empty_and_null_flat_path_semantics() {
             .map_err(|error| error.to_string());
         match (actual, expected) {
             (Ok(ScalarValue::Json(actual)), Ok(ScalarValue::Json(expected))) => {
-                assert_eq!(actual, expected)
+                assert_eq!(actual, expected);
             }
             (Err(actual), Err(expected)) => assert_eq!(actual, expected),
             _ => panic!("path result mismatch for {text}"),
@@ -365,7 +365,7 @@ fn should_preserve_json_array_path_null_error_and_empty_root_order() {
             .map_err(|error| error.to_string());
         match (actual, expected) {
             (Ok(ScalarValue::Json(actual)), Ok(ScalarValue::Json(expected))) => {
-                assert_eq!(actual, expected)
+                assert_eq!(actual, expected);
             }
             (Err(actual), Err(expected)) => assert_eq!(actual, expected),
             _ => panic!("path result mismatch for {document}"),

@@ -42,10 +42,10 @@ fn should_match_legacy_scalar_conversion_for_escapes_and_float_boundaries() {
         let actual = OwnedOperand::convert(value, &controls).map_err(|error| error.to_string());
         match (expected, actual) {
             (Ok(ScalarValue::Json(a)), Ok(actual)) => {
-                assert!(matches!(actual.value(), ScalarValue::Json(b) if &a == b))
+                assert!(matches!(actual.value(), ScalarValue::Json(b) if &a == b));
             }
             (Ok(ScalarValue::Null), Ok(actual)) => {
-                assert!(matches!(actual.value(), ScalarValue::Null))
+                assert!(matches!(actual.value(), ScalarValue::Null));
             }
             (Err(a), Err(b)) => assert_eq!(a, b),
             _ => panic!("scalar conversion parity"),

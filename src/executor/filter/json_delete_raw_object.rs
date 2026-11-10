@@ -43,7 +43,7 @@ impl From<ScanError> for ObjectError {
     fn from(error: ScanError) -> Self {
         match error {
             ScanError::Control(error) => Self::Control(error),
-            other => Self::Scan(other),
+            other @ ScanError::Syntax { .. } => Self::Scan(other),
         }
     }
 }
@@ -135,12 +135,7 @@ impl<'a> Fields<'a> {
         observe: &mut impl FnMut(Progress),
     ) -> Result<(), CassieError> {
         if self.entries.len() == self.entries.capacity() {
-            let capacity = self
-                .entries
-                .len()
-                .checked_mul(2)
-                .unwrap_or(usize::MAX)
-                .max(4);
+            let capacity = self.entries.len().saturating_mul(2).max(4);
             let bytes = capacity
                 .checked_mul(std::mem::size_of::<Field>())
                 .ok_or_else(|| {

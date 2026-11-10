@@ -21,6 +21,12 @@ enum PathView<'a> {
     Arena(&'a crate::runtime::accounted::json_arena::OwnedTextArray),
 }
 
+enum PathElement<'a> {
+    Missing,
+    Null,
+    Value(&'a str),
+}
+
 impl<'a> PathView<'a> {
     fn len(self) -> usize {
         match self {
@@ -30,16 +36,24 @@ impl<'a> PathView<'a> {
         }
     }
 
-    fn get(self, index: usize) -> Result<Option<Option<&'a str>>, CassieError> {
+    fn get(self, index: usize) -> Result<PathElement<'a>, CassieError> {
         match self {
-            Self::Owned(values) => Ok(values.get(index).map(Option::as_deref)),
-            Self::Native(values) => Ok(values.get(index).map(|value| match value {
-                crate::types::Value::String(text) => Some(text.as_str()),
-                crate::types::Value::Null => None,
-                _ => unreachable!("native path elements were validated"),
-            })),
-            Self::Arena(values) if index < values.len() => values.get(index).map(Some),
-            Self::Arena(_) => Ok(None),
+            Self::Owned(values) => Ok(match values.get(index) {
+                None => PathElement::Missing,
+                Some(None) => PathElement::Null,
+                Some(Some(value)) => PathElement::Value(value),
+            }),
+            Self::Native(values) => Ok(match values.get(index) {
+                None => PathElement::Missing,
+                Some(crate::types::Value::String(text)) => PathElement::Value(text),
+                Some(crate::types::Value::Null) => PathElement::Null,
+                Some(_) => unreachable!("native path elements were validated"),
+            }),
+            Self::Arena(values) if index < values.len() => Ok(match values.get(index)? {
+                Some(value) => PathElement::Value(value),
+                None => PathElement::Null,
+            }),
+            Self::Arena(_) => Ok(PathElement::Missing),
         }
     }
 }
@@ -66,12 +80,7 @@ impl<'a> Ancestors<'a> {
 
     fn push(&mut self, value: Ancestor<'a>, observe: &mut impl FnMut()) -> Result<(), CassieError> {
         if self.values.len() == self.values.capacity() {
-            let capacity = self
-                .values
-                .len()
-                .checked_mul(2)
-                .unwrap_or(usize::MAX)
-                .max(4);
+            let capacity = self.values.len().saturating_mul(2).max(4);
             let bytes = capacity
                 .checked_mul(std::mem::size_of::<Ancestor<'_>>())
                 .ok_or_else(|| CassieError::ResourceLimit("JSON path stack overflow".into()))?;
@@ -183,8 +192,70 @@ fn render_view<'a>(
     }
     let span = super::super::scan(source, controls)?;
     let root = &source[span];
+    if is_empty_container(root, controls)? {
+        return render_frames(Frame::Value(root), controls, |_| {});
+    }
+    let (output, ancestors) = walk_path(root, path, controls, &mut observe)?;
+    rebuild(output, ancestors, controls)
+}
+
+enum PathStep<'a> {
+    Descend(&'a str),
+    Finish(OwnedJsonText),
+}
+
+fn walk_path<'a>(
+    root: &'a str,
+    path: PathView<'a>,
+    controls: &'a QueryExecutionControls,
+    observe: &mut impl FnMut(),
+) -> Result<(OwnedJsonText, Ancestors<'a>), RenderError> {
+    let mut ancestors = Ancestors::new(controls)?;
+    let mut current = root;
+    let mut position = 0;
+    loop {
+        controls.check_interruption()?;
+        let head = match path.get(position)? {
+            PathElement::Missing => {
+                let output = render_frames(Frame::Value(current), controls, |_| {})?;
+                return Ok((output, ancestors));
+            }
+            PathElement::Null => {
+                return Err(RenderError::Path(super::super::super::type_input_error(
+                    "22004",
+                    format!("path element at position {} is null", position + 1),
+                )));
+            }
+            PathElement::Value(head) => head,
+        };
+        let last = position + 1 == path.len();
+        let step = match current.as_bytes().first().copied() {
+            Some(b'{') => object_step(current, head, last, controls, &mut ancestors, observe)?,
+            Some(b'[') => array_step(
+                current,
+                head,
+                last,
+                position,
+                controls,
+                &mut ancestors,
+                observe,
+            )?,
+            _ => PathStep::Finish(render_frames(Frame::Value(current), controls, |_| {})?),
+        };
+        match step {
+            PathStep::Descend(child) => current = child,
+            PathStep::Finish(output) => return Ok((output, ancestors)),
+        }
+        position += 1;
+    }
+}
+
+fn is_empty_container(
+    source: &str,
+    controls: &QueryExecutionControls,
+) -> Result<bool, RenderError> {
     let mut probe = super::super::Scanner {
-        input: root.as_bytes(),
+        input: source.as_bytes(),
         position: 0,
         line: 1,
         column: 0,
@@ -193,99 +264,104 @@ fn render_view<'a>(
     };
     let opener = probe.next()?;
     probe.whitespace()?;
-    if matches!(
+    Ok(matches!(
         (opener, probe.peek()),
         (Some(b'{'), Some(b'}')) | (Some(b'['), Some(b']'))
-    ) {
-        return render_frames(Frame::Value(root), controls, |_| {});
+    ))
+}
+
+fn object_step<'a>(
+    current: &'a str,
+    head: &'a str,
+    last: bool,
+    controls: &'a QueryExecutionControls,
+    ancestors: &mut Ancestors<'a>,
+    observe: &mut impl FnMut(),
+) -> Result<PathStep<'a>, RenderError> {
+    let fields = object::parse(current, controls)?;
+    if last {
+        let fields = fields.into_ordered(controls)?;
+        return Ok(PathStep::Finish(render_frames(
+            Frame::Object {
+                fields,
+                next: 0,
+                emitted: false,
+                skip: Some(KeySkip::One(head)),
+                replace: None,
+            },
+            controls,
+            |_| {},
+        )?));
     }
-    let mut ancestors = Ancestors::new(controls)?;
-    let mut current = root;
-    let mut position = 0;
-    let mut output = loop {
-        controls.check_interruption()?;
-        let Some(head) = path.get(position)? else {
-            break render_frames(Frame::Value(current), controls, |_| {})?;
-        };
-        let Some(head) = head else {
-            return Err(RenderError::Path(super::super::super::type_input_error(
-                "22004",
-                format!("path element at position {} is null", position + 1),
-            )));
-        };
-        let last = position + 1 == path.len();
-        match current.as_bytes().first().copied() {
-            Some(b'{') => {
-                let fields = object::parse(current, controls)?;
-                if last {
-                    let fields = fields.into_ordered(controls)?;
-                    break render_frames(
-                        Frame::Object {
-                            fields,
-                            next: 0,
-                            emitted: false,
-                            skip: Some(KeySkip::One(head)),
-                            replace: None,
-                        },
-                        controls,
-                        |_| {},
-                    )?;
-                }
-                if let Some(child) = fields.last_value(head, controls)? {
-                    ancestors.push(Ancestor::Object { fields, key: head }, &mut observe)?;
-                    current = child;
-                } else {
-                    let fields = fields.into_ordered(controls)?;
-                    break render_frames(
-                        Frame::Object {
-                            fields,
-                            next: 0,
-                            emitted: false,
-                            skip: None,
-                            replace: None,
-                        },
-                        controls,
-                        |_| {},
-                    )?;
-                }
-            }
-            Some(b'[') => {
-                let count = array_count(current, controls)?;
-                let index =
-                    index::parse(head, count, position + 1, controls).map_err(RenderError::Path)?;
-                let Some(index) = index else {
-                    break render_frames(Frame::Value(current), controls, |_| {})?;
-                };
-                let mut scanner = array_scanner(current, controls)?;
-                let _consumed = scanner.next()?;
-                if last {
-                    break render_frames(
-                        Frame::Array {
-                            source: current,
-                            scanner,
-                            next: 0,
-                            emitted: false,
-                            skip: Some(ArraySkip::Index(index)),
-                            replace: None,
-                        },
-                        controls,
-                        |_| {},
-                    )?;
-                }
-                let child = array_element(current, index, controls)?;
-                ancestors.push(
-                    Ancestor::Array {
-                        source: current,
-                        index,
-                    },
-                    &mut observe,
-                )?;
-                current = child;
-            }
-            _ => break render_frames(Frame::Value(current), controls, |_| {})?,
-        }
-        position += 1;
+    if let Some(child) = fields.last_value(head, controls)? {
+        ancestors.push(Ancestor::Object { fields, key: head }, observe)?;
+        Ok(PathStep::Descend(child))
+    } else {
+        let fields = fields.into_ordered(controls)?;
+        Ok(PathStep::Finish(render_frames(
+            Frame::Object {
+                fields,
+                next: 0,
+                emitted: false,
+                skip: None,
+                replace: None,
+            },
+            controls,
+            |_| {},
+        )?))
+    }
+}
+
+fn array_step<'a>(
+    current: &'a str,
+    head: &'a str,
+    last: bool,
+    position: usize,
+    controls: &'a QueryExecutionControls,
+    ancestors: &mut Ancestors<'a>,
+    observe: &mut impl FnMut(),
+) -> Result<PathStep<'a>, RenderError> {
+    let count = array_count(current, controls)?;
+    let index = index::parse(head, count, position + 1, controls).map_err(RenderError::Path)?;
+    let Some(index) = index else {
+        return Ok(PathStep::Finish(render_frames(
+            Frame::Value(current),
+            controls,
+            |_| {},
+        )?));
     };
+    let mut scanner = array_scanner(current, controls)?;
+    let _consumed = scanner.next()?;
+    if last {
+        return Ok(PathStep::Finish(render_frames(
+            Frame::Array {
+                source: current,
+                scanner,
+                next: 0,
+                emitted: false,
+                skip: Some(ArraySkip::Index(index)),
+                replace: None,
+            },
+            controls,
+            |_| {},
+        )?));
+    }
+    let child = array_element(current, index, controls)?;
+    ancestors.push(
+        Ancestor::Array {
+            source: current,
+            index,
+        },
+        observe,
+    )?;
+    Ok(PathStep::Descend(child))
+}
+
+fn rebuild<'a>(
+    mut output: OwnedJsonText,
+    mut ancestors: Ancestors<'a>,
+    controls: &'a QueryExecutionControls,
+) -> Result<OwnedJsonText, RenderError> {
     while let Some(ancestor) = ancestors.values.pop() {
         controls.check_interruption()?;
         let replacement = output.as_str();

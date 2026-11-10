@@ -7,12 +7,18 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use std::sync::Arc;
 
 #[cfg(test)]
+type SourceObservation = (
+    std::sync::Weak<QueryMemoryReservation>,
+    std::rc::Rc<std::cell::Cell<bool>>,
+);
+
+#[cfg(test)]
 #[path = "json_object_keys_chunks_tests.rs"]
 mod tests;
 
 #[cfg(test)]
 thread_local! {
-    static OBSERVE_SOURCE: std::cell::RefCell<Option<(std::sync::Weak<QueryMemoryReservation>, std::rc::Rc<std::cell::Cell<bool>>)>> = const { std::cell::RefCell::new(None) };
+    static OBSERVE_SOURCE: std::cell::RefCell<Option<SourceObservation>> = const { std::cell::RefCell::new(None) };
 }
 #[cfg(test)]
 fn observe_source() {

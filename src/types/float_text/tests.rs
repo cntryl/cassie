@@ -83,13 +83,13 @@ fn should_preserve_shared_float8_formatter_against_previous_algorithm() {
         1,
         2,
         0x0010_0000_0000_0000,
-        0x3fefffffffffffff,
-        0x3ff0000000000000,
-        0x3ff0000000000001,
-        0x4340000000000000,
-        0x7fefffffffffffff,
-        0x7ff0000000000000,
-        0x7ff8000000000000,
+        0x3fef_ffff_ffff_ffff,
+        0x3ff0_0000_0000_0000,
+        0x3ff0_0000_0000_0001,
+        0x4340_0000_0000_0000,
+        0x7fef_ffff_ffff_ffff,
+        0x7ff0_0000_0000_0000,
+        0x7ff8_0000_0000_0000,
     ];
     // Act / Assert
     for bits in cases {

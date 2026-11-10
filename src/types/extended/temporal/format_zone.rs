@@ -8,7 +8,7 @@ pub(super) fn format_offset(east: i32, fill: bool) -> String {
     let magnitude = east.unsigned_abs();
     let hours = magnitude / 3600;
     let minutes = magnitude / 60 % 60;
-    match (fill, magnitude % 3600 == 0) {
+    match (fill, magnitude.is_multiple_of(3600)) {
         (true, true) => format!("{sign}{hours}"),
         (false, true) => format!("{sign}{hours:02}"),
         (true, false) => format!("{sign}{hours}:{minutes:02}"),

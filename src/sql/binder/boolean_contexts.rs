@@ -59,57 +59,64 @@ pub(super) fn validate_boolean_aggregate(
         }
         validate_hypothetical_set_arguments(function, metadata.id, types)?;
     }
-    if function.has_modifiers() {
-        if !crate::sql::functions::is_aggregate_function(&function.name) {
-            let modifier = if function.is_distinct() {
-                Some("DISTINCT")
-            } else if !function.order_by.is_empty() {
-                Some("ORDER BY")
-            } else if function.filter.is_some() {
-                Some("FILTER")
-            } else {
-                None
-            };
-            if let Some(modifier) = modifier {
+    validate_function_modifiers(function, types)?;
+    boolean_aggregates::validate(function, types)
+}
+
+fn validate_function_modifiers(
+    function: &mut crate::sql::ast::FunctionCall,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    if !function.has_modifiers() {
+        return Ok(());
+    }
+    if !crate::sql::functions::is_aggregate_function(&function.name) {
+        let modifier = if function.is_distinct() {
+            Some("DISTINCT")
+        } else if !function.order_by.is_empty() {
+            Some("ORDER BY")
+        } else if function.filter.is_some() {
+            Some("FILTER")
+        } else {
+            None
+        };
+        if let Some(modifier) = modifier {
+            return Err(CassieError::Execution(format!(
+                "{modifier} specified, but {} is not an aggregate function",
+                function.name.to_ascii_lowercase()
+            )));
+        }
+    }
+    if let Some(filter) = &mut function.filter {
+        if let Expr::StringLiteral(input) = filter.as_ref() {
+            let value = crate::types::boolean::parse_text(input).ok_or_else(|| {
+                CassieError::Execution(format!("invalid input syntax for type boolean: {input:?}"))
+            })?;
+            **filter = Expr::BoolLiteral(value);
+        }
+        if let Some(data_type) = types.expression_type(filter) {
+            if !matches!(data_type, DataType::Boolean | DataType::Null) {
                 return Err(CassieError::Execution(format!(
-                    "{modifier} specified, but {} is not an aggregate function",
-                    function.name.to_ascii_lowercase()
+                    "argument of FILTER must be type boolean, not type {}",
+                    boolean_aggregates::type_name(&data_type)
                 )));
             }
         }
-        if let Some(filter) = &mut function.filter {
-            if let Expr::StringLiteral(input) = filter.as_ref() {
-                let value = crate::types::boolean::parse_text(input).ok_or_else(|| {
-                    CassieError::Execution(format!(
-                        "invalid input syntax for type boolean: {input:?}"
-                    ))
-                })?;
-                **filter = Expr::BoolLiteral(value);
-            }
-            if let Some(data_type) = types.expression_type(filter) {
-                if !matches!(data_type, DataType::Boolean | DataType::Null) {
-                    return Err(CassieError::Execution(format!(
-                        "argument of FILTER must be type boolean, not type {}",
-                        boolean_aggregates::type_name(&data_type)
-                    )));
-                }
-            }
-        }
-        if function.is_distinct()
-            && function.order_by.iter().any(|order| {
-                !function
-                    .args
-                    .iter()
-                    .any(|argument| argument.structurally_eq(&order.expr))
-            })
-        {
-            return Err(CassieError::Execution(
-                "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
-                    .into(),
-            ));
-        }
     }
-    boolean_aggregates::validate(function, types)
+    if function.is_distinct()
+        && function.order_by.iter().any(|order| {
+            !function
+                .args
+                .iter()
+                .any(|argument| argument.structurally_eq(&order.expr))
+        })
+    {
+        return Err(CassieError::Execution(
+            "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_hypothetical_set_arguments(

@@ -160,6 +160,31 @@ fn format_finite_observing(
     };
     let digits = add(mul(limbs.len() - 1, 19)?, highest_digits)?;
     let scale = usize::try_from(scale).map_err(|_| overflow())?;
+    let output = write_decimal_text(
+        &limbs,
+        highest_digits,
+        digits,
+        decimal_bound,
+        scale,
+        mantissa.sign() == Sign::Minus,
+        controls,
+        progress,
+    )?;
+    drop(limbs);
+    drop(limb_memory);
+    Ok(output)
+}
+
+fn write_decimal_text(
+    limbs: &[u64],
+    highest_digits: usize,
+    digits: usize,
+    decimal_bound: usize,
+    scale: usize,
+    negative: bool,
+    controls: &QueryExecutionControls,
+    mut progress: impl FnMut(NumericPhase),
+) -> Result<NumericText, QueryError> {
     let capacity = add(decimal_bound.max(add(scale, 1)?), 2)?;
     let output_memory = controls.reserve_query_memory(capacity)?;
     let mut text = String::new();
@@ -181,7 +206,7 @@ fn format_finite_observing(
         }
         Ok(())
     };
-    if mantissa.sign() == Sign::Minus {
+    if negative {
         emit(b'-')?;
     }
     if scale >= digits && scale != 0 {
@@ -211,8 +236,6 @@ fn format_finite_observing(
     }
     drop(emit);
     controls.check_interruption()?;
-    drop(limbs);
-    drop(limb_memory);
     Ok(NumericText {
         text,
         _memory: output_memory,

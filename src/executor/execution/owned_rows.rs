@@ -3,6 +3,12 @@ use super::{BatchRow, QueryExecutionControls};
 use crate::app::CassieError;
 use crate::runtime::QueryMemoryReservation;
 
+#[cfg(test)]
+type ResultObservation = (
+    std::rc::Rc<std::cell::Cell<usize>>,
+    std::rc::Rc<std::cell::Cell<usize>>,
+);
+
 #[derive(Debug)]
 pub(crate) struct OwnedRows {
     rows: Vec<BatchRow>,
@@ -122,7 +128,7 @@ impl std::ops::Deref for OwnedRows {
 #[cfg(test)]
 thread_local! {
     static CANCEL_RESULT: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
-    static OBSERVE_RESULT: std::cell::RefCell<Option<(std::rc::Rc<std::cell::Cell<usize>>, std::rc::Rc<std::cell::Cell<usize>>)>> = const { std::cell::RefCell::new(None) };
+    static OBSERVE_RESULT: std::cell::RefCell<Option<ResultObservation>> = const { std::cell::RefCell::new(None) };
 }
 #[cfg(test)]
 pub(super) fn cancel_result_once(handle: crate::runtime::QueryCancellationHandle) {

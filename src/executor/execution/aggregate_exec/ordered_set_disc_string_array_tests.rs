@@ -153,7 +153,7 @@ fn should_retain_discrete_string_array_through_aliases_and_last_row_clone() {
         after_partition_row: None,
     };
     let rows = [
-        row(Value::String("".into()), true),
+        row(Value::String(String::new()), true),
         row(Value::String("λ-value".into()), true),
     ];
 

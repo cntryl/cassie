@@ -185,110 +185,8 @@ impl Fold<'_, '_> {
         metadata: Option<&functions::ScalarFunction>,
         frame: &Frame<'_>,
     ) -> Result<Summary, ParameterAdmissionError> {
-        if metadata.is_some_and(|entry| {
-            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
-        }) && function.args.len() == 4
-        {
-            let summaries = &self.summaries.values[frame.start..frame.start + 4];
-            if let Some((slot, previous, requested)) =
-                mixed_bucket_count_conflict(&function.args, summaries)
-            {
-                self.occurrences
-                    .inconsistent_parameter_type(slot, previous, requested)?;
-                return Ok(Summary::known(23));
-            }
-            let fresh = std::array::from_fn(|index| {
-                let summary = &summaries[index];
-                summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
-            });
-            if unknown_bucket_literal_operands(&function.args, summaries, &fresh) {
-                if let ast::Expr::StringLiteral(input) = &function.args[3] {
-                    check_controls(self.controls)?;
-                    self.validate_type_function_literal(input, &DataType::Int)?;
-                }
-                for argument in &mut self.summaries.values[frame.start..frame.start + 3] {
-                    check_controls(self.controls)?;
-                    self.occurrences.coerce(argument, 701, true)?;
-                }
-                return Ok(Summary::known(23));
-            }
-        }
-        if metadata.is_some_and(|entry| {
-            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
-        }) && function.args.len() == 4
-        {
-            let summaries = &self.summaries.values[frame.start..frame.start + 4];
-            let shared_slot_is_fresh = summaries.iter().all(|summary| {
-                summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
-            });
-            if all_unknown_bucket_parameters(&function.args, summaries, shared_slot_is_fresh) {
-                for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
-                    .iter_mut()
-                    .zip([701, 701, 701, 23])
-                {
-                    check_controls(self.controls)?;
-                    self.occurrences.coerce(argument, target, true)?;
-                }
-                return Ok(Summary::known(23));
-            }
-        }
-        if metadata.is_some_and(|entry| {
-            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
-        }) && function.args.len() == 4
-        {
-            let arguments = &self.summaries.values[frame.start..frame.start + 4];
-            let first = arguments[0].oid;
-            if matches!(first, 701 | 1700)
-                && arguments[..3]
-                    .iter()
-                    .all(|argument| argument.qualified && argument.oid == first)
-            {
-                if let ast::Expr::StringLiteral(input) = &function.args[3] {
-                    check_controls(self.controls)?;
-                    self.validate_type_function_literal(input, &DataType::Int)?;
-                }
-            }
-        }
-        if metadata.is_some_and(|entry| {
-            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
-        }) && function.args.len() == 4
-            && matches!(function.args[3], ast::Expr::Param(_))
-        {
-            let arguments = &self.summaries.values[frame.start..frame.start + 4];
-            let first = arguments[0].oid;
-            if matches!(first, 701 | 1700)
-                && arguments[..3]
-                    .iter()
-                    .all(|argument| argument.qualified && argument.oid == first)
-                && matches!(arguments[3].oid, 0 | 705)
-            {
-                check_controls(self.controls)?;
-                self.occurrences
-                    .coerce(&mut self.summaries.values[frame.start + 3], 23, true)?;
-                return Ok(Summary::known(23));
-            }
-        }
-        if metadata.is_some_and(|entry| {
-            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
-        }) && function.args.len() == 4
-        {
-            let summaries = &self.summaries.values[frame.start..frame.start + 4];
-            let fresh = std::array::from_fn(|index| {
-                let summary = &summaries[index];
-                summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
-            });
-            if let Some(targets) = mixed_bucket_targets(&function.args, summaries, &fresh) {
-                for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
-                    .iter_mut()
-                    .zip(targets)
-                {
-                    check_controls(self.controls)?;
-                    if matches!(argument.oid, 0 | 705) {
-                        self.occurrences.coerce(argument, target, true)?;
-                    }
-                }
-                return Ok(Summary::known(23));
-            }
+        if let Some(summary) = self.width_bucket_input_signature(function, metadata, frame)? {
+            return Ok(summary);
         }
         let signature = self.qualified_input_signature(function, metadata, frame);
         match signature {
@@ -380,6 +278,153 @@ impl Fold<'_, '_> {
                 Ok(Summary::unqualified())
             }
         }
+    }
+
+    fn width_bucket_input_signature(
+        &mut self,
+        function: &ast::FunctionCall,
+        metadata: Option<&functions::ScalarFunction>,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let is_width_bucket = metadata.is_some_and(|entry| {
+            entry.id == functions::FunctionId::Math(functions::MathFunction::WidthBucket)
+        }) && function.args.len() == 4;
+        if !is_width_bucket {
+            return Ok(None);
+        }
+        if let Some(summary) = self.width_bucket_literal_family(function, frame)? {
+            return Ok(Some(summary));
+        }
+        if let Some(summary) = self.width_bucket_unknown_parameters(function, frame)? {
+            return Ok(Some(summary));
+        }
+        self.validate_width_bucket_literal_count(function, frame)?;
+        if let Some(summary) = self.width_bucket_parameter_count(function, frame)? {
+            return Ok(Some(summary));
+        }
+        self.width_bucket_mixed_targets(function, frame)
+    }
+
+    fn width_bucket_literal_family(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let summaries = &self.summaries.values[frame.start..frame.start + 4];
+        if let Some((slot, previous, requested)) =
+            mixed_bucket_count_conflict(&function.args, summaries)
+        {
+            self.occurrences
+                .inconsistent_parameter_type(slot, previous, requested)?;
+            return Ok(Some(Summary::known(23)));
+        }
+        let fresh = std::array::from_fn(|index| {
+            let summary = &summaries[index];
+            summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
+        });
+        if !unknown_bucket_literal_operands(&function.args, summaries, fresh) {
+            return Ok(None);
+        }
+        if let ast::Expr::StringLiteral(input) = &function.args[3] {
+            check_controls(self.controls)?;
+            self.validate_type_function_literal(input, &DataType::Int)?;
+        }
+        for argument in &mut self.summaries.values[frame.start..frame.start + 3] {
+            check_controls(self.controls)?;
+            self.occurrences.coerce(argument, 701, true)?;
+        }
+        Ok(Some(Summary::known(23)))
+    }
+
+    fn width_bucket_unknown_parameters(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let summaries = &self.summaries.values[frame.start..frame.start + 4];
+        let shared_slot_is_fresh = summaries.iter().all(|summary| {
+            summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
+        });
+        if !all_unknown_bucket_parameters(&function.args, summaries, shared_slot_is_fresh) {
+            return Ok(None);
+        }
+        for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
+            .iter_mut()
+            .zip([701, 701, 701, 23])
+        {
+            check_controls(self.controls)?;
+            self.occurrences.coerce(argument, target, true)?;
+        }
+        Ok(Some(Summary::known(23)))
+    }
+
+    fn validate_width_bucket_literal_count(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<(), ParameterAdmissionError> {
+        let arguments = &self.summaries.values[frame.start..frame.start + 4];
+        let first = arguments[0].oid;
+        if matches!(first, 701 | 1700)
+            && arguments[..3]
+                .iter()
+                .all(|argument| argument.qualified && argument.oid == first)
+        {
+            if let ast::Expr::StringLiteral(input) = &function.args[3] {
+                check_controls(self.controls)?;
+                self.validate_type_function_literal(input, &DataType::Int)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn width_bucket_parameter_count(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        if !matches!(function.args[3], ast::Expr::Param(_)) {
+            return Ok(None);
+        }
+        let arguments = &self.summaries.values[frame.start..frame.start + 4];
+        let first = arguments[0].oid;
+        if !matches!(first, 701 | 1700)
+            || !arguments[..3]
+                .iter()
+                .all(|argument| argument.qualified && argument.oid == first)
+            || !matches!(arguments[3].oid, 0 | 705)
+        {
+            return Ok(None);
+        }
+        check_controls(self.controls)?;
+        self.occurrences
+            .coerce(&mut self.summaries.values[frame.start + 3], 23, true)?;
+        Ok(Some(Summary::known(23)))
+    }
+
+    fn width_bucket_mixed_targets(
+        &mut self,
+        function: &ast::FunctionCall,
+        frame: &Frame<'_>,
+    ) -> Result<Option<Summary>, ParameterAdmissionError> {
+        let summaries = &self.summaries.values[frame.start..frame.start + 4];
+        let fresh = std::array::from_fn(|index| {
+            let summary = &summaries[index];
+            summary.occurrence.is_some() && !self.occurrences.has_legacy_inference(summary)
+        });
+        let Some(targets) = mixed_bucket_targets(&function.args, summaries, fresh) else {
+            return Ok(None);
+        };
+        for (argument, target) in self.summaries.values[frame.start..frame.start + 4]
+            .iter_mut()
+            .zip(targets)
+        {
+            check_controls(self.controls)?;
+            if matches!(argument.oid, 0 | 705) {
+                self.occurrences.coerce(argument, target, true)?;
+            }
+        }
+        Ok(Some(Summary::known(23)))
     }
 
     fn regexp_replace_oids(&self, arity: usize, frame: &Frame<'_>) -> &'static [i32] {
@@ -900,7 +945,7 @@ mod tests;
 fn mixed_bucket_targets(
     arguments: &[ast::Expr],
     summaries: &[Summary],
-    fresh: &[bool; 4],
+    fresh: [bool; 4],
 ) -> Option<[i32; 4]> {
     if arguments.len() != 4 || summaries.len() != 4 {
         return None;
@@ -1022,7 +1067,7 @@ fn contains_parameter(expression: &ast::Expr, slot: usize) -> bool {
 fn unknown_bucket_literal_operands(
     arguments: &[ast::Expr],
     summaries: &[Summary],
-    fresh: &[bool; 3],
+    fresh: [bool; 3],
 ) -> bool {
     if arguments.len() != 4
         || summaries.len() != 4

@@ -80,7 +80,7 @@ fn should_preserve_malformed_deserialized_array_shape() {
     // Assert
     assert_eq!(copy, array);
     assert_eq!(copy.dimensions()[0].length, 2);
-    assert!(copy.elements().is_empty());
+    assert_eq!(copy.elements(), []);
     drop(copy);
     drop(memory);
     drop(source);

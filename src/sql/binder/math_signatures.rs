@@ -13,7 +13,7 @@ fn is_float(data_type: Option<&DataType>) -> bool {
     )
 }
 
-fn is_numeric_argument(data_type: Option<DataType>) -> bool {
+fn is_numeric_argument(data_type: Option<&DataType>) -> bool {
     matches!(
         data_type,
         Some(
@@ -26,7 +26,7 @@ fn is_numeric_argument(data_type: Option<DataType>) -> bool {
     )
 }
 
-fn is_unsupported_bucket_count(data_type: Option<DataType>) -> bool {
+fn is_unsupported_bucket_count(data_type: Option<&DataType>) -> bool {
     matches!(
         data_type,
         Some(
@@ -37,7 +37,7 @@ fn is_unsupported_bucket_count(data_type: Option<DataType>) -> bool {
     )
 }
 
-fn bucket_literal_family(data_type: Option<DataType>) -> Option<bool> {
+fn bucket_literal_family(data_type: Option<&DataType>) -> Option<bool> {
     match data_type {
         Some(DataType::Float) => Some(false),
         Some(DataType::Extended(ExtendedType::Numeric(_))) => Some(true),
@@ -71,30 +71,29 @@ pub(super) fn validate(
     };
     if math == MathFunction::WidthBucket && function.args.len() == 4 {
         if !has_applicable_declared_routine(function, types) {
-            let first = bucket_literal_family(types.expression_type(&function.args[0]));
+            let first = bucket_literal_family(types.expression_type(&function.args[0]).as_ref());
             if first.is_some()
                 && function.args[1..3]
                     .iter()
-                    .all(|argument| bucket_literal_family(types.expression_type(argument)) == first)
+                    .all(|argument| {
+                        bucket_literal_family(types.expression_type(argument).as_ref()) == first
+                    })
             {
                 if let Expr::StringLiteral(input) = &function.args[3] {
                     if let Some(controls) = types.controls() {
                         controls.check_interruption()?;
                     }
-                    let value = match crate::types::integer::parse(
+                    let Ok(value) = crate::types::integer::parse(
                         input,
                         crate::types::IntegerWidth::I32,
-                    ) {
-                        Ok(value) => value,
-                        Err(_) => {
-                            crate::sql::literal_inputs::validate_with_controls(
-                                &function.args[3],
-                                &DataType::Int,
-                                CastIdentity::Scalar,
-                                types.controls(),
-                            )?;
-                            unreachable!("INT4 input validation uses the same parser");
-                        }
+                    ) else {
+                        crate::sql::literal_inputs::validate_with_controls(
+                            &function.args[3],
+                            &DataType::Int,
+                            CastIdentity::Scalar,
+                            types.controls(),
+                        )?;
+                        unreachable!("INT4 input validation uses the same parser");
                     };
                     function.args[3] = Expr::IntegerLiteral(value);
                 }
@@ -103,8 +102,8 @@ pub(super) fn validate(
         if !has_applicable_declared_routine(function, types)
             && function.args[..3]
                 .iter()
-                .all(|argument| is_numeric_argument(types.expression_type(argument)))
-            && is_unsupported_bucket_count(types.expression_type(&function.args[3]))
+                .all(|argument| is_numeric_argument(types.expression_type(argument).as_ref()))
+            && is_unsupported_bucket_count(types.expression_type(&function.args[3]).as_ref())
         {
             return Err(super::boolean_aggregates::undefined_function(
                 function, types,

@@ -163,7 +163,7 @@ fn validate_radix(
     let Some(first) = first else {
         return Ok(());
     };
-    let first_bits = u32::BITS - u32::from(first).leading_zeros();
+    let first_bits = u32::from(first).bit_width();
     let bit_width = usize::try_from(bits).map_err(|_| ValidationError::Range)?;
     let first_width = usize::try_from(first_bits).map_err(|_| ValidationError::Range)?;
     let bit_length = significant_digits
@@ -252,7 +252,7 @@ fn exact_radix_digits(
             bits
         } else {
             started = true;
-            u32::BITS - u32::from(value).leading_zeros()
+            u32::from(value).bit_width()
         };
         for bit in (0..width).rev() {
             word = (word << 1) | u64::from((u32::from(value) >> bit) & 1);
@@ -337,6 +337,49 @@ fn add_word(
     Ok(())
 }
 
+fn parse_decimal_exponent(
+    exponent: Option<&[u8]>,
+    controls: Option<&QueryExecutionControls>,
+    progress: &mut impl FnMut(ValidationPhase),
+) -> Result<i64, ValidationError> {
+    let Some(exponent) = exponent else {
+        return Ok(0);
+    };
+    let (negative, unsigned) = match exponent.first() {
+        Some(b'-') => (true, &exponent[1..]),
+        Some(b'+') => (false, &exponent[1..]),
+        _ => (false, exponent),
+    };
+    if unsigned.is_empty() {
+        return Err(ValidationError::Syntax);
+    }
+    let mut magnitude = 0_i64;
+    for (index, byte) in unsigned.iter().copied().enumerate() {
+        if index.is_multiple_of(1024) {
+            checkpoint(controls, progress, ValidationPhase::Scan)?;
+        }
+        if byte == b'_' {
+            if !separator_is_valid(unsigned, index, 4)
+                || !unsigned[index - 1].is_ascii_digit()
+                || !unsigned[index + 1].is_ascii_digit()
+            {
+                return Err(ValidationError::Syntax);
+            }
+        } else if byte.is_ascii_digit() {
+            magnitude = magnitude
+                .checked_mul(10)
+                .and_then(|value| value.checked_add(i64::from(byte - b'0')))
+                .unwrap_or(i64::MAX);
+        } else {
+            return Err(ValidationError::Syntax);
+        }
+    }
+    if magnitude > i64::from(i32::MAX / 2) {
+        return Err(ValidationError::Range);
+    }
+    Ok(if negative { -magnitude } else { magnitude })
+}
+
 fn validate_decimal(
     body: &str,
     limits: Limits,
@@ -391,42 +434,7 @@ fn validate_decimal(
     if digits == 0 {
         return Err(ValidationError::Syntax);
     }
-    let mut exponent_value = 0_i64;
-    if let Some(exponent) = exponent {
-        let (negative, unsigned) = match exponent.first() {
-            Some(b'-') => (true, &exponent[1..]),
-            Some(b'+') => (false, &exponent[1..]),
-            _ => (false, exponent),
-        };
-        if unsigned.is_empty() {
-            return Err(ValidationError::Syntax);
-        }
-        let mut magnitude = 0_i64;
-        for (index, byte) in unsigned.iter().copied().enumerate() {
-            if index.is_multiple_of(1024) {
-                checkpoint(controls, progress, ValidationPhase::Scan)?;
-            }
-            if byte == b'_' {
-                if !separator_is_valid(unsigned, index, 4)
-                    || !unsigned[index - 1].is_ascii_digit()
-                    || !unsigned[index + 1].is_ascii_digit()
-                {
-                    return Err(ValidationError::Syntax);
-                }
-            } else if byte.is_ascii_digit() {
-                magnitude = magnitude
-                    .checked_mul(10)
-                    .and_then(|value| value.checked_add(i64::from(byte - b'0')))
-                    .unwrap_or(i64::MAX);
-            } else {
-                return Err(ValidationError::Syntax);
-            }
-        }
-        if magnitude > i64::from(i32::MAX / 2) {
-            return Err(ValidationError::Range);
-        }
-        exponent_value = if negative { -magnitude } else { magnitude };
-    }
+    let exponent_value = parse_decimal_exponent(exponent, controls, progress)?;
     let scale = i64::try_from(fraction)
         .map_err(|_| ValidationError::Range)?
         .checked_sub(exponent_value)

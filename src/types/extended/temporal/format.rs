@@ -628,7 +628,7 @@ fn parse_zone_or_fraction(
                 if keyword.starts_with("ff") {
                     builder.ff_precision = Some(keyword.as_bytes()[2] - b'0');
                 }
-                let limit = if !adjacent { chars.len() } else { digits_limit };
+                let limit = if adjacent { digits_limit } else { chars.len() };
                 let (value, length) = read_digits(chars, cursor, limit, keyword)?;
                 let maximum = if keyword == "ms" { 1000 } else { USECS_PER_SEC };
                 if !(0..maximum).contains(&value) {
@@ -699,73 +699,117 @@ fn parse_field(
             read_name(chars, cursor, &DAYS, keyword == "dy", keyword)?;
         }
         "am" | "pm" | "a.m." | "p.m." => {
-            let rest: String = chars[*cursor..]
-                .iter()
-                .take(4)
-                .collect::<String>()
-                .to_ascii_lowercase();
-            let (pm, length) = if rest.starts_with("pm") {
-                (true, 2)
-            } else if rest.starts_with("am") {
-                (false, 2)
-            } else if rest.starts_with("p.m.") {
-                (true, 4)
-            } else if rest.starts_with("a.m.") {
-                (false, 4)
-            } else {
-                return Err(invalid_value(&rest, keyword));
-            };
-            builder.pm = Some(pm);
-            *cursor += length;
+            parse_meridiem(keyword, chars, cursor, builder)?;
         }
         "ad" | "bc" | "a.d." | "b.c." => {
-            let rest: String = chars[*cursor..]
-                .iter()
-                .take(4)
-                .collect::<String>()
-                .to_ascii_lowercase();
-            builder.bc = rest.starts_with("bc") || rest.starts_with("b.c.");
-            *cursor += if rest.contains('.') { 4 } else { 2 };
+            parse_era(chars, cursor, builder);
         }
         "tz" => {
-            if chars.get(*cursor).is_some_and(|c| c.is_ascii_alphabetic()) {
-                let (abbreviation, length) =
-                    catalog::find(chars.get(*cursor..).unwrap_or_default(), abbreviations)
-                        .ok_or_else(|| {
-                            invalid_value(
-                                &chars
-                                    .get(*cursor..)
-                                    .unwrap_or_default()
-                                    .iter()
-                                    .take(16)
-                                    .collect::<String>(),
-                                keyword,
-                            )
-                        })?;
-                builder.zone.set_abbreviation(abbreviation);
-                *cursor += length;
-            } else {
-                parse_zone_or_fraction("of", chars, cursor, fraction_adjacent, builder)?;
-            }
+            parse_timezone(
+                keyword,
+                chars,
+                cursor,
+                fraction_adjacent,
+                builder,
+                abbreviations,
+            )?;
         }
         "rm" => {
-            let rest: String = chars[*cursor..]
-                .iter()
-                .take(4)
-                .collect::<String>()
-                .to_ascii_uppercase();
-            let index = ROMAN
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, roman)| rest.starts_with(**roman))
-                .map(|(index, _)| index)
-                .ok_or_else(|| invalid_value(&rest, keyword))?;
-            *cursor += ROMAN[index].len();
-            builder.month = Some(narrow(i64::try_from(index).unwrap_or(0))? + 1);
+            parse_roman_month(keyword, chars, cursor, builder)?;
         }
         _ => numeric_field(keyword, chars, cursor, limit, builder)?,
     }
+    Ok(())
+}
+
+fn parse_meridiem(
+    keyword: &str,
+    chars: &[char],
+    cursor: &mut usize,
+    builder: &mut Builder,
+) -> Result<(), TypeInputError> {
+    let rest: String = chars[*cursor..]
+        .iter()
+        .take(4)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let (pm, length) = if rest.starts_with("pm") {
+        (true, 2)
+    } else if rest.starts_with("am") {
+        (false, 2)
+    } else if rest.starts_with("p.m.") {
+        (true, 4)
+    } else if rest.starts_with("a.m.") {
+        (false, 4)
+    } else {
+        return Err(invalid_value(&rest, keyword));
+    };
+    builder.pm = Some(pm);
+    *cursor += length;
+    Ok(())
+}
+
+fn parse_era(chars: &[char], cursor: &mut usize, builder: &mut Builder) {
+    let rest: String = chars[*cursor..]
+        .iter()
+        .take(4)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    builder.bc = rest.starts_with("bc") || rest.starts_with("b.c.");
+    *cursor += if rest.contains('.') { 4 } else { 2 };
+}
+
+fn parse_timezone(
+    keyword: &str,
+    chars: &[char],
+    cursor: &mut usize,
+    fraction_adjacent: bool,
+    builder: &mut Builder,
+    abbreviations: AbbreviationSet,
+) -> Result<(), TypeInputError> {
+    if chars.get(*cursor).is_some_and(char::is_ascii_alphabetic) {
+        let (abbreviation, length) =
+            catalog::find(chars.get(*cursor..).unwrap_or_default(), abbreviations).ok_or_else(
+                || {
+                    invalid_value(
+                        &chars
+                            .get(*cursor..)
+                            .unwrap_or_default()
+                            .iter()
+                            .take(16)
+                            .collect::<String>(),
+                        keyword,
+                    )
+                },
+            )?;
+        builder.zone.set_abbreviation(abbreviation);
+        *cursor += length;
+    } else {
+        parse_zone_or_fraction("of", chars, cursor, fraction_adjacent, builder)?;
+    }
+    Ok(())
+}
+
+fn parse_roman_month(
+    keyword: &str,
+    chars: &[char],
+    cursor: &mut usize,
+    builder: &mut Builder,
+) -> Result<(), TypeInputError> {
+    let rest: String = chars[*cursor..]
+        .iter()
+        .take(4)
+        .collect::<String>()
+        .to_ascii_uppercase();
+    let index = ROMAN
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, roman)| rest.starts_with(**roman))
+        .map(|(index, _)| index)
+        .ok_or_else(|| invalid_value(&rest, keyword))?;
+    *cursor += ROMAN[index].len();
+    builder.month = Some(narrow(i64::try_from(index).unwrap_or(0))? + 1);
     Ok(())
 }
 

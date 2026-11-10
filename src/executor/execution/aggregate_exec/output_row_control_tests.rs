@@ -374,7 +374,7 @@ fn should_reject_a_forged_nonnull_array_before_alias_publication() {
         result,
         Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
     ));
-    assert!(output.values.is_empty());
+    assert_eq!(output.values, Vec::new());
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -452,7 +452,7 @@ fn should_reject_a_forged_string_array_before_alias_publication() {
         result,
         Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
     ));
-    assert!(output.values.is_empty());
+    assert_eq!(output.values, Vec::new());
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -551,7 +551,7 @@ fn should_reject_forged_nonprimitive_array_before_alias_publication() {
         result,
         Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
     ));
-    assert!(output.values.is_empty());
+    assert_eq!(output.values, Vec::new());
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -613,7 +613,7 @@ fn should_reject_primitive_array_result_from_another_row_tracker() {
         status,
         Err(QueryError::Cassie(CassieError::ResourceLimit(_)))
     ));
-    assert!(output.values.is_empty());
+    assert_eq!(output.values, Vec::new());
     assert_eq!(first.current_query_memory_bytes(), 0);
     drop(output);
     assert_eq!(second.current_query_memory_bytes(), 0);

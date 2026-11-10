@@ -112,7 +112,7 @@ fn json_producer<R: RowAccess>(
 
 pub(super) struct Memory<'a> {
     controls: Option<&'a QueryExecutionControls>,
-    memory: Option<EvaluationMemory>,
+    evaluation: Option<EvaluationMemory>,
     deletion: Option<EvaluationMemory>,
 }
 
@@ -133,7 +133,7 @@ impl<'a> Memory<'a> {
             .and_then(CassieSession::statement_execution_controls);
         Ok(Self {
             controls,
-            memory: controls
+            evaluation: controls
                 .filter(|_| required)
                 .map(EvaluationMemory::new)
                 .transpose()?,
@@ -149,7 +149,7 @@ impl<'a> Memory<'a> {
         expr: &crate::sql::ast::Expr,
         context: &ProjectionValueContext<'_>,
     ) -> Option<Result<crate::types::Value, QueryError>> {
-        if self.memory.is_none() && self.deletion.is_none() {
+        if self.evaluation.is_none() && self.deletion.is_none() {
             return None;
         }
         Some(evaluate_projection_value_with_owners(
@@ -157,7 +157,7 @@ impl<'a> Memory<'a> {
             expr,
             context,
             self.controls?,
-            self.memory.as_ref(),
+            self.evaluation.as_ref(),
             self.deletion.as_ref(),
         ))
     }
@@ -167,7 +167,7 @@ impl<'a> Memory<'a> {
         };
         let mut pending = Pending {
             row,
-            memory: self.memory,
+            memory: self.evaluation,
             deletion: self.deletion,
             shared: None,
         };
@@ -234,7 +234,7 @@ mod tests {
         );
         let memory = Memory {
             controls: Some(&controls),
-            memory: Some(EvaluationMemory::new(&controls).expect("projection owner")),
+            evaluation: Some(EvaluationMemory::new(&controls).expect("projection owner")),
             deletion: None,
         };
         let params = [Value::Array(
@@ -284,7 +284,7 @@ mod tests {
         deletion.grow(1024).expect("output reservation");
         let memory = Memory {
             controls: Some(&controls),
-            memory: None,
+            evaluation: None,
             deletion: Some(deletion),
         };
         let row = BatchRow::new(vec![("value".into(), Value::String("x".repeat(1024)))]);
@@ -308,7 +308,7 @@ mod tests {
         deletion.grow(128).expect("output reservation");
         let memory = Memory {
             controls: Some(&controls),
-            memory: None,
+            evaluation: None,
             deletion: Some(deletion),
         };
         let row = BatchRow::new(vec![("value".into(), Value::String("x".repeat(128)))])

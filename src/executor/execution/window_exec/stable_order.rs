@@ -31,12 +31,12 @@ pub(super) fn order_by(
                 controls.check_interruption()?;
                 let ordering = compare(order.values[left], order.values[right])?;
                 controls.check_interruption()?;
-                if ordering != Ordering::Greater {
-                    scratch.values[output] = order.values[left];
-                    left += 1;
-                } else {
+                if ordering == Ordering::Greater {
                     scratch.values[output] = order.values[right];
                     right += 1;
+                } else {
+                    scratch.values[output] = order.values[left];
+                    left += 1;
                 }
                 output += 1;
             }

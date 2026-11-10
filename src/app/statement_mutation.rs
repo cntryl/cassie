@@ -192,7 +192,7 @@ impl Cassie {
             .or(fallback_controls.as_ref())
             .expect("provided or fallback query controls");
         for collection in committed.changed_collections {
-            let _ = self.finish_committed_collection(collection, controls);
+            let _ = self.finish_committed_collection(&collection, controls);
         }
     }
 }

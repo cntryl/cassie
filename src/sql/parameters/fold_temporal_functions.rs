@@ -18,7 +18,7 @@ impl Fold<'_, '_> {
             first_oid == Some(1266) && self.occurrences.original_wire_oid(slot) == Some(1266)
         });
         if let Some(qualified) = selected {
-            self.occurrences.to_char_timetz(qualified)?;
+            self.occurrences.record_char_timetz(qualified)?;
             return Ok(true);
         }
         Ok(false)

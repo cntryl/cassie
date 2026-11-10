@@ -41,6 +41,17 @@ pub(crate) struct CopyIngestResult {
     pub(crate) skipped: Vec<CopySkippedRow>,
 }
 
+struct CopyRowsContext<'a, 'guard, 'options> {
+    session: &'a CassieSession,
+    statement: &'a CopyStatement,
+    columns: &'a [CopyColumn],
+    cancellation: Option<&'a QueryCancellationHandle>,
+    options: CopyIngestOptions<'options>,
+    owner: Option<&'a crate::app::CopyCommandOwner>,
+    publication: Option<&'a parking_lot::RecursiveRwLockReadGuard<'guard, ()>>,
+    controls: &'a crate::runtime::QueryExecutionControls,
+}
+
 impl Cassie {
     /// # Errors
     ///
@@ -116,7 +127,7 @@ impl Cassie {
         });
         let context = owned_context
             .as_ref()
-            .map(|context| context.context())
+            .map(crate::app::CopyBindingContext::context)
             .or(fallback_context.as_ref())
             .expect("COPY binding context");
         let scoped = owner.as_ref().map_or_else(
@@ -234,15 +245,17 @@ impl Cassie {
             self.midge
                 .with_transaction_write_gates(&collections, true, &controls, || {
                     self.stage_and_apply_copy_rows(
-                        session,
-                        &statement,
-                        &columns,
                         rows,
-                        cancellation,
-                        options,
-                        owner,
-                        publication.as_ref(),
-                        &controls,
+                        CopyRowsContext {
+                            session,
+                            statement: &statement,
+                            columns: &columns,
+                            cancellation,
+                            options,
+                            owner,
+                            publication: publication.as_ref(),
+                            controls: &controls,
+                        },
                     )
                 })?;
         let Some(stats) = stats else {
@@ -263,15 +276,8 @@ impl Cassie {
     /// referential write gates for the target table.
     fn stage_and_apply_copy_rows(
         &self,
-        session: &CassieSession,
-        statement: &CopyStatement,
-        columns: &[CopyColumn],
         rows: Vec<Vec<Option<String>>>,
-        cancellation: Option<&QueryCancellationHandle>,
-        options: CopyIngestOptions<'_>,
-        owner: Option<&crate::app::CopyCommandOwner>,
-        publication: Option<&parking_lot::RecursiveRwLockReadGuard<'_, ()>>,
-        controls: &crate::runtime::QueryExecutionControls,
+        context: CopyRowsContext<'_, '_, '_>,
     ) -> Result<
         (
             usize,
@@ -280,6 +286,16 @@ impl Cassie {
         ),
         CassieError,
     > {
+        let CopyRowsContext {
+            session,
+            statement,
+            columns,
+            cancellation,
+            options,
+            owner,
+            publication,
+            controls,
+        } = context;
         let transactional = session.is_transaction_active();
         let batch = if let Some(owner) = owner {
             let publication = publication

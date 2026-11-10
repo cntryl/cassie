@@ -67,9 +67,9 @@ fn should_preserve_postgres_interval_writer_for_signed_extremes() {
     // Act / Assert
     for (micros, days, months) in cases {
         let interval = Interval {
-            micros,
-            days,
             months,
+            days,
+            micros,
         };
         let mut output = String::new();
         interval.format_postgres_to(&mut output).expect("format");

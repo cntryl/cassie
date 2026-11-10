@@ -126,12 +126,12 @@ impl SemanticKey {
                 match frame {
                     Frame::Value(value) => match value {
                         SemanticValue::String(text) | SemanticValue::Json(text) => {
-                            value_bytes = value_bytes.saturating_add(text.len())
+                            value_bytes = value_bytes.saturating_add(text.len());
                         }
                         SemanticValue::Vector(values) => {
                             value_bytes = value_bytes.saturating_add(
                                 values.len().saturating_mul(std::mem::size_of::<u32>()),
-                            )
+                            );
                         }
                         SemanticValue::Array(values) => {
                             value_bytes = value_bytes.saturating_add(

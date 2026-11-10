@@ -58,7 +58,7 @@ fn run(values: &[Value], direction: &str) -> (Value, Vec<ModeProgress>) {
         .collect::<Vec<_>>();
     let mut events = Vec::new();
     let output = evaluate_owned_observed(&specs[0].function, &rows, &context, |progress| {
-        events.push(progress)
+        events.push(progress);
     })
     .expect("mode");
     let value = output.into_value();

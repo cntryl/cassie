@@ -10,7 +10,7 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 mod tests;
 
 pub(super) struct Rows {
-    rows: Vec<BatchRow>,
+    entries: Vec<BatchRow>,
     slots: QueryMemoryReservation,
     payload: QueryMemoryReservation,
 }
@@ -26,7 +26,7 @@ struct Pending {
 impl Rows {
     pub(super) fn new(controls: &QueryExecutionControls) -> Result<Self, CassieError> {
         Ok(Self {
-            rows: Vec::new(),
+            entries: Vec::new(),
             slots: controls.reserve_query_memory(0)?,
             payload: controls.reserve_query_memory(0)?,
         })
@@ -53,9 +53,9 @@ impl Rows {
                 "JSON object-key rows use a different query tracker".into(),
             ));
         }
-        if self.rows.len() == self.rows.capacity() {
+        if self.entries.len() == self.entries.capacity() {
             let capacity = self
-                .rows
+                .entries
                 .len()
                 .checked_add(1)
                 .and_then(|needed| needed.max(4).checked_next_power_of_two())
@@ -65,7 +65,7 @@ impl Rows {
             let (rows, slots) =
                 crate::runtime::owned_memory::try_reserve_vec(capacity, &self.slots)?;
             let mut replacement = Replacement { rows, slots };
-            while let Some(row) = self.rows.pop() {
+            while let Some(row) = self.entries.pop() {
                 controls.check_interruption()?;
                 replacement.rows.push(row);
                 observe(Progress::Move);
@@ -78,13 +78,13 @@ impl Rows {
                 observe(Progress::Reverse);
                 controls.check_interruption()?;
             }
-            let old_rows = std::mem::replace(&mut self.rows, replacement.rows);
+            let old_rows = std::mem::replace(&mut self.entries, replacement.rows);
             let old_slots = std::mem::replace(&mut self.slots, replacement.slots);
             drop(old_rows);
             drop(old_slots);
         }
         controls.check_interruption()?;
-        self.rows.push(pending.row.take().expect("prepared row"));
+        self.entries.push(pending.row.take().expect("prepared row"));
         self.payload
             .absorb(pending.memory.take().expect("row memory"));
         Ok(())
@@ -99,11 +99,11 @@ impl Rows {
             ));
         }
         let Self {
-            rows,
+            entries,
             slots,
             mut payload,
         } = self;
         payload.absorb(slots);
-        Ok((rows, payload))
+        Ok((entries, payload))
     }
 }

@@ -333,8 +333,8 @@ pub fn part_timestamp(
             let utc =
                 i128::from(local) - i128::from(zone_east.unwrap_or(0)) * i128::from(USECS_PER_SEC);
             let offset = i128::from(UNIX_TO_POSTGRES_SECS) * i128::from(USECS_PER_SEC);
-            let unix = utc + offset;
-            match i64::try_from(unix) {
+            let unix_timestamp_micros = utc + offset;
+            match i64::try_from(unix_timestamp_micros) {
                 Ok(micros) if micros != i64::MAX => f(micros) / 1_000_000.0,
                 _ => {
                     (num_traits::ToPrimitive::to_f64(&utc).unwrap_or(0.0)

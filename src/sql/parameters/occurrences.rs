@@ -113,7 +113,7 @@ impl<'a> Occurrences<'a> {
         }
     }
 
-    pub(super) fn to_char_timetz(
+    pub(super) fn record_char_timetz(
         &mut self,
         qualified: bool,
     ) -> Result<(), ParameterAdmissionError> {

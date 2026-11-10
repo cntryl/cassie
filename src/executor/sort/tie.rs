@@ -374,120 +374,160 @@ fn visit<'a, F: FnMut(usize)>(
     while let Some(frame) = stack.frames.pop() {
         sink.controls.check_interruption()?;
         match frame {
-            Frame::Json(value) => match value {
-                serde_json::Value::Null => sink.write("null")?,
-                serde_json::Value::Bool(value) => {
-                    sink.write(if *value { "true" } else { "false" })?
-                }
-                serde_json::Value::Number(value) => sink.write(value.as_str())?,
-                serde_json::Value::String(value) => sink.quoted(value)?,
-                serde_json::Value::Array(values) => {
-                    sink.write("[")?;
-                    stack.push(Frame::JsonArray(values.iter(), false))?;
-                }
-                serde_json::Value::Object(values) => {
-                    sink.write("{")?;
-                    stack.push(Frame::JsonObject(values.iter(), false))?;
-                }
-            },
-            Frame::JsonArray(mut values, emitted) => {
-                if let Some(value) = values.next() {
-                    if emitted {
-                        sink.write(",")?;
-                    }
-                    stack.push(Frame::JsonArray(values, true))?;
-                    stack.push(Frame::Json(value))?;
-                } else {
-                    sink.write("]")?;
-                }
+            Frame::Json(value) => visit_json_value(value, stack, sink)?,
+            Frame::JsonArray(values, emitted) => visit_json_array(values, emitted, stack, sink)?,
+            Frame::JsonObject(values, emitted) => {
+                visit_json_object(values, emitted, stack, sink)?;
             }
-            Frame::JsonObject(mut values, emitted) => {
-                if let Some((key, value)) = values.next() {
-                    if emitted {
-                        sink.write(",")?;
-                    }
-                    sink.quoted(key)?;
-                    sink.write(":")?;
-                    stack.push(Frame::JsonObject(values, true))?;
-                    stack.push(Frame::Json(value))?;
-                } else {
-                    sink.write("}")?;
-                }
-            }
-            Frame::SqlValue(value) => match value {
-                Value::Null => sink.write("null")?,
-                Value::Bool(value) => sink.write(if *value { "true" } else { "false" })?,
-                Value::Int64(value) => sink.write(fixed(value)?.as_str()?)?,
-                Value::Float64(value) => float_json(*value, sink)?,
-                Value::String(value) => sink.quoted(value)?,
-                Value::Json(value) => stack.push(Frame::Json(value))?,
-                Value::Array(value) => sql_array(value, stack, sink)?,
-                Value::Typed(value) => typed(value, true, sink)?,
-                Value::Vector(value) => {
-                    sink.write("[")?;
-                    let mut emitted = false;
-                    for value in &value.values {
-                        sink.controls.check_interruption()?;
-                        if !value.is_finite() {
-                            continue;
-                        }
-                        if emitted {
-                            sink.write(",")?;
-                        }
-                        float_json(f64::from(*value), sink)?;
-                        emitted = true;
-                    }
-                    sink.write("]")?;
-                }
-            },
+            Frame::SqlValue(value) => visit_sql_value(value, stack, sink)?,
             Frame::SqlArray {
                 array,
                 depth,
                 next,
                 base,
                 stride,
-            } => {
-                let length = usize::try_from(array.dimensions()[depth].length)
-                    .map_err(|_| CassieError::Execution("invalid SQL array shape".into()))?;
-                if next == length {
-                    sink.write("]")?;
-                    continue;
-                }
-                if next > 0 {
-                    sink.write(",")?;
-                }
-                stack.push(Frame::SqlArray {
-                    array,
-                    depth,
-                    next: next + 1,
-                    base,
-                    stride,
-                })?;
-                if depth + 1 == array.dimensions().len() {
-                    let offset = add(base, next)?;
-                    stack.push(Frame::SqlValue(&array.elements()[offset]))?;
-                } else {
-                    let child_base = add(base, mul(next, stride)?)?;
-                    let child_length = usize::try_from(array.dimensions()[depth + 1].length)
-                        .map_err(|_| CassieError::Execution("invalid SQL array shape".into()))?;
-                    let child_stride = if child_length == 0 {
-                        0
-                    } else {
-                        stride / child_length
-                    };
-                    sink.write("[")?;
-                    stack.push(Frame::SqlArray {
-                        array,
-                        depth: depth + 1,
-                        next: 0,
-                        base: child_base,
-                        stride: child_stride,
-                    })?;
-                }
-            }
+            } => visit_sql_array(array, depth, next, base, stride, stack, sink)?,
         }
     }
     Ok(())
+}
+
+fn visit_json_value<'a, F: FnMut(usize)>(
+    value: &'a serde_json::Value,
+    stack: &mut Stack<'a>,
+    sink: &mut Sink<'_, F>,
+) -> Result<(), QueryError> {
+    match value {
+        serde_json::Value::Null => sink.write("null"),
+        serde_json::Value::Bool(value) => sink.write(if *value { "true" } else { "false" }),
+        serde_json::Value::Number(value) => sink.write(value.as_str()),
+        serde_json::Value::String(value) => sink.quoted(value),
+        serde_json::Value::Array(values) => {
+            sink.write("[")?;
+            stack.push(Frame::JsonArray(values.iter(), false))
+        }
+        serde_json::Value::Object(values) => {
+            sink.write("{")?;
+            stack.push(Frame::JsonObject(values.iter(), false))
+        }
+    }
+}
+
+fn visit_json_array<'a, F: FnMut(usize)>(
+    mut values: std::slice::Iter<'a, serde_json::Value>,
+    emitted: bool,
+    stack: &mut Stack<'a>,
+    sink: &mut Sink<'_, F>,
+) -> Result<(), QueryError> {
+    if let Some(value) = values.next() {
+        if emitted {
+            sink.write(",")?;
+        }
+        stack.push(Frame::JsonArray(values, true))?;
+        stack.push(Frame::Json(value))
+    } else {
+        sink.write("]")
+    }
+}
+
+fn visit_json_object<'a, F: FnMut(usize)>(
+    mut values: serde_json::map::Iter<'a>,
+    emitted: bool,
+    stack: &mut Stack<'a>,
+    sink: &mut Sink<'_, F>,
+) -> Result<(), QueryError> {
+    if let Some((key, value)) = values.next() {
+        if emitted {
+            sink.write(",")?;
+        }
+        sink.quoted(key)?;
+        sink.write(":")?;
+        stack.push(Frame::JsonObject(values, true))?;
+        stack.push(Frame::Json(value))
+    } else {
+        sink.write("}")
+    }
+}
+
+fn visit_sql_value<'a, F: FnMut(usize)>(
+    value: &'a Value,
+    stack: &mut Stack<'a>,
+    sink: &mut Sink<'_, F>,
+) -> Result<(), QueryError> {
+    match value {
+        Value::Null => sink.write("null"),
+        Value::Bool(value) => sink.write(if *value { "true" } else { "false" }),
+        Value::Int64(value) => sink.write(fixed(value)?.as_str()?),
+        Value::Float64(value) => float_json(*value, sink),
+        Value::String(value) => sink.quoted(value),
+        Value::Json(value) => stack.push(Frame::Json(value)),
+        Value::Array(value) => sql_array(value, stack, sink),
+        Value::Typed(value) => typed(value, true, sink),
+        Value::Vector(value) => visit_vector(value, sink),
+    }
+}
+
+fn visit_vector<F: FnMut(usize)>(
+    value: &crate::types::VectorValue,
+    sink: &mut Sink<'_, F>,
+) -> Result<(), QueryError> {
+    sink.write("[")?;
+    let mut emitted = false;
+    for value in &value.values {
+        sink.controls.check_interruption()?;
+        if !value.is_finite() {
+            continue;
+        }
+        if emitted {
+            sink.write(",")?;
+        }
+        float_json(f64::from(*value), sink)?;
+        emitted = true;
+    }
+    sink.write("]")
+}
+
+fn visit_sql_array<'a, F: FnMut(usize)>(
+    array: &'a SqlArray,
+    depth: usize,
+    next: usize,
+    base: usize,
+    stride: usize,
+    stack: &mut Stack<'a>,
+    sink: &mut Sink<'_, F>,
+) -> Result<(), QueryError> {
+    let length = usize::try_from(array.dimensions()[depth].length)
+        .map_err(|_| CassieError::Execution("invalid SQL array shape".into()))?;
+    if next == length {
+        return sink.write("]");
+    }
+    if next > 0 {
+        sink.write(",")?;
+    }
+    stack.push(Frame::SqlArray {
+        array,
+        depth,
+        next: next + 1,
+        base,
+        stride,
+    })?;
+    if depth + 1 == array.dimensions().len() {
+        let offset = add(base, next)?;
+        stack.push(Frame::SqlValue(&array.elements()[offset]))
+    } else {
+        let child_base = add(base, mul(next, stride)?)?;
+        let child_length = usize::try_from(array.dimensions()[depth + 1].length)
+            .map_err(|_| CassieError::Execution("invalid SQL array shape".into()))?;
+        let child_stride = stride.checked_div(child_length).unwrap_or(0);
+        sink.write("[")?;
+        stack.push(Frame::SqlArray {
+            array,
+            depth: depth + 1,
+            next: 0,
+            base: child_base,
+            stride: child_stride,
+        })
+    }
 }
 
 #[cfg(test)]

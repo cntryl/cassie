@@ -121,7 +121,7 @@ fn should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence() {
     let fork = session
         .fork_copy_statement_batch(&owner, &controls)
         .expect("fork");
-    let _fork_scope = cassie
+    let fork_scope = cassie
         .midge
         .enter_transactional_ddl_scope(
             session
@@ -138,7 +138,7 @@ fn should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence() {
         })
         .expect("fork sequence")
         .0;
-    drop(_fork_scope);
+    drop(fork_scope);
     stage_storage_only(&cassie, &session);
 
     // Act
@@ -164,7 +164,7 @@ fn should_reject_a_changed_copy_parent_after_fork_without_rewinding_sequence() {
     // Assert
     assert!(publication.is_err());
     assert_eq!((first, next), (1, 2));
-    assert!(session.transaction_write_collections().is_empty());
+    assert_eq!(session.transaction_write_collections(), Vec::<String>::new());
 }
 
 #[test]

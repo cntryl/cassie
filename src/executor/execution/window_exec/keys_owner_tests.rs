@@ -297,7 +297,7 @@ fn should_keep_mixed_vector_array_on_the_legacy_window_key_path() {
     };
     let sort_key = window_sort_key(&row, &function.order_by, &verification_context)
         .expect("fallback sort key");
-    assert!(sort_key.parts[0].value == expected);
+    assert_eq!(sort_key.parts[0].value, expected);
     drop(sort_key);
     assert_eq!(verification_controls.current_query_memory_bytes(), 0);
     // Act

@@ -27,7 +27,7 @@ fn should_admit_csv_quoted_null_empty_and_newline_fields() {
     assert_eq!(
         rows,
         vec![
-            vec![None, Some("".into()), Some("a\n\"b".into())],
+        vec![None, Some(String::new()), Some("a\n\"b".into())],
             vec![Some("x".into()), Some("y".into()), Some("z".into())]
         ]
     );
@@ -63,7 +63,7 @@ fn should_preserve_embedded_empty_unquoted_null_policy() {
     // Act
     let (rows, memory) = parse_csv_payload(b",\"\",\\N\n", options, true, &controls).expect("CSV");
     // Assert
-    assert_eq!(rows, vec![vec![None, Some("".into()), None]]);
+    assert_eq!(rows, vec![vec![None, Some(String::new()), None]]);
     drop((rows, memory));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

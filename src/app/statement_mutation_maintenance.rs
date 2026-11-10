@@ -7,7 +7,7 @@ use super::{Cassie, CassieError, CommittedCollection, QueryExecutionControls};
 impl Cassie {
     pub(super) fn finish_committed_collection(
         &self,
-        committed: CommittedCollection,
+        committed: &CommittedCollection,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         // Keep the existing catalog -> sorted collection gate order. Recursive

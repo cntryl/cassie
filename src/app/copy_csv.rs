@@ -3,6 +3,9 @@
 use super::{CassieError, CopyCsvOptions};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+type ParsedCsvRows = Vec<Vec<Option<String>>>;
+type ParsedCsvPayload = (ParsedCsvRows, QueryMemoryReservation);
+
 #[cfg(test)]
 #[path = "copy_csv_tests.rs"]
 mod tests;
@@ -32,7 +35,7 @@ pub(crate) fn parse_csv_payload(
     options: CopyCsvOptions<'_>,
     empty_unquoted_is_null: bool,
     controls: &QueryExecutionControls,
-) -> Result<(Vec<Vec<Option<String>>>, QueryMemoryReservation), CassieError> {
+) -> Result<ParsedCsvPayload, CassieError> {
     super::copy_decode::validate_payload_utf8(payload, controls)?;
     let mut memory = controls.reserve_query_memory(0)?;
     let mut row_memory = controls.reserve_query_memory(0)?;

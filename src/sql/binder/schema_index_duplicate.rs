@@ -10,24 +10,37 @@ fn check(controls: Option<&QueryExecutionControls>) -> Result<(), CassieError> {
     Ok(())
 }
 
-// Outer Option indicates eligibility; inner Option is an optional column reference.
-fn atom(expression: &Expr) -> Option<Option<&str>> {
+enum PredicateAtom<'a> {
+    Column(&'a str),
+    Literal,
+}
+
+fn atom(expression: &Expr) -> Option<PredicateAtom<'_>> {
     match expression {
-        Expr::Column(name) => Some(Some(name)),
+        Expr::Column(name) => Some(PredicateAtom::Column(name)),
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
         | Expr::NumericLiteral(_)
         | Expr::BoolLiteral(_)
-        | Expr::Null => Some(None),
+        | Expr::Null => Some(PredicateAtom::Literal),
         _ => None,
+    }
+}
+
+fn column(atom: PredicateAtom<'_>) -> Option<&str> {
+    match atom {
+        PredicateAtom::Column(name) => Some(name),
+        PredicateAtom::Literal => None,
     }
 }
 
 fn predicate_columns(expression: &Expr) -> Option<[Option<&str>; 2]> {
     match expression {
         Expr::Column(name) => Some([Some(name), None]),
-        Expr::Binary { left, right, .. } => Some([atom(left)?, atom(right)?]),
+        Expr::Binary { left, right, .. } => {
+            Some([column(atom(left)?), column(atom(right)?)])
+        }
         _ => None,
     }
 }

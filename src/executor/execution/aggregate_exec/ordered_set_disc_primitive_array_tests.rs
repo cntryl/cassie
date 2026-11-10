@@ -209,7 +209,7 @@ fn should_preserve_invalid_and_null_fraction_before_array_output() {
                 copied |= matches!(
                     progress,
                     FractionProgress::PrimitiveDimension | FractionProgress::PrimitiveElement
-                )
+                );
             },
         );
 

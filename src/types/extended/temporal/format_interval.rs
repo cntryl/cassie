@@ -19,17 +19,14 @@ pub(super) fn year_tail(
 }
 
 pub(super) fn roman_month(fields: Fields) -> usize {
+    use std::cmp::Ordering;
+
     let month = i64::from(fields.month);
-    let index = if month == 0 {
-        if fields.year < 0 {
-            0
-        } else {
-            11
-        }
-    } else if month < 0 {
-        month + 12
-    } else {
-        month - 1
+    let index = match month.cmp(&0) {
+        Ordering::Equal if fields.year < 0 => 0,
+        Ordering::Equal => 11,
+        Ordering::Less => month + 12,
+        Ordering::Greater => month - 1,
     };
     usize::try_from(index).unwrap_or(0).min(11)
 }

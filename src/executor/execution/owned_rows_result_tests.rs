@@ -167,7 +167,7 @@ fn should_keep_distinct_selected_output_owned_and_leave_empty_or_set_outputs_leg
             true,
             2,
         ),
-        (r#"SELECT json_object_keys('{}') AS keys"#, false, 0),
+        ("SELECT json_object_keys('{}') AS keys", false, 0),
         (
             r#"SELECT json_object_keys('{"a":1}') AS keys UNION SELECT 'b' AS keys"#,
             false,

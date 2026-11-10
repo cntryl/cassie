@@ -32,7 +32,7 @@ pub(in crate::executor) fn bound(
                 bytes = add(
                     bytes,
                     mul(vector.values.len(), std::mem::size_of::<SemanticValue>())?,
-                )?
+                )?;
             }
             _ => return Ok(None),
         }

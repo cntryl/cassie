@@ -329,6 +329,12 @@ pub(super) fn compare_with_controls<R: RowAccess + ?Sized>(
     Ok(crate::executor::filter::compare_sql_arrays(&left, &right))
 }
 
+pub(super) enum DirectJsonbArrayComparison {
+    NotApplicable,
+    Unordered,
+    Ordered(Ordering),
+}
+
 pub(super) fn compare_direct_jsonb_arrays<R: RowAccess + ?Sized>(
     row: &R,
     left: (&Expr, &crate::types::SqlArray),
@@ -336,9 +342,9 @@ pub(super) fn compare_direct_jsonb_arrays<R: RowAccess + ?Sized>(
     functions: &HashMap<String, FunctionMeta>,
     local_args: Option<&HashMap<String, Value>>,
     controls: &crate::runtime::QueryExecutionControls,
-) -> Result<Option<Option<Ordering>>, crate::app::CassieError> {
+) -> Result<DirectJsonbArrayComparison, crate::app::CassieError> {
     if !row.has_array_types() {
-        return Ok(None);
+        return Ok(DirectJsonbArrayComparison::NotApplicable);
     }
     let is_jsonb_column = |expr: &Expr| match expr {
         Expr::Column(name) => {
@@ -351,15 +357,18 @@ pub(super) fn compare_direct_jsonb_arrays<R: RowAccess + ?Sized>(
     if !((left_column && (right_column || matches!(right.0, Expr::Param(_))))
         || (right_column && matches!(left.0, Expr::Param(_))))
     {
-        return Ok(None);
+        return Ok(DirectJsonbArrayComparison::NotApplicable);
     }
     if !matches!(
         comparison_expression_types(row, left.0, right.0, functions, local_args),
         Some((DataType::Jsonb, DataType::Jsonb))
     ) {
-        return Ok(None);
+        return Ok(DirectJsonbArrayComparison::NotApplicable);
     }
-    crate::executor::filter::compare_sql_arrays_controlled(left.1, right.1, controls).map(Some)
+    Ok(match crate::executor::filter::compare_sql_arrays_controlled(left.1, right.1, controls)? {
+        Some(ordering) => DirectJsonbArrayComparison::Ordered(ordering),
+        None => DirectJsonbArrayComparison::Unordered,
+    })
 }
 
 fn comparison_types<R: RowAccess + ?Sized>(

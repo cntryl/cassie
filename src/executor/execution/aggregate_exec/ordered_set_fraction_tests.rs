@@ -52,7 +52,7 @@ fn should_preserve_scalar_null_empty_and_both_fraction_array_carriers() {
     .expect("empty")
     .expect("owner");
     assert!(empty.is_array);
-    assert!(empty.values.is_empty());
+    assert_eq!(empty.values, Vec::new());
     drop(empty);
     for value in [&native, &json] {
         let fractions = collect_fractions(value, false, &controls, &input, |_| {})

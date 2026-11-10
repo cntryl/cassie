@@ -6,6 +6,12 @@ use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::SelectItem;
 use crate::types::Value;
 
+#[cfg(test)]
+type SourceObservation = (
+    std::sync::Weak<crate::runtime::QueryMemoryReservation>,
+    std::rc::Rc<std::cell::Cell<bool>>,
+);
+
 #[path = "json_object_keys_chunks.rs"]
 mod chunks;
 pub(crate) use chunks::{OwnedExpanded, OwnedExpandedIter};
@@ -38,7 +44,7 @@ enum Progress {
 #[cfg(test)]
 thread_local! {
     static CANCEL_EXPAND: std::cell::RefCell<Option<(crate::runtime::QueryCancellationHandle, u8)>> = const { std::cell::RefCell::new(None) };
-    static OBSERVE_SOURCE: std::cell::RefCell<Option<(std::sync::Weak<crate::runtime::QueryMemoryReservation>, std::rc::Rc<std::cell::Cell<bool>>)>> = const { std::cell::RefCell::new(None) };
+    static OBSERVE_SOURCE: std::cell::RefCell<Option<SourceObservation>> = const { std::cell::RefCell::new(None) };
 }
 #[cfg(test)]
 pub(crate) fn cancel_expand_once(handle: crate::runtime::QueryCancellationHandle, stage: u8) {

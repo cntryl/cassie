@@ -425,7 +425,7 @@ fn should_preserve_object_key_expansion_in_outer_and_nested_pull_cursors() {
             ],
         ),
         (
-            r#"SELECT json_object_keys('{}') AS k FROM generate_series(1,2)"#,
+        "SELECT json_object_keys('{}') AS k FROM generate_series(1,2)",
             Vec::new(),
         ),
     ] {

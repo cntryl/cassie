@@ -12,7 +12,7 @@ fn should_match_existing_len_estimate_for_all_semantic_shapes() {
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let mut text = String::with_capacity(1024);
-    text.push_str("Ω");
+    text.push('Ω');
     let jsonb = JsonbKey::from_text("{}", None).expect("jsonb");
     let array = SqlArray::from_elements(vec![Value::Null]).expect("array");
     let jsonb_array =

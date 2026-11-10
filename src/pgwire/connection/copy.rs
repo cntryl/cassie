@@ -162,7 +162,7 @@ pub(super) async fn try_handle_simple_copy_query(
                 return SimpleCopyOutcome::ConnectionClosed;
             }
             if handle_simple_copy_from_stdin(
-                binding,
+                *binding,
                 session,
                 request,
                 *statement,
@@ -279,11 +279,11 @@ fn bind_copy_from_stdin(
     Ok(BoundCopyRequest::From(
         request,
         Box::new(statement),
-        CopyFromBinding {
+        Box::new(CopyFromBinding {
             cassie: Arc::new(scoped),
             owner,
             controls,
-        },
+        }),
     ))
 }
 
@@ -332,7 +332,7 @@ struct CopyFromBinding {
 }
 
 enum BoundCopyRequest {
-    From(CopyRequest, Box<CopyStatement>, CopyFromBinding),
+    From(CopyRequest, Box<CopyStatement>, Box<CopyFromBinding>),
     To(CopyRequest, String),
 }
 

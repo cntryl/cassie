@@ -65,28 +65,7 @@ pub(super) fn execute_copy_payload(
             (rows, Some(memory))
         }
     };
-    if request.header == CopyHeader::Match && !rows.is_empty() {
-        let fields = cassie
-            .catalog
-            .get_schema(&statement.table)
-            .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
-        let columns = crate::app::copy_columns(statement, &fields.fields)?;
-        let matches = rows[0].len() == columns.len()
-            && rows[0].iter().zip(&columns).all(|(header, column)| {
-                let expected = match column {
-                    crate::app::CopyColumn::Field(field) => field.name.as_str(),
-                    crate::app::CopyColumn::RowId => "id",
-                };
-                header.as_deref() == Some(expected)
-            });
-        if !matches {
-            return Err(crate::app::DiagnosticError::new(
-                "22P04",
-                "COPY CSV header does not match the target column list",
-            )
-            .into());
-        }
-    }
+    validate_copy_header(cassie, request, statement, &rows)?;
     if request.header != CopyHeader::None && !rows.is_empty() {
         rows.remove(0);
     }
@@ -125,6 +104,38 @@ pub(super) fn execute_copy_payload(
         command: format!("COPY {}", result.count),
         notices,
     })
+}
+
+fn validate_copy_header(
+    cassie: &Cassie,
+    request: &CopyRequest,
+    statement: &CopyStatement,
+    rows: &[Vec<Option<String>>],
+) -> Result<(), filter::CopyWhereError> {
+    if request.header != CopyHeader::Match || rows.is_empty() {
+        return Ok(());
+    }
+    let fields = cassie
+        .catalog
+        .get_schema(&statement.table)
+        .ok_or_else(|| CassieError::Parse("COPY target schema disappeared".to_string()))?;
+    let columns = crate::app::copy_columns(statement, &fields.fields)?;
+    let matches = rows[0].len() == columns.len()
+        && rows[0].iter().zip(&columns).all(|(header, column)| {
+            let expected = match column {
+                crate::app::CopyColumn::Field(field) => field.name.as_str(),
+                crate::app::CopyColumn::RowId => "id",
+            };
+            header.as_deref() == Some(expected)
+        });
+    if !matches {
+        return Err(crate::app::DiagnosticError::new(
+            "22P04",
+            "COPY CSV header does not match the target column list",
+        )
+        .into());
+    }
+    Ok(())
 }
 
 fn skipped_row_notices<'a>(

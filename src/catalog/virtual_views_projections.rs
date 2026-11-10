@@ -11,6 +11,12 @@ pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::
 }
 
 fn projection_schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
+    projection_summary_schema_factory(name).or_else(|| projection_detail_schema_factory(name))
+}
+
+fn projection_summary_schema_factory(
+    name: &str,
+) -> Option<super::virtual_views_schema::SchemaFactory> {
     match name {
         "pg_catalog.pg_projection_checkpoints" => Some(|| {
             vec![
@@ -63,6 +69,14 @@ fn projection_schema_factory(name: &str) -> Option<super::virtual_views_schema::
                 text("last_error"),
             ]
         }),
+        _ => None,
+    }
+}
+
+fn projection_detail_schema_factory(
+    name: &str,
+) -> Option<super::virtual_views_schema::SchemaFactory> {
+    match name {
         "pg_catalog.pg_projection_hashes" => Some(|| {
             vec![
                 text("projection_name"),

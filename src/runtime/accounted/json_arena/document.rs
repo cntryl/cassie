@@ -36,7 +36,7 @@ pub(super) mod exists;
 mod tests;
 
 #[derive(Debug, Clone, Copy)]
-enum SyntaxKind {
+pub(super) enum SyntaxKind {
     EofValue,
     EofList,
     EofObject,
@@ -51,7 +51,7 @@ enum SyntaxKind {
 }
 
 #[derive(Debug)]
-enum DocumentError {
+pub(super) enum DocumentError {
     Control(CassieError),
     Token(CursorError),
     Syntax(SyntaxKind, Position),
@@ -61,7 +61,7 @@ enum DocumentError {
 }
 
 #[derive(Debug)]
-enum WrappedCause {
+pub(super) enum WrappedCause {
     Syntax(SyntaxKind, Position),
     Token(CursorError),
     Number(NumberDiagnostic),
@@ -195,6 +195,12 @@ enum Phase {
     RawEndChecked,
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum ObjectPolicy {
+    Value,
+    Plain,
+}
+
 struct Frame {
     node: NodeId,
     phase: Phase,
@@ -254,7 +260,7 @@ impl Frames {
 }
 
 #[derive(Clone, Copy)]
-enum DocumentProgress {
+pub(super) enum DocumentProgress {
     FramePushed,
     NumberSourceReady,
     NumberDecoded,
@@ -291,6 +297,7 @@ pub(super) struct Document<'a> {
     frames: Frames,
     forest: Forest,
     controls: QueryExecutionControls,
+    object_policy: ObjectPolicy,
 }
 
 impl<'a> Document<'a> {
@@ -304,7 +311,9 @@ impl<'a> Document<'a> {
         input: &'a str,
         controls: &QueryExecutionControls,
     ) -> Result<Parsed, CassieError> {
-        Self::parse(input, controls)
+        let sources = SourceStack::from_str(input, controls)
+            .map_err(|_| CassieError::Execution("JSON output fixture failed to parse".into()))?;
+        Self::parse_sources_plain(sources, controls, |_| {})
             .map_err(|_| CassieError::Execution("JSON output fixture failed to parse".into()))
     }
 
@@ -330,6 +339,23 @@ impl<'a> Document<'a> {
     fn parse_sources(
         sources: SourceStack<'a>,
         controls: &QueryExecutionControls,
+        observer: impl FnMut(DocumentProgress),
+    ) -> Result<Parsed, DocumentError> {
+        Self::parse_sources_with_policy(sources, controls, ObjectPolicy::Value, observer)
+    }
+
+    pub(super) fn parse_sources_plain(
+        sources: SourceStack<'a>,
+        controls: &QueryExecutionControls,
+        observer: impl FnMut(DocumentProgress),
+    ) -> Result<Parsed, DocumentError> {
+        Self::parse_sources_with_policy(sources, controls, ObjectPolicy::Plain, observer)
+    }
+
+    pub(super) fn parse_sources_with_policy(
+        sources: SourceStack<'a>,
+        controls: &QueryExecutionControls,
+        object_policy: ObjectPolicy,
         mut observer: impl FnMut(DocumentProgress),
     ) -> Result<Parsed, DocumentError> {
         let mut document = Self {
@@ -337,6 +363,7 @@ impl<'a> Document<'a> {
             frames: Frames::new(controls)?,
             forest: Forest::new(controls)?,
             controls: controls.clone(),
+            object_policy,
         };
         let root = match document.run(&mut observer) {
             Ok(root) => root,
@@ -499,10 +526,12 @@ impl<'a> Document<'a> {
             Some(_) => return Err(self.syntax(SyntaxKind::ExpectedKey)?),
         }
         let key = self.sources.step(Cursor::read_string)?;
-        let number_sentinel =
-            matches!(phase, Phase::ObjectFirst) && key.as_str() == "$serde_json::private::Number";
-        let raw_sentinel =
-            matches!(phase, Phase::ObjectFirst) && key.as_str() == "$serde_json::private::RawValue";
+        let number_sentinel = matches!(self.object_policy, ObjectPolicy::Value)
+            && matches!(phase, Phase::ObjectFirst)
+            && key.as_str() == "$serde_json::private::Number";
+        let raw_sentinel = matches!(self.object_policy, ObjectPolicy::Value)
+            && matches!(phase, Phase::ObjectFirst)
+            && key.as_str() == "$serde_json::private::RawValue";
         match self.whitespace()? {
             Some(b':') => {
                 self.consume()?;

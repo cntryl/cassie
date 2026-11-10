@@ -127,9 +127,20 @@ pub(super) fn evaluate(
     let ScalarValue::Json(document) = left else {
         return Err(operator_input_error(op));
     };
-    let document = serde_json::from_str::<JsonValue>(document)
-        .map_err(|error| QueryError::General(format!("invalid JSON document: {error}")))?;
-    let exists = |key: &str| match &document {
+    let document = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        document.as_bytes(),
+        None,
+    )
+    .map_err(|error| match error {
+        crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+            QueryError::General(format!(
+                "invalid JSON document: {}",
+                crate::runtime::accounted::json_arena::syntax_error(document.as_bytes())
+            ))
+        }
+        crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error.into(),
+    })?;
+    let exists = |key: &str| match document.get() {
         JsonValue::Object(object) => object.contains_key(key),
         JsonValue::Array(values) => values.iter().any(|value| value.as_str() == Some(key)),
         JsonValue::String(value) => value == key,

@@ -106,7 +106,7 @@ fn probe_loaded_phase(phase: JoinRetentionPhase) -> Result<JoinResult, CassieErr
     let input_bytes = controls.current_query_memory_bytes();
     assert!(input_bytes >= 2 * 8192);
     assert!(input_bytes < controls.query_memory_budget_bytes);
-    assert!(!controls.is_cancelled());
+    assert!(!controls.is_canceled());
     assert!(controls.deadline.is_none());
     let canary_calls = Cell::new(0);
     let canary = |selected| {

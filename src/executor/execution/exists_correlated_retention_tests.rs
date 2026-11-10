@@ -247,15 +247,15 @@ fn should_cancel_scoped_copy_without_losing_input_ownership() {
         cancellation.cancel();
 
         // Act
-        let cancelled = scoped(cassie, logical, &row, &controls);
+        let canceled = scoped(cassie, logical, &row, &controls);
 
         // Assert
         assert!(
             matches!(
-                cancelled,
+                canceled,
                 Err(QueryError::General(ref message)) if message == "query canceled"
             ),
-            "{cancelled:?}"
+            "{canceled:?}"
         );
         assert_eq!(controls.current_query_memory_bytes(), bytes);
         drop(row);

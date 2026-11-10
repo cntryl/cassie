@@ -79,7 +79,7 @@ fn should_release_analysis_copy_given_invalid_input_when_binding_fails() {
 }
 
 #[test]
-fn should_cancel_analysis_given_cancelled_request_when_no_copy_has_been_allocated() {
+fn should_cancel_analysis_given_canceled_request_when_no_copy_has_been_allocated() {
     // Arrange
     let parsed = parse_statement("SELECT 7").expect("parse");
     let cancellation = QueryCancellationHandle::new();
@@ -98,7 +98,7 @@ fn should_cancel_analysis_given_cancelled_request_when_no_copy_has_been_allocate
         &controls,
     );
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

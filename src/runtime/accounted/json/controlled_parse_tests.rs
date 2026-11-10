@@ -94,7 +94,7 @@ fn should_interrupt_owned_json_during_actual_reader_consumption() {
     assert!(matches!(
         result,
         Err(super::ParseError::Controlled(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
     assert!(controls.peak_query_memory_bytes() > 0);
@@ -125,7 +125,7 @@ fn should_report_cancellation_observed_while_serde_unwinds_a_prior_visitor_error
     assert!(matches!(
         result,
         Err(super::ParseError::Controlled(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);

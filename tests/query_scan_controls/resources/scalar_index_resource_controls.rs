@@ -166,7 +166,7 @@ fn should_cancel_at_a_deterministic_scalar_index_entry_without_leaking_reservati
         .saturating_sub(before);
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(visited, 3);
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),

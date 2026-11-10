@@ -87,7 +87,7 @@ fn should_release_chunk_with_source_owners_after_actual_directory_or_move_cancel
         // Act
         let result = json_object_keys::expand(batches, &projection, &controls);
         // Assert
-        assert!(cancel.is_cancelled(), "stage {stage}");
+        assert!(cancel.is_canceled(), "stage {stage}");
         assert!(result.is_err(), "stage {stage}");
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -108,7 +108,7 @@ fn should_release_owned_batches_on_flatten_boundary_cancellation() {
     // Act
     let result = expanded.flatten(&controls);
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -208,7 +208,7 @@ fn should_release_both_directory_leases_after_actual_flatten_move_cancellation()
     // Act
     let result = expanded.flatten(&controls);
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

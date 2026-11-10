@@ -4,7 +4,7 @@ use std::time::Instant;
 use super::{Cassie, CassieError, CassieSession, TransactionRowChange, Uuid};
 use crate::catalog::FieldMeta;
 use crate::midge::adapter::DocumentWriteOp;
-use crate::runtime::QueryCancellationHandle;
+use crate::runtime::{QueryCancellationHandle, QueryExecutionControls, QueryMemoryReservation};
 use crate::sql::ast::{CopyFormat, CopyStatement};
 use crate::types::DataType;
 
@@ -325,7 +325,7 @@ impl Cassie {
 
         for (row_index, row) in rows.into_iter().enumerate() {
             check_copy_cancellation(cancellation)?;
-            let input = match convert_copy_row(columns, row, row_index + 1, options)? {
+            let input = match convert_copy_row(columns, row, row_index + 1, options, controls)? {
                 CopyRowOutcome::Accepted(input) => input,
                 CopyRowOutcome::Skipped(rejected) => {
                     skipped_rows = skipped_rows.saturating_add(1);
@@ -339,7 +339,13 @@ impl Cassie {
                     continue;
                 }
             };
-            let row_id = input.row_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+            let CopyInputRow {
+                row_id,
+                payload: input_payload,
+                explicit_json_nulls,
+                memory: _input_memory,
+            } = input;
+            let row_id = row_id.unwrap_or_else(|| Uuid::new_v4().to_string());
             if !seen_ids.insert(row_id.clone()) {
                 return Err(CassieError::Parse(format!(
                     "COPY row {} duplicates row id '{}'",
@@ -350,8 +356,8 @@ impl Cassie {
 
             let payload = working.apply_insert_defaults(
                 &statement.table,
-                serde_json::Value::Object(input.payload),
-                &input.explicit_json_nulls,
+                serde_json::Value::Object(input_payload),
+                &explicit_json_nulls,
                 Some(staging),
             )?;
             let (prepared, constraints) = working.prepare_document_write_deferring_foreign_keys(
@@ -375,33 +381,57 @@ impl Cassie {
             return Ok((affected, None, skipped));
         }
 
-        // Autocommit COPY has no COMMIT, so run its parent-side check here: an
-        // explicit `_id` can replace a referenced key that children still use.
-        self.validate_staged_parent_references(staging)?;
-        let writes = staging
-            .transaction_writes()
-            .remove(&statement.table)
-            .unwrap_or_default();
-        if writes.is_empty() {
-            return Ok((0, None, skipped));
-        }
-
-        let operations = copy_write_operations(writes)?;
-        check_copy_cancellation(cancellation)?;
-        let options = self.buffered_document_write_options(&statement.table);
-        let report = self.midge.apply_document_write_batch_with_options(
+        apply_autocommit_copy_rows(
+            self,
+            staging,
             &statement.table,
-            operations,
-            &options,
-        )?;
-        Ok((affected, Some(report.stats), skipped))
+            cancellation,
+            affected,
+            skipped,
+        )
     }
+}
+
+fn apply_autocommit_copy_rows(
+    cassie: &Cassie,
+    staging: &CassieSession,
+    table: &str,
+    cancellation: Option<&QueryCancellationHandle>,
+    affected: usize,
+    skipped: Vec<CopySkippedRow>,
+) -> Result<
+    (
+        usize,
+        Option<crate::runtime::ProjectionWriteStats>,
+        Vec<CopySkippedRow>,
+    ),
+    CassieError,
+> {
+    // Autocommit COPY has no COMMIT, so run its parent-side check here: an
+    // explicit `_id` can replace a referenced key that children still use.
+    cassie.validate_staged_parent_references(staging)?;
+    let writes = staging
+        .transaction_writes()
+        .remove(table)
+        .unwrap_or_default();
+    if writes.is_empty() {
+        return Ok((0, None, skipped));
+    }
+
+    let operations = copy_write_operations(writes)?;
+    check_copy_cancellation(cancellation)?;
+    let options = cassie.buffered_document_write_options(table);
+    let report = cassie
+        .midge
+        .apply_document_write_batch_with_options(table, operations, &options)?;
+    Ok((affected, Some(report.stats), skipped))
 }
 
 struct CopyInputRow<'a> {
     row_id: Option<String>,
     payload: serde_json::Map<String, serde_json::Value>,
     explicit_json_nulls: Vec<&'a str>,
+    memory: Vec<QueryMemoryReservation>,
 }
 
 enum CopyRowOutcome<'a> {
@@ -414,6 +444,7 @@ fn convert_copy_row<'a>(
     row: Vec<Option<String>>,
     line: usize,
     options: CopyIngestOptions<'_>,
+    controls: &QueryExecutionControls,
 ) -> Result<CopyRowOutcome<'a>, CassieError> {
     if row.len() != columns.len() {
         return Err(super::DiagnosticError::new(
@@ -430,6 +461,7 @@ fn convert_copy_row<'a>(
     let mut row_id = None;
     let mut payload = serde_json::Map::new();
     let mut explicit_json_nulls = Vec::new();
+    let mut memory = Vec::new();
     for (column, value) in columns.iter().zip(row) {
         match column {
             CopyColumn::RowId => {
@@ -449,8 +481,14 @@ fn convert_copy_row<'a>(
                     continue;
                 }
                 let source_value = value.clone();
-                match copy_value_to_json(value, field) {
-                    Ok(value) => {
+                match copy_value_to_json(value, field, controls) {
+                    Ok((value, field_memory)) => {
+                        if let Some(field_memory) = field_memory {
+                            memory.try_reserve_exact(1).map_err(|error| {
+                                crate::runtime::owned_memory::allocation_error(&error)
+                            })?;
+                            memory.push(field_memory);
+                        }
                         payload.insert(field.name.clone(), value);
                     }
                     Err(error) if options.on_error_ignore && is_copy_input_error(&error) => {
@@ -470,6 +508,7 @@ fn convert_copy_row<'a>(
         row_id,
         payload,
         explicit_json_nulls,
+        memory,
     }))
 }
 
@@ -480,8 +519,8 @@ fn is_copy_input_error(error: &CassieError) -> bool {
 fn check_copy_cancellation(
     cancellation: Option<&QueryCancellationHandle>,
 ) -> Result<(), CassieError> {
-    if cancellation.is_some_and(QueryCancellationHandle::is_cancelled) {
-        Err(CassieError::QueryCancelled)
+    if cancellation.is_some_and(QueryCancellationHandle::is_canceled) {
+        Err(CassieError::QueryCanceled)
     } else {
         Ok(())
     }
@@ -595,12 +634,34 @@ fn copy_write_operations(
 fn copy_value_to_json(
     value: Option<String>,
     field: &FieldMeta,
-) -> Result<serde_json::Value, CassieError> {
+    controls: &QueryExecutionControls,
+) -> Result<(serde_json::Value, Option<QueryMemoryReservation>), CassieError> {
     let Some(value) = value else {
-        return Ok(serde_json::Value::Null);
+        return Ok((serde_json::Value::Null, None));
     };
 
-    match &field.data_type {
+    if matches!(&field.data_type, DataType::Json | DataType::Jsonb) {
+        let parsed = crate::runtime::accounted::json_arena::parse_value(value.as_bytes(), controls)
+            .map_err(|error| match error {
+                crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+                    let detail =
+                        crate::runtime::accounted::json_arena::syntax_error(value.as_bytes());
+                    super::DiagnosticError::new(
+                        "22P02",
+                        format!("field '{}' expects JSON: {detail}", field.name),
+                    )
+                    .into()
+                }
+                crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error,
+            })?;
+        if field.data_type == DataType::Jsonb {
+            crate::types::jsonb::format(parsed.get()).map_err(CassieError::TypeInput)?;
+        }
+        let (value, memory) = parsed.into_parts();
+        return Ok((value, Some(memory)));
+    }
+
+    let value = match &field.data_type {
         DataType::SmallInt | DataType::Int | DataType::BigInt => {
             copy_integer_value(&value, &field.data_type)
         }
@@ -636,14 +697,13 @@ fn copy_value_to_json(
                 }
             })
         }
-        DataType::Json | DataType::Jsonb | DataType::Vector(_) => serde_json::from_str(&value)
-            .map_err(|error| {
-                super::DiagnosticError::new(
-                    "22P02",
-                    format!("field '{}' expects JSON: {error}", field.name),
-                )
-                .into()
-            }),
+        DataType::Vector(_) => serde_json::from_str(&value).map_err(|error| {
+            super::DiagnosticError::new(
+                "22P02",
+                format!("field '{}' expects JSON: {error}", field.name),
+            )
+            .into()
+        }),
         DataType::Name => Ok(serde_json::Value::String(crate::types::name::parse_text(
             &value,
         ))),
@@ -657,7 +717,9 @@ fn copy_value_to_json(
         | DataType::Date
         | DataType::Time
         | DataType::Timestamp => Ok(serde_json::Value::String(value)),
-    }
+        DataType::Json | DataType::Jsonb => unreachable!("JSON fields use the controlled parser"),
+    }?;
+    Ok((value, None))
 }
 
 fn copy_integer_value(value: &str, data_type: &DataType) -> Result<serde_json::Value, CassieError> {

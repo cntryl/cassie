@@ -224,8 +224,8 @@ fn check_publication_controls(
     let Some(controls) = controls else {
         return Ok(());
     };
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     if controls.is_timed_out() {
         return Err(CassieError::DeadlineExceeded);

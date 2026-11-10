@@ -230,7 +230,7 @@ fn should_cancel_a_publication_wait_before_submitting_a_native_commit() {
 
     // Act
     cancellation.cancel();
-    resume_tx.send(()).expect("resume cancelled waiter");
+    resume_tx.send(()).expect("resume canceled waiter");
     done_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("retire without releasing gate");
@@ -240,7 +240,7 @@ fn should_cancel_a_publication_wait_before_submitting_a_native_commit() {
     // Assert
     assert!(matches!(
         result,
-        Err(AdapterCommitError::Cassie(CassieError::QueryCancelled))
+        Err(AdapterCommitError::Cassie(CassieError::QueryCanceled))
     ));
     assert!(!submitted);
 }
@@ -323,7 +323,7 @@ fn should_preserve_rest_cancellation_for_an_explicit_snapshot_window() {
     });
 
     // Assert
-    assert!(matches!(blocked, Err(CassieError::QueryCancelled)));
+    assert!(matches!(blocked, Err(CassieError::QueryCanceled)));
     assert!(!submitted.get());
 }
 

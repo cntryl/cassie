@@ -16,7 +16,7 @@ use crate::runtime::{QueryCancellationHandle, QueryExecutionControls, QueryMemor
 mod deadline_tests;
 
 pub(super) enum CopyReadOutcome {
-    Cancelled,
+    Canceled,
     DeadlineIdle,
     DeadlinePartial,
     FramingInvalid,
@@ -26,9 +26,9 @@ pub(super) enum CopyReadOutcome {
     Message(Result<FrontendMessage, HandshakeError>),
 }
 
-async fn cancelled(cancellation: Option<&QueryCancellationHandle>) {
+async fn canceled(cancellation: Option<&QueryCancellationHandle>) {
     if let Some(cancellation) = cancellation {
-        cancellation.wait_cancelled().await;
+        cancellation.wait_canceled().await;
     } else {
         pending::<()>().await;
     }
@@ -50,7 +50,7 @@ pub(super) async fn read_copy_frontend_message_with_deadline(
 ) -> CopyReadOutcome {
     let tag = tokio::select! {
         biased;
-        () = cancelled(cancellation) => return CopyReadOutcome::Cancelled,
+        () = canceled(cancellation) => return CopyReadOutcome::Canceled,
         tag = read_frontend_tag(reader) => match tag {
             Ok(tag) => tag,
             Err(error) => return CopyReadOutcome::Message(Err(error)),
@@ -64,8 +64,8 @@ pub(super) async fn read_copy_frontend_message_with_deadline(
         message = read_frontend_message_after_tag(reader, tag) => message,
         () = deadline_elapsed(deadline) => return CopyReadOutcome::DeadlinePartial,
     };
-    if cancellation.is_some_and(QueryCancellationHandle::is_cancelled) {
-        CopyReadOutcome::Cancelled
+    if cancellation.is_some_and(QueryCancellationHandle::is_canceled) {
+        CopyReadOutcome::Canceled
     } else {
         CopyReadOutcome::Message(message)
     }
@@ -86,7 +86,7 @@ pub(super) async fn select_copy_read(
 ) -> CopyReadOutcome {
     tokio::select! {
         biased;
-        () = cancellation.wait_cancelled() => CopyReadOutcome::Cancelled,
+        () = cancellation.wait_canceled() => CopyReadOutcome::Canceled,
         message = message => CopyReadOutcome::Message(message),
     }
 }
@@ -99,7 +99,7 @@ pub(super) async fn read_admitted_copy_message(
 ) -> CopyReadOutcome {
     let tag = tokio::select! {
         biased;
-        () = cancelled(cancellation) => return CopyReadOutcome::Cancelled,
+        () = canceled(cancellation) => return CopyReadOutcome::Canceled,
         tag = read_frontend_tag(reader) => match tag {
             Ok(tag) => tag,
             Err(error) => return CopyReadOutcome::AdmittedMessage(Err(error)),
@@ -114,15 +114,15 @@ pub(super) async fn read_admitted_copy_message(
     if matches!(&message, Err(AdmittedBodyError::FramingInvalid)) {
         return CopyReadOutcome::FramingInvalid;
     }
-    if cancellation.is_some_and(QueryCancellationHandle::is_cancelled) {
-        return CopyReadOutcome::Cancelled;
+    if cancellation.is_some_and(QueryCancellationHandle::is_canceled) {
+        return CopyReadOutcome::Canceled;
     }
     let decoded = match message {
         Ok((payload, memory)) => decode_admitted_frame(tag, memory, payload, controls).await,
         Err(error) => Err(error),
     };
-    if cancellation.is_some_and(QueryCancellationHandle::is_cancelled) {
-        return CopyReadOutcome::Cancelled;
+    if cancellation.is_some_and(QueryCancellationHandle::is_canceled) {
+        return CopyReadOutcome::Canceled;
     }
     match decoded {
         Ok(message) => CopyReadOutcome::AdmittedMessage(Ok(message)),

@@ -13,7 +13,11 @@ pub(super) fn evaluate(
         return Some(Err(error));
     }
     match name {
-        "_cassie_array_value" => Some(array_value(args)),
+        "_cassie_array_value" => Some(array_value(
+            args,
+            context.controls,
+            context.memory.is_some(),
+        )),
         "cardinality" => Some(cardinality(args)),
         "array_length" => Some(array_length(args)),
         "array_cat" => Some(array_cat(args)),
@@ -37,16 +41,51 @@ pub(super) fn evaluate(
     }
 }
 
-fn array_value(args: &[Value]) -> Result<Value, QueryError> {
+fn array_value(
+    args: &[Value],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory_admitted: bool,
+) -> Result<Value, QueryError> {
     let [Value::String(serialized)] = args else {
         return Err(invalid_call("array value"));
     };
-    let storage: serde_json::Value = serde_json::from_str(serialized).map_err(|error| {
-        QueryError::Cassie(crate::app::CassieError::ArrayInput(error.to_string()))
-    })?;
-    crate::types::SqlArray::from_storage_json(&storage)
+    let (storage, parse_memory) = if let (Some(controls), true) = (controls, memory_admitted) {
+        (
+            crate::runtime::accounted::json_arena::parse_value_in_reserved_memory(
+                serialized.as_bytes(),
+                controls,
+            )
+            .map_err(|error| array_storage_parse_error(error, serialized.as_bytes()))?,
+            None,
+        )
+    } else {
+        let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+            serialized.as_bytes(),
+            controls,
+        )
+        .map_err(|error| array_storage_parse_error(error, serialized.as_bytes()))?;
+        let (value, reservation) = parsed.into_parts();
+        (value, Some(reservation))
+    };
+    let array = crate::types::SqlArray::from_storage_json(&storage);
+    drop(parse_memory);
+    array
         .map(Value::Array)
         .map_err(|error| QueryError::Cassie(crate::app::CassieError::ArrayInput(error)))
+}
+
+fn array_storage_parse_error(
+    error: crate::runtime::accounted::json_arena::ValueParseError,
+    input: &[u8],
+) -> QueryError {
+    match error {
+        crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+            QueryError::Cassie(crate::app::CassieError::ArrayInput(
+                crate::runtime::accounted::json_arena::syntax_error(input),
+            ))
+        }
+        crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error.into(),
+    }
 }
 
 fn array_cat(args: &[Value]) -> Result<Value, QueryError> {

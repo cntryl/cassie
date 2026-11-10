@@ -134,7 +134,7 @@ fn should_cancel_cycle_comparison_after_actual_typed_equality() {
     assert_eq!(observed, 1);
     assert!(matches!(
         result.map_err(crate::app::CassieError::from),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

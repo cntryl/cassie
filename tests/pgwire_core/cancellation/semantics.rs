@@ -75,7 +75,7 @@ fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
             support::read_frames_until_ready(&mut query_reader),
         )
         .await
-        .expect("cancelled query should finish promptly");
+        .expect("canceled query should finish promptly");
 
         // Assert
         let error = frames

@@ -1,8 +1,15 @@
 pub(super) fn equal(left: &str, right: &str) -> Option<bool> {
-    serde_json::from_str::<serde_json::Value>(left)
-        .ok()
-        .zip(serde_json::from_str::<serde_json::Value>(right).ok())
-        .map(|(left, right)| values_equal(&left, &right))
+    let left = parse(left)?;
+    let right = parse(right)?;
+    Some(values_equal(left.get(), right.get()))
+}
+
+fn parse(input: &str) -> Option<crate::runtime::accounted::Accounted<serde_json::Value>> {
+    crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        input.as_bytes(),
+        None,
+    )
+    .ok()
 }
 
 fn values_equal(left: &serde_json::Value, right: &serde_json::Value) -> bool {

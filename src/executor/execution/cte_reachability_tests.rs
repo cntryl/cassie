@@ -50,7 +50,7 @@ fn should_own_dependency_masks_given_returned_analysis_when_execution_has_not_st
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 #[test]
-fn should_cancel_dependency_analysis_given_cancelled_controls_when_ctes_are_present() {
+fn should_cancel_dependency_analysis_given_canceled_controls_when_ctes_are_present() {
     // Arrange
     let select = select("WITH a AS (SELECT 1) SELECT 7");
     let cancellation = QueryCancellationHandle::new();
@@ -63,7 +63,7 @@ fn should_cancel_dependency_analysis_given_cancelled_controls_when_ctes_are_pres
     // Act
     let result = used(&SelectParts::of(&select), &controls);
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.peak_query_memory_bytes(), 0);
 }
 #[test]

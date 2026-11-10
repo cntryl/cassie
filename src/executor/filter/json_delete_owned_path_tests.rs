@@ -222,7 +222,7 @@ fn should_preserve_empty_with_null_flat_path_semantics() {
 }
 
 #[test]
-fn should_release_the_parsed_path_when_cancelled_before_rendering() {
+fn should_release_the_parsed_path_when_canceled_before_rendering() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = controls(cancellation.clone());
@@ -233,7 +233,7 @@ fn should_release_the_parsed_path_when_cancelled_before_rendering() {
     // Act
     let result = json_delete::controlled_path(&left, &right, &controls, &owner);
     // Assert
-    assert!(cancellation.is_cancelled());
+    assert!(cancellation.is_canceled());
     assert!(result.is_err());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -304,7 +304,7 @@ fn should_leave_malformed_json_array_operands_to_the_legacy_error_path() {
 }
 
 #[test]
-fn should_release_the_json_array_arena_when_cancelled_before_rendering() {
+fn should_release_the_json_array_arena_when_canceled_before_rendering() {
     // Arrange
     let cancel = QueryCancellationHandle::new();
     let controls = controls(cancel.clone());
@@ -315,7 +315,7 @@ fn should_release_the_json_array_arena_when_cancelled_before_rendering() {
     // Act
     let result = json_delete::controlled_path(&left, &right, &controls, &owner);
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -394,7 +394,7 @@ fn should_release_extraction_path_after_actual_parse_before_selection() {
     let result =
         json_delete::controlled_extraction(&document, &path, true, true, false, &controls, &owner);
     // Assert
-    assert!(cancellation.is_cancelled());
+    assert!(cancellation.is_canceled());
     assert!(result.is_err());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);

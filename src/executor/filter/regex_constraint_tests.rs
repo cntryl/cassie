@@ -131,7 +131,7 @@ fn should_cancel_constraint_work_after_interpreter_progress() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(steps, 32);
     assert_eq!(after_error, retained);
@@ -205,7 +205,7 @@ fn should_check_interruption_while_skipping_unrelated_priority_tags() {
     let mut check = || {
         checks += 1;
         if checks == 4 {
-            Err(CassieError::QueryCancelled.into())
+            Err(CassieError::QueryCanceled.into())
         } else {
             Ok(())
         }
@@ -225,7 +225,7 @@ fn should_check_interruption_while_skipping_unrelated_priority_tags() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(offset, 3);
 }

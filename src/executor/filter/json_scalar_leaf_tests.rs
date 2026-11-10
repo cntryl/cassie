@@ -171,7 +171,7 @@ fn should_release_shared_owner_after_actual_compact_copy_cancellation() {
     let result = from_value(&value, context);
 
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     drop(result);
     drop(owner);

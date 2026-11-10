@@ -489,7 +489,7 @@ fn load_persisted_fulltext_read(
         Err(error)
             if matches!(
                 error,
-                crate::app::CassieError::QueryCancelled
+                crate::app::CassieError::QueryCanceled
                     | crate::app::CassieError::DeadlineExceeded
                     | crate::app::CassieError::ResourceLimit(_)
             ) =>

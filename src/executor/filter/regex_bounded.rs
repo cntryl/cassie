@@ -436,7 +436,7 @@ mod tests {
     }
 
     #[test]
-    fn should_skip_native_regex_allocation_for_cancelled_requests() {
+    fn should_skip_native_regex_allocation_for_canceled_requests() {
         // Arrange
         let cancellation = QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
@@ -452,7 +452,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.peak_query_memory_bytes(), 0);
         assert_eq!(controls.current_query_memory_bytes(), 0);

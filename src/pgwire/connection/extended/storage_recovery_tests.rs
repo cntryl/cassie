@@ -31,6 +31,7 @@ fn fixture(sql: &str) -> (Arc<Cassie>, CassieSession, SessionState) {
             statement_name: "source".to_owned(),
             prepared_id: 1,
             params: Vec::new(),
+            parameter_memory: Vec::new(),
             result_formats: Vec::new(),
             described: false,
             suspended: None,

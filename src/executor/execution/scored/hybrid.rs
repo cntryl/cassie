@@ -459,8 +459,8 @@ fn collect_candidate_ids_controlled(
     let mut candidates = BTreeSet::new();
     let mut memory = controls.reserve_query_memory(0)?;
     for id in ids {
-        if controls.is_cancelled() {
-            return Err(crate::app::CassieError::QueryCancelled);
+        if controls.is_canceled() {
+            return Err(crate::app::CassieError::QueryCanceled);
         }
         if controls.is_timed_out() {
             return Err(crate::app::CassieError::DeadlineExceeded);
@@ -481,7 +481,7 @@ fn collect_candidate_ids_controlled(
 fn is_query_control_error(error: &crate::app::CassieError) -> bool {
     matches!(
         error,
-        crate::app::CassieError::QueryCancelled
+        crate::app::CassieError::QueryCanceled
             | crate::app::CassieError::DeadlineExceeded
             | crate::app::CassieError::ResourceLimit(_)
     )

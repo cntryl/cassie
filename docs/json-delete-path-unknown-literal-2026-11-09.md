@@ -30,7 +30,7 @@ The selected unknown-left choice and its oracle evidence are recorded below.
 Binder-level and pgwire tests cover valid nested/empty paths, both unknown
 operands, NULL, explicit TEXT, malformed literal and multidimensional rejection.
 A PG18.6 oracle established the listed results; no Cassie build, tests or
-clippy have run. No issue-completion or full JSONB migration claim is made.
+clippy have run. No issue-completion or full JSONB sentinel-round-trip completion claim is made.
 
 Jev selected both direct unknown literal coercions (0.90; RHS-only 0.06;
 semantic/priority lead 0.77), receipt

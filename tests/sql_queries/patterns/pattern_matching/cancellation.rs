@@ -22,7 +22,7 @@ fn should_cancel_active_regex_work_before_output_publication() {
     let result = crate::support_regex_cancellation::run(sql);
 
     // Assert
-    let wire = &result.cancelled;
+    let wire = &result.canceled;
     assert_eq!(crate::support_pgwire::error_code(wire).as_deref(), Some("57014"));
     assert_eq!(
         crate::support_pgwire::data_rows(wire),
@@ -52,7 +52,7 @@ fn should_cancel_active_are_constraint_work_before_output_publication() {
     let result = crate::support_regex_cancellation::run(sql);
 
     // Assert
-    let wire = &result.cancelled;
+    let wire = &result.canceled;
     assert_eq!(crate::support_pgwire::error_code(wire).as_deref(), Some("57014"));
     assert_eq!(
         crate::support_pgwire::data_rows(wire),

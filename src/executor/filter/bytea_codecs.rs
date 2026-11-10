@@ -170,7 +170,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(crate::app::CassieError::QueryCancelled)
+            Err(crate::app::CassieError::QueryCanceled)
         ));
         drop(work);
         assert_eq!(controls.current_query_memory_bytes(), 0);

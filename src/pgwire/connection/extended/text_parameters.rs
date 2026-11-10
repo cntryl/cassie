@@ -6,6 +6,7 @@
 //! accepts exactly the spellings the PostgreSQL input function accepts.
 
 use super::ExtendedQueryError;
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::builtin::{builtin_for_oid, BuiltinKind};
 use crate::types::extended::ExtendedType;
 use crate::types::{DataType, Value};
@@ -13,6 +14,26 @@ use crate::types::{DataType, Value};
 // Text-only historical numeric adapters; their complete types/codecs remain staged.
 const OID_FLOAT4: i32 = 700;
 const OID_NUMERIC: i32 = 1700;
+const OID_JSON: i32 = 114;
+const OID_JSONB: i32 = 3802;
+
+#[cfg(test)]
+#[path = "text_parameters_tests.rs"]
+mod tests;
+
+pub(super) struct DecodedTextParameter {
+    pub(super) value: Value,
+    pub(super) memory: Option<QueryMemoryReservation>,
+}
+
+impl DecodedTextParameter {
+    pub(super) fn unaccounted(value: Value) -> Self {
+        Self {
+            value,
+            memory: None,
+        }
+    }
+}
 
 /// Temporal text parameters decode natively; zone-free `timestamptz`
 /// text stays text for the statement's `TimeZone`.
@@ -29,13 +50,17 @@ fn temporal_parameter(text: &str, kind: ExtendedType) -> Result<Value, ExtendedQ
 pub(super) fn decode_text_parameter(
     parameter: &[u8],
     oid: i32,
-) -> Result<Value, ExtendedQueryError> {
+    controls: &QueryExecutionControls,
+) -> Result<DecodedTextParameter, ExtendedQueryError> {
     let text = encoding::decode(parameter)?;
+    if matches!(oid, OID_JSON | OID_JSONB) {
+        return decode_json_text_parameter(text, oid, controls);
+    }
     let kind = u32::try_from(oid)
         .ok()
         .and_then(builtin_for_oid)
         .map(|metadata| metadata.kind);
-    match kind {
+    let value = match kind {
         Some(BuiltinKind::Bool) => parse_bool(text).map(Value::Bool),
         Some(BuiltinKind::Int2) => parse_integer(text, crate::types::IntegerWidth::I16),
         Some(BuiltinKind::Int4) => parse_integer(text, crate::types::IntegerWidth::I32),
@@ -49,17 +74,6 @@ pub(super) fn decode_text_parameter(
         }
         _ if oid == OID_NUMERIC => parse_numeric(text),
         _ if oid == OID_FLOAT4 => parse_float(text).map(Value::Float64),
-        Some(BuiltinKind::Jsonb) => {
-            crate::types::jsonb::canonical(text).map_err(|error| {
-                ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
-            })?;
-            serde_json::from_str(text)
-                .map(Value::Json)
-                .map_err(|_| ExtendedQueryError::protocol("invalid JSONB bind parameter"))
-        }
-        Some(BuiltinKind::Json) => serde_json::from_str(text)
-            .map(Value::Json)
-            .map_err(|_| ExtendedQueryError::protocol("invalid JSON bind parameter")),
         Some(BuiltinKind::JsonPath) => sql_json_path::JsonPath::new(text)
             .map(|path| Value::String(path.to_string()))
             .map_err(|error| {
@@ -86,7 +100,43 @@ pub(super) fn decode_text_parameter(
             .map(Value::String)
             .map_err(|error| ExtendedQueryError::cassie(&error.into())),
         _ => decode_array_or_text(text, oid),
+    }?;
+    Ok(DecodedTextParameter::unaccounted(value))
+}
+
+fn decode_json_text_parameter(
+    text: &str,
+    oid: i32,
+    controls: &QueryExecutionControls,
+) -> Result<DecodedTextParameter, ExtendedQueryError> {
+    let parsed = match crate::runtime::accounted::json_arena::parse_value(text.as_bytes(), controls)
+    {
+        Ok(parsed) => parsed,
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Controlled(error)) => {
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Invalid) if oid == OID_JSON => {
+            return Err(ExtendedQueryError::protocol("invalid JSON bind parameter"));
+        }
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Invalid) => {
+            return Err(match crate::types::jsonb::canonical(text) {
+                Err(error) => {
+                    ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
+                }
+                Ok(_) => ExtendedQueryError::protocol("invalid JSONB bind parameter"),
+            });
+        }
+    };
+    if oid == OID_JSONB {
+        crate::types::jsonb::format(parsed.get()).map_err(|error| {
+            ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
+        })?;
     }
+    let (value, memory) = parsed.into_parts();
+    Ok(DecodedTextParameter {
+        value: Value::Json(value),
+        memory: Some(memory),
+    })
 }
 
 fn decode_array_or_text(text: &str, oid: i32) -> Result<Value, ExtendedQueryError> {

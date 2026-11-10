@@ -15,7 +15,7 @@ fn payload(field: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn should_parse_binary_json_with_value_semantics_with_preserve_error_mapping() {
+fn should_parse_binary_json_as_ordinary_json_with_preserved_error_mapping() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("Cassie");
     cassie.startup().expect("startup");
@@ -43,10 +43,15 @@ fn should_parse_binary_json_with_value_semantics_with_preserve_error_mapping() {
         br#"{"$serde_json::private::Number":"1E2"}"#,
         br#"{"$serde_json::private::Num\u0062er":"-0"}"#,
         br#"{"$serde_json::private::RawValue":"{\"x\":[1,null]}"}"#,
+        br#"{"$serde_json::private::Number":"-xY","other":1}"#,
+        br#"{"$serde_json::private::RawValue":"[1,]","other":1}"#,
+        br#"{"$serde_json::private::RawValue":null}"#,
         r#"{"é":1,"e\u0301":2,"":3,"🙂":4}"#.as_bytes(),
     ] {
-        let original = super::super::super::codecs::binary_to_value(field, 114).expect("original");
-        let expected = super::super::super::codecs::value_to_text(&original, 114);
+        let expected = crate::runtime::accounted::json_arena::parse_value(field, &controls)
+            .expect("ordinary JSON")
+            .get()
+            .to_string();
         let (rows, memory) =
             super::parse_binary_payload(&payload(field), &cassie, &statement, &controls)
                 .expect("parse");
@@ -55,19 +60,10 @@ fn should_parse_binary_json_with_value_semantics_with_preserve_error_mapping() {
         drop((rows, memory));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
-    for field in [
-        b"\x7bbad".as_slice(),
-        b"true trailing",
-        b"{bad\xff}",
-        br#"{"$serde_json::private::Number":"-xY","other":1}"#,
-        br#"{"$serde_json::private::RawValue":"[1,]","other":1}"#,
-        br#"{"$serde_json::private::RawValue":null}"#,
-    ] {
-        let original =
-            super::super::super::codecs::binary_to_value(field, 114).expect_err("invalid");
+    for field in [b"\x7bbad".as_slice(), b"true trailing", b"{bad\xff}"] {
         let result = super::parse_binary_payload(&payload(field), &cassie, &statement, &controls);
         assert!(
-            matches!(result, Err(super::super::filter::CopyWhereError::Cassie(CassieError::Parse(message))) if message == format!("COPY binary field 1 is invalid: {original}"))
+            matches!(result, Err(super::super::filter::CopyWhereError::Cassie(CassieError::Parse(message))) if message == "COPY binary field 1 is invalid: invalid binary json value")
         );
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

@@ -367,9 +367,12 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Jsonb => jsonb::decode(parameter),
         BinaryCodecKind::Json => {
             let value = std::str::from_utf8(parameter).map_err(|_| invalid_data(codec.name))?;
-            serde_json::from_str(value)
-                .map(Value::Json)
-                .map_err(|_| invalid_data(codec.name))
+            crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+                value.as_bytes(),
+                None,
+            )
+            .map(|parsed| Value::Json(parsed.get().clone()))
+            .map_err(|_| invalid_data(codec.name))
         }
         BinaryCodecKind::JsonPath => {
             let Some((&version, path)) = parameter.split_first() else {

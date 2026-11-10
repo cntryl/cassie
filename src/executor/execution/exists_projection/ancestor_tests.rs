@@ -71,15 +71,15 @@ fn should_admit_ancestor_inspection_before_allocating_names() {
     ));
     assert_eq!(tight.current_query_memory_bytes(), 0);
     let cancellation = crate::runtime::QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &limits(4 * 1024 * 1024),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        inspect(&cassie, &statement, &fields, &cancelled),
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        inspect(&cassie, &statement, &fields, &canceled),
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
 }

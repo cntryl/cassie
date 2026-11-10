@@ -80,7 +80,7 @@ fn should_release_function_scratch_document_with_path_after_actual_path_cancella
     // Act
     let result = run("jsonb_exists_all", &args, Some(&controls));
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);

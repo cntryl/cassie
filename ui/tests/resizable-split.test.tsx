@@ -152,7 +152,7 @@ describe("ResizableSplit pointer drag", () => {
     expect(container.style.getPropertyValue("--cassie-split-size")).toBe("80%");
   });
 
-  it("should_finish_the_drag_given_a_cancelled_pointer_gesture", async () => {
+  it("should_finish_the_drag_given_a_canceled_pointer_gesture", async () => {
     // Arrange
     const root = await mountVerticalSplit();
     const container = root.querySelector(

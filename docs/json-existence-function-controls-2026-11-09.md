@@ -16,5 +16,5 @@ Additional arena and path admission can reject earlier, and checked work may
 observe cancellation before the old result. Existing argument conversion and
 cloning, the scratch estimate as a physical bound, fallback reparsing,
 allocation transients and teardown remain unqualified. This does not resolve
-the plain-sentinel/storage migration or complete #809/#810; probes and all
+the ordinary-sentinel round-trip semantics or complete #809/#810; probes and all
 Cargo checks remain deferred to the consolidated gate.

@@ -17,5 +17,5 @@ failure (0.55), and fallback/cancellation priority (0.74). Receipt:
 `target/assembly-review/json-path-function-raw-consumer-contract-{request,response}.json`.
 Additional admission and interruption can precede the old result. Input/argument
 cloning, existing JSONB preflight, allocator excess, raw diagnostics, recursive
-teardown, sentinel/storage migration and no-owner paths remain unqualified.
+teardown, ordinary sentinel-key round-trip semantics and no-owner paths remain unqualified.
 All probes remain unexecuted until the consolidated gate.

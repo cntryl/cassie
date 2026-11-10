@@ -107,7 +107,7 @@ struct JsonPathCancellationEvidence {
     baseline: Frames,
     baseline_activity: Frames,
     active_query: Frames,
-    cancelled: Frames,
+    canceled: Frames,
     recovery: Frames,
     cancel_elapsed: Duration,
 }
@@ -170,7 +170,7 @@ async fn run_jsonpath_cancellation(
         .shutdown()
         .await
         .expect("close CancelRequest socket");
-    let cancelled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+    let canceled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
     let cancel_elapsed = cancel_started.elapsed();
 
     wire::write_frames(
@@ -190,7 +190,7 @@ async fn run_jsonpath_cancellation(
         baseline,
         baseline_activity,
         active_query,
-        cancelled,
+        canceled,
         recovery,
         cancel_elapsed,
     }

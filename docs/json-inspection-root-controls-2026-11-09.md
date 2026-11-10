@@ -15,6 +15,6 @@ Receipt `target/assembly-review/json-inspect-root-arena-contract-{request,respon
 Added arena admission and checked parsing can change resource or cancellation
 priority. Original input creation, scratch physical coverage, fallback parsing,
 result String ownership, allocator transients, recursive teardown and the
-plain-sentinel/storage migration remain unqualified. Focused differential,
+ordinary-sentinel round-trip semantics remain unqualified. Focused differential,
 actual parser-work cancellation and exact/below overlap probes remain
 unexecuted until the consolidated gate.

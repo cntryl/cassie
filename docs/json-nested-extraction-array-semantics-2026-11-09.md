@@ -19,5 +19,5 @@ The authored SQL function witness exercises that string-backed route. Direct
 public embedded parameter admission may reject an explicitly TEXT-typed value
 and is not claimed. Document validation remains before path parsing. The legacy
 fallback's allocations, interruption and error string ownership remain
-unqualified; the separate private-sentinel/storage migration remains open.
+unqualified; the separate ordinary-sentinel round-trip semantics remains open.
 All tests are unexecuted, and source/PG observations do not complete #809.

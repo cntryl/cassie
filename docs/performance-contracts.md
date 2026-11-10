@@ -446,7 +446,7 @@ Each result records, from observed execution rather than expectation alone:
 
 Candidate and fallback metrics are scoped to the scenario's access family. A fallback in an unrelated search, vector, join, analytical, or lifecycle subsystem cannot contaminate another scenario's evidence row. SQL query, system, scaling, and mixed-load gate rows must attach untimed plan preflight evidence before measurement.
 
-Tier 3 column, vector, and graph representatives additionally assert exact fixture results, deterministic ordering, final-path read and candidate bounds, peak accounted memory, and zero live reservations or workers after measurement. Tier 4 portal evidence asserts two ordered, disjoint pages under cumulative limits; cancellation evidence requires `57014`, no cancelled page, bounded reads, and portal/query cleanup. These are correctness gates and do not create latency claims for smoke runs.
+Tier 3 column, vector, and graph representatives additionally assert exact fixture results, deterministic ordering, final-path read and candidate bounds, peak accounted memory, and zero live reservations or workers after measurement. Tier 4 portal evidence asserts two ordered, disjoint pages under cumulative limits; cancellation evidence requires `57014`, no canceled page, bounded reads, and portal/query cleanup. These are correctness gates and do not create latency claims for smoke runs.
 
 ## Tier 5 Scale and Saturation
 

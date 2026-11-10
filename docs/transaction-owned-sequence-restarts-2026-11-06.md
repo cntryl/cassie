@@ -15,7 +15,7 @@ The selected implementation keeps epoch selection in the cloned transaction
 storage overlay and keeps cursor values in its shared private owner, keyed by
 allocated object identity and unique epoch. Statement forks get independent
 epoch selections and publish them with their existing row/catalog stage only
-on success; a failed or cancelled restart never changes the parent's selected
+on success; a failed or canceled restart never changes the parent's selected
 epoch. Retain exactly epochs reachable from the current overlay or any retained
 savepoint, and admit their directory/backing under the existing stable
 transaction cursor budget before allocating or applying a restart. Overflow,

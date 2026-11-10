@@ -160,7 +160,7 @@ impl Midge {
                 let (key, value) = entry.map_err(CassieError::from)?;
                 self.record_query_scan_entry();
                 if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
-                    return Err(CassieError::QueryCancelled);
+                    return Err(CassieError::QueryCanceled);
                 }
                 if !value.is_empty() {
                     return Err(CassieError::Parse(
@@ -379,8 +379,8 @@ fn same_graph_edge(left: &GraphEdgeRecord, right: &GraphEdgeRecord) -> bool {
 }
 
 fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     if controls.is_timed_out() {
         return Err(CassieError::DeadlineExceeded);

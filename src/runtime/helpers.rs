@@ -126,7 +126,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         | CassieError::SessionObject(_) => "execution",
         CassieError::Transaction { .. } => "transaction",
         CassieError::DeadlineExceeded => "deadline_exceeded",
-        CassieError::QueryCancelled => "query_cancelled",
+        CassieError::QueryCanceled => "query_canceled",
         CassieError::ResourceLimit(_) => "resource_limit",
         CassieError::Configuration(_) => "configuration",
         CassieError::InvalidVector(_) => "invalid_vector",

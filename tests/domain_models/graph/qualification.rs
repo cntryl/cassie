@@ -250,7 +250,7 @@ fn should_cancel_during_authoritative_graph_verification() {
 
         // Assert
         assert!(
-            matches!(result, Err(cassie::app::CassieError::QueryCancelled)),
+            matches!(result, Err(cassie::app::CassieError::QueryCanceled)),
             "entry {entries} should report query cancellation"
         );
         assert_eq!(

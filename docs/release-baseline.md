@@ -44,34 +44,19 @@ storage directory and new snapshots for 0.1.0; there is no in-place migration
 from unreleased development formats.
 
 
-## Selected v0.2 compatibility transition (2026-11-04)
+## Pre-release format and API policy (2026-11-10)
 
-The user approved this contract direction on 2026-11-04. It is selected
-implementation scope, not implemented or qualified support. Existing rejection
-and compatibility boundaries remain until the owning acceptance cases pass.
+Cassie is unreleased. Cassie-owned storage formats, snapshots and Rust API
+shapes from earlier development builds are not compatibility inputs. Do not
+require old-reader fencing, in-place migration, downgrade support, or repair of
+pre-release data. A pre-release format change may require a fresh storage
+directory and new snapshots. This supersedes the v0.2 compatibility transition
+selected on 2026-11-04 and the implementation plan in
+[Storage Compatibility Transition](storage-compatibility-transition.md).
 
-v0.2 reads existing v1 stores without rewriting rows. Before the first write using
-persisted null-safe definitions, named types, object grants, extensions, or comments,
-advance the store compatibility marker to the explicit cassie-midge-layout-v2-0.2.0
-identifier. v0.1 must then reject that store before mutation. The monotonic marker
-change precedes feature publication; a crash between the marker and feature transaction
-leaves a valid v0.2-readable store with no partial feature. This is not a cross-family
-transaction. New database-scoped feature records and their row/catalog effects publish
-together in the owning Midge database family. Add versioned feature records, immutable
-object IDs and minimum-reader requirements; reject unknown versions before publication.
-Database images/snapshots retain the marker, all referenced descriptors and
-authoritative metadata. No automatic row rewrite, destructive recreate, second storage
-layer, or migration from older pre-v0.1 development layouts is selected.
-
-The selected new marker is `cassie-midge-layout-v2-0.2.0`, stored at
-the existing schema-family marker key. Existing key namespaces remain unchanged.
-This permits a one-way storage compatibility transition for stores that use new durable
-features. Staying on v1 remains possible until first feature use. A user needing
-downgrade after feature use needs a separate export/conversion contract.
-
-This is not a package-version or dependency-version change. Prove marker/crash
-ordering, unchanged v1-row reads, v1-reader rejection before mutation, rollback,
-restart and image/restore admission before publishing new durable features.
-
-The bounded implementation plan and its source-only evidence status are recorded
-in [Storage Compatibility Transition](storage-compatibility-transition.md).
+v0.2 features use the current format directly; they do not advance a marker to
+preserve access by an earlier Cassie build. The current build must validate its
+own records and pass restart, recovery and image round-trip checks. Unknown or
+malformed records that the current build encounters still fail deterministically.
+Midge database and SST formats remain owned by Midge, and PostgreSQL wire
+protocol behavior remains governed by its separate contract.

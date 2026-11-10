@@ -75,7 +75,7 @@ fn should_cancel_stable_sort_during_a_comparison_with_release_directories() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(comparisons, 1);
     assert_eq!(controls.current_query_memory_bytes(), 0);

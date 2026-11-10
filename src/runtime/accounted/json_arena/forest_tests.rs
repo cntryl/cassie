@@ -108,7 +108,7 @@ fn should_reject_cross_arena_with_stale_nodes_before_mutation() {
 }
 
 #[test]
-fn should_preserve_edges_when_cancelled_during_parent_walk() {
+fn should_preserve_edges_when_canceled_during_parent_walk() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -130,7 +130,7 @@ fn should_preserve_edges_when_cancelled_during_parent_walk() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(forest.parent(child).expect("child"), Owner::Unattached);
     assert_eq!(forest.parent(inner).expect("inner"), Owner::Parent(outer));
     drop(forest);
@@ -138,7 +138,7 @@ fn should_preserve_edges_when_cancelled_during_parent_walk() {
 }
 
 #[test]
-fn should_preserve_duplicate_edge_when_cancelled_before_insertion() {
+fn should_preserve_duplicate_edge_when_canceled_before_insertion() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -160,7 +160,7 @@ fn should_preserve_duplicate_edge_when_cancelled_before_insertion() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(forest.parent(old).expect("old"), Owner::Parent(parent));
     assert_eq!(
         forest.parent(replacement).expect("replacement"),
@@ -262,7 +262,7 @@ fn should_reject_retiring_attached_with_stale_roots() {
 }
 
 #[test]
-fn should_leave_subtree_intact_when_retirement_planning_is_cancelled() {
+fn should_leave_subtree_intact_when_retirement_planning_is_canceled() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -283,7 +283,7 @@ fn should_leave_subtree_intact_when_retirement_planning_is_cancelled() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(forest.parent(root).expect("root"), Owner::Unattached);
     assert_eq!(forest.parent(child).expect("child"), Owner::Parent(root));
     drop(forest);
@@ -321,7 +321,7 @@ fn should_leave_subtree_intact_when_retirement_plan_admission_is_denied() {
 }
 
 #[test]
-fn should_leave_subtree_intact_when_cancelled_while_growing_retirement_plan() {
+fn should_leave_subtree_intact_when_canceled_while_growing_retirement_plan() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -346,7 +346,7 @@ fn should_leave_subtree_intact_when_cancelled_while_growing_retirement_plan() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(forest.parent(root).expect("root"), Owner::Unattached);
     for child in children {
         assert_eq!(forest.parent(child).expect("child"), Owner::Parent(root));
@@ -459,7 +459,7 @@ fn should_retire_mixed_array_with_object_descendants() {
 }
 
 #[test]
-fn should_leave_array_unchanged_when_cancelled_during_directory_growth() {
+fn should_leave_array_unchanged_when_canceled_during_directory_growth() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -485,7 +485,7 @@ fn should_leave_array_unchanged_when_cancelled_during_directory_growth() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     for (index, child) in children.into_iter().enumerate() {
         assert_eq!(forest.element(array, index).expect("element"), Some(child));
         assert_eq!(forest.parent(child).expect("child"), Owner::Parent(array));
@@ -579,7 +579,7 @@ fn should_drop_partial_text_with_its_lease_after_actual_copy_cancellation() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(
         forest.parent(survivor).expect("survivor"),
         Owner::Unattached
@@ -803,7 +803,7 @@ fn should_release_adopted_payload_when_node_growth_is_denied() {
 }
 
 #[test]
-fn should_release_adopted_payload_when_cancelled_before_node_insertion() {
+fn should_release_adopted_payload_when_canceled_before_node_insertion() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -819,7 +819,7 @@ fn should_release_adopted_payload_when_cancelled_before_node_insertion() {
     let result = forest.adopt_text_observed(token, || cancellation.cancel());
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -883,6 +883,6 @@ fn should_release_validated_number_after_cancellation_during_adoption() {
     let result = forest.adopt_number_observed(token, || cancellation.cancel());
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

@@ -60,7 +60,7 @@ fn parse_observing(
             CursorError::Interrupted(error) => error,
             _ => CassieError::Execution("invalid UTF-8 in JSON existence operand".into()),
         })?;
-    match Document::parse_sources(sources, controls, |progress| {
+    match Document::parse_sources_plain(sources, controls, |progress| {
         if matches!(progress, DocumentProgress::FramePushed) {
             observe();
             #[cfg(test)]

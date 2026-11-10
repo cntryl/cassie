@@ -84,7 +84,7 @@ fn should_admit_both_sort_buffers_at_the_exact_overlap_boundary() {
 }
 
 #[test]
-fn should_release_nested_order_with_frames_when_child_sort_is_cancelled() {
+fn should_release_nested_order_with_frames_when_child_sort_is_canceled() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -109,7 +109,7 @@ fn should_release_nested_order_with_frames_when_child_sort_is_cancelled() {
     assert_eq!(comparisons, 2);
     assert!(matches!(
         result,
-        Err(SerializeError::Control(CassieError::QueryCancelled))
+        Err(SerializeError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(document);
@@ -151,7 +151,7 @@ fn should_release_source_output_with_workspace_on_string_with_numeric_cancellati
         assert!(observed);
         assert!(matches!(
             result,
-            Err(SerializeError::Control(CassieError::QueryCancelled))
+            Err(SerializeError::Control(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.current_query_memory_bytes(), baseline);
         drop(document);
@@ -217,7 +217,7 @@ fn should_cancel_during_checked_sort_comparison_with_release_workspaces() {
     assert!(compared);
     assert!(matches!(
         result,
-        Err(SerializeError::Control(CassieError::QueryCancelled))
+        Err(SerializeError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(document);

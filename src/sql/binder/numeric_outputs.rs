@@ -56,9 +56,9 @@ impl Analyzer<'_> {
     fn check_controls(&self) -> Result<(), CassieError> {
         if self
             .controls
-            .is_some_and(QueryExecutionControls::is_cancelled)
+            .is_some_and(QueryExecutionControls::is_canceled)
         {
-            return Err(CassieError::QueryCancelled);
+            return Err(CassieError::QueryCanceled);
         }
         if self
             .controls

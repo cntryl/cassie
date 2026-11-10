@@ -80,17 +80,25 @@ pub(super) fn compare_controlled(
 }
 
 pub(super) fn compare(left: &str, right: &str) -> Option<Ordering> {
-    let left: Value = serde_json::from_str(left).ok()?;
-    let right: Value = serde_json::from_str(right).ok()?;
+    let left = parse(left)?;
+    let right = parse(right)?;
     // PostgreSQL stores a root scalar in a flagged one-element array. Only
     // the root empty array precedes those scalar wrappers; nested arrays
     // retain the ordinary array type rank.
-    let left_empty = left.as_array().is_some_and(Vec::is_empty);
-    let right_empty = right.as_array().is_some_and(Vec::is_empty);
+    let left_empty = left.get().as_array().is_some_and(Vec::is_empty);
+    let right_empty = right.get().as_array().is_some_and(Vec::is_empty);
     if left_empty || right_empty {
         return Some(right_empty.cmp(&left_empty));
     }
-    values(&left, &right)
+    values(left.get(), right.get())
+}
+
+fn parse(input: &str) -> Option<crate::runtime::accounted::Accounted<Value>> {
+    crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        input.as_bytes(),
+        None,
+    )
+    .ok()
 }
 
 fn values(left: &Value, right: &Value) -> Option<Ordering> {

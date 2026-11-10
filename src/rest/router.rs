@@ -798,7 +798,7 @@ async fn cancel_admin_query_operation(
     match crate::rest::query_operations::cancel(operation_id, &owner, REST_REQUEST_TIMEOUT).await {
         Ok(()) => Ok(Some(json_response(
             StatusCode::OK,
-            &serde_json::json!({"operation_id": operation_id, "cancelled": true}),
+            &serde_json::json!({"operation_id": operation_id, "canceled": true}),
         ))),
         Err(crate::rest::query_operations::CancelError::NotFound) => Err((
             StatusCode::NOT_FOUND,

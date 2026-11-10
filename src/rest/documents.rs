@@ -1,5 +1,5 @@
 use crate::app::{Cassie, CassieError};
-use crate::runtime::QueryCancellationHandle;
+use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use serde_json::Value;
 
 fn resolve_collection(cassie: &Cassie, collection: &str) -> Result<String, CassieError> {
@@ -24,11 +24,26 @@ pub fn create_with_cancellation(
     body: &[u8],
     cancellation: &QueryCancellationHandle,
 ) -> Result<Value, CassieError> {
-    let document: Value =
-        serde_json::from_slice(body).map_err(|e| CassieError::Parse(e.to_string()))?;
+    let limits = cassie.runtime.limits();
+    let controls = QueryExecutionControls::with_cancellation(
+        &limits,
+        std::time::Instant::now(),
+        cancellation.clone(),
+    );
+    let parsed =
+        crate::runtime::accounted::json_arena::parse_value(body, &controls).map_err(|error| {
+            match error {
+                crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+                    CassieError::Parse(crate::runtime::accounted::json_arena::syntax_error(body))
+                }
+                crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error,
+            }
+        })?;
+    let (document, parse_memory) = parsed.into_parts();
     let collection = resolve_collection(cassie, collection)?;
 
     let id = cassie.ingest_document_with_cancellation(&collection, document, cancellation)?;
+    drop(parse_memory);
 
     Ok(serde_json::json!({ "id": id }))
 }

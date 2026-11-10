@@ -76,7 +76,7 @@ fn should_cancel_during_real_literal_consumption() {
     // Assert
     assert!(matches!(
         result,
-        Err(CursorError::Interrupted(CassieError::QueryCancelled))
+        Err(CursorError::Interrupted(CassieError::QueryCanceled))
     ));
     assert_eq!(cursor.position().offset, 1);
     assert_eq!(controls.current_query_memory_bytes(), 0);

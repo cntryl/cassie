@@ -508,7 +508,7 @@ fn should_cancel_at_a_deterministic_mid_scan_boundary_without_leaking_reservatio
     let metrics = cassie.metrics();
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(visited, 3);
     assert_eq!(metrics["runtime"]["running_queries"].as_u64(), Some(0));
     assert_eq!(
@@ -549,7 +549,7 @@ fn should_cancel_unindexed_heap_top_k_at_controlled_scan_boundary() {
         .saturating_sub(before);
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(visited, 3);
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
@@ -674,7 +674,7 @@ fn should_cancel_wildcard_scan_at_the_same_controlled_storage_boundary() {
         .saturating_sub(before);
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(visited, 4);
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),

@@ -130,7 +130,7 @@ fn should_cancel_logical_character_padding_at_the_owned_chunk_boundary() {
     drop(memory);
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(value, native());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

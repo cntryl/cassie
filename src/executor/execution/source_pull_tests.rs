@@ -70,7 +70,7 @@ fn should_cancel_unnest_at_advancement_without_retaining_partial_results() {
         });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(advances, 2);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     assert_eq!(
@@ -280,7 +280,7 @@ fn should_cancel_each_selected_series_family_at_an_admitted_row_boundary() {
                 )
             });
         // Assert
-        assert!(matches!(result, Err(CassieError::QueryCancelled)), "{sql}");
+        assert!(matches!(result, Err(CassieError::QueryCanceled)), "{sql}");
         assert_eq!(advances, 2, "{sql}");
         assert_eq!(controls.current_query_memory_bytes(), 0, "{sql}");
         assert_eq!(
@@ -445,7 +445,7 @@ fn should_preserve_object_key_expansion_in_outer_with_nested_pull_cursors() {
 }
 
 #[test]
-fn should_release_pull_owners_when_cancelled_during_actual_object_key_pull_move() {
+fn should_release_pull_owners_when_canceled_during_actual_object_key_pull_move() {
     // Arrange
     let cassie = fixture();
     let session = cassie.create_session("tester", None);
@@ -469,7 +469,7 @@ fn should_release_pull_owners_when_cancelled_during_actual_object_key_pull_move(
             &controls,
         );
         // Assert
-        assert!(cancel.is_cancelled(), "{sql}");
+        assert!(cancel.is_canceled(), "{sql}");
         assert!(result.is_err(), "{sql}");
         assert_eq!(controls.current_query_memory_bytes(), 0, "{sql}");
     }

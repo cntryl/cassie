@@ -277,8 +277,8 @@ fn should_cancel_insert_select_without_retaining_source_owners() {
         "cancellation followed the first source read"
     );
     assert!(
-        matches!(result, Err(crate::app::CassieError::QueryCancelled)),
-        "cancelled DML source must return QueryCancelled"
+        matches!(result, Err(crate::app::CassieError::QueryCanceled)),
+        "canceled DML source must return QueryCanceled"
     );
     assert_eq!(copied, Vec::<Vec<Value>>::new());
     assert_eq!(retained, 0);

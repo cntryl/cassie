@@ -277,7 +277,7 @@ pub(super) fn after_copy_row() {
 }
 
 #[test]
-fn should_release_partial_context_copy_when_cancelled_after_first_row() {
+fn should_release_partial_context_copy_when_canceled_after_first_row() {
     // Arrange
     let handle = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -310,7 +310,7 @@ fn should_release_partial_context_copy_when_cancelled_after_first_row() {
     // Assert
     assert!(matches!(
         result.map_err(crate::app::CassieError::from),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(context["c"].rows, rows);
     assert_eq!(controls.current_query_memory_bytes(), before);

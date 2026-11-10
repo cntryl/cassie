@@ -21,4 +21,4 @@ controlled-fallback, lower-bound, malformed and SQL probes were authored before
 implementation and are unexecuted. Reviewer source and oracle evidence make the
 choice mechanical. The fallback still uses the existing unbounded/unowned array
 parser; no cancellation, allocator or broader #809 qualification is claimed.
-The private-sentinel representation/storage migration remains separate.
+Ordinary private-sentinel key semantics remain a separate #809 obligation.

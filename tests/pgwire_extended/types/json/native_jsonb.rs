@@ -152,6 +152,78 @@ fn should_preserve_native_jsonb_schema_given_stored_exact_documents_when_storage
 }
 
 #[test]
+fn should_roundtrip_reserved_looking_json_objects_across_restart() {
+    // Arrange
+    const JSONB_TEXT_OUTPUT: &str = r#"{"nested": {"$serde_json::private::RawValue": "[1,]"}, "$serde_json::private::Number": "ordinary"}"#;
+    const BINARY_JSONB_OUTPUT: &[u8] = b"\x01{\"nested\": {\"$serde_json::private::RawValue\": \"[1,]\"}, \"$serde_json::private::Number\": \"ordinary\"}";
+    let setup = [(
+        "CREATE TABLE json_ordinary_restart (id INT, document JSON, binary_document JSONB)",
+        Vec::new(),
+    )];
+    let input = br#"{"$serde_json::private::Number":"ordinary","nested":{"$serde_json::private::RawValue":"[1,]"}}"#;
+    let input_text = std::str::from_utf8(input).expect("JSON fixture UTF-8");
+    let mut binary_jsonb = vec![1];
+    binary_jsonb.extend_from_slice(input);
+    let text_bind =
+        format!("INSERT INTO json_ordinary_restart VALUES (1, $1, '{input_text}'::JSONB)");
+    let binary_bind =
+        format!("INSERT INTO json_ordinary_restart VALUES (2, '{input_text}'::JSON, $1)");
+    let writes = [
+        fixture::execute_cycle(&text_bind, Some((114, 0, Some(input))), 0, true),
+        fixture::execute_cycle(&binary_bind, Some((3802, 1, Some(&binary_jsonb))), 0, true),
+    ];
+    let select = "SELECT id, document, binary_document FROM json_ordinary_restart ORDER BY id";
+    let text_read = fixture::execute_cycle(select, None, 0, true);
+    let binary_read = fixture::execute_cycle(select, None, 1, true);
+
+    // Act
+    let stages = fixture::run_cycles_across_restart(
+        "json-ordinary-object-restart",
+        &setup,
+        vec![
+            vec![
+                writes[0].clone(),
+                writes[1].clone(),
+                text_read.clone(),
+                binary_read.clone(),
+            ],
+            vec![text_read, binary_read],
+        ],
+    );
+
+    // Assert
+    for frames in [&stages[0][2], &stages[1][0]] {
+        fixture::assert_success(frames);
+        assert_eq!(
+            wire::data_rows(frames),
+            vec![
+                vec![
+                    Some("1".into()),
+                    Some(input_text.into()),
+                    Some(JSONB_TEXT_OUTPUT.into()),
+                ],
+                vec![
+                    Some("2".into()),
+                    Some(input_text.into()),
+                    Some(JSONB_TEXT_OUTPUT.into()),
+                ],
+            ]
+        );
+    }
+    for frames in [&stages[0][3], &stages[1][1]] {
+        fixture::assert_success(frames);
+        let actual = fixture::data_row_payloads(frames);
+        assert_eq!(actual.len(), 2);
+        for row in actual {
+            assert!(row.windows(input.len()).any(|window| window == input));
+            assert!(row
+                .windows(BINARY_JSONB_OUTPUT.len())
+                .any(|window| window == BINARY_JSONB_OUTPUT));
+        }
+    }
+}
+
+#[test]
 fn should_reject_invalid_native_jsonb_given_text_parameters_when_the_connection_is_reused() {
     // Arrange
     let cases: &[(&[u8], &str)] = &[

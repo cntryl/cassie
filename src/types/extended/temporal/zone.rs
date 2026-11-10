@@ -424,7 +424,7 @@ mod tests {
         let mut check = || {
             checks += 1;
             if checks == 2 {
-                Err("cancelled")
+                Err("canceled")
             } else {
                 Ok(())
             }
@@ -438,7 +438,7 @@ mod tests {
         );
 
         // Assert
-        assert_eq!(result, Err("cancelled"));
+        assert_eq!(result, Err("canceled"));
         assert_eq!(checks, 2);
     }
 

@@ -15,7 +15,7 @@ keys sorted by length then UTF-8 bytes. Corresponding keys themselves compare
 lexicographically by bytes before their values. Numbers use exact finite
 decimal value, including signs, zero and differing scale; strings compare UTF-8
 bytes. Value-mode private sentinel dispatch is intentionally preserved and its
-PostgreSQL divergence/storage migration remains open.
+PostgreSQL divergence/ordinary sentinel-key round-trip semantics remain open.
 
 Jev selected this scope (0.94), with ordering/object-key (0.68), numeric/error
 laziness (0.75), sentinel/full-parse/NULL/fallback (0.78), and arena/stack/
@@ -26,7 +26,7 @@ ranks, root/nested empty arrays, key-length-versus-key-comparison, duplicates,
 sentinels, unsigned/numeric boundaries, malformed/unvisited numeric, NULL,
 actual move/comparison cancellation, and exact/below-budget release. Arena
 construction, fallback reparsing, allocator transients, source input copies,
-third-party teardown and the separate storage migration remain unqualified;
+third-party teardown and the ordinary sentinel-key round-trip semantics remain unqualified;
 these probes remain unexecuted until the combined gate.
 
 A PostgreSQL 18.6 oracle independently returned true for the selected root

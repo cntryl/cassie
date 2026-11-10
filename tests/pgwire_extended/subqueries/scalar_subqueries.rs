@@ -253,7 +253,7 @@ fn should_evaluate_an_uncorrelated_volatile_scalar_subquery_once() {
 }
 
 #[test]
-fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results() {
+fn should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -269,7 +269,7 @@ fn should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_re
 
 struct SleepCancellationOutcome {
     baseline: Vec<(u8, Vec<u8>)>,
-    cancelled: Vec<(u8, Vec<u8>)>,
+    canceled: Vec<(u8, Vec<u8>)>,
     recovery: Vec<(u8, Vec<u8>)>,
     baseline_running_queries: u64,
     running_queries_before_cancel: u64,
@@ -337,7 +337,7 @@ async fn run_sleeping_scalar_cancellation() -> SleepCancellationOutcome {
     resume
         .send(())
         .expect("resume sleeping scalar subquery after CancelRequest");
-    let cancelled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+    let canceled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
     wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 46")]).await;
     let recovery = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
@@ -347,7 +347,7 @@ async fn run_sleeping_scalar_cancellation() -> SleepCancellationOutcome {
     server.stop().await;
     SleepCancellationOutcome {
         baseline,
-        cancelled,
+        canceled,
         recovery,
         baseline_running_queries,
         running_queries_before_cancel,
@@ -357,7 +357,7 @@ async fn run_sleeping_scalar_cancellation() -> SleepCancellationOutcome {
 fn assert_sleep_cancellation_outcome(outcome: SleepCancellationOutcome) {
     let SleepCancellationOutcome {
         baseline,
-        cancelled,
+        canceled,
         recovery,
         baseline_running_queries,
         running_queries_before_cancel,
@@ -379,16 +379,16 @@ fn assert_sleep_cancellation_outcome(outcome: SleepCancellationOutcome) {
         "the scalar-subquery query must be running before cancellation"
     );
     assert_eq!(
-        wire::error_code(&cancelled).as_deref(),
+        wire::error_code(&canceled).as_deref(),
         Some("57014"),
-        "cancelled scalar-subquery ErrorResponse: {:?}",
-        error_summary(&cancelled)
+        "canceled scalar-subquery ErrorResponse: {:?}",
+        error_summary(&canceled)
     );
     assert_eq!(
-        wire::data_rows(&cancelled),
+        wire::data_rows(&canceled),
         Vec::<Vec<Option<String>>>::new()
     );
-    assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+    assert_eq!(canceled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
     assert_eq!(
         wire::error_code(&recovery),
         None,

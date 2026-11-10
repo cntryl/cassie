@@ -147,20 +147,20 @@ fn should_preserve_ancestor_copy_ownership() {
         drop(parent);
         assert_eq!(tight.current_query_memory_bytes(), 0);
         let cancellation = crate::runtime::QueryCancellationHandle::new();
-        let cancelled = QueryExecutionControls::with_cancellation(
+        let canceled = QueryExecutionControls::with_cancellation(
             &limits(4 * 1024 * 1024),
             Instant::now(),
             cancellation.clone(),
         );
-        let (row, parent) = input(&cancelled);
-        let original = cancelled.current_query_memory_bytes();
+        let (row, parent) = input(&canceled);
+        let original = canceled.current_query_memory_bytes();
         cancellation.cancel();
-        let result = copy(&cassie, &plan, &row, &cancelled, where_copy);
+        let result = copy(&cassie, &plan, &row, &canceled, where_copy);
         if where_copy {
             assert!(
                 matches!(
                     result,
-                    Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+                    Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
                 ),
                 "{result:?}"
             );
@@ -170,9 +170,9 @@ fn should_preserve_ancestor_copy_ownership() {
                 "{result:?}"
             );
         }
-        assert_eq!(cancelled.current_query_memory_bytes(), original);
+        assert_eq!(canceled.current_query_memory_bytes(), original);
         drop(row);
         drop(parent);
-        assert_eq!(cancelled.current_query_memory_bytes(), 0);
+        assert_eq!(canceled.current_query_memory_bytes(), 0);
     }
 }

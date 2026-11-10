@@ -202,7 +202,7 @@ fn should_cancel_during_number_buffer_growth_with_release_both_owners() {
     assert!(saw_overlap);
     assert!(matches!(
         result,
-        Err(CursorError::Interrupted(CassieError::QueryCancelled))
+        Err(CursorError::Interrupted(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

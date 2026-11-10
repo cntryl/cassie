@@ -104,3 +104,28 @@ fn should_preserve_exact_jsonb_pretty_output_given_wide_numbers_when_document_nu
         ]]
     );
 }
+
+#[test]
+fn should_preserve_reserved_looking_objects_through_jsonb_mutations() {
+    // Arrange
+    let sql = "SELECT jsonb_set(\
+        '{\"$serde_json::private::Number\":\"7\"}'::JSONB, \
+        '{nested}', \
+        '{\"$serde_json::private::RawValue\":\"[1]\"}'::JSONB)";
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-809-jsonb-mutation-reserved-looking-keys",
+        &[],
+        vec![fixture::execute_cycle(sql, None, 0, true)],
+    );
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![Some(
+            r#"{"nested": {"$serde_json::private::RawValue": "[1]"}, "$serde_json::private::Number": "7"}"#.into()
+        )]]
+    );
+}

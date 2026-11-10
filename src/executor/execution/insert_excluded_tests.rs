@@ -67,7 +67,7 @@ fn should_reject_excluded_scope_given_cancellation_before_materializing_fields()
     // Assert
     assert!(result
         .err()
-        .expect("cancelled scope")
+        .expect("canceled scope")
         .to_string()
         .contains("query canceled"));
     assert_eq!(controls.current_query_memory_bytes(), 0);

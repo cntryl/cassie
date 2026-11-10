@@ -25,12 +25,12 @@ fn should_preserve_values_with_route_mutation_after_interrupted_migration() {
 
     // Act
     let result = directory.push_observed(candidate, |progress| match progress {
-        Progress::Moved(2) => Err(CassieError::QueryCancelled),
+        Progress::Moved(2) => Err(CassieError::QueryCanceled),
         _ => Ok(()),
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(directory.test_frontier(), Some(2));
     for number in 0..4 {
         assert_eq!(*directory.get(number).expect("live").get(), number);
@@ -59,12 +59,12 @@ fn should_leave_old_directory_unchanged_when_replacement_initialization_is_inter
 
     // Act
     let result = directory.push_observed(candidate, |progress| match progress {
-        Progress::Initialized(2) => Err(CassieError::QueryCancelled),
+        Progress::Initialized(2) => Err(CassieError::QueryCanceled),
         _ => Ok(()),
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(directory.test_frontier(), None);
     for number in 0..4 {
         assert_eq!(*directory.get(number).expect("live").get(), number);
@@ -85,12 +85,12 @@ fn should_release_both_directories_with_every_item_after_interrupted_migration()
 
     // Act
     let result = directory.push_observed(value(4, &controls), |progress| match progress {
-        Progress::Moved(1) => Err(CassieError::QueryCancelled),
+        Progress::Moved(1) => Err(CassieError::QueryCanceled),
         _ => Ok(()),
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(directory.test_frontier(), Some(1));
     drop(directory);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -149,7 +149,7 @@ fn should_keep_both_sides_owned_after_actual_mid_move_cancellation() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(directory.test_frontier(), Some(2));
     for number in 0..4 {
         assert_eq!(*directory.get(number).expect("live").get(), number);
@@ -167,10 +167,10 @@ fn should_route_mutation_to_either_side_of_the_frontier() {
         directory.push(number).expect("push");
     }
     let result = directory.push_observed(4, |progress| match progress {
-        Progress::Moved(2) => Err(CassieError::QueryCancelled),
+        Progress::Moved(2) => Err(CassieError::QueryCanceled),
         _ => Ok(()),
     });
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
 
     // Act
     *directory.get_mut(0).expect("moved") = 10;
@@ -197,11 +197,11 @@ fn should_resume_repeatedly_without_duplicating_or_losing_owners() {
     // Act / Assert
     for boundary in 1..=3 {
         let result = directory.push_observed(value(4, &controls), |progress| match progress {
-            Progress::Moved(moved) if moved == boundary => Err(CassieError::QueryCancelled),
+            Progress::Moved(moved) if moved == boundary => Err(CassieError::QueryCanceled),
             _ => Ok(()),
         });
         // Assert
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert_eq!(directory.test_frontier(), Some(boundary));
         for number in 0..4 {
             assert_eq!(*directory.get(number).expect("live").get(), number);
@@ -223,10 +223,10 @@ fn should_reuse_empty_positions_on_both_sides_without_replacing_live_values() {
         directory.push(number).expect("push");
     }
     let result = directory.push_observed(4, |progress| match progress {
-        Progress::Moved(2) => Err(CassieError::QueryCancelled),
+        Progress::Moved(2) => Err(CassieError::QueryCanceled),
         _ => Ok(()),
     });
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(directory.take(0), Some(0));
     assert_eq!(directory.take(3), Some(3));
 

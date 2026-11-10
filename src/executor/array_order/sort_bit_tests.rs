@@ -70,7 +70,7 @@ fn should_cancel_after_a_real_bit_byte_chunk() {
     });
     // Assert
     assert_eq!(copied, 1);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

@@ -73,7 +73,7 @@ fn should_release_estimate_stack_after_actual_frame_move_cancellation() {
     });
     // Assert
     assert_eq!(moved, 1);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(stack);
     assert_eq!(controls.current_query_memory_bytes(), 0);

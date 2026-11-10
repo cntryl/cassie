@@ -213,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn should_stop_similar_translation_after_a_scanned_token_is_cancelled() {
+    fn should_stop_similar_translation_after_a_scanned_token_is_canceled() {
         // Arrange
         let cancellation = QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
@@ -236,13 +236,13 @@ mod tests {
         assert!(scanned);
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.peak_query_memory_bytes(), 0);
     }
 
     #[test]
-    fn should_stop_similar_translation_before_output_allocation_when_cancelled() {
+    fn should_stop_similar_translation_before_output_allocation_when_canceled() {
         // Arrange
         let cancellation = QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
@@ -259,7 +259,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.peak_query_memory_bytes(), 0);
     }

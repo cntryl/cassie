@@ -403,7 +403,7 @@ fn should_cancel_native_ordering_before_transferring_source_parent() {
         // Assert
         assert!(matches!(
             result.map_err(crate::app::CassieError::from),
-            Err(crate::app::CassieError::QueryCancelled)
+            Err(crate::app::CassieError::QueryCanceled)
         ));
         assert_eq!(relational_diagnostics::last_path(), completed);
         assert_eq!(controls.current_query_memory_bytes(), 128);

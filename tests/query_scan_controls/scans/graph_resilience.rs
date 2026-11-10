@@ -360,7 +360,7 @@ fn should_cancel_graph_scan_at_a_deterministic_entry_without_partial_metrics() {
 
         // Assert
         assert!(
-            matches!(error, CassieError::QueryCancelled),
+            matches!(error, CassieError::QueryCanceled),
             "expected SQLSTATE 57014 cancellation, got {error:?}"
         );
         assert_eq!(visited, 3);

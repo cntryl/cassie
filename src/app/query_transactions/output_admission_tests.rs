@@ -373,9 +373,9 @@ fn should_retire_repeatable_writes_after_a_same_payload_conflict() {
 fn should_ignore_the_retired_capture_requests_cancellation_during_commit() {
     // Arrange
     let fixture = Fixture::new();
-    let cancelled_origin = QueryCancellationHandle::new();
-    let (session, origin) = fixture.repeatable(cancelled_origin.clone());
-    cancelled_origin.cancel();
+    let canceled_origin = QueryCancellationHandle::new();
+    let (session, origin) = fixture.repeatable(canceled_origin.clone());
+    canceled_origin.cancel();
     let current = fixture.cassie.runtime.query_controls(Instant::now());
 
     // Act
@@ -403,13 +403,13 @@ fn should_obey_the_current_commit_requests_cancellation() {
     // Arrange
     let fixture = Fixture::new();
     let (session, origin) = fixture.repeatable(QueryCancellationHandle::new());
-    let cancelled_current = QueryCancellationHandle::new();
+    let canceled_current = QueryCancellationHandle::new();
     let current = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
-        cancelled_current.clone(),
+        canceled_current.clone(),
     );
-    cancelled_current.cancel();
+    canceled_current.cancel();
 
     // Act
     let result = fixture
@@ -417,7 +417,7 @@ fn should_obey_the_current_commit_requests_cancellation() {
         .commit_transaction_with_controls(&session, &current);
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(session.transaction_status(), "idle");
     assert_eq!(origin.current_query_memory_bytes(), 0);
     assert_eq!(current.current_query_memory_bytes(), 0);
@@ -457,7 +457,7 @@ fn should_preserve_confirmed_commit_success_after_request_cancellation() {
 
     // Assert
     assert!(confirmed.get());
-    assert!(cancellation.is_cancelled());
+    assert!(cancellation.is_canceled());
     assert!(result.is_ok());
     assert_eq!(session.transaction_status(), "idle");
     assert_eq!(origin.current_query_memory_bytes(), 0);

@@ -548,10 +548,10 @@ mod tests {
         let wrong_secret = registration.secret_key().wrapping_add(1);
 
         // Act
-        let cancelled = runtime.cancel_pgwire_backend(registration.process_id(), wrong_secret);
+        let canceled = runtime.cancel_pgwire_backend(registration.process_id(), wrong_secret);
 
         // Assert
-        assert!(!cancelled);
-        assert!(!cancellation.is_cancelled());
+        assert!(!canceled);
+        assert!(!cancellation.is_canceled());
     }
 }

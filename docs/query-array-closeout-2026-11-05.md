@@ -65,22 +65,14 @@ These probes remain unexecuted until the integrated gate. Legacy nested-admissio
 and future-version judgments were 0.16 and 0.11; retained negative fixtures and
 new future-version rejection witnesses remain part of the gate regardless.
 
-## Minimum-reader publication dependency
+## Current-format durable definition boundary (2026-11-10)
 
-The existing storage compatibility transition is an implemented prerequisite.
-Jev selected the conservative rule (0.90): every record explicitly choosing
-`definition_semantics_version = 1` requires the existing v0.2 minimum-reader
-marker before publication, even if its current expression contains only older
-operators. Version-zero records keep their old contract. Merely reopening a v1
-store does not upgrade it. This uses the published adapter's existing strong,
-nonempty marker acknowledgment; it does not invent engine-wide WAL quiescence.
-The marker may remain upgraded after a later feature abort, as already selected
-by the compatibility contract. Unknown versions fail before acknowledgment.
-
-The first complete test attempt failed during unit-test compilation because a
-retained serialized-index probe still called the refactored test facade. No
-executable test result groups completed; that attempt is not a test pass.
-
+The previous minimum-reader publication dependency is superseded by the
+[pre-release format and API policy](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).
+Cassie is unreleased; older Cassie storage records and readers are not supported
+compatibility inputs. Do not gate current definition publication on a v0.2 marker
+transition. Keep the current record validation and SQL behavior, and verify
+current-build restart/recovery as part of the owning feature bundle.
 
 ## Consolidated source review and qualification attempts
 

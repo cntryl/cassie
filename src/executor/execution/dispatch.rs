@@ -874,7 +874,7 @@ pub(super) fn build_logical_plan_in_session(
 }
 
 pub(super) fn check_timeout(controls: &QueryExecutionControls) -> Result<(), QueryError> {
-    if controls.is_cancelled() {
+    if controls.is_canceled() {
         return Err(QueryError::General("query canceled".to_string()));
     }
     if controls.is_timed_out() {

@@ -5,7 +5,7 @@ use crate::types::Value;
 use std::time::Instant;
 
 #[test]
-fn should_stop_recursive_search_cycle_metadata_when_cancelled() {
+fn should_stop_recursive_search_cycle_metadata_when_canceled() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -47,7 +47,7 @@ fn should_stop_recursive_search_cycle_metadata_when_cancelled() {
     // Assert
     assert!(matches!(
         result.map_err(crate::app::CassieError::from),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(rows.rows, original_rows);
     drop(rows);

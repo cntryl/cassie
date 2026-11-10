@@ -161,8 +161,8 @@ pub(crate) fn validate_with_session_and_cancellation(
 ) -> Result<QueryValidateResponse, CassieError> {
     let request: QueryValidateRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
-    if cancellation.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if cancellation.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     let parsed = crate::sql::parse_statement(request.sql.as_str())?;
     session.authorize_statement(&parsed.statement)?;
@@ -174,8 +174,8 @@ pub(crate) fn validate_with_session_and_cancellation(
         .map(RestColumnMeta::from)
         .collect();
 
-    if cancellation.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if cancellation.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     Ok(QueryValidateResponse {
         valid: true,

@@ -50,7 +50,7 @@ fn should_cancel_a_commit_while_its_collection_gate_remains_held() {
             other.with_transaction_write_gates(&["items".to_owned()], false, &controls, || Ok(()));
         result_tx
             .send((result, controls.current_query_memory_bytes()))
-            .expect("cancelled result");
+            .expect("canceled result");
     });
 
     // Act
@@ -66,7 +66,7 @@ fn should_cancel_a_commit_while_its_collection_gate_remains_held() {
 
     // Assert
     assert_eq!(boundary, WaitBoundary::Collection);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(retained, 0);
 }
 
@@ -107,7 +107,7 @@ fn should_preserve_rest_cancellation_while_waiting_for_the_referential_gate() {
             .expect("cancel before referential release");
 
         // Assert
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert_eq!(retained, 0);
     });
     worker

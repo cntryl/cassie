@@ -60,7 +60,7 @@ fn should_release_partial_groups_after_actual_next_group_count_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

@@ -151,7 +151,7 @@ fn should_cancel_active_parallel_row_conversion_with_complete_cleanup() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     assert_eq!(

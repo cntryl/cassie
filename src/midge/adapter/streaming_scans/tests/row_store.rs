@@ -185,7 +185,7 @@ fn should_cancel_a_bounded_row_store_source_before_its_first_decode() {
 
     // Assert
     assert!(
-        matches!(result, Err(CassieError::QueryCancelled)),
+        matches!(result, Err(CassieError::QueryCanceled)),
         "first controlled-read cancellation must beat row decoding: {result:?}"
     );
     assert_eq!(

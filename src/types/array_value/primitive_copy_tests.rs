@@ -147,7 +147,7 @@ fn should_cancel_during_actual_dimension_with_element_copy() {
         assert!(seen);
         assert!(matches!(
             result,
-            Err(crate::app::CassieError::QueryCancelled)
+            Err(crate::app::CassieError::QueryCanceled)
         ));
         assert_eq!(controls.current_query_memory_bytes(), 64);
         drop(source);
@@ -202,7 +202,7 @@ fn should_cancel_during_eligibility_before_later_nonprimitive_fallback() {
     assert!(seen);
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 32);
     drop(source);

@@ -59,7 +59,7 @@ fn binary_json_text_with(
 ) -> Result<OwnedJsonText, BinaryJsonError> {
     let sources = SourceStack::from_bytes(source, controls)
         .map_err(|error| map_document_error(DocumentError::from(error)))?;
-    let parsed =
-        Document::parse_sources(sources, controls, parser_observer).map_err(map_document_error)?;
+    let parsed = Document::parse_sources_plain(sources, controls, parser_observer)
+        .map_err(map_document_error)?;
     serialize(&parsed.forest, parsed.root).map_err(BinaryJsonError::Controlled)
 }

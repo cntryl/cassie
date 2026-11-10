@@ -225,7 +225,7 @@ fn should_admit_hash_chain_before_demanding_any_build_lane() {
 }
 
 #[test]
-fn should_release_native_hash_state_when_build_is_cancelled() {
+fn should_release_native_hash_state_when_build_is_canceled() {
     // Arrange
     let limits = crate::config::CassieRuntimeLimits::default();
     let cancellation = crate::runtime::QueryCancellationHandle::new();
@@ -257,13 +257,13 @@ fn should_release_native_hash_state_when_build_is_cancelled() {
     // Assert
     assert!(matches!(
         result.map_err(crate::app::CassieError::from),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), before);
 }
 
 #[test]
-fn should_release_match_maps_when_hot_key_expansion_is_cancelled() {
+fn should_release_match_maps_when_hot_key_expansion_is_canceled() {
     // Arrange
     let limits = crate::config::CassieRuntimeLimits::default();
     let cancellation = crate::runtime::QueryCancellationHandle::new();
@@ -298,7 +298,7 @@ fn should_release_match_maps_when_hot_key_expansion_is_cancelled() {
     // Assert
     assert!(matches!(
         result.map_err(crate::app::CassieError::from),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(ticks.get(), 3);
     assert_eq!(controls.current_query_memory_bytes(), before);

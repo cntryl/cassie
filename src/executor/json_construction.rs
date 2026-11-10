@@ -197,7 +197,7 @@ pub(super) fn finish(
 ) -> Result<Value, QueryError> {
     check(controls)?;
     let document = if binary {
-        crate::types::jsonb::canonical(&document).map_err(CassieError::TypeInput)?
+        crate::types::jsonb::canonical_with_controls(&document, controls)?
     } else {
         document
     };

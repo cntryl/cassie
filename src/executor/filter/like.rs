@@ -288,7 +288,7 @@ mod tests {
         let result = super::controlled(&value, "%ab", Some('!'), false, || {
             checks += 1;
             if checks == 3 {
-                Err("cancelled")
+                Err("canceled")
             } else {
                 Ok(())
             }
@@ -296,7 +296,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(super::MatchError::Interrupted("cancelled"))
+            Err(super::MatchError::Interrupted("canceled"))
         ));
         assert_eq!(checks, 3);
     }

@@ -141,7 +141,7 @@ fn should_cancel_actual_type_collection_heap_sift_with_array_walk() {
 
         // Assert
         assert!(reached, "boundary {boundary:?} was not reached");
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }

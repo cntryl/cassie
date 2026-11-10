@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum EmbeddingError {
     #[error("embedding request to '{provider}' was canceled")]
-    Cancelled { provider: String },
+    Canceled { provider: String },
 
     #[error("embedding provider unavailable: {provider} ({reason})")]
     Unavailable { provider: String, reason: String },

@@ -397,7 +397,7 @@ fn finish_worker<T>(
             runtime.record_rest_boundary_completed(operation_name, started_at.elapsed());
             Ok(value)
         }
-        Ok(Err(CassieError::QueryCancelled | CassieError::DeadlineExceeded)) if deadline_fired => {
+        Ok(Err(CassieError::QueryCanceled | CassieError::DeadlineExceeded)) if deadline_fired => {
             runtime.record_rest_boundary_error(operation_name, started_at.elapsed());
             Err(RestBlockingError::TimedOut)
         }
@@ -444,10 +444,10 @@ mod tests {
             cassie,
             "rest_timeout_test",
             |_cassie, cancellation| {
-                while !cancellation.is_cancelled() {
+                while !cancellation.is_canceled() {
                     std::thread::yield_now();
                 }
-                Err::<(), _>(CassieError::QueryCancelled)
+                Err::<(), _>(CassieError::QueryCanceled)
             },
         ));
 
@@ -527,7 +527,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(RestBlockingError::Engine(CassieError::QueryCancelled))
+            Err(RestBlockingError::Engine(CassieError::QueryCanceled))
         ));
         assert_eq!(reads, 1);
         assert_eq!(metrics["runtime"]["running_queries"].as_u64(), Some(0));

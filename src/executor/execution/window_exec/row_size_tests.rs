@@ -84,12 +84,12 @@ fn should_interrupt_actual_window_row_string_count_with_release_workspace() {
 
     // Assert
     assert!(
-        cancel.is_cancelled(),
+        cancel.is_canceled(),
         "the actual string scan must be reached"
     );
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -117,10 +117,10 @@ fn should_interrupt_actual_window_json_with_array_counting() {
         let result = batch_rows_bytes(&rows, &controls);
 
         // Assert
-        assert!(cancel.is_cancelled(), "nested counting must reach its hook");
+        assert!(cancel.is_canceled(), "nested counting must reach its hook");
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+            Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -148,12 +148,12 @@ fn should_interrupt_actual_window_numeric_counting() {
 
     // Assert
     assert!(
-        cancel.is_cancelled(),
+        cancel.is_canceled(),
         "numeric digit work must reach the hook"
     );
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -181,7 +181,7 @@ fn should_admit_exact_transient_count_workspace_with_release_it() {
 }
 
 #[test]
-fn should_abort_scalar_window_before_output_when_row_counting_is_cancelled() {
+fn should_abort_scalar_window_before_output_when_row_counting_is_canceled() {
     // Arrange
     let parsed = crate::sql::parse_statement("SELECT sum(n) OVER ()").expect("window SQL");
     let crate::sql::ast::QueryStatement::Select(select) = parsed.statement else {
@@ -212,10 +212,10 @@ fn should_abort_scalar_window_before_output_when_row_counting_is_cancelled() {
     );
 
     // Assert
-    assert!(cancel.is_cancelled(), "the input row scan must be reached");
+    assert!(cancel.is_canceled(), "the input row scan must be reached");
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -271,7 +271,7 @@ fn should_leave_non_window_projection_outside_the_row_count_path() {
     super::super::aggregate_exec::clear_next_window_row_count();
 
     // Assert
-    assert!(!cancel.is_cancelled());
+    assert!(!cancel.is_canceled());
     let output = result.expect("ordinary projection");
     assert_eq!(output[0][0].get("n"), Some(&Value::Int64(1)));
     drop(output);

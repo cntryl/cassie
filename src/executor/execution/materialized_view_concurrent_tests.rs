@@ -105,7 +105,7 @@ pub(super) fn cancel_before_activation_if_armed() {
 }
 
 #[test]
-fn should_cleanup_unpublished_indexes_when_concurrent_refresh_is_cancelled_before_activation() {
+fn should_cleanup_unpublished_indexes_when_concurrent_refresh_is_canceled_before_activation() {
     // Arrange
     let (cassie, session, previous_version) = materialized_view_with_unique_index();
     cassie
@@ -153,7 +153,7 @@ fn should_cleanup_unpublished_indexes_when_concurrent_refresh_is_cancelled_befor
         .to_vec();
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(
         after.active_version.as_deref(),
         Some(previous_version.as_str())
@@ -164,7 +164,7 @@ fn should_cleanup_unpublished_indexes_when_concurrent_refresh_is_cancelled_befor
             .midge
             .collection_schema(&failed_version.output_collection)
             .is_none(),
-        "cancelled refresh output must be discarded"
+        "canceled refresh output must be discarded"
     );
     assert!(cassie
         .catalog
@@ -322,7 +322,7 @@ fn cancel_refresh_before_activation(
             &cancellation,
         )
         .expect_err("cancellation before activation should abort the refresh");
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     failed_candidate_identity(cassie, previous_version)
 }
 
@@ -384,7 +384,7 @@ fn assert_failed_refresh_cleanup(
 }
 
 #[test]
-fn should_recover_previous_output_after_cancelled_concurrent_refresh_restart() {
+fn should_recover_previous_output_after_canceled_concurrent_refresh_restart() {
     // Arrange
     let directory = Directory(std::env::temp_dir().join(format!(
         "cassie-826-cancel-refresh-{}",
@@ -477,7 +477,7 @@ fn should_preserve_active_output_given_cancellation_before_activation_publicatio
         .expect_err("cancellation before activation publication should abort the refresh");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     let (failed_version_id, failed_output_collection) =
         failed_candidate_identity(&cassie, &previous_version);
     assert_failed_refresh_cleanup(
@@ -541,7 +541,7 @@ fn should_complete_refresh_given_cancellation_after_confirmed_activation() {
         .expect("replacement version remains recorded");
 
     // Assert
-    assert!(cancellation.is_cancelled());
+    assert!(cancellation.is_canceled());
     assert_eq!(result.command(), "REFRESH MATERIALIZED VIEW");
     assert_eq!(
         metadata.active_version.as_deref(),
@@ -580,7 +580,7 @@ fn should_reject_terminal_refresh_cleanup_while_storage_requires_recovery() {
         &cassie,
         "concurrent_refresh_cancel_view",
         &previous_version,
-        "cancelled refresh",
+        "canceled refresh",
     );
     let retained = cassie
         .catalog

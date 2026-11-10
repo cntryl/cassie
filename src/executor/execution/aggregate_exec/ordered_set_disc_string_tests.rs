@@ -281,7 +281,7 @@ fn should_cancel_during_discrete_string_copy_with_sorted_with_fraction_owners() 
     assert!(seen);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

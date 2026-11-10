@@ -16,6 +16,13 @@ pub(crate) enum JsonbFieldError {
     Control(CassieError),
 }
 
+pub(crate) enum JsonbTextError {
+    Invalid,
+    NumericOverflow,
+    Nul,
+    Control(CassieError),
+}
+
 impl std::fmt::Debug for JsonbFieldError {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -59,12 +66,39 @@ pub(crate) fn parse_field(
             "unexpected JSONB source error".into(),
         )),
     })?;
-    let parsed = Document::parse_sources(sources, controls, |_| {})
+    let parsed = Document::parse_sources_plain(sources, controls, |_| {})
         .map_err(|error| document_error(error, column, controls))?;
     jsonb_output::serialize(&parsed.forest, parsed.root).map_err(|error| match error {
         SerializeError::Control(error) => JsonbFieldError::Control(error),
         SerializeError::NumericOverflow => fixed(&FixedError::Numeric, column, controls),
         SerializeError::Nul => fixed(&FixedError::Nul, column, controls),
+    })
+}
+
+pub(crate) fn canonical_text(
+    input: &[u8],
+    controls: &QueryExecutionControls,
+) -> Result<OwnedJsonText, JsonbTextError> {
+    controls
+        .check_interruption()
+        .map_err(JsonbTextError::Control)?;
+    let sources = SourceStack::from_bytes(input, controls).map_err(|error| match error {
+        CursorError::Interrupted(error) => JsonbTextError::Control(error),
+        _ => JsonbTextError::Invalid,
+    })?;
+    let parsed =
+        Document::parse_sources_plain(sources, controls, |_| {}).map_err(|error| match error {
+            DocumentError::Control(error)
+            | DocumentError::Token(CursorError::Interrupted(error))
+            | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(error))) => {
+                JsonbTextError::Control(error)
+            }
+            _ => JsonbTextError::Invalid,
+        })?;
+    jsonb_output::serialize(&parsed.forest, parsed.root).map_err(|error| match error {
+        SerializeError::Control(error) => JsonbTextError::Control(error),
+        SerializeError::NumericOverflow => JsonbTextError::NumericOverflow,
+        SerializeError::Nul => JsonbTextError::Nul,
     })
 }
 
@@ -91,7 +125,7 @@ pub(in crate::runtime::accounted::json_arena) fn reparse_compact_field(
             "unexpected JSONB source error".into(),
         )),
     })?;
-    let parsed = Document::parse_sources(sources, controls, |_| {})
+    let parsed = Document::parse_sources_plain(sources, controls, |_| {})
         .map_err(|error| document_error(error, column, controls))?;
     super::super::forest::output::serialize(&parsed.forest, parsed.root)
         .map_err(JsonbFieldError::Control)

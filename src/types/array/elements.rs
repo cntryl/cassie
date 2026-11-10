@@ -36,6 +36,25 @@ pub(super) fn parse_json_numeric_array(
         .map(JsonValue::Array)
 }
 
+pub(super) fn parse_json_document(input: &str) -> Result<JsonValue, String> {
+    let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        input.as_bytes(),
+        None,
+    )
+    .map_err(|error| match error {
+        crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+            format!(
+                "invalid JSON document: {}",
+                crate::runtime::accounted::json_arena::syntax_error(input.as_bytes())
+            )
+        }
+        crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => {
+            error.to_string()
+        }
+    })?;
+    Ok(parsed.get().clone())
+}
+
 pub(super) fn normalize_element(
     value: JsonValue,
     data_type: &DataType,

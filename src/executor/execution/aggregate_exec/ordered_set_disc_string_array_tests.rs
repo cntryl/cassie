@@ -225,7 +225,7 @@ fn should_cancel_actual_string_array_copy_with_all_owners_live() {
     assert!(seen);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

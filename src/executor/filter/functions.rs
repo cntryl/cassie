@@ -164,7 +164,7 @@ fn evaluate_pg_input_is_valid(
             if let Err(
                 error @ QueryError::Cassie(
                     crate::app::CassieError::ResourceLimit(_)
-                    | crate::app::CassieError::QueryCancelled
+                    | crate::app::CassieError::QueryCanceled
                     | crate::app::CassieError::DeadlineExceeded,
                 ),
             ) = result

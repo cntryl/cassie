@@ -70,7 +70,7 @@ fn should_preserve_left_rows_given_null_options_when_an_outer_join_is_executed()
 }
 
 #[test]
-fn should_cancel_expansion_given_cancelled_controls_when_options_are_executed() {
+fn should_cancel_expansion_given_canceled_controls_when_options_are_executed() {
     // Arrange
     let fixture = sql_fixture("options-cancel", &[]);
     let plan = physical(
@@ -89,7 +89,7 @@ fn should_cancel_expansion_given_cancelled_controls_when_options_are_executed() 
     // Assert
     assert!(matches!(
         result.map_err(CassieError::from),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

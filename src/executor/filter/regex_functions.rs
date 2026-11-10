@@ -615,7 +615,7 @@ mod tests {
         super::compiler::compile_with_match_kind(pattern, flags, kind, None)
     }
 
-    fn cancelled_controls() -> (QueryExecutionControls, QueryCancellationHandle) {
+    fn canceled_controls() -> (QueryExecutionControls, QueryCancellationHandle) {
         let cancellation = QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
             &crate::config::CassieRuntimeLimits::default(),
@@ -717,9 +717,9 @@ mod tests {
     }
 
     #[test]
-    fn should_stop_regexp_like_before_compiling_when_query_is_cancelled() {
+    fn should_stop_regexp_like_before_compiling_when_query_is_canceled() {
         // Arrange
-        let (controls, cancellation) = cancelled_controls();
+        let (controls, cancellation) = canceled_controls();
         cancellation.cancel();
         let arguments = [
             Value::String("value".to_owned()),
@@ -727,7 +727,7 @@ mod tests {
         ];
 
         // Act
-        let error = regexp_like(&arguments, Some(&controls)).expect_err("query is cancelled");
+        let error = regexp_like(&arguments, Some(&controls)).expect_err("query is canceled");
 
         // Assert
         let QueryError::Cassie(error) = error else {
@@ -748,7 +748,7 @@ mod tests {
 
         for (pattern, expected) in cases {
             let (guard, selected, resume) = crate::runtime::pause_next_query_after_regex_search();
-            let (controls, cancellation) = cancelled_controls();
+            let (controls, cancellation) = canceled_controls();
             drop(guard);
             let arguments = [
                 Value::String("abc".to_owned()),
@@ -777,9 +777,9 @@ mod tests {
     }
 
     #[test]
-    fn should_stop_regexp_count_before_compiling_when_query_is_cancelled() {
+    fn should_stop_regexp_count_before_compiling_when_query_is_canceled() {
         // Arrange
-        let (controls, cancellation) = cancelled_controls();
+        let (controls, cancellation) = canceled_controls();
         cancellation.cancel();
         let arguments = [
             Value::String("value".to_owned()),
@@ -787,7 +787,7 @@ mod tests {
         ];
 
         // Act
-        let error = regexp_count(&arguments, Some(&controls)).expect_err("query is cancelled");
+        let error = regexp_count(&arguments, Some(&controls)).expect_err("query is canceled");
 
         // Assert
         let QueryError::Cassie(error) = error else {
@@ -806,7 +806,7 @@ mod tests {
         let mut check = || {
             checks += 1;
             if checks == 3 {
-                Err(CassieError::QueryCancelled.into())
+                Err(CassieError::QueryCanceled.into())
             } else {
                 Ok(())
             }
@@ -835,9 +835,9 @@ mod tests {
     }
 
     #[test]
-    fn should_stop_regexp_replace_before_compiling_when_query_is_cancelled() {
+    fn should_stop_regexp_replace_before_compiling_when_query_is_canceled() {
         // Arrange
-        let (controls, cancellation) = cancelled_controls();
+        let (controls, cancellation) = canceled_controls();
         cancellation.cancel();
         let arguments = [
             Value::String("value".to_owned()),
@@ -846,7 +846,7 @@ mod tests {
         ];
 
         // Act
-        let error = regexp_replace(&arguments, Some(&controls)).expect_err("query is cancelled");
+        let error = regexp_replace(&arguments, Some(&controls)).expect_err("query is canceled");
 
         // Assert
         let QueryError::Cassie(error) = error else {

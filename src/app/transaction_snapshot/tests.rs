@@ -176,11 +176,10 @@ fn should_preserve_repeatable_read_charge_through_failed_savepoint_recovery() {
     let charged = controls.current_query_memory_bytes();
 
     // Act
-    let cancelled = QueryCancellationHandle::new();
-    cancelled.cancel();
-    let failure =
-        cassie.execute_sql_with_cancellation(&session, "SELECT 1", Vec::new(), &cancelled);
-    assert!(matches!(failure, Err(CassieError::QueryCancelled)));
+    let canceled = QueryCancellationHandle::new();
+    canceled.cancel();
+    let failure = cassie.execute_sql_with_cancellation(&session, "SELECT 1", Vec::new(), &canceled);
+    assert!(matches!(failure, Err(CassieError::QueryCanceled)));
     assert!(session.is_transaction_failed());
     session
         .rollback_to_savepoint("before_view")
@@ -200,7 +199,7 @@ fn should_not_acquire_repeatable_read_after_cancel_or_deadline() {
     let (cassie, session, parsed) = fixture();
     let cancellation = QueryCancellationHandle::new();
     cancellation.cancel();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation,
@@ -213,17 +212,17 @@ fn should_not_acquire_repeatable_read_after_cancel_or_deadline() {
     );
 
     // Act
-    let cancel_result = cassie.prepare_transaction_read_view(&session, &parsed, &cancelled);
+    let cancel_result = cassie.prepare_transaction_read_view(&session, &parsed, &canceled);
     let deadline_result = cassie.prepare_transaction_read_view(&session, &parsed, &expired);
 
     // Assert
-    assert!(matches!(cancel_result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(cancel_result, Err(CassieError::QueryCanceled)));
     assert!(matches!(
         deadline_result,
         Err(CassieError::DeadlineExceeded)
     ));
     assert!(session.repeatable_read_capture_generation().is_some());
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
     assert_eq!(expired.current_query_memory_bytes(), 0);
 }
 
@@ -289,7 +288,7 @@ fn should_cancel_repeatable_read_capture_while_publication_is_blocked() {
     drop(publication);
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(pending);
     assert_eq!(observed.current_query_memory_bytes(), 0);
 }

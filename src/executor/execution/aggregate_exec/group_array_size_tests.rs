@@ -31,7 +31,7 @@ fn should_release_array_count_stack_after_actual_move_cancellation() {
     assert_eq!(moved, 1);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(stack);

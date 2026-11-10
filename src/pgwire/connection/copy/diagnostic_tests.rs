@@ -105,9 +105,9 @@ fn should_report_jsonb_frame_admission_with_cancellation_failures_with_fail_tran
         .build()
         .expect("runtime");
     let denied_session = CassieSession::new("root".into(), None);
-    let cancelled_session = CassieSession::new("root".into(), None);
+    let canceled_session = CassieSession::new("root".into(), None);
     denied_session.begin_transaction(None).expect("begin");
-    cancelled_session.begin_transaction(None).expect("begin");
+    canceled_session.begin_transaction(None).expect("begin");
     let denied = QueryExecutionControls::from_limits(
         &CassieRuntimeLimits {
             query_memory_budget_bytes: 0,
@@ -117,15 +117,15 @@ fn should_report_jsonb_frame_admission_with_cancellation_failures_with_fail_tran
     );
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     cancellation.cancel();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation,
     );
     let mut denied_bytes = Vec::new();
-    let mut cancelled_bytes = Vec::new();
+    let mut canceled_bytes = Vec::new();
     // Act
-    let (denied_result, cancelled_result) = runtime.block_on(async {
+    let (denied_result, canceled_result) = runtime.block_on(async {
         let first = super::write_copy_jsonb_diagnostic_with_length(
             &mut denied_bytes,
             &denied_session,
@@ -135,23 +135,23 @@ fn should_report_jsonb_frame_admission_with_cancellation_failures_with_fail_tran
         )
         .await;
         let second = super::write_copy_jsonb_diagnostic_with_length(
-            &mut cancelled_bytes,
-            &cancelled_session,
+            &mut canceled_bytes,
+            &canceled_session,
             "jsonb",
             5,
-            &cancelled,
+            &canceled,
         )
         .await;
         (first, second)
     });
     // Assert
-    assert!(denied_result && cancelled_result);
+    assert!(denied_result && canceled_result);
     assert!(denied_bytes.windows(7).any(|bytes| bytes == b"C54000\0"));
-    assert!(cancelled_bytes.windows(7).any(|bytes| bytes == b"C57014\0"));
+    assert!(canceled_bytes.windows(7).any(|bytes| bytes == b"C57014\0"));
     assert_eq!(denied_session.transaction_status(), "failed");
-    assert_eq!(cancelled_session.transaction_status(), "failed");
+    assert_eq!(canceled_session.transaction_status(), "failed");
     assert_eq!(denied.current_query_memory_bytes(), 0);
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
 }
 
 #[cfg(debug_assertions)]

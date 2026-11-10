@@ -147,7 +147,7 @@ fn should_cancel_a_bounded_column_store_join_before_decoding_the_remaining_probe
     let error = result.expect_err("bounded join must stop at its controlled probe boundary");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled), "{error:?}");
+    assert!(matches!(error, CassieError::QueryCanceled), "{error:?}");
     assert_eq!(
         fixture.reads_since(before_reads),
         3,
@@ -233,7 +233,7 @@ fn should_cancel_each_column_store_scan_shape_after_three_reads() {
 
             // Assert
             assert!(
-                matches!(error, CassieError::QueryCancelled),
+                matches!(error, CassieError::QueryCanceled),
                 "workers={workers}, {statement}: {error:?}"
             );
             assert_eq!(
@@ -244,7 +244,7 @@ fn should_cancel_each_column_store_scan_shape_after_three_reads() {
             assert_eq!(
                 fixture.cassie.metrics()["query"]["rows_returned_total"],
                 before_metrics["query"]["rows_returned_total"],
-                "cancelled scan published rows"
+                "canceled scan published rows"
             );
             fixture.assert_cleanup();
         }

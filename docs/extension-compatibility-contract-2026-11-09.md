@@ -37,6 +37,6 @@ No lifecycle publication is activated by that decision. A complete implementatio
 must prove collision-safe persistent extension and routine identities; atomic
 install/drop/relocation plus dependency updates; existing #833 transaction and
 savepoint snapshot/delta handling; same-database storage ownership; recovery,
-backup, old-reader behavior and raw native writer interactions. Published
+current-format backup/restart/restore behavior and raw native writer interactions. Published
 Midge 0.5.2 remains the direct storage layer; no engine edit, second layer,
 unpublished range assertion, or native extension ABI is assumed.

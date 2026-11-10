@@ -14,7 +14,7 @@ type Frames = Vec<(u8, Vec<u8>)>;
 
 pub struct CancellationCase {
     baseline: Frames,
-    cancelled: Frames,
+    canceled: Frames,
     recovery: Frames,
     dispatch: String,
     after_cancel: serde_json::Value,
@@ -161,7 +161,7 @@ pub async fn run_case(setup: &[&str], source: &str) -> CancellationCase {
     resume
         .send(())
         .expect("resume Boolean aggregate after cancellation was handled");
-    let cancelled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+    let canceled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
     let after_cancel = cassie.metrics();
     wire::write_frames(
         &mut writer,
@@ -174,7 +174,7 @@ pub async fn run_case(setup: &[&str], source: &str) -> CancellationCase {
     server.stop().await;
     CancellationCase {
         baseline,
-        cancelled,
+        canceled,
         recovery,
         dispatch,
         after_cancel,
@@ -200,19 +200,16 @@ pub fn assert_case(case: &CancellationCase, expected_dispatch: &str) {
         vec![vec![Some("f".to_owned()), Some("t".to_owned())]]
     );
     assert_eq!(case.dispatch, expected_dispatch);
-    assert_eq!(wire::error_code(&case.cancelled).as_deref(), Some("57014"));
+    assert_eq!(wire::error_code(&case.canceled).as_deref(), Some("57014"));
     assert_eq!(
-        wire::data_rows(&case.cancelled),
+        wire::data_rows(&case.canceled),
         Vec::<Vec<Option<String>>>::new()
     );
     assert_eq!(
-        case.cancelled
-            .iter()
-            .filter(|frame| frame.0 == b'C')
-            .count(),
+        case.canceled.iter().filter(|frame| frame.0 == b'C').count(),
         0
     );
-    assert_eq!(case.cancelled.last().map(|frame| frame.0), Some(b'Z'));
+    assert_eq!(case.canceled.last().map(|frame| frame.0), Some(b'Z'));
     assert_eq!(case.after_cancel["running_queries"].as_u64(), Some(0));
     assert_eq!(
         case.after_cancel["query"]["current_accounted_memory_bytes"].as_u64(),

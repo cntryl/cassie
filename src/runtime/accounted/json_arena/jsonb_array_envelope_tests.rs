@@ -119,7 +119,7 @@ fn should_admit_range_directory_exactly_with_cancel_after_real_element_validatio
     let admitted = controls(exact);
     let denied = controls(exact - 1);
     let cancellation = QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
@@ -134,7 +134,7 @@ fn should_admit_range_directory_exactly_with_cancel_after_real_element_validatio
     ));
     let result = decode(
         &bytes,
-        &cancelled,
+        &canceled,
         |_| Ok::<_, ()>(false),
         |progress| {
             if matches!(progress, Progress::Element) {
@@ -146,10 +146,10 @@ fn should_admit_range_directory_exactly_with_cancel_after_real_element_validatio
     assert!(called);
     assert!(matches!(
         result,
-        Err(DecodeError::Control(CassieError::QueryCancelled))
+        Err(DecodeError::Control(CassieError::QueryCanceled))
     ));
     drop(owner);
     assert_eq!(admitted.current_query_memory_bytes(), 0);
     assert_eq!(denied.current_query_memory_bytes(), 0);
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
 }

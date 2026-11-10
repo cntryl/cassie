@@ -238,6 +238,31 @@ fn should_return_the_first_jsonpath_item_or_sql_null_when_no_item_matches() {
     assert_eq!(wire::data_rows(frames), vec![vec![Some("4".into()), None]]);
 }
 
+#[test]
+fn should_keep_reserved_looking_json_keys_during_jsonpath_evaluation() {
+    // Arrange
+    let sql = "SELECT \
+        jsonb_path_exists(\
+            '{\"$serde_json::private::Number\":\"7\",\"nested\":{\"$serde_json::private::RawValue\":\"[1]\"}}'::JSONB, \
+            '$.\"$serde_json::private::Number\"'), \
+        jsonb_path_exists(\
+            '{\"$serde_json::private::Number\":\"7\",\"nested\":{\"$serde_json::private::RawValue\":\"[1]\"}}'::JSONB, \
+            '$.nested.\"$serde_json::private::RawValue\"'), \
+        '{\"$serde_json::private::Number\":\"7\"}'::JSONB @? '$.\"$serde_json::private::Number\"'::JSONPATH";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonpath-reserved-looking-keys", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".into()), Some("t".into()), Some("t".into())]]
+    );
+}
+
 fn assert_boolean_rows(frames: &fixture::Frames, expected: Option<&str>) {
     fixture::assert_success(frames);
     let description = frames

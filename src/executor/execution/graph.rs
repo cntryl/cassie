@@ -845,7 +845,7 @@ mod frontier_tests {
         let result = sort_shortest_frontier(&mut frontier, &controls);
 
         // Assert
-        assert!(result.is_err(), "cancelled query must fail after sorting");
+        assert!(result.is_err(), "canceled query must fail after sorting");
         assert_eq!(
             frontier.iter().map(|path| path.cost).collect::<Vec<_>>(),
             vec![2.0, 1.0],

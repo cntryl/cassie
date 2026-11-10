@@ -219,7 +219,7 @@ fn should_admit_sparse_nested_delta_backing_before_any_output_copy() {
 }
 
 #[test]
-fn should_release_a_partially_cloned_delta_when_cancelled() {
+fn should_release_a_partially_cloned_delta_when_canceled() {
     // Arrange
     let (initial, base, overlay) = example();
     let cancellation = QueryCancellationHandle::new();
@@ -249,7 +249,7 @@ fn should_release_a_partially_cloned_delta_when_cancelled() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(copied.get(), 3);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -366,7 +366,7 @@ fn should_cancel_metadata_comparison_at_the_actual_map_lock_wait() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

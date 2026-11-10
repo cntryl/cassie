@@ -133,7 +133,7 @@ fn should_keep_rich_distinct_adapter_state_admitted_until_output_drops() {
 #[test]
 fn should_reject_distinct_flatten_before_input_handoff_with_failed_controls() {
     // Arrange
-    for cancelled in [false, true] {
+    for canceled in [false, true] {
         let limits = CassieRuntimeLimits {
             query_memory_budget_bytes: 1,
             ..CassieRuntimeLimits::default()
@@ -145,7 +145,7 @@ fn should_reject_distinct_flatten_before_input_handoff_with_failed_controls() {
             cancellation.clone(),
         );
         let input = vec![rows(&[Value::Int64(1), Value::Int64(2)])];
-        if cancelled {
+        if canceled {
             cancellation.cancel();
         }
         let before = crate::executor::typed_batch::relational_diagnostics::input_handoffs();
@@ -157,7 +157,7 @@ fn should_reject_distinct_flatten_before_input_handoff_with_failed_controls() {
         assert_eq!(
             crate::executor::typed_batch::relational_diagnostics::input_handoffs(),
             before,
-            "denied/cancelled input must not allocate flattened backing before admission"
+            "denied/canceled input must not allocate flattened backing before admission"
         );
         assert_eq!(
             crate::executor::typed_batch::relational_diagnostics::last_path(),
@@ -302,7 +302,7 @@ fn should_retain_multiset_output_given_repeated_tuples_when_sources_drop() {
 #[test]
 fn should_release_multiset_scratch_given_failed_controls_when_selection_is_admitted() {
     // Arrange
-    for cancelled in [false, true] {
+    for canceled in [false, true] {
         let limits = CassieRuntimeLimits {
             query_memory_budget_bytes: 1,
             ..CassieRuntimeLimits::default()
@@ -313,7 +313,7 @@ fn should_release_multiset_scratch_given_failed_controls_when_selection_is_admit
             Instant::now(),
             cancellation.clone(),
         );
-        if cancelled {
+        if canceled {
             cancellation.cancel();
         }
         // Act
@@ -328,8 +328,8 @@ fn should_release_multiset_scratch_given_failed_controls_when_selection_is_admit
         let error = result
             .map_err(crate::app::CassieError::from)
             .expect_err("admission");
-        if cancelled {
-            assert!(matches!(error, crate::app::CassieError::QueryCancelled));
+        if canceled {
+            assert!(matches!(error, crate::app::CassieError::QueryCanceled));
         } else {
             assert!(matches!(error, crate::app::CassieError::ResourceLimit(_)));
         }

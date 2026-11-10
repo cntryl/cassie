@@ -343,3 +343,51 @@ fn should_require_every_jsonb_object_key_from_a_text_array() {
     assert_eq!(wire::data_rows(parameter_frames), vec![vec![Some("t".to_owned())]]);
 }
 
+#[test]
+fn should_compare_reserved_looking_jsonb_keys_as_objects() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT \
+            '{\"$serde_json::private::Number\":\"7\"}'::JSONB = '7'::JSONB, \
+            '{\"$serde_json::private::RawValue\":\"[1]\"}'::JSONB = '[1]'::JSONB",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-reserved-key-operators", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("f".into()), Some("f".into())]]
+    );
+}
+
+#[test]
+fn should_find_reserved_looking_jsonb_keys_by_existence() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT \
+            '{\"$serde_json::private::Number\":\"7\"}'::JSONB ? '$serde_json::private::Number', \
+            '{\"$serde_json::private::Number\":\"not-a-number\"}'::JSONB ? '$serde_json::private::Number'",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("issue-809-jsonb-reserved-key-existence", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    assert_eq!(
+        wire::data_rows(frames),
+        vec![vec![Some("t".into()), Some("t".into())]]
+    );
+}
+

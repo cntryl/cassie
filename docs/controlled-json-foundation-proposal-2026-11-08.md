@@ -337,7 +337,7 @@ qualification boundary. Receipt:
 The isolated generic directory prototype exercises this frontier with owned
 values, checked replacement initialization, mutation, retirement and reuse on
 either side. The synthetic interruption probes exercise resumption while the
-controls remain live; a real cancelled request remains cancelled and the probe
+controls remain live; a real canceled request remains canceled and the probe
 for it checks owner preservation and cleanup, not a successful retry. Actual
 chunk integration, tracker identity, generation/free-list semantics, parser
 ownership and production teardown remain unimplemented; none of the probes

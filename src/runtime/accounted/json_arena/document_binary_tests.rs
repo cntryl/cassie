@@ -36,9 +36,9 @@ fn should_match_value_mode_output_with_retain_the_output_tracker() {
 }
 
 #[test]
-fn should_match_the_previous_reader_for_value_mode_documents_with_failures() {
+fn should_match_ordinary_json_materialization_for_documents_with_failures() {
     // Arrange
-    use crate::runtime::accounted::json::controlled_parse::{parse, ParseError};
+    use crate::runtime::accounted::json_arena::{parse_value, ValueParseError};
     let controls = controls();
     let inputs: &[&[u8]] = &[
         br#"{"b":1,"a":2,"b":3}"#,
@@ -53,10 +53,12 @@ fn should_match_the_previous_reader_for_value_mode_documents_with_failures() {
 
     // Act / Assert
     for input in inputs {
-        let previous = match parse(input, &controls) {
+        let expected = match parse_value(input, &controls) {
             Ok(value) => Some(value.get().to_string()),
-            Err(ParseError::InvalidJson { .. } | ParseError::InvalidUtf8) => None,
-            Err(ParseError::Controlled(error)) => panic!("unexpected control error: {error}"),
+            Err(ValueParseError::Invalid) => None,
+            Err(ValueParseError::Controlled(error)) => {
+                panic!("unexpected control error: {error}")
+            }
         };
         let current = match binary_json_text(input, &controls) {
             Ok(value) => Some(value.as_str().to_owned()),
@@ -64,7 +66,7 @@ fn should_match_the_previous_reader_for_value_mode_documents_with_failures() {
             Err(BinaryJsonError::Controlled(error)) => panic!("unexpected control error: {error}"),
         };
         // Assert
-        assert_eq!(current, previous, "input: {input:?}");
+        assert_eq!(current, expected, "input: {input:?}");
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
@@ -73,12 +75,7 @@ fn should_match_the_previous_reader_for_value_mode_documents_with_failures() {
 fn should_preserve_invalid_with_control_error_categories() {
     // Arrange
     let controls = controls();
-    let invalid: &[&[u8]] = &[
-        b"{x\xff}",
-        b"[1,]",
-        br#"{"$serde_json::private::Number":"-xY"}"#,
-        br#"{"$serde_json::private::RawValue":"[1,]"}"#,
-    ];
+    let invalid: &[&[u8]] = &[b"{x\xff}", b"[1,]"];
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 0,
         ..CassieRuntimeLimits::default()
@@ -133,7 +130,7 @@ fn should_observe_cancellation_before_invalid_utf8_or_syntax() {
         // Assert
         assert!(matches!(
             binary_json_text(input, &controls),
-            Err(BinaryJsonError::Controlled(CassieError::QueryCancelled))
+            Err(BinaryJsonError::Controlled(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -193,7 +190,7 @@ fn should_cancel_after_an_actual_binary_grammar_frame_is_published() {
     // Assert
     assert!(matches!(
         result,
-        Err(BinaryJsonError::Controlled(CassieError::QueryCancelled))
+        Err(BinaryJsonError::Controlled(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -236,7 +233,7 @@ fn should_release_arena_with_output_after_actual_binary_output_copy_cancellation
     assert!(admitted_during_copy > input.len());
     assert!(matches!(
         result,
-        Err(BinaryJsonError::Controlled(CassieError::QueryCancelled))
+        Err(BinaryJsonError::Controlled(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), input.len());
     drop(source_memory);

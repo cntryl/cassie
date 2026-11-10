@@ -67,7 +67,7 @@ failure cleanup (0.76), and call/order/NULL/cancellation (0.41) leads. Receipt:
 `target/assembly-review/json-function-result-owner-contract-{request,response}.json`.
 Authored builtin/user-function, exactly-once, variant/error, actual-copy and
 budget/owner probes are unexecuted. Earlier resource/cancellation errors,
-allocator transients, diagnostics, teardown and sentinel/storage migration
+allocator transients, diagnostics, teardown and ordinary sentinel-key round-trip semantics
 remain explicit.
 
 Selected scalar JSON builders previously dropped their workspace reservation

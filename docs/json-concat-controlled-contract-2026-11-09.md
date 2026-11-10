@@ -3,7 +3,7 @@
 The #809 increment is restricted to the existing `json_concat::concatenate`
 dispatch and uses the checked raw scanner, object index and renderer when its
 input and owner conditions are proved. Other inputs retain their legacy path.
-The plain-object sentinel/storage migration is separate and remains incomplete.
+The plain-object ordinary sentinel-key round-trip semantics is separate and remains incomplete.
 Midge remains the published direct storage layer.
 
 The existing function checks SQL NULL, then both operands' JSON carrier types,

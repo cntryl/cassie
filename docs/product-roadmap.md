@@ -79,7 +79,7 @@ GitHub Actions should be enabled and that delivery should use stacked PRs and
 parallel isolated worktrees. The live permission readback reports `enabled: true`.
 Normal push and pull-request workflows are authorized. Verify required checks on
 each final PR head before merging in dependency order. Historical blocked or
-cancelled workflow results retain their original status.
+canceled workflow results retain their original status.
 
 The dates below are planning targets set on 2026-10-20, not capacity-backed
 forecasts. They assume one serial delivery lane and the written exit criteria

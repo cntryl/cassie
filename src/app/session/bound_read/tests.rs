@@ -157,11 +157,11 @@ fn should_keep_execute_authority_independent_of_the_bind_request() {
     let execute = fresh.with_statement_read(owner.data().cloned());
     let admitted = execute.check_interruption();
     current_cancel.cancel();
-    let cancelled = execute.check_interruption();
+    let canceled = execute.check_interruption();
 
     // Assert
     assert!(admitted.is_ok());
-    assert!(matches!(cancelled, Err(CassieError::QueryCancelled)));
+    assert!(matches!(canceled, Err(CassieError::QueryCanceled)));
 }
 
 #[test]

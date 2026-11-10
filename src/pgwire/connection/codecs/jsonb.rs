@@ -38,8 +38,8 @@ pub(super) fn decode(parameter: &[u8]) -> io::Result<Value> {
         ))
     })?;
     crate::types::jsonb::canonical(text).map_err(input_error)?;
-    serde_json::from_str(text)
-        .map(Value::Json)
+    crate::runtime::accounted::json_arena::parse_value_with_optional_controls(text.as_bytes(), None)
+        .map(|parsed| Value::Json(parsed.get().clone()))
         .map_err(|_| invalid_data("jsonb"))
 }
 

@@ -161,7 +161,7 @@ fn should_admit_fetch_plan_copies_given_a_small_memory_budget_when_direct_execut
 }
 
 #[test]
-fn should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts() {
+fn should_cancel_fetch_given_a_canceled_query_when_direct_execution_starts() {
     // Arrange
     let fixture = fixture("fetch-cancel");
     let plan = physical(&fixture);
@@ -180,7 +180,7 @@ fn should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts() {
     // Assert
     assert!(matches!(
         result.map_err(CassieError::from),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

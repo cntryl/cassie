@@ -11,7 +11,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_serde_compact_output_for_arena_values() {
+fn should_match_plain_value_compact_output_for_arena_values() {
     // Arrange
     let controls = controls();
     let inputs = [
@@ -29,9 +29,12 @@ fn should_match_serde_compact_output_for_arena_values() {
 
     // Act / Assert
     for input in inputs {
-        let expected = serde_json::from_str::<serde_json::Value>(input)
-            .expect("serde")
-            .to_string();
+        let expected = {
+            let parsed =
+                crate::runtime::accounted::json_arena::parse_value(input.as_bytes(), &controls)
+                    .expect("ordinary JSON");
+            parsed.get().to_string()
+        };
         let parsed = Document::parse_for_output(input, &controls).expect("document");
         let output = serialize(&parsed.forest, parsed.root).expect("output");
         // Assert
@@ -79,7 +82,7 @@ fn should_admit_output_with_frame_capacity_while_forest_remains_owned() {
 }
 
 #[test]
-fn should_release_output_with_stack_when_cancelled_during_key_comparison() {
+fn should_release_output_with_stack_when_canceled_during_key_comparison() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -104,7 +107,7 @@ fn should_release_output_with_stack_when_cancelled_during_key_comparison() {
 
     // Assert
     assert!(compared);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(parsed);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -136,14 +139,14 @@ fn should_release_both_output_buffers_after_real_growth_cancellation() {
 
     // Assert
     assert!(saw_overlap);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(parsed);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_release_traversal_frames_when_cancelled_during_actual_stack_growth() {
+fn should_release_traversal_frames_when_canceled_during_actual_stack_growth() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -165,14 +168,14 @@ fn should_release_traversal_frames_when_cancelled_during_actual_stack_growth() {
 
     // Assert
     assert!(moved);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(parsed);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_release_output_when_cancelled_during_actual_unicode_scan() {
+fn should_release_output_when_canceled_during_actual_unicode_scan() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -195,7 +198,7 @@ fn should_release_output_when_cancelled_during_actual_unicode_scan() {
 
     // Assert
     assert!(scanned);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(parsed);
     assert_eq!(controls.current_query_memory_bytes(), 0);

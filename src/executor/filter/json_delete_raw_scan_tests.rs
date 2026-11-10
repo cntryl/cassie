@@ -140,7 +140,7 @@ fn should_honor_cancellation_before_empty_or_invalid_input() {
         assert!(matches!(
             result,
             Err(super::ScanError::Control(
-                crate::app::CassieError::QueryCancelled
+                crate::app::CassieError::QueryCanceled
             ))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);

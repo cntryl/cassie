@@ -87,7 +87,7 @@ fn should_prefer_cancel_request_over_idle_copy_deadline() {
         // Act
         let outcome = read_test(Some(&cancellation), Some(Instant::now()), &mut reader).await;
         // Assert
-        assert!(matches!(outcome, CopyReadOutcome::Cancelled));
+        assert!(matches!(outcome, CopyReadOutcome::Canceled));
     });
 }
 
@@ -387,6 +387,6 @@ fn should_finish_denied_copy_frame_before_reporting_cancellation() {
         writer.write_all(b"y").await.expect("finish frame");
         let outcome = read.await.expect("reader task");
         // Assert
-        assert!(matches!(outcome, CopyReadOutcome::Cancelled));
+        assert!(matches!(outcome, CopyReadOutcome::Canceled));
     });
 }

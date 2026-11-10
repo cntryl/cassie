@@ -262,9 +262,9 @@ fn should_cancel_parameter_inference_while_the_function_catalog_is_locked() {
             &worker_controls,
             Some(&scope),
         );
-        let cancelled = matches!(result, Err(ParameterAdmissionError::Cancelled));
+        let canceled = matches!(result, Err(ParameterAdmissionError::Canceled));
         drop(result);
-        let _ = completed.send((cancelled, worker_controls.current_query_memory_bytes()));
+        let _ = completed.send((canceled, worker_controls.current_query_memory_bytes()));
     });
     // A wide live charge above the complete narrow peak proves admitted progress.
     // It does not identify the exact instruction of the next catalog read attempt.

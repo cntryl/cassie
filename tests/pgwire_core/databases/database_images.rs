@@ -55,11 +55,18 @@ fn seed_database_image_fixture(cassie: &Cassie) {
         .create_collection_with_meta(
             &collection,
             &Schema {
-                fields: vec![FieldSchema {
-                    name: "value".to_string(),
-                    data_type: DataType::Text,
-                    nullable: false,
-                }],
+                fields: vec![
+                    FieldSchema {
+                        name: "value".to_string(),
+                        data_type: DataType::Text,
+                        nullable: false,
+                    },
+                    FieldSchema {
+                        name: "payload".to_string(),
+                        data_type: DataType::Json,
+                        nullable: true,
+                    },
+                ],
             },
             &CollectionMeta::new(
                 &collection,
@@ -115,10 +122,24 @@ fn seed_database_image_fixture(cassie: &Cassie) {
         .put_document(
             &collection,
             Some("row-1".to_string()),
-            serde_json::json!({"value": "copy"}),
+            serde_json::json!({
+                "value": "copy",
+                "payload": {
+                    "$serde_json::private::Number": "7",
+                    "nested": {"$serde_json::private::RawValue": "[1]"}
+                }
+            }),
         )
         .expect("row");
-    let mut projection = ProjectionMeta::new(&collection, 1);
+    seed_projection_metadata(cassie, &collection);
+    cassie
+        .midge
+        .defer_drop_index(&collection, "pending_drop", u64::MAX)
+        .expect("deferred index cleanup");
+}
+
+fn seed_projection_metadata(cassie: &Cassie, collection: &str) {
+    let mut projection = ProjectionMeta::new(collection, 1);
     projection.source_identity = Some("orders-stream".to_string());
     projection.source_checkpoint = Some("checkpoint-1".to_string());
     projection.last_applied_event_id = Some("event-1".to_string());
@@ -128,12 +149,8 @@ fn seed_database_image_fixture(cassie: &Cassie) {
         .expect("projection metadata");
     cassie
         .midge
-        .record_projection_event(&collection, "orders-stream", "event-1", "batch-1")
+        .record_projection_event(collection, "orders-stream", "event-1", "batch-1")
         .expect("projection event");
-    cassie
-        .midge
-        .defer_drop_index(&collection, "pending_drop", u64::MAX)
-        .expect("deferred index cleanup");
 }
 
 async fn backup_database<R, W>(reader: &mut R, writer: &mut W) -> Vec<u8>
@@ -287,7 +304,7 @@ fn should_preserve_collection_name_matching_source_database_through_pgwire_resto
             )
             .await;
             restored_write
-                .write_all(&query_frame("SELECT value FROM analytics"))
+                .write_all(&query_frame("SELECT value, payload FROM analytics"))
                 .await
                 .expect("query restored relation");
             restored_write.flush().await.expect("flush restored query");
@@ -295,7 +312,13 @@ fn should_preserve_collection_name_matching_source_database_through_pgwire_resto
             assert_eq!(support::error_code(&restored_rows), None);
             assert_eq!(
                 support::data_rows(&restored_rows),
-                vec![vec![Some("copy".to_string())]]
+                vec![vec![
+                    Some("copy".to_string()),
+                    Some(
+                        r#"{"$serde_json::private::Number":"7","nested":{"$serde_json::private::RawValue":"[1]"}}"#
+                            .to_string()
+                    )
+                ]]
             );
             restored_write
                 .shutdown()

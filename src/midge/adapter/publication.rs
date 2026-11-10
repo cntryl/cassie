@@ -143,8 +143,8 @@ impl PublicationWaitControls {
             controls.check_interruption()?;
         }
         if let Some(controls) = &self.rest {
-            if controls.cancellation.is_cancelled() {
-                return Err(CassieError::QueryCancelled);
+            if controls.cancellation.is_canceled() {
+                return Err(CassieError::QueryCanceled);
             }
             if Instant::now() >= controls.deadline {
                 return Err(CassieError::DeadlineExceeded);

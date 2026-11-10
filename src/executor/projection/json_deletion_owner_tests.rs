@@ -415,7 +415,7 @@ fn should_preserve_numeric_sibling_result_when_projecting_json_deletion() {
 }
 
 #[test]
-fn should_release_a_produced_deletion_row_when_cancelled_before_owner_attachment() {
+fn should_release_a_produced_deletion_row_when_canceled_before_owner_attachment() {
     // Arrange
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -443,7 +443,7 @@ fn should_release_a_produced_deletion_row_when_cancelled_before_owner_attachment
         Some(&session),
     );
     // Assert
-    assert!(cancellation.is_cancelled());
+    assert!(cancellation.is_canceled());
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(session);

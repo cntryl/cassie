@@ -28,13 +28,13 @@ fn should_report_cancellation_handle_state() {
     cancellation.cancel();
 
     // Assert
-    assert!(cancellation.is_cancelled());
+    assert!(cancellation.is_canceled());
 }
 
 #[test]
 fn should_cancel_embedded_query_before_execution() {
     // Arrange
-    let path = data_dir("embedded-query-cancelled");
+    let path = data_dir("embedded-query-canceled");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
@@ -44,10 +44,10 @@ fn should_cancel_embedded_query_before_execution() {
     // Act
     let error = cassie
         .execute_sql_with_cancellation(&session, "SELECT 1", vec![], &cancellation)
-        .expect_err("cancelled query should stop before execution");
+        .expect_err("canceled query should stop before execution");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
 
     let _ = std::fs::remove_dir_all(path);
 }
@@ -118,10 +118,10 @@ fn should_cancel_embedded_query_during_recursive_execution() {
     let error = query
         .join()
         .expect("query thread")
-        .expect_err("active query should be cancelled");
+        .expect_err("active query should be canceled");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
 
     drop(cassie);
     let _ = std::fs::remove_dir_all(path);
@@ -174,10 +174,10 @@ fn should_cancel_embedded_query_during_ordered_execution() {
     let error = query
         .join()
         .expect("query thread")
-        .expect_err("ordered query should be cancelled");
+        .expect_err("ordered query should be canceled");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
 
     drop(cassie);
     let _ = std::fs::remove_dir_all(path);

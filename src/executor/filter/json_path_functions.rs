@@ -83,11 +83,11 @@ fn path_function(
     let mut reservation = controls
         .map(|controls| controls.reserve_query_memory(estimated_bytes))
         .transpose()?;
-    let document = document_arg(&args[0])?;
+    let (document, document_parse_memory) = document_arg(&args[0], controls)?;
     let original_path = string_arg(&args[1], "JSONPATH")?;
-    let variables = match args.get(2) {
-        Some(value) => document_arg(value)?,
-        None => serde_json::Value::Object(serde_json::Map::new()),
+    let (variables, variables_parse_memory) = match args.get(2) {
+        Some(value) => document_arg(value, controls)?,
+        None => (serde_json::Value::Object(serde_json::Map::new()), None),
     };
     if !variables.is_object() {
         return Err(CassieError::InvalidParameterValue(
@@ -121,6 +121,8 @@ fn path_function(
     }
     drop(path);
     drop(path_text);
+    drop(variables_parse_memory);
+    drop(document_parse_memory);
     drop(variables);
     drop(document);
     let value = match result {
@@ -194,9 +196,7 @@ fn evaluate_jsonpath_function(
             path.query_with_vars_tz(document, variables, timezone)
                 .map(|items| {
                     let result = if let [value] = items.as_slice() {
-                        serde_json::from_str::<serde_json::Value>(&value.to_string())
-                            .ok()
-                            .and_then(|value| value.as_bool())
+                        value.as_ref().as_bool()
                     } else {
                         None
                     };
@@ -230,12 +230,48 @@ fn json_item(value: sql_json_path::json::Cow<'_, serde_json::Value>) -> serde_js
     value.into_owned()
 }
 
-fn document_arg(value: &Value) -> Result<serde_json::Value, QueryError> {
+fn document_arg(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<
+    (
+        serde_json::Value,
+        Option<crate::runtime::accounted::Accounted<serde_json::Value>>,
+    ),
+    QueryError,
+> {
     match value {
-        Value::Json(value) => Ok(value.clone()),
-        Value::String(value) => serde_json::from_str(value)
-            .map_err(|error| CassieError::Execution(error.to_string()).into()),
+        Value::Json(value) => Ok((value.clone(), None)),
+        Value::String(value) => {
+            if let Some(controls) = controls {
+                let parsed = crate::runtime::accounted::json_arena::parse_value_in_reserved_memory(
+                    value.as_bytes(),
+                    controls,
+                )
+                .map_err(|error| value_parse_error(error, value.as_bytes()))?;
+                return Ok((parsed, None));
+            }
+            let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+                value.as_bytes(),
+                None,
+            )
+            .map_err(|error| value_parse_error(error, value.as_bytes()))?;
+            Ok((parsed.get().clone(), Some(parsed)))
+        }
         _ => Err(CassieError::Execution("JSONPATH functions require JSON values".into()).into()),
+    }
+}
+
+fn value_parse_error(
+    error: crate::runtime::accounted::json_arena::ValueParseError,
+    input: &[u8],
+) -> QueryError {
+    match error {
+        crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+            CassieError::Execution(crate::runtime::accounted::json_arena::syntax_error(input))
+                .into()
+        }
+        crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error.into(),
     }
 }
 
@@ -325,7 +361,7 @@ fn path_match(
     }
     let left = super::super::scalar_from_value(&args[0]);
     let right = super::super::scalar_from_value(&args[1]);
-    match evaluate_path(&left, &right, false)? {
+    match evaluate_path(&left, &right, false, controls)? {
         ScalarValue::Bool(value) => Ok(Value::Bool(value)),
         ScalarValue::Null => Ok(Value::Null),
         _ => unreachable!("JSONPATH match returns boolean or NULL"),
@@ -336,6 +372,7 @@ fn evaluate_path(
     left: &ScalarValue,
     right: &ScalarValue,
     exists: bool,
+    controls: Option<&QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
@@ -346,26 +383,27 @@ fn evaluate_path(
     let path_text = right.as_str().ok_or_else(|| {
         CassieError::Execution("JSONPATH operator requires a JSONPATH value".into())
     })?;
-    let document: serde_json::Value = serde_json::from_str(document_text)
-        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let document = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        document_text.as_bytes(),
+        controls,
+    )
+    .map_err(|error| value_parse_error(error, document_text.as_bytes()))?;
     let path = sql_json_path::JsonPath::new(path_text)
         .map_err(|error| CassieError::Parse(error.to_string()))?;
     if exists {
         return path
-            .exists(&document)
+            .exists(document.get())
             .map(ScalarValue::Bool)
             .map_err(|error| CassieError::Execution(error.to_string()).into());
     }
     let result = path
-        .query(&document)
+        .query(document.get())
         .map_err(|error| CassieError::Execution(error.to_string()))?;
     match result.as_slice() {
-        [value] => match serde_json::from_str::<serde_json::Value>(&value.to_string())
-            .map_err(|error| CassieError::Execution(error.to_string()))?
-        {
-            serde_json::Value::Bool(value) => Ok(ScalarValue::Bool(value)),
-            _ => Ok(ScalarValue::Null),
-        },
+        [value] => Ok(value
+            .as_ref()
+            .as_bool()
+            .map_or(ScalarValue::Null, ScalarValue::Bool)),
         _ => Ok(ScalarValue::Null),
     }
 }
@@ -505,7 +543,7 @@ mod tests {
         let limits = CassieRuntimeLimits::default();
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         let cancellation = QueryCancellationHandle::new();
-        let cancelled = QueryExecutionControls::with_cancellation(
+        let canceled = QueryExecutionControls::with_cancellation(
             &limits,
             Instant::now(),
             cancellation.clone(),
@@ -516,15 +554,15 @@ mod tests {
         let invalid =
             evaluate("jsonb_extract_path", &input, Some(&controls), None).expect("finite path");
         let interrupted =
-            evaluate("jsonb_extract_path", &input, Some(&cancelled), None).expect("finite path");
+            evaluate("jsonb_extract_path", &input, Some(&canceled), None).expect("finite path");
         // Assert
         assert!(invalid.is_err());
         assert!(interrupted
-            .expect_err("cancelled query")
+            .expect_err("canceled query")
             .to_string()
             .contains("cancel"));
         assert_eq!(controls.current_query_memory_bytes(), 0);
-        assert_eq!(cancelled.current_query_memory_bytes(), 0);
+        assert_eq!(canceled.current_query_memory_bytes(), 0);
     }
 }
 

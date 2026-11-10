@@ -31,22 +31,8 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
     {
         return Ok(value);
     }
-    if data_type.is_json() && source_type.is_some_and(DataType::is_json) {
-        let value = eval_scalar_with_context(row, expr, context)?;
-        #[cfg(test)]
-        if let ScalarValue::Json(text) = &value {
-            JSON_INPUT_POINTER.with(|slot| slot.set(text.as_ptr()));
-        }
-        let document = json_concat::into_json_document(value)?;
-        if *data_type == DataType::Jsonb || source_type == Some(&DataType::Jsonb) {
-            super::cast_admission::value(&document, data_type, source_type, context)?;
-            if let ScalarValue::Json(text) = document {
-                return crate::types::jsonb::canonical(&text)
-                    .map(ScalarValue::Json)
-                    .map_err(|error| crate::app::CassieError::TypeInput(error).into());
-            }
-        }
-        return Ok(document);
+    if let Some(value) = json_source_cast(row, expr, data_type, source_type, context)? {
+        return Ok(value);
     }
     if let Some(value) = percentile_array_text_cast(row, expr, data_type, context)? {
         return Ok(value);
@@ -124,6 +110,39 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
             }),
         )
     }
+}
+
+fn json_source_cast<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    data_type: &DataType,
+    source_type: Option<&DataType>,
+    context: EvalContext<'_>,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if !data_type.is_json() || !source_type.is_some_and(DataType::is_json) {
+        return Ok(None);
+    }
+    let value = eval_scalar_with_context(row, expr, context)?;
+    #[cfg(test)]
+    if let ScalarValue::Json(text) = &value {
+        JSON_INPUT_POINTER.with(|slot| slot.set(text.as_ptr()));
+    }
+    let document = json_concat::into_json_document(value)?;
+    if *data_type == DataType::Jsonb || source_type == Some(&DataType::Jsonb) {
+        super::cast_admission::value(&document, data_type, source_type, context)?;
+        if let ScalarValue::Json(text) = &document {
+            let controls = context.controls.or_else(|| {
+                context
+                    .session
+                    .and_then(CassieSession::statement_execution_controls)
+            });
+            return crate::types::jsonb::canonical_with_controls(text, controls)
+                .map(ScalarValue::Json)
+                .map(Some)
+                .map_err(Into::into);
+        }
+    }
+    Ok(Some(document))
 }
 
 fn collection_aggregate_text_cast<R: RowAccess + ?Sized>(
@@ -219,7 +238,7 @@ fn percentile_array_text_cast<R: RowAccess + ?Sized>(
     let ScalarValue::Json(value) = eval_scalar_with_context(row, expr, context)? else {
         return Ok(None);
     };
-    let Ok(array) = serde_json::from_str::<serde_json::Value>(&value) else {
+    let Ok(array) = crate::types::array::parse_json_document(&value) else {
         return Ok(None);
     };
     let Some(formatted) = crate::types::array::format_json_array_text(&array) else {

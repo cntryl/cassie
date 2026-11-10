@@ -18,11 +18,10 @@ preserved. Registered `pg_catalog` names share the same identities.
 
 FILTER is represented once as an optional expression on the existing window
 call. It is BOOLEAN or SQL NULL, runs before either argument for each visited
-frame input, and FALSE/NULL skips the input. The representation uses a defaulted,
-omitted-when-absent field: old stored ASTs decode with no filter and old unfiltered
-encodings retain their shape. This is new-reader handling of old records;
-serde defaults do not make a new filtered AST safe for an old reader that ignores
-unknown fields. All analysis, binding, parameter, dependency and resource
+frame input, and FALSE/NULL skips the input. The representation uses a defaulted, omitted-when-absent field. Absence
+means no FILTER in current-format records; the serde default is not a cross-build
+compatibility promise. Cassie is unreleased and does not support older binary
+readers. All analysis, binding, parameter, dependency and resource
 traversals must visit it.
 Engine-dependent volatile call counts across different output frames are not
 qualified by the finite value witnesses; within one visited frame input the
@@ -53,30 +52,29 @@ Source regressions are authored first; native compilation/tests/strict Clippy
 remain deferred to the next frozen integrated gate. Oracle and static source
 checks do not qualify Cassie execution, resource or cancellation behavior.
 
-## Durable carriers and minimum readers
+## Durable carriers and current-format reader
 
 Views and materialized projections store raw query SQL; functions/procedures
 store raw bodies. Their metadata carriers are `catalog/programs.rs` and
-`catalog/collections.rs`. Each is reparsed. The baseline parser rejects the new
-statistical FILTER and regression-window forms, while its existing COUNT/SUM/
-Boolean FILTER lowering preserves those old raw-SQL definitions. No old reader
-may execute a filtered serialized AST by silently ignoring this field.
+`catalog/collections.rs`. Each is reparsed by the current build. Existing
+COUNT/SUM/Boolean FILTER lowering for raw SQL remains supported by the selected
+current contract.
 
-Index expressions/predicates are the actual serialized Expr carrier. A window
-call can enter an Expr only through a subquery. The existing SQL index binder
-already rejects all subqueries (`schema_indexes.rs`); the low-level encoded index
-publication guard must enforce the same 0A000 restriction before metadata is
-written. This blocks serialized filtered and unfiltered window subqueries at the
-same established boundary, including programmatically constructed index metadata.
-The guard also applies when such index metadata is read back. The selected SQL
-index contract is unchanged.
+Index expressions/predicates are the serialized Expr carrier. A window call can
+enter an Expr only through a subquery. The SQL index binder rejects subqueries
+(`schema_indexes.rs`); the low-level encoded index publication guard must enforce
+the same 0A000 restriction before metadata is written and when current-format
+metadata is read back. This blocks filtered and unfiltered window subqueries,
+including programmatically constructed index metadata. Malformed or unsupported
+records fail deterministically. No older Cassie reader is a compatibility input.
 
 Jev selected this bounded carrier handling at 0.99 after exact source review.
-The new field alone does not require another marker once that serialized route
-is blocked; this does not waive the independent v0.2 minimum-reader transition
-for other durable features. Low-level rejection, raw-SQL view preservation and
-new-reader legacy-AST decoding are authored witnesses, with native execution
-pending. No blanket old-reader compatibility is claimed from serde defaults.
+The field and traversal changes are part of the current public API. Cassie is
+unreleased, so source compatibility with prior development builds and a
+migration path are not required. Keep the explicit `filter` field rather than
+hiding the predicate in arguments or an unproved sidecar. Current-format
+serialization, traversal, restart and resource tests remain required; execution
+is pending.
 
 ## Implementation checkpoint status
 
@@ -89,23 +87,12 @@ results. Compilation and tests are deferred until all open work is consolidated;
 the complete ordered gate and final-head hosted checks remain pending. Do not
 describe this as a completed #806 slice until its acceptance criteria are proved.
 
-## Public Rust AST compatibility
+## Public Rust AST shape
 
-`cassie::sql::ast::WindowFunctionCall` is a public struct. Adding its `filter`
-field is a Rust source-breaking change for downstream code that constructs the
-struct with an exhaustive literal or destructures it exhaustively. An unfiltered
-constructor must add `filter: None`; a pattern that does not inspect the filter
-may add `..`. Serde's default only preserves new-reader decoding of old data; it
-does not preserve Rust source compatibility or make old readers safe for filtered
-ASTs. The v0.2 contract retains the explicit field and records this migration
-rather than hiding the predicate in arguments or an unproved sidecar.
-
-The source inventory found three direct in-repository construction sites: the
-parser and two executor test fixtures; each supplies `filter`. This inventory is
-not evidence about downstream consumers. Before qualification, add a downstream
-consumer compile witness for the migrated constructor and pattern, exercise old
-unfiltered and new filtered serialized forms and the index publication/read
-guard, and audit every predicate traversal. Do not claim old-reader support or
-full API qualification from the field's serde attributes. Jev selected this
-explicit contract (0.97; API/reader/traversal lead 0.83); the receipt is
-`target/assembly-review/806-window-public-api-contract-{request,response}.json`.
+`cassie::sql::ast::WindowFunctionCall` is public. Adding `filter` changes its
+source shape, and callers in this repository must initialize or inspect the
+field. Earlier unreleased Rust APIs are not compatibility inputs; no downstream
+migration or compatibility compile witness is required. The field remains
+explicit because it represents selected SQL semantics. Jev selected this
+contract (0.97; API/reader/traversal lead 0.83); current-build AST round trips
+and every predicate traversal still require source review and executable tests.

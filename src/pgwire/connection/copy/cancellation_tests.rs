@@ -345,11 +345,11 @@ fn should_prioritize_cancellation_given_a_ready_copy_message() {
     let outcome = runtime.block_on(select_copy_read(&cancellation, message));
 
     // Assert
-    assert!(matches!(outcome, CopyReadOutcome::Cancelled));
+    assert!(matches!(outcome, CopyReadOutcome::Canceled));
 }
 
 #[test]
-fn should_return_a_ready_copy_message_when_not_cancelled() {
+fn should_return_a_ready_copy_message_when_not_canceled() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -473,7 +473,7 @@ impl PgwireCopyCancelHarness {
         let observer = self.cassie.create_session("root", None);
         self.cassie
             .execute_sql(&observer, &format!("SELECT id FROM {}", self.table), vec![])
-            .expect("read target after cancelled COPY")
+            .expect("read target after canceled COPY")
             .rows()
             .is_empty()
     }
@@ -564,7 +564,7 @@ impl PgwireCopyCancelHarness {
     }
 }
 
-fn assert_copy_cancelled(frames: &[(u8, Vec<u8>)], explicit_transaction: bool) {
+fn assert_copy_canceled(frames: &[(u8, Vec<u8>)], explicit_transaction: bool) {
     assert_eq!(error_code(frames).as_deref(), Some("57014"));
     assert_eq!(
         frames.last().map(|(tag, body)| (*tag, body.as_slice())),
@@ -600,18 +600,18 @@ async fn run_buffered_copy_cancel(explicit_transaction: bool) -> u8 {
         .expect("server should buffer CopyData before cancellation")
         .expect("COPY payload observation");
     harness.cancel().await;
-    let cancelled = harness
-        .read_until_ready("cancelled buffered COPY should return to query mode")
+    let canceled = harness
+        .read_until_ready("canceled buffered COPY should return to query mode")
         .await;
     let target_is_empty = harness.target_is_empty();
     let recovered = harness.recover_after_late_copy(explicit_transaction).await;
 
     // Assert
-    assert_copy_cancelled(&cancelled, explicit_transaction);
+    assert_copy_canceled(&canceled, explicit_transaction);
     assert_copy_recovered(
         &recovered,
         target_is_empty,
-        "cancelled COPY must discard buffered rows",
+        "canceled COPY must discard buffered rows",
     );
     harness.shutdown().await;
     if explicit_transaction {
@@ -658,24 +658,24 @@ async fn run_partial_copy_frame_cancel(
     harness
         .cancel_during_partial_frame(cancel_after_partial_body)
         .await;
-    let cancelled = harness
-        .read_until_ready("cancelled COPY should return to query mode")
+    let canceled = harness
+        .read_until_ready("canceled COPY should return to query mode")
         .await;
     let target_is_empty = harness.target_is_empty();
     let recovered = harness.recover_after_late_copy(explicit_transaction).await;
 
     // Assert
-    assert_copy_cancelled(&cancelled, explicit_transaction);
+    assert_copy_canceled(&canceled, explicit_transaction);
     assert_copy_recovered(
         &recovered,
         target_is_empty,
-        "cancelled COPY must discard partial rows",
+        "canceled COPY must discard partial rows",
     );
     harness.shutdown().await;
 }
 
 #[test]
-fn should_preserve_frontend_alignment_when_cancelled_after_copy_tag() {
+fn should_preserve_frontend_alignment_when_canceled_after_copy_tag() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -689,7 +689,7 @@ fn should_preserve_frontend_alignment_when_cancelled_after_copy_tag() {
 }
 
 #[test]
-fn should_preserve_frontend_alignment_when_cancelled_after_partial_copy_body() {
+fn should_preserve_frontend_alignment_when_canceled_after_partial_copy_body() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -767,7 +767,7 @@ fn should_finish_partially_read_copy_body_before_applying_cancellation() {
     let outcome = runtime.block_on(cancel_copy_read_after_partial_frame_prefix(&prefix, b"\n"));
 
     // Assert
-    assert!(matches!(outcome, CopyReadOutcome::Cancelled));
+    assert!(matches!(outcome, CopyReadOutcome::Canceled));
 }
 
 #[test]
@@ -790,5 +790,5 @@ fn should_finish_partially_read_copy_length_before_applying_cancellation() {
     ));
 
     // Assert
-    assert!(matches!(outcome, CopyReadOutcome::Cancelled));
+    assert!(matches!(outcome, CopyReadOutcome::Canceled));
 }

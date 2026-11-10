@@ -131,7 +131,7 @@ fn should_admit_complete_sparse_snapshot_backing() {
 }
 
 #[test]
-fn should_retire_partial_catalog_snapshot_ownership_when_capture_is_cancelled() {
+fn should_retire_partial_catalog_snapshot_ownership_when_capture_is_canceled() {
     // Arrange
     let source = catalog();
     let cancellation = QueryCancellationHandle::new();
@@ -157,7 +157,7 @@ fn should_retire_partial_catalog_snapshot_ownership_when_capture_is_cancelled() 
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(copied.get(), 1);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -189,7 +189,7 @@ fn should_check_cancellation_while_waiting_for_catalog_read_guards() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert!(earlier_guards_released.get());
     assert_eq!(controls.current_query_memory_bytes(), 0);

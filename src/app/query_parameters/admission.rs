@@ -109,7 +109,7 @@ pub(in crate::app) fn admit_parameter_types(
 fn project_error(error: ParameterAdmissionError) -> CassieError {
     match error {
         ParameterAdmissionError::Memory(message) => CassieError::ResourceLimit(message),
-        ParameterAdmissionError::Cancelled => CassieError::QueryCancelled,
+        ParameterAdmissionError::Canceled => CassieError::QueryCanceled,
         ParameterAdmissionError::Deadline => CassieError::DeadlineExceeded,
         ParameterAdmissionError::InvalidParam(message)
         | ParameterAdmissionError::LegacyConflict(message) => CassieError::Planner(message),

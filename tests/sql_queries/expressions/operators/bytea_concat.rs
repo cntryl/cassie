@@ -123,7 +123,7 @@ fn should_reject_atomic_bytea_results_given_row_budget_when_concat_outputs_excee
 }
 
 #[test]
-fn should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_before_evaluation() {
+fn should_observe_cancellation_given_bytea_concat_when_execution_is_canceled_before_evaluation() {
     // Arrange
     let fixture = sql_fixture("bytea-concat-cancel", &[]);
     let cancellation = cassie::runtime::QueryCancellationHandle::new();
@@ -136,7 +136,7 @@ fn should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_be
         &cancellation,
     );
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(
         fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"],
         0

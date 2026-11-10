@@ -90,7 +90,7 @@ fn should_admit_bit_output_at_exact_budget_with_deny_below() {
 }
 
 #[test]
-fn should_release_bit_output_when_cancelled_during_expansion() {
+fn should_release_bit_output_when_canceled_during_expansion() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -102,6 +102,6 @@ fn should_release_bit_output_when_cancelled_during_expansion() {
     // Act
     let result = super::decode_observed(1562, &bytes, 0, &controls, || cancellation.cancel());
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

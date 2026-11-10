@@ -514,7 +514,7 @@ fn primitive_type(data_type: &DataType) -> Option<DataType> {
 
 fn admission_error(error: CassieError) -> ParameterAdmissionError {
     match error {
-        CassieError::QueryCancelled => ParameterAdmissionError::Cancelled,
+        CassieError::QueryCanceled => ParameterAdmissionError::Canceled,
         CassieError::DeadlineExceeded => ParameterAdmissionError::Deadline,
         CassieError::ResourceLimit(message) => ParameterAdmissionError::Memory(message),
         other => ParameterAdmissionError::Memory(other.to_string()),

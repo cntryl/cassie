@@ -50,5 +50,5 @@ fn should_cancel_string_agg_without_partial_output_given_retained_values_when_ca
 
     // Assert
     support::assert_control_and_recovery(&case.control, "6", &case.recovery, "47");
-    support::assert_cancelled_without_retained_resources(&case);
+    support::assert_canceled_without_retained_resources(&case);
 }

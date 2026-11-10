@@ -189,8 +189,8 @@ pub(super) fn invalid(message: &str) -> QueryError {
 }
 
 pub(super) fn check_controls(controls: &QueryExecutionControls) -> Result<(), QueryError> {
-    if controls.is_cancelled() {
-        Err(CassieError::QueryCancelled.into())
+    if controls.is_canceled() {
+        Err(CassieError::QueryCanceled.into())
     } else if controls.is_timed_out() {
         Err(CassieError::DeadlineExceeded.into())
     } else {

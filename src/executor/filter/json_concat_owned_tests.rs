@@ -105,7 +105,7 @@ fn should_preserve_sql_null_with_reject_foreign_output_owner() {
 }
 
 #[test]
-fn should_release_concat_owners_after_an_actual_output_copy_is_cancelled() {
+fn should_release_concat_owners_after_an_actual_output_copy_is_canceled() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

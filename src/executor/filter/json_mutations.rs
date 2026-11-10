@@ -104,8 +104,7 @@ fn run(
     let result = match kind {
         JsonFunction::Pretty => {
             let source = super::json_functions::json_text(&args[0])?;
-            let canonical =
-                crate::types::jsonb::canonical(&source).map_err(CassieError::TypeInput)?;
+            let canonical = crate::types::jsonb::canonical_with_controls(&source, controls)?;
             let node = nodes::Node::parse(&canonical)?;
             Ok(Value::String(node.render(true, controls)?))
         }
@@ -139,7 +138,7 @@ fn mutate(
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
-    let mut document = parse(&args[0])?;
+    let mut document = parse(&args[0], controls)?;
     let path_text = match &args[1] {
         Value::Array(path) => crate::types::array_value::format_text(path, &DataType::Text)
             .ok_or_else(|| {
@@ -175,7 +174,7 @@ fn mutate(
             _ => return Err(treatment_error()),
         }
     } else {
-        let replacement = Some(parse(&args[2])?);
+        let replacement = Some(parse(&args[2], controls)?);
         (
             replacement,
             if kind == JsonFunction::Insert {
@@ -189,11 +188,45 @@ fn mutate(
     formatted(&document, controls)
 }
 
-fn parse(value: &Value) -> Result<serde_json::Value, QueryError> {
+fn parse(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<serde_json::Value, QueryError> {
     match value {
         Value::Json(value) => Ok(value.clone()),
-        value => serde_json::from_str(&super::json_functions::json_text(value)?)
-            .map_err(|error| QueryError::General(format!("invalid JSON document: {error}"))),
+        value => {
+            let text = super::json_functions::json_text(value)?;
+            let parsed = if let Some(controls) = controls {
+                crate::runtime::accounted::json_arena::parse_value_in_reserved_memory(
+                    text.as_bytes(),
+                    controls,
+                )
+            } else {
+                let parsed =
+                    crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+                        text.as_bytes(),
+                        None,
+                    )
+                    .map_err(|error| mutation_parse_error(error, text.as_bytes()))?;
+                return Ok(parsed.get().clone());
+            };
+            parsed.map_err(|error| mutation_parse_error(error, text.as_bytes()))
+        }
+    }
+}
+
+fn mutation_parse_error(
+    error: crate::runtime::accounted::json_arena::ValueParseError,
+    input: &[u8],
+) -> QueryError {
+    match error {
+        crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+            QueryError::General(format!(
+                "invalid JSON document: {}",
+                crate::runtime::accounted::json_arena::syntax_error(input)
+            ))
+        }
+        crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error.into(),
     }
 }
 fn flag(value: Option<&Value>, default: bool) -> Result<bool, QueryError> {
@@ -210,7 +243,7 @@ fn canonical(
     controls: Option<&QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
     check(controls)?;
-    let document = crate::types::jsonb::canonical(document).map_err(CassieError::TypeInput)?;
+    let document = crate::types::jsonb::canonical_with_controls(document, controls)?;
     check(controls)?;
     Ok(Value::String(document))
 }

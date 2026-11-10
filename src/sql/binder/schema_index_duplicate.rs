@@ -149,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn should_stop_duplicate_column_validation_when_cancelled() {
+    fn should_stop_duplicate_column_validation_when_canceled() {
         // Arrange
         let catalog = Catalog::new();
         let cancellation = QueryCancellationHandle::new();
@@ -164,7 +164,7 @@ mod tests {
         let result = validate(&statement(), &catalog, "rows", Some(&controls));
 
         // Assert
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 
@@ -209,7 +209,7 @@ mod tests {
         let result = validate(&statement, &Catalog::new(), "rows", Some(&controls));
 
         // Assert
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }

@@ -518,7 +518,7 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
     { name: "Database1", description: "Commerce, customers, orders, and reporting" },
     { name: "Database2", description: "Inventory, warehouse, and customer support operations" },
   ];
-  const operations = new Map<string, { completed: boolean; cancelled: boolean }>();
+  const operations = new Map<string, { completed: boolean; canceled: boolean }>();
 
   async function queryBody(req: IncomingMessage, res: ServerResponse) {
     const body = JSON.parse((await readBody(req)) || "{}") as {
@@ -538,11 +538,11 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
   }
 
   async function completeOperation(operationId: string, res: ServerResponse, result: unknown) {
-    const operation = { completed: false, cancelled: false };
+    const operation = { completed: false, canceled: false };
     operations.set(operationId, operation);
     await new Promise<void>((resolve) => setTimeout(resolve, 500));
-    if (operation.cancelled) {
-      if (!res.writableEnded) sendJson(res, 409, { error: "query operation cancelled" });
+    if (operation.canceled) {
+      if (!res.writableEnded) sendJson(res, 409, { error: "query operation canceled" });
       return;
     }
     operation.completed = true;
@@ -652,8 +652,8 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
       else if (operation.completed)
         sendJson(res, 409, { error: "query operation already completed" });
       else {
-        operation.cancelled = true;
-        sendJson(res, 200, { cancelled: true });
+        operation.canceled = true;
+        sendJson(res, 200, { canceled: true });
       }
       return;
     }

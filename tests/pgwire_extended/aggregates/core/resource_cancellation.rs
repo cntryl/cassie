@@ -170,7 +170,7 @@ fn should_bound_aggregate_rows_without_publishing_partial_output() {
 
 struct AggregateCancellationEvidence {
     baseline: Frames,
-    cancelled: Frames,
+    canceled: Frames,
     recovery: Frames,
     cancel_elapsed: Duration,
 }
@@ -213,7 +213,7 @@ fn run_aggregate_cancellation(config: CassieRuntimeConfig) -> AggregateCancellat
             .shutdown()
             .await
             .expect("close aggregate cancellation request");
-        let cancelled =
+        let canceled =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
         let cancel_elapsed = cancel_started.elapsed();
 
@@ -230,7 +230,7 @@ fn run_aggregate_cancellation(config: CassieRuntimeConfig) -> AggregateCancellat
         server.stop().await;
         AggregateCancellationEvidence {
             baseline,
-            cancelled,
+            canceled,
             recovery,
             cancel_elapsed,
         }
@@ -268,22 +268,22 @@ fn should_cancel_aggregate_query_without_publishing_partial_output() {
     );
 
     assert_eq!(
-        wire::error_code(&evidence.cancelled).as_deref(),
+        wire::error_code(&evidence.canceled).as_deref(),
         Some("57014")
     );
     assert_eq!(
-        wire::data_rows(&evidence.cancelled),
+        wire::data_rows(&evidence.canceled),
         Vec::<Vec<Option<String>>>::new()
     );
     assert_eq!(
         evidence
-            .cancelled
+            .canceled
             .iter()
             .filter(|frame| frame.0 == b'C')
             .count(),
         0
     );
-    assert_eq!(evidence.cancelled.last().map(|frame| frame.0), Some(b'Z'));
+    assert_eq!(evidence.canceled.last().map(|frame| frame.0), Some(b'Z'));
     assert!(
         evidence.cancel_elapsed < Duration::from_secs(2),
         "explicit cancellation should interrupt the aggregate query before its deadline: {:?}",

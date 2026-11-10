@@ -140,7 +140,7 @@ fn should_release_borrowed_source_after_actual_key_copy_cancellation() {
         context(&controls, Some(&owner), &functions, &[]),
     );
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);

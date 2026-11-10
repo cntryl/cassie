@@ -173,7 +173,7 @@ fn should_cancel_during_selected_primitive_array_copy() {
         assert!(seen);
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

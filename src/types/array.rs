@@ -4,6 +4,10 @@ use crate::types::DataType;
 
 mod elements;
 
+pub(crate) fn parse_json_document(input: &str) -> Result<JsonValue, String> {
+    elements::parse_json_document(input)
+}
+
 /// Distinguishes malformed input from a selected unsupported element origin.
 #[derive(Debug)]
 pub(crate) enum TextArrayError {
@@ -142,8 +146,12 @@ fn parse_json_text_array(
             .map_err(TextArrayError::Invalid)?;
         return parsed_json_array(value);
     }
-    let value: JsonValue = serde_json::from_str(input)
-        .map_err(|error| TextArrayError::Invalid(format!("invalid JSON array: {error}")))?;
+    let value: JsonValue = if matches!(element_type, DataType::Json | DataType::Jsonb) {
+        elements::parse_json_document(input).map_err(TextArrayError::Invalid)?
+    } else {
+        serde_json::from_str(input)
+            .map_err(|error| TextArrayError::Invalid(format!("invalid JSON array: {error}")))?
+    };
     let JsonValue::Array(values) = value else {
         return Err(TextArrayError::Invalid(
             "array value must be a JSON array".to_string(),
@@ -621,7 +629,8 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
         DataType::Boolean => crate::types::boolean::parse_text(&value)
             .map(JsonValue::Bool)
             .ok_or_else(|| format!("invalid boolean array element '{value}'")),
-        DataType::Json | DataType::Jsonb | DataType::Vector(_) => serde_json::from_str(&value)
+        DataType::Json | DataType::Jsonb => elements::parse_json_document(&value),
+        DataType::Vector(_) => serde_json::from_str(&value)
             .map_err(|error| format!("invalid JSON array element: {error}")),
         DataType::Array(_) => Err("array-of-array types are not supported".to_string()),
         DataType::JsonPath => Err("JSONPATH arrays are not supported".to_string()),

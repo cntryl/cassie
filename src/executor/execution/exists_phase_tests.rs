@@ -171,17 +171,17 @@ fn should_preserve_input_owners_after_phase_carrier_rejection() {
     let (row, parent) = input(&tight);
     let original = tight.current_query_memory_bytes();
     let cancellation = crate::runtime::QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &limits(4 * 1024 * 1024),
         Instant::now(),
         cancellation.clone(),
     );
-    let (cancelled_row, cancelled_parent) = input(&cancelled);
-    let cancelled_original = cancelled.current_query_memory_bytes();
+    let (canceled_row, canceled_parent) = input(&canceled);
+    let canceled_original = canceled.current_query_memory_bytes();
     cancellation.cancel();
     // Act
     let denied = evaluate(&fixture, &row, &tight);
-    let interrupted = evaluate(&fixture, &cancelled_row, &cancelled);
+    let interrupted = evaluate(&fixture, &canceled_row, &canceled);
     // Assert
     assert!(
         matches!(
@@ -200,13 +200,13 @@ fn should_preserve_input_owners_after_phase_carrier_rejection() {
         "{interrupted:?}"
     );
     assert_eq!(tight.current_query_memory_bytes(), original);
-    assert_eq!(cancelled.current_query_memory_bytes(), cancelled_original);
+    assert_eq!(canceled.current_query_memory_bytes(), canceled_original);
     assert_eq!(row.get("ancestor.id"), Some(&Value::Int64(1)));
     drop(row);
     drop(parent);
-    drop(cancelled_row);
-    drop(cancelled_parent);
+    drop(canceled_row);
+    drop(canceled_parent);
     assert_eq!(tight.current_query_memory_bytes(), 0);
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
     cleanup(fixture);
 }

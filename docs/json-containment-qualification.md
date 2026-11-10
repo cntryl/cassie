@@ -1,8 +1,11 @@
 # JSON containment resource qualification
 
 This source increment belongs to [#809](https://github.com/cntryl/cassie/issues/809).
-Its new executable probes remain pending the complete integrated query bundle
-gate. Earlier passing operator semantics are baseline evidence.
+The in-tree iterative workspace, deep-input, cancellation, NULL, and evaluator
+entry-point probes ran in the 2026-11-10 complete locked test suite. The
+candidate sections below retain narrower design leads whose probes are not all
+implemented; they remain separate follow-up work. Earlier operator semantics
+are baseline evidence.
 
 Containment keeps its existing object, array, exact numeric and NULL semantics.
 The private traversal uses an explicit stack whose frames each own a query-memory
@@ -106,7 +109,7 @@ array-versus-scalar behavior, both directions, exact/below admission, and
 actual sort/comparison cancellation. All probes remain unexecuted until the
 combined gate. Newly admitted key directories and sorting can report control
 errors earlier; nested container parsing, general raw pairs, diagnostics,
-allocator transients, teardown and sentinel/storage migration remain open.
+allocator transients, teardown and ordinary sentinel-key round-trip semantics remain open.
 PostgreSQL 18.6 yields false for `{"a":[1]} @> {"a":1}`, true for
 `[1] @> 1`, true for `{"a":1,"a":2} @> {"a":2}`, and true for
 `{"a":[1,2]} @> {"a":[2]}` with JSONB operands.
@@ -173,7 +176,7 @@ values, actual range-directory movement and exact/below-budget overlap. These
 probes are unexecuted. Directory admission can surface resource or cancellation
 errors earlier; the existing repeated candidate search can remain quadratic.
 General raw parsing, diagnostic allocation, source/allocator transients,
-teardown and sentinel/storage migration remain outside this increment.
+teardown and ordinary sentinel-key round-trip semantics remain outside this increment.
 PostgreSQL 18.6 yields true for `[1] @> [1,1]`, true for `[1,2] @> [2,1]`,
 false for `[1,2] @> 3`, and true for `[] @> []` with JSONB operands.
 

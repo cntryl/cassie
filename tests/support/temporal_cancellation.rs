@@ -50,7 +50,7 @@ pub fn run_sleep_cancellation(sql: &str) -> (Frames, Frames) {
         resume
             .send(())
             .expect("resume after cancellation was handled");
-        let cancelled =
+        let canceled =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
         wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
         let recovered =
@@ -58,14 +58,14 @@ pub fn run_sleep_cancellation(sql: &str) -> (Frames, Frames) {
         drop(reader);
         drop(writer);
         server.stop().await;
-        (cancelled, recovered)
+        (canceled, recovered)
     })
 }
 
-pub fn assert_cancelled_and_recovered(cancelled: &Frames, recovered: &Frames) {
-    assert_eq!(wire::error_code(cancelled).as_deref(), Some("57014"));
-    assert!(!cancelled.iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
-    assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
+pub fn assert_canceled_and_recovered(canceled: &Frames, recovered: &Frames) {
+    assert_eq!(wire::error_code(canceled).as_deref(), Some("57014"));
+    assert!(!canceled.iter().any(|(tag, _)| matches!(*tag, b'D' | b'C')));
+    assert_eq!(canceled.last().map(|frame| frame.0), Some(b'Z'));
     assert_eq!(wire::error_code(recovered), None);
     assert_eq!(
         wire::data_rows(recovered),

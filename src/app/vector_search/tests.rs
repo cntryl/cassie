@@ -9,7 +9,7 @@ use crate::types::{DataType, Value};
 use super::{AccountedVectorResult, Cassie, CassieError, VectorSearchDiagnostics};
 
 #[test]
-fn should_reject_vector_result_cancelled_during_final_conversion() {
+fn should_reject_vector_result_canceled_during_final_conversion() {
     // Arrange
     let path = std::env::temp_dir().join(format!(
         "cassie-vector-finalizer-cancellation-{}",
@@ -34,7 +34,7 @@ fn should_reject_vector_result_cancelled_during_final_conversion() {
     // Act
     let result = cassie.finalize_vector_search(accounted, &controls, |result, _| {
         assert_eq!(controls.current_query_memory_bytes(), retained_bytes);
-        assert!(!controls.is_cancelled());
+        assert!(!controls.is_canceled());
         conversion_calls.set(conversion_calls.get() + 1);
         cancellation.cancel();
         assert_eq!(result.rows(), vec![vec![Value::Int64(7)]]);
@@ -49,7 +49,7 @@ fn should_reject_vector_result_cancelled_during_final_conversion() {
 
     // Assert
     assert_eq!(conversion_calls.get(), 1);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(after.vector.count, before.vector.count);
     assert_eq!(after.vector.hnsw_executions, before.vector.hnsw_executions);
     assert_eq!(

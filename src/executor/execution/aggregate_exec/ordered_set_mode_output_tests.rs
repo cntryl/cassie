@@ -397,7 +397,7 @@ fn should_cancel_mode_during_actual_utf8_output_copy_with_input_owned() {
     assert!(seen);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

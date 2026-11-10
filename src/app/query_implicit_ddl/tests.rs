@@ -297,7 +297,7 @@ fn should_cancel_an_implicit_ddl_publication_wait_before_staging() {
     // Assert
     assert_eq!(
         result
-            .expect_err("cancelled lock wait")
+            .expect_err("canceled lock wait")
             .descriptor()
             .sql_state,
         "57014"

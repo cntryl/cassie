@@ -41,7 +41,7 @@ pub(crate) enum ParameterAdmissionError {
         message: String,
         _reservation: QueryMemoryReservation,
     },
-    Cancelled,
+    Canceled,
     Deadline,
     LegacyConflict(String),
     Semantic(super::diagnostics::ParameterSemanticDiagnostic),
@@ -103,8 +103,8 @@ impl AdmittedParameterTypes {
 pub(super) fn check_controls(
     controls: &QueryExecutionControls,
 ) -> Result<(), ParameterAdmissionError> {
-    if controls.is_cancelled() {
-        return Err(ParameterAdmissionError::Cancelled);
+    if controls.is_canceled() {
+        return Err(ParameterAdmissionError::Canceled);
     }
     if controls.is_timed_out() {
         return Err(ParameterAdmissionError::Deadline);

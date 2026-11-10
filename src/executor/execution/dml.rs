@@ -81,9 +81,25 @@ fn value_to_json_for_field(
     data_type: &DataType,
 ) -> Result<serde_json::Value, QueryError> {
     if let (DataType::Json | DataType::Jsonb, Value::String(text)) = (data_type, value) {
-        return serde_json::from_str(text).map_err(|error| {
-            crate::app::CassieError::Parse(format!("field '{field}' expects JSON: {error}")).into()
-        });
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
+        let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+            text.as_bytes(),
+            controls.as_ref(),
+        )
+        .map_err(|error| match error {
+            crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+                crate::app::CassieError::Parse(format!(
+                    "field '{field}' expects JSON: {}",
+                    crate::runtime::accounted::json_arena::syntax_error(text.as_bytes())
+                ))
+            }
+            crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error,
+        })?;
+        if *data_type == DataType::Jsonb {
+            crate::types::jsonb::format(parsed.get())
+                .map_err(crate::app::CassieError::TypeInput)?;
+        }
+        return Ok(parsed.get().clone());
     }
 
     if let (DataType::Vector(dimensions), Value::String(text)) = (data_type, value) {

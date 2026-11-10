@@ -640,7 +640,7 @@ fn should_infer_bare_virtual_catalog_columns_without_an_owned_source_map() {
     .map(|sql| parse_statement(sql).expect("virtual source SQL"));
     let generous = controls(1_048_576);
     let cancellation = crate::runtime::QueryCancellationHandle::new();
-    let cancelled_controls = QueryExecutionControls::with_cancellation(
+    let canceled_controls = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
@@ -677,8 +677,8 @@ fn should_infer_bare_virtual_catalog_columns_without_an_owned_source_map() {
     let constrained = controls(bare_peak.checked_sub(1).expect("nonzero inference peak"));
     let denied = checked_parse_parameter_types(&statements[0], &[0], &catalog, &constrained);
     cancellation.cancel();
-    let cancelled =
-        checked_parse_parameter_types(&statements[0], &[0], &catalog, &cancelled_controls);
+    let canceled =
+        checked_parse_parameter_types(&statements[0], &[0], &catalog, &canceled_controls);
 
     // Assert
     assert_eq!(borrowed.len(), owned.len());
@@ -700,6 +700,6 @@ fn should_infer_bare_virtual_catalog_columns_without_an_owned_source_map() {
     assert_eq!(generous.current_query_memory_bytes(), 0);
     assert!(matches!(denied, Err(ParameterAdmissionError::Memory(_))));
     assert_eq!(constrained.current_query_memory_bytes(), 0);
-    assert!(matches!(cancelled, Err(ParameterAdmissionError::Cancelled)));
-    assert_eq!(cancelled_controls.current_query_memory_bytes(), 0);
+    assert!(matches!(canceled, Err(ParameterAdmissionError::Canceled)));
+    assert_eq!(canceled_controls.current_query_memory_bytes(), 0);
 }

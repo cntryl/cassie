@@ -149,14 +149,14 @@ mod tests {
         let result = invalid(&template, || {
             calls += 1;
             if calls == 2 {
-                Err("cancelled")
+                Err("canceled")
             } else {
                 Ok(())
             }
         });
 
         // Assert
-        assert_eq!(result, Err("cancelled"));
+        assert_eq!(result, Err("canceled"));
         assert_eq!(calls, 2);
     }
 }

@@ -231,7 +231,7 @@ pub(crate) fn validate_unique_key_candidate(
     session: &CassieSession,
     key: &UniqueTransactionKey,
 ) -> Result<(), CassieError> {
-    let expected_value: serde_json::Value = serde_json::from_str(&key.value).map_err(|error| {
+    let expected_value = crate::types::array::parse_json_document(&key.value).map_err(|error| {
         CassieError::Execution(format!("invalid staged unique-key value: {error}"))
     })?;
     for (collection, changes) in session.transaction_writes() {
@@ -363,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn should_clear_wait_edge_when_query_is_cancelled() {
+    fn should_clear_wait_edge_when_query_is_canceled() {
         // Arrange
         let (waits, owner, waiter, key) = waiting_pair();
         let cancellation = QueryCancellationHandle::new();
@@ -378,7 +378,7 @@ mod tests {
         let result = waits.wait_for_key(waiter, owner, &key, &controls);
 
         // Assert
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert!(!waits.state.lock().waits_for.contains_key(&waiter));
     }
 

@@ -51,6 +51,10 @@ impl<T> Accounted<T> {
     pub(crate) const fn accounted_bytes(&self) -> usize {
         self.reservation.bytes()
     }
+
+    pub(crate) fn into_parts(self) -> (T, QueryMemoryReservation) {
+        (self.value, self.reservation)
+    }
 }
 
 /// A grow-only retained vector whose logical values stay coupled to one query reservation.

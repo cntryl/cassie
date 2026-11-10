@@ -162,13 +162,13 @@ fn should_release_retained_modifier_owners_given_cancellation_when_distinct_and_
 
     // Assert
     assert!(result
-        .expect_err("cancelled retained aggregate cannot finish")
+        .expect_err("canceled retained aggregate cannot finish")
         .to_string()
         .contains("query canceled"));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let reused = controls
         .reserve_query_memory(CassieRuntimeLimits::default().query_memory_budget_bytes)
-        .expect("cancelled owner releases memory");
+        .expect("canceled owner releases memory");
     drop(reused);
 }
 
@@ -309,12 +309,12 @@ fn should_release_string_aggregate_memory_given_cancellation_after_a_row_transit
 
     // Assert
     assert!(result
-        .expect_err("cancelled string aggregate cannot finish")
+        .expect_err("canceled string aggregate cannot finish")
         .to_string()
         .contains("query canceled"));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let reused = controls
         .reserve_query_memory(CassieRuntimeLimits::default().query_memory_budget_bytes)
-        .expect("cancelled string aggregate releases its memory reservation");
+        .expect("canceled string aggregate releases its memory reservation");
     drop(reused);
 }

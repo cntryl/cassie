@@ -600,7 +600,7 @@ mod tests {
     use crate::app::CassieError;
     use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
-    fn cancelled_controls() -> (QueryExecutionControls, QueryCancellationHandle) {
+    fn canceled_controls() -> (QueryExecutionControls, QueryCancellationHandle) {
         let cancellation = QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
             &crate::config::CassieRuntimeLimits::default(),
@@ -619,9 +619,9 @@ mod tests {
     }
 
     #[test]
-    fn should_stop_format_evaluation_when_query_is_cancelled() {
+    fn should_stop_format_evaluation_when_query_is_canceled() {
         // Arrange
-        let (controls, cancellation) = cancelled_controls();
+        let (controls, cancellation) = canceled_controls();
         cancellation.cancel();
         let args = [
             Value::String("%s".to_owned()),
@@ -634,15 +634,15 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 
     #[test]
-    fn should_stop_replace_evaluation_when_query_is_cancelled() {
+    fn should_stop_replace_evaluation_when_query_is_canceled() {
         // Arrange
-        let (controls, cancellation) = cancelled_controls();
+        let (controls, cancellation) = canceled_controls();
         cancellation.cancel();
         let args = [
             Value::String("source".to_owned()),
@@ -656,7 +656,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -664,7 +664,7 @@ mod tests {
     #[test]
     fn should_release_admitted_output_when_cancellation_is_detected() {
         // Arrange
-        let (controls, cancellation) = cancelled_controls();
+        let (controls, cancellation) = canceled_controls();
         cancellation.cancel();
 
         // Act
@@ -673,7 +673,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.peak_query_memory_bytes(), 8);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -682,7 +682,7 @@ mod tests {
     #[test]
     fn should_release_replace_reservation_when_cancellation_interrupts_copy() {
         // Arrange
-        let (controls, cancellation) = cancelled_controls();
+        let (controls, cancellation) = canceled_controls();
         let reservation = reserve_output(Some(&controls), 8).expect("admitted replace output");
         cancellation.cancel();
         let mut output = String::new();
@@ -693,7 +693,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         drop(reservation);
         assert_eq!(controls.peak_query_memory_bytes(), 8);

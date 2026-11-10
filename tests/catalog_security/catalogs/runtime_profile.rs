@@ -75,7 +75,7 @@ fn should_preserve_left_rows_given_an_empty_module_set_when_a_left_join_is_execu
 }
 
 #[test]
-fn should_cancel_module_discovery_given_cancelled_controls_when_the_table_function_is_executed() {
+fn should_cancel_module_discovery_given_canceled_controls_when_the_table_function_is_executed() {
     // Arrange
     let fixture = sql_fixture("runtime-module-cancel", &[]);
     let parsed =
@@ -95,7 +95,7 @@ fn should_cancel_module_discovery_given_cancelled_controls_when_the_table_functi
     // Assert
     assert!(matches!(
         result.map_err(CassieError::from),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

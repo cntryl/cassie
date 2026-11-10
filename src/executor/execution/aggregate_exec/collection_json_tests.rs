@@ -308,7 +308,7 @@ fn should_release_parsed_jsonb_output_when_cancellation_follows_document_decode(
     assert!(observed);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     drop(memory);
     assert_eq!(controls.current_query_memory_bytes(), 0);

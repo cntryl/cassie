@@ -160,7 +160,7 @@ fn merge_sorted_runs<R>(
 fn check_query_controls(
     controls: &QueryExecutionControls,
 ) -> Result<(), crate::executor::QueryError> {
-    if controls.is_cancelled() {
+    if controls.is_canceled() {
         return Err(crate::executor::QueryError::General(
             "query canceled".to_string(),
         ));

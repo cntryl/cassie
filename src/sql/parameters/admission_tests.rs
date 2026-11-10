@@ -169,7 +169,7 @@ fn should_release_transient_guard_when_returning_legacy_oid_vector() {
 }
 
 #[test]
-fn should_prefer_cancelled_entry_over_expired_deadline_without_allocation() {
+fn should_prefer_canceled_entry_over_expired_deadline_without_allocation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let mut controls = QueryExecutionControls::with_cancellation(
@@ -183,7 +183,7 @@ fn should_prefer_cancelled_entry_over_expired_deadline_without_allocation() {
     // Act
     let result = checked_parameter_count(&statement, &controls);
     // Assert
-    assert!(matches!(result, Err(ParameterAdmissionError::Cancelled)));
+    assert!(matches!(result, Err(ParameterAdmissionError::Canceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     assert_eq!(controls.peak_query_memory_bytes(), 0);
 }
@@ -226,7 +226,7 @@ fn should_retain_stack_capacity_charge_after_pop_until_drop() {
 }
 
 #[test]
-fn should_release_stack_capacity_after_cancelled_growth() {
+fn should_release_stack_capacity_after_canceled_growth() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -248,7 +248,7 @@ fn should_release_stack_capacity_after_cancelled_growth() {
     // Act
     let result = stack.push(Frame::new(Node::Expr(&expr)));
     // Assert
-    assert!(matches!(result, Err(ParameterAdmissionError::Cancelled)));
+    assert!(matches!(result, Err(ParameterAdmissionError::Canceled)));
     assert!(controls.current_query_memory_bytes() > 0);
     drop(stack);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -390,7 +390,7 @@ fn should_check_cancellation_again_before_consuming_admitted_oids() {
     // Act
     let result = admitted.into_vec();
     // Assert
-    assert!(matches!(result, Err(ParameterAdmissionError::Cancelled)));
+    assert!(matches!(result, Err(ParameterAdmissionError::Canceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

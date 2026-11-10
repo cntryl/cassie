@@ -103,7 +103,7 @@ fn should_cancel_during_the_selected_shared_owner_function_scan() {
     let result = evaluate_expr_value_with_context(&row, &expression, context);
 
     // Assert
-    assert!(cancel.is_cancelled(), "actual raw scan must reach the hook");
+    assert!(cancel.is_canceled(), "actual raw scan must reach the hook");
     assert!(result.is_err());
     drop(result);
     drop(owner);
@@ -151,7 +151,7 @@ fn should_reach_the_controlled_scan_for_each_shared_owner_path_variant() {
 
         // Assert
         assert!(
-            cancel.is_cancelled(),
+            cancel.is_canceled(),
             "{name} must reach the controlled scan"
         );
         assert!(result.is_err());
@@ -196,7 +196,7 @@ fn should_release_shared_owner_after_actual_function_output_copy_cancellation() 
 
     // Assert
     assert!(
-        cancel.is_cancelled(),
+        cancel.is_canceled(),
         "actual output copy must reach the hook"
     );
     assert!(result.is_err());

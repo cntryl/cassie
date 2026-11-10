@@ -110,15 +110,15 @@ fn should_admit_with_interrupt_sequence_metadata_decode_at_its_boundary() {
     // Act
     let rejected = decode(&raw, &below);
     let admitted = decode(&raw, &exact);
-    let cancelled = decode(&raw, &interrupted);
+    let canceled = decode(&raw, &interrupted);
     let held = exact.current_query_memory_bytes();
     drop(admitted);
 
     // Assert
     assert!(rejected.is_err());
     assert!(matches!(
-        cancelled,
-        Err(crate::app::CassieError::QueryCancelled)
+        canceled,
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(held, bytes);
     assert_eq!(exact.current_query_memory_bytes(), 0);
@@ -469,7 +469,7 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_denied() {
 }
 
 #[test]
-fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_cancelled() {
+fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_canceled() {
     // Arrange
     use std::sync::Arc;
     let limits = CassieRuntimeLimits {
@@ -484,37 +484,37 @@ fn should_leave_the_previous_private_epoch_unchanged_when_restart_is_cancelled()
     let _scope = midge
         .enter_transactional_ddl_scope("postgres", Arc::clone(&parent), true)
         .expect("scope");
-    let mut sequence = SequenceMeta::new("cancelled_restart", DataType::BigInt);
+    let mut sequence = SequenceMeta::new("canceled_restart", DataType::BigInt);
     sequence.object_id = 116;
     midge.put_sequence(&sequence).expect("stage sequence");
     midge
-        .update_sequence_retrying("cancelled_restart", |value| {
+        .update_sequence_retrying("canceled_restart", |value| {
             value.advance().map_err(Into::into)
         })
         .expect("first");
     drop(controls_scope);
     let cancellation = QueryCancellationHandle::new();
-    let cancelled_controls =
+    let canceled_controls =
         QueryExecutionControls::with_cancellation(&limits, Instant::now(), cancellation.clone());
     cancellation.cancel();
 
     // Act
-    let cancelled = {
-        let _cancelled = PublicationControlScope::enter(Some(&cancelled_controls));
-        midge.update_sequence("cancelled_restart", |value| {
+    let canceled = {
+        let _canceled = PublicationControlScope::enter(Some(&canceled_controls));
+        midge.update_sequence("canceled_restart", |value| {
             value.assign(10, false)?;
             Ok(())
         })
     };
     let _normal_controls = PublicationControlScope::enter(Some(&controls));
-    let next = midge.update_sequence_retrying("cancelled_restart", |value| {
+    let next = midge.update_sequence_retrying("canceled_restart", |value| {
         value.advance().map_err(Into::into)
     });
 
     // Assert
     assert!(matches!(
-        cancelled,
-        Err(crate::app::CassieError::QueryCancelled)
+        canceled,
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(next.expect("original epoch").0, 2);
     assert!(parent.lock().sequence_epochs.is_none());
@@ -763,7 +763,7 @@ fn should_interrupt_a_long_unescaped_metadata_name_during_serialization() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert!(writer.bytes < metadata.name.len());
 }

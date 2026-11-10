@@ -23,7 +23,7 @@ async fn cancel_backend(server_addr: std::net::SocketAddr, process_id: i32, secr
     assert_eq!(close.expect("read CancelRequest close"), 0);
 }
 
-fn assert_cancelled_copy_observations(
+fn assert_canceled_copy_observations(
     copy_response_tag: u8,
     copy_response_payload: &[u8],
     error_code: Option<&str>,
@@ -39,7 +39,7 @@ fn assert_cancelled_copy_observations(
     assert_eq!(error_code, Some("57014"));
     assert!(
         frames.iter().all(|(tag, _)| *tag != b'C'),
-        "cancelled COPY must not send CommandComplete: {frames:?}"
+        "canceled COPY must not send CommandComplete: {frames:?}"
     );
     assert_eq!(
         frames
@@ -47,7 +47,7 @@ fn assert_cancelled_copy_observations(
             .map(|(tag, payload)| (*tag, payload.as_slice())),
         Some((b'Z', std::slice::from_ref(&expected_ready_status)))
     );
-    assert!(rows.is_empty(), "cancelled COPY must publish no rows");
+    assert!(rows.is_empty(), "canceled COPY must publish no rows");
     assert_eq!(support_pgwire::error_code(recovered), None);
     assert_eq!(
         support_pgwire::data_rows(recovered),
@@ -111,7 +111,7 @@ fn should_cancel_idle_copy_from_stdin_inside_explicit_transaction() {
             .last()
             .map(|(tag, payload)| (*tag, payload.as_slice()));
 
-        // Send frames that were already in flight when the cancelled COPY ended.
+        // Send frames that were already in flight when the canceled COPY ended.
         support_pgwire::write_frames(
             &mut writer,
             vec![
@@ -127,7 +127,7 @@ fn should_cancel_idle_copy_from_stdin_inside_explicit_transaction() {
         let rows = client
             .query("SELECT id FROM compat_copy_pgwire_cancel", &[])
             .await
-            .expect("read rows after cancelled COPY");
+            .expect("read rows after canceled COPY");
 
         support_pgwire::write_frames(
             &mut writer,
@@ -141,7 +141,7 @@ fn should_cancel_idle_copy_from_stdin_inside_explicit_transaction() {
         // Assert
         drop((reader, writer, client));
         server.shutdown(connection).await;
-        assert_cancelled_copy_observations(
+        assert_canceled_copy_observations(
             copy_response_tag,
             &copy_response_payload,
             error_code.as_deref(),
@@ -211,12 +211,12 @@ fn should_cancel_idle_copy_from_stdin_inside_implicit_transaction() {
         let rows = client
             .query("SELECT id FROM compat_copy_pgwire_cancel_implicit", &[])
             .await
-            .expect("read rows after cancelled COPY");
+            .expect("read rows after canceled COPY");
 
         // Assert
         drop((reader, writer, client));
         server.shutdown(connection).await;
-        assert_cancelled_copy_observations(
+        assert_canceled_copy_observations(
             copy_response_tag,
             &copy_response_payload,
             error_code.as_deref(),
@@ -243,7 +243,7 @@ fn should_recover_transaction_owned_copy_at_savepoint() {
             support_pgwire::complete_startup_with_backend_key(&mut reader, &mut writer).await;
         for sql in [
             "BEGIN",
-            "CREATE TABLE staged_copy_cancelled (id SERIAL PRIMARY KEY, n INT)",
+            "CREATE TABLE staged_copy_canceled (id SERIAL PRIMARY KEY, n INT)",
             "SAVEPOINT before_copy",
         ] {
             support_pgwire::write_frames(
@@ -259,7 +259,7 @@ fn should_recover_transaction_owned_copy_at_savepoint() {
         support_pgwire::write_frames(
             &mut writer,
             vec![support_pgwire::simple_query_frame(
-                "COPY staged_copy_cancelled (n) FROM STDIN",
+                "COPY staged_copy_canceled (n) FROM STDIN",
             )],
         )
         .await;
@@ -268,7 +268,7 @@ fn should_recover_transaction_owned_copy_at_savepoint() {
 
         // Act
         cancel_backend(server.addr, process_id, secret_key).await;
-        let cancelled =
+        let canceled =
             support_pgwire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5))
                 .await;
         support_pgwire::write_frames(
@@ -284,7 +284,7 @@ fn should_recover_transaction_owned_copy_at_savepoint() {
         support_pgwire::write_frames(
             &mut writer,
             vec![support_pgwire::simple_query_frame(
-                "SELECT count(*) FROM staged_copy_cancelled",
+                "SELECT count(*) FROM staged_copy_canceled",
             )],
         )
         .await;
@@ -296,10 +296,10 @@ fn should_recover_transaction_owned_copy_at_savepoint() {
 
         // Assert
         assert_eq!(
-            support_pgwire::error_code(&cancelled).as_deref(),
+            support_pgwire::error_code(&canceled).as_deref(),
             Some("57014")
         );
-        assert!(!cancelled.iter().any(|(tag, _)| *tag == b'C'));
+        assert!(!canceled.iter().any(|(tag, _)| *tag == b'C'));
         assert_eq!(support_pgwire::error_code(&recovered), None);
         assert_eq!(
             support_pgwire::data_rows(&rows),

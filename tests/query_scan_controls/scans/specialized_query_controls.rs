@@ -501,7 +501,7 @@ fn should_cancel_each_analytical_path_after_three_controlled_reads_without_parti
 
         // Assert
         assert!(
-            matches!(error, CassieError::QueryCancelled),
+            matches!(error, CassieError::QueryCanceled),
             "{} should report SQLSTATE 57014, got {error:?}",
             family.label()
         );

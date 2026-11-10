@@ -40,7 +40,7 @@ still serialize the tree through an unchecked `to_string()`. The controlled
 binary `->>` scan witness does not qualify either of those earlier boundaries.
 
 Test-first witnesses must cover an actual cancellation inside reached argument
-work, false FILTER suppressing an invalid or cancelled argument, correlated and
+work, false FILTER suppressing an invalid or canceled argument, correlated and
 uncorrelated EXISTS, returned value/temporary owner overlap and cleanup, and
 argument/resolver errors. Probe budget denial and same-tracker owner lifetime
 at the real transition boundary. Preserve non-aggregate window behavior and

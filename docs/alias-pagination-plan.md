@@ -368,7 +368,7 @@ independent direct Binder/public SQL confirmation remains pending. Jev assigned 
 0.46 and nested physical capture risk 0.60, requiring those explicit probes;
 resource ordering risk was 0.09. Exact requests, responses and failing/passing
 logs remain in ignored target evidence. The earlier complete build passed on
-`ba1565d0`; its test stage was cancelled when independent defects were confirmed.
+`ba1565d0`; its test stage was canceled when independent defects were confirmed.
 No complete gate is claimed passed for the corrected source. Complete ordered
 gates restart only after the coherent immutable correction is independently
 confirmed; publication and closure remain pending.
@@ -397,7 +397,7 @@ statuses in this preparation history. The complete ordered build and locked
 suite passed at `4daa803c76ab4fc330c122e9ac35fc13b9ce69dd`: 3,415 passed,
 zero failed and nine existing ignored tests across 32 groups. The full log
 SHA256 is `d70d3353c5682d6f01a10a8673dc4c2132c545963b0e8f08e9d64c726fbfd72d`.
-The earlier `5066aaa5` parser failure and cancelled preparation runs remain
+The earlier `5066aaa5` parser failure and canceled preparation runs remain
 preserved separately; they are not counted as successful complete runs.
 
 After the full suite, private helper extractions, equivalent pedantic idioms,

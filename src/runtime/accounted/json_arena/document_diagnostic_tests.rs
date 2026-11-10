@@ -139,7 +139,7 @@ fn should_admit_exact_diagnostic_with_release_on_denial_or_cancellation() {
     let below = controls(length - 1);
     let cancellation = QueryCancellationHandle::new();
     cancellation.cancel();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation,
@@ -152,8 +152,8 @@ fn should_admit_exact_diagnostic_with_release_on_denial_or_cancellation() {
         Err(DiagnosticError::Control(CassieError::ResourceLimit(_)))
     ));
     assert!(matches!(
-        render(&error, 1, &cancelled),
-        Err(DiagnosticError::Control(CassieError::QueryCancelled))
+        render(&error, 1, &canceled),
+        Err(DiagnosticError::Control(CassieError::QueryCanceled))
     ));
     drop(admitted);
     assert_eq!(exact.current_query_memory_bytes(), 0);

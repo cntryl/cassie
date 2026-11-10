@@ -76,7 +76,7 @@ fn should_retire_an_unpublished_staged_family_after_request_cancellation() {
     for quarantine in [false, true] {
         let midge = Midge::new_in_memory("postgres").expect("memory adapter");
         let staged = midge
-            .stage_database_family("cancelled-stage")
+            .stage_database_family("canceled-stage")
             .expect("owned unpublished family");
         let cancellation = crate::runtime::QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
@@ -104,10 +104,10 @@ fn should_retire_an_unpublished_staged_family_after_request_cancellation() {
             );
             assert!(remains, "unknown outcomes remain quarantined");
         } else {
-            result.expect("known unpublished cleanup retires despite cancelled request");
+            result.expect("known unpublished cleanup retires despite canceled request");
             assert!(!remains);
             assert!(midge
-                .get_database("cancelled-stage")
+                .get_database("canceled-stage")
                 .expect("metadata read")
                 .is_none());
         }

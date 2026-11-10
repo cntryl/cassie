@@ -93,14 +93,14 @@ fn should_enforce_binary_interval_overlap_budget_with_cancellation() {
     drop(input);
     assert_eq!(denied.current_query_memory_bytes(), 0);
     let cancellation = QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        super::decode(1186, &frame(0, 0, 0), 0, &cancelled),
-        Err(CassieError::QueryCancelled)
+        super::decode(1186, &frame(0, 0, 0), 0, &canceled),
+        Err(CassieError::QueryCanceled)
     ));
 }

@@ -237,8 +237,12 @@ pub(in crate::runtime::accounted::json_arena) fn compare(
     while let Some(task) = stack.tasks.pop() {
         controls.check_interruption()?;
         let order = match task {
-            task @ Task::Pair(..) => compare_pair(left, right, task, &mut stack, controls)?,
-            task @ Task::Array { .. } => compare_array(left, right, task, &mut stack, controls)?,
+            Task::Pair(a, b) => compare_pair(left, right, a, b, &mut stack, controls)?,
+            Task::Array {
+                left: a,
+                right: b,
+                index,
+            } => compare_array(left, right, a, b, index, &mut stack, controls)?,
             task @ Task::Object { .. } => {
                 compare_object(left, right, task, &mut stack, controls)?
             }
@@ -256,13 +260,11 @@ pub(in crate::runtime::accounted::json_arena) fn compare(
 fn compare_pair(
     left: &Forest,
     right: &Forest,
-    task: Task,
+    a: NodeId,
+    b: NodeId,
     stack: &mut Stack,
     controls: &QueryExecutionControls,
 ) -> Result<Option<Ordering>, CassieError> {
-    let Task::Pair(a, b) = task else {
-        unreachable!("pair comparison task")
-    };
     let a_kind = &left.nodes.get(a)?.kind;
     let b_kind = &right.nodes.get(b)?.kind;
     let class = rank(a_kind).cmp(&rank(b_kind));
@@ -321,18 +323,12 @@ fn compare_pair(
 fn compare_array(
     left: &Forest,
     right: &Forest,
-    task: Task,
+    a: NodeId,
+    b: NodeId,
+    index: usize,
     stack: &mut Stack,
     controls: &QueryExecutionControls,
 ) -> Result<Option<Ordering>, CassieError> {
-    let Task::Array {
-        left: a,
-        right: b,
-        index,
-    } = task
-    else {
-        unreachable!("array comparison task")
-    };
     let (Kind::Array(a_index), Kind::Array(b_index)) =
         (&left.nodes.get(a)?.kind, &right.nodes.get(b)?.kind)
     else {

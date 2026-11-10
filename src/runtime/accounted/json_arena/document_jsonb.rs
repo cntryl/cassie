@@ -47,13 +47,13 @@ pub(crate) fn parse_field(
         .check_interruption()
         .map_err(JsonbFieldError::Control)?;
     let Some((&version, body)) = source.split_first() else {
-        return Err(fixed(FixedError::Missing, column, controls));
+        return Err(fixed(&FixedError::Missing, column, controls));
     };
     if version != 1 {
-        return Err(fixed(FixedError::Version(version), column, controls));
+        return Err(fixed(&FixedError::Version(version), column, controls));
     }
     let sources = SourceStack::from_bytes(body, controls).map_err(|error| match error {
-        CursorError::InvalidUtf8 => fixed(FixedError::Utf8, column, controls),
+        CursorError::InvalidUtf8 => fixed(&FixedError::Utf8, column, controls),
         CursorError::Interrupted(error) => JsonbFieldError::Control(error),
         _ => JsonbFieldError::Control(CassieError::Execution(
             "unexpected JSONB source error".into(),
@@ -63,8 +63,8 @@ pub(crate) fn parse_field(
         .map_err(|error| document_error(error, column, controls))?;
     jsonb_output::serialize(&parsed.forest, parsed.root).map_err(|error| match error {
         SerializeError::Control(error) => JsonbFieldError::Control(error),
-        SerializeError::NumericOverflow => fixed(FixedError::Numeric, column, controls),
-        SerializeError::Nul => fixed(FixedError::Nul, column, controls),
+        SerializeError::NumericOverflow => fixed(&FixedError::Numeric, column, controls),
+        SerializeError::Nul => fixed(&FixedError::Nul, column, controls),
     })
 }
 
@@ -79,13 +79,13 @@ pub(in crate::runtime::accounted::json_arena) fn reparse_compact_field(
         .check_interruption()
         .map_err(JsonbFieldError::Control)?;
     let Some((&version, body)) = source.split_first() else {
-        return Err(fixed(FixedError::Missing, column, controls));
+        return Err(fixed(&FixedError::Missing, column, controls));
     };
     if version != 1 {
-        return Err(fixed(FixedError::Version(version), column, controls));
+        return Err(fixed(&FixedError::Version(version), column, controls));
     }
     let sources = SourceStack::from_bytes(body, controls).map_err(|error| match error {
-        CursorError::InvalidUtf8 => fixed(FixedError::Utf8, column, controls),
+        CursorError::InvalidUtf8 => fixed(&FixedError::Utf8, column, controls),
         CursorError::Interrupted(error) => JsonbFieldError::Control(error),
         _ => JsonbFieldError::Control(CassieError::Execution(
             "unexpected JSONB source error".into(),
@@ -108,7 +108,9 @@ fn document_error(
         | DocumentError::Wrapped(WrappedCause::Token(CursorError::Interrupted(error))) => {
             JsonbFieldError::Control(error)
         }
-        DocumentError::Token(CursorError::InvalidUtf8) => fixed(FixedError::Utf8, column, controls),
+        DocumentError::Token(CursorError::InvalidUtf8) => {
+            fixed(&FixedError::Utf8, column, controls)
+        }
         other => match diagnostic::render(&other, column, controls) {
             Ok(error) => JsonbFieldError::Diagnostic(error),
             Err(DiagnosticError::Control(error)) => JsonbFieldError::Control(error),
@@ -119,8 +121,8 @@ fn document_error(
     }
 }
 
-fn fixed(error: FixedError, column: usize, controls: &QueryExecutionControls) -> JsonbFieldError {
-    match diagnostic::render_fixed(&error, column, controls) {
+fn fixed(error: &FixedError, column: usize, controls: &QueryExecutionControls) -> JsonbFieldError {
+    match diagnostic::render_fixed(error, column, controls) {
         Ok(error) => JsonbFieldError::Diagnostic(error),
         Err(DiagnosticError::Control(error)) => JsonbFieldError::Control(error),
         Err(DiagnosticError::NotSemantic) => {

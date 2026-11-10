@@ -87,8 +87,8 @@ fn render_with_observer(
         },
     )
     .map_err(|error| match error {
-        DecodeError::InvalidArray => fixed(FixedError::ArrayInvalid, column, controls),
-        DecodeError::DocumentNull => fixed(FixedError::ArrayDocumentNull, column, controls),
+        DecodeError::InvalidArray => fixed(&FixedError::ArrayInvalid, column, controls),
+        DecodeError::DocumentNull => fixed(&FixedError::ArrayDocumentNull, column, controls),
         DecodeError::Element(error) => error.into(),
         DecodeError::Control(error) => OutputError::Control(error),
     })?;
@@ -253,8 +253,8 @@ fn write_array_element(
     write_text(sink, "\"", observer)
 }
 
-fn fixed(error: FixedError, column: usize, controls: &QueryExecutionControls) -> OutputError {
-    match render_fixed(&error, column, controls) {
+fn fixed(error: &FixedError, column: usize, controls: &QueryExecutionControls) -> OutputError {
+    match render_fixed(error, column, controls) {
         Ok(error) => OutputError::Diagnostic(error),
         Err(DiagnosticError::Control(error)) => OutputError::Control(error),
         Err(DiagnosticError::NotSemantic) => OutputError::Control(CassieError::Execution(

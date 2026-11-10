@@ -2,9 +2,23 @@
 mod operator_memory;
 pub(crate) use operator_memory::OperatorMemory;
 
+#[path = "batch/window_type_accounting.rs"]
+mod window_type_accounting;
+pub(crate) use window_type_accounting::row_type_bytes_controlled;
+#[cfg(test)]
+use window_type_accounting::{row_type_bytes_controlled_observed, TypeCountProgress};
+
+#[cfg(test)]
+#[path = "batch/single_lookup_tests.rs"]
+mod single_lookup_tests;
+
 #[cfg(test)]
 #[path = "batch/operator_memory_tests.rs"]
 mod operator_memory_tests;
+
+#[cfg(test)]
+#[path = "batch/window_type_accounting_tests.rs"]
+mod window_type_accounting_tests;
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -20,7 +34,6 @@ pub(crate) type RowAliases = Vec<(String, usize)>;
 
 #[derive(Debug, Clone)]
 pub(crate) struct BatchRow {
-    operator_memory: Option<Arc<operator_memory::OperatorMemory>>,
     values: RowEntries,
     aliases: RowAliases,
     lookup: OnceLock<HashMap<String, usize>>,
@@ -28,6 +41,8 @@ pub(crate) struct BatchRow {
     data_types: Option<Arc<Vec<DataType>>>,
     // A clone keeps its origin alive; this lease never admits the clone's new allocations.
     query_memory: Option<Arc<crate::runtime::QueryMemoryReservation>>,
+    // Row-owned allocations must be destroyed before their operator reservation.
+    operator_memory: Option<Arc<operator_memory::OperatorMemory>>,
 }
 
 impl BatchRow {
@@ -72,6 +87,9 @@ impl BatchRow {
     }
 
     pub(crate) fn get(&self, name: &str) -> Option<&Value> {
+        if self.aliases.is_empty() && self.values.len() == 1 && self.values[0].0 == name {
+            return Some(&self.values[0].1);
+        }
         let lookup = self
             .lookup
             .get_or_init(|| build_lookup(self.values.as_slice(), self.aliases.as_slice()));
@@ -209,6 +227,9 @@ impl BatchRow {
     }
 
     fn column_type(&self, name: &str) -> Option<&DataType> {
+        if self.aliases.is_empty() && self.values.len() == 1 && self.values[0].0 == name {
+            return self.data_types().first();
+        }
         let lookup = self
             .lookup
             .get_or_init(|| build_lookup(&self.values, &self.aliases));
@@ -415,6 +436,20 @@ impl BatchStream for VecBatchStream {
 static BATCH_BUFFERS_BUILT: AtomicU64 = AtomicU64::new(0);
 static ROW_TIE_KEYS_BUILT: AtomicU64 = AtomicU64::new(0);
 
+#[cfg(test)]
+thread_local! {
+    static LOCAL_BATCH_BUFFERS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+#[cfg(test)]
+pub(crate) fn take_local_batch_buffers() -> u64 {
+    LOCAL_BATCH_BUFFERS.with(|count| count.replace(0))
+}
+pub(crate) fn record_batch_buffer() {
+    BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+    #[cfg(test)]
+    LOCAL_BATCH_BUFFERS.with(|count| count.set(count.get().saturating_add(1)));
+}
+
 pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
     let batch_size = batch_size.max(1);
     if rows.is_empty() {
@@ -428,13 +463,13 @@ pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
         current.push(row);
         remaining -= 1;
         if current.len() == batch_size {
-            BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+            record_batch_buffer();
             batches.push(current);
             current = Vec::with_capacity(batch_size.min(remaining));
         }
     }
     if !current.is_empty() {
-        BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
+        record_batch_buffer();
         batches.push(current);
     }
     batches

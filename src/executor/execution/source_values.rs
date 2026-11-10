@@ -7,6 +7,20 @@ use crate::executor::retained_memory::{add, lookup_bytes, mul, value_clone_bytes
 use std::mem::size_of;
 use std::sync::Arc;
 
+#[cfg(test)]
+#[path = "source_values_json_delete_tests.rs"]
+mod json_delete_tests;
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_VALUE: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn cancel_after_value_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_VALUE.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
 pub(super) fn execute(
     env: &SourceExecutionEnv<'_>,
     rows: &[Vec<Expr>],
@@ -20,7 +34,64 @@ pub(super) fn execute(
             + 2 * size_of::<usize>(),
         mul(count, size_of::<BatchRow>())?,
     )?)?;
-    let semantic_types = if count > 0
+    let semantic_types = semantic_types(rows, count, env, &mut memory)?;
+    let mut output = Vec::with_capacity(count);
+    for expressions in rows.iter().take(count) {
+        check_timeout(env.controls)?;
+        let names_bytes = mul(expressions.len(), 26)?;
+        memory.try_grow(add(
+            mul(expressions.len(), size_of::<(String, Value)>())?,
+            add(names_bytes, lookup_bytes(expressions.len(), names_bytes)?)?,
+        )?)?;
+        let mut values = Vec::with_capacity(expressions.len());
+        for (index, expression) in expressions.iter().enumerate() {
+            check_timeout(env.controls)?;
+            let scratch = env
+                .controls
+                .reserve_query_memory(scratch_bytes(expression, env.params)?)?;
+            let evaluation = super::filter::EvaluationMemory::new(env.controls)?;
+            let value = super::filter::evaluate_source_argument(
+                &BatchRow::from_projected_values(Vec::new()),
+                expression,
+                env.params,
+                env.user_functions,
+                env.session,
+                env.controls,
+                &evaluation,
+            )?;
+            #[cfg(test)]
+            CANCEL_AFTER_VALUE.with(|slot| {
+                if let Some(handle) = slot.borrow_mut().take() {
+                    handle.cancel();
+                }
+            });
+            check_timeout(env.controls)?;
+            memory.try_grow(value_clone_bytes(&value)?)?;
+            values.push((format!("column{}", index + 1), value));
+            drop(evaluation);
+            drop(scratch);
+        }
+        output.push(
+            BatchRow::from_projected_values(values)
+                .with_optional_data_types(semantic_types.clone()),
+        );
+    }
+    check_timeout(env.controls)?;
+    let memory = Arc::new(memory);
+    for row in &mut output {
+        let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
+        *row = owned.with_query_memory(Some(Arc::clone(&memory)));
+    }
+    Ok((vec![output], Vec::new()))
+}
+
+fn semantic_types(
+    rows: &[Vec<Expr>],
+    count: usize,
+    env: &SourceExecutionEnv<'_>,
+    memory: &mut crate::runtime::QueryMemoryReservation,
+) -> Result<Option<Arc<Vec<crate::types::DataType>>>, QueryError> {
+    let needs_types = count > 0
         && rows.iter().flatten().any(|expr| {
             expr.any_descendant_or_self(&mut |expr| {
                 if let Expr::Function(function) = expr {
@@ -50,67 +121,26 @@ pub(super) fn execute(
                     }
                 )
             })
-        }) {
-        let width = rows.first().map_or(0, Vec::len);
-        memory.try_grow(add(
-            size_of::<Vec<crate::types::DataType>>() + 2 * size_of::<usize>(),
-            mul(
-                width,
-                size_of::<crate::types::FieldSchema>() + size_of::<crate::types::DataType>() + 26,
-            )?,
-        )?)?;
-        let schema = crate::sql::binder::values::schema(rows, env.user_functions, &[])?;
-        Some(Arc::new(
-            schema
-                .fields
-                .into_iter()
-                .map(|field| field.data_type)
-                .collect(),
-        ))
-    } else {
-        None
-    };
-    let mut output = Vec::with_capacity(count);
-    for expressions in rows.iter().take(count) {
-        check_timeout(env.controls)?;
-        let names_bytes = mul(expressions.len(), 26)?;
-        memory.try_grow(add(
-            mul(expressions.len(), size_of::<(String, Value)>())?,
-            add(names_bytes, lookup_bytes(expressions.len(), names_bytes)?)?,
-        )?)?;
-        let mut values = Vec::with_capacity(expressions.len());
-        for (index, expression) in expressions.iter().enumerate() {
-            check_timeout(env.controls)?;
-            let scratch = env
-                .controls
-                .reserve_query_memory(scratch_bytes(expression, env.params)?)?;
-            let evaluation = super::filter::EvaluationMemory::new(env.controls)?;
-            let value = super::filter::evaluate_source_argument(
-                &BatchRow::from_projected_values(Vec::new()),
-                expression,
-                env.params,
-                env.user_functions,
-                env.session,
-                env.controls,
-                &evaluation,
-            )?;
-            memory.try_grow(value_clone_bytes(&value)?)?;
-            values.push((format!("column{}", index + 1), value));
-            drop(evaluation);
-            drop(scratch);
-        }
-        output.push(
-            BatchRow::from_projected_values(values)
-                .with_optional_data_types(semantic_types.clone()),
-        );
+        });
+    if !needs_types {
+        return Ok(None);
     }
-    check_timeout(env.controls)?;
-    let memory = Arc::new(memory);
-    for row in &mut output {
-        let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
-        *row = owned.with_query_memory(Some(Arc::clone(&memory)));
-    }
-    Ok((vec![output], Vec::new()))
+    let width = rows.first().map_or(0, Vec::len);
+    memory.try_grow(add(
+        size_of::<Vec<crate::types::DataType>>() + 2 * size_of::<usize>(),
+        mul(
+            width,
+            size_of::<crate::types::FieldSchema>() + size_of::<crate::types::DataType>() + 26,
+        )?,
+    )?)?;
+    let schema = crate::sql::binder::values::schema(rows, env.user_functions, &[])?;
+    Ok(Some(Arc::new(
+        schema
+            .fields
+            .into_iter()
+            .map(|field| field.data_type)
+            .collect(),
+    )))
 }
 
 pub(in crate::executor::execution) fn scratch_bytes(

@@ -139,6 +139,51 @@ impl Zone {
         utc_micros.saturating_add(i64::from(self.offset_at(utc_micros)) * USECS_PER_SEC)
     }
 
+    /// Resolves the most recent matching historical abbreviation, then future history.
+    pub(crate) fn abbreviation_offset_with_checks<E>(
+        &self,
+        abbreviation: &str,
+        utc_micros: i64,
+        check: &mut impl FnMut() -> Result<(), E>,
+    ) -> Result<Option<(i32, bool)>, E> {
+        check()?;
+        let Self::Rules { tz, .. } = self else {
+            return Ok(None);
+        };
+        let instant = jiff_timestamp(utc_micros);
+        let info = tz.to_offset_info(instant);
+        if info.abbreviation().eq_ignore_ascii_case(abbreviation) {
+            return Ok(Some((info.offset().seconds(), info.dst().is_dst())));
+        }
+        for (index, transition) in tz.preceding(instant).enumerate() {
+            if index % 128 == 127 {
+                check()?;
+            }
+            if transition.abbreviation().eq_ignore_ascii_case(abbreviation) {
+                return Ok(Some((
+                    transition.offset().seconds(),
+                    transition.dst().is_dst(),
+                )));
+            }
+        }
+        let info = tz.to_offset_info(jiff::Timestamp::MIN);
+        if info.abbreviation().eq_ignore_ascii_case(abbreviation) {
+            return Ok(Some((info.offset().seconds(), info.dst().is_dst())));
+        }
+        for (index, transition) in tz.following(instant).enumerate() {
+            if index % 128 == 127 {
+                check()?;
+            }
+            if transition.abbreviation().eq_ignore_ascii_case(abbreviation) {
+                return Ok(Some((
+                    transition.offset().seconds(),
+                    transition.dst().is_dst(),
+                )));
+            }
+        }
+        Ok(None)
+    }
+
     /// The offset of `abbreviation` as used by this zone's own rules near
     /// `local_micros` (PostgreSQL 18 consults the session zone first).
     #[must_use]
@@ -182,6 +227,10 @@ pub fn offset_abbreviation(east: i32) -> String {
 /// database, then as a POSIX rule.
 #[must_use]
 pub fn lookup_zone(name: &str) -> Option<Zone> {
+    lookup_zone_with_origin(name).map(|(zone, _)| zone)
+}
+
+pub(crate) fn lookup_zone_with_origin(name: &str) -> Option<(Zone, bool)> {
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed.len() > 255 {
         return None;
@@ -195,19 +244,25 @@ pub fn lookup_zone(name: &str) -> Option<Zone> {
         } else {
             trimmed.to_string()
         };
-        return Some(Zone::Rules {
-            tz,
-            name: canonical,
-        });
+        return Some((
+            Zone::Rules {
+                tz,
+                name: canonical,
+            },
+            false,
+        ));
     }
     let posix_like =
         trimmed.starts_with('<') || trimmed.chars().next().is_some_and(char::is_alphabetic);
     if posix_like && trimmed.chars().any(|c| c.is_ascii_digit()) {
         if let Ok(tz) = TimeZone::posix(trimmed) {
-            return Some(Zone::Rules {
-                tz,
-                name: trimmed.to_string(),
-            });
+            return Some((
+                Zone::Rules {
+                    tz,
+                    name: trimmed.to_string(),
+                },
+                true,
+            ));
         }
     }
     None
@@ -360,6 +415,32 @@ const DEFAULT_ABBREVIATIONS: &[(&str, i32, bool)] = &[
 mod tests {
     use super::{lookup_zone, offset_abbreviation, AbbreviationSet};
     use crate::types::extended::temporal::calendar::{fields_to_timestamp, Fields};
+
+    #[test]
+    fn should_interrupt_a_long_formatted_timezone_abbreviation_search() {
+        // Arrange
+        let zone = lookup_zone("Europe/London").expect("London timezone");
+        let mut checks = 0;
+        let mut check = || {
+            checks += 1;
+            if checks == 2 {
+                Err("cancelled")
+            } else {
+                Ok(())
+            }
+        };
+
+        // Act
+        let result = zone.abbreviation_offset_with_checks(
+            "not-a-timezone-abbreviation",
+            local(2400, 1, 1, 0, 0),
+            &mut check,
+        );
+
+        // Assert
+        assert_eq!(result, Err("cancelled"));
+        assert_eq!(checks, 2);
+    }
 
     fn local(year: i32, month: i32, day: i32, hour: i32, minute: i32) -> i64 {
         fields_to_timestamp(

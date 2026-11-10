@@ -437,7 +437,10 @@ impl Midge {
         prepared_collection: Vec<PreparedWrite>,
         options: &DocumentWriteBatchOptions,
     ) -> Result<(DocumentWriteBatchReport, VectorRecordsByField), CassieError> {
-        let mut report = DocumentWriteBatchReport::default();
+        let mut report = DocumentWriteBatchReport {
+            relation_id: context.row_schema.relation_id,
+            ..DocumentWriteBatchReport::default()
+        };
         let normalized_vector_collection = options
             .normalized_vector_collection
             .as_deref()

@@ -40,6 +40,18 @@ pub(super) fn validate_function_calls(
             }
             continue;
         }
+        let lookup = function.name.to_ascii_lowercase();
+        if let Some(metadata) = user_functions.get(&lookup).filter(|metadata| {
+            function.args.len() == metadata.args.len()
+                && !crate::sql::functions::has_distinct_builtin_arity(
+                    &function.name,
+                    function.args.len(),
+                    metadata.args.len(),
+                )
+        }) {
+            crate::sql::definition_guard::legacy_expression_sql(&metadata.body)?;
+            continue;
+        }
         if let Some(metadata) = crate::sql::functions::function(&function.name) {
             if metadata.bypass_arity_validation {
                 continue;
@@ -51,17 +63,6 @@ pub(super) fn validate_function_calls(
                     metadata.arity.describe(),
                     function.args.len()
                 )));
-            }
-            if metadata.id == crate::sql::functions::FunctionId::Power
-                && function
-                    .args
-                    .iter()
-                    .any(crate::sql::functions::has_unselected_numeric)
-            {
-                return Err(CassieError::Unsupported(
-                    "NUMERIC power remains pending under #793/#812; select FLOAT8 explicitly"
-                        .into(),
-                ));
             }
             if metadata.id == crate::sql::functions::FunctionId::PgColumnSize {
                 crate::sql::functions::datum_size_kind(&function.args[0])?;
@@ -80,7 +81,6 @@ pub(super) fn validate_function_calls(
         if crate::sql::functions::is_server_control_helper(&function.name) {
             return Err(crate::sql::functions::reject_server_control());
         }
-        let lookup = function.name.to_ascii_lowercase();
         let Some(metadata) = user_functions.get(&lookup) else {
             return Err(CassieError::Planner(format!(
                 "unsupported function '{}'",

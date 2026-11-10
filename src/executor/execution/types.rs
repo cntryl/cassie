@@ -109,6 +109,12 @@ mod tests {
 
 #[derive(Debug, thiserror::Error)]
 pub enum QueryError {
+    #[error("value out of range: overflow")]
+    FloatPowerOverflow,
+
+    #[error("value out of range: underflow")]
+    FloatPowerUnderflow,
+
     #[error("{0}")]
     General(String),
 

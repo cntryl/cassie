@@ -93,7 +93,12 @@ fn float_range(value: f64, inputs_finite: bool) -> Result<Value, QueryError> {
 pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
     let metadata = crate::sql::functions::function(name)?;
     let crate::sql::functions::FunctionId::Math(function) = metadata.id else {
-        if matches!(name, "power" | "pow") && args.iter().any(is_numeric) {
+        if matches!(name, "power" | "pow")
+            && args.iter().any(is_numeric)
+            && !args
+                .iter()
+                .any(|value| matches!(value, Value::Float64(_) | Value::Typed(TypedValue::Real(_))))
+        {
             return Some(binary_numeric(args, math::power));
         }
         return None;
@@ -197,8 +202,8 @@ fn numeric_unary(function: MathFunction, value: &Numeric) -> Result<Value, Query
     let result = match function {
         F::Round => math::round(value, 0),
         F::Trunc => Ok(math::trunc(value, 0)),
-        F::Ceil | F::Ceiling => Ok(math::ceil(value)),
-        F::Floor => Ok(math::floor(value)),
+        F::Ceil | F::Ceiling => math::ceil(value),
+        F::Floor => math::floor(value),
         F::Sign => Ok(math::sign(value)),
         F::Sqrt => math::sqrt(value),
         F::Exp => math::exp(value),
@@ -267,21 +272,24 @@ fn width_bucket(args: &[Value]) -> Result<Value, QueryError> {
         return Ok(Value::Null);
     }
     let count = to_i64(count)?;
-    if [operand, low, high].into_iter().any(is_numeric)
-        || [operand, low, high]
-            .into_iter()
-            .all(|value| matches!(value, Value::Int64(_)))
-    {
-        return math::width_bucket(
+    let result = if [operand, low, high].into_iter().any(is_numeric) {
+        math::width_bucket(
             &to_numeric(operand)?,
             &to_numeric(low)?,
             &to_numeric(high)?,
             count,
         )
         .map(Value::Int64)
-        .map_err(input_error);
+        .map_err(input_error)?
+    } else {
+        special::width_bucket_float(to_f64(operand)?, to_f64(low)?, to_f64(high)?, count)?
+    };
+    match result {
+        Value::Int64(value) if i32::try_from(value).is_err() => {
+            Err(error("22003", "integer out of range"))
+        }
+        other => Ok(other),
     }
-    special::width_bucket_float(to_f64(operand)?, to_f64(low)?, to_f64(high)?, count)
 }
 
 fn float_function(function: MathFunction, args: &[Value]) -> Result<Value, QueryError> {

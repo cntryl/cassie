@@ -77,3 +77,129 @@ fn should_recover_prepared_timestamp_after_formatted_input_range_errors() {
         );
     }
 }
+
+#[test]
+fn should_preserve_signed_zero_offset_for_prepared_formatted_timestamps() {
+    // Arrange
+    let statement = "formatted_zone_offset";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT to_timestamp($1, 'YYYY-MM-DD HH24:MI:SS TZH:TZM')",
+            &[25],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("valid_zone", statement, &["2000-01-01 12:00:00 -00:30"]),
+            wire::describe_portal_frame("valid_zone"),
+            wire::execute_frame("valid_zone"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame("invalid_zone", statement, &["2000-01-01 12:00:00 +16:00"]),
+            wire::execute_frame("invalid_zone"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45")]),
+    ];
+
+    // Act
+    let batches = run_script("formatted-zone-parameter-recovery", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(batches[1].first().map(|frame| frame.0), Some(b'1'));
+    let description = batches[2]
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("statement description");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1184
+    );
+    assert_eq!(wire::error_code(&batches[3]), None);
+    assert_eq!(
+        wire::data_rows(&batches[3]),
+        vec![vec![Some("2000-01-01 12:30:00+00".to_owned())]]
+    );
+    assert_eq!(wire::error_code(&batches[4]).as_deref(), Some("22009"));
+    assert!(!batches[4]
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'D' | b'C')));
+    assert_eq!(wire::error_code(&batches[5]), None);
+    assert_eq!(
+        wire::data_rows(&batches[5]),
+        vec![vec![Some("45".to_owned())]]
+    );
+}
+
+#[test]
+fn should_resolve_configured_formatted_abbreviation_in_prepared_query() {
+    // Arrange
+    let statement = "formatted_abbreviation";
+    let steps = vec![
+        Step::ThroughReady(vec![wire::simple_query_frame("SET TIME ZONE 'UTC'")]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            "SET timezone_abbreviations = 'India'",
+        )]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            statement,
+            "SELECT to_timestamp($1, $2)",
+            &[25, 25],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame(statement),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "valid_abbrev",
+                statement,
+                &["2000-01-01 12:00:00 IST", "YYYY-MM-DD HH24:MI:SS TZ"],
+            ),
+            wire::execute_frame("valid_abbrev"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![
+            wire::bind_frame(
+                "invalid_abbrev",
+                statement,
+                &["2000-01-01 12:00:00 JUNK", "YYYY-MM-DD HH24:MI:SS TZ"],
+            ),
+            wire::execute_frame("invalid_abbrev"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame("SELECT 45")]),
+    ];
+
+    // Act
+    let batches = run_script("formatted-abbreviation-parameter-recovery", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let description = batches[3]
+        .iter()
+        .find(|frame| frame.0 == b'T')
+        .expect("statement description");
+    assert_eq!(
+        wire::parse_row_description(&description.1)[0].type_oid,
+        1184
+    );
+    assert_eq!(wire::error_code(&batches[4]), None);
+    assert_eq!(
+        wire::data_rows(&batches[4]),
+        vec![vec![Some("2000-01-01 06:30:00+00".to_owned())]]
+    );
+    assert_eq!(wire::error_code(&batches[5]).as_deref(), Some("22007"));
+    assert!(!batches[5]
+        .iter()
+        .any(|(tag, _)| matches!(*tag, b'D' | b'C')));
+    assert_eq!(
+        wire::data_rows(&batches[6]),
+        vec![vec![Some("45".to_owned())]]
+    );
+}

@@ -109,6 +109,11 @@ impl Cassie {
             if statement.as_query.is_some() {
                 self.ensure_session_database_access(session)?;
                 self.ensure_statement_can_execute(session, &parsed, controls)?;
+                if session.is_transaction_active()
+                    && !matches!(&parsed.statement, QueryStatement::Transaction(_))
+                {
+                    session.prune_transaction_sequence_cursors(controls)?;
+                }
                 Self::mark_statement_transaction_query(session, &parsed.statement);
                 return self.execute_create_table_as(
                     session,
@@ -220,6 +225,11 @@ impl Cassie {
             crate::midge::adapter::PublicationControlScope::enter(Some(controls));
         self.ensure_session_database_access(session)?;
         self.ensure_statement_can_execute(session, &parsed, controls)?;
+        if session.is_transaction_active()
+            && !matches!(&parsed.statement, QueryStatement::Transaction(_))
+        {
+            session.prune_transaction_sequence_cursors(controls)?;
+        }
         if let QueryStatement::AlterTable(statement) = &parsed.statement {
             if statement.if_exists && !self.catalog.exists(statement.table.as_str()) {
                 let mut result = QueryResult::try_builder(controls)?;

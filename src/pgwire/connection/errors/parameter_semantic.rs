@@ -16,7 +16,98 @@ pub(super) struct AdmittedErrorFrame {
     _memory: QueryMemoryReservation,
 }
 
+const COPY_UNDEFINED_PREFIX: &str = "unresolvable column reference '";
+const COPY_UNDEFINED_SUFFIX: &str = "'; known fields or aliases required";
+
+pub(super) fn copy_unknown_column_frame_sizes(
+    name_len: usize,
+) -> Result<(usize, usize, usize), CassieError> {
+    let message_size = add(
+        add(COPY_UNDEFINED_PREFIX.len(), name_len)?,
+        COPY_UNDEFINED_SUFFIX.len(),
+    )?;
+    let payload_size = add(
+        add(
+            add(1, add(2, PgWireSeverity::Error.as_str().len())?)?,
+            add(2, "42703".len())?,
+        )?,
+        add(2, message_size)?,
+    )?;
+    let frame_length = add(payload_size, 4)?;
+    if frame_length > super::super::writers::MAX_BACKEND_FRAME_BYTES {
+        return Err(CassieError::ResourceLimit(
+            "pgwire backend frame exceeds 16777216 bytes".into(),
+        ));
+    }
+    Ok((message_size, frame_length, add(frame_length, 1)?))
+}
+
 impl PgWireError {
+    pub(in crate::pgwire::connection) fn copy_undefined_column_fits(name_len: usize) -> bool {
+        copy_unknown_column_frame_sizes(name_len).is_ok()
+    }
+
+    pub(in crate::pgwire::connection) fn copy_undefined_column(
+        name: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, CassieError> {
+        controls.check_interruption()?;
+        let (message_size, frame_length, frame_size) = copy_unknown_column_frame_sizes(name.len())?;
+        let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
+        memory.try_grow(message_size)?;
+        let mut message = String::new();
+        message
+            .try_reserve_exact(message_size)
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        if message.capacity() > message_size {
+            return Err(capacity_error());
+        }
+        message.push_str(COPY_UNDEFINED_PREFIX);
+        let mut start = 0;
+        while start < name.len() {
+            controls.check_interruption()?;
+            let mut end = (start + 4096).min(name.len());
+            while !name.is_char_boundary(end) {
+                end -= 1;
+            }
+            message.push_str(&name[start..end]);
+            start = end;
+        }
+        message.push_str(COPY_UNDEFINED_SUFFIX);
+        let mut error = Self::new(PgWireSeverity::Error, "42703", message);
+        let encoded_length = i32::try_from(frame_length).map_err(|_| capacity_error())?;
+        controls.check_interruption()?;
+        memory.try_grow(frame_size)?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(frame_size)
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        if bytes.capacity() > frame_size {
+            return Err(capacity_error());
+        }
+        bytes.push(b'E');
+        bytes.extend_from_slice(&encoded_length.to_be_bytes());
+        for (tag, value) in [
+            (b'S', error.severity.as_str()),
+            (b'C', error.code),
+            (b'M', error.message.as_str()),
+        ] {
+            bytes.push(tag);
+            for chunk in value.as_bytes().chunks(4096) {
+                controls.check_interruption()?;
+                bytes.extend_from_slice(chunk);
+            }
+            bytes.push(0);
+        }
+        bytes.push(0);
+        controls.check_interruption()?;
+        error.semantic_frame = Some(AdmittedErrorFrame {
+            bytes,
+            _memory: memory,
+        });
+        Ok(error)
+    }
+
     pub(in crate::pgwire::connection) fn parameter_semantic(
         diagnostic: ParameterSemanticDiagnostic,
         controls: &QueryExecutionControls,
@@ -39,6 +130,11 @@ impl PgWireError {
         };
         let mut error = Self::new(PgWireSeverity::Error, diagnostic.code(), message);
         error.detail = detail;
+        if let Some(hint) = diagnostic.hint() {
+            let mut owned_hint = admitted_string(hint.len(), controls, &mut memory)?;
+            owned_hint.push_str(hint);
+            error.hint = Some(owned_hint);
+        }
         admitted_error_frame(error, controls, memory)
     }
 
@@ -94,11 +190,20 @@ impl PgWireError {
         message: &str,
         controls: &QueryExecutionControls,
     ) -> Result<Self, CassieError> {
+        Self::controlled_diagnostic(PgWireSeverity::Error, sqlstate, message, controls)
+    }
+
+    pub(in crate::pgwire::connection) fn controlled_diagnostic(
+        severity: PgWireSeverity,
+        sqlstate: &'static str,
+        message: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Self, CassieError> {
         controls.check_interruption()?;
         let mut memory = controls.reserve_query_memory(size_of::<Self>())?;
         let mut admitted = admitted_string(message.len(), controls, &mut memory)?;
-        admitted.push_str(message);
-        let error = Self::new(PgWireSeverity::Error, sqlstate, admitted);
+        append_text_checked(&mut admitted, message, controls)?;
+        let error = Self::new(severity, sqlstate, admitted);
         admitted_error_frame(error, controls, memory)
     }
 
@@ -109,40 +214,124 @@ impl PgWireError {
     }
 }
 
-fn admitted_error_frame(
-    mut error: PgWireError,
+struct ErrorWithMemory {
+    error: PgWireError,
+    memory: QueryMemoryReservation,
+}
+
+fn append_text_checked(
+    output: &mut String,
+    input: &str,
     controls: &QueryExecutionControls,
-    mut memory: QueryMemoryReservation,
+) -> Result<(), CassieError> {
+    let mut start = 0;
+    while start < input.len() {
+        controls.check_interruption()?;
+        let mut end = (start + 1024).min(input.len());
+        while !input.is_char_boundary(end) {
+            end -= 1;
+        }
+        output.push_str(&input[start..end]);
+        start = end;
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum FrameCopyPhase {
+    Message,
+    Hint,
+    Frame,
+}
+
+fn append_bytes_checked(
+    output: &mut Vec<u8>,
+    input: &[u8],
+    controls: &QueryExecutionControls,
+    mut progress: impl FnMut(),
+) -> Result<(), CassieError> {
+    for chunk in input.chunks(1024) {
+        controls.check_interruption()?;
+        output.extend_from_slice(chunk);
+        progress();
+        controls.check_interruption()?;
+    }
+    Ok(())
+}
+
+fn admitted_error_frame(
+    error: PgWireError,
+    controls: &QueryExecutionControls,
+    memory: QueryMemoryReservation,
 ) -> Result<PgWireError, CassieError> {
-    // Each tagged C string costs its tag and terminating NUL; the payload has a final NUL.
+    admitted_error_frame_observing(error, controls, memory, |_| {})
+}
+
+pub(super) fn admitted_error_frame_observing(
+    error: PgWireError,
+    controls: &QueryExecutionControls,
+    memory: QueryMemoryReservation,
+    mut progress: impl FnMut(FrameCopyPhase),
+) -> Result<PgWireError, CassieError> {
+    // This owner keeps the message alive only while its reservation is alive,
+    // including every allocation and interruption failure below.
+    let mut owned = ErrorWithMemory { error, memory };
     let mut payload_size = 1;
-    for value in [error.severity.as_str(), error.code, error.message.as_str()] {
+    for value in [
+        owned.error.severity.as_str(),
+        owned.error.code,
+        owned.error.message.as_str(),
+    ] {
         payload_size = add(payload_size, add(value.len(), 2)?)?;
     }
-    if let Some(detail) = &error.detail {
+    if let Some(detail) = &owned.error.detail {
         payload_size = add(payload_size, add(detail.len(), 2)?)?;
     }
-    let mut payload = admitted_bytes(payload_size, controls, &mut memory)?;
+    if let Some(hint) = &owned.error.hint {
+        payload_size = add(payload_size, add(hint.len(), 2)?)?;
+    }
+    let frame_length = add(payload_size, 4)?;
+    if frame_length > super::super::writers::MAX_BACKEND_FRAME_BYTES {
+        return Err(CassieError::ResourceLimit(
+            "pgwire backend frame exceeds 16777216 bytes".into(),
+        ));
+    }
+    let mut payload = admitted_bytes(payload_size, controls, &mut owned.memory)?;
     for (tag, value) in [
-        (b'S', Some(error.severity.as_str())),
-        (b'C', Some(error.code)),
-        (b'M', Some(error.message.as_str())),
-        (b'D', error.detail.as_deref()),
+        (b'S', Some(owned.error.severity.as_str())),
+        (b'C', Some(owned.error.code)),
+        (b'M', Some(owned.error.message.as_str())),
+        (b'D', owned.error.detail.as_deref()),
+        (b'H', owned.error.hint.as_deref()),
     ] {
         if let Some(value) = value {
             payload.push(tag);
-            payload.extend_from_slice(value.as_bytes());
+            append_bytes_checked(&mut payload, value.as_bytes(), controls, || {
+                if tag == b'M' {
+                    progress(FrameCopyPhase::Message);
+                } else if tag == b'H' {
+                    progress(FrameCopyPhase::Hint);
+                }
+            })?;
             payload.push(0);
         }
     }
     payload.push(0);
-    let mut bytes = admitted_bytes(add(payload_size, 5)?, controls, &mut memory)?;
-    super::super::writers::append_backend_frame(&mut bytes, b'E', &payload)
-        .map_err(|error| CassieError::ResourceLimit(error.to_string()))?;
+    let mut bytes = admitted_bytes(add(payload_size, 5)?, controls, &mut owned.memory)?;
+    let encoded_length = i32::try_from(frame_length)
+        .map_err(|_| CassieError::ResourceLimit("pgwire backend frame length overflow".into()))?;
+    bytes.push(b'E');
+    bytes.extend_from_slice(&encoded_length.to_be_bytes());
+    append_bytes_checked(&mut bytes, &payload, controls, || {
+        progress(FrameCopyPhase::Frame);
+    })?;
     let payload_capacity = payload.capacity();
     drop(payload);
-    memory.shrink_to(memory.bytes() - payload_capacity);
+    owned
+        .memory
+        .shrink_to(owned.memory.bytes() - payload_capacity);
     controls.check_interruption()?;
+    let ErrorWithMemory { mut error, memory } = owned;
     error.semantic_frame = Some(AdmittedErrorFrame {
         bytes,
         _memory: memory,
@@ -162,7 +351,7 @@ fn admitted_string(
     value.try_reserve_exact(capacity).map_err(|error| {
         CassieError::ResourceLimit(format!("unable to allocate parameter diagnostic: {error}"))
     })?;
-    reconcile_capacity(value.capacity(), capacity, controls, memory)?;
+    reconcile_capacity(value.capacity(), capacity, controls)?;
     Ok(value)
 }
 
@@ -178,7 +367,7 @@ fn admitted_bytes(
     value.try_reserve_exact(capacity).map_err(|error| {
         CassieError::ResourceLimit(format!("unable to allocate parameter error frame: {error}"))
     })?;
-    reconcile_capacity(value.capacity(), capacity, controls, memory)?;
+    reconcile_capacity(value.capacity(), capacity, controls)?;
     Ok(value)
 }
 
@@ -186,11 +375,12 @@ fn reconcile_capacity(
     actual: usize,
     requested: usize,
     controls: &QueryExecutionControls,
-    memory: &mut QueryMemoryReservation,
 ) -> Result<(), CassieError> {
     controls.check_interruption()?;
     if actual > requested {
-        memory.try_grow(actual - requested)?;
+        return Err(CassieError::ResourceLimit(
+            "allocator exceeded admitted parameter diagnostic capacity".into(),
+        ));
     }
     Ok(())
 }

@@ -28,6 +28,8 @@ mod nodes;
 mod subqueries;
 #[path = "fold_table_sources.rs"]
 mod table_sources;
+#[path = "fold_temporal_functions.rs"]
+mod temporal_functions;
 
 #[derive(Clone, Copy)]
 enum Expected {
@@ -126,7 +128,7 @@ impl<'a, 'c> Fold<'a, 'c> {
                 )?;
             } else {
                 let frame = self.frames.values.pop().expect("nonempty fold stack");
-                if self.occurrences.stops_on_error() && rejected_cast(frame.node) {
+                if self.occurrences.stops_on_error() && rejected_cast(frame.node, self.controls)? {
                     // This statement cannot be published. Return only prefix types
                     // so ordered binding rejects the input before parent resolution.
                     self.occurrences.binding_required = true;
@@ -377,6 +379,21 @@ impl<'a, 'c> Fold<'a, 'c> {
     }
 }
 
-fn rejected_cast(node: Node<'_>) -> bool {
-    matches!(node, Node::Expr(expression) if crate::sql::literal_inputs::rejects_cast(expression))
+fn rejected_cast(
+    node: Node<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<bool, ParameterAdmissionError> {
+    let Node::Expr(expression) = node else {
+        return Ok(false);
+    };
+    crate::sql::literal_inputs::rejects_cast_with_controls(expression, Some(controls)).map_err(
+        |error| match error {
+            crate::app::CassieError::QueryCancelled => ParameterAdmissionError::Cancelled,
+            crate::app::CassieError::DeadlineExceeded => ParameterAdmissionError::Deadline,
+            crate::app::CassieError::ResourceLimit(message) => {
+                ParameterAdmissionError::Memory(message)
+            }
+            other => ParameterAdmissionError::Memory(other.to_string()),
+        },
+    )
 }

@@ -161,9 +161,14 @@ pub fn run_memory_budget_case_with_setup_at_budget(
 async fn assert_filtered_does_not_pause(
     reader: &mut OwnedReadHalf,
     writer: &mut OwnedWriteHalf,
+    cassie: &Cassie,
+    process_id: i32,
+    secret_key: i32,
     filtered_sql: &str,
 ) {
-    let (_guard, selected, _resume) = cassie::runtime::pause_next_query_after_aggregate_input();
+    let (_guard, selected, _resume) =
+        cassie::runtime::pause_next_query_after_aggregate_input(cassie, process_id, secret_key)
+            .expect("arm aggregate pause");
     wire::write_frames(writer, vec![wire::simple_query_frame(filtered_sql)]).await;
     let filtered = wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await;
     assert_no_error(&filtered, "filtered-out aggregate control");
@@ -203,6 +208,72 @@ async fn cancel_and_wait_for_close(address: SocketAddr, process_id: i32, secret_
     );
 }
 
+pub fn assert_aggregate_pause_targets_one_backend() {
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let config = crate::support_sql::with_test_root_password(
+            CassieRuntimeConfig::from_env().expect("runtime config"),
+        );
+        let first = Arc::new(configured_instance(config.clone()));
+        let second = Arc::new(configured_instance(config.clone()));
+        first.startup().expect("start first instance");
+        second.startup().expect("start second instance");
+        let first_server = start_server(Arc::clone(&first), config.clone()).await;
+        let second_server = start_server(Arc::clone(&second), config).await;
+        let (mut target_reader, mut target_writer, process_id, secret_key) =
+            connect(first_server.address).await;
+        let (mut sibling_reader, mut sibling_writer, _, _) = connect(first_server.address).await;
+        let (mut other_reader, mut other_writer, _, _) = connect(second_server.address).await;
+        let (_guard, selected, resume) =
+            cassie::runtime::pause_next_query_after_aggregate_input(&first, process_id, secret_key)
+                .expect("arm selected backend");
+
+        let _bare = cassie::runtime::QueryCancellationHandle::new();
+        let sql = "SELECT array_agg(n) FROM (VALUES (1), (2)) AS input(n)";
+        for (reader, writer) in [
+            (&mut sibling_reader, &mut sibling_writer),
+            (&mut other_reader, &mut other_writer),
+        ] {
+            wire::write_frames(writer, vec![wire::simple_query_frame(sql)]).await;
+            let frames =
+                wire::read_frames_until_ready_within(reader, Duration::from_secs(10)).await;
+            assert_no_error(&frames, "unrelated backend");
+        }
+        assert!(matches!(
+            selected.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
+        wire::write_frames(&mut target_writer, vec![wire::simple_query_frame(sql)]).await;
+        tokio::task::spawn_blocking(move || selected.recv_timeout(Duration::from_secs(5)))
+            .await
+            .expect("pause observer task")
+            .expect("target reaches retained input");
+        cancel_and_wait_for_close(first_server.address, process_id, secret_key).await;
+        resume.send(()).expect("resume target");
+        let cancelled =
+            wire::read_frames_until_ready_within(&mut target_reader, Duration::from_secs(10)).await;
+        assert_rejected_without_partial_rows(&cancelled, "57014");
+        wire::write_frames(
+            &mut target_writer,
+            vec![wire::simple_query_frame("SELECT 47")],
+        )
+        .await;
+        let recovery =
+            wire::read_frames_until_ready_within(&mut target_reader, Duration::from_secs(10)).await;
+        assert_control_result(&recovery, "47");
+        drop((
+            target_reader,
+            target_writer,
+            sibling_reader,
+            sibling_writer,
+            other_reader,
+            other_writer,
+        ));
+        first_server.stop().await;
+        second_server.stop().await;
+    });
+}
+
 pub fn run_cancellation_case_with_setup_after_aggregate_input(
     _label: &str,
     setup_sql: &[String],
@@ -231,10 +302,21 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
         assert_no_error(&control, "small retained-value cancellation control");
 
-        assert_filtered_does_not_pause(&mut reader, &mut writer, filtered_sql).await;
+        assert_filtered_does_not_pause(
+            &mut reader,
+            &mut writer,
+            &cassie,
+            process_id,
+            secret_key,
+            filtered_sql,
+        )
+        .await;
 
         let (_pause_guard, selected, resume) =
-            cassie::runtime::pause_next_query_after_aggregate_input();
+            cassie::runtime::pause_next_query_after_aggregate_input(
+                &cassie, process_id, secret_key,
+            )
+            .expect("arm aggregate pause");
         wire::write_frames(&mut writer, vec![wire::simple_query_frame(candidate_sql)]).await;
         tokio::task::spawn_blocking(move || selected.recv_timeout(Duration::from_secs(5)))
             .await

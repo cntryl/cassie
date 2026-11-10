@@ -36,8 +36,9 @@ pub(super) fn evaluate(
         let (ScalarValue::Str(text) | ScalarValue::Json(text)) = selector else {
             return Err(operator_error());
         };
-        let segments = array::parse_text_array(text, &DataType::Text)
-            .map_err(|error| CassieError::ArrayInput(error.to_string()))?;
+        let segments = array::parse_text_array_with_dimensions(text, &DataType::Text)
+            .map_err(|error| CassieError::ArrayInput(error.to_string()))?
+            .flat_values;
         let Some(segments) = segments.as_array() else {
             return Err(operator_error());
         };
@@ -54,7 +55,10 @@ pub(super) fn evaluate(
         let next = match selector {
             ScalarValue::Str(key) => extract(&value, key, false)?,
             ScalarValue::Int(index) => {
-                if !value.get().trim_start().starts_with(['{', '[']) && matches!(index, 0 | -1) {
+                if jsonb
+                    && !value.get().trim_start().starts_with(['{', '['])
+                    && matches!(index, 0 | -1)
+                {
                     Some(value)
                 } else {
                     array_element(&value, *index)?

@@ -51,15 +51,22 @@ fn real_operand(value: &ScalarValue) -> Option<Result<f32, QueryError>> {
     }
 }
 
-fn double_operand(value: &ScalarValue) -> Option<f64> {
+fn double_operand(value: &ScalarValue, checked_numeric: bool) -> Option<Result<f64, QueryError>> {
     match value {
-        ScalarValue::Str(text) => text.trim().parse::<f64>().ok(),
-        other => other.to_f64(),
+        ScalarValue::Typed(TypedValue::Numeric(value)) if checked_numeric => {
+            Some(super::functions::math::numeric_as_f64(value))
+        }
+        ScalarValue::Str(text) => text.trim().parse::<f64>().ok().map(Ok),
+        other => other.to_f64().map(Ok),
     }
 }
 
 /// Classifies operands when either side is a native numeric family value.
-fn classify(left: &ScalarValue, right: &ScalarValue) -> Option<Result<Operands, QueryError>> {
+fn classify(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    checked_numeric: bool,
+) -> Option<Result<Operands, QueryError>> {
     let typed = |value: &ScalarValue| is_numeric(value) || is_real(value);
     if !typed(left) && !typed(right) {
         return None;
@@ -74,9 +81,9 @@ fn classify(left: &ScalarValue, right: &ScalarValue) -> Option<Result<Operands, 
             return Some(left.and_then(|left| right.map(|right| Operands::Real(left, right))));
         }
     }
-    double_operand(left)
-        .zip(double_operand(right))
-        .map(|(left, right)| Ok(Operands::Double(left, right)))
+    double_operand(left, checked_numeric)
+        .zip(double_operand(right, checked_numeric))
+        .map(|(left, right)| left.and_then(|left| right.map(|right| Operands::Double(left, right))))
 }
 
 /// PostgreSQL's float order: NaN equals NaN and sorts above every number.
@@ -94,7 +101,7 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<Orderin
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return None;
     }
-    match classify(left, right)?.ok()? {
+    match classify(left, right, false)?.ok()? {
         Operands::Numeric(left, right) => Some(left.compare(&right)),
         Operands::Real(left, right) => Some(float_order(f64::from(left), f64::from(right))),
         Operands::Double(left, right) => Some(float_order(left, right)),
@@ -148,7 +155,7 @@ pub(super) fn arithmetic(
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return Some(Ok(ScalarValue::Null));
     }
-    let operands = match classify(left, right)? {
+    let operands = match classify(left, right, matches!(op, BinaryOp::Power))? {
         Ok(operands) => operands,
         Err(error) => return Some(Err(error)),
     };

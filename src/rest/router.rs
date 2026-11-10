@@ -1,3 +1,6 @@
+#[path = "router/owned_error_response.rs"]
+mod owned_error_response;
+
 use std::convert::Infallible;
 use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr};
@@ -91,6 +94,7 @@ struct RouteDispatchContext<'a> {
     request_context: &'a RestRequestContext,
     secure_transport: bool,
     peer_ip: IpAddr,
+    admitted_error_response: bool,
 }
 
 async fn route(
@@ -102,21 +106,27 @@ async fn route(
 ) -> Result<Response<RestBody>, Infallible> {
     let is_api = is_api_path(request.uri().path());
     let secure_transport = cassie.rest_secure_transport(secure_transport);
-    let response =
-        match route_request_with_admin_ui(request, cassie, admin_ui, secure_transport, peer_ip)
-            .await
-        {
-            Ok(response) => response,
-            Err((status, message)) => {
-                let mut response = json_response(status, &serde_json::json!({ "error": message }));
-                if status == StatusCode::TOO_MANY_REQUESTS {
-                    response
-                        .headers_mut()
-                        .insert(RETRY_AFTER, HeaderValue::from_static("60"));
-                }
+    let response = match route_request_with_admin_ui(
+        request,
+        cassie,
+        admin_ui,
+        secure_transport,
+        peer_ip,
+        true,
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err((status, message)) => {
+            let mut response = json_response(status, &serde_json::json!({ "error": message }));
+            if status == StatusCode::TOO_MANY_REQUESTS {
                 response
+                    .headers_mut()
+                    .insert(RETRY_AFTER, HeaderValue::from_static("60"));
             }
-        };
+            response
+        }
+    };
     Ok(with_security_headers(response, is_api, secure_transport))
 }
 
@@ -273,6 +283,7 @@ pub async fn route_request(
         Arc::new(AdminUiStaticFiles::new(default_admin_ui_dir())),
         false,
         IpAddr::V4(Ipv4Addr::LOCALHOST),
+        false,
     )
     .await
 }
@@ -283,6 +294,7 @@ async fn route_request_with_admin_ui(
     admin_ui: Arc<AdminUiStaticFiles>,
     secure_transport: bool,
     peer_ip: IpAddr,
+    admitted_error_response: bool,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
     let secure_transport = cassie.rest_secure_transport(secure_transport);
     let method = request.method().clone();
@@ -362,6 +374,7 @@ async fn route_request_with_admin_ui(
             request_context: &request_context,
             secure_transport,
             peer_ip,
+            admitted_error_response,
         },
         cassie.clone(),
         admin_ui,
@@ -702,7 +715,7 @@ async fn run_admin_query_operation(
         context.path,
         context.started_at,
         operation_name,
-        cancellation,
+        (cancellation, context.admitted_error_response),
         move |cassie, cancellation| operation(&cassie, &session, body.as_ref(), cancellation),
     )
     .await;

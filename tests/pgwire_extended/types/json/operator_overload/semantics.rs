@@ -1,4 +1,36 @@
 #[test]
+fn should_distinguish_json_scalar_indexing_from_jsonb() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT '1'::json -> 0, '1'::json -> -1, '1'::json ->> 0, \
+         '\"abc\"'::json -> 0, 'null'::json -> 0, \
+         '1'::jsonb -> 0, '1'::jsonb -> -1, '1'::jsonb ->> 0, \
+         '\"abc\"'::jsonb ->> 0, 'null'::jsonb -> 0, 'null'::jsonb ->> 0, \
+         '[1]'::json -> 0",
+        None,
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("json-scalar-index-identity", &[], vec![cycle]);
+
+    // Assert
+    let frames = &batches[0];
+    fixture::assert_success(frames);
+    let description = frames.iter().find(|(tag, _)| *tag == b'T').expect("row description");
+    assert_eq!(
+        wire::parse_row_description(&description.1).iter().map(|column| column.type_oid).collect::<Vec<_>>(),
+        vec![114, 114, 25, 114, 114, 3802, 3802, 25, 25, 3802, 25, 114]
+    );
+    assert_eq!(wire::data_rows(frames), vec![vec![
+        None, None, None, None, None,
+        Some("1".to_owned()), Some("1".to_owned()), Some("1".to_owned()),
+        Some("abc".to_owned()), Some("null".to_owned()), None, Some("1".to_owned()),
+    ]]);
+}
+
+#[test]
 fn should_extract_json_documents_through_arrow_path_overloads() {
     // Arrange
     let setup = [];

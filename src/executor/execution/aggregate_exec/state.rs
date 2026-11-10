@@ -158,11 +158,21 @@ impl AggregateAccumulator {
     }
 
     /// Folds `rows` in order through a fresh accumulator for `function`.
+    #[cfg(test)]
     pub(super) fn evaluate(
         function: &FunctionCall,
         rows: &[BatchRow],
         context: &AggregateExecutionContext<'_>,
     ) -> Result<Value, QueryError> {
+        Self::evaluate_owned(function, rows, context)
+            .map(super::collection_json::AggregateOutput::into_value)
+    }
+
+    pub(super) fn evaluate_owned(
+        function: &FunctionCall,
+        rows: &[BatchRow],
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<super::collection_json::AggregateOutput, QueryError> {
         let is_regression =
             crate::sql::functions::function(&function.name).is_some_and(|metadata| {
                 crate::sql::functions::regression::is_regression_function(metadata.id)
@@ -179,10 +189,12 @@ impl AggregateAccumulator {
             || function.is_distinct()
             || !function.order_by.is_empty()
         {
-            return super::modifiers::evaluate(function, rows, context);
+            return super::modifiers::evaluate(function, rows, context)
+                .map(super::collection_json::AggregateOutput::from_value);
         }
-        let mut accumulator = Self::new(function);
         let mut key_memory = super::group_memory::GroupMemory::new(context.controls)?;
+        // A retained accumulator must retire before the key reservation on errors.
+        let mut accumulator = Self::new(function);
         let mut retained_key_bytes = 0;
         for row in rows {
             super::check_timeout(context.controls)?;
@@ -209,14 +221,25 @@ impl AggregateAccumulator {
             super::check_timeout(context.controls)?;
         }
         super::check_timeout(context.controls)?;
-        accumulator.finish()
+        let value = accumulator.finish()?;
+        Ok(super::collection_json::AggregateOutput::from_owned(
+            value,
+            key_memory.into_reservation(),
+        ))
     }
 
     pub(super) fn new(function: &FunctionCall) -> Self {
+        Self::new_with_arguments(function, &function.args)
+    }
+
+    pub(super) fn new_with_arguments(
+        function: &FunctionCall,
+        arguments: &[crate::sql::ast::Expr],
+    ) -> Self {
         if let Some(state) = RegressionAccumulator::new(function) {
             return Self::Regression(state);
         }
-        if let Some(state) = StatisticalAccumulator::new(function) {
+        if let Some(state) = StatisticalAccumulator::new_with_arguments(function, arguments) {
             return Self::Statistical(state);
         }
         if let Some(state) = BooleanState::new(&function.name) {

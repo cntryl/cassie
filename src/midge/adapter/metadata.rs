@@ -85,6 +85,7 @@ impl Midge {
             let record: IndexMeta = serde_json::from_slice(&raw)
                 .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
             crate::sql::definition_guard::version(record.definition_semantics_version)?;
+            crate::sql::definition_guard::index(&record)?;
             return Ok(Some(record));
         }
 
@@ -98,6 +99,7 @@ impl Midge {
             };
             if name_matches(&record.collection, &collection) && name_matches(&record.name, name) {
                 crate::sql::definition_guard::version(record.definition_semantics_version)?;
+                crate::sql::definition_guard::index(&record)?;
                 return Ok(Some(record));
             }
         }
@@ -117,6 +119,7 @@ impl Midge {
                 continue;
             };
             crate::sql::definition_guard::version(record.definition_semantics_version)?;
+            crate::sql::definition_guard::index(&record)?;
             out.push(record);
         }
 
@@ -975,3 +978,7 @@ impl Midge {
         collections
     }
 }
+
+#[cfg(test)]
+#[path = "metadata/index_definition_readback_tests.rs"]
+mod index_definition_readback_tests;

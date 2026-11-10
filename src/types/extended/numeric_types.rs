@@ -6,6 +6,17 @@ use crate::types::DataType;
 const NUMERIC: DataType = DataType::Extended(ExtendedType::Numeric(None));
 const REAL: DataType = DataType::Extended(ExtendedType::Real);
 
+/// Selected power overload for PostgreSQL parameter type OIDs.
+pub(crate) const fn power_oid(left: i32, right: i32) -> i32 {
+    if matches!(left, 700 | 701) || matches!(right, 700 | 701) {
+        701
+    } else if left == 1700 || right == 1700 {
+        1700
+    } else {
+        701
+    }
+}
+
 fn is_numeric(data_type: &DataType) -> bool {
     matches!(data_type, DataType::Extended(ExtendedType::Numeric(_)))
 }

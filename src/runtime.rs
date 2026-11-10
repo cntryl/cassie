@@ -27,7 +27,7 @@ mod adaptive_metrics;
 #[path = "runtime/admission.rs"]
 mod admission;
 #[path = "runtime/aggregate_test_pause.rs"]
-mod aggregate_test_pause;
+pub(crate) mod aggregate_test_pause;
 #[path = "runtime/cache_state.rs"]
 mod cache_state;
 #[path = "runtime/column_batch_metrics.rs"]
@@ -118,7 +118,6 @@ pub use snapshots::*;
 
 #[derive(Debug)]
 enum QueryTestPause {
-    Aggregate(aggregate_test_pause::QueryAggregateTestPause),
     Sleep(sleep_test_pause::QuerySleepTestPause),
     Regex(regex_test_pause::QueryRegexTestPause),
     Scoring(scoring_test_pause::ScoringTestPause),

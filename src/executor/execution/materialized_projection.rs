@@ -5,6 +5,8 @@ use query::{
     reject_unsupported_sources,
 };
 
+#[path = "materialized_projection_payload.rs"]
+mod payload;
 #[path = "materialized_projection_verification.rs"]
 mod verification;
 pub(crate) use verification::projection_verification_column_definitions;
@@ -24,7 +26,6 @@ use super::{
     QueryStatement, Schema, SelectItem,
 };
 use crate::midge::adapter::RootHashRecord;
-use crate::types::json::try_value_to_json;
 
 #[cfg(test)]
 #[path = "materialized_projection_test_support.rs"]
@@ -708,7 +709,7 @@ pub(super) fn build_specific_version(
                 .map(|generation| (source.clone(), generation))
         })
         .collect();
-    let root = replace_output_rows(cassie, &output_collection, &build.schema, rows)?;
+    let root = replace_output_rows(cassie, &output_collection, &build.schema, rows, controls)?;
     cassie
         .runtime
         .record_materialized_projection_build(metadata.collection.clone());
@@ -833,13 +834,14 @@ fn replace_output_rows(
     output_collection: &str,
     schema: &Schema,
     rows: Vec<BatchRow>,
+    controls: &QueryExecutionControls,
 ) -> Result<RootHashRecord, QueryError> {
     crate::executor::pause_before_materialized_projection_replace();
     let gated_collection = output_collection.to_string();
     cassie
         .midge
         .with_collection_write_gates(std::slice::from_ref(&gated_collection), || {
-            replace_output_rows_gated(cassie, output_collection, schema, rows)
+            replace_output_rows_gated(cassie, output_collection, schema, rows, controls)
         })
 }
 
@@ -848,36 +850,9 @@ fn replace_output_rows_gated(
     output_collection: &str,
     schema: &Schema,
     rows: Vec<BatchRow>,
+    controls: &QueryExecutionControls,
 ) -> Result<RootHashRecord, QueryError> {
-    let output_rows = rows
-        .into_iter()
-        .enumerate()
-        .map(|(index, row)| {
-            let _operator_parent = row.operator_memory();
-            let entries = row.into_entries();
-            if entries.len() != schema.fields.len() {
-                return Err(QueryError::General(format!(
-                    "materialized projection produced {} values for {} output columns",
-                    entries.len(),
-                    schema.fields.len()
-                )));
-            }
-            let payload = entries
-                .into_iter()
-                .zip(&schema.fields)
-                .map(|((_, value), field)| {
-                    try_value_to_json(value)
-                        .map(|value| (field.name.clone(), value))
-                        .map_err(|error| {
-                            QueryError::General(format!("materialized projection output {error}"))
-                        })
-                })
-                .collect::<Result<serde_json::Map<_, _>, _>>()?;
-            let payload = serde_json::Value::Object(payload);
-            let id = deterministic_row_id(index, &payload);
-            Ok((id, payload))
-        })
-        .collect::<Result<Vec<_>, QueryError>>()?;
+    let mut output_rows = payload::encode(rows, schema, controls)?;
 
     if cassie.midge.collection_schema(output_collection).is_some() {
         let _ = cassie.midge.drop_collection(output_collection);
@@ -897,10 +872,12 @@ fn replace_output_rows_gated(
             .collect(),
     );
 
-    let (report, root) = cassie
-        .midge
-        .write_fresh_projection_output_rows(output_collection, output_rows)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let (report, root) = output_rows.publish_with(|documents| {
+        cassie
+            .midge
+            .write_fresh_projection_output_rows(output_collection, documents)
+            .map_err(|error| QueryError::General(error.to_string()))
+    })?;
     cassie.runtime.record_projection_rebuild_writes(
         output_collection.to_string(),
         report.stats.row_puts,

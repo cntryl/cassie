@@ -35,6 +35,7 @@ impl Midge {
         }
         let mut metadata: IndexMeta = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
+        crate::sql::definition_guard::index(&metadata)?;
         metadata.preserve_identity_before_name_change();
         metadata.name = next_name.to_string();
         if current_key != next_key {
@@ -98,6 +99,7 @@ impl Midge {
                 serde_json::from_slice(&raw)
                     .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))
             })?;
+        crate::sql::definition_guard::index(&metadata)?;
         let identity = (
             metadata.kind.clone(),
             metadata.collection.clone(),
@@ -106,6 +108,7 @@ impl Midge {
             metadata.storage_id(),
             metadata.access_method().to_string(),
         );
+        let definition_version = metadata.definition_semantics_version;
         update(&mut metadata)?;
         if metadata.kind != identity.0
             || metadata.collection != identity.1
@@ -116,6 +119,12 @@ impl Midge {
         {
             return Err(CassieError::Execution(
                 "index metadata replacement cannot change index identity".to_string(),
+            ));
+        }
+        crate::sql::definition_guard::index(&metadata)?;
+        if metadata.definition_semantics_version != definition_version {
+            return Err(CassieError::Unsupported(
+                "index metadata update cannot change index definition version".to_string(),
             ));
         }
         tx.put(

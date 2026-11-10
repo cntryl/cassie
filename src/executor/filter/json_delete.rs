@@ -9,6 +9,278 @@ use crate::types::{array, extended::TypeInputError, DataType};
 use serde_json::value::RawValue;
 use serde_json::Value as JsonValue;
 
+#[cfg(test)]
+#[path = "json_delete_compatibility_tests.rs"]
+mod compatibility_tests;
+
+#[path = "json_delete_raw_scan.rs"]
+mod raw_scan;
+
+#[path = "json_delete_owned_path.rs"]
+pub(super) mod owned_path;
+
+pub(super) fn controlled_extraction(
+    document: &ScalarValue,
+    selector: &ScalarValue,
+    path: bool,
+    as_text: bool,
+    jsonb: bool,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<Option<ScalarValue>, QueryError> {
+    raw_scan::extract::evaluate(document, selector, path, as_text, jsonb, controls, owner)
+}
+
+pub(super) fn controlled_function_extraction(
+    document: &str,
+    segments: &[crate::types::Value],
+    as_text: bool,
+    jsonb: bool,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<ScalarValue, QueryError> {
+    raw_scan::extract::evaluate_function_path(document, segments, as_text, jsonb, controls, owner)
+}
+
+#[cfg(test)]
+pub(crate) fn cancel_raw_scan_once(handle: Option<crate::runtime::QueryCancellationHandle>) {
+    raw_scan::cancel_scan_once(handle);
+}
+
+#[cfg(test)]
+pub(crate) fn cancel_function_path_scan_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::extract::cancel_function_scan_once(handle);
+}
+#[cfg(test)]
+pub(super) fn cancel_function_path_copy_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::extract::cancel_function_copy_once(handle);
+}
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_OWNED_PATH: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn cancel_after_owned_path_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_OWNED_PATH.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
+pub(super) fn after_owned_path(
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), QueryError> {
+    #[cfg(test)]
+    CANCEL_AFTER_OWNED_PATH.with(|slot| {
+        if let Some(handle) = slot.borrow_mut().take() {
+            handle.cancel();
+        }
+    });
+    controls.check_interruption().map_err(Into::into)
+}
+
+fn controlled_head(
+    document: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<char>, QueryError> {
+    for character in document.chars() {
+        controls.check_interruption()?;
+        if !character.is_whitespace() {
+            return Ok(Some(character));
+        }
+    }
+    Ok(None)
+}
+
+pub(super) fn adopt_output(
+    output: crate::runtime::accounted::compact_json::OwnedJsonText,
+    owner: &super::EvaluationMemory,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<ScalarValue, QueryError> {
+    let (text, memory) = output.into_parts();
+    if !memory.belongs_to(controls) || !owner.belongs_to(controls) {
+        drop(text);
+        drop(memory);
+        return Err(CassieError::ResourceLimit(
+            "JSON deletion owner uses a different query tracker".into(),
+        )
+        .into());
+    }
+    owner.adopt(memory);
+    Ok(ScalarValue::Json(text))
+}
+
+pub(super) fn controlled_concatenation(
+    left: &str,
+    right: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<ScalarValue, QueryError> {
+    let output = raw_scan::concat::concatenate(left, right, controls)
+        .map_err(raw_scan::render::RenderError::into_query_error)?;
+    adopt_output(output, owner, controls)
+}
+
+pub(super) fn controlled_containment_objects(
+    candidate: &str,
+    required: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+    after_scalar: &mut impl FnMut(bool),
+) -> Result<Option<bool>, QueryError> {
+    raw_scan::containment::evaluate(candidate, required, controls, after_scalar)
+}
+
+pub(super) use raw_scan::array_containment::{ArrayPair, ArrayStep};
+pub(super) use raw_scan::containment_token::copy as containment_raw_copy;
+
+#[cfg(test)]
+pub(super) fn cancel_containment_token_scan_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::containment_token::cancel_scan_once(handle);
+}
+
+#[cfg(test)]
+pub(super) fn cancel_containment_token_copy_once(
+    handle: crate::runtime::QueryCancellationHandle,
+    copy_number: usize,
+) {
+    raw_scan::containment_token::cancel_copy_once(handle, copy_number);
+}
+pub(super) use raw_scan::nested_containment::{ObjectPair, ObjectStep};
+
+#[cfg(test)]
+pub(super) fn cancel_containment_array_move_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::array_containment::cancel_move_once(handle);
+}
+
+#[cfg(test)]
+pub(super) fn cancel_nested_object_index_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::containment::cancel_sort_once(handle);
+}
+
+#[cfg(test)]
+pub(super) fn cancel_containment_key_sort_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::containment::cancel_sort_once(handle);
+}
+
+#[cfg(test)]
+pub(super) fn cancel_containment_key_compare_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::containment::cancel_compare_once(handle);
+}
+
+#[cfg(test)]
+pub(super) fn cancel_concat_after_copy_once(handle: crate::runtime::QueryCancellationHandle) {
+    raw_scan::concat::cancel_after_copy_once(handle);
+}
+
+pub(super) fn controlled_operator(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<Option<ScalarValue>, QueryError> {
+    use raw_scan::render;
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(Some(ScalarValue::Null));
+    }
+    reject_multidimensional_array(right)?;
+    let document = json_document(left)?;
+    if let ScalarValue::Json(text) = right {
+        let output = if let Some(path) = owned_path::parse(text, controls)? {
+            after_owned_path(controls)?;
+            match controlled_head(document, controls)? {
+                Some('{') => render::render_object_without_keys(document, path.values(), controls),
+                Some('[') => render::render_array_without_keys(document, path.values(), controls),
+                _ => return Err(invalid_parameter("cannot delete from scalar")),
+            }
+        } else if let Some(path) =
+            crate::runtime::accounted::json_arena::parse_text_array_candidate(text, controls)?
+        {
+            after_owned_path(controls)?;
+            match controlled_head(document, controls)? {
+                Some('{') => render::render_object_without_arena_keys(document, &path, controls),
+                Some('[') => render::render_array_without_arena_keys(document, &path, controls),
+                _ => return Err(invalid_parameter("cannot delete from scalar")),
+            }
+        } else {
+            return Ok(None);
+        }
+        .map_err(render::RenderError::into_query_error)?;
+        return adopt_output(output, owner, controls).map(Some);
+    }
+    if !matches!(
+        right,
+        ScalarValue::Str(_) | ScalarValue::Int(_) | ScalarValue::Array(_)
+    ) {
+        return Ok(None);
+    }
+    if let ScalarValue::Array(array) = right {
+        render::native_keys_valid(array.elements(), controls)
+            .map_err(render::RenderError::into_query_error)?;
+    }
+    let head = controlled_head(document, controls)?;
+    let output = match (head, right) {
+        (Some('{'), ScalarValue::Str(key)) => {
+            render::render_object_without_key(document, key, controls)
+        }
+        (Some('['), ScalarValue::Str(key)) => {
+            render::render_array_without_text(document, key, controls)
+        }
+        (Some('['), ScalarValue::Int(index)) => {
+            render::render_array_without_index(document, *index, controls)
+        }
+        (Some('{'), ScalarValue::Int(_)) => {
+            return Err(invalid_parameter(
+                "cannot delete from object using integer index",
+            ))
+        }
+        (Some('{'), ScalarValue::Array(array)) => {
+            render::render_object_without_native_keys(document, array.elements(), controls)
+        }
+        (Some('['), ScalarValue::Array(array)) => {
+            render::render_array_without_native_keys(document, array.elements(), controls)
+        }
+        (_, ScalarValue::Str(_) | ScalarValue::Int(_) | ScalarValue::Array(_)) => {
+            return Err(invalid_parameter("cannot delete from scalar"))
+        }
+        _ => return Ok(None),
+    }
+    .map_err(render::RenderError::into_query_error)?;
+    adopt_output(output, owner, controls).map(Some)
+}
+
+pub(super) fn controlled_path(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(Some(ScalarValue::Null));
+    }
+    reject_multidimensional_array(right)?;
+    let document = json_document(left)?;
+    let output = match right {
+        ScalarValue::Array(array) => {
+            raw_scan::render::path::render_native_path(document, array.elements(), controls)
+        }
+        ScalarValue::Str(text) | ScalarValue::Json(text) => {
+            if let Some(path) = owned_path::parse(text, controls)? {
+                after_owned_path(controls)?;
+                raw_scan::render::path::render_path(document, path.values(), controls)
+            } else if let Some(path) =
+                crate::runtime::accounted::json_arena::parse_text_array_candidate(text, controls)?
+            {
+                after_owned_path(controls)?;
+                raw_scan::render::path::render_arena_path(document, &path, controls)
+            } else {
+                return Ok(None);
+            }
+        }
+        _ => return Ok(None),
+    }
+    .map_err(raw_scan::render::RenderError::into_query_error)?;
+    adopt_output(output, owner, controls).map(Some)
+}
+
 pub(super) fn delete_operator(
     left: &ScalarValue,
     right: &ScalarValue,

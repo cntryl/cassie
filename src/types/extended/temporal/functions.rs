@@ -7,7 +7,7 @@ use super::calendar::{
     UNIX_EPOCH_JDATE, UNIX_TO_POSTGRES_SECS, USECS_PER_DAY, USECS_PER_HOUR, USECS_PER_MINUTE,
     USECS_PER_SEC,
 };
-use super::tokens::{field_unit, round_half_even, Unit};
+use super::tokens::{field_unit, round_half_even, truncate_f64, unit_keyword, Keyword, Unit};
 use super::zone::Zone;
 use super::{range_error, Interval, TemporalSession};
 use crate::types::extended::TypeInputError;
@@ -29,6 +29,36 @@ fn unit_of(name: &str, type_name: &str) -> Result<Unit, TypeInputError> {
             ),
         )
     })
+}
+
+fn trunc_unit(name: &str, type_name: &str, interval: bool) -> Result<Unit, TypeInputError> {
+    let lower = name.to_ascii_lowercase();
+    let Some(Keyword::Units(unit)) = unit_keyword(&lower) else {
+        return Err(error(
+            "22023",
+            format!("unit \"{lower}\" not recognized for type {type_name}"),
+        ));
+    };
+    let supported = matches!(
+        unit,
+        Unit::Millennium
+            | Unit::Century
+            | Unit::Decade
+            | Unit::Year
+            | Unit::Quarter
+            | Unit::Month
+            | Unit::Day
+            | Unit::Hour
+            | Unit::Minute
+            | Unit::Second
+            | Unit::Millisecond
+            | Unit::Microsecond
+    ) || (!interval && unit == Unit::Week);
+    if supported {
+        Ok(unit)
+    } else {
+        Err(unsupported(name, type_name))
+    }
 }
 
 fn unsupported(name: &str, type_name: &str) -> TypeInputError {
@@ -126,7 +156,7 @@ fn truncate_fields(fields: &mut Fields, unit: Unit) -> Option<bool> {
 /// # Errors
 /// Returns PostgreSQL's unit errors.
 pub fn trunc_timestamp(name: &str, value: i64) -> Result<i64, TypeInputError> {
-    let unit = unit_of(name, "timestamp without time zone")?;
+    let unit = trunc_unit(name, "timestamp without time zone", false)?;
     if is_infinite(value) {
         return Ok(value);
     }
@@ -142,7 +172,7 @@ pub fn trunc_timestamp(name: &str, value: i64) -> Result<i64, TypeInputError> {
 /// # Errors
 /// Returns PostgreSQL's unit errors.
 pub fn trunc_timestamptz(name: &str, value: i64, zone: &Zone) -> Result<i64, TypeInputError> {
-    let unit = unit_of(name, "timestamp with time zone")?;
+    let unit = trunc_unit(name, "timestamp with time zone", false)?;
     if is_infinite(value) {
         return Ok(value);
     }
@@ -166,7 +196,7 @@ pub fn trunc_timestamptz(name: &str, value: i64, zone: &Zone) -> Result<i64, Typ
 /// # Errors
 /// Returns PostgreSQL's unit errors.
 pub fn trunc_interval(name: &str, value: &Interval) -> Result<Interval, TypeInputError> {
-    let unit = unit_of(name, "interval")?;
+    let unit = trunc_unit(name, "interval", true)?;
     if value.is_infinite() {
         return Ok(*value);
     }
@@ -300,8 +330,18 @@ pub fn part_timestamp(
         }
         Unit::Doy => f(date2j(year, fields.month, fields.day) - date2j(year, 1, 1) + 1),
         Unit::Epoch => {
-            let utc = local - i64::from(zone_east.unwrap_or(0)) * USECS_PER_SEC;
-            f(utc - (-UNIX_TO_POSTGRES_SECS * USECS_PER_SEC)) / 1_000_000.0
+            let utc =
+                i128::from(local) - i128::from(zone_east.unwrap_or(0)) * i128::from(USECS_PER_SEC);
+            let offset = i128::from(UNIX_TO_POSTGRES_SECS) * i128::from(USECS_PER_SEC);
+            let unix_timestamp_micros = utc + offset;
+            match i64::try_from(unix_timestamp_micros) {
+                Ok(micros) if micros != i64::MAX => f(micros) / 1_000_000.0,
+                _ => {
+                    (num_traits::ToPrimitive::to_f64(&utc).unwrap_or(0.0)
+                        + f(UNIX_TO_POSTGRES_SECS * USECS_PER_SEC))
+                        / 1_000_000.0
+                }
+            }
         }
         Unit::Timezone | Unit::TimezoneHour | Unit::TimezoneMinute => {
             let east = zone_east.ok_or_else(|| unsupported(name, type_name))?;
@@ -351,6 +391,19 @@ pub fn part_time(name: &str, time: i64, zone_east: Option<i32>) -> Result<f64, T
 /// Returns PostgreSQL's unit errors.
 pub fn part_interval(name: &str, value: &Interval) -> Result<Option<f64>, TypeInputError> {
     let unit = unit_of(name, "interval")?;
+    if matches!(
+        unit,
+        Unit::Timezone
+            | Unit::TimezoneHour
+            | Unit::TimezoneMinute
+            | Unit::Dow
+            | Unit::IsoDow
+            | Unit::Doy
+            | Unit::IsoYear
+            | Unit::Julian
+    ) {
+        return Err(unsupported(name, "interval"));
+    }
     if value.is_infinite() {
         let sign = if *value == Interval::INFINITY {
             1.0
@@ -380,6 +433,7 @@ pub fn part_interval(name: &str, value: &Interval) -> Result<Option<f64>, TypeIn
         Unit::Minute => f(minute),
         Unit::Hour => f(hour),
         Unit::Day => f64::from(value.days),
+        Unit::Week => f64::from(value.days / 7),
         Unit::Month => f64::from(month),
         Unit::Quarter => f64::from(if value.months < 0 {
             // Match PostgreSQL 18.6's observed INT32_MIN month endpoint as
@@ -516,7 +570,10 @@ pub fn age(left: i64, right: i64) -> Result<Interval, TypeInputError> {
 fn validated_year(year: i32) -> Option<(i32, bool)> {
     match year {
         0 => None,
-        year if year < 0 => Some((-(year) - 1, true)),
+        year if year < 0 => year
+            .checked_neg()
+            .and_then(|value| value.checked_sub(1))
+            .map(|value| (value, true)),
         year => Some((year, false)),
     }
 }
@@ -561,16 +618,15 @@ pub fn make_time(hour: i32, minute: i32, seconds: f64) -> Result<i64, TypeInputE
             format_seconds(seconds)
         ))
     };
-    if !(0..=24).contains(&hour)
-        || !(0..60).contains(&minute)
-        || !(0.0..=60.0).contains(&seconds)
-        || seconds.is_nan()
-    {
+    if !(0..=24).contains(&hour) || !(0..60).contains(&minute) || !seconds.is_finite() {
         return Err(invalid());
     }
-    let time = i64::from(hour) * USECS_PER_HOUR
-        + i64::from(minute) * USECS_PER_MINUTE
-        + round_half_even(seconds * 1_000_000.0);
+    let rounded_seconds = round_half_even(seconds * 1_000_000.0);
+    if !(0..=60 * USECS_PER_SEC).contains(&rounded_seconds) {
+        return Err(invalid());
+    }
+    let time =
+        i64::from(hour) * USECS_PER_HOUR + i64::from(minute) * USECS_PER_MINUTE + rounded_seconds;
     if time > USECS_PER_DAY {
         return Err(invalid());
     }
@@ -596,14 +652,16 @@ pub fn make_timestamp(
     let (year, month, day, hour, minute) = fields;
     let date = make_date(year, month, day)?;
     let time = make_time(hour, minute, seconds)?;
-    let value = i64::from(date) * USECS_PER_DAY + time;
-    if !super::calendar::is_valid_timestamp(value) {
-        return Err(range_error(format!(
-            "timestamp out of range: {year}-{month:02}-{day:02} {hour}:{minute:02}:{}",
-            format_seconds(seconds)
-        )));
-    }
-    Ok(value)
+    i64::from(date)
+        .checked_mul(USECS_PER_DAY)
+        .and_then(|value| value.checked_add(time))
+        .filter(|value| super::calendar::is_valid_timestamp(*value))
+        .ok_or_else(|| {
+            range_error(format!(
+                "timestamp out of range: {year}-{month:02}-{day:02} {hour}:{minute:02}:{}",
+                format_seconds(seconds)
+            ))
+        })
 }
 
 /// `make_interval`.
@@ -624,7 +682,11 @@ pub fn make_interval(parts: [i32; 6], seconds: f64) -> Result<Interval, TypeInpu
         .checked_mul(7)
         .and_then(|value| value.checked_add(days))
         .ok_or_else(overflow)?;
-    let secs = round_half_even(seconds * 1_000_000.0);
+    let seconds_micros = seconds * 1_000_000.0;
+    if seconds_micros.is_infinite() {
+        return Err(error("22003", "value out of range: overflow"));
+    }
+    let secs = truncate_f64(seconds_micros.round_ties_even()).ok_or_else(overflow)?;
     let micros = i64::from(hours)
         .checked_mul(USECS_PER_HOUR)
         .and_then(|value| value.checked_add(i64::from(minutes) * USECS_PER_MINUTE))
@@ -812,3 +874,11 @@ mod tests {
         assert_eq!(bin.ok(), Some(ts("2020-02-11 15:32:30")));
     }
 }
+
+#[cfg(test)]
+#[path = "interval_make_tests.rs"]
+mod interval_make_tests;
+
+#[cfg(test)]
+#[path = "time_make_tests.rs"]
+mod time_make_tests;

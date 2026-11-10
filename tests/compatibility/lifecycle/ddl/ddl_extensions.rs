@@ -13,6 +13,8 @@ mod recreate_relation;
 #[path = "../sequences/sequence_identity.rs"]
 mod sequence_identity_wave7;
 
+#[path = "../extensions/catalog_descriptors.rs"]
+mod extension_catalog_descriptors;
 #[path = "../indexes/index.rs"]
 mod index_contracts;
 #[path = "../extensions/dependency_targets.rs"]

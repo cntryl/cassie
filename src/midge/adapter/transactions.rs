@@ -15,8 +15,14 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
+#[path = "transactions/copy_snapshot.rs"]
+mod copy_snapshot;
+pub(crate) use copy_snapshot::CopyStorageSnapshot;
+
 #[path = "transactions/mutation_error.rs"]
 mod mutation_error;
+#[path = "transactions/sequence_owner.rs"]
+pub(super) mod sequence_owner;
 use mutation_error::AdapterMutationError;
 
 #[path = "transactions/row_fence/mod.rs"]
@@ -24,9 +30,77 @@ mod row_fence;
 pub(super) use row_fence::admitted_row_keys;
 pub(crate) use row_fence::RetainedRowFence;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct StorageOverlay {
     pub(crate) changes: BTreeMap<Vec<u8>, StorageMutation>,
+    sequence_cursors: Arc<sequence_owner::SequenceOwner>,
+    sequence_epochs: Option<Arc<sequence_owner::EpochSelections>>,
+    sequence_fork: Option<Arc<sequence_owner::SequenceForkLease>>,
+}
+
+impl PartialEq for StorageOverlay {
+    fn eq(&self, other: &Self) -> bool {
+        self.changes == other.changes
+            && self.sequence_epochs.as_deref().map(|owner| &owner.epochs)
+                == other.sequence_epochs.as_deref().map(|owner| &owner.epochs)
+    }
+}
+impl Eq for StorageOverlay {}
+
+impl StorageOverlay {
+    pub(crate) fn schema_write_collections(&self) -> Vec<String> {
+        let prefix = Midge::schema_collection_prefix();
+        self.changes
+            .keys()
+            .filter_map(|key| super::key_encoding::utf8_suffix_after_prefix(key, &prefix))
+            .collect()
+    }
+
+    pub(crate) fn drops_collection(&self, collection: &str, default_database: &str) -> bool {
+        let canonical = match parse_name(collection) {
+            Ok(ParsedName::Unqualified(name)) => {
+                canonical_relation_name(default_database, crate::catalog::DEFAULT_SCHEMA, &name)
+            }
+            Ok(ParsedName::SchemaQualified { schema, name }) => {
+                if is_system_schema(&schema) {
+                    format!("{schema}.{name}")
+                } else {
+                    canonical_relation_name(default_database, &schema, &name)
+                }
+            }
+            Ok(ParsedName::DatabaseQualified {
+                database,
+                schema,
+                name,
+            }) => canonical_relation_name(&database, &schema, &name),
+            Err(_) => collection.to_string(),
+        };
+        [
+            Midge::collection_schema_key(&canonical),
+            Midge::row_schema_key(&canonical),
+        ]
+        .iter()
+        .any(|key| {
+            self.changes
+                .get(key)
+                .is_some_and(|change| change.value.is_none())
+        })
+    }
+
+    pub(crate) fn with_sequence_cursors(
+        mut self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<
+        (
+            Self,
+            Vec<crate::runtime::QueryMemoryReservation>,
+            crate::runtime::QueryMemoryReservation,
+        ),
+        CassieError,
+    > {
+        let (leases, directory) = self.merge_sequence_cursors(controls)?;
+        Ok((self, leases, directory))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -321,6 +395,23 @@ impl std::ops::Deref for AdapterTransaction {
 }
 
 impl Midge {
+    pub(super) fn has_active_transactional_ddl_scope(&self) -> bool {
+        ACTIVE_STORAGE_SCOPE.with(|current| {
+            current
+                .borrow()
+                .as_ref()
+                .is_some_and(|scope| scope.midge_identity == std::ptr::from_ref(self) as usize)
+        })
+    }
+
+    pub(super) fn has_staged_transactional_ddl_scope(&self) -> bool {
+        ACTIVE_STORAGE_SCOPE.with(|current| {
+            current.borrow().as_ref().is_some_and(|scope| {
+                scope.midge_identity == std::ptr::from_ref(self) as usize && scope.stage_writes
+            })
+        })
+    }
+
     pub(crate) fn enter_transactional_ddl_scope(
         &self,
         database: &str,

@@ -50,6 +50,9 @@ fn erf(x: f64) -> f64 {
     if x.is_nan() {
         return f64::NAN;
     }
+    if x == 0.0 {
+        return x;
+    }
     if x.abs() > 3.0 {
         return (1.0 - erfc_tail(x.abs())).copysign(x);
     }
@@ -62,7 +65,7 @@ fn erf(x: f64) -> f64 {
         term *= -squared / n;
         let step = term / (2.0 * n + 1.0);
         sum += step;
-        if step.abs() < 1e-17 * sum.abs() {
+        if step == 0.0 || step.abs() < 1e-17 * sum.abs() {
             break;
         }
     }
@@ -208,7 +211,8 @@ pub(super) fn width_bucket_float(
     if !low.is_finite() || !high.is_finite() {
         return Err(error("2201G", "lower and upper bounds must be finite"));
     }
-    if low.total_cmp(&high).is_eq() {
+    let both_zero = low.abs().total_cmp(&0.0).is_eq() && high.abs().total_cmp(&0.0).is_eq();
+    if both_zero || low.total_cmp(&high).is_eq() {
         return Err(error("2201G", "lower bound cannot equal upper bound"));
     }
     let buckets = crate::types::numeric::i64_to_f64(count);
@@ -219,7 +223,13 @@ pub(super) fn width_bucket_float(
         if operand >= high {
             return Ok(Value::Int64(count.saturating_add(1)));
         }
-        ((operand - low) / (high - low) * buckets).floor() + 1.0
+        let span = high - low;
+        let ratio = if span.is_infinite() {
+            (operand / 2.0 - low / 2.0) / (high / 2.0 - low / 2.0)
+        } else {
+            (operand - low) / span
+        };
+        (ratio * buckets).floor() + 1.0
     } else {
         if operand > low {
             return Ok(Value::Int64(0));
@@ -227,7 +237,13 @@ pub(super) fn width_bucket_float(
         if operand <= high {
             return Ok(Value::Int64(count.saturating_add(1)));
         }
-        ((low - operand) / (low - high) * buckets).floor() + 1.0
+        let span = low - high;
+        let ratio = if span.is_infinite() {
+            (low / 2.0 - operand / 2.0) / (low / 2.0 - high / 2.0)
+        } else {
+            (low - operand) / span
+        };
+        (ratio * buckets).floor() + 1.0
     };
     Ok(Value::Int64(
         format!("{bucket:.0}")
@@ -279,3 +295,11 @@ pub(super) fn width_bucket_array(operand: &Value, thresholds: &Value) -> Result<
     let position = bounds.partition_point(|bound| *bound <= operand);
     Ok(Value::Int64(i64::try_from(position).unwrap_or(i64::MAX)))
 }
+
+#[cfg(test)]
+#[path = "math_width_bucket_float_tests.rs"]
+mod width_bucket_float_tests;
+
+#[cfg(test)]
+#[path = "math_error_function_tests.rs"]
+mod error_function_tests;

@@ -230,6 +230,11 @@ impl Cassie {
             &logical.projection,
             &mut columns,
         );
+        crate::executor::aggregate::apply_pg_attribute_identity_oid(
+            &logical.source,
+            &logical.projection,
+            &mut columns,
+        );
         columns
     }
 

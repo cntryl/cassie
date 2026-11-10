@@ -1,6 +1,6 @@
 use super::{
-    aggregate, BatchRow, Cassie, CmpOrdering, FunctionMeta, HashMap, HashSet, PhysicalPlan,
-    QueryError, QueryExecutionControls, QueryResult, Value,
+    aggregate, Cassie, CmpOrdering, FunctionMeta, HashMap, HashSet, PhysicalPlan, QueryError,
+    QueryExecutionControls, QueryResult, Value,
 };
 use crate::executor::batch::RowAccess;
 use crate::executor::semantic::{compare_values, SemanticKey};
@@ -23,6 +23,11 @@ fn apply_query_output_oids(
     );
     aggregate::apply_void_function_oids(&plan.logical.projection, columns);
     aggregate::apply_pg_type_kind_oid(&plan.logical.source, &plan.logical.projection, columns);
+    aggregate::apply_pg_attribute_identity_oid(
+        &plan.logical.source,
+        &plan.logical.projection,
+        columns,
+    );
     array_text_columns
 }
 
@@ -30,7 +35,7 @@ pub(super) fn build_select_result(
     cassie: &Cassie,
     session: Option<&crate::app::CassieSession>,
     plan: &PhysicalPlan,
-    rows: Vec<BatchRow>,
+    rows: super::owned_rows::OwnedRows,
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -126,7 +131,7 @@ pub(super) fn build_select_result(
         .as_ref()
         .map(|labels| labels.oid_columns(rows.len()))
         .unwrap_or_default();
-    for row in &rows {
+    for row in rows.iter() {
         let values = row.entries().iter().filter_map(|(name, value)| {
             (!name.starts_with('\0')
                 && (keep_internal_identity_as_id
@@ -146,6 +151,7 @@ pub(super) fn build_select_result(
     }
     result.try_set_postgres_array_text_columns(&array_text_columns)?;
     result.try_set_command("SELECT")?;
+    rows.check_result(controls)?;
     let output = result.finish()?;
     // Retire the source rows only after the complete managed output is admitted.
     drop(rows);

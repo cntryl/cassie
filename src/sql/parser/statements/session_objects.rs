@@ -93,7 +93,7 @@ impl<'a> Scanner<'a> {
 
     fn eat_word(&mut self, word: &str) -> Result<bool, SqlError> {
         if matches!(self.peek()?, Some((Token::Word(found), _)) if found == word) {
-            self.next()?;
+            let _consumed = self.next()?;
             return Ok(true);
         }
         Ok(false)

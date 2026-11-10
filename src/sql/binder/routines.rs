@@ -16,10 +16,18 @@ pub(super) fn bind_create_function(
         ));
     }
 
-    if crate::sql::functions::registry()
+    let builtin_name = crate::sql::functions::registry()
         .iter()
-        .any(|function| function.name.eq_ignore_ascii_case(&name))
-    {
+        .any(|function| function.name.eq_ignore_ascii_case(&name));
+    let distinct_width_bucket_arity =
+        crate::sql::functions::function(&name).is_some_and(|function| {
+            function.id
+                == crate::sql::functions::FunctionId::Math(
+                    crate::sql::functions::MathFunction::WidthBucket,
+                )
+                && !function.arity.matches(statement.args.len())
+        });
+    if builtin_name && !distinct_width_bucket_arity {
         return Err(CassieError::Planner(format!(
             "cannot create function '{name}' because it conflicts with built-in function"
         )));

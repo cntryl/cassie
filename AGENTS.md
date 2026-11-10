@@ -190,9 +190,45 @@ The user delegates remaining questions within the authorized milestone work to J
 - Submit independent questions together. Keep request/response evidence under the isolated worktree's ignored `target/` directory.
 - An adversarial gap probability at or above 0.30 requires a focused probe. Fix confirmed findings or link the appropriate follow-up issue. Record Jev's question, result, and the action taken in the PR review record.
 
+### Three-role assembly line
+
+Use the project agents in `.codex/agents/`: `coder`, `review`, and `assembler`.
+Follow [the assembly-line runbook](docs/agent-assembly-line.md) and use
+[the handoff template](.agents/assembly-line/handoff-template.md).
+
+- The coordinator selects a finite batch from live issues and documented
+  dependencies, assigns isolated worktrees and exclusive file ownership, and
+  decides when the batch is coherent. Default to one coder, one review agent,
+  and one assembler. The coordinator is not another compile worker.
+- `coder` authors focused regressions before implementation, then hands off
+  immutable local commits. Compilation and tests remain deferred. Unexecuted
+  tests are not observed RED evidence. Coders never push or open separate PRs.
+- `review` uses source-backed Jev questions to identify defects in exact
+  base/head/tree snapshots. It verifies leads with source or focused semantic
+  probes and returns confirmed defects to the coder. It does not edit production
+  code, run the combined Cargo gate, or declare code defect-free.
+- `assembler` is the only integration and compilation owner. It collects the
+  related changes into one branch and one PR, owns shared registrations and
+  inventories, obtains review of the integrated diff, then runs the complete
+  ordered local gate once the batch is frozen. Observed failures return to their
+  owner; affected checks and reviews repeat against the corrected source.
+- A changed head or integration resolution invalidates earlier review for the
+  affected diff. Record exact source identities and distinguish source-reviewed,
+  locally qualified, hosted-green and merged states. Jev never replaces tests.
+- User timeboxes apply to the whole line: freeze new scope at the agreed deadline,
+  preserve WIP and receipts, stop owned unfinished gates when requested by that
+  timebox, and review the actual process/results without relabeling unfinished
+  work as complete. Do not create background continuation or new work after a
+  timeboxed pilot without the user's direction.
+
+For the current assembly-line workflow, many related worker changes form a
+single coherent PR. Use a stack only when explicitly selected for a dependency;
+never create a PR per worker or compile each small change separately. Existing
+Midge, CI-edit authorization, strict-lint and final-head merge rules still apply.
+
 ### Bundling and local validation
 
-Use stacked PRs and parallel isolated worktrees for independent work. Bundle related issues when they share implementation context or observable behavior, and define each bundle before coding. A child PR may start from its parent branch while the parent is still in review; complete or implement its prerequisites before dependent runtime work. Author focused regressions before each implementation increment, then use source review and Jev for interim validation. By user direction, defer compilation and test execution until substantial changes form a coherent bundle; do not run a separate build or test loop for each small edit. Run the complete validation for each coherent bundle, open its PR against the appropriate parent, and perform adversarial review. Merge in dependency order after final-head checks and review pass. Rebase children as needed, repeat affected validation and review on their final heads, and read back each merged commit and issue closure. Keep build artifacts isolated between worktrees.
+Use parallel isolated worktrees for independent coding and one assembler-owned integration branch per selected batch. Bundle related issues when they share implementation context or observable behavior, define each bundle before coding, and collect its changes into a single PR. A child PR may start from its parent branch while the parent is still in review; complete or implement its prerequisites before dependent runtime work. Author focused regressions before each implementation increment, then use source review and Jev for interim validation. By user direction, defer compilation and test execution until substantial changes form a coherent bundle; do not run a separate build or test loop for each small edit. Run the complete validation for each coherent bundle, open its PR against the appropriate parent, and perform adversarial review. Merge in dependency order after final-head checks and review pass. Rebase children as needed, repeat affected validation and review on their final heads, and read back each merged commit and issue closure. Keep build artifacts isolated between worktrees.
 
 Use source, primary semantic references, and focused Jev judgments during iteration; retain authored regressions for the deferred bundle gate. Jev is the interim reviewer and does not replace the final executable checks or establish that code is defect-free. Preserve existing red/green evidence and label newly authored, unexecuted probes accurately. Avoid repeatedly pushing tiny changes just to wait for GitHub workflows. If an issue is already fixed, verify the acceptance criteria locally and close it with evidence instead of opening a standalone PR that changes no runtime behavior. Track test-latency findings through the backlog and preserve required checks. GitHub Actions should remain enabled; use normal PR workflows for final-head hosted validation after the coherent local bundle is ready.
 

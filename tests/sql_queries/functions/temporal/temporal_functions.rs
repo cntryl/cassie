@@ -1,7 +1,13 @@
 //! PostgreSQL 18 temporal clocks, calendar, and formatting functions tracked by #815.
 
+#[path = "edges/extract_date_units.rs"]
+mod extract_date_units;
 #[path = "edges/formatted_input.rs"]
 mod formatted_input;
+#[path = "edges/formatted_output.rs"]
+mod formatted_output;
+#[path = "edges/formatted_precision.rs"]
+mod formatted_precision;
 #[path = "edges/semantics.rs"]
 mod residual_edges;
 

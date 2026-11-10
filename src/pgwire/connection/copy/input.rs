@@ -2,58 +2,251 @@ use crate::app::{Cassie, CassieError};
 use crate::sql::ast::CopyStatement;
 use crate::types::{DataType, Value};
 
+#[path = "input/binary_bit.rs"]
+mod binary_bit;
+#[path = "input/binary_date.rs"]
+mod binary_date;
+#[path = "input/binary_fixed.rs"]
+mod binary_fixed;
+#[path = "input/binary_float8.rs"]
+mod binary_float8;
+#[path = "input/binary_inet.rs"]
+mod binary_inet;
+#[path = "input/binary_interval.rs"]
+mod binary_interval;
+#[cfg(test)]
+#[path = "input/binary_jsonb_owner_tests.rs"]
+mod binary_jsonb_owner_tests;
+#[path = "input/binary_name.rs"]
+mod binary_name;
+#[path = "input/binary_network.rs"]
+mod binary_network;
+#[path = "input/binary_numeric.rs"]
+mod binary_numeric;
+#[path = "input/binary_real.rs"]
+mod binary_real;
+#[path = "input/binary_text.rs"]
+mod binary_text;
+#[path = "input/binary_time.rs"]
+mod binary_time;
+#[path = "input/binary_timestamp.rs"]
+mod binary_timestamp;
+#[path = "input/binary_timetz.rs"]
+mod binary_timetz;
+#[path = "input/binary_uuid.rs"]
+mod binary_uuid;
+#[path = "input/binary_vector.rs"]
+mod binary_vector;
+
+#[cfg(test)]
+#[path = "input_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "input/binary_json_owner_tests.rs"]
+mod binary_json_owner_tests;
+
+#[cfg(test)]
+#[path = "input/binary_interval_bounds_tests.rs"]
+mod binary_interval_bounds_tests;
+
+#[cfg(test)]
+#[path = "input/binary_date_time_bounds_tests.rs"]
+mod binary_date_time_bounds_tests;
+
+#[cfg(test)]
+#[path = "input/binary_timestamp_bounds_tests.rs"]
+mod binary_timestamp_bounds_tests;
+
+#[cfg(test)]
+#[path = "input/binary_timetz_bounds_tests.rs"]
+mod binary_timetz_bounds_tests;
+
 const BINARY_SIGNATURE: &[u8; 11] = b"PGCOPY\n\xff\r\n\0";
+
+type CopyRowsWithMemory = (
+    Vec<Vec<Option<String>>>,
+    crate::runtime::QueryMemoryReservation,
+);
+
+type CopyRowWithMemory = (Vec<Option<String>>, crate::runtime::QueryMemoryReservation);
+type CopyFieldText = (String, crate::runtime::QueryMemoryReservation);
+
+type BinaryFieldDecoder = fn(
+    i64,
+    &[u8],
+    usize,
+    &crate::runtime::QueryExecutionControls,
+) -> Result<Option<CopyFieldText>, CassieError>;
+
+enum DecodedBinaryField {
+    Null,
+    Text(String, crate::runtime::QueryMemoryReservation),
+}
 
 pub(super) fn parse_text_payload(
     payload: &[u8],
     delimiter: char,
     null_marker: &str,
-) -> Result<Vec<Vec<Option<String>>>, CassieError> {
-    let text = std::str::from_utf8(payload)
-        .map_err(|_| CassieError::Parse("COPY payload must be UTF-8".to_string()))?;
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<CopyRowsWithMemory, CassieError> {
+    crate::app::copy_decode::validate_payload_utf8(payload, controls)?;
+    let mut memory = controls.reserve_query_memory(0)?;
+    let mut row_memory = controls.reserve_query_memory(0)?;
     let mut rows = Vec::new();
     let mut row = Vec::new();
-    let mut field = String::new();
-    let mut characters = text.chars().peekable();
-    while let Some(character) = characters.next() {
-        match character {
-            character if character == delimiter => {
-                row.push(decode_text_field(&field, null_marker));
-                field.clear();
-            }
-            '\n' => {
-                row.push(decode_text_field(&field, null_marker));
-                field.clear();
+    let mut delimiter_bytes = [0_u8; 4];
+    let delimiter = delimiter.encode_utf8(&mut delimiter_bytes).as_bytes();
+    let mut field_start = 0;
+    let mut index = 0;
+    let mut next_check = 0;
+    while index < payload.len() {
+        if index >= next_check {
+            controls.check_interruption()?;
+            next_check = index.saturating_add(4096);
+        }
+        let delimiter_match = payload[index..].starts_with(delimiter);
+        let newline = !delimiter_match && payload[index] == b'\n';
+        let crlf =
+            !delimiter_match && payload[index] == b'\r' && payload.get(index + 1) == Some(&b'\n');
+        if delimiter_match || newline || crlf {
+            push_text_field(
+                &mut row,
+                &mut row_memory,
+                &payload[field_start..index],
+                null_marker,
+                controls,
+            )?;
+            index += if delimiter_match {
+                delimiter.len()
+            } else if crlf {
+                2
+            } else {
+                1
+            };
+            field_start = index;
+            if newline || crlf {
+                crate::app::copy_decode::grow_text_vec(&mut rows, &mut memory, controls)?;
                 rows.push(std::mem::take(&mut row));
+                memory.absorb(row_memory);
+                row_memory = controls.reserve_query_memory(0)?;
             }
-            '\r' if characters.peek() == Some(&'\n') => {
-                characters.next();
-                row.push(decode_text_field(&field, null_marker));
-                field.clear();
-                rows.push(std::mem::take(&mut row));
-            }
-            _ => field.push(character),
+        } else {
+            index += 1;
         }
     }
-    if !field.is_empty() || !row.is_empty() {
-        row.push(decode_text_field(&field, null_marker));
+    if field_start < payload.len() || !row.is_empty() {
+        push_text_field(
+            &mut row,
+            &mut row_memory,
+            &payload[field_start..],
+            null_marker,
+            controls,
+        )?;
+        crate::app::copy_decode::grow_text_vec(&mut rows, &mut memory, controls)?;
         rows.push(row);
+        memory.absorb(row_memory);
     }
-    Ok(rows)
+    Ok((rows, memory))
+}
+
+fn push_text_field(
+    row: &mut Vec<Option<String>>,
+    memory: &mut crate::runtime::QueryMemoryReservation,
+    raw: &[u8],
+    null_marker: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), CassieError> {
+    controls.check_interruption()?;
+    crate::app::copy_decode::grow_text_vec(row, memory, controls)?;
+    let mut is_null = raw.len() == null_marker.len();
+    if is_null {
+        for (left, right) in raw.chunks(4096).zip(null_marker.as_bytes().chunks(4096)) {
+            controls.check_interruption()?;
+            if left != right {
+                is_null = false;
+                break;
+            }
+        }
+    }
+    if is_null {
+        row.push(None);
+        return Ok(());
+    }
+    let field_memory = controls.reserve_query_memory(raw.len())?;
+    let mut field = String::new();
+    field
+        .try_reserve_exact(raw.len())
+        .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+    if field.capacity() > raw.len() {
+        return Err(CassieError::ResourceLimit(
+            "allocator exceeded admitted COPY field capacity".into(),
+        ));
+    }
+    let mut start = 0;
+    let mut escaped = false;
+    while start < raw.len() {
+        controls.check_interruption()?;
+        let mut end = (start + 4096).min(raw.len());
+        while end > start && end < raw.len() && raw[end] & 0xc0 == 0x80 {
+            end -= 1;
+        }
+        let chunk = std::str::from_utf8(&raw[start..end])
+            .map_err(|_| CassieError::Parse("COPY payload must be UTF-8".into()))?;
+        for character in chunk.chars() {
+            if escaped {
+                field.push(match character {
+                    'b' => '\u{0008}',
+                    'f' => '\u{000c}',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    'v' => '\u{000b}',
+                    other => other,
+                });
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else {
+                field.push(character);
+            }
+        }
+        start = end;
+    }
+    if escaped {
+        field.push('\\');
+    }
+    memory.absorb(field_memory);
+    row.push(Some(field));
+    Ok(())
 }
 
 pub(super) fn parse_binary_payload(
     payload: &[u8],
     cassie: &Cassie,
     statement: &CopyStatement,
-) -> Result<Vec<Vec<Option<String>>>, CassieError> {
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<CopyRowsWithMemory, super::filter::CopyWhereError> {
+    controls.check_interruption()?;
     let schema = cassie
         .catalog
         .get_schema(&statement.table)
         .ok_or_else(|| CassieError::CollectionNotFound(statement.table.clone()))?;
-    let column_types = copy_column_types(statement, schema.fields.as_slice())?;
+    let _type_memory;
+    let column_types;
+    (column_types, _type_memory) =
+        copy_column_types(statement, schema.fields.as_slice(), controls)?;
+    drop(schema);
     let mut cursor = 0_usize;
-    let signature = take(payload, &mut cursor, BINARY_SIGNATURE.len())?;
+    parse_binary_header(payload, &mut cursor)?;
+    parse_binary_rows(payload, &mut cursor, &column_types, controls)
+}
+
+fn parse_binary_header(
+    payload: &[u8],
+    cursor: &mut usize,
+) -> Result<(), super::filter::CopyWhereError> {
+    let signature = take(payload, cursor, BINARY_SIGNATURE.len())?;
     if signature != BINARY_SIGNATURE {
         return Err(crate::app::DiagnosticError::new(
             "22P04",
@@ -61,143 +254,296 @@ pub(super) fn parse_binary_payload(
         )
         .into());
     }
-    let flags = i32::from_be_bytes(take(payload, &mut cursor, 4)?.try_into().map_err(|_| {
+    let flags = i32::from_be_bytes(take(payload, cursor, 4)?.try_into().map_err(|_| {
         CassieError::Parse("COPY binary payload has a truncated flags field".to_string())
     })?);
     if flags != 0 {
-        return Err(CassieError::Unsupported(
-            "COPY binary flags are not supported".to_string(),
-        ));
+        return Err(
+            CassieError::Unsupported("COPY binary flags are not supported".to_string()).into(),
+        );
     }
     let extension_length = i32::from_be_bytes(
-        take(payload, &mut cursor, 4)?
+        take(payload, cursor, 4)?
             .try_into()
             .map_err(|_| CassieError::Parse("COPY binary header is truncated".to_string()))?,
     );
     let extension_length = usize::try_from(extension_length)
         .map_err(|_| CassieError::Parse("COPY binary extension length is negative".into()))?;
-    let _extension = take(payload, &mut cursor, extension_length)?;
+    let _extension = take(payload, cursor, extension_length)?;
+    Ok(())
+}
 
+fn parse_binary_rows(
+    payload: &[u8],
+    cursor: &mut usize,
+    column_types: &[i64],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<CopyRowsWithMemory, super::filter::CopyWhereError> {
+    let mut memory = controls.reserve_query_memory(0)?;
     let mut rows = Vec::new();
     loop {
-        let field_count = i16::from_be_bytes(
-            take(payload, &mut cursor, 2)?
-                .try_into()
-                .map_err(|_| CassieError::Parse("COPY binary row header is truncated".into()))?,
-        );
-        if field_count == -1 {
-            if cursor != payload.len() {
-                return Err(CassieError::Parse(
-                    "COPY binary payload has trailing bytes after its trailer".into(),
-                ));
-            }
-            return Ok(rows);
-        }
-        if field_count < 0 {
+        controls.check_interruption()?;
+        let Some(()) = validate_binary_row_header(payload, cursor, column_types.len())? else {
+            return Ok((rows, memory));
+        };
+        let (row, row_memory) = parse_binary_row(payload, cursor, column_types, controls)?;
+        crate::app::copy_decode::grow_text_vec(&mut rows, &mut memory, controls)?;
+        rows.push(row);
+        memory.absorb(row_memory);
+    }
+}
+
+fn validate_binary_row_header(
+    payload: &[u8],
+    cursor: &mut usize,
+    column_count: usize,
+) -> Result<Option<()>, CassieError> {
+    let field_count = i16::from_be_bytes(
+        take(payload, cursor, 2)?
+            .try_into()
+            .map_err(|_| CassieError::Parse("COPY binary row header is truncated".into()))?,
+    );
+    if field_count == -1 {
+        if *cursor != payload.len() {
             return Err(CassieError::Parse(
-                "COPY binary row has an invalid field count".to_string(),
+                "COPY binary payload has trailing bytes after its trailer".into(),
             ));
         }
-        let expected = i16::try_from(column_types.len())
-            .map_err(|_| CassieError::ResourceLimit("COPY column count exceeds int16".into()))?;
-        if field_count != expected {
-            return Err(CassieError::Parse(format!(
-                "COPY binary row has {field_count} columns but target expects {expected}"
-            )));
+        return Ok(None);
+    }
+    if field_count < 0 {
+        return Err(CassieError::Parse(
+            "COPY binary row has an invalid field count".to_string(),
+        ));
+    }
+    let expected = i16::try_from(column_count)
+        .map_err(|_| CassieError::ResourceLimit("COPY column count exceeds int16".into()))?;
+    if field_count != expected {
+        return Err(CassieError::Parse(format!(
+            "COPY binary row has {field_count} columns but target expects {expected}"
+        )));
+    }
+    Ok(Some(()))
+}
+
+fn parse_binary_row(
+    payload: &[u8],
+    cursor: &mut usize,
+    column_types: &[i64],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<CopyRowWithMemory, super::filter::CopyWhereError> {
+    let mut row_memory = controls.reserve_query_memory(0)?;
+    let mut row = Vec::new();
+    for (column_index, type_oid) in column_types.iter().copied().enumerate() {
+        controls.check_interruption()?;
+        crate::app::copy_decode::grow_text_vec(&mut row, &mut row_memory, controls)?;
+        let length = i32::from_be_bytes(
+            take(payload, cursor, 4)?
+                .try_into()
+                .map_err(|_| CassieError::Parse("COPY binary field length is truncated".into()))?,
+        );
+        if length == -1 {
+            row.push(None);
+            continue;
         }
-        let mut row = Vec::with_capacity(column_types.len());
-        for (column_index, type_oid) in column_types.iter().copied().enumerate() {
-            let length =
-                i32::from_be_bytes(take(payload, &mut cursor, 4)?.try_into().map_err(|_| {
-                    CassieError::Parse("COPY binary field length is truncated".into())
-                })?);
-            if length == -1 {
-                row.push(None);
-                continue;
+        let length = usize::try_from(length)
+            .map_err(|_| CassieError::Parse("COPY binary field length is negative".into()))?;
+        let bytes = take(payload, cursor, length)?;
+        match decode_binary_field(type_oid, bytes, column_index, controls)? {
+            DecodedBinaryField::Null => row.push(None),
+            DecodedBinaryField::Text(text, memory) => {
+                row.push(Some(text));
+                row_memory.absorb(memory);
             }
-            let length = usize::try_from(length)
-                .map_err(|_| CassieError::Parse("COPY binary field length is negative".into()))?;
-            let bytes = take(payload, &mut cursor, length)?;
-            let value =
-                super::super::codecs::binary_to_value(bytes, type_oid).map_err(|error| {
-                    CassieError::Parse(format!(
-                        "COPY binary field {} is invalid: {error}",
+        }
+    }
+    Ok((row, row_memory))
+}
+
+fn decode_binary_field(
+    type_oid: i64,
+    bytes: &[u8],
+    column_index: usize,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<DecodedBinaryField, super::filter::CopyWhereError> {
+    if let Some((text, memory)) =
+        decode_special_binary_field(type_oid, bytes, column_index, controls)?
+    {
+        return Ok(DecodedBinaryField::Text(text, memory));
+    }
+    if let Some((text, memory)) = decode_json_binary_field(type_oid, bytes, column_index, controls)?
+    {
+        return Ok(DecodedBinaryField::Text(text, memory));
+    }
+    let value = super::super::codecs::binary_to_value(bytes, type_oid).map_err(|error| {
+        if let Some(input) = super::super::codecs::timetz_copy_error(&error)
+            .or_else(|| super::super::codecs::temporal_copy_error(&error))
+        {
+            return CassieError::TypeInput(input);
+        }
+        CassieError::Parse(format!(
+            "COPY binary field {} is invalid: {error}",
+            column_index + 1
+        ))
+    })?;
+    match value {
+        Value::Null => Ok(DecodedBinaryField::Null),
+        value => {
+            // Existing codec scratch is not yet pre-admitted; retain the
+            // resulting text under the COPY tracker once its size is known.
+            let text = super::super::codecs::value_to_text(&value, type_oid);
+            let memory = controls.reserve_query_memory(text.capacity())?;
+            Ok(DecodedBinaryField::Text(text, memory))
+        }
+    }
+}
+
+fn decode_special_binary_field(
+    type_oid: i64,
+    bytes: &[u8],
+    column_index: usize,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<CopyFieldText>, CassieError> {
+    let decoders = [
+        binary_bit::decode as BinaryFieldDecoder,
+        binary_date::decode,
+        binary_fixed::decode,
+        binary_float8::decode,
+        binary_interval::decode,
+        binary_inet::decode,
+        binary_network::decode,
+        binary_name::decode,
+        binary_time::decode,
+        binary_timetz::decode,
+        binary_timestamp::decode,
+        binary_vector::decode,
+        binary_uuid::decode,
+        binary_numeric::decode,
+        binary_real::decode,
+        binary_text::decode,
+    ];
+    for decode in decoders {
+        if let Some(decoded) = decode(type_oid, bytes, column_index, controls)? {
+            return Ok(Some(decoded));
+        }
+    }
+    Ok(None)
+}
+
+fn decode_json_binary_field(
+    type_oid: i64,
+    bytes: &[u8],
+    column_index: usize,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<CopyFieldText>, super::filter::CopyWhereError> {
+    let output = match type_oid {
+        114 => {
+            use crate::runtime::accounted::json_arena::{binary_json_text, BinaryJsonError};
+            match binary_json_text(bytes, controls) {
+                Ok(output) => output.into_parts(),
+                Err(BinaryJsonError::Controlled(error)) => return Err(error.into()),
+                Err(BinaryJsonError::Invalid) => {
+                    return Err(CassieError::Parse(format!(
+                        "COPY binary field {} is invalid: invalid binary json value",
                         column_index + 1
                     ))
-                })?;
-            match value {
-                Value::Null => row.push(None),
-                value => row.push(Some(super::super::codecs::value_to_text(&value, type_oid))),
+                    .into());
+                }
             }
         }
-        rows.push(row);
-    }
+        3802 => {
+            use crate::runtime::accounted::json_arena::{parse_jsonb_field, JsonbFieldError};
+            match parse_jsonb_field(bytes, column_index + 1, controls) {
+                Ok(output) => output.into_parts(),
+                Err(JsonbFieldError::Control(error)) => return Err(error.into()),
+                Err(JsonbFieldError::Diagnostic(owner)) => {
+                    return Err(super::filter::CopyWhereError::Jsonb(owner));
+                }
+            }
+        }
+        3807 => {
+            use crate::runtime::accounted::json_arena::jsonb_array_output::{render, OutputError};
+            match render(bytes, column_index + 1, controls) {
+                Ok(output) => output.into_parts(),
+                Err(OutputError::Control(error)) => return Err(error.into()),
+                Err(OutputError::Diagnostic(owner)) => {
+                    return Err(super::filter::CopyWhereError::Jsonb(owner));
+                }
+            }
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(output))
 }
 
 fn copy_column_types(
     statement: &CopyStatement,
     fields: &[crate::catalog::FieldMeta],
-) -> Result<Vec<i64>, CassieError> {
-    if statement.columns.is_empty() {
-        return Ok(fields
-            .iter()
-            .map(|field| field.data_type.type_oid())
-            .collect());
-    }
-    let declares_id =
-        crate::types::row_identity::declares_id(fields.iter().map(|field| field.name.as_str()));
-    statement
-        .columns
-        .iter()
-        .map(|column| {
-            if crate::types::row_identity::is_identity_reference(column, declares_id) {
-                return Ok(DataType::Text.type_oid());
-            }
-            fields
-                .iter()
-                .find(|field| field.name == *column)
-                .map(|field| field.data_type.type_oid())
-                .ok_or_else(|| {
-                    CassieError::Planner(format!(
-                        "COPY target column '{column}' does not exist in '{}'",
-                        statement.table
-                    ))
-                })
-        })
-        .collect()
-}
-
-fn decode_text_field(raw: &str, null_marker: &str) -> Option<String> {
-    if raw == null_marker {
-        None
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(Vec<i64>, crate::runtime::QueryMemoryReservation), CassieError> {
+    let count = if statement.columns.is_empty() {
+        fields.len()
     } else {
-        Some(unescape_text_field(raw))
+        statement.columns.len()
+    };
+    let base = controls.reserve_query_memory(0)?;
+    let memory;
+    let mut types;
+    (types, memory) = crate::runtime::owned_memory::try_reserve_vec(count, &base)?;
+    if statement.columns.is_empty() {
+        for field in fields {
+            controls.check_interruption()?;
+            types.push(field.data_type.type_oid());
+        }
+        return Ok((types, memory));
     }
-}
-
-fn unescape_text_field(raw: &str) -> String {
-    let mut output = String::with_capacity(raw.len());
-    let mut characters = raw.chars();
-    while let Some(character) = characters.next() {
-        if character != '\\' {
-            output.push(character);
+    let mut declares_id = false;
+    for field in fields {
+        controls.check_interruption()?;
+        if crate::types::row_identity::is_legacy_id_column(&field.name) {
+            declares_id = true;
+            break;
+        }
+    }
+    for column in &statement.columns {
+        controls.check_interruption()?;
+        if crate::types::row_identity::is_identity_reference(column, declares_id) {
+            types.push(DataType::Text.type_oid());
             continue;
         }
-        let Some(escaped) = characters.next() else {
-            output.push('\\');
-            break;
-        };
-        output.push(match escaped {
-            'b' => '\u{0008}',
-            'f' => '\u{000c}',
-            'n' => '\n',
-            'r' => '\r',
-            't' => '\t',
-            'v' => '\u{000b}',
-            other => other,
-        });
+        let mut matched = None;
+        for field in fields {
+            controls.check_interruption()?;
+            if field.name.len() != column.len() {
+                continue;
+            }
+            let mut equal = true;
+            for (left, right) in field
+                .name
+                .as_bytes()
+                .chunks(4096)
+                .zip(column.as_bytes().chunks(4096))
+            {
+                controls.check_interruption()?;
+                if left != right {
+                    equal = false;
+                    break;
+                }
+            }
+            if equal {
+                matched = Some(field);
+                break;
+            }
+        }
+        let field = matched.ok_or_else(|| {
+            CassieError::Planner(format!(
+                "COPY target column '{column}' does not exist in '{}'",
+                statement.table
+            ))
+        })?;
+        types.push(field.data_type.type_oid());
     }
-    output
+    Ok((types, memory))
 }
 
 fn take<'a>(payload: &'a [u8], cursor: &mut usize, length: usize) -> Result<&'a [u8], CassieError> {

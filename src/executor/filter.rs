@@ -36,16 +36,29 @@ mod json_concat;
 mod json_containment;
 #[path = "filter/json_delete.rs"]
 mod json_delete;
+#[cfg(test)]
+pub(crate) use json_delete::cancel_function_path_scan_once;
+#[cfg(test)]
+pub(crate) use json_delete::cancel_raw_scan_once;
 #[path = "filter/json_document.rs"]
 mod json_document;
 #[path = "filter/json_extract.rs"]
 mod json_extract;
+#[cfg(test)]
+#[path = "filter/json_extract_shared_owner_tests.rs"]
+mod json_extract_shared_owner_tests;
 #[path = "filter/json_key_exists.rs"]
 mod json_key_exists;
 #[path = "filter/json_order.rs"]
 mod json_order;
 #[path = "filter/json_path_operator.rs"]
 mod json_path_operator;
+#[path = "filter/json_scalar_leaf.rs"]
+mod json_scalar_leaf;
+#[cfg(test)]
+pub(crate) use json_scalar_leaf::cancel_copy_once as cancel_json_leaf_copy_once;
+#[cfg(test)]
+pub(crate) use json_scalar_leaf::clear_copy_cancellation as clear_json_leaf_copy_cancellation;
 #[path = "filter/quantified_array.rs"]
 mod quantified_array;
 #[path = "filter/subquery_value.rs"]
@@ -66,6 +79,13 @@ pub(crate) fn compare_sql_arrays(
     right: &crate::types::SqlArray,
 ) -> Option<std::cmp::Ordering> {
     array_operators::compare_arrays(left, right)
+}
+pub(crate) fn compare_sql_arrays_controlled(
+    left: &crate::types::SqlArray,
+    right: &crate::types::SqlArray,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<std::cmp::Ordering>, crate::app::CassieError> {
+    array_operators::compare_arrays_controlled(left, right, controls)
 }
 #[path = "filter/array_subscript.rs"]
 mod array_subscript;
@@ -125,6 +145,36 @@ pub(super) struct EvalContext<'a> {
     exists: Option<&'a ExistsResolver<'a>>,
     controls: Option<&'a crate::runtime::QueryExecutionControls>,
     memory: Option<&'a evaluation::EvaluationMemory>,
+    deletion_memory: Option<&'a evaluation::EvaluationMemory>,
+}
+
+#[cfg(test)]
+#[path = "filter/json_delete_evaluation_tests.rs"]
+mod json_delete_evaluation_tests;
+
+#[cfg(test)]
+#[path = "filter/json_function_result_owner_tests.rs"]
+mod json_function_result_owner_tests;
+
+#[cfg(test)]
+thread_local! {
+    static JSON_FUNCTION_CALL_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static ARRAY_VALUE_CLONE_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_json_function_call_count() {
+    JSON_FUNCTION_CALL_COUNT.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn take_json_function_call_count() -> usize {
+    JSON_FUNCTION_CALL_COUNT.with(|count| count.replace(0))
+}
+
+#[cfg(test)]
+fn take_array_value_clone_count() -> usize {
+    ARRAY_VALUE_CLONE_COUNT.with(|count| count.replace(0))
 }
 
 #[derive(Debug, Clone)]
@@ -230,7 +280,23 @@ impl ScalarValue {
             ScalarValue::Float(v) => Value::Float64(*v),
             ScalarValue::Str(v) | ScalarValue::Json(v) => Value::String(v.clone()),
             ScalarValue::Typed(v) => Value::Typed(v.clone()),
-            ScalarValue::Array(v) => Value::Array(v.clone()),
+            ScalarValue::Array(v) => {
+                #[cfg(test)]
+                ARRAY_VALUE_CLONE_COUNT.with(|count| count.set(count.get().saturating_add(1)));
+                Value::Array(v.clone())
+            }
+        }
+    }
+
+    fn into_value(self) -> Value {
+        match self {
+            ScalarValue::Null => Value::Null,
+            ScalarValue::Bool(value) => Value::Bool(value),
+            ScalarValue::Int(value) => Value::Int64(value),
+            ScalarValue::Float(value) => Value::Float64(value),
+            ScalarValue::Str(value) | ScalarValue::Json(value) => Value::String(value),
+            ScalarValue::Typed(value) => Value::Typed(value),
+            ScalarValue::Array(value) => Value::Array(value),
         }
     }
 }
@@ -264,17 +330,21 @@ pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     match expr {
         Expr::Param(index) => {
             evaluation::admit_leaf(row, expr, context)?;
-            Ok(context.params.get(*index).cloned().unwrap_or(Value::Null))
+            let value = context.params.get(*index);
+            #[cfg(test)]
+            functions::record_input_value_clone(value.is_some());
+            Ok(value.cloned().unwrap_or(Value::Null))
         }
         Expr::Column(name) => {
             evaluation::admit_leaf(row, expr, context)?;
-            Ok(column_value_ref(row, name, context.local_args)
-                .cloned()
-                .unwrap_or(Value::Null))
+            let value = column_value_ref(row, name, context.local_args);
+            #[cfg(test)]
+            functions::record_input_value_clone(value.is_some());
+            Ok(value.cloned().unwrap_or(Value::Null))
         }
         Expr::Function(function) => evaluate_function(function, row, context),
         Expr::Subquery(subquery) => subquery_value::value(row, expr, subquery, context),
-        _ => Ok(eval_scalar_with_context(row, expr, context)?.to_value()),
+        _ => Ok(eval_scalar_with_context(row, expr, context)?.into_value()),
     }
 }
 
@@ -299,6 +369,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             exists: None,
             controls: None,
             memory: None,
+            deletion_memory: None,
         },
     )
 }
@@ -336,7 +407,10 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         .transpose()?;
     match expr {
         Expr::RowCompare(comparison) => row_predicates::evaluate(row, comparison, context),
-        Expr::Column(name) => Ok(eval_column_value(row, name, context.local_args)),
+        Expr::Column(name) => match column_value_ref(row, name, context.local_args) {
+            Some(value) => json_scalar_leaf::from_value(value, context),
+            None => Ok(ScalarValue::Null),
+        },
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
         Expr::IntegerLiteral(value) => Ok(ScalarValue::Int(*value)),
@@ -356,10 +430,10 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
             else_expr.as_deref(),
             context,
         ),
-        Expr::Param(index) => Ok(context
-            .params
-            .get(*index)
-            .map_or(ScalarValue::Null, scalar_from_value)),
+        Expr::Param(index) => match context.params.get(*index) {
+            Some(value) => json_scalar_leaf::from_value(value, context),
+            None => Ok(ScalarValue::Null),
+        },
         Expr::Function(function) => evaluate_function_scalar(row, function, context),
         Expr::ArraySubscript { array, subscripts } => {
             array_subscript::evaluate(row, array, subscripts, context)
@@ -759,14 +833,6 @@ pub(super) fn scalar_from_value(value: &Value) -> ScalarValue {
     }
 }
 
-fn eval_column_value<R: RowAccess + ?Sized>(
-    row: &R,
-    name: &str,
-    local_args: Option<&HashMap<String, Value>>,
-) -> ScalarValue {
-    column_value_ref(row, name, local_args).map_or(ScalarValue::Null, scalar_from_value)
-}
-
 // Both evaluators resolve the same canonical local binding before the row.
 // Only the value-returning evaluator clones the original rich Value carrier.
 fn column_value_ref<'a, R: RowAccess + ?Sized>(
@@ -789,6 +855,8 @@ fn evaluate_function_scalar<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
+    #[cfg(test)]
+    JSON_FUNCTION_CALL_COUNT.with(|count| count.set(count.get().saturating_add(1)));
     let value = evaluate_function(function, row, context)?;
     let json_return = context
         .user_functions
@@ -802,12 +870,16 @@ fn evaluate_function_scalar<R: RowAccess + ?Sized>(
             )
         });
     if json_return && !matches!(value, Value::Null) {
-        return match value {
-            Value::String(document) => Ok(ScalarValue::Json(document)),
-            value => json_concat::as_json_document(&scalar_from_value(&value)),
-        };
+        return function_json_result(value, context);
     }
     Ok(scalar_from_value(&value))
+}
+
+fn function_json_result(value: Value, context: EvalContext<'_>) -> Result<ScalarValue, QueryError> {
+    match value {
+        Value::String(document) => Ok(ScalarValue::Json(document)),
+        value => json_concat::into_json_document(json_scalar_leaf::from_value(&value, context)?),
+    }
 }
 
 fn eval_is_null_expr<R: RowAccess + ?Sized>(
@@ -859,28 +931,22 @@ fn eval_between_expr<R: RowAccess + ?Sized>(
     let value = eval_scalar_with_context(row, expr, context)?;
     let low_value = eval_scalar_with_context(row, low, context)?;
     let high_value = eval_scalar_with_context(row, high, context)?;
-    let in_range = super::array_order::compare(
-        row,
-        (expr, &value.to_value()),
-        (low, &low_value.to_value()),
-        context.user_functions,
-        context.local_args,
-    )
-    .map(|ordering| !ordering.is_lt())
-    .or_else(|| ordered_cmp(&value, &low_value, |ordering| !ordering.is_lt()))
-    .map_or(PredicateResult::Unknown, bool_to_predicate)
-    .and(
-        super::array_order::compare(
-            row,
-            (expr, &value.to_value()),
-            (high, &high_value.to_value()),
-            context.user_functions,
-            context.local_args,
-        )
-        .map(|ordering| !ordering.is_gt())
-        .or_else(|| ordered_cmp(&value, &high_value, |ordering| !ordering.is_gt()))
-        .map_or(PredicateResult::Unknown, bool_to_predicate),
-    );
+    let in_range =
+        binary_expr::compare_array_operands(row, (expr, &value), (low, &low_value), context)?
+            .map(|ordering| !ordering.is_lt())
+            .or_else(|| ordered_cmp(&value, &low_value, |ordering| !ordering.is_lt()))
+            .map_or(PredicateResult::Unknown, bool_to_predicate)
+            .and(
+                binary_expr::compare_array_operands(
+                    row,
+                    (expr, &value),
+                    (high, &high_value),
+                    context,
+                )?
+                .map(|ordering| !ordering.is_gt())
+                .or_else(|| ordered_cmp(&value, &high_value, |ordering| !ordering.is_gt()))
+                .map_or(PredicateResult::Unknown, bool_to_predicate),
+            );
     if negated {
         Ok(in_range.not().into_scalar())
     } else {

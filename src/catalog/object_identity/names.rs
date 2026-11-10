@@ -1,5 +1,7 @@
 //! Identifier lists, routine/operator signatures and SQL type names as the
 //! `reg*` input functions parse them.
+use std::borrow::Cow;
+
 use crate::catalog::builtin_identity::builtin_identities;
 use crate::types::ObjectIdentifierError;
 
@@ -132,12 +134,8 @@ fn split_arguments(text: &str) -> Vec<String> {
 /// The built-in type a SQL type name denotes (`parseTypeString`), resolving
 /// the SQL-standard spellings, typmods and array suffixes.
 pub(super) fn builtin_type_oid(text: &str) -> Result<Option<u32>, ObjectIdentifierError> {
-    let mut base = text.trim();
-    let mut array_depth = 0_u32;
-    while let Some(stripped) = base.strip_suffix("[]") {
-        base = stripped.trim_end();
-        array_depth += 1;
-    }
+    let normalized = sql_comments_as_space(text);
+    let (base, has_array_suffix) = strip_array_dimensions(&normalized);
     let base = strip_typmod(base);
     let canonical = standard_type_name(&base);
     let name = if let Some(name) = canonical {
@@ -151,16 +149,222 @@ pub(super) fn builtin_type_oid(text: &str) -> Result<Option<u32>, ObjectIdentifi
         }
     };
     let identities = builtin_identities();
-    let Some(mut row) = identities.type_by_name(&name) else {
+    let Some(row) = identities.type_by_name(&name) else {
         return Ok(None);
     };
-    for _ in 0..array_depth {
-        let Some(array) = identities.type_by_oid(row.array) else {
-            return Ok(None);
-        };
-        row = array;
+    Ok(if has_array_suffix {
+        identities.type_by_oid(row.array).map(|array| array.oid)
+    } else {
+        Some(row.oid)
+    })
+}
+
+/// Removes the repeated syntactic array dimensions accepted by PostgreSQL's
+/// type-name parser. Array bounds do not change the built-in type identity.
+fn strip_array_dimensions(text: &str) -> (&str, bool) {
+    let text = text.trim();
+    let bytes = text.as_bytes();
+    let mut cursor = 0;
+    let mut quoted = false;
+    let mut type_modifier_depth = 0_u32;
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            b'"' if quoted && bytes.get(cursor + 1) == Some(&b'"') => cursor += 2,
+            b'"' => {
+                quoted = !quoted;
+                cursor += 1;
+            }
+            b'(' if !quoted => {
+                type_modifier_depth += 1;
+                cursor += 1;
+            }
+            b')' if !quoted => {
+                type_modifier_depth = type_modifier_depth.saturating_sub(1);
+                cursor += 1;
+            }
+            b'[' if !quoted && type_modifier_depth == 0 => {
+                if parse_array_suffix(text, cursor)
+                    && !text[..cursor].chars().any(|character| {
+                        character.is_whitespace() && !character.is_ascii_whitespace()
+                    })
+                {
+                    return (text[..cursor].trim_end_matches(is_postgres_space), true);
+                }
+                return (text, false);
+            }
+            _ => cursor += 1,
+        }
     }
-    Ok(Some(row.oid))
+    (text, false)
+}
+
+fn parse_array_suffix(text: &str, mut cursor: usize) -> bool {
+    let bytes = text.as_bytes();
+    let mut has_dimension = false;
+    loop {
+        cursor = skip_postgres_space(bytes, cursor);
+        if cursor == bytes.len() {
+            return has_dimension;
+        }
+        if bytes[cursor] != b'[' {
+            return false;
+        }
+        cursor += 1;
+        cursor = skip_postgres_space(bytes, cursor);
+        if bytes.get(cursor) == Some(&b']') {
+            cursor += 1;
+        } else {
+            let bound_start = cursor;
+            while bytes
+                .get(cursor)
+                .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+            {
+                cursor += 1;
+            }
+            if bound_start == cursor
+                || parse_postgres_integer_constant(&text[bound_start..cursor]).is_none()
+            {
+                return false;
+            }
+            cursor = skip_postgres_space(bytes, cursor);
+            if bytes.get(cursor) != Some(&b']') {
+                return false;
+            }
+            cursor += 1;
+        }
+        has_dimension = true;
+    }
+}
+
+fn parse_postgres_integer_constant(text: &str) -> Option<i32> {
+    let (radix, digits) =
+        if let Some(digits) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+            (16_u32, digits)
+        } else if let Some(digits) = text.strip_prefix("0o").or_else(|| text.strip_prefix("0O")) {
+            (8_u32, digits)
+        } else if let Some(digits) = text.strip_prefix("0b").or_else(|| text.strip_prefix("0B")) {
+            (2_u32, digits)
+        } else {
+            (10_u32, text)
+        };
+    let digits = digits.as_bytes();
+    let mut cursor = 0;
+    let mut value = 0_u32;
+    let mut has_digit = false;
+    while cursor < digits.len() {
+        if digits[cursor] == b'_' {
+            if !has_digit
+                || digits
+                    .get(cursor + 1)
+                    .is_none_or(|next| digit_value(*next, radix).is_none())
+            {
+                return None;
+            }
+            cursor += 1;
+            continue;
+        }
+        let digit = digit_value(digits[cursor], radix)?;
+        value = value.checked_mul(radix)?.checked_add(digit)?;
+        has_digit = true;
+        cursor += 1;
+    }
+    if has_digit {
+        i32::try_from(value).ok()
+    } else {
+        None
+    }
+}
+
+fn digit_value(byte: u8, radix: u32) -> Option<u32> {
+    let digit = match byte {
+        b'0'..=b'9' => u32::from(byte - b'0'),
+        b'a'..=b'f' => u32::from(byte - b'a') + 10,
+        b'A'..=b'F' => u32::from(byte - b'A') + 10,
+        _ => return None,
+    };
+    (digit < radix).then_some(digit)
+}
+
+fn skip_postgres_space(bytes: &[u8], mut cursor: usize) -> usize {
+    while bytes
+        .get(cursor)
+        .is_some_and(|byte| is_postgres_space(char::from(*byte)))
+    {
+        cursor += 1;
+    }
+    cursor
+}
+
+fn is_postgres_space(character: char) -> bool {
+    matches!(character, ' ' | '\t' | '\n' | '\r' | '\x0c' | '\x0b')
+}
+
+fn sql_comments_as_space(text: &str) -> Cow<'_, str> {
+    let bytes = text.as_bytes();
+    let mut output = None;
+    let mut copied = 0;
+    let mut cursor = 0;
+    let mut quoted = false;
+    while cursor < bytes.len() {
+        if quoted {
+            if bytes[cursor] == b'"' && bytes.get(cursor + 1) == Some(&b'"') {
+                cursor += 2;
+            } else {
+                if bytes[cursor] == b'"' {
+                    quoted = false;
+                }
+                cursor += 1;
+            }
+        } else if bytes[cursor] == b'"' {
+            quoted = true;
+            cursor += 1;
+        } else if bytes[cursor..].starts_with(b"--") {
+            let mut end = cursor + 2;
+            while end < bytes.len() && !matches!(bytes[end], b'\n' | b'\r') {
+                end += 1;
+            }
+            let normalized = output.get_or_insert_with(|| String::with_capacity(text.len()));
+            normalized.push_str(&text[copied..cursor]);
+            normalized.push(' ');
+            copied = end;
+            cursor = end;
+        } else if bytes[cursor..].starts_with(b"/*") {
+            let Some(end) = block_comment_end(bytes, cursor) else {
+                return Cow::Borrowed(text);
+            };
+            let normalized = output.get_or_insert_with(|| String::with_capacity(text.len()));
+            normalized.push_str(&text[copied..cursor]);
+            normalized.push(' ');
+            copied = end;
+            cursor = end;
+        } else {
+            cursor += 1;
+        }
+    }
+    output.map_or(Cow::Borrowed(text), |mut normalized| {
+        normalized.push_str(&text[copied..]);
+        Cow::Owned(normalized)
+    })
+}
+
+fn block_comment_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut depth = 1_u32;
+    let mut cursor = start + 2;
+    while cursor + 1 < bytes.len() {
+        if bytes[cursor..].starts_with(b"/*") {
+            depth += 1;
+            cursor += 2;
+        } else if bytes[cursor..].starts_with(b"*/") {
+            depth -= 1;
+            cursor += 2;
+            if depth == 0 {
+                return Some(cursor);
+            }
+        } else {
+            cursor += 1;
+        }
+    }
+    None
 }
 
 /// Drops a type modifier such as `(10)` or `(3)`, keeping any trailing words
@@ -234,6 +438,7 @@ pub(crate) fn quote_identifier(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{builtin_type_oid, qualified_name, quote_identifier, signature, Identifier};
+    use crate::types::ObjectIdentifierError;
 
     #[test]
     fn should_parse_qualified_identifier_case_rules() {
@@ -313,6 +518,114 @@ mod tests {
                 Some(1184)
             ]
         );
+    }
+
+    #[test]
+    fn should_resolve_repeated_array_dimensions_to_one_array_type() {
+        // Arrange
+        let names = [
+            "int[]",
+            "int[][]",
+            "pg_catalog.int4[][][]",
+            "pg_catalog.\"int4\"[][]",
+            "integer[] []",
+            "text[][]",
+            "anyelement",
+            "_int4[]",
+            "missing_type[][]",
+        ];
+
+        // Act
+        let actual = names.map(|name| builtin_type_oid(name).expect("valid type spelling"));
+
+        // Assert
+        assert_eq!(
+            actual,
+            [
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1009),
+                Some(2283),
+                None,
+                None
+            ]
+        );
+    }
+
+    #[test]
+    fn should_resolve_spaced_with_bounded_array_dimensions_to_one_array_type() {
+        // Arrange
+        let names = [
+            "integer[ ]",
+            "integer [2]",
+            "integer[ 2 ]",
+            "integer[2][3]",
+            "pg_catalog.int4 [2] [ 3 ]",
+            r#"pg_catalog."int4"[2]"#,
+            "numeric(5, 2)[3]",
+            "integer[1_0]",
+            "integer[0x2]",
+            "integer[0o2]",
+            "integer[0b10]",
+            "integer/* type */[2]",
+            "integer[/* outer /* nested */ comment */2]",
+            "integer[ /* bound */ 2 /* close */ ]",
+            "integer[2] /* between dimensions */ [3]",
+            "integer[-- bound comment\n2]",
+            "text[10]",
+        ];
+
+        // Act
+        let actual = names.map(|name| builtin_type_oid(name).expect("valid type spelling"));
+
+        // Assert
+        assert_eq!(
+            actual,
+            [
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1231),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1007),
+                Some(1009)
+            ]
+        );
+    }
+
+    #[test]
+    fn should_reject_non_sql_whitespace_with_invalid_array_bounds() {
+        // Arrange
+        let names = [
+            "integer[\u{00a0}2]",
+            "integer[1__0]",
+            "integer[2147483648]",
+            "integer[0x80000000]",
+            "_int4[2]",
+        ];
+
+        // Act
+        let actual = names.map(builtin_type_oid);
+
+        // Assert
+        assert!(matches!(
+            &actual[0],
+            Err(ObjectIdentifierError::InvalidName(name)) if name == names[0]
+        ));
+        assert!(actual[1..].iter().all(|result| matches!(result, Ok(None))));
     }
 
     #[test]

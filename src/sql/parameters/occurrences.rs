@@ -106,6 +106,20 @@ pub(super) struct Occurrences<'a> {
 }
 
 impl<'a> Occurrences<'a> {
+    pub(super) fn original_wire_oid(&self, slot: usize) -> Option<i32> {
+        match self.input {
+            PrivateParameterTypeInput::Wire(oids) => oids.get(slot).copied(),
+            PrivateParameterTypeInput::Embedded { .. } => None,
+        }
+    }
+
+    pub(super) fn record_char_timetz(
+        &mut self,
+        qualified: bool,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::ToCharTimeTz { qualified })
+    }
+
     pub(super) fn stops_on_error(&self) -> bool {
         self.stop_on_error
     }
@@ -483,9 +497,22 @@ impl<'a> Occurrences<'a> {
         Ok(())
     }
 
-    fn has_legacy_inference(&self, summary: &Summary) -> bool {
+    pub(super) fn has_legacy_inference(&self, summary: &Summary) -> bool {
         summary.occurrence.is_some_and(|ordinal| {
             self.demands.values[self.ledger.values[ordinal].slot] & LEGACY_INFERRED != 0
+        })
+    }
+
+    pub(super) fn inconsistent_parameter_type(
+        &mut self,
+        slot: usize,
+        previous: i32,
+        requested: i32,
+    ) -> Result<(), ParameterAdmissionError> {
+        self.report(ParameterSemanticDiagnostic::Inconsistent {
+            slot,
+            previous,
+            requested,
         })
     }
 

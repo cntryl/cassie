@@ -7,6 +7,8 @@ use crate::support_pgwire as wire;
 mod mod_zero_division;
 #[path = "numeric_log_binary.rs"]
 mod numeric_log_binary;
+#[path = "power_range_messages.rs"]
+mod power_range_messages;
 #[path = "typed_math/errors.rs"]
 mod residual_typed_math_contract;
 
@@ -742,4 +744,259 @@ fn should_report_exp_overflow_sqlstate_for_a_bound_parameter() {
         wire::data_rows(&batches[3]),
         vec![vec![Some("42".to_owned())]]
     );
+}
+
+#[test]
+fn should_infer_int4_width_bucket_count_for_typed_operands() {
+    // Arrange
+    let queries = [
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, $1)",
+        "SELECT WIDTH_BUCKET(0.5::numeric, 0::numeric, 1::numeric, $1)",
+        "SELECT pg_catalog.width_bucket(0.5::float8, 0::float8, 1::float8, $1)",
+    ];
+    let mut steps = Vec::new();
+    for (index, sql) in queries.iter().enumerate() {
+        let statement = format!("issue_813_bucket_parameter_{index}");
+        let text_portal = format!("issue_813_bucket_text_{index}");
+        let binary_portal = format!("issue_813_bucket_binary_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame(&statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(&statement),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame(&text_portal, &statement, &["2"]),
+            wire::execute_frame(&text_portal),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(
+                &binary_portal,
+                &statement,
+                &[1],
+                &[Some(&2_i32.to_be_bytes())],
+                &[],
+            ),
+            wire::execute_frame(&binary_portal),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats("", &statement, &[0], &[None], &[]),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame("", &statement, &["2147483648"]),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![wire::simple_query_frame(
+            "SELECT 45",
+        )]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-count-inference", steps);
+
+    // Assert
+    for index in 0..queries.len() {
+        let offset = index * 7;
+        assert_eq!(wire::error_code(&batches[offset]), None);
+        let described = &batches[offset + 1];
+        let parameters = described
+            .iter()
+            .find(|frame| frame.0 == b't')
+            .expect("parameter description");
+        assert_eq!(wire::parse_parameter_description(&parameters.1), [23]);
+        let row = described
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .expect("row description");
+        assert_eq!(wire::parse_row_description(&row.1)[0].type_oid, 23);
+        for result in &batches[offset + 2..offset + 4] {
+            assert_eq!(wire::error_code(result), None);
+            assert_eq!(wire::data_rows(result), vec![vec![Some("2".to_owned())]]);
+        }
+        assert_eq!(wire::data_rows(&batches[offset + 4]), vec![vec![None]]);
+        assert_eq!(
+            wire::error_code(&batches[offset + 5]).as_deref(),
+            Some("22003")
+        );
+        assert_eq!(
+            wire::data_rows(&batches[offset + 6]),
+            vec![vec![Some("45".to_owned())]]
+        );
+    }
+}
+
+#[test]
+fn should_reject_unsupported_width_bucket_count_for_distinct_arity_routine() {
+    // Arrange
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "repeated_bucket_count",
+            "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, $1), $1",
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("repeated_bucket_count"),
+            wire::sync_frame(),
+        ]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "small_bucket_count",
+            "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, $1)",
+            &[21],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("small_bucket_count"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            r#"CREATE FUNCTION width_bucket(x INT) RETURNS INT AS "x""#,
+        )]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "routine_bucket_count",
+            "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, $1)",
+            &[20],
+        )),
+        Step::ThroughReady(vec![wire::sync_frame()]),
+    ];
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-parameter-context", steps);
+
+    // Assert
+    for (index, expected) in [(1, 23), (3, 21)] {
+        let description = batches[index]
+            .iter()
+            .find(|frame| frame.0 == b't')
+            .expect("parameter description");
+        assert_eq!(
+            wire::parse_parameter_description(&description.1),
+            [expected]
+        );
+    }
+    assert_eq!(wire::error_code(&batches[4]), None);
+    assert_eq!(batches[5].first().map(|frame| frame.0), Some(b'E'));
+    assert_eq!(wire::error_code(&batches[5]).as_deref(), Some("42883"));
+}
+
+#[test]
+fn should_infer_repeated_width_bucket_operand_parameters() {
+    // Arrange
+    let cases: [(&str, &[i32], &[&str], &str); 2] = [
+        (
+            "SELECT WIDTH_BUCKET($1, $2, $3, $4)",
+            &[701, 701, 701, 23],
+            &["0.5", "0", "1", "2"],
+            "2",
+        ),
+        (
+            "SELECT WIDTH_BUCKET($1, $1, $2, $3)",
+            &[701, 701, 23],
+            &["1", "3", "2"],
+            "1",
+        ),
+    ];
+    let mut steps = Vec::new();
+    for (index, (sql, _, values, _)) in cases.iter().enumerate() {
+        let statement = format!("issue_813_bucket_all_unknown_{index}");
+        let portal = format!("issue_813_bucket_all_unknown_portal_{index}");
+        steps.push(Step::ParseFlush(wire::parse_frame(&statement, sql)));
+        steps.push(Step::ThroughReady(vec![
+            wire::describe_statement_frame(&statement),
+            wire::sync_frame(),
+        ]));
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame(&portal, &statement, values),
+            wire::execute_frame(&portal),
+            wire::sync_frame(),
+        ]));
+        let mut null_values: Vec<Option<&[u8]>> =
+            values.iter().map(|value| Some(value.as_bytes())).collect();
+        null_values[0] = None;
+        steps.push(Step::ThroughReady(vec![
+            wire::bind_frame_with_formats("", &statement, &[0], &null_values, &[]),
+            wire::execute_frame(""),
+            wire::sync_frame(),
+        ]));
+    }
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-all-unknown", steps);
+
+    // Assert
+    for (index, (_, types, _, expected)) in cases.iter().enumerate() {
+        let offset = index * 4;
+        assert_eq!(batches[offset].first().map(|frame| frame.0), Some(b'1'));
+        let description = batches[offset + 1]
+            .iter()
+            .find(|frame| frame.0 == b't')
+            .expect("parameter description");
+        assert_eq!(
+            wire::parse_parameter_description(&description.1).as_slice(),
+            *types
+        );
+        let row = batches[offset + 1]
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .expect("row description");
+        assert_eq!(wire::parse_row_description(&row.1)[0].type_oid, 23);
+        assert_eq!(wire::error_code(&batches[offset + 2]), None);
+        assert_eq!(
+            wire::data_rows(&batches[offset + 2]),
+            vec![vec![Some((*expected).to_owned())]]
+        );
+        assert_eq!(wire::data_rows(&batches[offset + 3]), vec![vec![None]]);
+    }
+}
+
+#[test]
+fn should_preserve_width_bucket_inference_for_declared_routines() {
+    // Arrange
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(
+            "bucket_later_cast",
+            "SELECT WIDTH_BUCKET($1, $2, $3, $4), $1::text",
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("bucket_later_cast"),
+            wire::sync_frame(),
+        ]),
+        Step::ParseFlush(wire::parse_frame_with_types(
+            "bucket_supplied",
+            "SELECT WIDTH_BUCKET($1, $2, $3, $4)",
+            &[701, 701, 701, 23],
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("bucket_supplied"),
+            wire::sync_frame(),
+        ]),
+        Step::ThroughReady(vec![wire::simple_query_frame(
+            r#"CREATE FUNCTION width_bucket(a TEXT, b TEXT, c TEXT, d TEXT) RETURNS TEXT AS "d""#,
+        )]),
+        Step::ParseFlush(wire::parse_frame(
+            "bucket_declared",
+            "SELECT WIDTH_BUCKET($1, $2, $3, $4)",
+        )),
+        Step::ThroughReady(vec![
+            wire::describe_statement_frame("bucket_declared"),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("issue-813-width-bucket-all-unknown-context", steps);
+
+    // Assert
+    for (index, expected) in [
+        (1, [701, 701, 701, 23]),
+        (3, [701, 701, 701, 23]),
+        (6, [25, 25, 25, 25]),
+    ] {
+        let parameters = batches[index]
+            .iter()
+            .find(|frame| frame.0 == b't')
+            .expect("parameter description");
+        assert_eq!(wire::parse_parameter_description(&parameters.1), expected);
+    }
+    assert_eq!(wire::error_code(&batches[4]), None);
 }

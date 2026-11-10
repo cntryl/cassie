@@ -90,7 +90,7 @@ async fn create_active_partial_index(client: &tokio_postgres::Client) {
         .batch_execute(
             "CREATE INDEX compat_partial_index_equivalence_idx \
              ON compat_partial_index_equivalence_rows (key_value) \
-             INCLUDE (payload) WHERE active AND key_value = 30",
+             INCLUDE (payload) WITH (fillfactor = 80) WHERE active AND key_value = 30",
         )
         .await
         .expect("create the partial covering index");

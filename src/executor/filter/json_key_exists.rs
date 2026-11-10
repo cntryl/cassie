@@ -4,6 +4,118 @@ use crate::app::CassieError;
 use crate::types::{array, DataType};
 use serde_json::Value as JsonValue;
 
+#[cfg(test)]
+#[path = "json_exists_owned_tests.rs"]
+mod owned_tests;
+
+pub(super) fn evaluate_controlled(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(Some(ScalarValue::Null));
+    }
+    let ScalarValue::Json(document) = left else {
+        return Ok(None);
+    };
+    let Some(document) =
+        crate::runtime::accounted::json_arena::parse_existence_candidate(document, controls)?
+    else {
+        return Ok(None);
+    };
+    match op {
+        BinaryOp::JsonbKeyExists => {
+            let ScalarValue::Str(key) = right else {
+                return Ok(None);
+            };
+            Ok(Some(ScalarValue::Bool(document.contains(key)?)))
+        }
+        BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll => {
+            let all = matches!(op, BinaryOp::JsonbKeyExistsAll);
+            if let ScalarValue::Array(keys) = right {
+                for value in keys.elements() {
+                    controls.check_interruption()?;
+                    if !matches!(
+                        value,
+                        crate::types::Value::String(_) | crate::types::Value::Null
+                    ) {
+                        return Ok(None);
+                    }
+                }
+                let values = keys.elements();
+                let exists = lookup_keys(
+                    values.len(),
+                    |index| {
+                        Ok(match &values[index] {
+                            crate::types::Value::String(text) => Some(text.as_str()),
+                            _ => None,
+                        })
+                    },
+                    all,
+                    controls,
+                    |key| document.contains(key),
+                )?;
+                return Ok(Some(ScalarValue::Bool(exists)));
+            }
+            let (ScalarValue::Str(text) | ScalarValue::Json(text)) = right else {
+                return Ok(None);
+            };
+            let parsed = match super::json_delete::owned_path::parse(text, controls) {
+                Ok(path) => path,
+                Err(QueryError::Cassie(CassieError::ArrayInput(_))) => return Ok(None),
+                Err(error) => return Err(error),
+            };
+            if let Some(path) = parsed {
+                super::json_delete::after_owned_path(controls)?;
+                let values = path.values();
+                let exists = lookup_keys(
+                    values.len(),
+                    |index| Ok(values[index].as_deref()),
+                    all,
+                    controls,
+                    |key| document.contains(key),
+                )?;
+                return Ok(Some(ScalarValue::Bool(exists)));
+            }
+            if let Some(path) =
+                crate::runtime::accounted::json_arena::parse_text_array_candidate(text, controls)?
+            {
+                super::json_delete::after_owned_path(controls)?;
+                let exists = lookup_keys(
+                    path.len(),
+                    |index| path.get(index),
+                    all,
+                    controls,
+                    |key| document.contains(key),
+                )?;
+                return Ok(Some(ScalarValue::Bool(exists)));
+            }
+            Ok(None)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn lookup_keys<'a>(
+    length: usize,
+    mut key: impl FnMut(usize) -> Result<Option<&'a str>, CassieError>,
+    all: bool,
+    controls: &crate::runtime::QueryExecutionControls,
+    mut contains: impl FnMut(&str) -> Result<bool, CassieError>,
+) -> Result<bool, CassieError> {
+    for index in 0..length {
+        controls.check_interruption()?;
+        if let Some(key) = key(index)? {
+            if contains(key)? != all {
+                return Ok(!all);
+            }
+        }
+    }
+    Ok(all)
+}
+
 pub(super) fn evaluate(
     left: &ScalarValue,
     op: &BinaryOp,
@@ -59,8 +171,9 @@ fn text_array(value: &ScalarValue, op: &BinaryOp) -> Result<Vec<JsonValue>, Quer
     let (ScalarValue::Json(text) | ScalarValue::Str(text)) = value else {
         return Err(operator_input_error(op));
     };
-    array::parse_text_array(text, &DataType::Text)
+    array::parse_text_array_with_dimensions(text, &DataType::Text)
         .map_err(|error| QueryError::Cassie(CassieError::ArrayInput(error.to_string())))?
+        .flat_values
         .as_array()
         .cloned()
         .ok_or_else(|| operator_input_error(op))

@@ -1,10 +1,7 @@
 //! Request-scoped synchronization for aggregate cancellation tests.
 
-use std::cell::RefCell;
-use std::marker::PhantomData;
-use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, SyncSender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use crate::app::CassieError;
@@ -17,7 +14,7 @@ pub(super) struct QueryAggregateTestPause {
 }
 
 impl QueryAggregateTestPause {
-    fn new() -> (Self, Receiver<()>, SyncSender<()>) {
+    pub(super) fn new() -> (Self, Receiver<()>, SyncSender<()>) {
         let (selected_tx, selected_rx) = mpsc::sync_channel(1);
         let (resume_tx, resume_rx) = mpsc::sync_channel(1);
         (
@@ -45,123 +42,69 @@ impl QueryAggregateTestPause {
     }
 }
 
-thread_local! {
-    static NEXT_QUERY_PAUSE: RefCell<Option<Arc<super::QueryTestPause>>> =
-        const { RefCell::new(None) };
-}
-
-/// Holds a pending aggregate pause for the next query handle created on this thread.
-///
-/// The query handle keeps the pause after it is captured, so dropping this guard
-/// cannot affect an active request. If the query never starts, dropping the guard
-/// clears the pending pause.
+/// Owns a pending pause on one backend until the backend claims it.
 #[doc(hidden)]
 #[must_use]
 pub struct QueryAggregateTestPauseGuard {
-    pause: Arc<super::QueryTestPause>,
-    _thread_bound: PhantomData<Rc<()>>,
+    pub(super) runtime: Weak<super::RuntimeState>,
+    pub(super) process_id: i32,
+    pub(super) pause: Arc<QueryAggregateTestPause>,
 }
 
 impl Drop for QueryAggregateTestPauseGuard {
     fn drop(&mut self) {
-        NEXT_QUERY_PAUSE.with(|pending| {
-            let mut pending = pending.borrow_mut();
-            if pending
-                .as_ref()
-                .is_some_and(|pause| Arc::ptr_eq(pause, &self.pause))
-            {
-                pending.take();
-            }
-        });
+        if let Some(runtime) = self.runtime.upgrade() {
+            runtime.clear_backend_aggregate_pause(self.process_id, &self.pause);
+        }
     }
 }
 
-/// Installs a one-shot pause after aggregate state and its memory charge are retained.
+/// Install a one-shot retained-input pause for a specific Cassie backend.
 ///
-/// The next `QueryCancellationHandle` created on the calling thread captures this
-/// pause. Both returned endpoints must be serviced; disconnecting either endpoint
-/// makes the diagnostic query fail instead of hanging indefinitely.
+/// This existing diagnostic hook targets the supplied instance and backend
+/// identity. A claimed pause follows its query handle and its clones.
+///
+/// # Errors
+///
+/// Returns an error if the backend identity is invalid or already has a pause.
 #[doc(hidden)]
 pub fn pause_next_query_after_aggregate_input(
-) -> (QueryAggregateTestPauseGuard, Receiver<()>, SyncSender<()>) {
-    assert!(
-        !super::sleep_test_pause::has_pending_query_pause()
-            && !super::regex_test_pause::has_pending_query_pause(),
-        "aggregate, sleep and regex test pauses must not overlap"
-    );
+    cassie: &crate::app::Cassie,
+    process_id: i32,
+    secret_key: i32,
+) -> Result<(QueryAggregateTestPauseGuard, Receiver<()>, SyncSender<()>), CassieError> {
+    cassie
+        .runtime
+        .pause_backend_after_aggregate_input(process_id, secret_key)
+}
+
+#[cfg(test)]
+pub(crate) fn pause_direct_handle_after_aggregate_input(
+    cancellation: &mut super::QueryCancellationHandle,
+) -> (Receiver<()>, SyncSender<()>) {
     let (pause, selected, resume) = QueryAggregateTestPause::new();
-    let pause = Arc::new(super::QueryTestPause::Aggregate(pause));
-    NEXT_QUERY_PAUSE.with(|pending| {
-        let mut pending = pending.borrow_mut();
-        assert!(
-            pending.is_none(),
-            "aggregate test pauses must not be nested"
-        );
-        pending.replace(Arc::clone(&pause));
-    });
-    (
-        QueryAggregateTestPauseGuard {
-            pause,
-            _thread_bound: PhantomData,
-        },
-        selected,
-        resume,
-    )
-}
-
-pub(super) fn take_next_query_pause() -> Option<Arc<super::QueryTestPause>> {
-    NEXT_QUERY_PAUSE.with(|pending| pending.borrow_mut().take())
-}
-
-pub(super) fn has_pending_query_pause() -> bool {
-    NEXT_QUERY_PAUSE.with(|pending| pending.borrow().is_some())
+    assert!(cancellation.attach_aggregate_test_pause(Arc::new(pause)));
+    (selected, resume)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::pause_next_query_after_aggregate_input;
+    use super::pause_direct_handle_after_aggregate_input;
     use crate::config::CassieRuntimeLimits;
     use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
-    use std::thread;
     use std::time::{Duration, Instant};
 
-    fn controls(cancellation: QueryCancellationHandle) -> QueryExecutionControls {
-        QueryExecutionControls::with_cancellation(
+    #[test]
+    fn should_fail_when_aggregate_observer_disconnects() {
+        // Arrange
+        let mut cancellation = QueryCancellationHandle::new();
+        let (selected, _resume) = pause_direct_handle_after_aggregate_input(&mut cancellation);
+        drop(selected);
+        let controls = QueryExecutionControls::with_cancellation(
             &CassieRuntimeLimits::default(),
             Instant::now(),
             cancellation,
-        )
-    }
-
-    #[test]
-    fn should_pause_only_the_next_query_after_aggregate_input_is_retained() {
-        // Arrange
-        let (guard, selected, resume) = pause_next_query_after_aggregate_input();
-        let target = controls(QueryCancellationHandle::new());
-        drop(guard);
-        let unrelated = controls(QueryCancellationHandle::new());
-        let query = thread::spawn(move || target.aggregate_input_retained());
-
-        // Act
-        unrelated
-            .aggregate_input_retained()
-            .expect("unrelated query has no pause");
-        selected
-            .recv_timeout(Duration::from_secs(1))
-            .expect("target query reaches retained aggregate input");
-        resume.send(()).expect("resume target query");
-        let result = query.join().expect("target query thread");
-
-        // Assert
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn should_fail_aggregate_pause_when_observer_disconnects() {
-        // Arrange
-        let (_guard, selected, _resume) = pause_next_query_after_aggregate_input();
-        let controls = controls(QueryCancellationHandle::new());
-        drop(selected);
+        );
 
         // Act
         let result = controls.aggregate_input_retained();
@@ -171,34 +114,23 @@ mod tests {
     }
 
     #[test]
-    fn should_clear_pending_aggregate_pause_when_guard_drops_before_query_creation() {
+    fn should_fail_when_aggregate_resumer_disconnects() {
         // Arrange
-        let (guard, selected, _resume) = pause_next_query_after_aggregate_input();
-
-        // Act
-        drop(guard);
-        let controls = controls(QueryCancellationHandle::new());
-        let result = controls.aggregate_input_retained();
-        let selected_state = selected.try_recv();
-
-        // Assert
-        assert!(result.is_ok());
-        assert!(selected_state.is_err());
-    }
-
-    #[test]
-    fn should_fail_aggregate_pause_when_resumer_disconnects() {
-        // Arrange
-        let (_guard, selected, resume) = pause_next_query_after_aggregate_input();
-        let controls = controls(QueryCancellationHandle::new());
-        let query = thread::spawn(move || controls.aggregate_input_retained());
+        let mut cancellation = QueryCancellationHandle::new();
+        let (selected, resume) = pause_direct_handle_after_aggregate_input(&mut cancellation);
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation,
+        );
+        let worker = std::thread::spawn(move || controls.aggregate_input_retained());
         selected
             .recv_timeout(Duration::from_secs(1))
-            .expect("target query reaches retained aggregate input");
-        drop(resume);
+            .expect("input reached");
 
         // Act
-        let result = query.join().expect("target query thread");
+        drop(resume);
+        let result = worker.join().expect("worker");
 
         // Assert
         assert!(result.is_err());

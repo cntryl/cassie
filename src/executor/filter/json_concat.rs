@@ -4,6 +4,17 @@ use serde_json::value::RawValue;
 use super::{json_document, QueryError, ScalarValue};
 use crate::app::CassieError;
 
+#[cfg(test)]
+#[path = "json_concat_owned_tests.rs"]
+mod owned_tests;
+
+#[cfg(test)]
+#[path = "json_concat_move_tests.rs"]
+mod move_tests;
+
+#[path = "json_operand.rs"]
+pub(super) mod operand;
+
 pub(super) fn as_json_document(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
     match value {
         ScalarValue::Null | ScalarValue::Json(_) => Ok(value.clone()),
@@ -19,6 +30,13 @@ pub(super) fn as_json_document(value: &ScalarValue) -> Result<ScalarValue, Query
             "operator does not exist: jsonb || incompatible operands".into(),
         )
         .into()),
+    }
+}
+
+pub(super) fn into_json_document(value: ScalarValue) -> Result<ScalarValue, QueryError> {
+    match value {
+        value @ (ScalarValue::Null | ScalarValue::Json(_)) => Ok(value),
+        other => as_json_document(&other),
     }
 }
 
@@ -45,6 +63,21 @@ pub(super) fn concatenate(
     let mut values = array_or_singleton(left_value)?;
     values.extend(array_or_singleton(right_value)?);
     json_document::format_array(values).map(ScalarValue::Json)
+}
+
+pub(super) fn concatenate_controlled(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+    owner: &super::EvaluationMemory,
+) -> Result<Option<ScalarValue>, QueryError> {
+    if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
+        return Ok(Some(ScalarValue::Null));
+    }
+    let (ScalarValue::Json(left), ScalarValue::Json(right)) = (left, right) else {
+        return Ok(None);
+    };
+    super::json_delete::controlled_concatenation(left, right, controls, owner).map(Some)
 }
 
 fn is_object(value: &RawValue) -> bool {

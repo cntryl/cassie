@@ -7,6 +7,31 @@ use crate::executor::retained_memory::{add, mul};
 use crate::sql::functions::{self, json::JsonFunction, FunctionId};
 use crate::types::DataType;
 
+#[cfg(test)]
+fn cancel_after_finish_once(handle: crate::runtime::QueryCancellationHandle) {
+    super::json_result_owner::cancel_after_output_once(handle);
+}
+
+fn retain_builder_output(
+    value: Value,
+    memory: Option<crate::runtime::QueryMemoryReservation>,
+    context: EvalContext<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    let owner = if context.memory.is_none() {
+        context.deletion_memory
+    } else {
+        None
+    };
+    super::json_result_owner::retain_output(
+        value,
+        memory,
+        owner,
+        controls,
+        "JSON builder owner uses a different query tracker",
+    )
+}
+
 pub(super) fn evaluate<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,
@@ -79,13 +104,16 @@ fn build_array_query<R: RowAccess + ?Sized>(
             }
         },
     )?;
-    let _memory = reserve(controls, bytes)?;
+    let memory = reserve(controls, bytes)?;
     let mut elements = Vec::with_capacity(count);
     for value in array.elements().iter().filter(|value| !value.is_null()) {
         check(controls)?;
         elements.push(values::encode(value, element_type.as_ref(), controls)?);
     }
-    finish(format!("[{}]", elements.join(", ")), false, controls)
+    let document = format!("[{}]", elements.join(", "));
+    drop(elements);
+    let value = finish(document, false, controls)?;
+    retain_builder_output(value, memory, context, controls)
 }
 
 fn build_standard_object(
@@ -139,7 +167,7 @@ fn build_standard_object(
                 .and_then(|bytes| add(bytes, value.as_deref().map_or(0, str::len)))
                 .and_then(|bytes| add(bytes, 8))
         })?;
-    let _memory = reserve(controls, byte_count)?;
+    let memory = reserve(controls, byte_count)?;
     let mut elements = Vec::with_capacity(keys.len());
     for (key, value) in keys.iter().zip(&values) {
         check(controls)?;
@@ -156,7 +184,12 @@ fn build_standard_object(
         let separator = if binary { ": " } else { " : " };
         elements.push(format!("{key}{separator}{value}"));
     }
-    finish(format!("{{{}}}", elements.join(", ")), binary, controls)
+    let document = format!("{{{}}}", elements.join(", "));
+    drop(elements);
+    drop(keys);
+    drop(values);
+    let value = finish(document, binary, controls)?;
+    retain_builder_output(value, memory, context, controls)
 }
 
 fn text_array(value: &Value, kind: Option<&DataType>) -> Result<Vec<Option<String>>, QueryError> {
@@ -245,7 +278,7 @@ fn build<R: RowAccess + ?Sized>(
             )
         },
     )?;
-    let _memory = reserve(controls, bound)?;
+    let memory = reserve(controls, bound)?;
     let mut elements = Vec::with_capacity(if object { args.len() / 2 } else { args.len() });
     if object {
         for (pair, kinds) in args.as_chunks::<2>().0.iter().zip(types.as_chunks::<2>().0) {
@@ -265,7 +298,9 @@ fn build<R: RowAccess + ?Sized>(
     } else {
         format!("[{}]", elements.join(", "))
     };
-    finish(document, binary, controls)
+    drop(elements);
+    let value = finish(document, binary, controls)?;
+    retain_builder_output(value, memory, context, controls)
 }
 
 fn convert<R: RowAccess + ?Sized>(
@@ -288,12 +323,13 @@ fn convert<R: RowAccess + ?Sized>(
         &function.args[0],
         context.user_functions,
     );
-    let _memory = reserve(
+    let memory = reserve(
         controls,
         values::bound_controlled(value, kind.as_ref(), binary, controls)?,
     )?;
     let document = values::encode(value, kind.as_ref(), controls)?;
-    finish(document, binary, controls)
+    let value = finish(document, binary, controls)?;
+    retain_builder_output(value, memory, context, controls)
 }
 
 fn argument_types<R: RowAccess + ?Sized>(
@@ -332,3 +368,7 @@ fn admit_types<R: RowAccess + ?Sized>(
 #[cfg(test)]
 #[path = "json_builder_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "json_builder_owner_tests.rs"]
+mod owner_tests;

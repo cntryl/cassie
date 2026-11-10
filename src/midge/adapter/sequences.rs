@@ -80,7 +80,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn next_sequence_value(&self, name: &str) -> Result<i64, CassieError> {
-        self.update_sequence(name, |metadata| {
+        self.update_sequence_retrying(name, |metadata| {
             metadata.advance().map_err(CassieError::from)
         })
         .map(|(value, _)| value)
@@ -99,6 +99,16 @@ impl Midge {
         mut update: impl FnMut(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
     ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
         const MAX_ATTEMPTS: usize = 64;
+        match self.private_sequence_target(name)? {
+            super::transactions::sequence_owner::SequenceTarget::Private {
+                metadata,
+                owner,
+                overlay,
+                epoch,
+                scratch: _scratch,
+            } => return self.advance_private_sequence(&metadata, &owner, &overlay, epoch, update),
+            super::transactions::sequence_owner::SequenceTarget::Native => {}
+        }
         let mut attempt = 1;
         loop {
             match self.update_sequence(name, &mut update) {
@@ -119,6 +129,26 @@ impl Midge {
         name: &str,
         update: impl FnOnce(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
     ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
+        let update = if self.private_sequence_catalog_scope() {
+            match self.private_sequence_target(name)? {
+                super::transactions::sequence_owner::SequenceTarget::Private {
+                    metadata,
+                    epoch,
+                    scratch: _scratch,
+                    ..
+                } => {
+                    return self.update_private_sequence_transactionally(
+                        name,
+                        metadata.object_id,
+                        epoch,
+                        update,
+                    )
+                }
+                super::transactions::sequence_owner::SequenceTarget::Native => update,
+            }
+        } else {
+            update
+        };
         let stored_name = self
             .get_sequence(name)?
             .ok_or_else(|| CassieError::CatalogObjectNotFound {

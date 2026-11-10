@@ -557,10 +557,77 @@ fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
 }
 
 #[test]
+fn should_reload_explicit_local_fulltext_index_after_restart() {
+    // Arrange
+    let directory = crate::support_temp_dirs::IsolatedDataDir::new("fulltext-restart");
+    let mut config =
+        support::with_test_root_password(CassieRuntimeConfig::from_env().expect("config"));
+    config.limits.execution_result_cache_enabled =
+        cassie::config::ExecutionResultCacheEnabled::disabled();
+    {
+        let cassie = Cassie::new_local_with_data_dir_and_config(directory.path(), config.clone())
+            .expect("open explicit local Cassie");
+        cassie.startup().expect("start local Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE local_restart_docs (body TEXT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie.execute_sql(&session, "INSERT INTO local_restart_docs (body) VALUES ('alpha beta'), ('bravo'), ('charlie')", vec![]).expect("insert documents");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX local_restart_idx ON local_restart_docs USING fulltext (body)",
+                vec![],
+            )
+            .expect("create index");
+    }
+    let cassie = Cassie::new_local_with_data_dir_and_config(directory.path(), config)
+        .expect("reopen explicit local Cassie");
+    cassie.startup().expect("reload catalog and index");
+    let session = cassie.create_session("tester", None);
+    let collection = support::canonical_test_collection(&cassie, "local_restart_docs");
+    let before = cassie.metrics();
+
+    // Act
+    let result = cassie.execute_sql(&session, "SELECT body, search_score(body, 'alpha') AS score FROM local_restart_docs WHERE search(body, 'alpha') LIMIT 1", vec![]);
+    let after = cassie.metrics();
+
+    // Assert
+    assert!(cassie
+        .catalog
+        .get_index(&collection, "local_restart_idx")
+        .is_some());
+    let result = result.expect("query reloaded index");
+    assert_eq!(result.rows().len(), 1);
+    assert_eq!(result.rows()[0][0], Value::String("alpha beta".into()));
+    assert!(matches!(result.rows()[0][1], Value::Float64(score) if score > 0.0));
+    assert!(
+        after["search"]["posting_reads_total"].as_u64().unwrap()
+            > before["search"]["posting_reads_total"].as_u64().unwrap()
+    );
+    assert_eq!(
+        after["search"]["row_scan_fallback_total"].as_u64(),
+        before["search"]["row_scan_fallback_total"].as_u64()
+    );
+}
+
+#[test]
 fn should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary() {
     // Arrange
-    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
-    let cassie = Arc::new(support::new_in_memory_cassie().expect("create Cassie"));
+    let directory = crate::support_temp_dirs::IsolatedDataDir::new("fulltext-cancellation");
+    let mut config =
+        support::with_test_root_password(CassieRuntimeConfig::from_env().expect("config"));
+    config.limits.execution_result_cache_enabled =
+        cassie::config::ExecutionResultCacheEnabled::disabled();
+    let cassie = Arc::new(
+        Cassie::new_local_with_data_dir_and_config(directory.path(), config)
+            .expect("create explicit local Cassie"),
+    );
+    cassie.startup().expect("start local cancellation fixture");
     let session = cassie.create_session("tester", None);
     cassie
         .execute_sql(

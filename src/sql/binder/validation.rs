@@ -377,8 +377,12 @@ fn binary_operand_family(
             if [left_family, right_family].contains(&Some(OperandFamily::Temporal)) {
                 return Ok(None);
             }
-            require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
-            require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
+            if !matches!(op, BinaryOp::Power) || !matches!(left, Expr::StringLiteral(_)) {
+                require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
+            }
+            if !matches!(op, BinaryOp::Power) || !matches!(right, Expr::StringLiteral(_)) {
+                require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
+            }
             Ok(Some(OperandFamily::Numeric))
         }
         BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {

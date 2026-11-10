@@ -23,6 +23,8 @@ mod declared_functions;
 mod math_signatures;
 #[path = "row_predicates.rs"]
 mod row_predicates;
+#[path = "temporal_signatures.rs"]
+mod temporal_signatures;
 
 pub(super) fn validate_boolean_aggregate(
     function: &mut crate::sql::ast::FunctionCall,
@@ -31,6 +33,7 @@ pub(super) fn validate_boolean_aggregate(
     super::json_functions::qualify(function, types)?;
     super::bytea_functions::qualify(function, types)?;
     math_signatures::validate(function, types)?;
+    temporal_signatures::validate(function, types)?;
     if let Some(metadata) =
         crate::sql::functions::function(&function.name).filter(|metadata| metadata.is_aggregate)
     {
@@ -56,57 +59,64 @@ pub(super) fn validate_boolean_aggregate(
         }
         validate_hypothetical_set_arguments(function, metadata.id, types)?;
     }
-    if function.has_modifiers() {
-        if !crate::sql::functions::is_aggregate_function(&function.name) {
-            let modifier = if function.is_distinct() {
-                Some("DISTINCT")
-            } else if !function.order_by.is_empty() {
-                Some("ORDER BY")
-            } else if function.filter.is_some() {
-                Some("FILTER")
-            } else {
-                None
-            };
-            if let Some(modifier) = modifier {
+    validate_function_modifiers(function, types)?;
+    boolean_aggregates::validate(function, types)
+}
+
+fn validate_function_modifiers(
+    function: &mut crate::sql::ast::FunctionCall,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    if !function.has_modifiers() {
+        return Ok(());
+    }
+    if !crate::sql::functions::is_aggregate_function(&function.name) {
+        let modifier = if function.is_distinct() {
+            Some("DISTINCT")
+        } else if !function.order_by.is_empty() {
+            Some("ORDER BY")
+        } else if function.filter.is_some() {
+            Some("FILTER")
+        } else {
+            None
+        };
+        if let Some(modifier) = modifier {
+            return Err(CassieError::Execution(format!(
+                "{modifier} specified, but {} is not an aggregate function",
+                function.name.to_ascii_lowercase()
+            )));
+        }
+    }
+    if let Some(filter) = &mut function.filter {
+        if let Expr::StringLiteral(input) = filter.as_ref() {
+            let value = crate::types::boolean::parse_text(input).ok_or_else(|| {
+                CassieError::Execution(format!("invalid input syntax for type boolean: {input:?}"))
+            })?;
+            **filter = Expr::BoolLiteral(value);
+        }
+        if let Some(data_type) = types.expression_type(filter) {
+            if !matches!(data_type, DataType::Boolean | DataType::Null) {
                 return Err(CassieError::Execution(format!(
-                    "{modifier} specified, but {} is not an aggregate function",
-                    function.name.to_ascii_lowercase()
+                    "argument of FILTER must be type boolean, not type {}",
+                    boolean_aggregates::type_name(&data_type)
                 )));
             }
         }
-        if let Some(filter) = &mut function.filter {
-            if let Expr::StringLiteral(input) = filter.as_ref() {
-                let value = crate::types::boolean::parse_text(input).ok_or_else(|| {
-                    CassieError::Execution(format!(
-                        "invalid input syntax for type boolean: {input:?}"
-                    ))
-                })?;
-                **filter = Expr::BoolLiteral(value);
-            }
-            if let Some(data_type) = types.expression_type(filter) {
-                if !matches!(data_type, DataType::Boolean | DataType::Null) {
-                    return Err(CassieError::Execution(format!(
-                        "argument of FILTER must be type boolean, not type {}",
-                        boolean_aggregates::type_name(&data_type)
-                    )));
-                }
-            }
-        }
-        if function.is_distinct()
-            && function.order_by.iter().any(|order| {
-                !function
-                    .args
-                    .iter()
-                    .any(|argument| argument.structurally_eq(&order.expr))
-            })
-        {
-            return Err(CassieError::Execution(
-                "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
-                    .into(),
-            ));
-        }
     }
-    boolean_aggregates::validate(function, types)
+    if function.is_distinct()
+        && function.order_by.iter().any(|order| {
+            !function
+                .args
+                .iter()
+                .any(|argument| argument.structurally_eq(&order.expr))
+        })
+    {
+        return Err(CassieError::Execution(
+            "in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_hypothetical_set_arguments(
@@ -202,6 +212,12 @@ pub(super) fn validate_select_with_types(
             SelectItem::Function { function, .. } => {
                 for argument in function.expressions_mut() {
                     validate_expression(argument, types, catalog, context)?;
+                }
+                let changed = super::power_coercion::function(function, types);
+                for (argument, changed) in function.args.iter_mut().zip(changed) {
+                    if changed {
+                        validate_expression(argument, types, catalog, context)?;
+                    }
                 }
                 super::coalesce_coercion::coerce_function(function, types);
                 validate_boolean_aggregate(function, types)?;
@@ -396,35 +412,9 @@ fn validate_expression(
             left,
             op: BinaryOp::And | BinaryOp::Or,
             right,
-        } => {
-            require_boolean(left, types, "Boolean operator")?;
-            require_boolean(right, types, "Boolean operator")?;
-            validate_expression(left, types, catalog, context)?;
-            validate_expression(right, types, catalog, context)?;
-        }
+        } => validate_logical_binary(left, right, types, catalog, context)?,
         Expr::Binary { left, op, right } => {
-            if matches!(
-                op,
-                BinaryOp::Eq
-                    | BinaryOp::NotEq
-                    | BinaryOp::IsDistinctFrom
-                    | BinaryOp::IsNotDistinctFrom
-                    | BinaryOp::Lt
-                    | BinaryOp::Lte
-                    | BinaryOp::Gt
-                    | BinaryOp::Gte
-            ) {
-                validate_collation_pair(left, right)?;
-                null_safe_comparison::qualify(op, left, right, types)?;
-                canonicalize_boolean_pair(left, right, types)?;
-                decimal_literals::narrow_pair(left, right, types);
-                coerce_numeric_pair(left, right, types, catalog);
-                validate_concatenation_comparison(left, right, types)?;
-            }
-            validate_expression(left, types, catalog, context)?;
-            validate_expression(right, types, catalog, context)?;
-            resolve_integer_operator(left, op, right, types)?;
-            super::character_comparison::qualify(op, left, right, types);
+            validate_binary(left, op, right, types, catalog, context)?;
         }
         prefix @ (Expr::Not { .. } | Expr::UnaryNumeric { .. }) => {
             validate_prefix(prefix, types, catalog, context)?;
@@ -465,6 +455,12 @@ fn validate_expression(
             for argument in function.expressions_mut() {
                 validate_expression(argument, types, catalog, context)?;
             }
+            let changed = super::power_coercion::function(function, types);
+            for (argument, changed) in function.args.iter_mut().zip(changed) {
+                if changed {
+                    validate_expression(argument, types, catalog, context)?;
+                }
+            }
             super::coalesce_coercion::coerce_function(function, types);
             validate_boolean_aggregate(function, types)?;
         }
@@ -481,6 +477,61 @@ fn validate_expression(
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }
+    Ok(())
+}
+
+fn validate_logical_binary(
+    left: &mut Expr,
+    right: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    require_boolean(left, types, "Boolean operator")?;
+    require_boolean(right, types, "Boolean operator")?;
+    validate_expression(left, types, catalog, context)?;
+    validate_expression(right, types, catalog, context)
+}
+
+fn validate_binary(
+    left: &mut Expr,
+    op: &mut BinaryOp,
+    right: &mut Expr,
+    types: &ResultTypes,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    if matches!(
+        op,
+        BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+    ) {
+        validate_collation_pair(left, right)?;
+        null_safe_comparison::qualify(op, left, right, types)?;
+        canonicalize_boolean_pair(left, right, types)?;
+        decimal_literals::narrow_pair(left, right, types);
+        coerce_numeric_pair(left, right, types, catalog);
+        validate_concatenation_comparison(left, right, types)?;
+    }
+    validate_expression(left, types, catalog, context)?;
+    validate_expression(right, types, catalog, context)?;
+    if matches!(op, BinaryOp::Power) {
+        let [left_changed, right_changed] = super::power_coercion::pair(left, right, types);
+        if left_changed {
+            validate_expression(left, types, catalog, context)?;
+        }
+        if right_changed {
+            validate_expression(right, types, catalog, context)?;
+        }
+    }
+    resolve_integer_operator(left, op, right, types)?;
+    super::character_comparison::qualify(op, left, right, types);
     Ok(())
 }
 

@@ -10,6 +10,7 @@ pub struct QueryCancellationHandle(
     Option<Arc<crate::midge::adapter::QueryScanControlScope>>,
     Option<Arc<super::QueryTestPause>>,
     tokio::sync::watch::Sender<bool>,
+    Option<Arc<super::aggregate_test_pause::QueryAggregateTestPause>>,
 );
 
 impl Default for QueryCancellationHandle {
@@ -18,10 +19,10 @@ impl Default for QueryCancellationHandle {
         Self(
             Arc::new(AtomicBool::new(false)),
             crate::midge::adapter::current_query_scan_control_scope(),
-            super::aggregate_test_pause::take_next_query_pause()
-                .or_else(super::sleep_test_pause::take_next_query_pause)
+            super::sleep_test_pause::take_next_query_pause()
                 .or_else(super::regex_test_pause::take_next_query_pause),
             cancellation_signal,
+            None,
         )
     }
 }
@@ -30,6 +31,17 @@ impl QueryCancellationHandle {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub(super) fn attach_aggregate_test_pause(
+        &mut self,
+        pause: Arc<super::aggregate_test_pause::QueryAggregateTestPause>,
+    ) -> bool {
+        if self.4.is_some() {
+            return false;
+        }
+        self.4 = Some(pause);
+        true
     }
 
     /// Pauses this request once after a candidate is scored and retained.
@@ -122,8 +134,13 @@ pub struct QueryExecutionControls {
     memory: Arc<QueryMemoryTracker>,
     statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
     /// The statement's `TimeZone`, `DateStyle` and clocks, shared by clones.
-    temporal:
-        Arc<parking_lot::RwLock<Option<Arc<crate::types::extended::temporal::TemporalSession>>>>,
+    temporal: Arc<parking_lot::RwLock<TemporalSlot>>,
+}
+
+#[derive(Debug, Default)]
+struct TemporalSlot {
+    session: Option<Arc<crate::types::extended::temporal::TemporalSession>>,
+    is_posix: bool,
 }
 
 #[derive(Debug)]
@@ -140,6 +157,10 @@ pub struct QueryMemoryReservation {
 }
 
 impl QueryMemoryReservation {
+    pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+        Arc::ptr_eq(&self.tracker, &controls.memory)
+    }
+
     /// A narrow bounded owner without a request token, deadline or test scope.
     pub(crate) fn independent_budget(budget: usize, bytes: usize) -> Result<Self, CassieError> {
         if bytes > budget {
@@ -231,7 +252,7 @@ impl Drop for QueryMemoryReservation {
 
 impl QueryExecutionControls {
     pub(crate) fn aggregate_input_retained(&self) -> Result<(), CassieError> {
-        if let Some(super::QueryTestPause::Aggregate(pause)) = self.cancellation.2.as_deref() {
+        if let Some(pause) = self.cancellation.4.as_deref() {
             pause.reach()?;
         }
         Ok(())
@@ -324,8 +345,11 @@ impl QueryExecutionControls {
     pub(crate) fn install_temporal_session(
         &self,
         session: Arc<crate::types::extended::temporal::TemporalSession>,
+        is_posix: bool,
     ) {
-        *self.temporal.write() = Some(session);
+        let mut slot = self.temporal.write();
+        slot.session = Some(session);
+        slot.is_posix = is_posix;
     }
 
     /// The statement's temporal session, when one was installed.
@@ -333,7 +357,24 @@ impl QueryExecutionControls {
     pub(crate) fn temporal_session(
         &self,
     ) -> Option<Arc<crate::types::extended::temporal::TemporalSession>> {
-        self.temporal.read().clone()
+        self.temporal.read().session.clone()
+    }
+
+    pub(crate) fn temporal_session_is_posix(
+        &self,
+        session: &crate::types::extended::temporal::TemporalSession,
+    ) -> Result<bool, CassieError> {
+        loop {
+            self.check_interruption()?;
+            if let Some(slot) = self.temporal.try_read_for(Duration::from_millis(2)) {
+                self.check_interruption()?;
+                return Ok(slot.is_posix
+                    && slot
+                        .session
+                        .as_deref()
+                        .is_some_and(|current| std::ptr::eq(current, session)));
+            }
+        }
     }
 
     /// Returns controls for an input relation that must be fully

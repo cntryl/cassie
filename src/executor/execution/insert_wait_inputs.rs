@@ -58,7 +58,7 @@ pub(in crate::executor::execution) fn prepare_waiting_insert(
         .iter()
         .try_fold(0, |bytes, field| add(bytes, mul(field.name.len(), 6)?))?;
     let mut payloads = AccountedVec::try_new(controls)?;
-    for row in rows {
+    for row in rows.rows() {
         controls.check_interruption()?;
         let bytes = row
             .iter()
@@ -71,8 +71,9 @@ pub(in crate::executor::execution) fn prepare_waiting_insert(
             2,
         )?;
         payloads.try_push_with_result(bound, || {
-            let payload = super::cells::payload(cassie, &statement.table, &fields, &row)
-                .map_err(crate::app::CassieError::from)?;
+            let payload =
+                super::cells::payload(cassie, Some(session), &statement.table, &fields, row)
+                    .map_err(crate::app::CassieError::from)?;
             cassie.prepare_upsert_candidate(&statement.table, payload)
         })?;
     }

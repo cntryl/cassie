@@ -13,6 +13,24 @@ use tokio_postgres::{NoTls, SimpleQueryMessage};
 use super::support_sql as support;
 use support::*;
 
+#[test]
+fn should_evaluate_error_functions_at_zero_without_hanging() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-erf-zero", &[]);
+
+    // Act
+    let result = fixture
+        .execute("SELECT erf(0::float8), erf('-0'::float8), erfc(0::float8), erfc('-0'::float8)");
+
+    // Assert
+    let result = result.expect("signed-zero error functions");
+    let row = &result.rows()[0];
+    assert!(matches!(&row[0], Value::Float64(value) if value.to_bits() == 0));
+    assert!(matches!(&row[1], Value::Float64(value) if value.to_bits() == (1_u64 << 63)));
+    assert!(matches!(&row[2], Value::Float64(value) if value.to_bits() == 1.0_f64.to_bits()));
+    assert!(matches!(&row[3], Value::Float64(value) if value.to_bits() == 1.0_f64.to_bits()));
+}
+
 struct CompatibilityServer {
     data_dir: String,
     addr: SocketAddr,

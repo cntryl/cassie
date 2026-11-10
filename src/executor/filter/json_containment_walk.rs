@@ -4,13 +4,70 @@ use std::collections::{btree_map, BTreeMap};
 
 use serde_json::value::RawValue;
 
-use super::{json_document, kind, CassieError, JsonKind, QueryError};
+use super::{json_document, kind_text, CassieError, JsonKind, QueryError};
 use crate::executor::retained_memory::{add, mul};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_PAIR: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn cancel_after_pair_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_PAIR.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
+#[path = "json_containment_number.rs"]
+mod numbers;
+#[cfg(test)]
+pub(super) use numbers::{cancel_after_number_compare_once, cancel_after_number_format_once};
+
+#[cfg(test)]
+thread_local! {
+    static CANCEL_AFTER_STRING_COPY: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+    static CANCEL_AFTER_STRING_COMPARE: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn cancel_after_string_copy_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_STRING_COPY.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
+#[cfg(test)]
+pub(super) fn cancel_after_string_compare_once(handle: crate::runtime::QueryCancellationHandle) {
+    CANCEL_AFTER_STRING_COMPARE.with(|slot| *slot.borrow_mut() = Some(handle));
+}
+
+enum RawToken {
+    Legacy(Box<RawValue>),
+    Controlled(String),
+}
+
+impl RawToken {
+    fn get(&self) -> &str {
+        match self {
+            Self::Legacy(value) => value.get(),
+            Self::Controlled(value) => value,
+        }
+    }
+    fn into_controlled(self) -> String {
+        match self {
+            Self::Controlled(value) => value,
+            Self::Legacy(_) => unreachable!("controlled pair"),
+        }
+    }
+    fn into_legacy(self) -> Box<RawValue> {
+        match self {
+            Self::Legacy(value) => value,
+            Self::Controlled(_) => unreachable!("legacy pair"),
+        }
+    }
+}
+
 struct Pair {
-    candidate: Box<RawValue>,
-    required: Box<RawValue>,
+    candidate: RawToken,
+    required: RawToken,
     memory: Option<QueryMemoryReservation>,
 }
 
@@ -39,10 +96,20 @@ impl Work<'_> {
             required.len(),
         )?)?;
         let memory = self.reserve(add(decode, std::mem::size_of::<Frame>())?)?;
-        // RawValue uses an iterative parser without the Value depth limit.
-        // Each child pair is admitted independently before either raw copy.
-        let candidate = json_document::parse_value(candidate)?;
-        let required = json_document::parse_value(required)?;
+        // The existing pair reservation covers both bounded String capacities.
+        let (candidate, required) = if let Some(controls) = self.controls {
+            let candidate = RawToken::Controlled(super::super::json_delete::containment_raw_copy(
+                candidate, controls,
+            )?);
+            let required = RawToken::Controlled(super::super::json_delete::containment_raw_copy(
+                required, controls,
+            )?);
+            (candidate, required)
+        } else {
+            let candidate = RawToken::Legacy(json_document::parse_value(candidate)?);
+            let required = RawToken::Legacy(json_document::parse_value(required)?);
+            (candidate, required)
+        };
         self.check()?;
         Ok(Pair {
             candidate,
@@ -51,9 +118,27 @@ impl Work<'_> {
         })
     }
 
-    fn scalar_equal(&self, candidate: &RawValue, required: &RawValue) -> Result<bool, QueryError> {
+    fn scalar_equal(&self, candidate: &RawToken, required: &RawToken) -> Result<bool, QueryError> {
         self.check()?;
-        let _numbers = if kind(candidate) == JsonKind::Number && kind(required) == JsonKind::Number
+        if let Some(controls) = self.controls {
+            if kind_text(candidate.get()) == JsonKind::String
+                && kind_text(required.get()) == JsonKind::String
+            {
+                return string_equal(candidate.get(), required.get(), controls);
+            }
+            if kind_text(candidate.get()) == JsonKind::Number
+                && kind_text(required.get()) == JsonKind::Number
+            {
+                return numbers::equal(candidate.get(), required.get(), controls);
+            }
+            return Ok(candidate.get() == required.get());
+        }
+        let (RawToken::Legacy(candidate), RawToken::Legacy(required)) = (candidate, required)
+        else {
+            unreachable!("legacy pair")
+        };
+        let _numbers = if kind_text(candidate.get()) == JsonKind::Number
+            && kind_text(required.get()) == JsonKind::Number
         {
             let bound = |value: &RawValue| {
                 if let Ok(bound) = crate::types::jsonb::input_text_len(value.get()) {
@@ -80,7 +165,62 @@ impl Work<'_> {
     }
 }
 
+fn string_equal(
+    candidate: &str,
+    required: &str,
+    controls: &QueryExecutionControls,
+) -> Result<bool, QueryError> {
+    let candidate = decode_string(candidate, controls)?;
+    let required = decode_string(required, controls)?;
+    if candidate.get().len() != required.get().len() {
+        return Ok(false);
+    }
+    for (left, right) in candidate
+        .get()
+        .as_bytes()
+        .chunks(1024)
+        .zip(required.get().as_bytes().chunks(1024))
+    {
+        controls.check_interruption()?;
+        let equal = left == right;
+        #[cfg(test)]
+        CANCEL_AFTER_STRING_COMPARE.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+        controls.check_interruption()?;
+        if !equal {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn decode_string(
+    source: &str,
+    controls: &QueryExecutionControls,
+) -> Result<crate::runtime::accounted::Accounted<String>, QueryError> {
+    use crate::runtime::accounted::json_arena::raw_decode;
+    #[cfg(not(test))]
+    let decoded = raw_decode::decode(source, controls);
+    #[cfg(test)]
+    let decoded = raw_decode::decode_observing(source, controls, || {
+        CANCEL_AFTER_STRING_COPY.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+    });
+    decoded.map_err(|error| match error.into_control() {
+        Ok(control) => control.into(),
+        Err(error) => QueryError::General(error.to_string()),
+    })
+}
+
 enum State {
+    ControlledArrays(super::super::json_delete::ArrayPair),
+    ControlledObjects(super::super::json_delete::ObjectPair),
     Objects {
         candidate: BTreeMap<String, Box<RawValue>>,
         required: btree_map::IntoIter<String, Box<RawValue>>,
@@ -108,6 +248,29 @@ impl Frame {
     fn advance(&mut self, previous: Option<bool>, work: &Work<'_>) -> Result<Next, QueryError> {
         work.check()?;
         match &mut self.state {
+            State::ControlledArrays(arrays) => {
+                let controls = work.controls.expect("controlled array frame");
+                match arrays.next(previous, controls)? {
+                    super::super::json_delete::ArrayStep::Child(candidate, required) => {
+                        work.pair(candidate, required).map(Next::Child)
+                    }
+                    super::super::json_delete::ArrayStep::Missing => Ok(Next::Complete(false)),
+                    super::super::json_delete::ArrayStep::Done => Ok(Next::Complete(true)),
+                }
+            }
+            State::ControlledObjects(objects) => {
+                if previous == Some(false) {
+                    return Ok(Next::Complete(false));
+                }
+                let controls = work.controls.expect("controlled object frame");
+                match objects.next(controls)? {
+                    super::super::json_delete::ObjectStep::Child(candidate, required) => {
+                        work.pair(candidate, required).map(Next::Child)
+                    }
+                    super::super::json_delete::ObjectStep::Missing => Ok(Next::Complete(false)),
+                    super::super::json_delete::ObjectStep::Done => Ok(Next::Complete(true)),
+                }
+            }
             State::Objects {
                 candidate,
                 required,
@@ -179,29 +342,57 @@ enum Comparison {
 
 fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryError> {
     work.check()?;
-    let Pair {
-        candidate,
-        required,
-        memory,
-    } = pair;
-    let state = match (kind(&candidate), kind(&required)) {
-        (JsonKind::Object, JsonKind::Object) => State::Objects {
-            candidate: json_document::parse_object(candidate.get())?.0,
-            required: json_document::parse_object(required.get())?.0.into_iter(),
-        },
+    #[cfg(test)]
+    {
+        CANCEL_AFTER_PAIR.with(|slot| {
+            if let Some(handle) = slot.borrow_mut().take() {
+                handle.cancel();
+            }
+        });
+        work.check()?;
+    }
+    let state = match (
+        kind_text(pair.candidate.get()),
+        kind_text(pair.required.get()),
+    ) {
+        (JsonKind::Object, JsonKind::Object) => {
+            if let Some(controls) = work.controls {
+                State::ControlledObjects(super::super::json_delete::ObjectPair::build(
+                    pair.candidate.into_controlled(),
+                    pair.required.into_controlled(),
+                    controls,
+                )?)
+            } else {
+                State::Objects {
+                    candidate: json_document::parse_object(pair.candidate.get())?.0,
+                    required: json_document::parse_object(pair.required.get())?
+                        .0
+                        .into_iter(),
+                }
+            }
+        }
         (JsonKind::Array, required_kind)
             if required_kind == JsonKind::Array || (root && required_kind.is_scalar()) =>
         {
-            let required = if required_kind == JsonKind::Array {
-                json_document::parse_array(required.get())?
+            if let Some(controls) = work.controls {
+                State::ControlledArrays(super::super::json_delete::ArrayPair::build(
+                    pair.candidate.into_controlled(),
+                    pair.required.into_controlled(),
+                    required_kind == JsonKind::Array,
+                    controls,
+                )?)
             } else {
-                vec![required]
-            };
-            State::Arrays {
-                candidate: json_document::parse_array(candidate.get())?,
-                required: required.into_iter(),
-                current: None,
-                next_candidate: 0,
+                let required = if required_kind == JsonKind::Array {
+                    json_document::parse_array(pair.required.get())?
+                } else {
+                    vec![pair.required.into_legacy()]
+                };
+                State::Arrays {
+                    candidate: json_document::parse_array(pair.candidate.get())?,
+                    required: required.into_iter(),
+                    current: None,
+                    next_candidate: 0,
+                }
             }
         }
         (JsonKind::Number, JsonKind::Number)
@@ -209,7 +400,7 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
         | (JsonKind::Boolean, JsonKind::Boolean)
         | (JsonKind::Null, JsonKind::Null) => {
             return work
-                .scalar_equal(&candidate, &required)
+                .scalar_equal(&pair.candidate, &pair.required)
                 .map(|matched| Comparison::Result {
                     matched,
                     scalar: true,
@@ -225,7 +416,7 @@ fn compare(pair: Pair, root: bool, work: &Work<'_>) -> Result<Comparison, QueryE
     Ok(Comparison::Container(Box::new(Frame {
         state,
         parent: None,
-        _memory: memory,
+        _memory: pair.memory,
     })))
 }
 
@@ -235,9 +426,38 @@ pub(super) fn evaluate(
     controls: Option<&QueryExecutionControls>,
     mut after_scalar: impl FnMut(bool),
 ) -> Result<bool, QueryError> {
+    if let Some(controls) = controls {
+        if let Some(result) = super::super::json_delete::controlled_containment_objects(
+            candidate,
+            required,
+            controls,
+            &mut after_scalar,
+        )? {
+            return Ok(result);
+        }
+    }
+    evaluate_from(candidate, required, controls, true, after_scalar)
+}
+
+pub(super) fn evaluate_nested(
+    candidate: &str,
+    required: &str,
+    controls: &QueryExecutionControls,
+    after_scalar: &mut impl FnMut(bool),
+) -> Result<bool, QueryError> {
+    evaluate_from(candidate, required, Some(controls), false, after_scalar)
+}
+
+fn evaluate_from(
+    candidate: &str,
+    required: &str,
+    controls: Option<&QueryExecutionControls>,
+    root: bool,
+    mut after_scalar: impl FnMut(bool),
+) -> Result<bool, QueryError> {
     let work = Work { controls };
     let mut frames = Frames::default();
-    let mut comparison = compare(work.pair(candidate, required)?, true, &work)?;
+    let mut comparison = compare(work.pair(candidate, required)?, root, &work)?;
     loop {
         work.check()?;
         let (mut frame, previous) = match comparison {

@@ -83,6 +83,9 @@ async fn cancel_and_wait_for_close(address: SocketAddr, process_id: i32, secret_
 async fn assert_empty_input_does_not_pause(
     reader: &mut OwnedReadHalf,
     writer: &mut OwnedWriteHalf,
+    cassie: &Cassie,
+    process_id: i32,
+    secret_key: i32,
     source: &str,
 ) {
     let queries = [
@@ -95,7 +98,9 @@ async fn assert_empty_input_does_not_pause(
         ),
     ];
     for sql in queries {
-        let (_guard, selected, _resume) = cassie::runtime::pause_next_query_after_aggregate_input();
+        let (_guard, selected, _resume) =
+            cassie::runtime::pause_next_query_after_aggregate_input(cassie, process_id, secret_key)
+                .expect("arm aggregate pause");
         wire::write_frames(writer, vec![wire::simple_query_frame(&sql)]).await;
         let frames = wire::read_frames_until_ready_within(reader, Duration::from_secs(5)).await;
         assert_eq!(wire::error_code(&frames), None);
@@ -134,10 +139,19 @@ pub async fn run_case(setup: &[&str], source: &str) -> CancellationCase {
         .as_str()
         .expect("aggregate dispatch reason")
         .to_owned();
-    assert_empty_input_does_not_pause(&mut reader, &mut writer, source).await;
+    assert_empty_input_does_not_pause(
+        &mut reader,
+        &mut writer,
+        &cassie,
+        process_id,
+        secret_key,
+        source,
+    )
+    .await;
 
     let (_pause_guard, selected, resume) =
-        cassie::runtime::pause_next_query_after_aggregate_input();
+        cassie::runtime::pause_next_query_after_aggregate_input(&cassie, process_id, secret_key)
+            .expect("arm aggregate pause");
     wire::write_frames(&mut writer, vec![wire::simple_query_frame(&sql)]).await;
     tokio::task::spawn_blocking(move || selected.recv_timeout(Duration::from_secs(5)))
         .await

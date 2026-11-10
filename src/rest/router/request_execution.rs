@@ -328,40 +328,55 @@ where
         })
 }
 
-pub(super) async fn run_rest_blocking_route_with_cancellation<T>(
+pub(super) async fn run_rest_blocking_route_with_cancellation(
     cassie: Arc<Cassie>,
     method: &Method,
     path: &str,
     started_at: Instant,
     operation_name: &'static str,
-    cancellation: QueryCancellationHandle,
-    operation: impl FnOnce(Arc<Cassie>, &QueryCancellationHandle) -> Result<T, CassieError>
+    cancellation: (QueryCancellationHandle, bool),
+    operation: impl FnOnce(
+            Arc<Cassie>,
+            &QueryCancellationHandle,
+        ) -> Result<hyper::Response<super::RestBody>, CassieError>
         + Send
         + 'static,
-) -> Result<T, (StatusCode, String)>
-where
-    T: Send + 'static,
-{
-    RestRequestExecution::with_cancellation(REST_REQUEST_TIMEOUT, cancellation)
+) -> Result<hyper::Response<super::RestBody>, (StatusCode, String)> {
+    let (cancellation, admitted_error_response) = cancellation;
+    match RestRequestExecution::with_cancellation(REST_REQUEST_TIMEOUT, cancellation)
         .run_blocking(Arc::clone(&cassie), operation_name, operation)
         .await
-        .map_err(|error| match error {
-            RestBlockingError::Engine(error) => {
-                record_rest_error(&cassie, method.as_str(), path, started_at, &error)
-            }
-            RestBlockingError::TimedOut => {
-                cassie.runtime.record_rest_request(
-                    method.as_str(),
-                    path,
-                    StatusCode::REQUEST_TIMEOUT.as_u16(),
-                    started_at.elapsed(),
+    {
+        Ok(response) => Ok(response),
+        Err(RestBlockingError::Engine(error)) => {
+            if let (true, CassieError::OwnedNumericLiteral(diagnostic)) =
+                (admitted_error_response, &error)
+            {
+                return super::owned_error_response::numeric_error_response(diagnostic).map_err(
+                    |error| record_rest_error(&cassie, method.as_str(), path, started_at, &error),
                 );
-                (
-                    StatusCode::REQUEST_TIMEOUT,
-                    "REST request timed out".to_string(),
-                )
             }
-        })
+            Err(record_rest_error(
+                &cassie,
+                method.as_str(),
+                path,
+                started_at,
+                &error,
+            ))
+        }
+        Err(RestBlockingError::TimedOut) => {
+            cassie.runtime.record_rest_request(
+                method.as_str(),
+                path,
+                StatusCode::REQUEST_TIMEOUT.as_u16(),
+                started_at.elapsed(),
+            );
+            Err((
+                StatusCode::REQUEST_TIMEOUT,
+                "REST request timed out".to_string(),
+            ))
+        }
+    }
 }
 
 #[derive(Debug)]

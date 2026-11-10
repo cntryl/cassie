@@ -10,6 +10,29 @@ pub(super) fn binary_scalar_with_controls(
     right: &ScalarValue,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
+    if let (BinaryOp::JsonbCompare { comparison }, Some(controls)) = (op, controls) {
+        if matches!(
+            left,
+            ScalarValue::Null | ScalarValue::Str(_) | ScalarValue::Json(_)
+        ) && matches!(
+            right,
+            ScalarValue::Null | ScalarValue::Str(_) | ScalarValue::Json(_)
+        ) {
+            return super::json_order::evaluate_controlled(left, *comparison, right, controls);
+        }
+    }
+    if matches!(
+        op,
+        BinaryOp::JsonbKeyExists | BinaryOp::JsonbKeyExistsAny | BinaryOp::JsonbKeyExistsAll
+    ) {
+        if let Some(controls) = controls {
+            if let Some(result) =
+                super::json_key_exists::evaluate_controlled(left, op, right, controls)?
+            {
+                return Ok(result);
+            }
+        }
+    }
     if super::json_containment::handles(op)
         && (matches!(left, ScalarValue::Json(_)) || matches!(right, ScalarValue::Json(_)))
     {
@@ -141,12 +164,15 @@ fn power(left: &ScalarValue, right: &ScalarValue) -> Result<ScalarValue, QueryEr
     if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
     }
-    let left = left
-        .to_f64()
-        .ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
-    let right = right
-        .to_f64()
-        .ok_or_else(|| QueryError::General("power requires numeric inputs".into()))?;
+    let operand = |value: &ScalarValue| match value {
+        ScalarValue::Str(text) => crate::types::float_input::parse(text)
+            .map_err(|error| QueryError::Cassie(crate::app::CassieError::FloatInput(error))),
+        _ => value
+            .to_f64()
+            .ok_or_else(|| QueryError::General("power requires numeric inputs".into())),
+    };
+    let left = operand(left)?;
+    let right = operand(right)?;
     Ok(ScalarValue::Float(super::functions::math::power(
         left, right,
     )?))

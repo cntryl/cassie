@@ -13,6 +13,8 @@ use super::typed::TypedValue;
 pub mod numeric;
 #[path = "extended/numeric_types.rs"]
 pub mod numeric_types;
+#[path = "extended/numeric_validation.rs"]
+pub(crate) mod numeric_validation;
 #[path = "extended/real.rs"]
 pub mod real;
 

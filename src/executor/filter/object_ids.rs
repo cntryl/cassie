@@ -52,8 +52,44 @@ pub(crate) fn evaluate_lookup(
     args: &[Value],
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
+    if matches!(name, "pg_get_userbyid" | "pg_catalog.pg_get_userbyid") {
+        return Some(user_by_oid(name, args, session));
+    }
     let kind = crate::sql::functions::object_lookup_kind(name)?;
     Some(lookup(kind, args.first(), session))
+}
+
+/// Resolve actual catalog roles instead of manufacturing the bootstrap name.
+fn user_by_oid(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    let [value] = args else {
+        return Err(QueryError::General(format!("{name} requires 1 arg")));
+    };
+    let oid = match value {
+        Value::Null => return Ok(Value::Null),
+        Value::Int64(value) => oid_from_integer(*value).map_err(|rejected| {
+            QueryError::Cassie(ObjectIdentifierError::OutOfRange(rejected.to_string()).into())
+        })?,
+        Value::String(text) => {
+            parse_oid_text(text).map_err(|error| QueryError::Cassie(error.into()))?
+        }
+        _ => {
+            return Err(QueryError::Cassie(
+                crate::app::DiagnosticError::new(
+                    "42883",
+                    "function pg_get_userbyid does not exist for this input type".to_string(),
+                )
+                .into(),
+            ));
+        }
+    };
+    let role = with_scope(session, |scope| Ok(scope.role_name(oid)))?;
+    Ok(Value::String(
+        role.unwrap_or_else(|| format!("unknown (OID={oid})")),
+    ))
 }
 
 fn lookup(

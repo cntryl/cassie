@@ -15,6 +15,15 @@ impl EvaluationMemory {
     pub(crate) fn grow(&self, bytes: usize) -> Result<(), QueryError> {
         self.0.borrow_mut().try_grow(bytes).map_err(Into::into)
     }
+    pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+        self.0.borrow().belongs_to(controls)
+    }
+    pub(crate) fn adopt(&self, reservation: QueryMemoryReservation) {
+        self.0.borrow_mut().absorb(reservation);
+    }
+    pub(crate) fn bytes(&self) -> usize {
+        self.0.borrow().bytes()
+    }
     pub(crate) fn into_reservation(self) -> QueryMemoryReservation {
         self.0.into_inner()
     }
@@ -59,12 +68,13 @@ pub(crate) struct ProjectionValueContext<'a> {
     pub(crate) resolver: Option<&'a super::ExistsResolver<'a>>,
 }
 
-pub(crate) fn evaluate_projection_value<R: RowAccess + ?Sized>(
+pub(crate) fn evaluate_projection_value_with_owners<R: RowAccess + ?Sized>(
     row: &R,
     expression: &Expr,
     context: &ProjectionValueContext<'_>,
     controls: &QueryExecutionControls,
-    memory: &EvaluationMemory,
+    memory: Option<&EvaluationMemory>,
+    deletion_memory: Option<&EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     controls.check_interruption()?;
     evaluate_expr_value_with_context(
@@ -78,7 +88,8 @@ pub(crate) fn evaluate_projection_value<R: RowAccess + ?Sized>(
             session: context.session,
             exists: context.resolver,
             controls: Some(controls),
-            memory: Some(memory),
+            memory,
+            deletion_memory,
         },
     )
 }
@@ -105,6 +116,7 @@ pub(crate) fn evaluate_source_argument<R: RowAccess + ?Sized>(
             exists: None,
             controls: Some(controls),
             memory: Some(memory),
+            deletion_memory: Some(memory),
         },
     )
 }
@@ -129,6 +141,7 @@ pub(crate) fn evaluate_source_argument_resolving<R: RowAccess + ?Sized>(
             exists: Some(context.resolver),
             controls: Some(controls),
             memory: Some(memory),
+            deletion_memory: Some(memory),
         },
     )
 }
@@ -154,6 +167,7 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
             exists: None,
             controls: None,
             memory: None,
+            deletion_memory: None,
         },
     )
 }
@@ -313,7 +327,34 @@ mod tests {
             source_type: Some(crate::types::DataType::Json),
             identity: crate::sql::ast::CastIdentity::Scalar,
         };
-        for (budget, accepted) in [(800, false), (4096, true)] {
+        let baseline = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits {
+                query_memory_budget_bytes: 64 * 1024,
+                ..Default::default()
+            },
+            Instant::now(),
+        );
+        let baseline_memory = EvaluationMemory::new(&baseline).expect("owner");
+        let measured = evaluate_source_argument(
+            &row,
+            &expression,
+            &[],
+            &HashMap::new(),
+            None,
+            &baseline,
+            &baseline_memory,
+        )
+        .expect("measure escaped JSON text");
+        assert_eq!(
+            measured,
+            Value::String(serde_json::to_string(&document).expect("JSON text"))
+        );
+        let peak = baseline.peak_query_memory_bytes();
+        assert!(peak > 800);
+        drop(measured);
+        drop(baseline_memory);
+        assert_eq!(baseline.current_query_memory_bytes(), 0);
+        for (budget, accepted) in [(800, false), (peak - 1, false), (peak, true)] {
             let controls = QueryExecutionControls::from_limits(
                 &crate::config::CassieRuntimeLimits {
                     query_memory_budget_bytes: budget,

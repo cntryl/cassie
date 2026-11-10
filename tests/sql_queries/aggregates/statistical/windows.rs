@@ -25,6 +25,32 @@ const REGRESSION: [&str; 12] = [
     "regr_avgy",
 ];
 
+#[test]
+fn should_build_unfiltered_window_calls_from_the_public_ast() {
+    // Arrange
+    use cassie::sql::ast::WindowFunctionCall;
+    let call = WindowFunctionCall {
+        name: "var_pop".to_owned(),
+        args: Vec::new(),
+        filter: None,
+        partition_by: Vec::new(),
+        order_by: Vec::new(),
+        frame: None,
+    };
+    let legacy = r#"{"name":"var_pop","args":[],"partition_by":[],"order_by":[],"frame":null}"#;
+
+    // Act
+    let decoded: WindowFunctionCall = serde_json::from_str(legacy).expect("legacy window call");
+    let encoded = serde_json::to_value(&call).expect("unfiltered window encoding");
+    let WindowFunctionCall { name, args, .. } = &call;
+
+    // Assert
+    assert_eq!(name, "var_pop");
+    assert!(args.is_empty());
+    assert!(decoded.filter.is_none());
+    assert!(encoded.get("filter").is_none());
+}
+
 fn number(value: &Value) -> Option<f64> {
     match value {
         Value::Null => None,

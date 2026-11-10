@@ -306,24 +306,28 @@ pub fn trunc(value: &Numeric, scale: i64) -> Numeric {
 }
 
 /// `ceil(numeric)`.
-#[must_use]
-pub fn ceil(value: &Numeric) -> Numeric {
+///
+/// # Errors
+/// Returns `22003` when the ceiling exceeds the numeric format.
+pub fn ceil(value: &Numeric) -> Result<Numeric, TypeInputError> {
     let truncated = value.truncate_to(0);
     if value.compare(&truncated).is_gt() {
-        add(&truncated, &super::one()).unwrap_or(truncated)
+        add(&truncated, &super::one())
     } else {
-        truncated
+        Ok(truncated)
     }
 }
 
 /// `floor(numeric)`.
-#[must_use]
-pub fn floor(value: &Numeric) -> Numeric {
+///
+/// # Errors
+/// Returns `22003` when the floor exceeds the numeric format.
+pub fn floor(value: &Numeric) -> Result<Numeric, TypeInputError> {
     let truncated = value.truncate_to(0);
     if value.compare(&truncated).is_lt() {
-        subtract(&truncated, &super::one()).unwrap_or(truncated)
+        subtract(&truncated, &super::one())
     } else {
-        truncated
+        Ok(truncated)
     }
 }
 

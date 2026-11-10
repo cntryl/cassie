@@ -2,16 +2,14 @@
 //! These are existing logical carriers, not a claim of native catalog-domain ABI.
 use crate::types::DataType;
 
-pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    Some(
-        fields(name)?
-            .iter()
-            .map(|(name, oid)| ((*name).to_owned(), carrier(*oid)))
-            .collect(),
-    )
-}
+pub(super) type Fields = &'static [(&'static str, u32)];
 
-type Fields = &'static [(&'static str, u32)];
+pub(super) fn build_fields(fields: Fields) -> Vec<(String, DataType)> {
+    fields
+        .iter()
+        .map(|(name, oid)| ((*name).to_owned(), carrier(*oid)))
+        .collect()
+}
 
 const REGISTRIES: &[(&str, Fields)] = &[
     (
@@ -271,7 +269,7 @@ const REGISTRIES: &[(&str, Fields)] = &[
     ),
 ];
 
-fn fields(name: &str) -> Option<Fields> {
+pub(super) fn fields(name: &str) -> Option<Fields> {
     REGISTRIES
         .iter()
         .find_map(|(relation, fields)| (*relation == name).then_some(*fields))

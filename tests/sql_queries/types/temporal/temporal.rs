@@ -38,6 +38,36 @@ fn should_apply_session_timezone_when_timestamptz_input_has_no_zone() {
 }
 
 #[test]
+fn should_use_standard_offset_for_duplicate_posix_designations() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-posix-duplicate-designation",
+        &["SET TIME ZONE 'EEE5:30EEE4:30,M3.2.0,M11.1.0'"],
+    );
+
+    // Act
+    let sql = "SELECT timezone('EEE', TIMESTAMP '2024-07-01 12:00:00') = TIMESTAMPTZ '2024-07-01 17:30:00+00' AND timezone('EEE', TIMESTAMPTZ '2024-07-01 12:00:00+00') = TIMESTAMP '2024-07-01 06:30:00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
+fn should_prefer_duplicate_posix_designation_over_global_abbreviation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-815-posix-global-collision",
+        &["SET TIME ZONE 'CST0CST-1,M3.2.0,M11.1.0'"],
+    );
+
+    // Act
+    let sql = "SELECT timezone('cst', TIMESTAMP '2024-07-01 12:00:00') = TIMESTAMPTZ '2024-07-01 12:00:00+00'";
+
+    // Assert
+    assert_true(&fixture, sql);
+}
+
+#[test]
 fn should_change_local_timestamp_interpretation_with_session_timezone() {
     // Arrange
     let fixture = sql_fixture("issue-814-session-timezone-changes", &[]);

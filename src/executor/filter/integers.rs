@@ -253,6 +253,7 @@ mod review_tests {
                 search_context: None,
                 controls: Some(&below),
                 memory: None,
+                deletion_memory: None,
             },
         );
         let constant = super::super::constants::value(
@@ -272,6 +273,7 @@ mod review_tests {
                 search_context: None,
                 controls: Some(&below),
                 memory: None,
+                deletion_memory: None,
             },
         );
         // Assert

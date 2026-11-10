@@ -16,9 +16,14 @@ use crate::types::Value;
 
 use super::{check_timeout, QueryError};
 
+mod admitted;
 mod aggregate;
 mod exists;
 mod keys;
+#[cfg(test)]
+mod keys_owner_tests;
+mod stable_order;
+use admitted::AdmittedWindowBuffer;
 use keys::{
     compare_window_sort_keys, window_peer_key, window_sort_key, WindowSortKey, WindowSortPart,
 };
@@ -65,7 +70,7 @@ fn apply_scalar_window_functions(
     let mut rows = batch::flatten_batches(batches);
     let _rows_memory = context
         .controls
-        .reserve_query_memory(batch_rows_bytes(&rows))?;
+        .reserve_query_memory(batch_rows_bytes(&rows, context.controls)?)?;
     for (window_index, function, alias) in windows {
         let output_name = crate::executor::projection::window_value_key(window_index);
         apply_single_window(
@@ -82,6 +87,13 @@ fn apply_scalar_window_functions(
 
 type PhaseEvaluator<'a> =
     dyn Fn(&BatchRow, &crate::sql::ast::Expr) -> Result<Value, QueryError> + 'a;
+type AggregatePhaseEvaluator<'a> = dyn Fn(&BatchRow, &crate::sql::ast::Expr, &filter::EvaluationMemory) -> Result<Value, QueryError>
+    + 'a;
+
+struct PhaseEvaluators<'a> {
+    ordinary: &'a PhaseEvaluator<'a>,
+    aggregate: &'a AggregatePhaseEvaluator<'a>,
+}
 
 #[derive(Clone, Copy)]
 struct WindowExecutionContext<'a> {
@@ -90,7 +102,7 @@ struct WindowExecutionContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     session: Option<&'a CassieSession>,
     controls: &'a QueryExecutionControls,
-    evaluate: Option<&'a PhaseEvaluator<'a>>,
+    evaluate: Option<&'a PhaseEvaluators<'a>>,
     output_memory: Option<&'a filter::EvaluationMemory>,
 }
 
@@ -159,15 +171,24 @@ fn apply_single_window(
     Ok(())
 }
 
-fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
-    rows.iter()
-        .map(|row| {
-            serde_json::to_vec(row.entries())
-                .map(|bytes| bytes.len())
-                .unwrap_or_default()
-        })
-        .sum::<usize>()
-        .saturating_add(batch::row_type_bytes(rows))
+fn batch_rows_bytes(
+    rows: &[BatchRow],
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    let mut bytes = 0;
+    for row in rows {
+        controls.check_interruption()?;
+        let size = super::aggregate_exec::window_row_entry_bytes(row.entries(), controls)?;
+        bytes = add_window_row_bytes(bytes, size)?;
+    }
+    controls.check_interruption()?;
+    let metadata = batch::row_type_bytes_controlled(rows, controls)?;
+    controls.check_interruption()?;
+    add_window_row_bytes(bytes, metadata)
+}
+
+fn add_window_row_bytes(left: usize, right: usize) -> Result<usize, QueryError> {
+    crate::executor::retained_memory::add(left, right).map_err(Into::into)
 }
 
 fn window_partition_bytes(partitions: &KeyedMap<SemanticKey, Vec<usize>>) -> usize {
@@ -312,34 +333,32 @@ fn sort_partition(
     indices: &mut [usize],
     context: &WindowExecutionContext<'_>,
 ) -> Result<(), QueryError> {
-    let mut keyed = indices
-        .iter()
-        .map(|index| {
-            window_sort_key(&rows[*index], &function.order_by, context).map(|key| (key, *index))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let key_bytes = keyed
-        .iter()
-        .map(|(key, _)| {
-            std::mem::size_of::<WindowSortKey>()
-                .saturating_add(key.tie_key.len())
-                .saturating_add(
-                    key.parts
-                        .len()
-                        .saturating_mul(std::mem::size_of::<WindowSortPart>()),
-                )
-                .saturating_add(
-                    key.parts
-                        .iter()
-                        .map(|part| part.value.estimated_bytes())
-                        .sum::<usize>(),
-                )
-        })
-        .sum();
-    let _keys_memory = context.controls.reserve_query_memory(key_bytes)?;
-    keyed.sort_by(|(left, _), (right, _)| compare_window_sort_keys(left, right));
-    for (target, (_, index)) in indices.iter_mut().zip(keyed) {
-        *target = index;
+    sort_partition_observing(rows, function, indices, context, |_| {})
+}
+
+fn sort_partition_observing(
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    indices: &mut [usize],
+    context: &WindowExecutionContext<'_>,
+    mut observe_key: impl FnMut(usize),
+) -> Result<(), QueryError> {
+    let mut keyed = AdmittedWindowBuffer::new(indices.len(), context.controls)?;
+    for (position, index) in indices.iter().enumerate() {
+        check_timeout(context.controls)?;
+        let key = window_sort_key(&rows[*index], &function.order_by, context)?;
+        keyed.values.push((key, *index));
+        observe_key(position);
+        check_timeout(context.controls)?;
+    }
+    let order = stable_order::order_by(keyed.values.len(), context.controls, |left, right| {
+        Ok(compare_window_sort_keys(
+            &keyed.values[left].0,
+            &keyed.values[right].0,
+        ))
+    })?;
+    for (target, position) in indices.iter_mut().zip(&order.values) {
+        *target = keyed.values[*position].1;
     }
     Ok(())
 }
@@ -469,6 +488,19 @@ fn framed_window_arg_value(
     window_arg_value(Some(indices[*target]), rows, function, context)
 }
 
+struct FramePositions {
+    positions: Vec<usize>,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+
+impl std::ops::Deref for FramePositions {
+    type Target = [usize];
+
+    fn deref(&self) -> &Self::Target {
+        &self.positions
+    }
+}
+
 fn frame_positions(
     position: usize,
     indices: &[usize],
@@ -476,7 +508,8 @@ fn frame_positions(
     function: &WindowFunctionCall,
     frame: &WindowFrame,
     context: &WindowExecutionContext<'_>,
-) -> Result<Vec<usize>, QueryError> {
+) -> Result<FramePositions, QueryError> {
+    context.controls.check_interruption()?;
     let bounds = match frame.unit {
         WindowFrameUnit::Rows => frame_row_bounds(position, indices.len(), frame),
         WindowFrameUnit::Groups => {
@@ -487,11 +520,22 @@ fn frame_positions(
         }
     };
     let Some((start, end)) = bounds else {
-        return Ok(Vec::new());
+        return Ok(FramePositions {
+            positions: Vec::new(),
+            _memory: context.controls.reserve_query_memory(0)?,
+        });
     };
+    let count = end
+        .checked_sub(start)
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(|| {
+            crate::app::CassieError::ResourceLimit("window frame size overflow".into())
+        })?;
+    let admission = context.controls.reserve_query_memory(0)?;
+    let (mut positions, memory) = crate::runtime::owned_memory::try_reserve_vec(count, &admission)?;
     let current_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
-    let mut positions = Vec::new();
     for candidate in start..=end {
+        context.controls.check_interruption()?;
         let is_current = candidate == position;
         let is_peer =
             window_peer_key(&rows[indices[candidate]], &function.order_by, context)? == current_key;
@@ -503,8 +547,27 @@ fn frame_positions(
         } {
             positions.push(candidate);
         }
+        #[cfg(test)]
+        frame_resource_tests::after_candidate();
     }
-    Ok(positions)
+    context.controls.check_interruption()?;
+    Ok(FramePositions {
+        positions,
+        _memory: memory,
+    })
+}
+
+struct PeerGroups {
+    groups: Vec<(usize, usize)>,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+
+impl std::ops::Deref for PeerGroups {
+    type Target = [(usize, usize)];
+
+    fn deref(&self) -> &Self::Target {
+        &self.groups
+    }
 }
 
 fn peer_groups(
@@ -512,21 +575,31 @@ fn peer_groups(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     context: &WindowExecutionContext<'_>,
-) -> Result<Vec<(usize, usize)>, QueryError> {
-    let mut groups = Vec::new();
+) -> Result<PeerGroups, QueryError> {
+    context.controls.check_interruption()?;
+    let admission = context.controls.reserve_query_memory(0)?;
+    let (mut groups, memory) =
+        crate::runtime::owned_memory::try_reserve_vec(indices.len(), &admission)?;
     let mut start = 0;
     for position in 1..indices.len() {
+        context.controls.check_interruption()?;
         let previous = window_peer_key(&rows[indices[position - 1]], &function.order_by, context)?;
         let current = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
         if previous != current {
             groups.push((start, position - 1));
             start = position;
         }
+        #[cfg(test)]
+        frame_resource_tests::after_candidate();
     }
+    context.controls.check_interruption()?;
     if !indices.is_empty() {
         groups.push((start, indices.len() - 1));
     }
-    Ok(groups)
+    Ok(PeerGroups {
+        groups,
+        _memory: memory,
+    })
 }
 
 fn frame_group_bounds(
@@ -847,7 +920,7 @@ fn evaluate_window_expr(
     context: &WindowExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     if let Some(evaluate) = context.evaluate {
-        return evaluate(row, expression);
+        return (evaluate.ordinary)(row, expression);
     }
     filter::evaluate_expr_value(
         row,
@@ -864,7 +937,14 @@ fn evaluate_window_expr(
 mod typed_tests;
 
 #[cfg(test)]
+mod frame_resource_tests;
+
+#[cfg(test)]
 mod qualification_tests;
 
 #[cfg(test)]
 mod statistical_tests;
+
+#[cfg(test)]
+#[path = "window_exec/row_size_tests.rs"]
+mod row_size_tests;

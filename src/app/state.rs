@@ -23,7 +23,9 @@ pub struct Cassie {
     pub(crate) metadata_write_catalog: Catalog,
     /// Every alias of a controlled descriptor catalog retains its admitted owner.
     pub(crate) catalog_owner: Option<Arc<crate::catalog::ControlledCatalogSnapshot>>,
-    pub(crate) catalog_publication: Arc<parking_lot::RwLock<()>>,
+    /// Read recursion lets post-commit maintenance re-enter a statement's
+    /// retained publication snapshot while a writer is waiting.
+    pub(crate) catalog_publication: Arc<parking_lot::RecursiveRwLock<()>>,
     pub(crate) transaction_unique_waits: Arc<super::TransactionUniqueWaits>,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
     pub(crate) runtime: Arc<RuntimeState>,

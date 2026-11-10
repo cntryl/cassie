@@ -20,11 +20,31 @@ mod boolean;
 mod collection_json;
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
+mod group_size;
+
+pub(super) fn window_row_entry_bytes(
+    values: &[(String, Value)],
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    group_size::json_bytes_controlled(values, controls)
+}
+
+#[cfg(test)]
+pub(super) fn cancel_next_window_row_count(cancel: crate::runtime::QueryCancellationHandle) {
+    group_size::cancel_next_chunk(cancel);
+}
+
+#[cfg(test)]
+pub(super) fn clear_next_window_row_count() {
+    group_size::clear_next_chunk();
+}
+
 #[path = "aggregate_exec/interval_aggregate.rs"]
 mod interval_aggregate;
 #[path = "aggregate_exec/modifiers.rs"]
 mod modifiers;
 mod ordered_set;
+mod output_owner;
 mod output_types;
 mod regression;
 mod retained_change;
@@ -127,41 +147,68 @@ fn aggregate_query_batches_inner(
     aggregate_query_batches_serial(rows, &specs, context)
 }
 
+#[cfg(test)]
+thread_local! {
+    static SERIAL_GROUP_MUTATION_CANCEL: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+    static PARTIAL_GROUP_MUTATION_CANCEL: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+type SerialGroup = (Vec<(String, Value)>, Vec<BatchRow>);
+
+struct SerialGroups {
+    groups: KeyedMap<SemanticKey, SerialGroup>,
+    memory: GroupMemory,
+}
+
 fn aggregate_query_batches_serial(
     rows: Vec<BatchRow>,
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
-    let mut groups = KeyedMap::<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>::new(Some(
-        context.controls,
-    ))?;
-    let mut group_memory = GroupMemory::new(context.controls)?;
+    let mut owned = SerialGroups {
+        groups: KeyedMap::new(Some(context.controls))?,
+        memory: GroupMemory::new(context.controls)?,
+    };
 
     for row in rows {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
         let signature = aggregate_typed_group_signature(&group_values, &row, context)?;
-        let mut added_bytes = group_memory::serial_row_bytes(&row);
-        let group = match groups.entry(signature)? {
+        let mut added_bytes = group_memory::serial_row_bytes(&row, context.controls)?;
+        let group = match owned.groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
-                added_bytes = added_bytes
-                    .saturating_add(group_memory::serial_group_bytes(entry.key(), &group_values));
+                added_bytes = added_bytes.saturating_add(group_memory::serial_group_bytes(
+                    entry.key(),
+                    &group_values,
+                    context.controls,
+                )?);
                 entry.insert((group_values, Vec::new()))
             }
         };
         group.1.push(row);
-        group_memory.add(added_bytes)?;
+        #[cfg(test)]
+        SERIAL_GROUP_MUTATION_CANCEL.with(|slot| {
+            if let Some(cancel) = slot.borrow_mut().take() {
+                cancel.cancel();
+            }
+        });
+        check_timeout(context.controls)?;
+        owned.memory.add(added_bytes)?;
     }
 
-    if groups.is_empty() && context.plan.group_by.is_empty() {
+    if owned.groups.is_empty() && context.plan.group_by.is_empty() {
         let signature = SemanticKey::default();
-        group_memory.add(group_memory::serial_group_bytes(&signature, &[]))?;
-        groups.insert(signature, (Vec::new(), Vec::new()))?;
+        owned.memory.add(group_memory::serial_group_bytes(
+            &signature,
+            &[],
+            context.controls,
+        )?)?;
+        owned.groups.insert(signature, (Vec::new(), Vec::new()))?;
     }
 
-    let mut out = Vec::with_capacity(groups.len());
-    for (_signature, (group_values, group_rows)) in groups.into_sorted_entries()? {
+    let mut out = Vec::with_capacity(owned.groups.len());
+    for (_signature, (group_values, group_rows)) in owned.groups.into_sorted_entries()? {
         check_timeout(context.controls)?;
         let mut output = collection_json::OutputRow::new(group_values, specs, context.controls)?;
         for spec in specs {
@@ -170,13 +217,24 @@ fn aggregate_query_batches_serial(
         }
         out.push(output.finish());
     }
-    drop(group_memory);
-
+    let out = output_owner::retain_outputs(out, owned.memory, Vec::new(), context.controls)?;
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
 }
 
 /// Fallback reason recorded when a merged aggregate state requires row order.
 const AGGREGATE_ROW_ORDER_FALLBACK: &str = "aggregate-state-requires-row-order";
+
+#[cfg(test)]
+thread_local! {
+    static MERGED_GROUP_MUTATION_CANCEL: std::cell::RefCell<Option<crate::runtime::QueryCancellationHandle>> = const { std::cell::RefCell::new(None) };
+}
+
+// The map must retire before the reservations that cover its groups.
+struct MergedGroups {
+    groups: KeyedMap<SemanticKey, PartialAggregateGroup>,
+    partition_memory: Vec<GroupMemory>,
+    merged_memory: GroupMemory,
+}
 
 fn merge_partial_aggregations(
     cassie: &Cassie,
@@ -189,21 +247,32 @@ fn merge_partial_aggregations(
     check_timeout(context.controls)?;
     let partitions = partials.len();
     let input_rows = rows.len();
-    let mut merged = KeyedMap::<SemanticKey, PartialAggregateGroup>::new(Some(context.controls))?;
     // Worker reservations stay alive until the merged output is built: groups
     // moved into `merged` are still accounted by the partition that built
     // them, so only growth that happens during the merge is charged here.
-    let mut partition_memory = Vec::with_capacity(partitions);
-    let mut merged_memory = GroupMemory::new(context.controls)?;
+    let mut owned = MergedGroups {
+        groups: KeyedMap::<SemanticKey, PartialAggregateGroup>::new(Some(context.controls))?,
+        partition_memory: Vec::with_capacity(partitions),
+        merged_memory: GroupMemory::new(context.controls)?,
+    };
     for partial in partials {
         check_timeout(context.controls)?;
-        partition_memory.push(partial.memory);
+        owned.partition_memory.push(partial.memory);
         for (signature, group) in partial.groups.into_sorted_entries()? {
             check_timeout(context.controls)?;
-            match merged.entry(signature)? {
+            match owned.groups.entry(signature)? {
                 Entry::Occupied(mut entry) => {
                     let change = entry.get_mut().merge(&group)?;
-                    merged_memory.add(change.after.saturating_sub(change.before))?;
+                    #[cfg(test)]
+                    MERGED_GROUP_MUTATION_CANCEL.with(|slot| {
+                        if let Some(cancellation) = slot.borrow_mut().take() {
+                            cancellation.cancel();
+                        }
+                    });
+                    check_timeout(context.controls)?;
+                    owned
+                        .merged_memory
+                        .add(change.after.saturating_sub(change.before))?;
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(group);
@@ -212,23 +281,28 @@ fn merge_partial_aggregations(
         }
     }
 
-    if merged.is_empty() && context.plan.group_by.is_empty() {
+    if owned.groups.is_empty() && context.plan.group_by.is_empty() {
         let signature = SemanticKey::default();
         let group = PartialAggregateGroup::new(Vec::new(), specs);
-        merged_memory.add(group_memory::partial_group_bytes(&signature, &group))?;
-        merged.insert(signature, group)?;
+        owned.merged_memory.add(group_memory::partial_group_bytes(
+            &signature,
+            &group,
+            context.controls,
+        )?)?;
+        owned.groups.insert(signature, group)?;
     }
 
-    if merged
+    if owned
+        .groups
         .values()
         .any(PartialAggregateGroup::requires_row_order)
     {
         return Ok(None);
     }
 
-    let group_count = merged.len();
+    let group_count = owned.groups.len();
     let mut out = Vec::with_capacity(group_count);
-    for (_signature, group) in merged.into_sorted_entries()? {
+    for (_signature, group) in owned.groups.into_sorted_entries()? {
         check_timeout(context.controls)?;
         let mut values = group.group_values;
         for (spec, accumulator) in specs.iter().zip(group.accumulators) {
@@ -239,8 +313,12 @@ fn merge_partial_aggregations(
         }
         out.push(BatchRow::new(values));
     }
-    drop(merged_memory);
-    drop(partition_memory);
+    let out = output_owner::retain_outputs(
+        out,
+        owned.merged_memory,
+        owned.partition_memory,
+        context.controls,
+    )?;
 
     check_timeout(context.controls)?;
     cassie
@@ -285,34 +363,44 @@ fn aggregate_partition(
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<PartialAggregation, QueryError> {
-    let mut groups = PartialGroups::new(Some(context.controls))?;
-    let mut group_memory = GroupMemory::new(context.controls)?;
+    let mut owned = PartialAggregation {
+        groups: PartialGroups::new(Some(context.controls))?,
+        memory: GroupMemory::new(context.controls)?,
+    };
     #[cfg(test)]
     let mut processed_rows = 0;
     for row in chunk {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(row, context)?;
         let signature = aggregate_typed_group_signature(&group_values, row, context)?;
-        let group = match groups.entry(signature)? {
+        let group = match owned.groups.entry(signature)? {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let group = PartialAggregateGroup::new(group_values, specs);
-                group_memory.add(group_memory::partial_group_bytes(entry.key(), &group))?;
+                owned.memory.add(group_memory::partial_group_bytes(
+                    entry.key(),
+                    &group,
+                    context.controls,
+                )?)?;
                 entry.insert(group)
             }
         };
         let change = group.update(row, specs, context)?;
-        group_memory.resize(change.before, change.after)?;
+        #[cfg(test)]
+        PARTIAL_GROUP_MUTATION_CANCEL.with(|slot| {
+            if let Some(cancel) = slot.borrow_mut().take() {
+                cancel.cancel();
+            }
+        });
+        check_timeout(context.controls)?;
+        owned.memory.resize(change.before, change.after)?;
         #[cfg(test)]
         if let Some(observer) = context.after_partition_row {
             processed_rows += 1;
             observer(processed_rows);
         }
     }
-    Ok(PartialAggregation {
-        groups,
-        memory: group_memory,
-    })
+    Ok(owned)
 }
 
 fn aggregate_group_values(
@@ -386,6 +474,12 @@ fn parallel_aggregation_eligibility(
         .any(|spec| spec.function.is_distinct() || !spec.function.order_by.is_empty())
     {
         return Err("aggregate-local-distinct-or-order");
+    }
+    if specs
+        .iter()
+        .any(|spec| statistical::uses_explicit_float(&spec.function))
+    {
+        return Err("explicit-float-statistical-row-order");
     }
     if plan
         .projection
@@ -544,7 +638,7 @@ fn evaluate_aggregate(
 ) -> Result<AggregateOutput, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if ordered_set::is_ordered_set(function) {
-        return ordered_set::evaluate(function, rows, context).map(AggregateOutput::from_value);
+        return ordered_set::evaluate(function, rows, context);
     }
     if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
         matches!(
@@ -577,7 +671,7 @@ fn evaluate_aggregate(
             )
         })
     {
-        AggregateAccumulator::evaluate(function, rows, context).map(AggregateOutput::from_value)
+        AggregateAccumulator::evaluate_owned(function, rows, context)
     } else {
         Ok(AggregateOutput::from_value(Value::Null))
     }

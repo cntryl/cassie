@@ -70,6 +70,8 @@ include!("../expressions/aggregate_query/semantics.rs");
 
 include!("statistical/aggregate_query/semantics.rs");
 
+include!("statistical/aggregate_query/float_variance.rs");
+
 include!("json/aggregate_query/nulls.rs");
 
 include!("strings/aggregate_query/resources.rs");

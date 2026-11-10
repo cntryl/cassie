@@ -33,7 +33,7 @@ pub(super) fn evaluate<'a>(
         name: name.to_owned(),
         ..FunctionCall::default()
     };
-    let mut accumulator = AggregateAccumulator::new(&aggregate);
+    let mut accumulator = AggregateAccumulator::new_with_arguments(&aggregate, &function.args);
     let mut retained = controls.reserve_query_memory(accumulator.retained_bytes())?;
     for row in rows {
         controls.check_interruption()?;

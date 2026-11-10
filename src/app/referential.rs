@@ -75,7 +75,15 @@ impl Cassie {
     ) -> (Vec<String>, bool) {
         let mut collections = Vec::new();
         let mut referential = false;
-        for collection in session.transaction_write_collections() {
+        let schema_collections = session
+            .transaction_storage_overlay()
+            .lock()
+            .schema_write_collections();
+        for collection in session
+            .transaction_write_collections()
+            .into_iter()
+            .chain(schema_collections)
+        {
             let linked = self.referential_write_collections(&collection);
             referential |= linked.len() > 1;
             collections.extend(linked);

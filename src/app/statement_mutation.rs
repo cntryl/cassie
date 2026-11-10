@@ -6,8 +6,22 @@ use crate::runtime::QueryExecutionControls;
 
 use super::{Cassie, CassieError, CassieSession, StatementMutationBatch, TransactionRowChange};
 
+#[cfg(test)]
+#[path = "statement_mutation_tests.rs"]
+mod tests;
+
+#[path = "statement_mutation_maintenance.rs"]
+mod maintenance;
+
+struct CommittedCollection {
+    collection: String,
+    relation_id: u64,
+    row_delta: i64,
+    changed_ids: Vec<String>,
+}
+
 pub(super) struct CommittedWriteBatch {
-    changed_collections: Vec<(String, i64, Vec<String>)>,
+    changed_collections: Vec<CommittedCollection>,
 }
 
 impl Cassie {
@@ -73,6 +87,11 @@ impl Cassie {
         transactional_ddl: Option<(&str, &crate::midge::adapter::StorageOverlay)>,
     ) -> Result<CommittedWriteBatch, CassieError> {
         let mut writes = transaction_write_batches(staging);
+        if let Some((database, overlay)) = transactional_ddl {
+            // A staged DROP already removes this relation's name and rows from
+            // the transactional overlay; skip earlier row batches for it.
+            writes.retain(|collection, _| !overlay.drops_collection(collection, database));
+        }
         if writes.is_empty() {
             check_publication_controls(controls)?;
             if let Some((database, overlay)) = transactional_ddl {
@@ -137,7 +156,12 @@ impl Cassie {
             self.runtime
                 .record_projection_write_batch(collection.clone(), &report.stats);
             if report_has_changes(&report.stats) {
-                changed_collections.push((collection, report.row_delta, report.changed_ids));
+                changed_collections.push(CommittedCollection {
+                    collection,
+                    relation_id: report.relation_id,
+                    row_delta: report.row_delta,
+                    changed_ids: report.changed_ids,
+                });
             }
             latest_epoch = latest_epoch.max(report.data_epoch);
         }
@@ -157,29 +181,18 @@ impl Cassie {
     ) {
         committed
             .changed_collections
-            .sort_by(|left, right| left.0.cmp(&right.0));
+            .sort_by(|left, right| left.collection.cmp(&right.collection));
         committed
             .changed_collections
-            .dedup_by(|left, right| left.0 == right.0);
+            .dedup_by(|left, right| left.collection == right.collection);
         let fallback_controls = controls
             .is_none()
             .then(|| self.runtime.query_controls(std::time::Instant::now()));
         let controls = controls
             .or(fallback_controls.as_ref())
             .expect("provided or fallback query controls");
-        for (collection, row_delta, changed_ids) in committed.changed_collections {
-            let maintenance = self.midge.refresh_document_maintenance_after_commit(
-                &collection,
-                row_delta,
-                &changed_ids,
-            );
-            if maintenance.is_ok() {
-                let _ = self.refresh_projection_metadata(&collection);
-            }
-            let _ =
-                crate::executor::refresh_rollups_for_source_external(self, &collection, controls);
-            let _ = crate::executor::mark_source_projections_stale_external(self, &collection);
-            let _ = crate::executor::sync_derived_maintenance_debt_external(self, &collection);
+        for collection in committed.changed_collections {
+            let _ = self.finish_committed_collection(&collection, controls);
         }
     }
 }

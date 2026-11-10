@@ -139,6 +139,50 @@ fn should_parse_create_partial_index_statement() {
 }
 
 #[test]
+fn should_parse_partial_index_after_storage_options() {
+    // Arrange
+    let sql = "CREATE INDEX idx_docs_active_options ON docs (title) WITH (fillfactor = 80) WHERE status = 'active'";
+
+    // Act
+    let parsed = parse_statement(sql).expect("parse storage options and partial predicate");
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+    assert_eq!(
+        statement.options.get("fillfactor").map(String::as_str),
+        Some("80")
+    );
+    assert!(statement.predicate.is_some());
+}
+
+#[test]
+fn should_bound_index_option_list_before_following_clauses() {
+    // Arrange
+    let quoted = "CREATE INDEX idx_docs_quoted ON docs (title) WITH (case_sensitive = ')') WHERE status = 'active'";
+    let malformed = [
+        "CREATE INDEX idx_docs_open ON docs (title) WITH (fillfactor = 80 WHERE status = 'active'",
+        "CREATE INDEX idx_docs_junk ON docs (title) WITH (fillfactor = 80) junk",
+    ];
+
+    // Act
+    let parsed = parse_statement(quoted).expect("quoted parenthesis remains in the option");
+    let rejected = malformed.map(parse_statement);
+
+    // Assert
+    let QueryStatement::CreateIndex(statement) = parsed.statement else {
+        panic!("expected create index statement");
+    };
+    assert_eq!(
+        statement.options.get("case_sensitive").map(String::as_str),
+        Some(")")
+    );
+    assert!(statement.predicate.is_some());
+    assert!(rejected.into_iter().all(|result| result.is_err()));
+}
+
+#[test]
 fn should_parse_create_expression_index_statement() {
     // Arrange
     let sql = "CREATE INDEX idx_docs_lower_title ON docs USING btree (lower(title))";

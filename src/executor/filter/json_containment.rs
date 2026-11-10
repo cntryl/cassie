@@ -8,6 +8,15 @@ use crate::types::extended::TypedOperator;
 #[path = "json_containment_walk.rs"]
 mod walk;
 
+pub(super) fn evaluate_nested(
+    candidate: &str,
+    required: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+    after_scalar: &mut impl FnMut(bool),
+) -> Result<bool, QueryError> {
+    walk::evaluate_nested(candidate, required, controls, after_scalar)
+}
+
 pub(super) const fn handles(op: &BinaryOp) -> bool {
     matches!(
         op.typed_operator(),
@@ -108,7 +117,11 @@ impl JsonKind {
 }
 
 fn kind(value: &RawValue) -> JsonKind {
-    match value.get().trim_start().as_bytes().first() {
+    kind_text(value.get())
+}
+
+fn kind_text(value: &str) -> JsonKind {
+    match value.trim_start().as_bytes().first() {
         Some(b'{') => JsonKind::Object,
         Some(b'[') => JsonKind::Array,
         Some(b'"') => JsonKind::String,
@@ -122,3 +135,31 @@ fn kind(value: &RawValue) -> JsonKind {
 #[cfg(test)]
 #[path = "json_containment_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "json_containment_string_tests.rs"]
+mod string_tests;
+
+#[cfg(test)]
+#[path = "json_containment_number_tests.rs"]
+mod number_tests;
+
+#[cfg(test)]
+#[path = "json_containment_root_object_tests.rs"]
+mod root_object_tests;
+
+#[cfg(test)]
+#[path = "json_containment_pair_tests.rs"]
+mod pair_tests;
+
+#[cfg(test)]
+#[path = "json_containment_nested_object_tests.rs"]
+mod nested_object_tests;
+
+#[cfg(test)]
+#[path = "json_containment_array_pair_tests.rs"]
+mod array_pair_tests;
+
+#[cfg(test)]
+#[path = "json_containment_raw_token_tests.rs"]
+mod raw_token_tests;

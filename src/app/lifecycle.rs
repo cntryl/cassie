@@ -21,6 +21,24 @@ impl Cassie {
         Self::new_with_midge_and_config(midge, runtime_config)
     }
 
+    /// Creates an instance with explicit local Midge storage in `data_dir`.
+    ///
+    /// Storage environment variables do not override this explicit mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when storage or configured providers cannot initialize.
+    pub fn new_local_with_data_dir_and_config(
+        data_dir: impl AsRef<Path>,
+        runtime_config: CassieRuntimeConfig,
+    ) -> Result<Self, CassieError> {
+        let midge = Arc::new(Midge::new_strict_with_data_dir_and_default_database(
+            data_dir,
+            &runtime_config.database,
+        )?);
+        Self::new_with_midge_and_config(midge, runtime_config)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -82,7 +100,7 @@ impl Cassie {
             metadata_write_catalog: catalog.clone(),
             catalog_owner: None,
             catalog,
-            catalog_publication: Arc::new(parking_lot::RwLock::new(())),
+            catalog_publication: Arc::new(parking_lot::RecursiveRwLock::new(())),
             transaction_unique_waits: Arc::new(super::TransactionUniqueWaits::default()),
             embedding_provider,
             runtime,

@@ -3,6 +3,12 @@
 //! `timestamp.c` and the bundled IANA tz database.
 use super::TypeInputError;
 
+#[path = "temporal/binary_date_time.rs"]
+pub(crate) mod binary_date_time;
+
+#[path = "temporal/binary_timestamp.rs"]
+pub(crate) mod binary_timestamp;
+
 #[path = "temporal/calendar.rs"]
 pub mod calendar;
 #[path = "temporal/decode.rs"]
@@ -249,11 +255,64 @@ pub fn send_interval(value: &Interval) -> Vec<u8> {
 /// `timetz_recv` frame: time (i64), zone seconds west (i32).
 ///
 /// # Errors
-/// Returns a message for a frame of the wrong length.
+/// Returns a message for a frame of the wrong length, an out-of-range time,
+/// or an out-of-range zone displacement.
 pub fn receive_timetz(bytes: &[u8]) -> Result<TimeTz, String> {
-    let frame = fixed::<12>(bytes, "timetz")?;
-    let time = i64::from_be_bytes(frame[..8].try_into().map_err(|_| "timetz")?);
-    let zone = i32::from_be_bytes(frame[8..].try_into().map_err(|_| "timetz")?);
+    receive_timetz_checked(bytes).map_err(|error| error.public_message().to_owned())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TimeTzBinaryError {
+    InvalidFrame,
+    TimeOutOfRange,
+    ZoneOutOfRange,
+}
+
+impl std::fmt::Display for TimeTzBinaryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.wire_message())
+    }
+}
+
+impl std::error::Error for TimeTzBinaryError {}
+
+impl TimeTzBinaryError {
+    pub(crate) const fn sqlstate(self) -> &'static str {
+        match self {
+            Self::InvalidFrame => "08P01",
+            Self::TimeOutOfRange => "22008",
+            Self::ZoneOutOfRange => "22009",
+        }
+    }
+
+    pub(crate) const fn public_message(self) -> &'static str {
+        match self {
+            Self::InvalidFrame => "invalid binary timetz frame",
+            Self::TimeOutOfRange => "time out of range",
+            Self::ZoneOutOfRange => "time zone displacement out of range",
+        }
+    }
+
+    pub(crate) const fn wire_message(self) -> &'static str {
+        match self {
+            Self::InvalidFrame => "insufficient data left in message",
+            _ => self.public_message(),
+        }
+    }
+}
+
+pub(crate) fn receive_timetz_checked(bytes: &[u8]) -> Result<TimeTz, TimeTzBinaryError> {
+    let frame: [u8; 12] = bytes
+        .try_into()
+        .map_err(|_| TimeTzBinaryError::InvalidFrame)?;
+    let time = i64::from_be_bytes(frame[..8].try_into().expect("time frame width"));
+    let zone = i32::from_be_bytes(frame[8..].try_into().expect("zone frame width"));
+    if !(0..=86_400_000_000).contains(&time) {
+        return Err(TimeTzBinaryError::TimeOutOfRange);
+    }
+    if !(-57_599..=57_599).contains(&zone) {
+        return Err(TimeTzBinaryError::ZoneOutOfRange);
+    }
     Ok(TimeTz { time, zone })
 }
 
@@ -267,6 +326,46 @@ pub fn send_timetz(value: &TimeTz) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::{parse_date, parse_interval, parse_timestamp, parse_timestamptz, TemporalSession};
+
+    #[test]
+    fn should_validate_public_timetz_binary_receive_boundaries() {
+        // Arrange
+        let frame = |time: i64, zone: i32| {
+            [time.to_be_bytes().as_slice(), zone.to_be_bytes().as_slice()].concat()
+        };
+        let valid = [(0, 0), (86_400_000_000, -57_599), (0, 57_599)];
+        let invalid = [
+            (-1, 0, "time out of range"),
+            (86_400_000_001, 0, "time out of range"),
+            (0, -57_600, "time zone displacement out of range"),
+            (0, 57_600, "time zone displacement out of range"),
+            (0, i32::MIN, "time zone displacement out of range"),
+            (0, i32::MAX, "time zone displacement out of range"),
+            (-1, i32::MIN, "time out of range"),
+        ];
+        // Act / Assert
+        for (time, zone) in valid {
+            let decoded = super::receive_timetz(&frame(time, zone)).expect("valid");
+            // Assert
+            assert_eq!((decoded.time, decoded.zone), (time, zone));
+        }
+        for length in [0, 11, 13] {
+            assert_eq!(
+                super::receive_timetz(&vec![0; length]).expect_err("invalid frame"),
+                "invalid binary timetz frame"
+            );
+        }
+        for (time, zone, message) in invalid {
+            let bytes = frame(time, zone);
+            assert_eq!(super::receive_timetz(&bytes).expect_err("invalid"), message);
+            assert_eq!(
+                crate::types::extended::ExtendedType::TimeTz { precision: None }
+                    .receive_binary(&bytes)
+                    .expect_err("invalid extended receive"),
+                message
+            );
+        }
+    }
 
     #[test]
     fn should_parse_temporal_text_with_postgresql_sqlstates() {

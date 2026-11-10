@@ -2,6 +2,10 @@
 use serde_json::Value;
 use std::cmp::Ordering;
 
+#[cfg(test)]
+#[path = "json_order_controlled_tests.rs"]
+mod controlled_tests;
+
 pub(super) fn evaluate(
     left: &super::ScalarValue,
     op: crate::sql::ast::RowComparisonOp,
@@ -31,6 +35,48 @@ pub(super) fn evaluate(
         RowComparisonOp::Gt => ordering.is_gt(),
         RowComparisonOp::Gte => !ordering.is_lt(),
     }))
+}
+
+pub(super) fn evaluate_controlled(
+    left: &super::ScalarValue,
+    op: crate::sql::ast::RowComparisonOp,
+    right: &super::ScalarValue,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<super::ScalarValue, super::QueryError> {
+    use super::ScalarValue;
+    use crate::sql::ast::RowComparisonOp;
+    let left_null = matches!(left, ScalarValue::Null);
+    let right_null = matches!(right, ScalarValue::Null);
+    if left_null || right_null {
+        return Ok(match op {
+            RowComparisonOp::IsDistinctFrom => ScalarValue::Bool(left_null != right_null),
+            RowComparisonOp::IsNotDistinctFrom => ScalarValue::Bool(left_null == right_null),
+            _ => ScalarValue::Null,
+        });
+    }
+    let (left, right) = left
+        .as_str()
+        .zip(right.as_str())
+        .ok_or_else(|| super::QueryError::General("invalid JSONB comparison input".into()))?;
+    let ordering = compare_controlled(left, right, controls)?
+        .or_else(|| compare(left, right))
+        .ok_or_else(|| super::QueryError::General("invalid JSONB comparison input".into()))?;
+    Ok(ScalarValue::Bool(match op {
+        RowComparisonOp::Eq | RowComparisonOp::IsNotDistinctFrom => ordering.is_eq(),
+        RowComparisonOp::NotEq | RowComparisonOp::IsDistinctFrom => !ordering.is_eq(),
+        RowComparisonOp::Lt => ordering.is_lt(),
+        RowComparisonOp::Lte => !ordering.is_gt(),
+        RowComparisonOp::Gt => ordering.is_gt(),
+        RowComparisonOp::Gte => !ordering.is_lt(),
+    }))
+}
+
+pub(super) fn compare_controlled(
+    left: &str,
+    right: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<Ordering>, crate::app::CassieError> {
+    crate::runtime::accounted::json_arena::compare_jsonb_candidate(left, right, controls)
 }
 
 pub(super) fn compare(left: &str, right: &str) -> Option<Ordering> {

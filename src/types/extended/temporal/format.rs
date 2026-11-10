@@ -3,8 +3,20 @@ use super::calendar::{
     date2j, days_in_month, iso_week, iso_week_to_julian, iso_year, iso_year_day, j2date, j2day,
     Fields, USECS_PER_SEC,
 };
-use super::zone::offset_abbreviation;
 use crate::types::extended::TypeInputError;
+
+#[path = "format_zone_catalog.rs"]
+mod catalog;
+#[path = "format_clock.rs"]
+mod clock;
+#[path = "format_fraction.rs"]
+mod fraction;
+#[path = "format_interval.rs"]
+mod interval;
+#[path = "format_zone.rs"]
+mod zone;
+use super::zone::AbbreviationSet;
+pub(crate) use catalog::{ZoneAbbreviation, ZoneRule};
 
 const MONTHS: [&str; 12] = [
     "January",
@@ -140,6 +152,7 @@ fn case_like(spelling: &str, word: &str) -> String {
 }
 
 fn ordinal_suffix(value: i64, upper: bool) -> &'static str {
+    let value = value.unsigned_abs();
     let suffix = if (11..=13).contains(&(value % 100)) {
         "th"
     } else {
@@ -180,6 +193,15 @@ fn era_year(year: i32, interval: bool) -> i64 {
 /// `to_char` for a timestamp, timestamptz, date or interval.
 #[must_use]
 pub fn to_char(moment: &Moment, template: &str, zone_name: &str) -> String {
+    to_char_with_hour(moment, template, zone_name, i64::from(moment.fields.hour))
+}
+
+pub(crate) fn to_char_with_hour(
+    moment: &Moment,
+    template: &str,
+    zone_name: &str,
+    hour: i64,
+) -> String {
     let mut out = String::new();
     for node in parse_template(template) {
         match node {
@@ -190,7 +212,7 @@ pub fn to_char(moment: &Moment, template: &str, zone_name: &str) -> String {
                 fill,
                 ordinal,
             } => {
-                let (text, value) = render_field(moment, keyword, &spelling, fill, zone_name);
+                let (text, value) = render_field(moment, keyword, &spelling, fill, zone_name, hour);
                 out.push_str(&text);
                 if let (Some(upper), Some(value)) = (ordinal, value) {
                     out.push_str(ordinal_suffix(value, upper));
@@ -207,52 +229,6 @@ fn padded(text: &str, fill: bool, width: usize) -> String {
     } else {
         format!("{text:<width$}")
     }
-}
-
-fn render_clock_field(
-    moment: &Moment,
-    keyword: &str,
-    spelling: &str,
-    fill: bool,
-) -> Option<(String, Option<i64>)> {
-    let fields = moment.fields;
-    let hour = i64::from(fields.hour);
-    let numeric = |value: i64, width: usize| (number(value, width, fill), Some(value));
-    Some(match keyword {
-        "hh" | "hh12" => {
-            let twelve = if moment.is_interval {
-                hour % 12
-            } else {
-                (hour + 11) % 12 + 1
-            };
-            numeric(twelve, 2)
-        }
-        "hh24" => numeric(hour, 2),
-        "mi" => numeric(i64::from(fields.minute), 2),
-        "ss" => numeric(i64::from(fields.second), 2),
-        "ms" => numeric(fields.micros / 1000, 3),
-        "us" => numeric(fields.micros, 6),
-        "ff1" | "ff2" | "ff3" | "ff4" | "ff5" | "ff6" => {
-            let digits = usize::from(keyword.as_bytes()[2] - b'0');
-            let scaled = fields.micros / 10_i64.pow(u32::try_from(6 - digits).unwrap_or(0));
-            numeric(scaled, digits)
-        }
-        "ssss" | "sssss" => numeric(
-            hour * 3600 + i64::from(fields.minute) * 60 + i64::from(fields.second),
-            0,
-        ),
-        "am" | "pm" | "a.m." | "p.m." => {
-            let pm = hour % 24 >= 12;
-            let text = match (keyword.len() > 2, pm) {
-                (false, false) => "am",
-                (false, true) => "pm",
-                (true, false) => "a.m.",
-                (true, true) => "p.m.",
-            };
-            (case_like(spelling, text), None)
-        }
-        _ => return None,
-    })
 }
 
 fn render_name_field(
@@ -272,8 +248,16 @@ fn render_name_field(
                 (padded(&case_like(spelling, name), fill, 9), None)
             }
         }
+        "rm" if moment.is_interval && fields.year == 0 && fields.month == 0 => {
+            (String::new(), None)
+        }
         "rm" => {
-            let roman = ROMAN[usize::try_from(fields.month - 1).unwrap_or(0).min(11)];
+            let index = if moment.is_interval {
+                interval::roman_month(fields)
+            } else {
+                usize::try_from(fields.month - 1).unwrap_or(0).min(11)
+            };
+            let roman = ROMAN[index];
             (padded(&case_like(spelling, roman), fill, 4), None)
         }
         "tz" => (
@@ -286,7 +270,7 @@ fn render_name_field(
         "of" => (
             moment
                 .zone_east
-                .map(offset_abbreviation)
+                .map(|east| zone::format_offset(east, fill))
                 .unwrap_or_default(),
             None,
         ),
@@ -320,8 +304,9 @@ fn render_field(
     spelling: &str,
     fill: bool,
     zone_name: &str,
+    hour: i64,
 ) -> (String, Option<i64>) {
-    if let Some(rendered) = render_clock_field(moment, keyword, spelling, fill)
+    if let Some(rendered) = clock::render_clock_field(moment, keyword, spelling, fill, hour)
         .or_else(|| render_name_field(moment, keyword, spelling, fill, zone_name))
     {
         return rendered;
@@ -343,7 +328,9 @@ fn render_field(
         }
         "y,yyy" => (format!("{},{:03}", year / 1000, year % 1000), Some(year)),
         "yyyy" => numeric(year, 4),
+        "yyy" if moment.is_interval => interval::year_tail(year, 1000, 3, fill),
         "yyy" => numeric(year % 1000, 3),
+        "yy" if moment.is_interval => interval::year_tail(year, 100, 2, fill),
         "yy" => numeric(year % 100, 2),
         "y" => numeric(year % 10, 1),
         "iyyy" | "iyy" | "iy" | "i" => {
@@ -365,26 +352,35 @@ fn render_field(
                 (padded(&case_like(spelling, name), fill, 9), None)
             }
         }
+        "ddd" if moment.is_interval => interval::span_field(fields, false, fill),
         "ddd" => numeric(julian() - date2j(fields.year, 1, 1) + 1, 3),
         "iddd" => numeric(
             i64::from(iso_year_day(fields.year, fields.month, fields.day)),
             3,
         ),
+        "dd" if moment.is_interval && fields.day < 0 && !fill => {
+            (format!("{:02}", fields.day), Some(i64::from(fields.day)))
+        }
         "dd" => numeric(i64::from(fields.day), 2),
         "d" => numeric(i64::from(j2day(julian())) + 1, 1),
         "id" => {
             let day = i64::from(j2day(julian()));
             numeric(if day == 0 { 7 } else { day }, 1)
         }
+        "w" if moment.is_interval => numeric(i64::from(fields.day.wrapping_sub(1) / 7 + 1), 1),
         "w" => numeric(i64::from((fields.day - 1) / 7 + 1), 1),
+        "ww" if moment.is_interval => interval::span_field(fields, true, fill),
         "ww" => numeric((julian() - date2j(fields.year, 1, 1)) / 7 + 1, 2),
         "iw" => numeric(
             i64::from(iso_week(fields.year, fields.month, fields.day)),
             2,
         ),
+        "q" if moment.is_interval && fields.month == 0 => (String::new(), None),
         "q" => numeric(i64::from((fields.month - 1) / 3 + 1), 1),
         "cc" => {
-            let century = if fields.year > 0 {
+            let century = if moment.is_interval {
+                i64::from(fields.year) / 100
+            } else if fields.year > 0 {
                 (i64::from(fields.year) + 99) / 100
             } else {
                 -((99 - (i64::from(fields.year) - 1)) / 100)
@@ -449,7 +445,8 @@ struct Builder {
     pm: Option<bool>,
     twelve_hour: bool,
     bc: bool,
-    zone_east: Option<i32>,
+    zone: zone::ZoneFields,
+    ff_precision: Option<u8>,
 }
 
 /// Parses `input` against a `to_date`/`to_timestamp` template.
@@ -457,6 +454,39 @@ struct Builder {
 /// # Errors
 /// Returns `22007` for unmatched input and `22008` for out-of-range fields.
 pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
+    let (mut parsed, _, abbreviation) =
+        parse_with_precision(input, template, AbbreviationSet::Default)?;
+    if let Some(abbreviation) = abbreviation {
+        parsed.zone_east = match abbreviation.rule {
+            ZoneRule::Fixed(east) => Some(east),
+            ZoneRule::Dynamic(name) => {
+                let local = super::calendar::fields_to_timestamp(&parsed.fields, None)
+                    .ok_or_else(|| field_overflow("timestamp out of range"))?;
+                let zone =
+                    super::zone::lookup_zone(name).ok_or_else(|| invalid_value(name, "tz"))?;
+                let offset = zone.offset_for_local(local);
+                let instant = local.saturating_sub(i64::from(offset) * USECS_PER_SEC);
+                let found =
+                    zone.abbreviation_offset_with_checks(abbreviation.name, instant, &mut || {
+                        Ok::<(), std::convert::Infallible>(())
+                    });
+                Some(
+                    found
+                        .unwrap_or_else(|never| match never {})
+                        .map_or(offset, |(east, _)| east),
+                )
+            }
+        };
+    }
+    Ok(parsed)
+}
+
+/// Internal precision metadata leaves the public parsed-fields API unchanged.
+pub(crate) fn parse_with_precision(
+    input: &str,
+    template: &str,
+    abbreviations: AbbreviationSet,
+) -> Result<(Parsed, Option<u8>, Option<ZoneAbbreviation>), TypeInputError> {
     let nodes = parse_template(template);
     let chars: Vec<char> = input.chars().collect();
     let mut cursor = 0;
@@ -468,7 +498,7 @@ pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
                     nodes[index + 1..].iter().find(|node| {
                         !matches!(node, Node::Literal(text) if text.chars().all(char::is_whitespace))
                     }),
-                    Some(Node::Field { keyword: "tzh" | "of", .. })
+                    Some(Node::Field { keyword: "tzh" | "of" | "tz", .. })
                 );
                 for expected in text.chars() {
                     if expected.is_whitespace() || expected.is_ascii_punctuation() {
@@ -499,11 +529,16 @@ pub fn parse(input: &str, template: &str) -> Result<Parsed, TypeInputError> {
                     &mut cursor,
                     nodes.get(index + 1),
                     &mut builder,
+                    abbreviations,
                 )?;
             }
         }
     }
-    builder.finish()
+    let precision = builder.ff_precision;
+    let abbreviation = builder.zone.abbreviation();
+    builder
+        .finish()
+        .map(|parsed| (parsed, precision, abbreviation))
 }
 
 fn read_digits(
@@ -573,19 +608,16 @@ fn parse_zone_or_fraction(
             "of" | "tzh" => {
                 let negative = chars.get(*cursor) == Some(&'-');
                 let (hours, _) = read_digits(chars, cursor, 2, keyword)?;
-                let mut minutes = 0;
+                builder.zone.set_hours(hours.abs(), negative)?;
                 if keyword == "of" && chars.get(*cursor) == Some(&':') {
                     *cursor += 1;
-                    minutes = read_digits(chars, cursor, 2, keyword)?.0;
+                    let (minutes, _) = read_digits(chars, cursor, 2, keyword)?;
+                    builder.zone.set_minutes(minutes)?;
                 }
-                let sign = if negative { -1 } else { 1 };
-                builder.zone_east = Some(narrow(sign * (hours.abs() * 3600 + minutes * 60))?);
             }
             "tzm" => {
                 let (minutes, _) = read_digits(chars, cursor, 2, keyword)?;
-                let east = builder.zone_east.unwrap_or(0);
-                let sign = if east < 0 { -1 } else { 1 };
-                builder.zone_east = Some(east + sign * narrow(minutes * 60)?);
+                builder.zone.set_minutes(minutes)?;
             }
             "us" | "ms" | "ff1" | "ff2" | "ff3" | "ff4" | "ff5" | "ff6" => {
                 let digits_limit = match keyword {
@@ -593,15 +625,13 @@ fn parse_zone_or_fraction(
                     "us" => 6,
                     other => usize::from(other.as_bytes()[2] - b'0'),
                 };
-                let limit = if !adjacent && matches!(keyword, "ms" | "us") {
-                    chars.len()
-                } else {
-                    digits_limit
-                };
+                if keyword.starts_with("ff") {
+                    builder.ff_precision = Some(keyword.as_bytes()[2] - b'0');
+                }
+                let limit = if adjacent { digits_limit } else { chars.len() };
                 let (value, length) = read_digits(chars, cursor, limit, keyword)?;
-                if (keyword == "ms" && !(0..1000).contains(&value))
-                    || (keyword == "us" && !(0..USECS_PER_SEC).contains(&value))
-                {
+                let maximum = if keyword == "ms" { 1000 } else { USECS_PER_SEC };
+                if !(0..maximum).contains(&value) {
                     return Err(field_overflow("date/time field value out of range"));
                 }
                 let scale = if keyword == "ms" { 1000 } else { 1 };
@@ -622,6 +652,7 @@ fn parse_field(
     cursor: &mut usize,
     next: Option<&Node>,
     builder: &mut Builder,
+    abbreviations: AbbreviationSet,
 ) -> Result<(), TypeInputError> {
     let fraction_adjacent = match next {
         Some(Node::Field { keyword, .. }) => !matches!(
@@ -668,57 +699,117 @@ fn parse_field(
             read_name(chars, cursor, &DAYS, keyword == "dy", keyword)?;
         }
         "am" | "pm" | "a.m." | "p.m." => {
-            let rest: String = chars[*cursor..]
-                .iter()
-                .take(4)
-                .collect::<String>()
-                .to_ascii_lowercase();
-            let (pm, length) = if rest.starts_with("pm") {
-                (true, 2)
-            } else if rest.starts_with("am") {
-                (false, 2)
-            } else if rest.starts_with("p.m.") {
-                (true, 4)
-            } else if rest.starts_with("a.m.") {
-                (false, 4)
-            } else {
-                return Err(invalid_value(&rest, keyword));
-            };
-            builder.pm = Some(pm);
-            *cursor += length;
+            parse_meridiem(keyword, chars, cursor, builder)?;
         }
         "ad" | "bc" | "a.d." | "b.c." => {
-            let rest: String = chars[*cursor..]
-                .iter()
-                .take(4)
-                .collect::<String>()
-                .to_ascii_lowercase();
-            builder.bc = rest.starts_with("bc") || rest.starts_with("b.c.");
-            *cursor += if rest.contains('.') { 4 } else { 2 };
+            parse_era(chars, cursor, builder);
         }
         "tz" => {
-            while chars.get(*cursor).is_some_and(char::is_ascii_alphabetic) {
-                *cursor += 1;
-            }
+            parse_timezone(
+                keyword,
+                chars,
+                cursor,
+                fraction_adjacent,
+                builder,
+                abbreviations,
+            )?;
         }
         "rm" => {
-            let rest: String = chars[*cursor..]
-                .iter()
-                .take(4)
-                .collect::<String>()
-                .to_ascii_uppercase();
-            let index = ROMAN
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, roman)| rest.starts_with(**roman))
-                .map(|(index, _)| index)
-                .ok_or_else(|| invalid_value(&rest, keyword))?;
-            *cursor += ROMAN[index].len();
-            builder.month = Some(narrow(i64::try_from(index).unwrap_or(0))? + 1);
+            parse_roman_month(keyword, chars, cursor, builder)?;
         }
         _ => numeric_field(keyword, chars, cursor, limit, builder)?,
     }
+    Ok(())
+}
+
+fn parse_meridiem(
+    keyword: &str,
+    chars: &[char],
+    cursor: &mut usize,
+    builder: &mut Builder,
+) -> Result<(), TypeInputError> {
+    let rest: String = chars[*cursor..]
+        .iter()
+        .take(4)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let (pm, length) = if rest.starts_with("pm") {
+        (true, 2)
+    } else if rest.starts_with("am") {
+        (false, 2)
+    } else if rest.starts_with("p.m.") {
+        (true, 4)
+    } else if rest.starts_with("a.m.") {
+        (false, 4)
+    } else {
+        return Err(invalid_value(&rest, keyword));
+    };
+    builder.pm = Some(pm);
+    *cursor += length;
+    Ok(())
+}
+
+fn parse_era(chars: &[char], cursor: &mut usize, builder: &mut Builder) {
+    let rest: String = chars[*cursor..]
+        .iter()
+        .take(4)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    builder.bc = rest.starts_with("bc") || rest.starts_with("b.c.");
+    *cursor += if rest.contains('.') { 4 } else { 2 };
+}
+
+fn parse_timezone(
+    keyword: &str,
+    chars: &[char],
+    cursor: &mut usize,
+    fraction_adjacent: bool,
+    builder: &mut Builder,
+    abbreviations: AbbreviationSet,
+) -> Result<(), TypeInputError> {
+    if chars.get(*cursor).is_some_and(char::is_ascii_alphabetic) {
+        let (abbreviation, length) =
+            catalog::find(chars.get(*cursor..).unwrap_or_default(), abbreviations).ok_or_else(
+                || {
+                    invalid_value(
+                        &chars
+                            .get(*cursor..)
+                            .unwrap_or_default()
+                            .iter()
+                            .take(16)
+                            .collect::<String>(),
+                        keyword,
+                    )
+                },
+            )?;
+        builder.zone.set_abbreviation(abbreviation);
+        *cursor += length;
+    } else {
+        parse_zone_or_fraction("of", chars, cursor, fraction_adjacent, builder)?;
+    }
+    Ok(())
+}
+
+fn parse_roman_month(
+    keyword: &str,
+    chars: &[char],
+    cursor: &mut usize,
+    builder: &mut Builder,
+) -> Result<(), TypeInputError> {
+    let rest: String = chars[*cursor..]
+        .iter()
+        .take(4)
+        .collect::<String>()
+        .to_ascii_uppercase();
+    let index = ROMAN
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, roman)| rest.starts_with(**roman))
+        .map(|(index, _)| index)
+        .ok_or_else(|| invalid_value(&rest, keyword))?;
+    *cursor += ROMAN[index].len();
+    builder.month = Some(narrow(i64::try_from(index).unwrap_or(0))? + 1);
     Ok(())
 }
 
@@ -838,7 +929,7 @@ impl Builder {
         fields.micros = self.micros;
         Ok(Parsed {
             fields,
-            zone_east: self.zone_east,
+            zone_east: self.zone.offset_east()?,
         })
     }
 }

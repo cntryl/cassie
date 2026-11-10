@@ -4,6 +4,20 @@ use super::{
     DataType, EvalContext, Expr, QueryError, RowAccess, ScalarValue,
 };
 
+#[cfg(test)]
+#[path = "json_cast_move_tests.rs"]
+mod json_move_tests;
+
+#[cfg(test)]
+thread_local! {
+    static JSON_INPUT_POINTER: std::cell::Cell<*const u8> = const { std::cell::Cell::new(std::ptr::null()) };
+}
+
+#[cfg(test)]
+fn last_json_input_pointer() -> *const u8 {
+    JSON_INPUT_POINTER.with(|slot| slot.replace(std::ptr::null()))
+}
+
 pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
@@ -18,8 +32,12 @@ pub(super) fn eval_cast_expr<R: RowAccess + ?Sized>(
         return Ok(value);
     }
     if data_type.is_json() && source_type.is_some_and(DataType::is_json) {
-        let document =
-            json_concat::as_json_document(&eval_scalar_with_context(row, expr, context)?)?;
+        let value = eval_scalar_with_context(row, expr, context)?;
+        #[cfg(test)]
+        if let ScalarValue::Json(text) = &value {
+            JSON_INPUT_POINTER.with(|slot| slot.set(text.as_ptr()));
+        }
+        let document = json_concat::into_json_document(value)?;
         if *data_type == DataType::Jsonb || source_type == Some(&DataType::Jsonb) {
             super::cast_admission::value(&document, data_type, source_type, context)?;
             if let ScalarValue::Json(text) = document {

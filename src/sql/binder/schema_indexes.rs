@@ -8,10 +8,14 @@ use crate::types::DataType;
 
 const MAX_GENERATED_INDEX_IDENTIFIER_BYTES: usize = 63;
 
+#[path = "schema_index_duplicate.rs"]
+mod duplicate;
+
 pub(super) fn bind_create_index(
     mut statement: CreateIndexStatement,
     catalog: &Catalog,
     context: &BindingContext,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<CreateIndexStatement, CassieError> {
     let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
@@ -39,6 +43,7 @@ pub(super) fn bind_create_index(
         }
     };
     if !name.is_empty() && statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
+        duplicate::validate(&statement, catalog, &table, controls)?;
         statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
         statement.name = name;
         return Ok(statement);

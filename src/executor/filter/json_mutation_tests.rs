@@ -22,9 +22,14 @@ fn should_admit_json_formatting_memory_given_small_limits_when_pretty_output_is_
         Instant::now(),
     );
     // Act
-    let denied = evaluate("jsonb_pretty", std::slice::from_ref(&input), Some(&scarce))
-        .expect("pretty function");
-    let accepted = evaluate("jsonb_pretty", &[input], Some(&ample)).expect("pretty function");
+    let denied = evaluate(
+        "jsonb_pretty",
+        std::slice::from_ref(&input),
+        Some(&scarce),
+        None,
+    )
+    .expect("pretty function");
+    let accepted = evaluate("jsonb_pretty", &[input], Some(&ample), None).expect("pretty function");
     // Assert
     assert!(denied
         .expect_err("formatting exceeds budget")
@@ -53,8 +58,9 @@ fn should_release_json_mutation_memory_given_path_errors_and_cancellation_when_q
         Value::String("2".into()),
     ];
     // Act
-    let invalid = evaluate("jsonb_set", &args, Some(&controls)).expect("mutation function");
-    let interrupted = evaluate("jsonb_set", &args, Some(&cancelled)).expect("mutation function");
+    let invalid = evaluate("jsonb_set", &args, Some(&controls), None).expect("mutation function");
+    let interrupted =
+        evaluate("jsonb_set", &args, Some(&cancelled), None).expect("mutation function");
     // Assert
     assert!(invalid.is_err());
     assert!(interrupted

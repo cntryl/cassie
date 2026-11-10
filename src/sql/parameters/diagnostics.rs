@@ -12,6 +12,7 @@ const PENDING_WINDOW_TYPE_COERCION: &str =
     "mixed-type LAG/LEAD default coercion remains pending under #806; use matching value/default types";
 
 const MAX_DECIMAL_DIGITS: usize = (usize::BITS as usize * 30_103) / 100_000 + 1;
+const UNDEFINED_FUNCTION_HINT: &str = "No function matches the given name and argument types. You might need to add explicit type casts.";
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ScalarLiteralDiagnostic {
@@ -128,6 +129,9 @@ pub(crate) enum ParameterSemanticDiagnostic {
         argument_count: usize,
         actual: Option<i32>,
     },
+    ToCharTimeTz {
+        qualified: bool,
+    },
 }
 
 impl ParameterSemanticDiagnostic {
@@ -156,7 +160,9 @@ impl ParameterSemanticDiagnostic {
             | Self::PendingWindowTypeCoercion => "0A000",
             Self::AmbiguousFunction { .. } => "42725",
             Self::DistinctAggregateOrder => "42P10",
-            Self::MissingEquality { .. } | Self::UndefinedFunction { .. } => "42883",
+            Self::MissingEquality { .. }
+            | Self::UndefinedFunction { .. }
+            | Self::ToCharTimeTz { .. } => "42883",
             Self::Inconsistent { .. } | Self::Indeterminate { .. } => "42P08",
             Self::Unresolved { .. } => "42P18",
             Self::ValuesTypes { .. }
@@ -171,6 +177,13 @@ impl ParameterSemanticDiagnostic {
         self.write_message(&mut message)
             .expect("String formatting cannot fail");
         message
+    }
+
+    pub(crate) const fn hint(self) -> Option<&'static str> {
+        match self {
+            Self::ToCharTimeTz { .. } => Some(UNDEFINED_FUNCTION_HINT),
+            _ => None,
+        }
     }
 
     pub(crate) fn message_capacity(self) -> usize {
@@ -227,6 +240,7 @@ impl ParameterSemanticDiagnostic {
                         |oid| type_name(oid).len(),
                     )
             }
+            Self::ToCharTimeTz { qualified } => timetz_message(qualified).len(),
         }
     }
 
@@ -295,6 +309,7 @@ impl ParameterSemanticDiagnostic {
                 }
                 output.write_str(") does not exist")
             }
+            Self::ToCharTimeTz { qualified } => output.write_str(timetz_message(qualified)),
         }
     }
 
@@ -317,6 +332,7 @@ impl ParameterSemanticDiagnostic {
             | Self::Unresolved { .. }
             | Self::BooleanOperand { .. }
             | Self::UndefinedFunction { .. }
+            | Self::ToCharTimeTz { .. }
             | Self::AmbiguousFunction { .. }
             | Self::PendingNameInput
             | Self::PendingDatumInput
@@ -346,6 +362,14 @@ impl ParameterSemanticDiagnostic {
             )?;
         }
         Ok(())
+    }
+}
+
+const fn timetz_message(qualified: bool) -> &'static str {
+    if qualified {
+        "function pg_catalog.to_char(time with time zone, unknown) does not exist"
+    } else {
+        "function to_char(time with time zone, unknown) does not exist"
     }
 }
 

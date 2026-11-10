@@ -30,6 +30,7 @@ pub(crate) fn evaluate_resolving_exists<R: RowAccess + ?Sized>(
             exists: Some(context.resolver),
             controls: None,
             memory: None,
+            deletion_memory: None,
         },
     )
 }

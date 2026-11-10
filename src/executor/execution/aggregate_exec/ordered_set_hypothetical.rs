@@ -15,17 +15,15 @@ use crate::sql::functions::FunctionId;
 use crate::types::Value;
 
 use super::super::{check_timeout, AggregateExecutionContext, QueryError};
+use super::inputs::RetainedInputs;
 
-struct DirectInputs {
-    arguments: Vec<Value>,
-    _capacity: QueryMemoryReservation,
-    retained: QueryMemoryReservation,
-}
+type DirectInputs = RetainedInputs<Value>;
+type OrderedInputs = RetainedInputs<Vec<Value>>;
 
-struct OrderedInputs {
-    rows: Vec<Vec<Value>>,
-    _capacity: QueryMemoryReservation,
-    _key_capacity: QueryMemoryReservation,
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) enum InputProgress {
+    Direct,
+    Ordered,
 }
 
 #[derive(Clone, Copy)]
@@ -40,22 +38,38 @@ pub(super) fn evaluate(
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
+    evaluate_observed(function, rows, context, |_| {})
+}
+
+pub(super) fn evaluate_observed(
+    function: &FunctionCall,
+    rows: &[BatchRow],
+    context: &AggregateExecutionContext<'_>,
+    mut observe_retained: impl FnMut(InputProgress),
+) -> Result<Value, QueryError> {
     let order_by = &function.order_by;
     if order_by.is_empty() || function.args.len() != order_by.len() {
         return Err(QueryError::General(
             "hypothetical-set aggregates require matching direct arguments and WITHIN GROUP ORDER BY keys".into(),
         ));
     }
-    let mut direct = collect_direct_inputs(function, rows, context)?;
-    let inputs = collect_ordered_inputs(function, rows, context, &mut direct.retained)?;
-    let counts = rank_counts(&inputs.rows, &direct.arguments, order_by, context)?;
-    rank_result(function, inputs.rows.len(), counts)
+    let mut direct = collect_direct_inputs(function, rows, context, &mut observe_retained)?;
+    let inputs = collect_ordered_inputs(
+        function,
+        rows,
+        context,
+        &mut direct.retained,
+        &mut observe_retained,
+    )?;
+    let counts = rank_counts(&inputs.values, &direct.values, order_by, context)?;
+    rank_result(function, inputs.values.len(), counts)
 }
 
 fn collect_direct_inputs(
     function: &FunctionCall,
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
+    observe_retained: &mut impl FnMut(InputProgress),
 ) -> Result<DirectInputs, QueryError> {
     let empty_row = BatchRow::new(Vec::new());
     let direct_row = rows.first().unwrap_or(&empty_row);
@@ -66,20 +80,24 @@ fn collect_direct_inputs(
         .ok_or_else(|| {
             CassieError::ResourceLimit("hypothetical-set argument capacity overflow".into())
         })?;
-    let mut direct_capacity = context
-        .controls
-        .reserve_query_memory(direct_capacity_bytes)?;
-    let mut direct = Vec::new();
+    let mut direct = RetainedInputs {
+        values: Vec::new(),
+        capacity: context
+            .controls
+            .reserve_query_memory(direct_capacity_bytes)?,
+        retained: context.controls.reserve_query_memory(0)?,
+    };
     direct
+        .values
         .try_reserve_exact(function.args.len())
         .map_err(|error| {
             CassieError::ResourceLimit(format!(
                 "unable to allocate hypothetical-set arguments: {error}"
             ))
         })?;
-    let actual_direct_capacity = direct.capacity();
+    let actual_direct_capacity = direct.values.capacity();
     if actual_direct_capacity > function.args.len() {
-        direct_capacity.try_grow(
+        direct.capacity.try_grow(
             (actual_direct_capacity - function.args.len())
                 .checked_mul(size_of::<Value>())
                 .ok_or_else(|| {
@@ -87,7 +105,6 @@ fn collect_direct_inputs(
                 })?,
         )?;
     }
-    let mut retained = context.controls.reserve_query_memory(0)?;
     for expression in &function.args {
         let temporary = super::expression_memory(
             Some(expression),
@@ -104,15 +121,13 @@ fn collect_direct_inputs(
             context.session,
             None,
         )?;
-        retained.try_grow(value_clone_bytes(&value)?)?;
-        direct.push(value);
+        direct.retained.try_grow(value_clone_bytes(&value)?)?;
+        direct.values.push(value);
+        observe_retained(InputProgress::Direct);
+        check_timeout(context.controls)?;
         drop(temporary);
     }
-    Ok(DirectInputs {
-        arguments: direct,
-        _capacity: direct_capacity,
-        retained,
-    })
+    Ok(direct)
 }
 
 fn collect_ordered_inputs(
@@ -120,11 +135,14 @@ fn collect_ordered_inputs(
     rows: &[BatchRow],
     context: &AggregateExecutionContext<'_>,
     retained: &mut QueryMemoryReservation,
+    observe_retained: &mut impl FnMut(InputProgress),
 ) -> Result<OrderedInputs, QueryError> {
     let order_by = &function.order_by;
-    let mut inputs = Vec::new();
-    let mut capacity = context.controls.reserve_query_memory(0)?;
-    let mut key_storage = context.controls.reserve_query_memory(0)?;
+    let mut inputs = RetainedInputs {
+        values: Vec::new(),
+        capacity: context.controls.reserve_query_memory(0)?,
+        retained: context.controls.reserve_query_memory(0)?,
+    };
     for row in rows {
         check_timeout(context.controls)?;
         if !super::super::state_input::row_filter_matches(function, row, context)? {
@@ -137,14 +155,14 @@ fn collect_ordered_inputs(
                 .ok_or_else(|| {
                     CassieError::ResourceLimit("hypothetical-set key capacity overflow".into())
                 })?;
-        key_storage.try_grow(key_capacity_bytes)?;
+        inputs.retained.try_grow(key_capacity_bytes)?;
         let mut key = Vec::new();
         key.try_reserve_exact(order_by.len()).map_err(|error| {
             CassieError::ResourceLimit(format!("unable to allocate hypothetical-set key: {error}"))
         })?;
         let actual_key_capacity = key.capacity();
         if actual_key_capacity > order_by.len() {
-            key_storage.try_grow(
+            inputs.retained.try_grow(
                 (actual_key_capacity - order_by.len())
                     .checked_mul(size_of::<Value>())
                     .ok_or_else(|| {
@@ -169,19 +187,21 @@ fn collect_ordered_inputs(
             key.push(value);
             drop(temporary);
         }
-        super::grow_values(&mut inputs, &mut capacity, "hypothetical-set row")?;
-        inputs.push(key);
+        super::grow_values(
+            &mut inputs.values,
+            &mut inputs.capacity,
+            "hypothetical-set row",
+        )?;
+        inputs.values.push(key);
+        observe_retained(InputProgress::Ordered);
+        check_timeout(context.controls)?;
     }
     check_timeout(context.controls)?;
-    super::try_sort_by(&mut inputs, context.controls, |left, right| {
+    super::try_sort_by(&mut inputs.values, context.controls, |left, right| {
         compare_rows(left, right, order_by)
     })?;
     check_timeout(context.controls)?;
-    Ok(OrderedInputs {
-        rows: inputs,
-        _capacity: capacity,
-        _key_capacity: key_storage,
-    })
+    Ok(inputs)
 }
 
 fn rank_counts(

@@ -1,6 +1,8 @@
 mod bound_read;
 pub(crate) use bound_read::{BoundReadScope, BoundReadView};
 mod catalog_overlay;
+mod copy_owner;
+pub(crate) use copy_owner::{CopyBindingContext, CopyCommandOwner};
 mod command_catalog;
 pub(crate) use command_catalog::CommandCatalogScope;
 mod savepoints;

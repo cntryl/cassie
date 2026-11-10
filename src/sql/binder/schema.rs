@@ -166,8 +166,9 @@ pub(super) fn bind_create_index(
     statement: crate::sql::ast::CreateIndexStatement,
     catalog: &Catalog,
     context: &BindingContext,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<crate::sql::ast::CreateIndexStatement, CassieError> {
-    schema_indexes::bind_create_index(statement, catalog, context)
+    schema_indexes::bind_create_index(statement, catalog, context, controls)
 }
 
 fn validate_graph_fields(

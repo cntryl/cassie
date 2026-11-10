@@ -145,7 +145,7 @@ impl Cassie {
     pub(super) fn commit_transaction_holding_catalog<'a>(
         &'a self,
         session: &CassieSession,
-        publication: parking_lot::RwLockWriteGuard<'a, ()>,
+        publication: parking_lot::RecursiveRwLockWriteGuard<'a, ()>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
         self.commit_transaction_using_catalog_guard(session, Some(publication), controls)
@@ -154,7 +154,7 @@ impl Cassie {
     fn commit_transaction_using_catalog_guard<'a>(
         &'a self,
         session: &CassieSession,
-        held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+        held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
         let repeatable_write = session.is_repeatable_read_write();
@@ -168,7 +168,7 @@ impl Cassie {
     fn commit_transaction_inner<'a>(
         &'a self,
         session: &CassieSession,
-        held_publication: Option<parking_lot::RwLockWriteGuard<'a, ()>>,
+        held_publication: Option<parking_lot::RecursiveRwLockWriteGuard<'a, ()>>,
         controls: &crate::runtime::QueryExecutionControls,
     ) -> Result<(), CassieError> {
         let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
@@ -187,7 +187,9 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
-        let storage_overlay = session.transaction_storage_overlay_snapshot();
+        let (storage_overlay, _sequence_buffers, _sequence_directory) = session
+            .transaction_storage_overlay_snapshot()
+            .with_sequence_cursors(controls)?;
         let catalog_overlay = session.transaction_catalog_overlay().filter(|catalog| {
             // A detached but untouched catalog is read authority, not a write.
             // Publishing it would overwrite unrelated newer metadata and make
@@ -195,6 +197,9 @@ impl Cassie {
             session.transaction_catalog_base_version() != Some(catalog.version())
                 || !storage_overlay.changes.is_empty()
         });
+        if let Some(catalog) = &catalog_overlay {
+            storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
+        }
         let database = session
             .current_database()
             .unwrap_or(&self.default_database)

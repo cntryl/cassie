@@ -4,14 +4,27 @@ use crate::executor::retained_memory::{add, mul, serialized_json_bytes};
 use crate::sql::functions::{self, json::JsonFunction, FunctionId};
 use crate::{app::CassieError, runtime::QueryExecutionControls};
 
+#[cfg(test)]
+#[path = "json_path_raw_function_tests.rs"]
+mod raw_function_tests;
+
+#[cfg(test)]
+#[path = "json_path_result_owner_tests.rs"]
+mod owner_tests;
+
+#[cfg(test)]
+#[path = "json_path_tree_owner_tests.rs"]
+mod tree_owner_tests;
+
 pub(super) fn evaluate(
     name: &str,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Option<Result<Value, QueryError>> {
     match functions::function(name)?.id {
         FunctionId::Json(JsonFunction::ExtractPath { binary, as_text }) => {
-            Some(extract(args, binary, as_text, controls))
+            Some(extract(args, binary, as_text, controls, owner))
         }
         FunctionId::Json(JsonFunction::PathMatch) => Some(path_match(args, controls)),
         FunctionId::Json(
@@ -22,7 +35,7 @@ pub(super) fn evaluate(
             | JsonFunction::PathExistsTz
             | JsonFunction::PathQueryArrayTz
             | JsonFunction::PathQueryFirstTz),
-        ) => Some(path_function(kind, args, controls)),
+        ) => Some(path_function(kind, args, controls, owner)),
         FunctionId::Json(JsonFunction::SqlExists) => Some(sql_json_exists(args, controls)),
         _ => None,
     }
@@ -32,6 +45,7 @@ fn path_function(
     kind: JsonFunction,
     args: &[Value],
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     if !(2..=4).contains(&args.len()) {
         return Err(QueryError::General(
@@ -105,12 +119,17 @@ fn path_function(
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
-    match result {
-        PathResult::Exists(value) => Ok(Value::Bool(value)),
-        PathResult::Array(values) => Ok(Value::Json(serde_json::Value::Array(values))),
-        PathResult::First(value) => Ok(value.map_or(Value::Null, Value::Json)),
-        PathResult::Match(value) => Ok(value.map_or(Value::Null, Value::Bool)),
-    }
+    drop(path);
+    drop(path_text);
+    drop(variables);
+    drop(document);
+    let value = match result {
+        PathResult::Exists(value) => Value::Bool(value),
+        PathResult::Array(values) => Value::Json(serde_json::Value::Array(values)),
+        PathResult::First(value) => value.map_or(Value::Null, Value::Json),
+        PathResult::Match(value) => value.map_or(Value::Null, Value::Bool),
+    };
+    super::json_result_owner::retain_json_tree(value, reservation, owner, controls)
 }
 
 fn sql_json_exists(
@@ -129,6 +148,7 @@ fn sql_json_exists(
         JsonFunction::PathExists,
         &[document.clone(), path.clone()],
         controls,
+        None,
     ) {
         Ok(value) => Ok(value),
         Err(error) => match policy.to_ascii_lowercase().as_str() {
@@ -355,6 +375,7 @@ fn extract(
     binary: bool,
     as_text: bool,
     controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     if let Some(controls) = controls {
         controls.check_interruption()?;
@@ -394,24 +415,42 @@ fn extract(
         )?,
         mul(expanded.max(8), 8)?,
     )?;
-    let _memory = controls
+    let memory = controls
         .map(|controls| controls.reserve_query_memory(scratch))
         .transpose()?;
     let document = super::json_functions::json_text(&args[0])?;
-    let segments = args[1..].iter().map(|value| match value {
-        Value::String(text) => Some(text.as_str()),
-        _ => None,
-    });
-    let result =
-        super::super::json_extract::evaluate_path(&document, segments, as_text, binary, controls)?;
+    let result = if let (Some(controls), Some(owner)) = (controls, owner) {
+        super::super::json_delete::controlled_function_extraction(
+            &document,
+            &args[1..],
+            as_text,
+            binary,
+            controls,
+            owner,
+        )?
+    } else {
+        let segments = args[1..].iter().map(|value| match value {
+            Value::String(text) => Some(text.as_str()),
+            _ => None,
+        });
+        super::super::json_extract::evaluate_path(&document, segments, as_text, binary, controls)?
+    };
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
-    match result {
-        ScalarValue::Null => Ok(Value::Null),
-        ScalarValue::Str(text) | ScalarValue::Json(text) => Ok(Value::String(text)),
+    drop(document);
+    let value = match result {
+        ScalarValue::Null => Value::Null,
+        ScalarValue::Str(text) | ScalarValue::Json(text) => Value::String(text),
         _ => unreachable!("JSON extraction yields documents, text or NULL"),
-    }
+    };
+    super::json_result_owner::retain_output(
+        value,
+        memory,
+        owner,
+        controls,
+        "JSON path owner uses a different query tracker",
+    )
 }
 
 #[cfg(test)]
@@ -442,8 +481,10 @@ mod tests {
         let scarce = controls(1024);
         let ample = controls(131_072);
         // Act
-        let denied = evaluate("jsonb_extract_path", &input, Some(&scarce)).expect("finite path");
-        let accepted = evaluate("jsonb_extract_path", &input, Some(&ample)).expect("finite path");
+        let denied =
+            evaluate("jsonb_extract_path", &input, Some(&scarce), None).expect("finite path");
+        let accepted =
+            evaluate("jsonb_extract_path", &input, Some(&ample), None).expect("finite path");
         // Assert
         assert!(denied
             .expect_err("decode exceeds budget")
@@ -472,9 +513,10 @@ mod tests {
         cancellation.cancel();
         let input = [Value::String("invalid".into()), Value::String("a".into())];
         // Act
-        let invalid = evaluate("jsonb_extract_path", &input, Some(&controls)).expect("finite path");
+        let invalid =
+            evaluate("jsonb_extract_path", &input, Some(&controls), None).expect("finite path");
         let interrupted =
-            evaluate("jsonb_extract_path", &input, Some(&cancelled)).expect("finite path");
+            evaluate("jsonb_extract_path", &input, Some(&cancelled), None).expect("finite path");
         // Assert
         assert!(invalid.is_err());
         assert!(interrupted
@@ -511,8 +553,10 @@ mod expansion_tests {
         let scarce = controls(8192);
         let ample = controls(131_072);
         // Act
-        let denied = evaluate("jsonb_extract_path", &input, Some(&scarce)).expect("finite path");
-        let accepted = evaluate("jsonb_extract_path", &input, Some(&ample)).expect("finite path");
+        let denied =
+            evaluate("jsonb_extract_path", &input, Some(&scarce), None).expect("finite path");
+        let accepted =
+            evaluate("jsonb_extract_path", &input, Some(&ample), None).expect("finite path");
         // Assert
         assert!(denied
             .expect_err("expanded scratch exceeds budget")

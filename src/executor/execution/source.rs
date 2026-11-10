@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "source_json_keys_chunk_tests.rs"]
+mod source_json_keys_chunk_tests;
+
 #[path = "jsonpath_table.rs"]
 mod jsonpath_table;
 #[cfg(test)]
@@ -353,17 +357,17 @@ pub(super) fn execute_source_query_with_outer_row(
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
     outer_row: Option<&BatchRow>,
-) -> Result<Vec<BatchRow>, QueryError> {
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
     check_timeout(env.controls)?;
     if let Some(rows) = source_pull::try_execute(env, plan, cte_context, outer_row)? {
-        return Ok(rows);
+        return Ok(super::owned_rows::OwnedRows::untracked(rows));
     }
     let started_at = Instant::now();
     if outer_row.is_none() && plan.filter.is_some() {
         if let Some(rows) =
             aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
         {
-            return Ok(rows);
+            return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }
     if let Some(rows) = aggregate_accel::try_execute_column_batch_aggregate(
@@ -374,13 +378,13 @@ pub(super) fn execute_source_query_with_outer_row(
         env.params,
         env.user_functions,
     )? {
-        return Ok(rows);
+        return Ok(super::owned_rows::OwnedRows::untracked(rows));
     }
     if outer_row.is_none() && plan.filter.is_none() {
         if let Some(rows) =
             aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
         {
-            return Ok(rows);
+            return Ok(super::owned_rows::OwnedRows::untracked(rows));
         }
     }
     let (mut batches, text_fields) = load_source_batches(env, plan, cte_context, outer_row)?;
@@ -418,8 +422,14 @@ pub(super) fn execute_source_query_with_outer_row(
     batches = apply_aggregate_phase(&phase_env, batches, plan, cte_context)?;
     batches = phases::window(env, cte_context, batches, plan, search_context.as_ref())?;
     batches = phases::sort(env, cte_context, batches, plan, search_context.as_ref())?;
-    batches = if super::exists_projection::contains(&plan.projection) {
-        exists_projection_phase::apply(env, batches, plan, cte_context, search_context.as_ref())?
+    let batches = if super::exists_projection::contains(&plan.projection) {
+        projection::OwnedExpanded::untracked(exists_projection_phase::apply(
+            env,
+            batches,
+            plan,
+            cte_context,
+            search_context.as_ref(),
+        )?)
     } else {
         apply_projection_phase(
             batches,
@@ -708,7 +718,7 @@ fn apply_projection_phase(
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
-) -> Result<Vec<Batch>, QueryError> {
+) -> Result<projection::OwnedExpanded, QueryError> {
     let grouped_projection = plan_uses_aggregate(plan)
         .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
     let projection = grouped_projection.as_deref().unwrap_or(&plan.projection);
@@ -723,23 +733,27 @@ fn apply_projection_phase(
         user_functions,
         session,
     )?;
-    batches = projection::expand_json_object_keys(batches, projection, controls)?;
-    let _output_memory = output_memory.retain(controls, &mut batches)?;
-    ensure_query_memory_budget(controls, &batches)?;
+    let mut expanded = projection::expand_json_object_keys(batches, projection, controls)?;
+    let _output_memory = output_memory.retain(controls, expanded.batches_mut())?;
+    ensure_query_memory_budget(controls, expanded.batches())?;
     if plan.distinct {
-        batches = distinct_batches(batches, controls)?;
-        ensure_query_memory_budget(controls, &batches)?;
+        expanded.transform(|batches| distinct_batches(batches, controls))?;
+        ensure_query_memory_budget(controls, expanded.batches())?;
     }
-    Ok(batches)
+    Ok(expanded)
 }
 
 fn finalize_plan_rows(
     env: &PhaseExecutionEnv<'_>,
     plan: &LogicalPlan,
     cte_context: &mut CteContext,
-    batches: Vec<Batch>,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let mut rows = batch::flatten_batches(batches);
+    batches: projection::OwnedExpanded,
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
+    let rows = batches.flatten(env.controls)?;
+    if rows.is_tracked() && plan.set.is_none() && plan.limit.is_none() && plan.offset.is_none() {
+        return Ok(rows);
+    }
+    let mut rows = rows.into_legacy();
     if let Some(set) = &plan.set {
         let left_output_names = set_left_output_names(env, plan, &rows);
         let mut right_plan = plan_inspection::logical_plan_from_select(&set.right);
@@ -774,7 +788,11 @@ fn finalize_plan_rows(
         };
         rows = sort::sort_batch_rows_with_controls(rows, &eval, env.controls)?;
     }
-    Ok(slice_rows(rows, plan.offset_value(), plan.limit_value()))
+    Ok(super::owned_rows::OwnedRows::untracked(slice_rows(
+        rows,
+        plan.offset_value(),
+        plan.limit_value(),
+    )))
 }
 
 fn set_left_output_names(

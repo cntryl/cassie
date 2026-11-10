@@ -326,7 +326,16 @@ fn should_preserve_width_bucket_array_boundaries_for_exact_values() {
     let values = scalar_values("issue-813-width-bucket-boundaries", sql);
 
     // Assert
-    assert_eq!(values, vec![Value::Int64(2), Value::Int64(0), Value::Null, Value::Int64(1), Value::Int64(0)]);
+    assert_eq!(
+        values,
+        vec![
+            Value::Int64(2),
+            Value::Int64(0),
+            Value::Null,
+            Value::Int64(1),
+            Value::Int64(0)
+        ]
+    );
 }
 
 #[test]
@@ -339,8 +348,14 @@ fn should_reject_invalid_width_bucket_threshold_arrays() {
     let null_element = fixture.execute("SELECT WIDTH_BUCKET(1, ARRAY[1,NULL])");
 
     // Assert
-    assert!(matches!(&multidimensional, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2202E"), "{multidimensional:?}");
-    assert!(matches!(&null_element, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22004"), "{null_element:?}");
+    assert!(
+        matches!(&multidimensional, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2202E"),
+        "{multidimensional:?}"
+    );
+    assert!(
+        matches!(&null_element, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22004"),
+        "{null_element:?}"
+    );
 }
 
 #[test]
@@ -549,4 +564,249 @@ fn should_repeat_random_sequences_after_reseeding_the_session() {
 
     // Assert
     assert_eq!(first, repeated);
+}
+
+#[test]
+fn should_preserve_numeric_rounding_results_at_extreme_negative_scale() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-extreme-zero-rounding", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT ROUND(5::numeric, -2147483648) = 0::numeric AND TRUNC(-5::numeric, -2147483648) = 0::numeric AND ROUND(5::numeric, -1) = 10::numeric AND ROUND(-5::numeric, -1) = -10::numeric");
+
+    // Assert
+    assert_eq!(
+        result.expect("numeric rounding").rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_bucket_float_values_across_an_overflowing_span() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-float-span", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT WIDTH_BUCKET(0::float8, '-1e308'::float8, '1e308'::float8, 10), WIDTH_BUCKET('5e307'::float8, '-1e308'::float8, '1e308'::float8, 10), WIDTH_BUCKET(0::float8, '1e308'::float8, '-1e308'::float8, 10), WIDTH_BUCKET('-5e307'::float8, '1e308'::float8, '-1e308'::float8, 10)");
+
+    // Assert
+    assert_eq!(
+        result.expect("wide float buckets").rows(),
+        &[vec![
+            Value::Int64(6),
+            Value::Int64(8),
+            Value::Int64(6),
+            Value::Int64(8)
+        ]]
+    );
+}
+
+#[test]
+fn should_reject_float_bucket_bounds_that_differ_only_by_zero_sign() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-signed-zero", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(0::float8, 0::float8, '-0'::float8, 10)",
+        "SELECT WIDTH_BUCKET(0::float8, '-0'::float8, 0::float8, 10)",
+    ];
+
+    for query in queries {
+        // Act
+        let result = fixture.execute(query);
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "lower bound cannot equal upper bound")
+        );
+    }
+}
+
+#[test]
+fn should_reject_four_argument_width_bucket_results_above_int4() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-int4-overflow", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(1::float8, 0::float8, 1::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::float8, 1::float8, 0::float8, 2147483647)",
+        "SELECT WIDTH_BUCKET(1::numeric, 0::numeric, 1::numeric, 2147483647)",
+        "SELECT WIDTH_BUCKET(0::numeric, 1::numeric, 0::numeric, 2147483647)",
+    ];
+
+    for query in queries {
+        // Act
+        let result = fixture.execute(query);
+        let recovered = fixture.execute("SELECT 1");
+
+        // Assert
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22003" && error.message == "integer out of range"),
+            "{query}"
+        );
+        assert_eq!(
+            recovered.expect("session recovery").rows(),
+            &[vec![Value::Int64(1)]]
+        );
+    }
+}
+
+#[test]
+fn should_preserve_width_bucket_error_priority() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-int4-boundary", &[]);
+
+    // Act
+    let valid = fixture.execute("SELECT WIDTH_BUCKET('0.9999999999999999'::float8, 0::float8, 1::float8, 2147483647), WIDTH_BUCKET(0.9999999999::numeric, 0::numeric, 1::numeric, 2147483647), WIDTH_BUCKET('-Infinity'::float8, 0::float8, 1::float8, 2147483647), WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 0) IS NULL");
+    let invalid_count =
+        fixture.execute("SELECT WIDTH_BUCKET('NaN'::float8, 0::float8, 1::float8, 0)");
+
+    // Assert
+    assert_eq!(
+        valid.expect("valid buckets").rows(),
+        &[vec![
+            Value::Int64(i64::from(i32::MAX)),
+            Value::Int64(i64::from(i32::MAX)),
+            Value::Int64(0),
+            Value::Bool(true)
+        ]]
+    );
+    assert!(
+        matches!(invalid_count, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "count must be greater than zero")
+    );
+}
+
+#[test]
+fn should_reject_undefined_width_bucket_count_types_before_null_evaluation() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-count-overload", &[]);
+    let queries = [
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::bigint)",
+        "SELECT WIDTH_BUCKET(0.5::numeric, 0::numeric, 1::numeric, 1::numeric)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::float8)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::real)",
+        "SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 1::bigint)",
+        "SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 2147483648)",
+    ];
+
+    // Act
+    let rejected: Vec<_> = queries.iter().map(|sql| fixture.execute(sql)).collect();
+    let controls = fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::smallint), WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 1::int), WIDTH_BUCKET(2, ARRAY[1, 3])");
+    let qualified = fixture
+        .execute("SELECT pg_catalog.width_bucket(0.5::float8, 0::float8, 1::float8, 1::bigint)");
+
+    // Assert
+    for result in rejected {
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::Execution(message)) if message.starts_with("function width_bucket(") && message.ends_with(" does not exist"))
+        );
+    }
+    assert!(
+        matches!(qualified, Err(cassie::app::CassieError::Execution(message)) if message.contains("width_bucket(") && message.ends_with(" does not exist"))
+    );
+    assert_eq!(
+        controls.expect("valid sibling overloads").rows(),
+        &[vec![Value::Int64(1), Value::Null, Value::Int64(1)]]
+    );
+}
+
+#[test]
+fn should_preserve_width_bucket_resolution_when_a_distinct_arity_routine_is_visible() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-visible-routine", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION width_bucket(x INT) RETURNS INT AS "x""#)
+        .expect("create distinct-arity routine");
+
+    // Act
+    let user_function = fixture.execute("SELECT WIDTH_BUCKET(7)");
+    let builtin =
+        fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::int)");
+    let unsupported_count =
+        fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, 1::bigint)");
+
+    // Assert
+    assert_eq!(user_function.expect("one-argument routine").rows(), &[vec![Value::Int64(7)]]);
+    assert_eq!(builtin.expect("four-argument builtin").rows(), &[vec![Value::Int64(1)]]);
+    assert!(matches!(
+        unsupported_count,
+        Err(cassie::app::CassieError::Execution(message))
+            if message.starts_with("function width_bucket(") && message.ends_with(" does not exist")
+    ));
+}
+
+#[test]
+fn should_coerce_unknown_width_bucket_count_literals_as_int4_before_nulls() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-count-literal", &[]);
+
+    // Act
+    let valid = fixture.execute("SELECT WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, '  +2 '), WIDTH_BUCKET(0.5::numeric, 0::numeric, 1::numeric, '0x2'), WIDTH_BUCKET(0.5::float8, 0::float8, 1::float8, '2_0'), WIDTH_BUCKET(0.5::numeric(2,1), 0::numeric(3,1), 1::numeric(4,1), '0x2')");
+    let bad = fixture.execute("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 'bad')");
+    let overflow =
+        fixture.execute("SELECT WIDTH_BUCKET(NULL::numeric, 0::numeric, 1::numeric, '2147483648')");
+
+    // Assert
+    assert_eq!(
+        valid.expect("coerced counts").rows(),
+        &[vec![
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Int64(11),
+            Value::Int64(2)
+        ]]
+    );
+    assert!(
+        matches!(bad, Err(cassie::app::CassieError::Execution(message)) if message == "invalid input syntax for type integer: \"bad\"")
+    );
+    assert!(
+        matches!(overflow, Err(cassie::app::CassieError::Execution(message)) if message == "value \"2147483648\" is out of range for type integer")
+    );
+}
+
+#[test]
+fn should_validate_width_bucket_count_literal_for_a_visible_distinct_arity_routine() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-literal-visible-routine", &[]);
+    fixture
+        .execute(r#"CREATE FUNCTION width_bucket(x INT) RETURNS INT AS "x""#)
+        .expect("create routine");
+
+    // Act
+    let result = fixture.execute("SELECT WIDTH_BUCKET(NULL::float8, 0::float8, 1::float8, 'bad')");
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(cassie::app::CassieError::Execution(message))
+            if message == "invalid input syntax for type integer: \"bad\""
+    ));
+}
+
+#[test]
+fn should_use_float_width_bucket_for_integer_operands() {
+    // Arrange
+    let fixture = sql_fixture("issue-813-width-bucket-integer-overload", &[]);
+
+    // Act
+    let precision = fixture.execute("SELECT WIDTH_BUCKET(9007199254740993::bigint, 9007199254740992::bigint, 9007199254740994::bigint, 2), WIDTH_BUCKET(9007199254740993::bigint, 9007199254740994::bigint, 9007199254740992::bigint, 2), WIDTH_BUCKET(9007199254740993::numeric, 9007199254740992::bigint, 9007199254740994::bigint, 2), WIDTH_BUCKET(1::smallint, 0::integer, 2::bigint, 2), WIDTH_BUCKET(NULL::bigint, 0::bigint, 1::bigint, 0) IS NULL");
+    let invalid_count = fixture.execute("SELECT WIDTH_BUCKET(0::bigint, 0::bigint, 0::bigint, 0)");
+    let overflow =
+        fixture.execute("SELECT WIDTH_BUCKET(1::bigint, 0::bigint, 1::bigint, 2147483647)");
+
+    // Assert
+    assert_eq!(
+        precision.expect("integer and numeric buckets").rows(),
+        &[vec![
+            Value::Int64(1),
+            Value::Int64(3),
+            Value::Int64(2),
+            Value::Int64(2),
+            Value::Bool(true)
+        ]]
+    );
+    assert!(
+        matches!(invalid_count, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "2201G" && error.message == "count must be greater than zero")
+    );
+    assert!(
+        matches!(overflow, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22003" && error.message == "integer out of range")
+    );
 }

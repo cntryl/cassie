@@ -10,6 +10,10 @@ use crate::types::{DataType, Schema, Value};
 use super::batch::RowAccess;
 use super::semantic::SemanticValue;
 
+pub(super) mod sort_bit;
+pub(super) mod sort_numeric;
+pub(super) mod sort_vector;
+
 pub(super) fn expression_type<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
@@ -49,6 +53,16 @@ pub(super) fn key<R: RowAccess + ?Sized>(
     if let Some(key) = super::search_lineage::extract(row, expr, controls)? {
         return Ok(key);
     }
+    key_after_lineage(row, expr, value, functions, controls)
+}
+
+fn key_after_lineage<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<SemanticValue, crate::app::CassieError> {
     let declared = match expr {
         Expr::Column(name) => row.column_type(name),
         Expr::Cast { data_type, .. } => Some(data_type),
@@ -68,6 +82,75 @@ pub(super) fn key<R: RowAccess + ?Sized>(
         return super::semantic::typed_value(value, inferred.as_ref(), controls);
     }
     Ok(typed_key(value, inferred.as_ref()))
+}
+
+pub(super) fn sort_vector_key<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    expected: &DataType,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(SemanticValue, Option<usize>), crate::app::CassieError> {
+    if let Some(key) = super::search_lineage::extract(row, expr, Some(controls))? {
+        return Ok((key, None));
+    }
+    let matches = match expr {
+        Expr::Column(name) => row.column_type(name) == Some(expected),
+        Expr::Cast { data_type, .. } => data_type == expected,
+        _ => expression_type(row, expr, functions).as_ref() == Some(expected),
+    };
+    if matches {
+        let (key, retained) = sort_vector::build(value, controls)?;
+        return Ok((key, Some(retained)));
+    }
+    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
+}
+
+pub(super) fn sort_numeric_key<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    expected: &DataType,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(SemanticValue, Option<usize>), crate::app::CassieError> {
+    if let Some(key) = super::search_lineage::extract(row, expr, Some(controls))? {
+        return Ok((key, None));
+    }
+    let matches = match expr {
+        Expr::Column(name) => row.column_type(name) == Some(expected),
+        Expr::Cast { data_type, .. } => data_type == expected,
+        _ => expression_type(row, expr, functions).as_ref() == Some(expected),
+    };
+    if matches {
+        let (key, retained) = sort_numeric::build(value, controls)?;
+        return Ok((key, Some(retained)));
+    }
+    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
+}
+
+pub(super) fn sort_bit_key<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    expected: &DataType,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(SemanticValue, Option<usize>), crate::app::CassieError> {
+    if let Some(key) = super::search_lineage::extract(row, expr, Some(controls))? {
+        return Ok((key, None));
+    }
+    let matches = match expr {
+        Expr::Column(name) => row.column_type(name) == Some(expected),
+        Expr::Cast { data_type, .. } => data_type == expected,
+        _ => expression_type(row, expr, functions).as_ref() == Some(expected),
+    };
+    if matches {
+        let (key, retained) = sort_bit::build(value, controls)?;
+        return Ok((key, Some(retained)));
+    }
+    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
 }
 
 fn typed_key(value: &Value, data_type: Option<&DataType>) -> SemanticValue {
@@ -208,34 +291,123 @@ pub(super) fn compare<R: RowAccess + ?Sized>(
     functions: &HashMap<String, FunctionMeta>,
     local_args: Option<&HashMap<String, Value>>,
 ) -> Option<Ordering> {
+    let (left_type, right_type) = comparison_types(row, left, right, functions, local_args)?;
+    let left = array_value(left.1, &left_type)?;
+    let right = array_value(right.1, &right_type)?;
+    crate::executor::filter::compare_sql_arrays(&left, &right)
+}
+
+pub(super) fn compare_with_controls<R: RowAccess + ?Sized>(
+    row: &R,
+    left: (&Expr, &Value),
+    right: (&Expr, &Value),
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Option<Ordering>, crate::app::CassieError> {
+    let (Some(controls), Value::Array(left_array), Value::Array(right_array)) =
+        (controls, left.1, right.1)
+    else {
+        return Ok(compare(row, left, right, functions, local_args));
+    };
+    let Some((left_type, right_type)) = comparison_types(row, left, right, functions, local_args)
+    else {
+        return Ok(None);
+    };
+    if matches!(
+        (&left_type, &right_type),
+        (DataType::Jsonb, DataType::Jsonb)
+    ) {
+        return crate::executor::filter::compare_sql_arrays_controlled(
+            left_array,
+            right_array,
+            controls,
+        );
+    }
+    let left = left_array.clone();
+    let right = right_array.clone();
+    Ok(crate::executor::filter::compare_sql_arrays(&left, &right))
+}
+
+pub(super) enum DirectJsonbArrayComparison {
+    NotApplicable,
+    Unordered,
+    Ordered(Ordering),
+}
+
+pub(super) fn compare_direct_jsonb_arrays<R: RowAccess + ?Sized>(
+    row: &R,
+    left: (&Expr, &crate::types::SqlArray),
+    right: (&Expr, &crate::types::SqlArray),
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<DirectJsonbArrayComparison, crate::app::CassieError> {
     if !row.has_array_types() {
+        return Ok(DirectJsonbArrayComparison::NotApplicable);
+    }
+    let is_jsonb_column = |expr: &Expr| match expr {
+        Expr::Column(name) => {
+            matches!(row.column_type(name), Some(DataType::Array(element)) if matches!(element.as_ref(), DataType::Jsonb))
+        }
+        _ => false,
+    };
+    let left_column = is_jsonb_column(left.0);
+    let right_column = is_jsonb_column(right.0);
+    if !((left_column && (right_column || matches!(right.0, Expr::Param(_))))
+        || (right_column && matches!(left.0, Expr::Param(_))))
+    {
+        return Ok(DirectJsonbArrayComparison::NotApplicable);
+    }
+    if !matches!(
+        comparison_expression_types(row, left.0, right.0, functions, local_args),
+        Some((DataType::Jsonb, DataType::Jsonb))
+    ) {
+        return Ok(DirectJsonbArrayComparison::NotApplicable);
+    }
+    Ok(
+        match crate::executor::filter::compare_sql_arrays_controlled(left.1, right.1, controls)? {
+            Some(ordering) => DirectJsonbArrayComparison::Ordered(ordering),
+            None => DirectJsonbArrayComparison::Unordered,
+        },
+    )
+}
+
+fn comparison_types<R: RowAccess + ?Sized>(
+    row: &R,
+    left: (&Expr, &Value),
+    right: (&Expr, &Value),
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+) -> Option<(DataType, DataType)> {
+    if !row.has_array_types() || matches!(left.1, Value::Null) || matches!(right.1, Value::Null) {
         return None;
     }
-    if matches!(left.1, Value::Null) || matches!(right.1, Value::Null) {
-        return None;
-    }
+    comparison_expression_types(row, left.0, right.0, functions, local_args)
+}
+
+fn comparison_expression_types<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    right: &Expr,
+    functions: &HashMap<String, FunctionMeta>,
+    local_args: Option<&HashMap<String, Value>>,
+) -> Option<(DataType, DataType)> {
     let scope = ComparisonScope { row, local_args };
-    let mut left_type = expression_type(&scope, left.0, functions);
-    let mut right_type = expression_type(&scope, right.0, functions);
-    if matches!(left_type, Some(DataType::Array(_))) && parameter_context(right.0) {
+    let mut left_type = expression_type(&scope, left, functions);
+    let mut right_type = expression_type(&scope, right, functions);
+    if matches!(left_type, Some(DataType::Array(_))) && parameter_context(right) {
         right_type.clone_from(&left_type);
     }
-    if matches!(right_type, Some(DataType::Array(_))) && parameter_context(left.0) {
+    if matches!(right_type, Some(DataType::Array(_))) && parameter_context(left) {
         left_type.clone_from(&right_type);
-    }
-    if !matches!(left_type, Some(DataType::Array(_)))
-        || !matches!(right_type, Some(DataType::Array(_)))
-    {
-        return None;
     }
     let (Some(DataType::Array(left_type)), Some(DataType::Array(right_type))) =
         (left_type, right_type)
     else {
         return None;
     };
-    let left = array_value(left.1, &left_type)?;
-    let right = array_value(right.1, &right_type)?;
-    crate::executor::filter::compare_sql_arrays(&left, &right)
+    Some((*left_type, *right_type))
 }
 
 fn array_value(value: &Value, element_type: &DataType) -> Option<crate::types::SqlArray> {

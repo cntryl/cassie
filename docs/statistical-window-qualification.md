@@ -88,3 +88,24 @@ reviewed and is not qualified by the earlier checkpoint or the separate bundle
 results. Compilation and tests are deferred until all open work is consolidated;
 the complete ordered gate and final-head hosted checks remain pending. Do not
 describe this as a completed #806 slice until its acceptance criteria are proved.
+
+## Public Rust AST compatibility
+
+`cassie::sql::ast::WindowFunctionCall` is a public struct. Adding its `filter`
+field is a Rust source-breaking change for downstream code that constructs the
+struct with an exhaustive literal or destructures it exhaustively. An unfiltered
+constructor must add `filter: None`; a pattern that does not inspect the filter
+may add `..`. Serde's default only preserves new-reader decoding of old data; it
+does not preserve Rust source compatibility or make old readers safe for filtered
+ASTs. The v0.2 contract retains the explicit field and records this migration
+rather than hiding the predicate in arguments or an unproved sidecar.
+
+The source inventory found three direct in-repository construction sites: the
+parser and two executor test fixtures; each supplies `filter`. This inventory is
+not evidence about downstream consumers. Before qualification, add a downstream
+consumer compile witness for the migrated constructor and pattern, exercise old
+unfiltered and new filtered serialized forms and the index publication/read
+guard, and audit every predicate traversal. Do not claim old-reader support or
+full API qualification from the field's serde attributes. Jev selected this
+explicit contract (0.97; API/reader/traversal lead 0.83); the receipt is
+`target/assembly-review/806-window-public-api-contract-{request,response}.json`.

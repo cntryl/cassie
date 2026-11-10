@@ -21,6 +21,30 @@ use std::time::{Duration, SystemTime};
 /// parallel is never swept out from under itself.
 const STALE_AFTER: Duration = Duration::from_hours(6);
 
+/// An isolated test-owned directory removed after its storage handles close.
+pub struct IsolatedDataDir(std::path::PathBuf);
+
+impl IsolatedDataDir {
+    #[must_use]
+    pub fn new(label: &str) -> Self {
+        sweep_stale_once();
+        Self(std::env::temp_dir().join(format!("cassie-{label}-{}", uuid::Uuid::new_v4())))
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for IsolatedDataDir {
+    fn drop(&mut self) {
+        if !std::thread::panicking() && self.0.exists() {
+            std::fs::remove_dir_all(&self.0).expect("remove isolated test data directory");
+        }
+    }
+}
+
 /// Shared by every suite's data-directory helper.
 const PREFIX: &str = "cassie-";
 

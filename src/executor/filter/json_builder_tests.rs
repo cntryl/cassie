@@ -20,6 +20,7 @@ fn call(
         exists: None,
         controls: Some(controls),
         memory: None,
+        deletion_memory: None,
     };
     evaluate(function, &row, args, context).expect("selected JSON constructor")
 }

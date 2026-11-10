@@ -1,3 +1,9 @@
+#[cfg(test)]
+#[path = "json/controlled_parse.rs"]
+pub(crate) mod controlled_parse;
+#[path = "json/tree_estimate.rs"]
+pub(crate) mod tree_estimate;
+
 use std::mem::size_of;
 
 use crate::app::CassieError;

@@ -439,6 +439,7 @@ fn keys(
                 } else {
                     batch::row_tie_key(row)
                 },
+                _memory: None,
             },
         });
     }

@@ -3,10 +3,13 @@ use super::QueryError;
 use crate::executor::filter::temporal::type_error;
 use crate::types::extended::numeric::{pow10, Numeric};
 use crate::types::extended::temporal::calendar::{
-    date2j, timestamp_to_fields, DAYS_PER_MONTH, MONTHS_PER_YEAR, UNIX_TO_POSTGRES_SECS,
-    USECS_PER_DAY, USECS_PER_SEC,
+    date2j, is_valid_date, iso_week, iso_year, j2date, j2day, timestamp_to_fields, DAYS_PER_MONTH,
+    MONTHS_PER_YEAR, POSTGRES_EPOCH_JDATE, SECS_PER_DAY, TIMESTAMP_END_JULIAN, UNIX_EPOCH_JDATE,
+    UNIX_TO_POSTGRES_SECS, USECS_PER_DAY, USECS_PER_SEC,
 };
-use crate::types::extended::temporal::tokens::{field_unit, Unit};
+use crate::types::extended::temporal::tokens::{
+    date_keyword, field_unit, unit_keyword, Keyword, Reserved, Unit,
+};
 use crate::types::typed::TypedValue;
 use crate::types::Value;
 
@@ -21,6 +24,81 @@ fn scaled(mantissa: i128, scale: u32) -> Numeric {
     Numeric::finite(num_bigint::BigInt::from(mantissa), scale)
 }
 
+pub(super) fn validate_date_unit(unit_name: &str, source: &TypedValue) -> Result<(), QueryError> {
+    if !matches!(source, TypedValue::Date(_)) {
+        return Ok(());
+    }
+    let mut end = unit_name.len().min(63);
+    while !unit_name.is_char_boundary(end) {
+        end -= 1;
+    }
+    let lower = unit_name[..end].to_ascii_lowercase();
+    match unit_keyword(&lower).or_else(|| date_keyword(&lower)) {
+        Some(
+            Keyword::Units(
+                Unit::Hour
+                | Unit::Minute
+                | Unit::Second
+                | Unit::Millisecond
+                | Unit::Microsecond
+                | Unit::Timezone
+                | Unit::TimezoneHour
+                | Unit::TimezoneMinute,
+            )
+            | Keyword::Reserved(
+                Reserved::Late
+                | Reserved::Early
+                | Reserved::Now
+                | Reserved::Today
+                | Reserved::Tomorrow
+                | Reserved::Yesterday
+                | Reserved::Zulu,
+            ),
+        ) => Err(unsupported(&lower, "date")),
+        Some(Keyword::Units(_) | Keyword::Reserved(Reserved::Epoch)) => Ok(()),
+        _ => Err(type_error(crate::types::extended::TypeInputError::new(
+            "22023",
+            format!("unit \"{lower}\" not recognized for type date"),
+        ))),
+    }
+}
+
+/// Extracts supported fields from finite DATE values beyond timestamp's range.
+pub(super) fn wide_date_part(unit_name: &str, source: &TypedValue) -> Option<Value> {
+    let TypedValue::Date(date) = source else {
+        return None;
+    };
+    let date = i64::from(*date);
+    if !is_valid_date(date) || date < TIMESTAMP_END_JULIAN - i64::from(POSTGRES_EPOCH_JDATE) {
+        return None;
+    }
+    let unit = field_unit(unit_name)?;
+    let julian = date + i64::from(POSTGRES_EPOCH_JDATE);
+    let (year, month, day) = j2date(julian);
+    let year_i64 = i64::from(year);
+    let result = match unit {
+        Unit::Day => i64::from(day),
+        Unit::Month => i64::from(month),
+        Unit::Quarter => i64::from((month - 1) / 3 + 1),
+        Unit::Week => i64::from(iso_week(year, month, day)),
+        Unit::Year => year_i64,
+        Unit::Decade => year_i64 / 10,
+        Unit::Century => (year_i64 + 99) / 100,
+        Unit::Millennium => (year_i64 + 999) / 1000,
+        Unit::Julian => julian,
+        Unit::IsoYear => i64::from(iso_year(year, month, day)),
+        Unit::Dow => i64::from(j2day(julian)),
+        Unit::IsoDow => i64::from(match j2day(julian) {
+            0 => 7,
+            day => day,
+        }),
+        Unit::Doy => julian - date2j(year, 1, 1) + 1,
+        Unit::Epoch => (julian - i64::from(UNIX_EPOCH_JDATE)) * SECS_PER_DAY,
+        _ => return None,
+    };
+    Some(Value::Typed(TypedValue::Numeric(Numeric::from_i64(result))))
+}
+
 /// Converts a `date_part` result to `EXTRACT`'s exact `numeric`.
 ///
 /// `source` is the original argument (before `date` was widened), `part`
@@ -31,24 +109,6 @@ pub(super) fn numeric_part(
     part: f64,
 ) -> Result<Value, QueryError> {
     let unit = field_unit(unit_name);
-    let lower = unit_name.to_ascii_lowercase();
-    if let TypedValue::Date(_) = source {
-        if matches!(
-            unit,
-            Some(
-                Unit::Hour
-                    | Unit::Minute
-                    | Unit::Second
-                    | Unit::Millisecond
-                    | Unit::Microsecond
-                    | Unit::Timezone
-                    | Unit::TimezoneHour
-                    | Unit::TimezoneMinute
-            )
-        ) {
-            return Err(unsupported(&lower, "date"));
-        }
-    }
     if part.is_infinite() {
         return Ok(Value::Typed(TypedValue::Numeric(if part > 0.0 {
             Numeric::Infinity
@@ -58,10 +118,16 @@ pub(super) fn numeric_part(
     }
     let numeric = match (unit, source) {
         (Some(Unit::Epoch), TypedValue::Timestamp(value) | TypedValue::TimestampTz(value)) => {
-            scaled(
-                i128::from(*value) + i128::from(UNIX_TO_POSTGRES_SECS) * i128::from(USECS_PER_SEC),
-                6,
-            )
+            let micros =
+                i128::from(*value) + i128::from(UNIX_TO_POSTGRES_SECS) * i128::from(USECS_PER_SEC);
+            // Above PostgreSQL's i64 boundary, numeric division first rounds
+            // the positive result to four decimal places, then pads to six.
+            let rounded = if micros >= i128::from(i64::MAX) {
+                (micros + 50) / 100 * 100
+            } else {
+                micros
+            };
+            scaled(rounded, 6)
         }
         (Some(Unit::Epoch), TypedValue::Time(value)) => scaled(i128::from(*value), 6),
         (Some(Unit::Epoch), TypedValue::TimeTz(value)) => scaled(

@@ -39,6 +39,37 @@ impl Cassie {
         )
     }
 
+    pub(crate) fn execute_copy_where_with_controls(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<Value>,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        let started = Instant::now();
+        let _scope = crate::midge::adapter::PublicationControlScope::enter(Some(controls));
+        if let Some(result) = self.quarantined_sql_result(session, sql, controls) {
+            let rows = result.as_ref().map_or(0, QueryResult::row_count);
+            self.finish_converted_query(session, started, controls, &result, rows);
+            return result;
+        }
+        let Some(running) = self.runtime.try_begin_running_query() else {
+            return Err(CassieError::Execution(
+                "query admission exhausted".to_owned(),
+            ));
+        };
+        self.runtime.record_query_memory(controls);
+        let result =
+            self.execute_sql_core(session, sql, params, ExecutionMode::SimpleQuery, controls);
+        let rows = result.as_ref().map_or(0, QueryResult::row_count);
+        self.finish_converted_query(session, started, controls, &result, rows);
+        drop(running);
+        if self.check_storage_recovery_required().is_ok() {
+            let _ = self.run_deferred_schema_cleanup();
+        }
+        result
+    }
+
     fn execute_sql_converted<T>(
         &self,
         session: &CassieSession,

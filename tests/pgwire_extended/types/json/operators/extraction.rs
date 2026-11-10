@@ -1,6 +1,60 @@
 use super::{fixture, wire};
 
 #[test]
+fn should_preserve_json_identity_through_scalar_extraction_chains() {
+    // Arrange
+    let sql = "SELECT ('{\"a\":1}'::json->'a')->0, ('{\"a\":1}'::jsonb->'a')->0, \
+        ('{\"a\":null}'::json->'a')->0, ('{\"a\":null}'::jsonb->'a')->0";
+
+    // Act
+    let batches = fixture::run_cycles(
+        "json-scalar-chain-identity",
+        &[],
+        vec![fixture::execute_cycle(sql, None, 0, true)],
+    );
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![None, Some("1".into()), None, Some("null".into())]]
+    );
+}
+
+#[test]
+fn should_respect_json_parameter_identity_when_indexing_a_scalar() {
+    // Arrange
+    let sql = "SELECT $1->0, $1->>0";
+    let cycles = vec![
+        fixture::execute_cycle(sql, Some((114, 0, Some(b"1"))), 0, true),
+        fixture::execute_cycle(sql, Some((3802, 0, Some(b"1"))), 0, true),
+    ];
+
+    // Act
+    let batches = fixture::run_cycles("json-scalar-parameter-identity", &[], cycles);
+
+    // Assert
+    for frames in &batches {
+        fixture::assert_success(frames);
+    }
+    let parameters = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("JSON parameter description");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), [114]);
+    let parameters = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("JSONB parameter description");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), [3802]);
+    assert_eq!(wire::data_rows(&batches[0]), vec![vec![None, None]]);
+    assert_eq!(
+        wire::data_rows(&batches[1]),
+        vec![vec![Some("1".into()), Some("1".into())]]
+    );
+}
+
+#[test]
 fn should_resolve_binary_integer_parameters_as_jsonb_array_selectors() {
     // Arrange
     let index = 1_i32.to_be_bytes();

@@ -8,13 +8,21 @@ use super::{
 
 impl CassieSession {
     pub(crate) fn fork_statement_batch(&self) -> Result<StatementMutationBatch, CassieError> {
-        let transaction = self.transaction.lock();
+        self.fork_statement_batch_checked(|_| Ok(()))
+    }
+
+    pub(super) fn fork_statement_batch_checked(
+        &self,
+        validate: impl FnOnce(&mut SessionTransactionState) -> Result<(), CassieError>,
+    ) -> Result<StatementMutationBatch, CassieError> {
+        let mut transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::Failed {
             return Err(CassieError::failed_transaction());
         }
 
+        validate(&mut transaction)?;
         let base_transaction_active = transaction.status == SessionTransactionStatus::InTransaction;
-        let working_state = self.statement_fork_state(&transaction);
+        let working_state = self.statement_fork_state(&transaction)?;
         drop(transaction);
         let base_generation = working_state.generation;
         let base_writes = working_state.writes.clone();
@@ -57,9 +65,19 @@ impl CassieSession {
         })
     }
 
-    fn statement_fork_state(&self, current: &SessionTransactionState) -> SessionTransactionState {
+    fn statement_fork_state(
+        &self,
+        current: &SessionTransactionState,
+    ) -> Result<SessionTransactionState, CassieError> {
         let active = current.status == SessionTransactionStatus::InTransaction;
-        SessionTransactionState {
+        let mut storage_overlay = if active {
+            current.storage_overlay.lock().clone()
+        } else {
+            StorageOverlay::default()
+        };
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
+        storage_overlay.attach_sequence_fork_lease(controls.as_ref())?;
+        Ok(SessionTransactionState {
             status: SessionTransactionStatus::InTransaction,
             implicit: false,
             isolation: if active { current.isolation } else { None },
@@ -108,14 +126,10 @@ impl CassieSession {
             } else {
                 None
             },
-            storage_overlay: Arc::new(Mutex::new(if active {
-                current.storage_overlay.lock().clone()
-            } else {
-                StorageOverlay::default()
-            })),
+            storage_overlay: Arc::new(Mutex::new(storage_overlay)),
             session_state: None,
             local_settings: Vec::new(),
-        }
+        })
     }
 
     pub(crate) fn publish_statement_batch(
@@ -158,6 +172,16 @@ impl CassieSession {
             ));
         }
 
+        // Complete nested fork ownership transfer before publishing any rows
+        // or catalog changes into this parent statement.
+        let batch_transaction = batch.session.transaction.lock();
+        let mut published = batch_transaction.storage_overlay.lock().clone();
+        let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
+        {
+            let parent = transaction.storage_overlay.lock();
+            published.inherit_sequence_fork_lease(&parent, controls.as_ref())?;
+        }
+
         for mutation in delta.rows {
             if let Some(change) = mutation.after {
                 let writes = Arc::make_mut(&mut transaction.writes);
@@ -177,14 +201,13 @@ impl CassieSession {
             }
         }
         transaction.conflict_intents.extend(delta.conflict_intents);
-        let batch_transaction = batch.session.transaction.lock();
         transaction.catalog_overlay = batch_transaction
             .catalog_overlay
             .as_ref()
             .map(Catalog::detached_transaction_snapshot);
         transaction.catalog_base_version = batch_transaction.catalog_base_version;
         transaction.catalog_views = batch_transaction.catalog_views.clone();
-        *transaction.storage_overlay.lock() = batch_transaction.storage_overlay.lock().clone();
+        *transaction.storage_overlay.lock() = published;
         Ok(())
     }
 }

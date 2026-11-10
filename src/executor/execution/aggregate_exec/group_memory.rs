@@ -32,6 +32,18 @@ impl GroupMemory {
         self.reservation.try_grow(bytes).map_err(QueryError::from)
     }
 
+    pub(super) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
+        self.reservation.belongs_to(controls)
+    }
+
+    pub(super) fn absorb(&mut self, other: Self) {
+        self.reservation.absorb(other.reservation);
+    }
+
+    pub(super) fn into_reservation(self) -> Reservation {
+        self.reservation
+    }
+
     /// Re-accounts a retained value that changed from `before` to `after`
     /// bytes. Shrinking releases at most what this reservation holds.
     pub(super) fn resize(&mut self, before: usize, after: usize) -> Result<(), QueryError> {
@@ -45,27 +57,41 @@ impl GroupMemory {
     }
 }
 
-pub(super) fn serial_group_bytes(signature: &SemanticKey, values: &[(String, Value)]) -> usize {
-    signature
-        .estimated_bytes()
-        .saturating_add(json_bytes(values))
+pub(super) fn serial_group_bytes(
+    signature: &SemanticKey,
+    values: &[(String, Value)],
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    Ok(signature
+        .estimated_bytes_controlled(controls)?
+        .saturating_add(super::group_size::json_bytes_controlled(values, controls)?))
 }
 
-pub(super) fn serial_row_bytes(row: &BatchRow) -> usize {
-    json_bytes(row.entries())
+pub(super) fn serial_row_bytes(
+    row: &BatchRow,
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    super::group_size::json_bytes_controlled(row.entries(), controls)
 }
 
-pub(super) fn partial_group_bytes(signature: &SemanticKey, group: &PartialAggregateGroup) -> usize {
-    signature
-        .estimated_bytes()
-        .saturating_add(json_bytes(&group.group_values))
+pub(super) fn partial_group_bytes(
+    signature: &SemanticKey,
+    group: &PartialAggregateGroup,
+    controls: &QueryExecutionControls,
+) -> Result<usize, QueryError> {
+    Ok(signature
+        .estimated_bytes_controlled(controls)?
+        .saturating_add(super::group_size::json_bytes_controlled(
+            &group.group_values,
+            controls,
+        )?)
         .saturating_add(
             group
                 .accumulators
                 .iter()
                 .map(AggregateAccumulator::retained_bytes)
                 .fold(0, usize::saturating_add),
-        )
+        ))
 }
 
 pub(super) fn json_bytes<T: serde::Serialize + ?Sized>(value: &T) -> usize {

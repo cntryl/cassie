@@ -27,11 +27,12 @@ where
             exists: None,
             controls: None,
             memory: None,
+            deletion_memory: None,
         },
     )
 }
 
-fn filter_rows_in_context<R: RowAccess>(
+pub(super) fn filter_rows_in_context<R: RowAccess>(
     rows: Vec<R>,
     expression: &Expr,
     context: EvalContext<'_>,
@@ -41,7 +42,21 @@ fn filter_rows_in_context<R: RowAccess>(
         if let Some(controls) = context.controls {
             controls.check_interruption()?;
         }
-        if eval_scalar_with_context(&row, expression, context)?.is_true()? {
+        let row_controls = context.controls.or_else(|| {
+            context
+                .session
+                .and_then(CassieSession::statement_execution_controls)
+        });
+        let memory = if context.deletion_memory.is_none() {
+            row_controls.map(super::EvaluationMemory::new).transpose()?
+        } else {
+            None
+        };
+        let current = EvalContext {
+            deletion_memory: memory.as_ref().or(context.deletion_memory),
+            ..context
+        };
+        if eval_scalar_with_context(&row, expression, current)?.is_true()? {
             out.push(row);
         }
     }
@@ -89,6 +104,7 @@ pub(crate) fn filter_batches_with_controls(
         exists: None,
         controls: Some(controls),
         memory: None,
+        deletion_memory: None,
     };
     batches
         .into_iter()

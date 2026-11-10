@@ -18,6 +18,8 @@ use crate::midge::adapter::check_rollup_maintenance_failure_point;
 
 #[path = "rollup_expression.rs"]
 mod rollup_expression;
+#[path = "rollup_payload.rs"]
+mod rollup_payload;
 
 pub(super) fn create_rollup(
     cassie: &Cassie,
@@ -54,7 +56,7 @@ fn create_rollup_gated(
         .collection_generation(&meta.source_collection)
         .map_err(QueryError::Cassie)?;
     let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
-    let rows = serialize_rollup_rows(rows)?;
+    let rows = rollup_payload::serialize(rows, controls)?;
     ensure_source_generation(cassie, &meta, source_generation)?;
 
     let output = empty_command("CREATE ROLLUP", controls)?;
@@ -102,7 +104,7 @@ fn refresh_rollup_data(
         .collection_generation(&meta.source_collection)
         .map_err(QueryError::Cassie)?;
     let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
-    let rows = serialize_rollup_rows(rows)?;
+    let rows = rollup_payload::serialize(rows, controls)?;
     ensure_source_generation(cassie, &meta, source_generation)?;
     let current_meta = cassie
         .catalog
@@ -138,7 +140,7 @@ fn ensure_source_generation(
 fn publish_rollup_rows(
     cassie: &Cassie,
     meta: RollupMeta,
-    rows: Vec<serde_json::Value>,
+    rows: rollup_payload::OwnedRollupRows,
     source_generation: u64,
 ) -> Result<(), QueryError> {
     let output_collection = meta.output_collection.clone();
@@ -152,7 +154,7 @@ fn publish_rollup_rows(
 fn publish_rollup_rows_gated(
     cassie: &Cassie,
     mut meta: RollupMeta,
-    rows: Vec<serde_json::Value>,
+    rows: rollup_payload::OwnedRollupRows,
     source_generation: u64,
 ) -> Result<(), QueryError> {
     ensure_current_rollup_format(&meta)?;
@@ -748,27 +750,13 @@ fn materialize_rollup_batches(
     )
 }
 
-fn serialize_rollup_rows(rows: Vec<BatchRow>) -> Result<Vec<serde_json::Value>, QueryError> {
-    rows.into_iter()
-        .map(|row| {
-            let _operator_parent = row.operator_memory();
-            let payload = row
-                .into_entries()
-                .into_iter()
-                .map(|(name, value)| Ok((name, value_to_json(value)?)))
-                .collect::<Result<serde_json::Map<_, _>, QueryError>>()?;
-            Ok(serde_json::Value::Object(payload))
-        })
-        .collect()
-}
-
 fn replace_rollup_rows(
     cassie: &Cassie,
     meta: &RollupMeta,
-    rows: Vec<serde_json::Value>,
+    mut rows: rollup_payload::OwnedRollupRows,
 ) -> Result<(), QueryError> {
     create_rollup_collection(cassie, meta)?;
-    for (index, payload) in rows.into_iter().enumerate() {
+    rows.publish_with(|index, payload| {
         cassie
             .midge
             .put_document(
@@ -777,7 +765,8 @@ fn replace_rollup_rows(
                 payload,
             )
             .map_err(|error| QueryError::General(error.to_string()))?;
-    }
+        Ok(())
+    })?;
     cassie
         .refresh_cardinality_stats(&meta.output_collection)
         .map_err(|error| QueryError::General(error.to_string()))?;

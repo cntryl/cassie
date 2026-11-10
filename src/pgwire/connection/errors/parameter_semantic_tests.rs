@@ -32,6 +32,76 @@ fn diagnostic() -> ParameterSemanticDiagnostic {
 }
 
 #[test]
+fn should_admit_hint_with_the_semantic_error_frame_at_the_exact_peak() {
+    // Arrange
+    let diagnostic = ParameterSemanticDiagnostic::ToCharTimeTz { qualified: false };
+    let hint = "No function matches the given name and argument types. You might need to add explicit type casts.";
+    let generous = controls(65_536);
+    let measured =
+        PgWireError::parameter_semantic(diagnostic, &generous).expect("measure hint frame");
+    let peak = generous.peak_query_memory_bytes();
+    drop(measured);
+    let exact = controls(peak);
+    let below = controls(peak - 1);
+
+    // Act
+    let success = PgWireError::parameter_semantic(diagnostic, &exact).expect("exact hint frame");
+    let failure = PgWireError::parameter_semantic(diagnostic, &below);
+
+    // Assert
+    assert_eq!(success.hint.as_deref(), Some(hint));
+    let encoded = success.encoded_semantic_frame().expect("owned frame");
+    let field = format!("H{hint}\0");
+    assert!(encoded
+        .windows(field.len())
+        .any(|window| window == field.as_bytes()));
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert!(exact.current_query_memory_bytes() > 0);
+    drop(success);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+    assert_eq!(below.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_cancel_during_semantic_hint_copy_with_release_every_owner() {
+    // Arrange
+    use super::parameter_semantic::{admitted_error_frame_observing, FrameCopyPhase};
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let mut error = PgWireError::new(
+        super::PgWireSeverity::Error,
+        "42883",
+        "missing function".to_owned(),
+    );
+    error.hint = Some("No function matches the given name and argument types. You might need to add explicit type casts.".to_owned());
+    let memory = controls
+        .reserve_query_memory(
+            std::mem::size_of::<PgWireError>()
+                + error.message.len()
+                + error.hint.as_ref().expect("hint").len(),
+        )
+        .expect("owner admission");
+    let mut observed = false;
+
+    // Act
+    let result = admitted_error_frame_observing(error, &controls, memory, |phase| {
+        if phase == FrameCopyPhase::Hint {
+            observed = true;
+            cancellation.cancel();
+        }
+    });
+
+    // Assert
+    assert!(observed);
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_retain_semantic_error_memory_until_the_owned_error_retires() {
     // Arrange
     let controls = controls(65_536);
@@ -273,6 +343,39 @@ impl AsyncWrite for PendingWrite {
 }
 
 #[test]
+fn should_retain_the_hint_owner_while_a_semantic_frame_is_pending() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    for pending_flush in [false, true] {
+        let controls = controls(65_536);
+        let diagnostic = ParameterSemanticDiagnostic::ToCharTimeTz { qualified: false };
+        let error =
+            Box::new(PgWireError::parameter_semantic(diagnostic, &controls).expect("error"));
+        let retained = controls.current_query_memory_bytes();
+        let mut writer = PendingWrite { pending_flush };
+        let mut send = Box::pin(async move {
+            super::super::writers::write_error_response(&mut writer, &error).await
+        });
+
+        // Act
+        runtime.block_on(poll_fn(|context| {
+            assert!(send.as_mut().poll(context).is_pending());
+            Poll::Ready(())
+        }));
+        let pending = controls.current_query_memory_bytes();
+        drop(send);
+
+        // Assert
+        assert!(retained > 0);
+        assert_eq!(pending, retained);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
 fn should_keep_semantic_error_admission_during_a_pending_send() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -398,4 +501,327 @@ fn should_prioritize_scalar_literal_cancellation_given_pending_coercion_when_all
     assert_eq!(serde_json::to_string(&parsed).expect("snapshot"), before);
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_copy_unknown_column_diagnostic_at_exact_peak() {
+    // Arrange
+    let input = "quoted_é";
+    let generous = controls(65_536);
+    let measured = PgWireError::copy_undefined_column(input, &generous).expect("measure");
+    let peak = generous.peak_query_memory_bytes();
+    drop(measured);
+    let exact = controls(peak);
+    let denied = controls(peak - 1);
+    // Act
+    let admitted = PgWireError::copy_undefined_column(input, &exact).expect("exact peak");
+    let failure = PgWireError::copy_undefined_column(input, &denied);
+    // Assert
+    assert_eq!(admitted.code, "42703");
+    assert_eq!(
+        admitted.message,
+        "unresolvable column reference 'quoted_é'; known fields or aliases required"
+    );
+    let frame = admitted.encoded_semantic_frame().expect("admitted frame");
+    assert!(frame.windows(7).any(|window| window == b"C42703\0"));
+    assert!(frame
+        .windows("M unresolvable".len() - 1)
+        .any(|window| window == b"Munresolvable"));
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(denied.current_query_memory_bytes(), 0);
+    drop(admitted);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_jsonb_copy_diagnostic_with_frame_with_source_overlap() {
+    fn prepare(
+        controls: &QueryExecutionControls,
+        message: &str,
+    ) -> Result<(crate::runtime::QueryMemoryReservation, PgWireError), CassieError> {
+        let source_memory = controls.reserve_query_memory(message.len())?;
+        let frame = PgWireError::controlled_diagnostic(
+            super::PgWireSeverity::Error,
+            "42601",
+            message,
+            controls,
+        )?;
+        Ok((source_memory, frame))
+    }
+    // Arrange
+    let message = "COPY binary field 1 is invalid: invalid input syntax for type jsonb: trailing comma at line 1 column 4";
+    let generous = controls(65_536);
+    let pair = prepare(&generous, message).expect("measure");
+    let peak = generous.peak_query_memory_bytes();
+    drop(pair);
+    let exact = controls(peak);
+    let below = controls(peak - 1);
+    // Act
+    let (source, frame) = prepare(&exact, message).expect("exact");
+    let failure = prepare(&below, message);
+    // Assert
+    assert_eq!(frame.code, "42601");
+    assert_eq!(frame.message, message);
+    assert!(frame
+        .encoded_semantic_frame()
+        .expect("frame")
+        .windows(7)
+        .any(|window| window == b"C42601\0"));
+    assert!(matches!(failure, Err(CassieError::ResourceLimit(_))));
+    assert_eq!(below.current_query_memory_bytes(), 0);
+    drop(frame);
+    drop(source);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_retain_jsonb_copy_diagnostic_with_frame_during_pending_write() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let controls = controls(65_536);
+    let message = "COPY binary field 1 is invalid: value overflows numeric format";
+    let source = controls
+        .reserve_query_memory(message.len())
+        .expect("source owner");
+    let frame = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        "42601",
+        message,
+        &controls,
+    )
+    .expect("frame");
+    let retained = controls.current_query_memory_bytes();
+    let mut send = Box::pin(async move {
+        let mut writer = PendingWrite {
+            pending_flush: false,
+        };
+        let result = super::super::writers::write_error_response(&mut writer, &frame).await;
+        drop(source);
+        result
+    });
+    // Act
+    runtime.block_on(poll_fn(|context| {
+        assert!(send.as_mut().poll(context).is_pending());
+        Poll::Ready(())
+    }));
+    let pending = controls.current_query_memory_bytes();
+    drop(send);
+    // Assert
+    assert!(retained > message.len());
+    assert_eq!(pending, retained);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_cancelled_copy_unknown_column_diagnostic() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+    // Act
+    let result = PgWireError::copy_undefined_column("name", &controls);
+    // Assert
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_keep_copy_unknown_column_admission_until_write_finishes() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let controls = controls(65_536);
+    let error =
+        Box::new(PgWireError::copy_undefined_column("missing_é", &controls).expect("error"));
+    let retained = controls.current_query_memory_bytes();
+    let mut writer = PendingWrite {
+        pending_flush: false,
+    };
+    let mut send =
+        Box::pin(
+            async move { super::super::writers::write_error_response(&mut writer, &error).await },
+        );
+    // Act
+    runtime.block_on(poll_fn(|context| {
+        assert!(send.as_mut().poll(context).is_pending());
+        Poll::Ready(())
+    }));
+    let pending = controls.current_query_memory_bytes();
+    drop(send);
+    // Assert
+    assert!(retained > 0);
+    assert_eq!(pending, retained);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_hold_owned_numeric_error_with_encoded_frame_through_delivery() {
+    // Arrange
+    let controls = controls(1_048_576);
+    let input = format!("{}é!", "1".repeat(4095));
+    let owned = crate::app::OwnedNumericLiteralError::syntax(&input, &controls)
+        .expect("admitted diagnostic");
+    let source = CassieError::OwnedNumericLiteral(owned);
+
+    // Act
+    let mapped = super::cassie_pg_error(&source);
+    let frame = mapped.encoded_semantic_frame().expect("admitted frame");
+    let original_retained = controls.current_query_memory_bytes();
+    drop(source);
+
+    // Assert
+    assert_eq!(mapped.code, "22P02");
+    assert!(frame.windows(7).any(|field| field == b"C22P02\0"));
+    assert!(controls.current_query_memory_bytes() > 0);
+    assert!(controls.current_query_memory_bytes() < original_retained);
+    drop(mapped);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_fatal_severity_in_owned_numeric_error_frame() {
+    // Arrange
+    let controls = controls(65_536);
+    let source = CassieError::OwnedNumericLiteral(
+        crate::app::OwnedNumericLiteralError::range(&controls).expect("source"),
+    );
+
+    // Act
+    let mapped = PgWireError::from_cassie_error(super::PgWireSeverity::Fatal, &source);
+
+    // Assert
+    assert!(matches!(mapped.severity, super::PgWireSeverity::Fatal));
+    assert!(mapped
+        .encoded_semantic_frame()
+        .expect("frame")
+        .windows(7)
+        .any(|bytes| bytes == b"SFATAL\0"));
+}
+
+#[test]
+fn should_admit_owned_numeric_frame_at_exact_overlap_budget() {
+    // Arrange
+    let input = "invalid".repeat(128);
+    let generous = controls(1_048_576);
+    let source = CassieError::OwnedNumericLiteral(
+        crate::app::OwnedNumericLiteralError::syntax(&input, &generous).expect("source"),
+    );
+    let measured = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        "22P02",
+        match &source {
+            CassieError::OwnedNumericLiteral(error) => error.message(),
+            _ => unreachable!(),
+        },
+        &generous,
+    )
+    .expect("measure");
+    let peak = generous.peak_query_memory_bytes();
+    drop(measured);
+    drop(source);
+    let exact = controls(peak);
+    let below = controls(peak - 1);
+    let exact_source =
+        crate::app::OwnedNumericLiteralError::syntax(&input, &exact).expect("exact source");
+    let below_source =
+        crate::app::OwnedNumericLiteralError::syntax(&input, &below).expect("below source");
+
+    // Act
+    let exact_frame = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        exact_source.sqlstate(),
+        exact_source.message(),
+        &exact,
+    );
+    let below_frame = PgWireError::controlled_diagnostic(
+        super::PgWireSeverity::Error,
+        below_source.sqlstate(),
+        below_source.message(),
+        &below,
+    );
+
+    // Assert
+    assert!(exact_frame.is_ok());
+    assert!(matches!(below_frame, Err(CassieError::ResourceLimit(_))));
+    drop(exact_frame);
+    drop(exact_source);
+    drop(below_source);
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+    assert_eq!(below.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_release_numeric_error_frame_on_interruption_during_message_or_frame_copy() {
+    // Arrange
+    use super::parameter_semantic::{admitted_error_frame_observing, FrameCopyPhase};
+    let message = format!(
+        "invalid input syntax for type numeric: \"{}\"",
+        "a".repeat(4096)
+    );
+    for phase in [FrameCopyPhase::Message, FrameCopyPhase::Frame] {
+        let cancellation = QueryCancellationHandle::new();
+        let interrupted_controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation.clone(),
+        );
+        let memory = interrupted_controls
+            .reserve_query_memory(std::mem::size_of::<PgWireError>() + message.len())
+            .expect("message admission");
+        let error = PgWireError::new(super::PgWireSeverity::Fatal, "22P02", message.clone());
+        let mut observed = false;
+
+        // Act
+        let result =
+            admitted_error_frame_observing(error, &interrupted_controls, memory, |current| {
+                if current == phase && !observed {
+                    observed = true;
+                    cancellation.cancel();
+                }
+            });
+
+        // Assert
+        assert!(observed);
+        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert_eq!(interrupted_controls.current_query_memory_bytes(), 0);
+        let recovery_controls = controls(65_536);
+        let recovery = PgWireError::controlled_diagnostic(
+            super::PgWireSeverity::Fatal,
+            "22P02",
+            &message,
+            &recovery_controls,
+        )
+        .expect("subsequent frame");
+        assert!(matches!(recovery.severity, super::PgWireSeverity::Fatal));
+        assert_eq!(recovery.code, "22P02");
+        drop(recovery);
+        assert_eq!(recovery_controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_reject_copy_unknown_column_frame_above_backend_limit_before_admission() {
+    // Arrange
+    let limit = super::super::writers::MAX_BACKEND_FRAME_BYTES;
+    let (_, empty_length, _) =
+        super::parameter_semantic::copy_unknown_column_frame_sizes(0).expect("empty name");
+    let max_name = limit - empty_length;
+    // Act
+    let at_limit =
+        super::parameter_semantic::copy_unknown_column_frame_sizes(max_name).expect("at limit");
+    let above_limit = super::parameter_semantic::copy_unknown_column_frame_sizes(max_name + 1);
+    // Assert
+    assert_eq!(at_limit.1, limit);
+    assert!(
+        matches!(above_limit, Err(CassieError::ResourceLimit(message)) if message == "pgwire backend frame exceeds 16777216 bytes")
+    );
 }

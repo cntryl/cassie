@@ -12,6 +12,8 @@ use crate::types::Value;
 
 #[path = "temporal_extract.rs"]
 mod extract;
+#[path = "temporal_posix_timezone.rs"]
+mod posix_timezone;
 #[path = "temporal_sleep.rs"]
 mod sleep;
 
@@ -205,7 +207,7 @@ pub(super) fn evaluate(
     if name != "overlaps" && args.iter().any(|value| matches!(value, Value::Null)) {
         return Some(Ok(Value::Null));
     }
-    Some(dispatch(name, args, &session))
+    Some(dispatch(name, args, &session, controls))
 }
 
 /// Whether `name` with these arguments is a date/time builtin here.
@@ -283,9 +285,14 @@ fn constructor(
                     [zone] => zone_argument(zone, session)?,
                     _ => session.zone.clone(),
                 };
-                Ok(typed(TypedValue::TimestampTz(temporal::utc_of(
-                    local, &zone,
-                ))))
+                let instant = temporal::utc_of(local, &zone);
+                if crate::types::extended::temporal::calendar::is_valid_timestamp(instant) {
+                    Ok(typed(TypedValue::TimestampTz(instant)))
+                } else {
+                    Err(type_error(crate::types::extended::temporal::range_error(
+                        "timestamp out of range",
+                    )))
+                }
             }
         }
         ("make_interval", parts) if parts.len() <= 7 => make_interval(parts),
@@ -294,7 +301,12 @@ fn constructor(
     result.map(Some)
 }
 
-fn dispatch(name: &str, args: &[Value], session: &TemporalSession) -> Result<Value, QueryError> {
+fn dispatch(
+    name: &str,
+    args: &[Value],
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
     if let Some(value) = constructor(name, args, session)? {
         return Ok(value);
     }
@@ -321,6 +333,10 @@ fn dispatch(name: &str, args: &[Value], session: &TemporalSession) -> Result<Val
                 Value::Typed(typed) => typed.clone(),
                 other => coerce(other, TIMESTAMPTZ, session)?,
             };
+            extract::validate_date_unit(&unit, &original)?;
+            if let Some(result) = extract::wide_date_part(&unit, &original) {
+                return Ok(result);
+            }
             match date_part(field, source, session)? {
                 Value::Float64(part) => extract::numeric_part(&unit, &original, part),
                 other => Ok(other),
@@ -343,7 +359,7 @@ fn dispatch(name: &str, args: &[Value], session: &TemporalSession) -> Result<Val
                 .map_err(type_error)
         }
         ("to_timestamp" | "to_date" | "to_char", [_, _]) => {
-            super::temporal_format::evaluate(name, args, session)
+            super::temporal_format::evaluate(name, args, session, controls)
         }
         ("isfinite", [value]) => {
             let value = match value {
@@ -355,7 +371,13 @@ fn dispatch(name: &str, args: &[Value], session: &TemporalSession) -> Result<Val
         ("overlaps", [first, second, third, fourth]) => {
             overlaps([first, second, third, fourth], session)
         }
-        ("timezone", [zone, value]) => timezone(&zone_argument(zone, session)?, value, session),
+        ("timezone", [zone, value]) => {
+            let zone = match posix_timezone::resolve(zone, value, session, controls)? {
+                Some(zone) => zone,
+                None => zone_argument(zone, session)?,
+            };
+            timezone(&zone, value, session)
+        }
         ("timezone", [value]) => timezone(&session.zone, value, session),
         ("date_add" | "date_subtract", [value, span, rest @ ..]) => {
             let TypedValue::TimestampTz(instant) = coerce(value, TIMESTAMPTZ, session)? else {
@@ -451,13 +473,17 @@ fn date_part(
             temporal::part_timestamp(&unit, value, None, "timestamp without time zone")
         }
         TypedValue::TimestampTz(value) => {
-            let east = session.zone.offset_at(value);
-            temporal::part_timestamp(
-                &unit,
-                temporal::local_of(value, &session.zone),
-                Some(east),
-                "timestamp with time zone",
-            )
+            if unit.eq_ignore_ascii_case("epoch") {
+                temporal::part_timestamp(&unit, value, Some(0), "timestamp with time zone")
+            } else {
+                let east = session.zone.offset_at(value);
+                temporal::part_timestamp(
+                    &unit,
+                    temporal::local_of(value, &session.zone),
+                    Some(east),
+                    "timestamp with time zone",
+                )
+            }
         }
         TypedValue::Time(time) => temporal::part_time(&unit, time, None).map(Some),
         TypedValue::TimeTz(value) => {
@@ -634,3 +660,11 @@ fn timezone(zone: &Zone, value: &Value, session: &TemporalSession) -> Result<Val
         _ => return Err(execution("function timezone does not exist for this type")),
     }))
 }
+
+#[cfg(test)]
+#[path = "temporal_timezone_regression_tests.rs"]
+mod timezone_regression_tests;
+
+#[cfg(test)]
+#[path = "temporal_posix_tests.rs"]
+mod posix_tests;

@@ -7,6 +7,8 @@ use time_bucket::evaluate_time_bucket;
 mod json_builders;
 #[path = "json_functions.rs"]
 mod json_functions;
+#[path = "json_result_owner.rs"]
+mod json_result_owner;
 use super::search::{simple_search_score, SearchContext};
 use super::{
     cast_scalar, eval_scalar, scalar_from_value, AnalyzerConfig, CassieSession, DataType,
@@ -55,16 +57,26 @@ mod toast_identity;
 #[path = "function_call.rs"]
 mod call;
 pub(super) use call::evaluate_function;
+#[cfg(test)]
+pub(super) use call::record_input_value_clone;
 
 fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     name: &str,
     function: &FunctionCall,
     row: &R,
     args: &[Value],
-    search_context: Option<&SearchContext>,
-    session: Option<&CassieSession>,
-    controls: Option<&crate::runtime::QueryExecutionControls>,
+    context: EvalContext<'_>,
 ) -> Option<Result<Value, QueryError>> {
+    let search_context = context.search_context;
+    let session = context.session;
+    let controls = context
+        .controls
+        .or_else(|| session.and_then(CassieSession::statement_execution_controls));
+    let result_owner = if context.memory.is_none() {
+        context.deletion_memory
+    } else {
+        None
+    };
     evaluate_pg_input_is_valid(name, args, controls).or_else(|| {
         crate::types::extended::operations::function(name, args)
             .map(|result| {
@@ -84,9 +96,26 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                 let local = name.strip_prefix("pg_catalog.").unwrap_or(name);
                 super::temporal_functions::evaluate(local, args, controls)
                     .or_else(|| super::hash_functions::evaluate(local, args))
-                    .or_else(|| json_functions::evaluate(local, args, controls))
-                    .or_else(|| json_mutations::evaluate(local, args, controls))
-                    .or_else(|| json_path_functions::evaluate(local, args, controls))
+                    .or_else(|| {
+                        json_functions::evaluate_with_owner(local, args, controls, result_owner)
+                    })
+                    .or_else(|| json_mutations::evaluate(local, args, controls, result_owner))
+                    .or_else(|| {
+                        let extraction_owner = result_owner.or_else(|| {
+                            let metadata = crate::sql::functions::function(local)?;
+                            if !matches!(
+                                metadata.id,
+                                crate::sql::functions::FunctionId::Json(
+                                    crate::sql::functions::json::JsonFunction::ExtractPath { .. }
+                                )
+                            ) {
+                                return None;
+                            }
+                            let (general, owner) = context.memory.zip(context.deletion_memory)?;
+                            std::ptr::eq(general, owner).then_some(owner)
+                        });
+                        json_path_functions::evaluate(local, args, controls, extraction_owner)
+                    })
                     .or_else(|| bytea_functions::evaluate(local, args, controls))
                     .or_else(|| math_random::evaluate(local, args, session))
                     .or_else(|| math_functions::evaluate(local, args))
@@ -232,9 +261,6 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         }
         "pg_get_viewdef" | "pg_catalog.pg_get_viewdef" => {
             Some(evaluate_pg_get_viewdef(name, args, session))
-        }
-        "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
-            Some(require_arg_count(name, args, 1).map(|()| Value::String("root".to_string())))
         }
         "obj_description" | "pg_catalog.obj_description" => {
             Some(require_arg_count_range(name, args, 1..=2).map(|()| Value::Null))

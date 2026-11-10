@@ -17,34 +17,39 @@ fn timestamptz() -> DataType {
     DataType::Extended(ExtendedType::TimestampTz { precision: None })
 }
 
-pub(super) fn schema(name: &str) -> Option<Vec<(String, DataType)>> {
-    let columns = match name {
-        CURSORS => vec![
-            ("name", DataType::Text),
-            ("statement", DataType::Text),
-            ("is_holdable", DataType::Boolean),
-            ("is_binary", DataType::Boolean),
-            ("is_scrollable", DataType::Boolean),
-            ("creation_time", timestamptz()),
-        ],
-        PREPARED => vec![
-            ("name", DataType::Text),
-            ("statement", DataType::Text),
-            ("prepare_time", timestamptz()),
-            ("parameter_types", DataType::Text),
-            ("result_types", DataType::Text),
-            ("from_sql", DataType::Boolean),
-            ("generic_plans", DataType::BigInt),
-            ("custom_plans", DataType::BigInt),
-        ],
-        _ => return None,
-    };
-    Some(
-        columns
-            .into_iter()
-            .map(|(name, data_type)| (name.to_string(), data_type))
-            .collect(),
-    )
+pub(super) fn schema_factory(name: &str) -> Option<super::virtual_views_schema::SchemaFactory> {
+    match name {
+        CURSORS => Some(|| {
+            own_columns(vec![
+                ("name", DataType::Text),
+                ("statement", DataType::Text),
+                ("is_holdable", DataType::Boolean),
+                ("is_binary", DataType::Boolean),
+                ("is_scrollable", DataType::Boolean),
+                ("creation_time", timestamptz()),
+            ])
+        }),
+        PREPARED => Some(|| {
+            own_columns(vec![
+                ("name", DataType::Text),
+                ("statement", DataType::Text),
+                ("prepare_time", timestamptz()),
+                ("parameter_types", DataType::Text),
+                ("result_types", DataType::Text),
+                ("from_sql", DataType::Boolean),
+                ("generic_plans", DataType::BigInt),
+                ("custom_plans", DataType::BigInt),
+            ])
+        }),
+        _ => None,
+    }
+}
+
+fn own_columns(columns: Vec<(&str, DataType)>) -> Vec<(String, DataType)> {
+    columns
+        .into_iter()
+        .map(|(name, data_type)| (name.to_string(), data_type))
+        .collect()
 }
 
 pub(super) fn rows(name: &str, session: Option<&CassieSession>) -> Option<Vec<VirtualRow>> {

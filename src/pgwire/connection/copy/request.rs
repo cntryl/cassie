@@ -1,5 +1,9 @@
 use crate::app::CassieError;
 
+#[cfg(test)]
+#[path = "request_tests.rs"]
+mod tests;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum CopyDirection {
     FromStdin,
@@ -348,7 +352,7 @@ fn find_transfer_clause(sql: &str) -> Option<(usize, CopyDirection, usize)> {
                     ("FROM", CopyDirection::FromStdin),
                     ("TO", CopyDirection::ToStdout),
                 ] {
-                    if keyword_at(bytes, index, word) {
+                    if index > 0 && keyword_at(bytes, index, word) {
                         return Some((index, direction, word.len()));
                     }
                 }
@@ -362,8 +366,7 @@ fn find_transfer_clause(sql: &str) -> Option<(usize, CopyDirection, usize)> {
 
 fn keyword_at(bytes: &[u8], index: usize, keyword: &str) -> bool {
     let end = index.saturating_add(keyword.len());
-    index > 0
-        && bytes[index - 1].is_ascii_whitespace()
+    (index == 0 || bytes[index - 1].is_ascii_whitespace())
         && bytes
             .get(index..end)
             .is_some_and(|candidate| candidate.eq_ignore_ascii_case(keyword.as_bytes()))

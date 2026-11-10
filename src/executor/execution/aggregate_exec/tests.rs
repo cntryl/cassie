@@ -16,6 +16,27 @@ mod collection_json;
 #[path = "collection_json_arrays_tests.rs"]
 mod collection_json_arrays;
 
+#[path = "merge_drop_tests.rs"]
+mod merge_drop;
+
+#[path = "group_drop_tests.rs"]
+mod group_drop;
+
+#[path = "output_group_owner_tests.rs"]
+mod output_group_owner;
+
+#[path = "accumulator_drop_tests.rs"]
+mod accumulator_drop;
+
+#[path = "accumulator_output_owner_tests.rs"]
+mod accumulator_output_owner;
+
+#[path = "group_count_wiring_tests.rs"]
+mod group_count_wiring;
+
+#[path = "semantic_group_count_tests.rs"]
+mod semantic_group_count;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 
@@ -101,6 +122,8 @@ fn should_account_serial_aggregate_groups_without_rescanning_buffered_rows() {
         peak < expected_peak + 16 * 1024,
         "four group index records and their ordered drain have bounded overhead"
     );
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(batches);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -299,6 +322,79 @@ fn should_fall_back_to_row_order_for_parallel_float_statistics() {
         after.parallel_aggregation.last_fallback_reason,
         "aggregate-state-requires-row-order"
     );
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(output_rows);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_exclude_explicit_float_statistics_before_creating_partial_workers() {
+    // Arrange
+    let cast = aggregate_plan("SELECT var_pop(value::FLOAT8) FROM events");
+    let uncast = aggregate_plan("SELECT var_pop(value) FROM events");
+    let cast_specs = aggregate_specs(&cast);
+    let uncast_specs = aggregate_specs(&uncast);
+    let functions = HashMap::new();
+    assert!(matches!(
+        cast_specs[0].function.args.first(),
+        Some(Expr::Cast {
+            data_type: crate::types::DataType::Float,
+            ..
+        })
+    ));
+
+    // Act
+    let cast_eligibility = parallel_aggregation_eligibility(&cast, &cast_specs, &functions);
+    let uncast_eligibility = parallel_aggregation_eligibility(&uncast, &uncast_specs, &functions);
+
+    // Assert
+    assert_eq!(
+        cast_eligibility,
+        Err("explicit-float-statistical-row-order")
+    );
+    assert_eq!(uncast_eligibility, Ok(()));
+}
+
+#[test]
+fn should_preserve_nan_with_overflow_order_before_parallel_partial_folds() {
+    // Arrange
+    let config = CassieRuntimeConfig {
+        limits: CassieRuntimeLimits {
+            parallel_aggregation_workers: 2,
+            ..CassieRuntimeLimits::default()
+        },
+        ..CassieRuntimeConfig::default()
+    };
+    let cassie = Cassie::new_in_memory_with_config(config).expect("in-memory Cassie");
+    let plan = aggregate_plan("SELECT var_pop(value::FLOAT8) FROM events");
+    let functions = HashMap::new();
+    let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
+    let context = aggregate_context(&plan, &functions, &controls);
+    let make_rows = |nan_first| {
+        (0..2 * batch::DEFAULT_BATCH_SIZE)
+            .map(|index| {
+                let text = if (nan_first && index == 0) || (!nan_first && index == 2) {
+                    "NaN"
+                } else {
+                    "1e308"
+                };
+                BatchRow::new(vec![("value".to_owned(), Value::String(text.to_owned()))])
+            })
+            .collect::<Vec<_>>()
+    };
+
+    // Act
+    let nan_first = aggregate_query_batches_inner(&cassie, vec![make_rows(true)], &context)
+        .expect("earlier NaN suppresses finite overflow");
+    let overflow_first = aggregate_query_batches_inner(&cassie, vec![make_rows(false)], &context);
+
+    // Assert
+    let rows = batch::flatten_batches(nan_first);
+    assert!(matches!(rows[0].get("var_pop"), Some(Value::Float64(value)) if value.is_nan()));
+    assert!(
+        matches!(overflow_first, Err(QueryError::Cassie(crate::app::CassieError::TypeInput(ref error))) if error.sqlstate == "22003")
+    );
+    drop(rows);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

@@ -13,12 +13,22 @@ use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
 
 #[cfg(test)]
+mod bit_key_tests;
+#[cfg(test)]
+mod numeric_key_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tie_wiring_tests;
+#[cfg(test)]
+mod vector_array_tests;
 
 mod retention;
 use retention::{SortRetentionContext, SortRetentionPhase};
 pub(crate) mod accounting;
 mod exists;
+pub(crate) mod key_part;
+pub(crate) mod tie;
 mod typed;
 pub(crate) use exists::{requires_resolver, sort_batches_resolving};
 #[cfg(test)]
@@ -427,52 +437,53 @@ impl EvalInput<'_> {
             if let Some(controls) = controls {
                 check_query_controls(controls)?;
             }
-            let previous = memory
-                .as_ref()
-                .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
-            let mut admitted = 0;
-            if let Some(memory) = memory.as_mut() {
-                memory.try_grow(accounting::type_scratch(
+            let semantic = if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
+                let (semantic, part_memory) = key_part::convert(
                     row,
                     &order.expr,
+                    value,
                     self.user_functions,
-                )?)?;
-                let data_type =
-                    super::array_order::expression_type(row, &order.expr, self.user_functions);
-                admitted = accounting::conversion_bytes(&value, data_type.as_ref())?;
-                memory.try_grow(admitted)?;
-            }
-            retention.before(SortRetentionPhase::SemanticPart)?;
-            let semantic =
-                super::array_order::key(row, &order.expr, &value, self.user_functions, controls)?;
-            if let Some(memory) = memory.as_mut() {
-                let retained = accounting::semantic_heap(&semantic)?;
-                if retained > admitted {
+                    controls,
+                    || retention.before(SortRetentionPhase::SemanticPart),
+                )?;
+                if !part_memory.belongs_to(controls) {
+                    drop(semantic);
+                    drop(part_memory);
                     return Err(crate::app::CassieError::ResourceLimit(
-                        "sort key exceeded its admitted allocation shape".to_owned(),
+                        "sort key owner uses a different query tracker".into(),
                     )
                     .into());
                 }
-                drop(value);
-                memory.shrink_to(add(previous, retained)?);
-            }
+                memory.absorb(part_memory);
+                semantic
+            } else {
+                retention.before(SortRetentionPhase::SemanticPart)?;
+                super::array_order::key(row, &order.expr, &value, self.user_functions, None)?
+            };
             parts.push(KeyPart {
                 value: semantic,
                 direction: order.direction.clone(),
                 nulls: order.nulls,
             });
         }
-        let previous = memory
-            .as_ref()
-            .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
-        if let Some(memory) = memory.as_mut() {
-            memory.try_grow(accounting::tie_bytes(row)?)?;
-        }
-        retention.before(SortRetentionPhase::TieKey)?;
-        let tie_key = row_tie_key(row);
-        if let Some(memory) = memory.as_mut() {
-            memory.shrink_to(add(previous, tie_key.capacity())?);
-        }
+        let tie_key = if let (Some(memory), Some(controls)) = (memory.as_mut(), controls) {
+            let probe = || retention.before(SortRetentionPhase::TieKey);
+            let tie = tie::serialize_with_probe(row, controls, Some(&probe))?;
+            let (text, tie_memory) = tie.into_parts();
+            if !tie_memory.belongs_to(controls) {
+                drop(text);
+                drop(tie_memory);
+                return Err(crate::app::CassieError::ResourceLimit(
+                    "sort tie owner uses a different query tracker".into(),
+                )
+                .into());
+            }
+            memory.absorb(tie_memory);
+            text
+        } else {
+            retention.before(SortRetentionPhase::TieKey)?;
+            row_tie_key(row)
+        };
         if let Some(controls) = controls {
             check_query_controls(controls)?;
         }

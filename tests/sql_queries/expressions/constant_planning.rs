@@ -150,3 +150,96 @@ fn should_keep_parameter_dependent_division_at_runtime() {
         Some(vec![vec![Value::Int64(2)]])
     );
 }
+
+#[test]
+fn should_propagate_folded_float_power_range_with_embedded_type_input() {
+    // Arrange
+    let fixture = planning_fixture("constant_planning_float_power_range");
+    let cases = [
+        ("SELECT power(1e308::float8, 2::float8) FROM cp_empty", "overflow"),
+        ("SELECT 1e-300::float8 ^ 2::float8 FROM cp_empty", "underflow"),
+        ("SELECT CASE WHEN id < 0 THEN power(1e308::float8, 2::float8) ELSE 1::float8 END FROM cp", "overflow"),
+        ("SELECT COALESCE(id::float8, 1e-300::float8 ^ 2::float8) FROM cp", "underflow"),
+    ];
+
+    // Act
+    for (sql, expected) in cases {
+        let result = fixture.execute(sql);
+        // Assert
+        assert!(
+            matches!(result, Err(CassieError::TypeInput(ref error))
+            if error.sqlstate == "22003" && error.message == format!("value out of range: {expected}")),
+            "{sql}: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn should_prune_unreached_float_power_range_constants() {
+    // Arrange
+    let fixture = planning_fixture("constant_planning_float_power_lazy");
+    let cases = [
+        ("SELECT CASE WHEN false THEN power(1e308::float8, 2::float8) ELSE 1::float8 END FROM cp WHERE id = 1", vec![vec![Value::Float64(1.0)]]),
+        ("SELECT COALESCE(2::float8, 1e-300::float8 ^ 2::float8) FROM cp WHERE id = 1", vec![vec![Value::Float64(2.0)]]),
+        ("SELECT id FROM cp WHERE false AND power(1e308::float8, 2::float8) = 1::float8", Vec::new()),
+        ("SELECT id FROM cp WHERE true OR 1e-300::float8 ^ 2::float8 = 1::float8 ORDER BY id", vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]),
+        ("SELECT CASE WHEN false THEN (SELECT power(1e308::float8, 2::float8)) ELSE 3::float8 END FROM cp WHERE id = 1", vec![vec![Value::Float64(3.0)]]),
+    ];
+
+    // Act
+    for (sql, expected) in cases {
+        // Assert
+        assert_eq!(fixture.rows(sql), expected, "{sql}");
+    }
+}
+
+#[test]
+fn should_preserve_bound_subquery_power_range_diagnostics() {
+    // Arrange
+    let fixture = planning_fixture("constant_planning_float_power_bound_subquery");
+    let cases = [
+        (
+            "SELECT power($1::float8, 2::float8) FROM cp_empty",
+            vec![Value::Float64(1e308)],
+            "overflow",
+        ),
+        (
+            "SELECT (SELECT 1e-300::float8 ^ 2::float8) FROM cp WHERE id = 1",
+            vec![],
+            "underflow",
+        ),
+    ];
+
+    // Act
+    for (sql, params, expected) in cases {
+        let result = fixture.cassie.execute_sql(&fixture.session, sql, params);
+        // Assert
+        assert!(
+            matches!(result, Err(CassieError::TypeInput(ref error))
+            if error.sqlstate == "22003" && error.message == format!("value out of range: {expected}")),
+            "{sql}: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn should_defer_row_dependent_subquery_power_failure_until_its_branch_is_reached() {
+    // Arrange
+    let fixture = planning_fixture("constant_planning_float_power_subquery_runtime");
+    let query = |outer_id| {
+        format!("SELECT CASE WHEN cp.id = 1 THEN (SELECT power(inner_row.id::float8 * 1e-300::float8, 2::float8) FROM cp AS inner_row WHERE inner_row.id = 1) ELSE 3::float8 END FROM cp WHERE cp.id = {outer_id}")
+    };
+
+    // Act
+    let unreached = fixture.execute(&query(2));
+    let reached = fixture.execute(&query(1));
+
+    // Assert
+    assert_eq!(
+        unreached.expect("unreached subquery").rows(),
+        &[vec![Value::Float64(3.0)]]
+    );
+    assert!(
+        matches!(reached, Err(CassieError::TypeInput(ref error)) if error.sqlstate == "22003" && error.message == "value out of range: underflow")
+    );
+}

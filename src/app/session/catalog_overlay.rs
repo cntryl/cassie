@@ -111,6 +111,14 @@ impl CassieSession {
         controls: &QueryExecutionControls,
     ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
         let mut transaction = self.transaction.lock();
+        Self::command_descriptor_snapshot_locked(&mut transaction, current, controls)
+    }
+
+    pub(super) fn command_descriptor_snapshot_locked(
+        transaction: &mut super::SessionTransactionState,
+        current: &Catalog,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Arc<ControlledCatalogSnapshot>>, CassieError> {
         let (Some(base), Some(overlay)) = (
             &transaction.catalog_views.base,
             &transaction.catalog_overlay,
@@ -130,6 +138,21 @@ impl CassieSession {
 
     pub(crate) fn transaction_catalog_base_version(&self) -> Option<u64> {
         self.transaction.lock().catalog_base_version
+    }
+
+    pub(crate) fn prune_transaction_sequence_cursors(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<(), CassieError> {
+        let transaction = self.transaction.lock();
+        let overlay = transaction.storage_overlay.lock();
+        overlay.prune_sequence_cursors_with(
+            transaction
+                .savepoints
+                .iter()
+                .map(|savepoint| &savepoint.storage_overlay),
+            controls,
+        )
     }
 
     pub(crate) fn transaction_storage_overlay(&self) -> Arc<Mutex<StorageOverlay>> {

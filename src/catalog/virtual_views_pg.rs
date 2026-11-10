@@ -8,9 +8,16 @@ use super::VirtualRow;
 
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
+#[path = "virtual_views_pg/type_identity.rs"]
+mod type_identity;
 
 pub(super) fn namespace_schema() -> Vec<(String, DataType)> {
-    vec![int("oid"), text("nspname"), int("nspowner"), text("nspacl")]
+    vec![
+        oid("oid"),
+        ("nspname".to_owned(), DataType::Name),
+        int("nspowner"),
+        text("nspacl"),
+    ]
 }
 
 pub(super) fn class_schema() -> Vec<(String, DataType)> {
@@ -393,8 +400,27 @@ pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<
                 .is_none_or(|database| relation_belongs_to_database(&view.name, database))
         })
         .flat_map(|view| view.schema.fields.into_iter().map(|field| field.data_type));
+    let materialized_view_types = catalog
+        .list_projection_metadata()
+        .into_iter()
+        .filter(|projection| {
+            projection.kind == crate::catalog::ProjectionKind::Materialized
+                && current_database.is_none_or(|database| {
+                    relation_belongs_to_database(&projection.collection, database)
+                })
+        })
+        .filter_map(|projection| projection.materialized)
+        .filter(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
+        .flat_map(|materialized| {
+            materialized
+                .output_schema
+                .fields
+                .into_iter()
+                .map(|field| field.data_type)
+        });
     let dimensions = collection_types
         .chain(view_types)
+        .chain(materialized_view_types)
         .filter_map(|data_type| match data_type {
             DataType::Vector(dimensions)
                 if crate::types::schema::vector_dimensions_for_oid(data_type.type_oid())
@@ -432,7 +458,14 @@ fn attribute_row(
         int_value("atttypmod", i64::from(data_type.atttypmod())),
         bool_value("atthasdef", constraint_has_default(constraint)),
         bool_value("attisdropped", false),
-        string("attidentity", ""),
+        string(
+            "attidentity",
+            match constraint.and_then(|item| item.identity) {
+                Some(crate::catalog::IdentityGeneration::Always) => "a",
+                Some(crate::catalog::IdentityGeneration::ByDefault) => "d",
+                None => "",
+            },
+        ),
         string("attgenerated", ""),
         int_value("attcollation", 0),
     ]
@@ -752,8 +785,11 @@ fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> Virtual
         int_value("typnamespace", namespace_oid(catalog, namespace)),
         int_value("typlen", i64::from(data_type.typlen())),
         bool_value("typbyval", is_type_passed_by_value(data_type)),
-        string("typtype", type_kind(data_type)),
-        string("typcategory", type_category(data_type)),
+        string("typtype", type_identity::kind(data_type, builtin_type)),
+        string(
+            "typcategory",
+            type_identity::category(data_type, builtin_type),
+        ),
         int_value(
             "typelem",
             builtin_type.map_or_else(
@@ -783,37 +819,17 @@ fn is_type_passed_by_value(data_type: &DataType) -> bool {
             | DataType::Float
             | DataType::Date
             | DataType::Time
+            | DataType::Timestamp
+            | DataType::ObjectId(_)
+            | DataType::Extended(
+                crate::types::extended::ExtendedType::Real
+                    | crate::types::extended::ExtendedType::PgLsn
+                    | crate::types::extended::ExtendedType::Date
+                    | crate::types::extended::ExtendedType::Time { .. }
+                    | crate::types::extended::ExtendedType::Timestamp { .. }
+                    | crate::types::extended::ExtendedType::TimestampTz { .. }
+            )
     )
-}
-
-fn type_kind(data_type: &DataType) -> String {
-    if matches!(data_type, DataType::Array(_)) {
-        "a".to_string()
-    } else {
-        "b".to_string()
-    }
-}
-
-fn type_category(data_type: &DataType) -> String {
-    match data_type {
-        DataType::Null => "Z".to_string(),
-        DataType::Boolean => "B".to_string(),
-        DataType::SmallInt
-        | DataType::Int
-        | DataType::BigInt
-        | DataType::Float
-        | DataType::ObjectId(_) => "N".to_string(),
-        DataType::Name
-        | DataType::Text
-        | DataType::Char { .. }
-        | DataType::Varchar { .. }
-        | DataType::Json => "S".to_string(),
-        DataType::Bytea | DataType::Uuid | DataType::Jsonb | DataType::JsonPath => "U".to_string(),
-        DataType::Date | DataType::Time | DataType::Timestamp => "D".to_string(),
-        DataType::Vector(_) => "V".to_string(),
-        DataType::Array(_) => "A".to_string(),
-        DataType::Extended(kind) => kind.category().to_string(),
-    }
 }
 
 fn element_type_oid(data_type: &DataType) -> i64 {

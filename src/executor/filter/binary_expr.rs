@@ -74,9 +74,7 @@ fn eval_logical_expr<R: RowAccess + ?Sized>(
     binary_scalar(&left, op, &right)
 }
 
-fn execution_controls<'a>(
-    context: EvalContext<'a>,
-) -> Option<&'a crate::runtime::QueryExecutionControls> {
+fn execution_controls(context: EvalContext<'_>) -> Option<&crate::runtime::QueryExecutionControls> {
     context.controls.or_else(|| {
         context
             .session

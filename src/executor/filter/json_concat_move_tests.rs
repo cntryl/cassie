@@ -37,7 +37,7 @@ fn should_preserve_null_scalar_conversion_and_error_results() {
         let actual = into_json_document(value).map_err(|error| error.to_string());
         match (expected, actual) {
             (Ok(ScalarValue::Json(a)), Ok(ScalarValue::Json(b))) | (Err(a), Err(b)) => {
-                assert_eq!(a, b)
+                assert_eq!(a, b);
             }
             (Ok(ScalarValue::Null), Ok(ScalarValue::Null)) => {}
             _ => panic!("conversion parity"),

@@ -10,7 +10,7 @@ use super::Fields;
 pub(super) struct Order<'a> {
     indices: Vec<usize>,
     _source: PhantomData<&'a ()>,
-    _memory: QueryMemoryReservation,
+    memory: QueryMemoryReservation,
 }
 
 impl Order<'_> {
@@ -20,7 +20,7 @@ impl Order<'_> {
     }
 
     pub(super) fn into_parts(self) -> (Vec<usize>, QueryMemoryReservation) {
-        (self.indices, self._memory)
+        (self.indices, self.memory)
     }
 }
 
@@ -140,7 +140,7 @@ fn sort_inner<'a>(
     Ok(Order {
         indices: second,
         _source: PhantomData,
-        _memory: second_memory,
+        memory: second_memory,
     })
 }
 

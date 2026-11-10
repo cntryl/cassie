@@ -43,7 +43,7 @@ fn should_match_legacy_object_key_order_duplicates_sentinels_and_errors() {
         for input in &inputs {
             let controls = controls(16 * 1024 * 1024);
             let owner = EvaluationMemory::new(&controls).expect("owner");
-            let expected = evaluate(name, &[input.clone()], Some(&controls))
+            let expected = evaluate(name, std::slice::from_ref(input), Some(&controls))
                 .expect("known")
                 .map_err(|error| error.to_string());
             let actual = run(name, input.clone(), Some(&controls), Some(&owner));
@@ -198,7 +198,7 @@ fn should_match_value_backed_object_keys_across_unicode_prefixes_and_sentinels()
         for input in &inputs {
             let controls = controls(16 * 1024 * 1024);
             let owner = EvaluationMemory::new(&controls).expect("owner");
-            let expected = evaluate(name, &[input.clone()], Some(&controls))
+            let expected = evaluate(name, std::slice::from_ref(input), Some(&controls))
                 .expect("known")
                 .map_err(|error| error.to_string());
             let actual = run(name, input.clone(), Some(&controls), Some(&owner));
@@ -233,7 +233,7 @@ fn should_release_value_key_sort_and_output_after_actual_work_cancellation() {
                 cancel.clone(),
             ),
             _ => {
-                crate::runtime::accounted::json_arena::cancel_object_keys_copy_once(cancel.clone())
+                crate::runtime::accounted::json_arena::cancel_object_keys_copy_once(cancel.clone());
             }
         }
         let input = Value::Json(serde_json::json!({"long-a":1,"long-b":2,"long-c":3}));

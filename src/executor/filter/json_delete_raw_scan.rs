@@ -97,12 +97,7 @@ impl<'a> Stack<'a> {
 
     fn push(&mut self, frame: Frame, observer: &mut impl FnMut(Progress)) -> Result<(), ScanError> {
         if self.frames.len() == self.frames.capacity() {
-            let capacity = self
-                .frames
-                .len()
-                .checked_mul(2)
-                .unwrap_or(usize::MAX)
-                .max(4);
+            let capacity = self.frames.len().saturating_mul(2).max(4);
             let bytes = capacity
                 .checked_mul(std::mem::size_of::<Frame>())
                 .ok_or_else(|| CassieError::ResourceLimit("JSON raw scan stack overflow".into()))?;

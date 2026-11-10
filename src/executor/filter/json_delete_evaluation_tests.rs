@@ -545,7 +545,7 @@ fn should_match_legacy_controlled_extraction_results_and_owner_release() {
             (ScalarValue::Null, ScalarValue::Null) => {}
             (ScalarValue::Str(actual), ScalarValue::Str(expected))
             | (ScalarValue::Json(actual), ScalarValue::Json(expected)) => {
-                assert_eq!(actual, expected)
+                assert_eq!(actual, expected);
             }
             _ => panic!("extraction mismatch for {source}"),
         }
@@ -800,7 +800,7 @@ fn should_preserve_string_path_empty_scalar_array_and_sentinel_cases() {
         match (&actual, &expected) {
             (ScalarValue::Null, ScalarValue::Null) => {}
             (ScalarValue::Json(actual), ScalarValue::Json(expected)) => {
-                assert_eq!(actual, expected)
+                assert_eq!(actual, expected);
             }
             _ => panic!("path mismatch: {source:?} / {path:?}"),
         }
@@ -919,7 +919,7 @@ fn should_flatten_string_backed_nested_extraction_paths() {
         match (result, expected) {
             (ScalarValue::Null, None) => {}
             (ScalarValue::Json(actual) | ScalarValue::Str(actual), Some(expected)) => {
-                assert_eq!(actual, expected)
+                assert_eq!(actual, expected);
             }
             _ => panic!("unexpected nested path result: {path}"),
         }

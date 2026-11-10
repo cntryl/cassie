@@ -177,7 +177,20 @@ fn inspect(
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
-    let result = match kind {
+    let result = inspect_value(kind, args, controls, owner)?;
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    Ok(result)
+}
+
+fn inspect_value(
+    kind: JsonFunction,
+    args: &[Value],
+    controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
+) -> Result<Value, QueryError> {
+    match kind {
         JsonFunction::BuildObject(_)
         | JsonFunction::BuildArray(_)
         | JsonFunction::ToJson(_)
@@ -199,102 +212,115 @@ fn inspect(
         }
         JsonFunction::SqlExists => unreachable!("SQL/JSON EXISTS uses JSONPath evaluation"),
         JsonFunction::SqlInput => unreachable!("JSON input uses its own evaluator"),
-        JsonFunction::ObjectKeys(_) => {
-            if let Some(value) = controlled_object_keys(&args[0], controls, owner)? {
-                value
-            } else {
-                let document = document(&args[0])?;
-                let object = document.as_object().ok_or_else(|| {
-                    CassieError::InvalidParameterValue(
-                        "cannot call json_object_keys on a non-object".into(),
-                    )
-                })?;
-                let mut keys = object.keys().cloned().collect::<Vec<_>>();
-                keys.sort();
-                Value::Json(serde_json::Value::Array(
-                    keys.into_iter().map(serde_json::Value::String).collect(),
-                ))
-            }
+        JsonFunction::ObjectKeys(_) => inspect_object_keys(&args[0], controls, owner),
+        JsonFunction::Typeof(_) => inspect_typeof(&args[0], controls),
+        JsonFunction::ArrayLength(_) => inspect_array_length(&args[0], controls),
+        JsonFunction::Exists(all) => inspect_exists(&args[0], &args[1], all, controls),
+    }
+}
+
+fn inspect_object_keys(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
+) -> Result<Value, QueryError> {
+    if let Some(value) = controlled_object_keys(value, controls, owner)? {
+        return Ok(value);
+    }
+    let document = document(value)?;
+    let object = document.as_object().ok_or_else(|| {
+        CassieError::InvalidParameterValue("cannot call json_object_keys on a non-object".into())
+    })?;
+    let mut keys = object.keys().cloned().collect::<Vec<_>>();
+    keys.sort();
+    Ok(Value::Json(serde_json::Value::Array(
+        keys.into_iter().map(serde_json::Value::String).collect(),
+    )))
+}
+
+fn inspect_typeof(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    use crate::runtime::accounted::json_arena::InspectionRoot;
+    let kind = if let Some(root) = controlled_root(value, controls)? {
+        match root {
+            InspectionRoot::Null => "null",
+            InspectionRoot::Boolean => "boolean",
+            InspectionRoot::Number => "number",
+            InspectionRoot::String => "string",
+            InspectionRoot::Array(_) => "array",
+            InspectionRoot::Object => "object",
         }
-        JsonFunction::Typeof(_) => {
-            use crate::runtime::accounted::json_arena::InspectionRoot;
-            let kind = if let Some(root) = controlled_root(&args[0], controls)? {
-                match root {
-                    InspectionRoot::Null => "null",
-                    InspectionRoot::Boolean => "boolean",
-                    InspectionRoot::Number => "number",
-                    InspectionRoot::String => "string",
-                    InspectionRoot::Array(_) => "array",
-                    InspectionRoot::Object => "object",
-                }
-            } else {
-                let document = document(&args[0])?;
-                match document.as_ref() {
-                    serde_json::Value::Null => "null",
-                    serde_json::Value::Bool(_) => "boolean",
-                    serde_json::Value::Number(_) => "number",
-                    serde_json::Value::String(_) => "string",
-                    serde_json::Value::Array(_) => "array",
-                    serde_json::Value::Object(_) => "object",
-                }
-            };
-            Value::String(kind.to_owned())
-        }
-        JsonFunction::ArrayLength(_) => {
-            use crate::runtime::accounted::json_arena::InspectionRoot;
-            let length = if let Some(root) = controlled_root(&args[0], controls)? {
-                match root {
-                    InspectionRoot::Array(length) => length,
-                    _ => {
-                        return Err(CassieError::InvalidParameterValue(
-                            "cannot get array length of a non-array".into(),
-                        )
-                        .into())
-                    }
-                }
-            } else {
-                let document = document(&args[0])?;
-                document
-                    .as_array()
-                    .ok_or_else(|| {
-                        CassieError::InvalidParameterValue(
-                            "cannot get array length of a non-array".into(),
-                        )
-                    })?
-                    .len()
-            };
-            let length = i32::try_from(length)
-                .map_err(|_| CassieError::ResourceLimit("JSON array length exceeds INT4".into()))?;
-            Value::Int64(i64::from(length))
-        }
-        JsonFunction::Exists(all) => {
-            let document = json_text(&args[0])?;
-            let keys = scalar_from_value(&args[1]);
-            let operator = if all {
-                BinaryOp::JsonbKeyExistsAll
-            } else {
-                BinaryOp::JsonbKeyExistsAny
-            };
-            let document = ScalarValue::Json(document);
-            let selected = if let Some(controls) = controls {
-                json_key_exists::evaluate_controlled(&document, &operator, &keys, controls)?
-            } else {
-                None
-            };
-            let result = match selected {
-                Some(result) => result,
-                None => json_key_exists::evaluate(&document, &operator, &keys)?,
-            };
-            match result {
-                ScalarValue::Bool(value) => Value::Bool(value),
-                _ => unreachable!("non-NULL key inspection returns BOOLEAN"),
-            }
+    } else {
+        let document = document(value)?;
+        match document.as_ref() {
+            serde_json::Value::Null => "null",
+            serde_json::Value::Bool(_) => "boolean",
+            serde_json::Value::Number(_) => "number",
+            serde_json::Value::String(_) => "string",
+            serde_json::Value::Array(_) => "array",
+            serde_json::Value::Object(_) => "object",
         }
     };
-    if let Some(controls) = controls {
-        controls.check_interruption()?;
+    Ok(Value::String(kind.to_owned()))
+}
+
+fn inspect_array_length(
+    value: &Value,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    use crate::runtime::accounted::json_arena::InspectionRoot;
+    let length = if let Some(root) = controlled_root(value, controls)? {
+        match root {
+            InspectionRoot::Array(length) => length,
+            _ => {
+                return Err(CassieError::InvalidParameterValue(
+                    "cannot get array length of a non-array".into(),
+                )
+                .into());
+            }
+        }
+    } else {
+        let document = document(value)?;
+        document
+            .as_array()
+            .ok_or_else(|| {
+                CassieError::InvalidParameterValue("cannot get array length of a non-array".into())
+            })?
+            .len()
+    };
+    let length = i32::try_from(length)
+        .map_err(|_| CassieError::ResourceLimit("JSON array length exceeds INT4".into()))?;
+    Ok(Value::Int64(i64::from(length)))
+}
+
+fn inspect_exists(
+    input: &Value,
+    keys: &Value,
+    all: bool,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    let document = ScalarValue::Json(json_text(input)?);
+    let keys = scalar_from_value(keys);
+    let operator = if all {
+        BinaryOp::JsonbKeyExistsAll
+    } else {
+        BinaryOp::JsonbKeyExistsAny
+    };
+    let selected = if let Some(controls) = controls {
+        json_key_exists::evaluate_controlled(&document, &operator, &keys, controls)?
+    } else {
+        None
+    };
+    let result = match selected {
+        Some(result) => result,
+        None => json_key_exists::evaluate(&document, &operator, &keys)?,
+    };
+    match result {
+        ScalarValue::Bool(value) => Ok(Value::Bool(value)),
+        _ => unreachable!("non-NULL key inspection returns BOOLEAN"),
     }
-    Ok(result)
 }
 
 struct PendingObjectKeys {

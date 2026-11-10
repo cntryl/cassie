@@ -34,25 +34,27 @@ pub(super) fn validate_date_unit(unit_name: &str, source: &TypedValue) -> Result
     }
     let lower = unit_name[..end].to_ascii_lowercase();
     match unit_keyword(&lower).or_else(|| date_keyword(&lower)) {
-        Some(Keyword::Units(
-            Unit::Hour
-            | Unit::Minute
-            | Unit::Second
-            | Unit::Millisecond
-            | Unit::Microsecond
-            | Unit::Timezone
-            | Unit::TimezoneHour
-            | Unit::TimezoneMinute,
-        ))
-        | Some(Keyword::Reserved(
-            Reserved::Late
-            | Reserved::Early
-            | Reserved::Now
-            | Reserved::Today
-            | Reserved::Tomorrow
-            | Reserved::Yesterday
-            | Reserved::Zulu,
-        )) => Err(unsupported(&lower, "date")),
+        Some(
+            Keyword::Units(
+                Unit::Hour
+                | Unit::Minute
+                | Unit::Second
+                | Unit::Millisecond
+                | Unit::Microsecond
+                | Unit::Timezone
+                | Unit::TimezoneHour
+                | Unit::TimezoneMinute,
+            )
+            | Keyword::Reserved(
+                Reserved::Late
+                | Reserved::Early
+                | Reserved::Now
+                | Reserved::Today
+                | Reserved::Tomorrow
+                | Reserved::Yesterday
+                | Reserved::Zulu,
+            ),
+        ) => Err(unsupported(&lower, "date")),
         Some(Keyword::Units(_) | Keyword::Reserved(Reserved::Epoch)) => Ok(()),
         _ => Err(type_error(crate::types::extended::TypeInputError::new(
             "22023",

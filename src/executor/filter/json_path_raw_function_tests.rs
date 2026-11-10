@@ -35,10 +35,7 @@ fn should_match_legacy_finite_path_functions_and_error_priority() {
             Value::String("a".into()),
             Value::String("b".into()),
         ],
-        vec![
-            Value::String(r#"[1,2,3]"#.into()),
-            Value::String("-1".into()),
-        ],
+        vec![Value::String("[1,2,3]".into()), Value::String("-1".into())],
         vec![
             Value::String(r#"{"a":null}"#.into()),
             Value::String("a".into()),

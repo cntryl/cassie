@@ -38,12 +38,7 @@ impl Directory {
         controls: &QueryExecutionControls,
     ) -> Result<(), QueryError> {
         if self.ranges.len() == self.ranges.capacity() {
-            let capacity = self
-                .ranges
-                .len()
-                .checked_mul(2)
-                .unwrap_or(usize::MAX)
-                .max(4);
+            let capacity = self.ranges.len().saturating_mul(2).max(4);
             let bytes = capacity
                 .checked_mul(std::mem::size_of::<Range<usize>>())
                 .ok_or_else(overflow)?;

@@ -10,8 +10,8 @@ use std::{collections::HashMap, time::Instant};
 fn run(
     row: &BatchRow,
     expression: &Expr,
-    target: DataType,
-    source: DataType,
+    target: &DataType,
+    source: &DataType,
     controls: &QueryExecutionControls,
     owner: &EvaluationMemory,
 ) -> Result<ScalarValue, QueryError> {
@@ -30,8 +30,8 @@ fn run(
     eval_cast_expr(
         row,
         expression,
-        &target,
-        Some(&source),
+        target,
+        Some(source),
         CastIdentity::Scalar,
         context,
     )
@@ -53,8 +53,8 @@ fn should_move_json_cast_input_and_retain_the_deletion_owner() {
     let result = run(
         &row,
         &expression,
-        DataType::Json,
-        DataType::Json,
+        &DataType::Json,
+        &DataType::Json,
         &controls,
         &owner,
     )
@@ -85,8 +85,8 @@ fn should_preserve_json_cast_null_scalar_and_jsonb_canonicalization() {
         run(
             &null,
             &expression,
-            DataType::Json,
-            DataType::Json,
+            &DataType::Json,
+            &DataType::Json,
             &controls,
             &owner
         ),
@@ -94,24 +94,24 @@ fn should_preserve_json_cast_null_scalar_and_jsonb_canonicalization() {
     ));
     let scalar = BatchRow::new(vec![("doc".into(), Value::Int64(7))]);
     assert!(
-        matches!(run(&scalar, &expression, DataType::Json, DataType::Json, &controls, &owner), Ok(ScalarValue::Json(text)) if text == "7")
+        matches!(run(&scalar, &expression, &DataType::Json, &DataType::Json, &controls, &owner), Ok(ScalarValue::Json(text)) if text == "7")
     );
     let object = BatchRow::new(vec![(
         "doc".into(),
         Value::Json(serde_json::json!({"b":1,"a":2})),
     )]);
     assert!(
-        matches!(run(&object, &expression, DataType::Jsonb, DataType::Json, &controls, &owner), Ok(ScalarValue::Json(text)) if text == r#"{"a": 2, "b": 1}"#)
+        matches!(run(&object, &expression, &DataType::Jsonb, &DataType::Json, &controls, &owner), Ok(ScalarValue::Json(text)) if text == r#"{"a": 2, "b": 1}"#)
     );
     assert!(
-        matches!(run(&object, &expression, DataType::Json, DataType::Jsonb, &controls, &owner), Ok(ScalarValue::Json(text)) if text == r#"{"a": 2, "b": 1}"#)
+        matches!(run(&object, &expression, &DataType::Json, &DataType::Jsonb, &controls, &owner), Ok(ScalarValue::Json(text)) if text == r#"{"a": 2, "b": 1}"#)
     );
     let nul = BatchRow::new(vec![("doc".into(), Value::Json(serde_json::json!("\0")))]);
     let error = run(
         &nul,
         &expression,
-        DataType::Jsonb,
-        DataType::Json,
+        &DataType::Jsonb,
+        &DataType::Json,
         &controls,
         &owner,
     )

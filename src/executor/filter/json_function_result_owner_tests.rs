@@ -51,9 +51,10 @@ fn should_preserve_function_result_variants_and_scalar_errors() {
         .map_err(|error| error.to_string());
         let actual = function_json_result(value, context).map_err(|error| error.to_string());
         match (expected, actual) {
-            (Ok(ScalarValue::Json(a)), Ok(ScalarValue::Json(b))) => assert_eq!(a, b),
+            (Ok(ScalarValue::Json(a)), Ok(ScalarValue::Json(b))) | (Err(a), Err(b)) => {
+                assert_eq!(a, b)
+            }
             (Ok(ScalarValue::Null), Ok(ScalarValue::Null)) => {}
-            (Err(a), Err(b)) => assert_eq!(a, b),
             _ => panic!("function result parity"),
         }
     }

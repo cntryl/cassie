@@ -34,56 +34,7 @@ pub(super) fn execute(
             + 2 * size_of::<usize>(),
         mul(count, size_of::<BatchRow>())?,
     )?)?;
-    let semantic_types = if count > 0
-        && rows.iter().flatten().any(|expr| {
-            expr.any_descendant_or_self(&mut |expr| {
-                if let Expr::Function(function) = expr {
-                    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
-                        metadata
-                            .return_type
-                            .fixed_type()
-                            .as_ref()
-                            .is_some_and(crate::executor::semantic::jsonb_type)
-                    }) || env
-                        .user_functions
-                        .get(&function.name)
-                        .is_some_and(|metadata| {
-                            crate::executor::semantic::jsonb_type(&metadata.return_type)
-                        })
-                    {
-                        return true;
-                    }
-                }
-                matches!(
-                    expr,
-                    Expr::Cast {
-                        data_type: crate::types::DataType::Char { .. }
-                            | crate::types::DataType::Jsonb
-                            | crate::types::DataType::Array(_),
-                        ..
-                    }
-                )
-            })
-        }) {
-        let width = rows.first().map_or(0, Vec::len);
-        memory.try_grow(add(
-            size_of::<Vec<crate::types::DataType>>() + 2 * size_of::<usize>(),
-            mul(
-                width,
-                size_of::<crate::types::FieldSchema>() + size_of::<crate::types::DataType>() + 26,
-            )?,
-        )?)?;
-        let schema = crate::sql::binder::values::schema(rows, env.user_functions, &[])?;
-        Some(Arc::new(
-            schema
-                .fields
-                .into_iter()
-                .map(|field| field.data_type)
-                .collect(),
-        ))
-    } else {
-        None
-    };
+    let semantic_types = semantic_types(rows, count, env, &mut memory)?;
     let mut output = Vec::with_capacity(count);
     for expressions in rows.iter().take(count) {
         check_timeout(env.controls)?;
@@ -132,6 +83,64 @@ pub(super) fn execute(
         *row = owned.with_query_memory(Some(Arc::clone(&memory)));
     }
     Ok((vec![output], Vec::new()))
+}
+
+fn semantic_types(
+    rows: &[Vec<Expr>],
+    count: usize,
+    env: &SourceExecutionEnv<'_>,
+    memory: &mut crate::runtime::QueryMemoryReservation,
+) -> Result<Option<Arc<Vec<crate::types::DataType>>>, QueryError> {
+    let needs_types = count > 0
+        && rows.iter().flatten().any(|expr| {
+            expr.any_descendant_or_self(&mut |expr| {
+                if let Expr::Function(function) = expr {
+                    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+                        metadata
+                            .return_type
+                            .fixed_type()
+                            .as_ref()
+                            .is_some_and(crate::executor::semantic::jsonb_type)
+                    }) || env
+                        .user_functions
+                        .get(&function.name)
+                        .is_some_and(|metadata| {
+                            crate::executor::semantic::jsonb_type(&metadata.return_type)
+                        })
+                    {
+                        return true;
+                    }
+                }
+                matches!(
+                    expr,
+                    Expr::Cast {
+                        data_type: crate::types::DataType::Char { .. }
+                            | crate::types::DataType::Jsonb
+                            | crate::types::DataType::Array(_),
+                        ..
+                    }
+                )
+            })
+        });
+    if !needs_types {
+        return Ok(None);
+    }
+    let width = rows.first().map_or(0, Vec::len);
+    memory.try_grow(add(
+        size_of::<Vec<crate::types::DataType>>() + 2 * size_of::<usize>(),
+        mul(
+            width,
+            size_of::<crate::types::FieldSchema>() + size_of::<crate::types::DataType>() + 26,
+        )?,
+    )?)?;
+    let schema = crate::sql::binder::values::schema(rows, env.user_functions, &[])?;
+    Ok(Some(Arc::new(
+        schema
+            .fields
+            .into_iter()
+            .map(|field| field.data_type)
+            .collect(),
+    )))
 }
 
 pub(in crate::executor::execution) fn scratch_bytes(

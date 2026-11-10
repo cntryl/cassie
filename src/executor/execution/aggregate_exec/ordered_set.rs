@@ -273,36 +273,13 @@ fn evaluate_percentile_owned_observed(
             return Ok(AggregateOutput::from_value(Value::Null));
         };
         if !is_continuous {
-            let row_count = sorted
-                .values
-                .len()
-                .to_f64()
-                .ok_or_else(percentile_rank_overflow)?;
-            let index = percentile_discrete_index(sorted.values.len(), fraction, row_count)?;
-            let value = &sorted.values[index];
-            if let Value::String(text) = value {
-                return percentile_string_output(text, &sorted.memory, context.controls, || {
-                    observe(FractionProgress::StringChunk, sorted.memory.bytes());
-                });
-            }
-            if let Value::Array(array) = value {
-                if let Some(copied) =
-                    copy_primitive_array(array, &sorted.memory, context.controls, |phase| {
-                        match phase {
-                            PrimitiveCopyProgress::Eligibility => {}
-                            PrimitiveCopyProgress::Dimension => {
-                                observe(FractionProgress::PrimitiveDimension, sorted.memory.bytes())
-                            }
-                            PrimitiveCopyProgress::Element => {
-                                observe(FractionProgress::PrimitiveElement, sorted.memory.bytes())
-                            }
-                        }
-                    })?
-                {
-                    return Ok(primitive_array_output(copied));
-                }
-            }
-            return Ok(AggregateOutput::from_value(value.clone()));
+            return evaluate_discrete_scalar(
+                &sorted.values,
+                fraction,
+                &sorted.memory,
+                context.controls,
+                &mut observe,
+            );
         }
         return percentile_value(&sorted.values, fraction, is_continuous)
             .map(AggregateOutput::from_value);
@@ -359,6 +336,37 @@ fn evaluate_percentile_owned_observed(
         is_continuous,
     )
     .map(AggregateOutput::from_value)
+}
+
+fn evaluate_discrete_scalar(
+    values: &[Value],
+    fraction: f64,
+    memory: &QueryMemoryReservation,
+    controls: &QueryExecutionControls,
+    observe: &mut impl FnMut(FractionProgress, usize),
+) -> Result<AggregateOutput, QueryError> {
+    let row_count = values.len().to_f64().ok_or_else(percentile_rank_overflow)?;
+    let index = percentile_discrete_index(values.len(), fraction, row_count)?;
+    let value = &values[index];
+    if let Value::String(text) = value {
+        return percentile_string_output(text, memory, controls, || {
+            observe(FractionProgress::StringChunk, memory.bytes());
+        });
+    }
+    if let Value::Array(array) = value {
+        if let Some(copied) = copy_primitive_array(array, memory, controls, |phase| match phase {
+            PrimitiveCopyProgress::Eligibility => {}
+            PrimitiveCopyProgress::Dimension => {
+                observe(FractionProgress::PrimitiveDimension, memory.bytes());
+            }
+            PrimitiveCopyProgress::Element => {
+                observe(FractionProgress::PrimitiveElement, memory.bytes());
+            }
+        })? {
+            return Ok(primitive_array_output(copied));
+        }
+    }
+    Ok(AggregateOutput::from_value(value.clone()))
 }
 
 fn evaluate_fractions(

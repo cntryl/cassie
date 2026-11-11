@@ -213,6 +213,15 @@ impl Cassie {
     }
 
     fn hydrate_programmable_metadata(&self) -> Result<(), CassieError> {
+        let extensions = self.midge.list_extensions().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list extension metadata: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for metadata in extensions {
+            self.catalog.register_extension(metadata);
+        }
+
         let functions = self.midge.list_functions().map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("list functions: {error}"))

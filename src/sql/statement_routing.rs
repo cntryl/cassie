@@ -14,8 +14,8 @@ use super::{
     DropMaterializedViewStatement, DropProcedureStatement, DropRetentionPolicyStatement,
     DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropSequenceStatement,
     DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, ExplainStatement,
-    InsertStatement, MergeStatement, PlanRepairProjectionStatement, QueryStatement,
-    RefreshMaterializedProjectionStatement, RefreshMaterializedViewStatement,
+    ExtensionStatement, InsertStatement, MergeStatement, PlanRepairProjectionStatement,
+    QueryStatement, RefreshMaterializedProjectionStatement, RefreshMaterializedViewStatement,
     RefreshRollupStatement, ReindexStatement, RenameMaterializedViewStatement,
     RepairProjectionStatement, SelectStatement, SessionObjectStatement, SetStatement,
     ShowStatement, TransactionStatement, TruncateStatement, UpdateStatement,
@@ -80,6 +80,7 @@ pub enum CatalogStatementRef<'a> {
     CreateProcedure(&'a CreateProcedureStatement),
     DropProcedure(&'a DropProcedureStatement),
     CallProcedure(&'a CallProcedureStatement),
+    Extension(&'a ExtensionStatement),
     CreateIndex(&'a CreateIndexStatement),
     DropIndex(&'a DropIndexStatement),
     AlterIndex(&'a AlterIndexStatement),
@@ -162,6 +163,7 @@ pub enum CatalogStatement {
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
     CallProcedure(CallProcedureStatement),
+    Extension(ExtensionStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
     AlterIndex(AlterIndexStatement),
@@ -235,6 +237,7 @@ impl QueryStatement {
             | Self::CreateProcedure(_)
             | Self::DropProcedure(_)
             | Self::CallProcedure(_)
+            | Self::Extension(_)
             | Self::CreateIndex(_)
             | Self::DropIndex(_)
             | Self::AlterIndex(_)
@@ -335,6 +338,7 @@ impl QueryStatement {
             Self::CreateProcedure(statement) => CatalogStatementRef::CreateProcedure(statement),
             Self::DropProcedure(statement) => CatalogStatementRef::DropProcedure(statement),
             Self::CallProcedure(statement) => CatalogStatementRef::CallProcedure(statement),
+            Self::Extension(statement) => CatalogStatementRef::Extension(statement),
             Self::CreateIndex(statement) => CatalogStatementRef::CreateIndex(statement),
             Self::DropIndex(statement) => CatalogStatementRef::DropIndex(statement),
             Self::AlterIndex(statement) => CatalogStatementRef::AlterIndex(statement),
@@ -458,6 +462,7 @@ impl QueryStatement {
             Self::CreateProcedure(statement) => CatalogStatement::CreateProcedure(statement),
             Self::DropProcedure(statement) => CatalogStatement::DropProcedure(statement),
             Self::CallProcedure(statement) => CatalogStatement::CallProcedure(statement),
+            Self::Extension(statement) => CatalogStatement::Extension(statement),
             Self::CreateIndex(statement) => CatalogStatement::CreateIndex(statement),
             Self::DropIndex(statement) => CatalogStatement::DropIndex(statement),
             Self::AlterIndex(statement) => CatalogStatement::AlterIndex(statement),

@@ -114,6 +114,7 @@ fn create_view_gated(
             .map_err(|error| QueryError::General(error.to_string()))?;
     let mut metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
+    metadata.extension_dependency_ids = selected_extension_dependency_ids(cassie, select, &context);
 
     metadata.definition_semantics_version = 1;
     cassie
@@ -132,6 +133,43 @@ fn create_view_gated(
     cassie.catalog.register_view(metadata);
 
     Ok(output)
+}
+
+fn selected_extension_dependency_ids(
+    cassie: &Cassie,
+    select: &crate::sql::ast::SelectStatement,
+    context: &crate::sql::binder::BindingContext,
+) -> Vec<u64> {
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &cassie.catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
+    let mut functions = Vec::new();
+    crate::sql::binder::collect_functions(select, &mut functions);
+    let mut extension_ids = std::collections::BTreeSet::new();
+    for function in functions {
+        let lookup = function.name.to_ascii_lowercase();
+        if user_functions.get(&lookup).is_some_and(|metadata| {
+            function.args.len() == metadata.args.len()
+                && !crate::sql::functions::has_distinct_builtin_arity(
+                    &function.name,
+                    function.args.len(),
+                    metadata.args.len(),
+                )
+        }) {
+            continue;
+        }
+        if let Some(extension) = cassie.catalog.resolve_pgcrypto_digest(
+            &context.database,
+            &function.name,
+            &context.search_path,
+        ) {
+            extension_ids.insert(extension.object_id);
+        }
+    }
+    extension_ids.into_iter().collect()
 }
 
 pub(super) fn drop_view(

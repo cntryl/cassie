@@ -103,14 +103,30 @@ fn infer_inputs(
     ) {
         return Ok(());
     }
-    let data_type = match functions::input_signature(metadata.id) {
+    let data_type = infer_signature_inputs(function, metadata.id, field_types, catalog, inference)?;
+    if let Some(data_type) = data_type {
+        for argument in &function.args {
+            infer_parameter_type_from_expected_expr(argument, &data_type, inference);
+        }
+    }
+    Ok(())
+}
+
+fn infer_signature_inputs(
+    function: &FunctionCall,
+    function_id: functions::FunctionId,
+    field_types: &FieldTypeMap,
+    catalog: &Catalog,
+    inference: &mut ParameterInference,
+) -> Result<Option<DataType>, ParameterAdmissionError> {
+    let data_type = match functions::input_signature(function_id) {
         Some(
             signature @ (FunctionInputSignature::Positional(_)
             | FunctionInputSignature::VariadicTail { .. }),
         ) => {
             infer_positional_inputs(
                 function,
-                metadata.id,
+                function_id,
                 signature,
                 field_types,
                 catalog,
@@ -123,6 +139,12 @@ fn infer_inputs(
             None
         }
         Some(FunctionInputSignature::Text) => Some(DataType::Text),
+        Some(FunctionInputSignature::Digest) => {
+            for argument in &function.args {
+                infer_parameter_type_from_expected_expr(argument, &DataType::Text, inference);
+            }
+            None
+        }
         Some(FunctionInputSignature::Boolean) => Some(DataType::Boolean),
         Some(FunctionInputSignature::AnyElement) => {
             validate_any_element_input(function, field_types, catalog, inference)?;
@@ -169,12 +191,7 @@ fn infer_inputs(
         }
         Some(FunctionInputSignature::OrderedSetOrderKey) | None => None,
     };
-    if let Some(data_type) = data_type {
-        for argument in &function.args {
-            infer_parameter_type_from_expected_expr(argument, &data_type, inference);
-        }
-    }
-    Ok(())
+    Ok(data_type)
 }
 
 fn validate_any_element_input(
@@ -492,6 +509,7 @@ fn function_result_type(
                 _ => DataType::Text,
             }))
         }
+        Some(FunctionInputSignature::Digest) => Ok(ArgumentType::Known(DataType::Bytea)),
         _ => Ok(ArgumentType::Unqualified),
     }
 }

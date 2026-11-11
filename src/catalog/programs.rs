@@ -2,6 +2,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{DataType, Schema};
 
+/// One registered finite built-in extension profile in a database.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExtensionMeta {
+    pub format_version: u16,
+    pub database: String,
+    pub name: String,
+    pub version: String,
+    pub schema: String,
+    pub owner_oid: u32,
+    pub object_id: u64,
+    pub digest_text_object_id: Option<u64>,
+    pub digest_bytea_object_id: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Volatility {
@@ -56,6 +70,8 @@ pub struct ViewMeta {
     /// Stable relation identity allocated at creation; renames keep it.
     #[serde(default)]
     pub object_id: u64,
+    /// Selected extension identities resolved by functions in the stored query.
+    pub extension_dependency_ids: Vec<u64>,
 }
 
 impl ViewMeta {
@@ -66,6 +82,7 @@ impl ViewMeta {
             query: query.into(),
             schema,
             object_id: 0,
+            extension_dependency_ids: Vec::new(),
         }
     }
 }

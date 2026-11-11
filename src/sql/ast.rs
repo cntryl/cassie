@@ -18,6 +18,9 @@ pub use ast_create_table::{
 #[path = "ast_schema.rs"]
 mod ast_schema;
 pub use ast_schema::{AlterTableOperation, AlterTableStatement, IdentityAlteration};
+#[path = "ast_extension.rs"]
+mod ast_extension;
+pub use ast_extension::{ExtensionAction, ExtensionStatement};
 
 #[path = "ast_query.rs"]
 mod ast_query;
@@ -144,6 +147,7 @@ pub enum QueryStatement {
     CreateProcedure(CreateProcedureStatement),
     DropProcedure(DropProcedureStatement),
     CallProcedure(CallProcedureStatement),
+    Extension(ExtensionStatement),
     DropSchema(DropSchemaStatement),
     AlterSchema(AlterSchemaStatement),
 }

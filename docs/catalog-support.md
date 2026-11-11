@@ -391,6 +391,39 @@ helpers need a reviewed contextual resolver contract. DROP RESTRICT protects liv
 dependent columns/indexes; CASCADE behavior must remove actual dependents atomically.
 Restore retains extension IDs and rebuilds derived ANN state from authoritative vectors.
 
+#### #843 extension catalog field set — 2026-11-11
+
+Keep the extension catalog surface finite to the named shim workflows. The
+selected `pg_extension` fields, in descriptor order, are `oid`, `extname`,
+`extowner`, `extnamespace`, `extrelocatable`, and `extversion`. The selected
+`pg_available_extensions` fields are `name`, `default_version`, and
+`installed_version`. Advertise only `pgcrypto` 1.4 and `vector` 0.8.7; their
+`installed_version` is NULL until that extension is installed in the active
+database. `extconfig`, `extcondition`, and the available-extension `comment`
+are outside this profile.
+
+For #817's selected routine identity, retain the current `pg_proc` fields
+`oid`, `proname`, and `prorettype`, and add only `pronamespace`. Register the
+two SHA-256 `digest` overload identities in the selected extension schema only
+while `pgcrypto` is installed. Their OIDs and namespace identify the
+registered rows; `proargtypes` and broader routine introspection remain
+unsupported. SQL overload resolution still accepts only the selected TEXT and
+BYTEA inputs with the `sha256` algorithm.
+
+This finite field contract satisfies the catalog-support prerequisite named by
+#843 for its selected extension workflows. The historical #843 triage note saying
+that runtime work is blocked by #817 predates this selection; #817 remains open
+for its broader runtime acceptance and evidence. This resolution authorizes only
+the bounded #843 slice and does not claim #817 is complete.
+
+The field set was selected after reconciling the staged descriptor probe in
+`tests/compatibility/lifecycle/extensions/catalog_descriptors.rs` with the
+current #843/#817 workflow scope. It intentionally does not expose the full
+PostgreSQL 18 extension catalog shapes documented in
+[`pg_extension`](https://www.postgresql.org/docs/18/catalog-pg-extension.html),
+[`pg_available_extensions`](https://www.postgresql.org/docs/18/view-pg-available-extensions.html),
+or [`pg_proc`](https://www.postgresql.org/docs/18/catalog-pg-proc.html).
+
 ### #845
 
 Select COMMENT ON SCHEMA/TABLE/COLUMN ... IS text-or-NULL, owner/root authorization,

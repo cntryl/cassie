@@ -1,8 +1,22 @@
 //! Operation-specific scratch boundaries use small native PostgreSQL witnesses.
-use super::{evaluate, Value};
+use super::{evaluate as evaluate_with_context, Value};
 use crate::app::CassieError;
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryExecutionControls;
+use crate::sql::ast::FunctionCall;
+
+fn evaluate(
+    name: &str,
+    args: &[Value],
+    controls: Option<&QueryExecutionControls>,
+) -> Option<Result<Value, super::QueryError>> {
+    let function = FunctionCall {
+        name: name.to_owned(),
+        ..FunctionCall::default()
+    };
+    let row: &[(String, Value)] = &[];
+    evaluate_with_context(name, &function, row, args, controls)
+}
 
 fn controls(budget: usize) -> QueryExecutionControls {
     QueryExecutionControls::from_limits(

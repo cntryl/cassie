@@ -8,8 +8,10 @@ mod codecs;
 mod work;
 use work::Work;
 
-pub(super) fn evaluate(
+pub(super) fn evaluate<R: super::RowAccess + ?Sized>(
     name: &str,
+    function: &super::FunctionCall,
+    row: &R,
     args: &[Value],
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Option<Result<Value, QueryError>> {
@@ -17,7 +19,99 @@ pub(super) fn evaluate(
     if !crate::sql::functions::is_bytea_function(metadata.id) {
         return None;
     }
+    if metadata.id == crate::sql::functions::FunctionId::PgcryptoDigest {
+        return Some(run_digest(function, row, args, controls));
+    }
     Some(run(name, args, controls))
+}
+
+fn run_digest<R: super::RowAccess + ?Sized>(
+    function: &super::FunctionCall,
+    row: &R,
+    args: &[Value],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    if args.iter().any(|value| matches!(value, Value::Null)) {
+        return Ok(Value::Null);
+    }
+    let bytea_input = function
+        .args
+        .first()
+        .is_some_and(|expression| expression_is_bytea(expression, row));
+    let work = Work::admit(
+        if bytea_input {
+            "digest_bytea"
+        } else {
+            "digest_text"
+        },
+        args,
+        controls,
+    )?;
+    let Some(Value::String(algorithm)) = args.get(1) else {
+        return Err(QueryError::General(
+            "invalid pgcrypto digest algorithm argument".into(),
+        ));
+    };
+    if !algorithm.eq_ignore_ascii_case("sha256") {
+        let algorithm = algorithm.to_ascii_lowercase();
+        if [
+            "md5",
+            "sha1",
+            "sha224",
+            "sha384",
+            "sha512",
+            "sha3-224",
+            "sha3-256",
+            "sha3-384",
+            "sha3-512",
+            "ripemd160",
+            "rmd160",
+            "blake2b",
+            "blake2s",
+        ]
+        .contains(&algorithm.as_str())
+        {
+            return Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
+                format!("pgcrypto digest algorithm '{algorithm}' is outside the selected profile"),
+            )));
+        }
+        return Err(invalid(format!("unknown digest algorithm '{algorithm}'")));
+    }
+    let input = match (args.first(), bytea_input) {
+        (Some(Value::String(value)), true) => {
+            let digits = value
+                .strip_prefix("\\x")
+                .ok_or_else(|| QueryError::General("invalid canonical BYTEA carrier".into()))?;
+            codecs::hex_bytes(digits, &work)?
+        }
+        (Some(Value::String(value)), false) => value.as_bytes().to_vec(),
+        _ => return Err(QueryError::General("invalid pgcrypto digest input".into())),
+    };
+    Ok(Value::String(hash::<Sha256>(&input, &work)?))
+}
+
+fn expression_is_bytea<R: super::RowAccess + ?Sized>(expression: &super::Expr, row: &R) -> bool {
+    match expression {
+        super::Expr::Cast { data_type, .. } => *data_type == crate::types::DataType::Bytea,
+        super::Expr::Column(name) => row.column_type(name) == Some(&crate::types::DataType::Bytea),
+        super::Expr::Function(function) => crate::sql::functions::function(&function.name)
+            .is_some_and(|metadata| {
+                metadata.return_type == crate::sql::functions::FunctionReturnType::Bytea
+            }),
+        super::Expr::Case {
+            branches,
+            else_expr,
+            ..
+        } => {
+            branches
+                .iter()
+                .any(|(_, value)| expression_is_bytea(value, row))
+                || else_expr
+                    .as_deref()
+                    .is_some_and(|value| expression_is_bytea(value, row))
+        }
+        _ => false,
+    }
 }
 
 fn run(

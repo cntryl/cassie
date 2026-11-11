@@ -156,6 +156,8 @@ mod dml_conflict;
 mod dml_targets;
 #[path = "parser/expr.rs"]
 mod expr;
+#[path = "parser/extensions.rs"]
+mod extensions;
 #[path = "parser/identifiers.rs"]
 mod identifiers;
 mod lexical;
@@ -374,6 +376,12 @@ fn parse_routine_statement(
 }
 
 fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "create extension")
+        || starts_statement(lower, "alter extension")
+        || starts_statement(lower, "drop extension")
+    {
+        return Ok(Some(extensions::parse_extension_statement(trimmed)?));
+    }
     if starts_statement(lower, "create collation") {
         return Err(SqlError::unsupported(
             "CREATE COLLATION is not supported in this version".into(),

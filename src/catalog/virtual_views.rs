@@ -299,7 +299,14 @@ fn pg_catalog_core_rows(
 ) -> Option<Vec<VirtualRow>> {
     match name {
         "pg_catalog.pg_database" => Some(pg_database_rows(catalog)),
-        "pg_catalog.pg_extension" | "pg_catalog.pg_available_extensions" => Some(Vec::new()),
+        "pg_catalog.pg_extension" => Some(virtual_views_extensions::installed_rows(
+            catalog,
+            current_database,
+        )),
+        "pg_catalog.pg_available_extensions" => Some(virtual_views_extensions::available_rows(
+            catalog,
+            current_database,
+        )),
         "pg_catalog.pg_namespace" => {
             Some(virtual_views_pg::pg_namespace(catalog, current_database))
         }
@@ -325,7 +332,7 @@ fn pg_catalog_core_rows(
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
         "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog, current_database)),
-        "pg_catalog.pg_proc" => Some(virtual_views_procedures::rows()),
+        "pg_catalog.pg_proc" => Some(virtual_views_procedures::rows(catalog, current_database)),
         _ => virtual_views_empty::rows(name)
             .or_else(|| virtual_views_relations::rows(catalog, name, current_database)),
     }

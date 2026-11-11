@@ -41,7 +41,11 @@ impl<'a> Work<'a> {
 fn scratch_bytes(name: &str, args: &[Value]) -> Option<usize> {
     let input = args.first().and_then(Value::as_str).unwrap_or_default();
     let format = args.get(1).and_then(Value::as_str).unwrap_or_default();
-    let decoded = if name == "decode" {
+    let decoded = if name == "digest_text" {
+        input.len()
+    } else if name == "digest_bytea" {
+        input.len().saturating_sub(2) / 2
+    } else if name == "decode" {
         if format.eq_ignore_ascii_case("hex") {
             input.len() / 2
         } else if format.eq_ignore_ascii_case("escape") {
@@ -64,7 +68,7 @@ fn scratch_bytes(name: &str, args: &[Value]) -> Option<usize> {
         }
         "decode" | "set_byte" | "set_bit" => decoded.checked_mul(2)?.checked_add(2)?,
         "sha224" => 58,
-        "sha256" => 66,
+        "sha256" | "digest_text" | "digest_bytea" => 66,
         "sha384" => 98,
         "sha512" => 130,
         "encode" if format.eq_ignore_ascii_case("hex") => decoded.checked_mul(2)?,

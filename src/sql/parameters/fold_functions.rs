@@ -9,6 +9,9 @@ use super::check_controls;
 use super::expressions::{common, oid};
 use super::{Fold, Frame, ParameterAdmissionError, Summary};
 
+#[path = "fold_functions/digest.rs"]
+mod digest;
+
 impl Fold<'_, '_> {
     pub(super) fn function(
         &mut self,
@@ -256,6 +259,7 @@ impl Fold<'_, '_> {
                 }
                 Ok(Summary::known(25))
             }
+            Some(FunctionInputSignature::Digest) => self.digest_signature_output(function, frame),
             Some(FunctionInputSignature::PercentileFraction) => {
                 for summary in &mut self.summaries.values[frame.start..] {
                     check_controls(self.controls)?;

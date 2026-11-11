@@ -52,6 +52,9 @@ pub(super) fn validate_function_calls(
             crate::sql::definition_guard::legacy_expression_sql(&metadata.body)?;
             continue;
         }
+        if validate_pgcrypto_digest_call(&function, catalog, context)? {
+            continue;
+        }
         if let Some(metadata) = crate::sql::functions::function(&function.name) {
             if metadata.bypass_arity_validation {
                 continue;
@@ -99,4 +102,41 @@ pub(super) fn validate_function_calls(
     }
 
     Ok(())
+}
+
+fn validate_pgcrypto_digest_call(
+    function: &FunctionCall,
+    catalog: &Catalog,
+    context: &super::BindingContext,
+) -> Result<bool, CassieError> {
+    let is_digest = crate::catalog::parse_name(&function.name).is_ok_and(|parsed| {
+        matches!(
+            parsed,
+            crate::catalog::ParsedName::Unqualified(name)
+                | crate::catalog::ParsedName::SchemaQualified { name, .. }
+                | crate::catalog::ParsedName::DatabaseQualified { name, .. }
+                if name.eq_ignore_ascii_case("digest")
+        )
+    });
+    if !is_digest {
+        return Ok(false);
+    }
+    if catalog
+        .resolve_pgcrypto_digest(&context.database, &function.name, &context.search_path)
+        .is_none()
+    {
+        return Err(crate::app::DiagnosticError::new(
+            "42883",
+            format!("function {} does not exist", function.name),
+        )
+        .into());
+    }
+    if function.args.len() != 2 {
+        return Err(crate::app::DiagnosticError::new(
+            "42883",
+            format!("function {} expects 2 arguments", function.name),
+        )
+        .into());
+    }
+    Ok(true)
 }

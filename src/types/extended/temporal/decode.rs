@@ -7,7 +7,7 @@ use super::tokens::{
     date_keyword, leading_int, parse_fraction, parse_fractional_second, tokenize, DecodeError,
     Keyword, Meridiem, Reserved, Token, TokenKind, Unit,
 };
-use super::zone::{lookup_zone, Zone};
+use super::zone::{lookup_zone, AbbreviationSet, Zone};
 
 #[path = "time_input.rs"]
 mod time_input;
@@ -75,6 +75,7 @@ struct State {
     meridiem: Option<Meridiem>,
     zone_west: Option<i32>,
     named_zone: Option<Zone>,
+    dynamic_zone: Option<Zone>,
     year_day: i32,
     have_text_month: bool,
     special: Option<Special>,
@@ -128,6 +129,15 @@ fn resolve_zone(state: &State, session: &TemporalSession) -> Result<i32, DecodeE
             return Err(DecodeError::BadFormat);
         }
         return Ok(-zone.offset_for_local(local));
+    }
+    if let Some(zone) = &state.dynamic_zone {
+        let local = local_micros(&state.fields);
+        let east = zone
+            .abbreviation_offset("msk", local)
+            .or_else(|| session.abbreviations.lookup("msk"))
+            .map(|(east, _)| east)
+            .ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?;
+        return Ok(-east);
     }
     if let Some(west) = state.zone_west {
         return Ok(west);
@@ -282,6 +292,20 @@ fn decode_keyword_field(
     state: &mut State,
     session: &TemporalSession,
 ) -> Result<Option<u32>, DecodeError> {
+    if is_default_msk(field, session) {
+        if let Some((east, dst)) = session_zone_abbreviation(field, state, session) {
+            state.zone_west = Some(-east);
+            return Ok(Some(if dst { DTZ | TZ } else { TZ }));
+        }
+        if state.fmask & DATE_M != DATE_M {
+            return Err(DecodeError::BadFormat);
+        }
+        state.dynamic_zone = Some(
+            lookup_zone("Europe/Moscow")
+                .ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?,
+        );
+        return Ok(Some(TZ));
+    }
     if let Some((east, dst)) = zone_abbreviation(field, state, session) {
         if !dst {
             state.zone_west = Some(-east);
@@ -359,15 +383,27 @@ fn zone_abbreviation(field: &str, state: &State, session: &TemporalSession) -> O
     if !field.chars().all(|c| c.is_ascii_alphabetic()) {
         return None;
     }
+    session_zone_abbreviation(field, state, session).or_else(|| session.abbreviations.lookup(field))
+}
+
+fn session_zone_abbreviation(
+    field: &str,
+    state: &State,
+    session: &TemporalSession,
+) -> Option<(i32, bool)> {
+    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
+        return None;
+    }
     let local = if state.fmask & DATE_M == DATE_M {
         local_micros(&state.fields)
     } else {
         session.transaction_start
     };
-    session
-        .zone
-        .abbreviation_offset(field, local)
-        .or_else(|| session.abbreviations.lookup(field))
+    session.zone.abbreviation_offset(field, local)
+}
+
+fn is_default_msk(field: &str, session: &TemporalSession) -> bool {
+    field.eq_ignore_ascii_case("MSK") && session.abbreviations == AbbreviationSet::Default
 }
 
 fn decode_reserved(reserved: Reserved, state: &mut State, session: &TemporalSession) -> u32 {

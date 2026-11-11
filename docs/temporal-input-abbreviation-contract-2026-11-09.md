@@ -24,7 +24,9 @@ gap, both accepted orders resolve to 22:30 UTC on the previous day. An invalid
 date followed by MSK returns 22008; an invalid token returns 22007. PostgreSQL's
 `DecodeDateTime` checks timezone abbreviations before built-in keywords and its
 DYNTZ handling retains the abbreviation for later resolution. The oracle was
-stopped after these probes. Tests in this branch are authored and unexecuted.
+stopped after these probes. Tests for the older generalized-decoder prototype
+remain authored and unexecuted; the separate selected MSK SQL regressions and
+their execution evidence are recorded below.
 
 Open prerequisites include dynamic abbreviation classification and final-date
 resolution, token and diagnostic precedence, keyword/abbreviation cache
@@ -73,6 +75,51 @@ the same object; a checksum is not collision-free access to designation indices.
 A correct promotion must preserve or obtain the actual source designation
 identity; no such Jiff API or safe provenance discriminator has yet been shown.
 
+## Selected Default MSK text-input increment
+
+For the #815 closeout slice, promote only the exact `MSK` entry in PostgreSQL
+18.6's `Default` abbreviation set. The pinned primary configuration maps
+`MSK` to `Europe/Moscow` (`src/timezone/tznames/Default`, `REL_18_6`). Jev
+selected this bounded contract at confidence 1.00; its request and response are
+retained in `target/assembly-review/815-selected-mosk-contract-{request,response}.json`.
+
+With session `TimeZone = 'UTC'`, the selected complete-date ordinary
+`TIMESTAMPTZ` inputs must resolve the middle and suffix spellings against the
+final date/time. The PostgreSQL 18.6 witnesses are:
+
+| Input | Expected UTC instant or result |
+| --- | --- |
+| `TIMESTAMPTZ '2012-01-01 MSK 00:00:00'` | `2011-12-31 20:00:00+00` |
+| `TIMESTAMPTZ '2012-01-01 00:00:00 MSK'` | `2011-12-31 20:00:00+00` |
+| `TIMESTAMPTZ '2015-01-01 MSK 12:00:00'` | `2015-01-01 09:00:00+00` |
+| `TIMESTAMPTZ '2011-03-27 02:30:00 MSK'` | `2011-03-26 22:30:00+00` |
+| `TIMESTAMPTZ '2011-03-27 MSK 02:30:00'` | `2011-03-26 22:30:00+00` |
+| `TIMESTAMPTZ '2014-10-26 01:30:00 MSK'` | `2014-10-25 22:30:00+00` |
+| `TIMESTAMPTZ '2014-10-26 MSK 01:30:00'` | `2014-10-25 22:30:00+00` |
+| `TIMESTAMPTZ 'MSK 2012-01-01 00:00:00'` | reject with `22007` |
+| `TIMESTAMPTZ '2012-02-30 MSK 00:00:00'` | reject with `22008` |
+| `TIMESTAMPTZ '2012-01-01 NOT_A_ZONE 00:00:00'` | reject with `22007` |
+
+The route must retain session-zone-before-global precedence, reject the
+abbreviation before a complete date, and validate the date before final zone
+resolution. Cassie may use the named `Europe/Moscow` zone for this configured
+global entry; the route does not infer abbreviation identity from arbitrary
+session-zone TZif data. It uses the existing bounded abbreviation lookup
+(current type plus up to 64 preceding and 64 following transitions), with the
+fixed Default offset as fallback; it introduces no full-history scan or
+input-sized retained state. This proves only the named 2011/2012/2014 MSK
+witnesses above and the 2015 standard-time witness, not the full historical
+nearest-or-oldest behavior for every date. Other dynamic entries, non-Default
+sets, generic ordinary
+`date`/`timestamp`/`timestamptz` abbreviation parity, custom TZif source
+identity, and a shared controlled tokenizer/SQL handoff remain pending. This
+selected MSK increment does not close #815 or withdraw the punt below.
+
+Four focused SQL regressions in
+`tests/sql_queries/types/temporal/text_timezone_abbreviations.rs` cover the
+complete-date, gap, fold and diagnostic cases above. They passed in the locked
+full test suite, and the touched-test validator accepted the test module.
+
 ## Selected narrow punt and implementation dependency
 
 Full PostgreSQL-compatible session-zone abbreviation handling for ordinary
@@ -100,8 +147,9 @@ including unreferenced types. Its
 checks abbreviations before ordinary keywords and defers dynamic abbreviation
 offset resolution until the final date is known. The branch prototype probes
 using partially accumulated date fields or the transaction start and cannot
-preserve all of that ordering. The documented MSK operand, gap/fold and
-invalid-input oracle cases remain part of acceptance.
+preserve all of that ordering. The selected MSK operand, gap/fold and invalid
+input witnesses have SQL execution coverage as described above; they do not
+qualify the generic raw-TZif and controlled-tokenizer paths.
 
 Pinned Jiff 0.2.39 exposes `TimeZone::get`, `TimeZone::tzif`, `iana_name`,
 `preceding` and `following`, but not the raw designation table of an existing
@@ -143,8 +191,7 @@ paired-designation-index and orphan-type classification, final-date resolution,
 session/global/keyword and error precedence, same-owner lifetimes and the
 fallible SQL/public handoffs. Add actual-work synchronized cancellation,
 exact/below-budget, diagnostic and teardown probes with no new arbitrary cap.
-The paired-index and orphan TZif fixtures, checked-decoder probes and SQL
-acceptance witnesses in this isolated branch are authored but **unexecuted**;
-the oracle observations are not Cassie execution evidence. Full build, tests,
-strict Clippy and the remaining ordered gates are deferred to the consolidated
-bundle. #815 remains open.
+The paired-index and orphan TZif fixtures and checked-decoder probes remain
+test-only prototypes; their oracle observations are not Cassie execution
+evidence. The selected MSK SQL regressions are independent execution evidence,
+not proof for those broader paths. #815 remains open.

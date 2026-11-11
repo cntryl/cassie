@@ -34,10 +34,9 @@ response are retained under ignored
 `target/v020-evidence/806-statistical-windows/`. This is a bounded reading of
 the existing acceptance, not evidence that ordered-set states are mergeable.
 
-Current source and tests implement regression window calls, but the Regression
-aggregates row in `docs/feature-support.md` still says window calls are
-unsupported. That summary needs coordinator-owned reconciliation before #806
-closure; this worktree does not edit the shared Feature Support matrix.
+The final #806 bundle updates the shared Feature Support matrix to describe
+the executed regression-window behavior and keep unselected coercion and
+ordered-set forms explicitly pending.
 
 The selected #806 follow-on bundle extends the existing frame evaluator with
 FILTER on `var_pop`, `var_samp`, `variance`, `stddev_pop`, `stddev_samp`, and
@@ -105,10 +104,11 @@ current contract.
 
 Index expressions/predicates are the serialized Expr carrier. A window call can
 enter an Expr only through a subquery. The SQL index binder rejects subqueries
-(`schema_indexes.rs`); the low-level encoded index publication guard must enforce
-the same 0A000 restriction before metadata is written and when current-format
-metadata is read back. This blocks filtered and unfiltered window subqueries,
-including programmatically constructed index metadata. Malformed or unsupported
+(`schema_indexes.rs`), and `definition_guard::index` enforces the same 0A000
+restriction before publication and when current-format metadata is read back.
+It rejects filtered and unfiltered window subqueries, including
+programmatically constructed index metadata. The focused serialized-expression
+regression is in `definition_guard_window_tests.rs`. Malformed or unsupported
 records fail deterministically. No older Cassie reader is a compatibility input.
 
 Jev selected this bounded carrier handling at 0.99 after exact source review.
@@ -116,17 +116,17 @@ The field and traversal changes are part of the current public API. Cassie is
 unreleased, so source compatibility with prior development builds and a
 migration path are not required. Keep the explicit `filter` field rather than
 hiding the predicate in arguments or an unproved sidecar. Current-format
-serialization, traversal, restart and resource tests remain required; execution
-is pending.
+serialization, traversal, restart and resource behavior are covered by the
+selected regression suites above and the ordered local gate below.
 
 ## Implementation checkpoint status
 
 The historical partial-checkpoint notes in this document are superseded by the
-source and regression suites present at `4216ea32`; the complete ordered local
-gate passes at that revision. Hosted final-head checks remain pending. The
-shared `docs/feature-support.md` regression-aggregate row also still marks
-window calls unsupported; the coordinator must reconcile that row before
-closing #806. Local gates alone do not satisfy those remaining close-out items.
+source and regression suites present at `4216ea32`. The shared
+`docs/feature-support.md` regression-aggregate row is reconciled in this final
+bundle. The complete ordered local gate passed on the final branch before PR
+creation; hosted final-head checks remain pending. Local gates alone do not
+satisfy hosted review and issue-closure steps.
 
 ## Public Rust AST shape
 
@@ -136,4 +136,5 @@ field. Earlier unreleased Rust APIs are not compatibility inputs; no downstream
 migration or compatibility compile witness is required. The field remains
 explicit because it represents selected SQL semantics. Jev selected this
 contract (0.97; API/reader/traversal lead 0.83); current-build AST round trips
-and every predicate traversal still require source review and executable tests.
+and predicate traversals are included in the source review and passing local
+gates for the current branch.

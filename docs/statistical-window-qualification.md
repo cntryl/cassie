@@ -1,5 +1,44 @@
 # Statistical window qualification
 
+## #806 acceptance map and partial-state boundary (2026-11-11)
+
+The live #806 acceptance is bounded by the following existing implementation
+and regression suites:
+
+- Scalar and array `percentile_cont`/`percentile_disc`, NULL and empty input,
+  interval interpolation, result identity, invalid-fraction errors, retained
+  memory and cancellation are covered under
+  `tests/sql_queries/aggregates/ordered_set/` and
+  `tests/pgwire_extended/aggregates/ordered_set/`.
+- Window `FILTER` for COUNT/SUM/BOOL_AND/BOOL_OR, including the selected
+  `EXCLUDE TIES` behavior, is covered by
+  `tests/sql_queries/aggregates/windows/aggregate_query/semantics.rs` and
+  `tests/sql_queries/aggregates/windows/aggregate_window_oracle/semantics.rs`.
+- Variance/stddev numeric exactness, NULL/sample/population behavior, resource
+  admission, cancellation and partial-state merge behavior are covered by
+  `tests/sql_queries/aggregates/statistical/` and
+  `src/executor/execution/aggregate_exec/statistical.rs`.
+- The twelve regression aggregates are implemented over selected frames and
+  covered by `tests/sql_queries/aggregates/statistical/windows.rs` and
+  `tests/pgwire_extended/aggregates/windows/statistical_filter.rs`, including
+  pairwise NULLs, filter-before-argument evaluation, OIDs, parameters,
+  `EXCLUDE TIES`, empty frames and non-finite values.
+
+For the #806 phrase “partial-state merges,” the selected scope is statistical
+variance/stddev and regression accumulator states. Ordered-set percentile calls
+retain and order their input values through the serial ordered-set path; no
+percentile partial-state merge is selected. The parallel aggregate executor
+already falls back when merged states require row order. Jev selected this
+interpretation with probability 0.72 (choice confidence 0.63); its request and
+response are retained under ignored
+`target/v020-evidence/806-statistical-windows/`. This is a bounded reading of
+the existing acceptance, not evidence that ordered-set states are mergeable.
+
+Current source and tests implement regression window calls, but the Regression
+aggregates row in `docs/feature-support.md` still says window calls are
+unsupported. That summary needs coordinator-owned reconciliation before #806
+closure; this worktree does not edit the shared Feature Support matrix.
+
 The selected #806 follow-on bundle extends the existing frame evaluator with
 FILTER on `var_pop`, `var_samp`, `variance`, `stddev_pop`, `stddev_samp`, and
 `stddev`, and with the twelve existing paired regression aggregates as windows:
@@ -48,9 +87,13 @@ unsupported/type SQLSTATEs. Jev selected the explicit field (1.00) and finite
 bundle (0.99). Receipts remain under ignored
 `target/v020-evidence/806-statistical-windows/`.
 
-Source regressions are authored first; native compilation/tests/strict Clippy
-remain deferred to the next frozen integrated gate. Oracle and static source
-checks do not qualify Cassie execution, resource or cancellation behavior.
+The regressions listed above are implemented in Cassie and execute against the
+current runtime. On `4216ea32`, the ordered local gates pass:
+`cargo build --locked --bin cassie`, `cargo test --locked`, strict workspace
+Clippy, formatting, and `cntryl-tools validate-tests` for 18 relevant test files
+(81/81 compliant tests). The PostgreSQL 18.6 oracle records the selected
+semantic contract; Cassie's passing tests provide the runtime, resource and
+cancellation evidence.
 
 ## Durable carriers and current-format reader
 
@@ -78,14 +121,12 @@ is pending.
 
 ## Implementation checkpoint status
 
-The original checkpoint was partial and did not complete source/API review,
-traversal audit, pedantic cleanup, native gates or inventory. Its changes have
-since been incorporated into the combined #1184 candidate, where further
-traversal omissions were found and corrected. The combined source is still being
-reviewed and is not qualified by the earlier checkpoint or the separate bundle
-results. Compilation and tests are deferred until all open work is consolidated;
-the complete ordered gate and final-head hosted checks remain pending. Do not
-describe this as a completed #806 slice until its acceptance criteria are proved.
+The historical partial-checkpoint notes in this document are superseded by the
+source and regression suites present at `4216ea32`; the complete ordered local
+gate passes at that revision. Hosted final-head checks remain pending. The
+shared `docs/feature-support.md` regression-aggregate row also still marks
+window calls unsupported; the coordinator must reconcile that row before
+closing #806. Local gates alone do not satisfy those remaining close-out items.
 
 ## Public Rust AST shape
 

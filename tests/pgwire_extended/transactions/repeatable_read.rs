@@ -5,6 +5,61 @@ use crate::support_repeatable_read::{assert_counts, run_boundary};
 
 const COUNT: &str = "SELECT count(*) FROM rr_boundary_rows";
 
+#[test]
+fn should_set_repeatable_read_in_an_open_wire_transaction_before_a_query() {
+    // Arrange
+    let script = vec![
+        vec![wire::simple_query_frame("BEGIN")],
+        vec![wire::simple_query_frame("SHOW transaction_isolation")],
+        vec![wire::simple_query_frame(
+            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+        )],
+        vec![wire::simple_query_frame("SHOW transaction_isolation")],
+        vec![wire::simple_query_frame("ROLLBACK")],
+    ];
+
+    // Act
+    let responses = crate::support_repeatable_read::run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(
+        wire::data_rows(&responses[1]),
+        vec![vec![Some("read committed".to_owned())]]
+    );
+    assert_eq!(wire::error_code(&responses[2]), None);
+    assert_eq!(
+        wire::data_rows(&responses[3]),
+        vec![vec![Some("repeatable read".to_owned())]]
+    );
+    assert_eq!(wire::error_code(&responses[4]), None);
+}
+
+#[test]
+fn should_reject_late_wire_isolation_change_until_rollback() {
+    // Arrange
+    let script = vec![
+        vec![wire::simple_query_frame("BEGIN")],
+        vec![wire::simple_query_frame("SELECT 1")],
+        vec![wire::simple_query_frame(
+            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+        )],
+        vec![wire::simple_query_frame("SELECT 2")],
+        vec![wire::simple_query_frame("ROLLBACK")],
+    ];
+
+    // Act
+    let responses = crate::support_repeatable_read::run_own_script_with_expected_errors(
+        &[],
+        script,
+        &[(2, "25001"), (3, "25P02")],
+    );
+
+    // Assert
+    assert_eq!(wire::error_code(&responses[2]).as_deref(), Some("25001"));
+    assert_eq!(wire::error_code(&responses[3]).as_deref(), Some("25P02"));
+    assert_eq!(wire::error_code(&responses[4]), None);
+}
+
 fn execute_prepared() -> Vec<Vec<u8>> {
     vec![
         wire::bind_frame("", "rr", &[]),

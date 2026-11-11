@@ -823,11 +823,27 @@ increment does not claim it completed.
 
 ### Enabled RW candidate for the combined native gate
 
-The next source candidate deliberately admits default and explicit READ WRITE
+The v0.2 profile admits default and explicit READ WRITE
 `BEGIN ... REPEATABLE READ`, plus changing READ ONLY to READ WRITE before the
-first snapshot. SERIALIZABLE and RR DEFERRABLE remain unsupported. The existing
-`SET TRANSACTION ISOLATION` rejection remains a checkpoint gap in #819; its
-negative regression is preserved, and this increment does not close #819.
+first snapshot. SERIALIZABLE and RR DEFERRABLE remain unsupported. The #819
+checkpoint gap for `SET TRANSACTION ISOLATION` is resolved by the
+bounded selection recorded on 2026-11-11: support `SET TRANSACTION ISOLATION
+LEVEL READ COMMITTED`, `READ UNCOMMITTED` (the selected READ COMMITTED alias),
+and `REPEATABLE READ` only in an active explicit transaction before any query
+and before any savepoint. A late or subtransaction attempt returns `25001` and
+fails the block. An otherwise valid pre-query, pre-savepoint attempt using
+`SERIALIZABLE`, DEFERRABLE, `READ ONLY`/`READ WRITE` clauses, or other
+`SET TRANSACTION` forms is rejected with `0A000`. Outside an explicit block,
+return `25P01` without changing session state; Cassie surfaces
+PostgreSQL's `25P01` warning condition as an error because it has no warning or
+notice response path. Existing `BEGIN` transaction modes and
+`SET transaction_read_only` remain authoritative. Pinned PostgreSQL 18.6 probes
+confirm success before a query, `25001` after a query or savepoint, and the
+READ UNCOMMITTED spelling; Jev selected the isolation-only form (0.97,
+confidence 0.96). The request and oracle receipt are under ignored
+`target/v020-evidence/819-set-transaction/`. This bounded syntax selection does
+not resolve the remaining #819 acceptance or the separately tracked
+catalog-tuple visibility cases under #819/#833.
 
 A legal READ WRITE-to-READ ONLY change only tightens future write permission.
 It cannot remove an already captured RW owner's row fence or own-row map.

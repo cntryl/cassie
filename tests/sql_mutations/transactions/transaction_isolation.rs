@@ -1,7 +1,7 @@
 //! PostgreSQL 18.6 transaction isolation boundaries tracked by #819.
 
 use super::support_sql_fixture::sql_fixture;
-use cassie::app::CassieError;
+use cassie::app::{CassieError, TransactionErrorKind};
 
 #[test]
 fn should_admit_selected_read_write_repeatable_read_forms() {
@@ -64,33 +64,180 @@ fn should_reject_read_write_mode_after_a_repeatable_snapshot() {
 }
 
 #[test]
-fn should_reject_repeatable_read_set_transaction_before_snapshot() {
+fn should_set_repeatable_read_before_the_first_snapshot() {
     // Arrange
-    let fixture = sql_fixture("issue-819-set-transaction-repeatable-read", &[]);
-    let session = fixture.session.clone();
+    let fixture = sql_fixture(
+        "issue-819-set-transaction-repeatable-read",
+        &[
+            "CREATE TABLE set_rr_rows (id INT PRIMARY KEY)",
+            "INSERT INTO set_rr_rows VALUES (1)",
+        ],
+    );
+    let writer = fixture.cassie.create_session("writer", None);
+    fixture
+        .execute("BEGIN")
+        .expect("begin READ COMMITTED block");
+    fixture
+        .execute("SHOW transaction_isolation")
+        .expect("SHOW does not acquire a query snapshot");
+    fixture
+        .execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        .expect("select RR before the first query");
+    let initial = fixture
+        .execute("SELECT count(*) FROM set_rr_rows")
+        .expect("capture the RR snapshot");
     fixture
         .cassie
-        .execute_sql(&session, "BEGIN", vec![])
-        .expect("begin with the default READ COMMITTED mode");
+        .execute_sql(&writer, "INSERT INTO set_rr_rows VALUES (2)", Vec::new())
+        .expect("publish a concurrent row");
 
     // Act
-    let error = fixture
-        .cassie
-        .execute_sql(
-            &session,
-            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
-            vec![],
-        )
-        .expect_err("SET TRANSACTION remains outside the selected transaction profile");
+    let retained = fixture
+        .execute("SELECT count(*) FROM set_rr_rows")
+        .expect("read from the retained snapshot");
+    fixture.execute("COMMIT").expect("finish RR block");
+    let fresh = fixture
+        .execute("SELECT count(*) FROM set_rr_rows")
+        .expect("read after commit");
 
     // Assert
-    assert!(matches!(error, CassieError::Unsupported(_)));
-    assert_eq!(session.transaction_status(), "failed");
+    assert_eq!(initial.rows(), &[vec![cassie::types::Value::Int64(1)]]);
+    assert_eq!(retained.rows(), initial.rows());
+    assert_eq!(fresh.rows(), &[vec![cassie::types::Value::Int64(2)]]);
+    assert_eq!(fixture.session.transaction_status(), "idle");
+}
+
+#[test]
+fn should_keep_read_uncommitted_as_the_read_committed_alias_when_set() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-819-set-transaction-read-uncommitted",
+        &[
+            "CREATE TABLE set_ru_rows (id INT PRIMARY KEY)",
+            "INSERT INTO set_ru_rows VALUES (1)",
+        ],
+    );
+    let writer = fixture.cassie.create_session("writer", None);
+    fixture
+        .execute("BEGIN")
+        .expect("begin READ COMMITTED block");
+    fixture
+        .execute("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+        .expect("select the existing alias");
+    fixture
+        .execute("SELECT count(*) FROM set_ru_rows")
+        .expect("first statement view");
     fixture
         .cassie
-        .execute_sql(&session, "ROLLBACK", vec![])
-        .expect("rollback the transaction after the rejected setting");
-    assert_eq!(session.transaction_status(), "idle");
+        .execute_sql(&writer, "INSERT INTO set_ru_rows VALUES (2)", Vec::new())
+        .expect("publish a concurrent row");
+
+    // Act
+    let refreshed = fixture
+        .execute("SELECT count(*) FROM set_ru_rows")
+        .expect("READ UNCOMMITTED remains READ COMMITTED");
+    fixture.execute("COMMIT").expect("finish transaction");
+
+    // Assert
+    assert_eq!(refreshed.rows(), &[vec![cassie::types::Value::Int64(2)]]);
+    assert_eq!(fixture.session.transaction_status(), "idle");
+}
+
+#[test]
+fn should_reject_set_transaction_isolation_after_a_query() {
+    // Arrange
+    let fixture = sql_fixture("issue-819-set-isolation-after-query", &[]);
+    fixture.execute("BEGIN").expect("begin");
+    fixture.execute("SELECT 1").expect("run first query");
+
+    // Act
+    let failure = fixture
+        .execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        .expect_err("isolation must be selected before a query");
+
+    // Assert
+    assert!(matches!(
+        failure,
+        CassieError::Transaction {
+            kind: TransactionErrorKind::ActiveTransaction,
+            ..
+        }
+    ));
+    assert_eq!(fixture.session.transaction_status(), "failed");
+    fixture
+        .execute("ROLLBACK")
+        .expect("recover the failed block");
+    assert_eq!(fixture.session.transaction_status(), "idle");
+}
+
+#[test]
+fn should_reject_set_transaction_isolation_after_a_savepoint() {
+    // Arrange
+    let fixture = sql_fixture("issue-819-set-isolation-after-savepoint", &[]);
+    fixture.execute("BEGIN").expect("begin");
+    fixture
+        .execute("SAVEPOINT before_isolation")
+        .expect("open a subtransaction");
+
+    // Act
+    let failure = fixture
+        .execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        .expect_err("isolation cannot change inside a subtransaction");
+
+    // Assert
+    assert!(matches!(
+        failure,
+        CassieError::Transaction {
+            kind: TransactionErrorKind::ActiveTransaction,
+            ..
+        }
+    ));
+    assert_eq!(fixture.session.transaction_status(), "failed");
+    fixture
+        .execute("ROLLBACK")
+        .expect("recover the failed block");
+    assert_eq!(fixture.session.transaction_status(), "idle");
+}
+
+#[test]
+fn should_reject_set_transaction_isolation_outside_an_explicit_block() {
+    // Arrange
+    let fixture = sql_fixture("issue-819-set-isolation-outside-block", &[]);
+
+    // Act
+    let failure = fixture
+        .execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        .expect_err("SET TRANSACTION requires an explicit block");
+
+    // Assert
+    assert!(matches!(
+        failure,
+        CassieError::Transaction {
+            kind: TransactionErrorKind::NoActiveTransaction,
+            ..
+        }
+    ));
+    assert_eq!(fixture.session.transaction_status(), "idle");
+}
+
+#[test]
+fn should_reject_serializable_set_transaction_isolation_deterministically() {
+    // Arrange
+    let fixture = sql_fixture("issue-819-set-serializable", &[]);
+    fixture.execute("BEGIN").expect("begin");
+
+    // Act
+    let failure = fixture
+        .execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+        .expect_err("SERIALIZABLE is outside the selected profile");
+
+    // Assert
+    assert!(matches!(failure, CassieError::Unsupported(_)));
+    assert_eq!(fixture.session.transaction_status(), "failed");
+    fixture
+        .execute("ROLLBACK")
+        .expect("recover the failed block");
+    assert_eq!(fixture.session.transaction_status(), "idle");
 }
 
 #[test]

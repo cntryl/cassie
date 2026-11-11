@@ -132,6 +132,9 @@ pub(super) fn execute_set(
             let path = parse_search_path(statement.value.as_deref().unwrap_or(""));
             session.set_search_path(path);
         }
+        SettingAction::Set if variable == "transaction_isolation" => {
+            session.set_transaction_isolation(statement.value.as_deref().unwrap_or(""))?;
+        }
         SettingAction::Set if statement.local => {
             session.set_local_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
         }

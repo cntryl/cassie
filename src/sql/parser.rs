@@ -314,6 +314,10 @@ fn parse_query_or_dml_statement(
         || trimmed.starts_with('(')
     {
         Ok(Some(parse_select_statement(trimmed, Vec::new(), false)?))
+    } else if lower == "set transaction isolation level"
+        || lower.starts_with("set transaction isolation level ")
+    {
+        Ok(Some(parse_set_statement(trimmed)?))
     } else if is_transaction_control_statement(lower) {
         Ok(Some(parse_transaction_statement(trimmed)?))
     } else if is_unsupported_transaction_control_statement(lower) {

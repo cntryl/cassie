@@ -75,6 +75,9 @@ mod vector_declared_id;
 #[path = "vector_embeddings/vectors/vector_source_column_lifecycle.rs"]
 mod vector_source_column_lifecycle;
 
+#[path = "vector_embeddings/vectors/vector_index_drop.rs"]
+mod vector_index_drop;
+
 // Vector bind parameters written to columns that are not declared VECTOR(n).
 #[path = "vector_embeddings/vectors/vector_parameter_finiteness.rs"]
 mod vector_parameter_finiteness;

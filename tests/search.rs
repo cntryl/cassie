@@ -15,6 +15,8 @@ mod fulltext_index_completeness;
 mod fulltext_persisted_retrieval;
 
 // Formerly tests/fulltext_persisted_sql.rs.
+#[path = "search/index_lifecycle/fulltext_drop.rs"]
+mod fulltext_drop;
 #[path = "search/index_lifecycle/fulltext_persisted_sql.rs"]
 mod fulltext_persisted_sql;
 // Formerly tests/fulltext_publication_recovery.rs.

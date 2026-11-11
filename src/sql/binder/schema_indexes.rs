@@ -556,6 +556,21 @@ fn validate_index_shape(
     fields: &[String],
     expressions: &[Expr],
 ) -> Result<(), CassieError> {
+    if matches!(
+        statement.kind,
+        crate::catalog::IndexKind::FullText | crate::catalog::IndexKind::Vector
+    ) {
+        if statement.unique {
+            return Err(CassieError::Unsupported(
+                "unique indexes are supported only for scalar btree indexes".into(),
+            ));
+        }
+        if statement.predicate.is_some() {
+            return Err(CassieError::Unsupported(
+                "partial predicates are supported only for scalar btree indexes".into(),
+            ));
+        }
+    }
     if !matches!(
         statement.kind,
         crate::catalog::IndexKind::Scalar | crate::catalog::IndexKind::Column

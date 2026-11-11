@@ -130,7 +130,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                     });
                     json_path_functions::evaluate(local, args, controls, extraction_owner)
                 })
-                .or_else(|| bytea_functions::evaluate(local, args, controls))
+                .or_else(|| bytea_functions::evaluate(local, function, row, args, controls))
                 .or_else(|| math_random::evaluate(local, args, session))
                 .or_else(|| {
                     math_functions::evaluate(

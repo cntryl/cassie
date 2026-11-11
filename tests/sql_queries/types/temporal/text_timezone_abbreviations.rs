@@ -75,3 +75,95 @@ fn should_preserve_default_msk_input_diagnostic_order() {
         Err(CassieError::TypeInput(error)) if error.sqlstate == "22007"
     ));
 }
+
+#[test]
+fn should_resolve_default_clt_for_each_temporal_input_at_the_input_date() {
+    // Arrange
+    let fixture = sql_fixture(
+        "default-clt-dynamic-at-input-date",
+        &["SET TIME ZONE 'UTC'"],
+    );
+
+    // Act
+    let result = fixture.execute(
+        "SELECT DATE '2024-01-15 CLT' = DATE '2024-01-15', TIMESTAMP '2024-01-15 12:00:00 CLT' = TIMESTAMP '2024-01-15 12:00:00', (TIMESTAMPTZ '2024-01-15 12:00:00 CLT' AT TIME ZONE 'UTC') = TIMESTAMP '2024-01-15 15:00:00', (TIMESTAMPTZ '2024-07-15 12:00:00 CLT' AT TIME ZONE 'UTC') = TIMESTAMP '2024-07-15 16:00:00', (TIMESTAMPTZ '2024-01-15 12:00:00 cLt' AT TIME ZONE 'UTC') = TIMESTAMP '2024-01-15 15:00:00'",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("Default CLT uses each input's final date")
+            .rows(),
+        &[vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+        ]]
+    );
+}
+
+#[test]
+fn should_prefer_a_session_zone_abbreviation_to_a_catalogued_dynamic_alias() {
+    // Arrange
+    let fixture = sql_fixture("session-zone-clt-precedence", &["SET TIME ZONE 'CLT0'"]);
+
+    // Act
+    let result = fixture.execute(
+        "SELECT (TIMESTAMPTZ '2024-01-15 12:00:00 CLT' AT TIME ZONE 'UTC') = TIMESTAMP '2024-01-15 12:00:00'",
+    );
+
+    // Assert
+    assert_eq!(
+        result
+            .expect("session-zone CLT takes precedence over the Default catalog")
+            .rows(),
+        &[vec![Value::Bool(true)]]
+    );
+}
+
+#[test]
+fn should_reject_default_clt_before_a_complete_date() {
+    // Arrange
+    let fixture = sql_fixture("default-clt-requires-complete-date", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT TIMESTAMPTZ 'CLT 2024-01-15 12:00:00'");
+
+    // Assert
+    assert!(
+        matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22007"),
+        "PostgreSQL rejects a dynamic abbreviation before the complete date"
+    );
+}
+
+#[test]
+fn should_validate_the_date_before_resolving_default_clt() {
+    // Arrange
+    let fixture = sql_fixture("default-clt-invalid-date-priority", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT TIMESTAMPTZ '2024-02-30 CLT 12:00:00'");
+
+    // Assert
+    assert!(
+        matches!(result, Err(cassie::app::CassieError::TypeInput(error)) if error.sqlstate == "22008"),
+        "invalid date diagnostics precede dynamic zone resolution"
+    );
+}
+
+#[test]
+fn should_reject_a_catalogued_dynamic_abbreviation_prefix() {
+    // Arrange
+    let fixture = sql_fixture("default-clt-prefix-is-not-an-alias", &[]);
+
+    // Act
+    let result = fixture.execute("SELECT TIMESTAMPTZ '2024-01-15 12:00:00 CLTx'");
+
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::TypeInput(error)) if error.sqlstate == "22007"),
+        "catalogued dynamic aliases require an exact token match"
+    );
+}

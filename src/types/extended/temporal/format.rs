@@ -24,6 +24,13 @@ pub(crate) use catalog::{ZoneAbbreviation, ZoneRule};
 use checked::{literal_is_whitespace_with_check, push_str_with_check};
 use template::Node;
 
+pub(super) fn find_dynamic_zone(name: &str, set: AbbreviationSet) -> Option<&'static str> {
+    match catalog::find_exact(name, set)?.rule {
+        ZoneRule::Fixed(_) => None,
+        ZoneRule::Dynamic(zone) => Some(zone),
+    }
+}
+
 const MONTHS: [&str; 12] = [
     "January",
     "February",

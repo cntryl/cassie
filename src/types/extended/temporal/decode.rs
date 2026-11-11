@@ -306,13 +306,25 @@ fn decode_keyword_field(
         );
         return Ok(Some(TZ));
     }
-    if let Some((east, dst)) = zone_abbreviation(field, state, session) {
-        if !dst {
-            state.zone_west = Some(-east);
+    if let Some((east, dst)) = session_zone_abbreviation(field, state, session) {
+        state.zone_west = Some(-east);
+        return Ok(Some(if dst { DTZ | TZ } else { TZ }));
+    }
+    if session.abbreviations == AbbreviationSet::Default {
+        if let Some(zone_name) = super::format::find_dynamic_zone(field, session.abbreviations) {
+            if state.fmask & DATE_M != DATE_M {
+                return Err(DecodeError::BadFormat);
+            }
+            state.named_zone = Some(
+                lookup_zone(zone_name)
+                    .ok_or_else(|| DecodeError::BadTimezone(field.to_string()))?,
+            );
             return Ok(Some(TZ));
         }
+    }
+    if let Some((east, dst)) = global_zone_abbreviation(field, session) {
         state.zone_west = Some(-east);
-        return Ok(Some(DTZ | TZ));
+        return Ok(Some(if dst { DTZ | TZ } else { TZ }));
     }
     let Some(keyword) = date_keyword(field) else {
         state.named_zone = Some(lookup_zone(field).ok_or(DecodeError::BadFormat)?);
@@ -379,11 +391,16 @@ fn decode_keyword_field(
     Ok(Some(tmask))
 }
 
-fn zone_abbreviation(field: &str, state: &State, session: &TemporalSession) -> Option<(i32, bool)> {
+fn global_zone_abbreviation(field: &str, session: &TemporalSession) -> Option<(i32, bool)> {
     if !field.chars().all(|c| c.is_ascii_alphabetic()) {
         return None;
     }
-    session_zone_abbreviation(field, state, session).or_else(|| session.abbreviations.lookup(field))
+    session.abbreviations.lookup(field)
+}
+
+fn zone_abbreviation(field: &str, state: &State, session: &TemporalSession) -> Option<(i32, bool)> {
+    session_zone_abbreviation(field, state, session)
+        .or_else(|| global_zone_abbreviation(field, session))
 }
 
 fn session_zone_abbreviation(

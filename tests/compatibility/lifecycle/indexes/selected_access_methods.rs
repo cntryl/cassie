@@ -172,3 +172,57 @@ fn should_reject_spgist_inet_operator_class_until_method_support_is_selected() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_reject_unique_fulltext_index_before_publication() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("fulltext_index_unsupported_clauses").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_fulltext_unique_rows (body TEXT)")
+            .await
+            .expect("create the full-text unique table");
+
+        // Act
+        assert_unselected_index_is_rejected(
+            &client,
+            "CREATE UNIQUE INDEX compat_fulltext_unique_idx \
+             ON compat_fulltext_unique_rows USING fulltext (body)",
+            "compat_fulltext_unique_idx",
+        )
+        .await;
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_reject_partial_fulltext_index_before_publication() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("fulltext_partial_index").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_fulltext_partial_rows (body TEXT, active BOOLEAN)")
+            .await
+            .expect("create the full-text partial table");
+
+        // Act
+        assert_unselected_index_is_rejected(
+            &client,
+            "CREATE INDEX compat_fulltext_partial_idx \
+             ON compat_fulltext_partial_rows USING fulltext (body) WHERE active",
+            "compat_fulltext_partial_idx",
+        )
+        .await;
+
+        // Assert
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}

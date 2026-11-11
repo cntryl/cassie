@@ -22,6 +22,10 @@ mod json_object_keys_chunk_tests;
 #[cfg(test)]
 #[path = "projection/json_object_keys_owner_tests.rs"]
 mod json_object_keys_owner_tests;
+#[cfg(test)]
+#[path = "projection/scalar_resource_owner_tests.rs"]
+mod scalar_resource_owner_tests;
+mod scalar_resources;
 
 static OWNED_VALUE_MOVES: AtomicU64 = AtomicU64::new(0);
 
@@ -80,7 +84,8 @@ where
     R: RowAccess,
 {
     let ops = compile_projection_ops(projection);
-    let retain_cast_memory = character_casts::required(&ops);
+    let retain_evaluation_memory =
+        character_casts::required(&ops) || scalar_resources::requires_owner(&ops);
     let retain_object_keys = json_object_keys::requires_owner(projection);
     let evaluation = filter::evaluation::ProjectionValueContext {
         params,
@@ -93,8 +98,11 @@ where
     for row in rows {
         let retain_deletion_memory = retain_object_keys
             || character_casts::deletion_required(&ops, &row, params, user_functions);
-        let cast_memory =
-            character_casts::Memory::new(retain_cast_memory, retain_deletion_memory, session)?;
+        let cast_memory = character_casts::Memory::new(
+            retain_evaluation_memory,
+            retain_deletion_memory,
+            session,
+        )?;
         let data_types = super::projection_types::projected(&row, &ops, user_functions);
         let mut projected = Vec::with_capacity(ops.len());
         for op in &ops {

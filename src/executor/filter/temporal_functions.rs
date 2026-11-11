@@ -193,6 +193,7 @@ pub(super) fn evaluate(
     name: &str,
     args: &[Value],
     controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
 ) -> Option<Result<Value, QueryError>> {
     if !is_temporal_function(name, args) {
         return None;
@@ -207,7 +208,7 @@ pub(super) fn evaluate(
     if name != "overlaps" && args.iter().any(|value| matches!(value, Value::Null)) {
         return Some(Ok(Value::Null));
     }
-    Some(dispatch(name, args, &session, controls))
+    Some(dispatch_with_memory(name, args, &session, controls, memory))
 }
 
 /// Whether `name` with these arguments is a date/time builtin here.
@@ -301,11 +302,22 @@ fn constructor(
     result.map(Some)
 }
 
+#[cfg(test)]
 fn dispatch(
     name: &str,
     args: &[Value],
     session: &TemporalSession,
     controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
+    dispatch_with_memory(name, args, session, controls, None)
+}
+
+fn dispatch_with_memory(
+    name: &str,
+    args: &[Value],
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
     if let Some(value) = constructor(name, args, session)? {
         return Ok(value);
@@ -359,7 +371,7 @@ fn dispatch(
                 .map_err(type_error)
         }
         ("to_timestamp" | "to_date" | "to_char", [_, _]) => {
-            super::temporal_format::evaluate(name, args, session, controls)
+            super::temporal_format::evaluate(name, args, session, controls, memory)
         }
         ("isfinite", [value]) => {
             let value = match value {

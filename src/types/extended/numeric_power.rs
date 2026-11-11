@@ -6,8 +6,8 @@ use num_traits::{One, Signed, ToPrimitive, Zero};
 
 use super::super::{one, pow10, Numeric, TypeInputError, MAX_DISPLAY_SCALE, MAX_INTEGER_DIGITS};
 use super::{
-    abs, clamp_scale, divide_finite, division_by_zero, error, exp_fixed, ln_fixed, working_digits,
-    Fixed, MAX_EXP_ARGUMENT, MIN_SIG_DIGITS,
+    abs, clamp_scale, divide_finite, division_by_zero, error, working_digits, Fixed,
+    MAX_EXP_ARGUMENT, MIN_SIG_DIGITS,
 };
 
 /// `power(numeric, numeric)` / `^`.
@@ -15,6 +15,32 @@ use super::{
 /// # Errors
 /// Returns PostgreSQL's errors for undefined or complex powers and overflow.
 pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputError> {
+    match power_with_check(base, exponent, &mut || {
+        Ok::<(), std::convert::Infallible>(())
+    }) {
+        Ok(value) => Ok(value),
+        Err(PowerError::TypeInput(error)) => Err(error),
+        Err(PowerError::Interruption(never)) => match never {},
+    }
+}
+
+pub(crate) enum PowerError<E> {
+    TypeInput(TypeInputError),
+    Interruption(E),
+}
+
+impl<E> From<TypeInputError> for PowerError<E> {
+    fn from(error: TypeInputError) -> Self {
+        Self::TypeInput(error)
+    }
+}
+
+pub(crate) fn power_with_check<E>(
+    base: &Numeric,
+    exponent: &Numeric,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Numeric, PowerError<E>> {
+    check().map_err(PowerError::Interruption)?;
     if base.is_nan() || exponent.is_nan() {
         if base.compare(&one()).is_eq() || exponent.is_zero() {
             return Ok(one());
@@ -24,16 +50,14 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
     let integer_exponent = exponent.truncate_to(0);
     let integral = integer_exponent.compare(exponent).is_eq();
     if base.is_zero() && exponent.signum() == Some(-1) {
-        return Err(error(
-            "2201F",
-            "zero raised to a negative power is undefined",
-        ));
+        return Err(error("2201F", "zero raised to a negative power is undefined").into());
     }
     if base.signum() == Some(-1) && !integral {
         return Err(error(
             "2201F",
             "a negative number raised to a non-integer power yields a complex result",
-        ));
+        )
+        .into());
     }
     let odd = matches!(
         &integer_exponent,
@@ -63,7 +87,7 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
     };
     if let Some(power) = integer_power.filter(|power| integer_workspace_fits(base_mantissa, *power))
     {
-        return power_integer(base_mantissa, *base_scale, power, *exponent_scale);
+        return power_integer(base_mantissa, *base_scale, power, *exponent_scale, check);
     }
     if base_mantissa.is_zero() {
         return Ok(Numeric::finite(BigInt::zero(), 16));
@@ -73,27 +97,31 @@ pub fn power(base: &Numeric, exponent: &Numeric) -> Result<Numeric, TypeInputErr
         (exponent_mantissa, *exponent_scale),
         integer_power.is_some(),
         base_mantissa.is_negative() && odd,
+        check,
     )
 }
 
-fn power_transcendental(
+fn power_transcendental<E>(
     (base_mantissa, base_scale): (&BigInt, u32),
     (exponent_mantissa, exponent_scale): (&BigInt, u32),
     integer_branch: bool,
     negative: bool,
-) -> Result<Numeric, TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Numeric, PowerError<E>> {
+    check().map_err(PowerError::Interruption)?;
     // An integral exponent outside the i32 fast path still permits a negative
     // base. Evaluate its positive magnitude and restore the exact integer sign.
     let magnitude = base_mantissa.abs();
     let ln_estimate = logarithm_estimate(&magnitude, base_scale)
         * Numeric::finite(exponent_mantissa.clone(), exponent_scale).to_f64();
+    check().map_err(PowerError::Interruption)?;
     if !integer_branch && ln_estimate > f64::from(MAX_EXP_ARGUMENT) + 20.0 {
-        return Err(error("22003", "value overflows numeric format"));
+        return Err(error("22003", "value overflows numeric format").into());
     }
     // A one-decimal margin keeps the approximation from rejecting a valid
     // boundary value; the exact coefficient is checked after evaluation.
     if ln_estimate > 131_073.0 * std::f64::consts::LN_10 {
-        return Err(error("22003", "value overflows numeric format"));
+        return Err(error("22003", "value overflows numeric format").into());
     }
     if ln_estimate < -(f64::from(MAX_DISPLAY_SCALE) + 2.0) * std::f64::consts::LN_10 {
         return Ok(Numeric::finite(BigInt::zero(), MAX_DISPLAY_SCALE));
@@ -120,35 +148,44 @@ fn power_transcendental(
         negative,
         digits,
         exponent_guard,
+        check,
     )
 }
 
-fn power_refined(
+fn power_refined<E>(
     (magnitude, base_scale): (&BigInt, u32),
     (exponent_mantissa, exponent_scale): (&BigInt, u32),
     integer_branch: bool,
     negative: bool,
     mut digits: u32,
     exponent_guard: u32,
-) -> Result<Numeric, TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Numeric, PowerError<E>> {
     loop {
+        check().map_err(PowerError::Interruption)?;
         let work = Fixed {
             value: BigInt::zero(),
             digits,
         };
-        let ln_base = ln_fixed(
+        let ln_base = super::ln_fixed_with_check(
             &work,
             &Fixed::from_numeric(magnitude, base_scale, work.digits).value,
-        );
+            check,
+        )
+        .map_err(PowerError::Interruption)?;
+        check().map_err(PowerError::Interruption)?;
         let exponent_fixed = Fixed::from_numeric(exponent_mantissa, exponent_scale, work.digits);
+        check().map_err(PowerError::Interruption)?;
         let product = work.multiply(&ln_base, &exponent_fixed.value);
+        check().map_err(PowerError::Interruption)?;
         let actual_product = Numeric::finite(product.clone(), work.digits).to_f64();
+        check().map_err(PowerError::Interruption)?;
         // Upstream's general power branch calls exp_var, whose original
         // argument is bounded independently of numeric's integer-digit range.
         // INT32 exponents keep their own wider range even when the private
         // workspace limit routes their evaluation through this fallback.
         if !integer_branch && actual_product >= f64::from(MAX_EXP_ARGUMENT) {
-            return Err(error("22003", "value overflows numeric format"));
+            return Err(error("22003", "value overflows numeric format").into());
         }
         if actual_product < -(f64::from(MAX_DISPLAY_SCALE) + 2.0) * std::f64::consts::LN_10 {
             return Ok(Numeric::finite(BigInt::zero(), MAX_DISPLAY_SCALE));
@@ -173,22 +210,29 @@ fn power_refined(
         }
         if product.is_zero() {
             let one = pow10(result_scale);
+            check().map_err(PowerError::Interruption)?;
             return Ok(Numeric::finite(
                 if negative { -one } else { one },
                 result_scale,
             ));
         }
-        let ln_ten = ln_fixed(&work, &(work.one() * 10u8));
+        let one = work.one();
+        check().map_err(PowerError::Interruption)?;
+        let ln_ten = super::ln_fixed_with_check(&work, &(one * 10u8), check)
+            .map_err(PowerError::Interruption)?;
         if product > &ln_ten * MAX_INTEGER_DIGITS {
-            return Err(error("22003", "value overflows numeric format"));
+            return Err(error("22003", "value overflows numeric format").into());
         }
-        let value = exp_fixed(&work, &product);
+        let value = super::exp_fixed_with_check(&work, &product, check)
+            .map_err(PowerError::Interruption)?;
+        check().map_err(PowerError::Interruption)?;
         return Fixed {
             value: if negative { -value } else { value },
             digits: work.digits,
         }
         .into_numeric(result_scale)
-        .check_format();
+        .check_format()
+        .map_err(PowerError::TypeInput);
     }
 }
 
@@ -230,15 +274,17 @@ fn power_infinite(base: &Numeric, exponent: &Numeric, odd: bool) -> Numeric {
 }
 
 /// `power_var_int`.
-fn power_integer(
+fn power_integer<E>(
     mantissa: &BigInt,
     scale: u32,
     exponent: i32,
     exponent_scale: u32,
-) -> Result<Numeric, TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Numeric, PowerError<E>> {
+    check().map_err(PowerError::Interruption)?;
     if mantissa.is_zero() {
         if exponent < 0 {
-            return Err(division_by_zero());
+            return Err(division_by_zero().into());
         }
         let result_scale = clamp_scale(
             MIN_SIG_DIGITS
@@ -254,49 +300,87 @@ fn power_integer(
             result_scale,
         ));
     }
-    let estimate = if mantissa.is_zero() {
-        0.0
-    } else {
-        let (digits, weight) = Numeric::base_digits(mantissa, scale);
-        let mut leading = 0.0f64;
-        let mut decimal_weight = f64::from(weight) * 4.0;
-        for (index, digit) in digits.iter().enumerate() {
-            if index > 0 && index * 4 >= 16 {
-                break;
-            }
-            if index > 0 {
-                decimal_weight -= 4.0;
-            }
-            leading = leading * 10_000.0 + f64::from(*digit);
-        }
-        f64::from(exponent) * (leading.log10() + decimal_weight)
-    };
+    let estimate = integer_power_estimate(mantissa, scale, exponent);
+    check().map_err(PowerError::Interruption)?;
     if estimate > 131_072.0 {
-        return Err(error("22003", "value overflows numeric format"));
+        return Err(error("22003", "value overflows numeric format").into());
     }
     if estimate + 1.0 < -f64::from(MAX_DISPLAY_SCALE) {
         return Ok(Numeric::finite(BigInt::zero(), MAX_DISPLAY_SCALE));
     }
-    let result_scale = clamp_scale(
+    let result_scale = integer_power_result_scale(estimate, scale, exponent_scale);
+    let magnitude = exponent.unsigned_abs();
+    if exponent == 0 {
+        let value = Numeric::finite(pow10(result_scale), result_scale);
+        check().map_err(PowerError::Interruption)?;
+        return Ok(value);
+    }
+    let raised = integer_power_coefficient(mantissa, magnitude, check)?;
+    let raised_scale = scale.saturating_mul(magnitude);
+    if exponent > 0 {
+        check().map_err(PowerError::Interruption)?;
+        let rounded = Numeric::finite(raised, raised_scale)
+            .round_to(i32::try_from(result_scale).unwrap_or_default());
+        check().map_err(PowerError::Interruption)?;
+        return rounded.check_format().map_err(PowerError::TypeInput);
+    }
+    if raised.is_zero() {
+        return Err(division_by_zero().into());
+    }
+    check().map_err(PowerError::Interruption)?;
+    let value = divide_finite(&BigInt::one(), 0, &raised, raised_scale, result_scale);
+    check().map_err(PowerError::Interruption)?;
+    value.check_format().map_err(PowerError::TypeInput)
+}
+
+fn integer_power_estimate(mantissa: &BigInt, scale: u32, exponent: i32) -> f64 {
+    if mantissa.is_zero() {
+        return 0.0;
+    }
+    let (digits, weight) = Numeric::base_digits(mantissa, scale);
+    let mut leading = 0.0f64;
+    let mut decimal_weight = f64::from(weight) * 4.0;
+    for (index, digit) in digits.iter().enumerate() {
+        if index > 0 && index * 4 >= 16 {
+            break;
+        }
+        if index > 0 {
+            decimal_weight -= 4.0;
+        }
+        leading = leading * 10_000.0 + f64::from(*digit);
+    }
+    f64::from(exponent) * (leading.log10() + decimal_weight)
+}
+
+fn integer_power_result_scale(estimate: f64, scale: u32, exponent_scale: u32) -> u32 {
+    clamp_scale(
         (MIN_SIG_DIGITS - estimate.trunc().to_i64().unwrap_or_default())
             .max(i64::from(scale))
             .max(i64::from(exponent_scale)),
-    );
-    let magnitude = exponent.unsigned_abs();
-    if exponent == 0 {
-        return Ok(Numeric::finite(pow10(result_scale), result_scale));
+    )
+}
+
+fn integer_power_coefficient<E>(
+    mantissa: &BigInt,
+    exponent: u32,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<BigInt, PowerError<E>> {
+    let mut remaining = exponent;
+    let mut factor = mantissa.clone();
+    let mut result = BigInt::one();
+    while remaining != 0 {
+        check().map_err(PowerError::Interruption)?;
+        if remaining & 1 != 0 {
+            result *= &factor;
+            check().map_err(PowerError::Interruption)?;
+        }
+        remaining >>= 1;
+        if remaining != 0 {
+            factor = &factor * &factor;
+            check().map_err(PowerError::Interruption)?;
+        }
     }
-    let raised = num_traits::pow(mantissa.clone(), magnitude as usize);
-    let raised_scale = scale.saturating_mul(magnitude);
-    if exponent > 0 {
-        return Numeric::finite(raised, raised_scale)
-            .round_to(i32::try_from(result_scale).unwrap_or_default())
-            .check_format();
-    }
-    if raised.is_zero() {
-        return Err(division_by_zero());
-    }
-    divide_finite(&BigInt::one(), 0, &raised, raised_scale, result_scale).check_format()
+    Ok(result)
 }
 
 // Limit the unreduced integer coefficient, including fractional base digits.
@@ -310,6 +394,109 @@ fn integer_workspace_fits(mantissa: &BigInt, exponent: i32) -> bool {
         .bits()
         .saturating_mul(u64::from(exponent.unsigned_abs()))
         <= limit
+}
+
+pub(crate) fn workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
+    const SMALL_WORKSPACE_BYTES: usize = 256;
+    if base.is_zero()
+        || exponent.is_zero()
+        || !matches!(base, Numeric::Finite { .. })
+        || !matches!(exponent, Numeric::Finite { .. })
+    {
+        return Some(SMALL_WORKSPACE_BYTES);
+    }
+    if base.compare(&one()).is_eq() || base.compare(&Numeric::from_i64(-1)).is_eq() {
+        return Some(SMALL_WORKSPACE_BYTES);
+    }
+    let (
+        Numeric::Finite {
+            mantissa: base_mantissa,
+            scale: base_scale,
+        },
+        Numeric::Finite {
+            mantissa: exponent_mantissa,
+            scale: exponent_scale,
+        },
+    ) = (base, exponent)
+    else {
+        return Some(SMALL_WORKSPACE_BYTES);
+    };
+    let integer_exponent = exponent.truncate_to(0);
+    let integral = integer_exponent.compare(exponent).is_eq();
+    let integer_power = if integral {
+        exponent
+            .to_i64_rounded()
+            .ok()
+            .flatten()
+            .and_then(|value| i32::try_from(value).ok())
+    } else {
+        None
+    };
+    if let Some(power) = integer_power.filter(|power| integer_workspace_fits(base_mantissa, *power))
+    {
+        let estimate = integer_power_estimate(base_mantissa, *base_scale, power);
+        if estimate > 131_072.0 || estimate + 1.0 < -f64::from(MAX_DISPLAY_SCALE) || power == 0 {
+            return Some(SMALL_WORKSPACE_BYTES);
+        }
+        let result_scale = integer_power_result_scale(estimate, *base_scale, *exponent_scale);
+        let exponent_magnitude = u64::from(power.unsigned_abs());
+        let coefficient_bits = base_mantissa.bits().saturating_mul(exponent_magnitude);
+        let scale_bits = u64::from(*base_scale)
+            .saturating_mul(exponent_magnitude)
+            .saturating_mul(4);
+        let result_bits = u64::from(result_scale).saturating_mul(4);
+        let bits = coefficient_bits.max(scale_bits).saturating_add(result_bits);
+        return workspace_bytes_for_bits(bits, SMALL_WORKSPACE_BYTES);
+    }
+
+    let logarithm = logarithm_estimate(base_mantissa, *base_scale)
+        * Numeric::finite(exponent_mantissa.clone(), *exponent_scale).to_f64();
+    if (!integral && logarithm > f64::from(MAX_EXP_ARGUMENT) + 20.0)
+        || logarithm > 131_073.0 * std::f64::consts::LN_10
+        || logarithm < -(f64::from(MAX_DISPLAY_SCALE) + 2.0) * std::f64::consts::LN_10
+    {
+        return Some(SMALL_WORKSPACE_BYTES);
+    }
+    let weight = (logarithm * std::f64::consts::LOG10_E)
+        .trunc()
+        .to_i64()
+        .unwrap_or_default();
+    let result_scale = clamp_scale(
+        (MIN_SIG_DIGITS - weight)
+            .max(i64::from(*base_scale))
+            .max(i64::from(*exponent_scale)),
+    );
+    let (_, exponent_weight) = Numeric::base_digits(exponent_mantissa, *exponent_scale);
+    let exponent_guard =
+        u32::try_from((i64::from(exponent_weight) + 1).max(0) * 4).unwrap_or_default();
+    let digits =
+        power_working_digits(result_scale, weight, *base_scale, exponent_guard).saturating_add(64);
+    workspace_bytes_for_bits(u64::from(digits).saturating_mul(4), SMALL_WORKSPACE_BYTES)
+}
+
+/// Bounds the temporary decimal-estimation allocations needed to size a power workspace.
+pub(crate) fn preflight_workspace_bytes(base: &Numeric, exponent: &Numeric) -> Option<usize> {
+    fn value_bytes(value: &Numeric) -> Option<usize> {
+        match value {
+            Numeric::Finite { mantissa, scale } => {
+                let coefficient = usize::try_from(mantissa.bits().div_ceil(8)).ok()?;
+                coefficient
+                    .checked_mul(16)?
+                    .checked_add(usize::try_from(*scale).ok()?.checked_mul(4)?)?
+                    .checked_add(256)
+            }
+            Numeric::NaN | Numeric::Infinity | Numeric::NegInfinity => Some(256),
+        }
+    }
+
+    value_bytes(base)?
+        .checked_add(value_bytes(exponent)?)?
+        .checked_add(512)
+}
+
+fn workspace_bytes_for_bits(bits: u64, minimum: usize) -> Option<usize> {
+    let bytes = usize::try_from(bits.saturating_add(7) / 8).ok()?;
+    bytes.checked_mul(4)?.checked_add(minimum)
 }
 
 // Estimate ln(base) from leading base-10000 digits; converting the whole value

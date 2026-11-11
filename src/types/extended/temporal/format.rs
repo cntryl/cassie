@@ -7,16 +7,22 @@ use crate::types::extended::TypeInputError;
 
 #[path = "format_zone_catalog.rs"]
 mod catalog;
+#[path = "format_checked.rs"]
+mod checked;
 #[path = "format_clock.rs"]
 mod clock;
 #[path = "format_fraction.rs"]
 mod fraction;
 #[path = "format_interval.rs"]
 mod interval;
+#[path = "format_template.rs"]
+mod template;
 #[path = "format_zone.rs"]
 mod zone;
 use super::zone::AbbreviationSet;
 pub(crate) use catalog::{ZoneAbbreviation, ZoneRule};
+use checked::{literal_is_whitespace_with_check, push_str_with_check};
+use template::Node;
 
 const MONTHS: [&str; 12] = [
     "January",
@@ -44,90 +50,6 @@ const DAYS: [&str; 7] = [
 const ROMAN: [&str; 12] = [
     "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII",
 ];
-
-/// Template keywords, longest spellings first so prefixes never shadow them.
-const KEYWORDS: &[&str] = &[
-    "a.d.", "a.m.", "b.c.", "p.m.", "y,yyy", "hh24", "hh12", "iddd", "iyyy", "month", "sssss",
-    "ssss", "yyyy", "day", "ddd", "ff1", "ff2", "ff3", "ff4", "ff5", "ff6", "iyy", "mon", "tzh",
-    "tzm", "yyy", "ad", "am", "bc", "cc", "dd", "dy", "fx", "hh", "id", "iw", "iy", "mi", "mm",
-    "ms", "of", "pm", "rm", "ss", "tz", "us", "ww", "yy", "d", "i", "j", "q", "w", "y",
-];
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum Node {
-    Literal(String),
-    Field {
-        keyword: &'static str,
-        /// The template's own spelling, for letter-case output rules.
-        spelling: String,
-        fill: bool,
-        ordinal: Option<bool>,
-    },
-}
-
-fn parse_template(template: &str) -> Vec<Node> {
-    let chars: Vec<char> = template.chars().collect();
-    let mut nodes = Vec::new();
-    let mut index = 0;
-    let mut fill = false;
-    while index < chars.len() {
-        let rest: String = chars[index..].iter().collect();
-        let lower = rest.to_ascii_lowercase();
-        if lower.starts_with("fm") {
-            fill = true;
-            index += 2;
-            continue;
-        }
-        if lower.starts_with("tm") {
-            index += 2;
-            continue;
-        }
-        if chars[index] == '"' {
-            let mut literal = String::new();
-            index += 1;
-            while index < chars.len() && chars[index] != '"' {
-                if chars[index] == '\\' && index + 1 < chars.len() {
-                    index += 1;
-                }
-                literal.push(chars[index]);
-                index += 1;
-            }
-            index += 1;
-            nodes.push(Node::Literal(literal));
-            continue;
-        }
-        if chars[index] == '\\' && index + 1 < chars.len() {
-            nodes.push(Node::Literal(chars[index + 1].to_string()));
-            index += 2;
-            continue;
-        }
-        if let Some(keyword) = KEYWORDS.iter().find(|keyword| lower.starts_with(**keyword)) {
-            let length = keyword.chars().count();
-            let spelling: String = chars[index..index + length].iter().collect();
-            index += length;
-            let suffix: String = chars[index..chars.len().min(index + 2)].iter().collect();
-            let ordinal = match suffix.as_str() {
-                "TH" => Some(true),
-                "th" => Some(false),
-                _ => None,
-            };
-            if ordinal.is_some() {
-                index += 2;
-            }
-            nodes.push(Node::Field {
-                keyword,
-                spelling,
-                fill,
-                ordinal,
-            });
-            fill = false;
-            continue;
-        }
-        nodes.push(Node::Literal(chars[index].to_string()));
-        index += 1;
-    }
-    nodes
-}
 
 /// The values `to_char` renders.
 #[derive(Debug, Clone, Copy)]
@@ -202,10 +124,35 @@ pub(crate) fn to_char_with_hour(
     zone_name: &str,
     hour: i64,
 ) -> String {
-    let mut out = String::new();
-    for node in parse_template(template) {
+    match to_char_with_hour_checked(moment, template, zone_name, hour, &mut || {
+        Ok::<(), std::convert::Infallible>(())
+    }) {
+        Ok(output) => output,
+        Err(never) => match never {},
+    }
+}
+
+pub(crate) fn to_char_with_hour_checked<E>(
+    moment: &Moment,
+    template: &str,
+    zone_name: &str,
+    hour: i64,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<String, E> {
+    check()?;
+    let output_capacity = template.len().saturating_mul(4).saturating_add(64);
+    let mut out = String::with_capacity(output_capacity);
+    for (index, node) in template::parse_with_check(template, check)?
+        .into_iter()
+        .enumerate()
+    {
+        if index.is_multiple_of(128) {
+            check()?;
+        }
         match node {
-            Node::Literal(text) => out.push_str(&text),
+            Node::Literal(text) => {
+                push_str_with_check(&mut out, &text, check)?;
+            }
             Node::Field {
                 keyword,
                 spelling,
@@ -217,10 +164,29 @@ pub(crate) fn to_char_with_hour(
                 if let (Some(upper), Some(value)) = (ordinal, value) {
                     out.push_str(ordinal_suffix(value, upper));
                 }
+                check()?;
             }
         }
     }
-    out
+    Ok(out)
+}
+
+pub(crate) fn workspace_bytes(
+    template_bytes: usize,
+    input_bytes: usize,
+    renders: bool,
+) -> Option<usize> {
+    let template = template::workspace_bytes(template_bytes)?.checked_add(template_bytes)?;
+    let input = input_bytes.checked_mul(std::mem::size_of::<char>().checked_add(1)?)?;
+    let output = if renders {
+        template_bytes.checked_mul(4)?.checked_add(64)?
+    } else {
+        0
+    };
+    template
+        .checked_add(input)?
+        .checked_add(output)?
+        .checked_add(256)
 }
 
 fn padded(text: &str, fill: bool, width: usize) -> String {
@@ -487,29 +453,83 @@ pub(crate) fn parse_with_precision(
     template: &str,
     abbreviations: AbbreviationSet,
 ) -> Result<(Parsed, Option<u8>, Option<ZoneAbbreviation>), TypeInputError> {
-    let nodes = parse_template(template);
-    let chars: Vec<char> = input.chars().collect();
+    match parse_with_precision_checked(input, template, abbreviations, &mut || {
+        Ok::<(), std::convert::Infallible>(())
+    }) {
+        Ok(parsed) => Ok(parsed),
+        Err(ParseExecutionError::Input(error)) => Err(error),
+        Err(ParseExecutionError::Check(never)) => match never {},
+    }
+}
+
+pub(crate) enum ParseExecutionError<E> {
+    Input(TypeInputError),
+    Check(E),
+}
+
+impl<E> From<TypeInputError> for ParseExecutionError<E> {
+    fn from(error: TypeInputError) -> Self {
+        Self::Input(error)
+    }
+}
+
+pub(crate) fn parse_with_precision_checked<E>(
+    input: &str,
+    template: &str,
+    abbreviations: AbbreviationSet,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(Parsed, Option<u8>, Option<ZoneAbbreviation>), ParseExecutionError<E>> {
+    let nodes = template::parse_with_check(template, check).map_err(ParseExecutionError::Check)?;
+    check().map_err(ParseExecutionError::Check)?;
+    let mut chars = Vec::with_capacity(input.len());
+    for (index, character) in input.chars().enumerate() {
+        if index.is_multiple_of(128) {
+            check().map_err(ParseExecutionError::Check)?;
+        }
+        chars.push(character);
+    }
+    let mut zone_follows = vec![false; nodes.len()];
+    let mut next_is_zone = false;
+    for (index, node) in nodes.iter().enumerate().rev() {
+        if index.is_multiple_of(128) {
+            check().map_err(ParseExecutionError::Check)?;
+        }
+        zone_follows[index] = next_is_zone;
+        match node {
+            Node::Literal(text)
+                if literal_is_whitespace_with_check(text, check)
+                    .map_err(ParseExecutionError::Check)? => {}
+            Node::Field {
+                keyword: "tzh" | "of" | "tz",
+                ..
+            } => next_is_zone = true,
+            Node::Literal(_) | Node::Field { .. } => next_is_zone = false,
+        }
+    }
     let mut cursor = 0;
     let mut builder = Builder::default();
     for (index, node) in nodes.iter().enumerate() {
+        if index.is_multiple_of(128) {
+            check().map_err(ParseExecutionError::Check)?;
+        }
         match node {
             Node::Literal(text) => {
-                let zone_follows = matches!(
-                    nodes[index + 1..].iter().find(|node| {
-                        !matches!(node, Node::Literal(text) if text.chars().all(char::is_whitespace))
-                    }),
-                    Some(Node::Field { keyword: "tzh" | "of" | "tz", .. })
-                );
-                for expected in text.chars() {
+                for (offset, expected) in text.chars().enumerate() {
+                    if offset.is_multiple_of(128) {
+                        check().map_err(ParseExecutionError::Check)?;
+                    }
                     if expected.is_whitespace() || expected.is_ascii_punctuation() {
                         while chars.get(cursor).is_some_and(|c| c.is_whitespace()) {
+                            if cursor.is_multiple_of(128) {
+                                check().map_err(ParseExecutionError::Check)?;
+                            }
                             cursor += 1;
                         }
                         if chars
                             .get(cursor)
                             .is_some_and(|c| !c.is_alphanumeric() && !c.is_whitespace())
                             && !(expected.is_whitespace()
-                                && zone_follows
+                                && zone_follows[index]
                                 && matches!(chars.get(cursor), Some('+' | '-')))
                         {
                             cursor += 1;
@@ -521,8 +541,12 @@ pub(crate) fn parse_with_precision(
             }
             Node::Field { keyword, .. } => {
                 while chars.get(cursor).is_some_and(|c| c.is_whitespace()) {
+                    if cursor.is_multiple_of(128) {
+                        check().map_err(ParseExecutionError::Check)?;
+                    }
                     cursor += 1;
                 }
+                check().map_err(ParseExecutionError::Check)?;
                 parse_field(
                     keyword,
                     &chars,
@@ -530,23 +554,27 @@ pub(crate) fn parse_with_precision(
                     nodes.get(index + 1),
                     &mut builder,
                     abbreviations,
+                    check,
                 )?;
             }
         }
     }
+    check().map_err(ParseExecutionError::Check)?;
     let precision = builder.ff_precision;
     let abbreviation = builder.zone.abbreviation();
     builder
         .finish()
         .map(|parsed| (parsed, precision, abbreviation))
+        .map_err(ParseExecutionError::Input)
 }
 
-fn read_digits(
+fn read_digits<E>(
     chars: &[char],
     cursor: &mut usize,
     limit: usize,
     keyword: &str,
-) -> Result<(i64, usize), TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(i64, usize), ParseExecutionError<E>> {
     let start = *cursor;
     let negative = chars.get(*cursor) == Some(&'-');
     if negative || chars.get(*cursor) == Some(&'+') {
@@ -554,19 +582,34 @@ fn read_digits(
     }
     let digits_start = *cursor;
     while *cursor - digits_start < limit && chars.get(*cursor).is_some_and(char::is_ascii_digit) {
+        if (*cursor - digits_start).is_multiple_of(128) {
+            check().map_err(ParseExecutionError::Check)?;
+        }
         *cursor += 1;
     }
-    let digits: String = chars[digits_start..*cursor].iter().collect();
-    if digits.is_empty() {
+    check().map_err(ParseExecutionError::Check)?;
+    let mut value = 0_i128;
+    for (offset, digit) in chars[digits_start..*cursor].iter().enumerate() {
+        if offset.is_multiple_of(128) {
+            check().map_err(ParseExecutionError::Check)?;
+        }
+        value = value
+            .checked_mul(10)
+            .and_then(|value| value.checked_add(i128::from(digit.to_digit(10).unwrap_or(0))))
+            .ok_or_else(|| field_overflow("value for field is out of range"))?;
+    }
+    let length = *cursor - digits_start;
+    if length == 0 {
         let shown: String = chars[start..chars.len().min(start + width(keyword).max(4))]
             .iter()
             .collect();
-        return Err(invalid_value(&shown, keyword));
+        return Err(invalid_value(&shown, keyword).into());
     }
-    let value = digits
-        .parse::<i64>()
-        .map_err(|_| field_overflow("value for field is out of range"))?;
-    Ok((if negative { -value } else { value }, digits.len()))
+    check().map_err(ParseExecutionError::Check)?;
+    let value = if negative { -value } else { value };
+    let value =
+        i64::try_from(value).map_err(|_| field_overflow("value for field is out of range"))?;
+    Ok((value, length))
 }
 
 fn read_name(
@@ -578,6 +621,7 @@ fn read_name(
 ) -> Result<usize, TypeInputError> {
     let rest: String = chars[*cursor..]
         .iter()
+        .take(if abbreviated { 3 } else { 9 })
         .collect::<String>()
         .to_ascii_lowercase();
     for (index, name) in names.iter().enumerate() {
@@ -596,27 +640,28 @@ fn narrow(value: i64) -> Result<i32, TypeInputError> {
 }
 
 /// Zone displacement and fractional-second template fields.
-fn parse_zone_or_fraction(
+fn parse_zone_or_fraction<E>(
     keyword: &str,
     chars: &[char],
     cursor: &mut usize,
     adjacent: bool,
     builder: &mut Builder,
-) -> Result<bool, TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<bool, ParseExecutionError<E>> {
     {
         match keyword {
             "of" | "tzh" => {
                 let negative = chars.get(*cursor) == Some(&'-');
-                let (hours, _) = read_digits(chars, cursor, 2, keyword)?;
+                let (hours, _) = read_digits(chars, cursor, 2, keyword, check)?;
                 builder.zone.set_hours(hours.abs(), negative)?;
                 if keyword == "of" && chars.get(*cursor) == Some(&':') {
                     *cursor += 1;
-                    let (minutes, _) = read_digits(chars, cursor, 2, keyword)?;
+                    let (minutes, _) = read_digits(chars, cursor, 2, keyword, check)?;
                     builder.zone.set_minutes(minutes)?;
                 }
             }
             "tzm" => {
-                let (minutes, _) = read_digits(chars, cursor, 2, keyword)?;
+                let (minutes, _) = read_digits(chars, cursor, 2, keyword, check)?;
                 builder.zone.set_minutes(minutes)?;
             }
             "us" | "ms" | "ff1" | "ff2" | "ff3" | "ff4" | "ff5" | "ff6" => {
@@ -629,10 +674,10 @@ fn parse_zone_or_fraction(
                     builder.ff_precision = Some(keyword.as_bytes()[2] - b'0');
                 }
                 let limit = if adjacent { digits_limit } else { chars.len() };
-                let (value, length) = read_digits(chars, cursor, limit, keyword)?;
+                let (value, length) = read_digits(chars, cursor, limit, keyword, check)?;
                 let maximum = if keyword == "ms" { 1000 } else { USECS_PER_SEC };
                 if !(0..maximum).contains(&value) {
-                    return Err(field_overflow("date/time field value out of range"));
+                    return Err(field_overflow("date/time field value out of range").into());
                 }
                 let scale = if keyword == "ms" { 1000 } else { 1 };
                 let precision = if keyword == "ms" { 3_usize } else { 6 };
@@ -646,14 +691,15 @@ fn parse_zone_or_fraction(
     Ok(true)
 }
 
-fn parse_field(
+fn parse_field<E>(
     keyword: &str,
     chars: &[char],
     cursor: &mut usize,
     next: Option<&Node>,
     builder: &mut Builder,
     abbreviations: AbbreviationSet,
-) -> Result<(), TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(), ParseExecutionError<E>> {
     let fraction_adjacent = match next {
         Some(Node::Field { keyword, .. }) => !matches!(
             *keyword,
@@ -675,7 +721,7 @@ fn parse_field(
         Some(Node::Literal(text)) => text.len() == 1 && text.as_bytes()[0].is_ascii_digit(),
         None => false,
     };
-    if parse_zone_or_fraction(keyword, chars, cursor, fraction_adjacent, builder)? {
+    if parse_zone_or_fraction(keyword, chars, cursor, fraction_adjacent, builder, check)? {
         return Ok(());
     }
     let adjacent = matches!(next, Some(Node::Field { .. }));
@@ -712,12 +758,13 @@ fn parse_field(
                 fraction_adjacent,
                 builder,
                 abbreviations,
+                check,
             )?;
         }
         "rm" => {
             parse_roman_month(keyword, chars, cursor, builder)?;
         }
-        _ => numeric_field(keyword, chars, cursor, limit, builder)?,
+        _ => numeric_field(keyword, chars, cursor, limit, builder, check)?,
     }
     Ok(())
 }
@@ -759,14 +806,15 @@ fn parse_era(chars: &[char], cursor: &mut usize, builder: &mut Builder) {
     *cursor += if rest.contains('.') { 4 } else { 2 };
 }
 
-fn parse_timezone(
+fn parse_timezone<E>(
     keyword: &str,
     chars: &[char],
     cursor: &mut usize,
     fraction_adjacent: bool,
     builder: &mut Builder,
     abbreviations: AbbreviationSet,
-) -> Result<(), TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(), ParseExecutionError<E>> {
     if chars.get(*cursor).is_some_and(char::is_ascii_alphabetic) {
         let (abbreviation, length) =
             catalog::find(chars.get(*cursor..).unwrap_or_default(), abbreviations).ok_or_else(
@@ -785,7 +833,7 @@ fn parse_timezone(
         builder.zone.set_abbreviation(abbreviation);
         *cursor += length;
     } else {
-        parse_zone_or_fraction("of", chars, cursor, fraction_adjacent, builder)?;
+        parse_zone_or_fraction("of", chars, cursor, fraction_adjacent, builder, check)?;
     }
     Ok(())
 }
@@ -813,23 +861,24 @@ fn parse_roman_month(
     Ok(())
 }
 
-fn numeric_field(
+fn numeric_field<E>(
     keyword: &str,
     chars: &[char],
     cursor: &mut usize,
     limit: usize,
     builder: &mut Builder,
-) -> Result<(), TypeInputError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(), ParseExecutionError<E>> {
     if keyword == "y,yyy" {
-        let (thousands, _) = read_digits(chars, cursor, 3, keyword)?;
+        let (thousands, _) = read_digits(chars, cursor, 3, keyword, check)?;
         if chars.get(*cursor) == Some(&',') {
             *cursor += 1;
         }
-        let (rest, _) = read_digits(chars, cursor, 3, keyword)?;
+        let (rest, _) = read_digits(chars, cursor, 3, keyword, check)?;
         builder.year = Some(narrow(thousands * 1000 + rest)?);
         return Ok(());
     }
-    let (value, length) = read_digits(chars, cursor, limit, keyword)?;
+    let (value, length) = read_digits(chars, cursor, limit, keyword, check)?;
     let value32 = narrow(value);
     match keyword {
         "yyyy" | "yyy" | "yy" | "y" => {
@@ -860,7 +909,7 @@ fn numeric_field(
         }
         "j" => builder.julian = Some(value),
         "cc" | "q" | "w" | "ww" | "d" => {}
-        _ => return Err(invalid_value(&value.to_string(), keyword)),
+        _ => return Err(invalid_value(&value.to_string(), keyword).into()),
     }
     Ok(())
 }
@@ -935,81 +984,5 @@ impl Builder {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{parse, to_char, Moment};
-    use crate::types::extended::temporal::calendar::Fields;
-
-    fn moment(
-        year: i32,
-        month: i32,
-        day: i32,
-        hour: i32,
-        minute: i32,
-        second: i32,
-        micros: i64,
-    ) -> Moment {
-        Moment {
-            fields: Fields {
-                year,
-                month,
-                day,
-                hour,
-                minute,
-                second,
-                micros,
-            },
-            zone_east: None,
-            is_interval: false,
-        }
-    }
-
-    #[test]
-    fn should_render_postgresql_templates() {
-        // Arrange
-        let value = moment(2002, 4, 20, 17, 31, 12, 660_123);
-
-        // Act
-        let twelve = to_char(&value, "HH12:MI:SS", "");
-        let filled = to_char(&value, "FMMonth DD, YYYY", "");
-        let micros = to_char(&value, "YYYY-MM-DD\"T\"HH24:MI:SS.US", "");
-        let iso = to_char(&moment(2006, 1, 1, 0, 0, 0, 0), "IYYY-IW-ID", "");
-
-        // Assert
-        assert_eq!(twelve, "05:31:12");
-        assert_eq!(filled, "April 20, 2002");
-        assert_eq!(micros, "2002-04-20T17:31:12.660123");
-        assert_eq!(iso, "2005-52-7");
-    }
-
-    #[test]
-    fn should_parse_formatted_input() {
-        // Arrange
-        let inputs = [
-            ("05 Dec 2000", "DD Mon YYYY"),
-            ("05 dec 2000", "DD MON YYYY"),
-            ("2006-42-4", "IYYY-IW-ID"),
-            ("05 Dec 2000 15:12:02.020001", "DD Mon YYYY HH24:MI:SS.US"),
-        ];
-
-        // Act
-        let parsed =
-            inputs.map(|(input, template)| parse(input, template).map(|parsed| parsed.fields));
-
-        // Assert
-        let first = parsed[0].as_ref().expect("date");
-        assert_eq!((first.year, first.month, first.day), (2000, 12, 5));
-        assert_eq!(parsed[1].as_ref().map(|fields| fields.month).ok(), Some(12));
-        let iso = parsed[2].as_ref().expect("iso");
-        assert_eq!((iso.year, iso.month, iso.day), (2006, 10, 19));
-        assert_eq!(
-            parsed[3].as_ref().map(|fields| fields.micros).ok(),
-            Some(20_001)
-        );
-        assert_eq!(
-            parse("not-a-date", "YYYY-MM-DD")
-                .map_err(|error| error.sqlstate)
-                .err(),
-            Some("22007")
-        );
-    }
-}
+#[path = "format_tests.rs"]
+mod tests;

@@ -13,18 +13,24 @@ mod recreate_relation;
 #[path = "../sequences/sequence_identity.rs"]
 mod sequence_identity_wave7;
 
+#[path = "../extensions/extension_catalog_coverage.rs"]
+mod extension_catalog_coverage;
 #[path = "../extensions/catalog_descriptors.rs"]
 mod extension_catalog_descriptors;
+#[path = "../extensions/dependency_targets.rs"]
+mod extension_profile_rejections;
 #[path = "../indexes/index.rs"]
 mod index_contracts;
-#[path = "../extensions/dependency_targets.rs"]
-mod pgcrypto_installation_boundary;
+#[path = "../extensions/pgcrypto_extension.rs"]
+mod pgcrypto_extension;
 #[path = "../tables/table_forms.rs"]
 mod table_forms;
 #[path = "../tables/table_storage_access.rs"]
 mod table_storage_access;
 #[path = "conversion.rs"]
 mod type_conversion;
+#[path = "../extensions/vector_extension.rs"]
+mod vector_extension;
 
 include!("ddl_extensions/semantics.rs");
 

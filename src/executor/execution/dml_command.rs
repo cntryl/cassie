@@ -311,6 +311,9 @@ fn execute_schema_object_group(
         LogicalCommand::AlterSchema(statement) => Some(CommandExecution::invalidating(
             super::schema_command::alter_schema(cassie, session, statement, controls),
         )),
+        LogicalCommand::Extension(statement) => Some(CommandExecution::invalidating(
+            super::extension_command::execute(cassie, session, statement, controls),
+        )),
         LogicalCommand::CreateRole(statement) => Some(CommandExecution::invalidating(
             super::role_command::create_role(cassie, session, statement, controls),
         )),

@@ -7,10 +7,11 @@ use parking_lot::RwLock;
 use crate::app::CassieError;
 use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
-    CollectionSchema, CollectionStorageMode, DatabaseMeta, FieldConstraint, FunctionMeta,
-    GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta, OperationalAssignmentMeta,
-    ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
-    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
+    CollectionSchema, CollectionStorageMode, DatabaseMeta, ExtensionMeta, FieldConstraint,
+    FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta,
+    OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
+    ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
@@ -39,6 +40,7 @@ pub struct Catalog {
     pub(super) graphs: Arc<RwLock<HashMap<String, GraphMeta>>>,
     pub(super) functions: Arc<RwLock<HashMap<String, FunctionMeta>>>,
     pub(super) procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
+    pub(super) extensions: Arc<RwLock<HashMap<String, ExtensionMeta>>>,
     pub(super) views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub(super) roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
     pub(super) sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
@@ -79,6 +81,7 @@ impl Catalog {
             graphs: Arc::new(RwLock::new(HashMap::new())),
             functions: Arc::new(RwLock::new(HashMap::new())),
             procedures: Arc::new(RwLock::new(HashMap::new())),
+            extensions: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
             sequences: Self::sequence_store(),
@@ -110,6 +113,7 @@ impl Catalog {
         (*self.indexes.write()).clone_from(&snapshot.indexes.read());
         (*self.graphs.write()).clone_from(&snapshot.graphs.read());
         (*self.views.write()).clone_from(&snapshot.views.read());
+        (*self.extensions.write()).clone_from(&snapshot.extensions.read());
         (*self.sequences.write()).clone_from(&snapshot.sequences.read());
         (*self.rollups.write()).clone_from(&snapshot.rollups.read());
         (*self.retention_policies.write()).clone_from(&snapshot.retention_policies.read());
@@ -265,6 +269,7 @@ impl Catalog {
         self.constraints.write().clear();
         self.functions.write().clear();
         self.procedures.write().clear();
+        self.extensions.write().clear();
         self.views.write().clear();
         self.roles.write().clear();
         self.sequences.write().clear();

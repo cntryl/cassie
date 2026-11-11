@@ -14,6 +14,7 @@ pub(crate) const fn is_bytea_function(id: FunctionId) -> bool {
             | FunctionId::Sha256
             | FunctionId::Sha384
             | FunctionId::Sha512
+            | FunctionId::PgcryptoDigest
     )
 }
 pub(super) const FUNCTIONS: &[ScalarFunction] = &[
@@ -101,6 +102,14 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         id: FunctionId::Sha512,
         name: "sha512",
         arity: FunctionArity::Exact(1),
+        return_type: FunctionReturnType::Bytea,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::PgcryptoDigest,
+        name: "digest",
+        arity: FunctionArity::Exact(2),
         return_type: FunctionReturnType::Bytea,
         is_aggregate: false,
         bypass_arity_validation: false,

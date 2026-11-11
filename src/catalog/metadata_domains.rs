@@ -1,8 +1,8 @@
 use super::Catalog;
 use crate::catalog::{
-    local_name, name_matches, normalize_role_name, parse_name, FunctionMeta, GraphMeta,
-    MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind, ProjectionMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    local_name, name_matches, normalize_role_name, parse_name, ExtensionMeta, FunctionMeta,
+    GraphMeta, MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind,
+    ProjectionMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
 };
 
 impl Catalog {
@@ -308,6 +308,92 @@ impl Catalog {
         out
     }
 
+    pub fn register_extension(&self, metadata: ExtensionMeta) {
+        let key = extension_catalog_key(&metadata.database, &metadata.name);
+        self.extensions.write().insert(key, metadata);
+        self.bump_version();
+    }
+
+    pub fn unregister_extension(&self, database: &str, name: &str) {
+        self.extensions
+            .write()
+            .remove(&extension_catalog_key(database, name));
+        self.bump_version();
+    }
+
+    #[must_use]
+    pub fn get_extension(&self, database: &str, name: &str) -> Option<ExtensionMeta> {
+        self.extensions
+            .read()
+            .get(&extension_catalog_key(database, name))
+            .cloned()
+    }
+
+    #[must_use]
+    pub fn list_extensions_for_database(&self, database: &str) -> Vec<ExtensionMeta> {
+        let database = database.to_ascii_lowercase();
+        let mut extensions = self
+            .extensions
+            .read()
+            .values()
+            .filter(|extension| extension.database.eq_ignore_ascii_case(&database))
+            .cloned()
+            .collect::<Vec<_>>();
+        extensions.sort_by_key(|extension| extension.name.to_ascii_lowercase());
+        extensions
+    }
+
+    #[must_use]
+    pub fn list_extensions(&self) -> Vec<ExtensionMeta> {
+        let mut extensions = self.extensions.read().values().cloned().collect::<Vec<_>>();
+        extensions.sort_by_key(|extension| {
+            (
+                extension.database.to_ascii_lowercase(),
+                extension.name.to_ascii_lowercase(),
+            )
+        });
+        extensions
+    }
+
+    #[must_use]
+    pub fn resolve_pgcrypto_digest(
+        &self,
+        database: &str,
+        function_name: &str,
+        search_path: &[String],
+    ) -> Option<ExtensionMeta> {
+        let parsed = parse_name(function_name).ok()?;
+        self.list_extensions_for_database(database)
+            .into_iter()
+            .find(|extension| {
+                if !extension.name.eq_ignore_ascii_case("pgcrypto") {
+                    return false;
+                }
+                let extension_schema = local_name(&extension.schema);
+                match &parsed {
+                    crate::catalog::ParsedName::Unqualified(name) => {
+                        name.eq_ignore_ascii_case("digest")
+                            && search_path.iter().any(|schema| {
+                                local_name(schema).eq_ignore_ascii_case(&extension_schema)
+                            })
+                    }
+                    crate::catalog::ParsedName::SchemaQualified { schema, name } => {
+                        name.eq_ignore_ascii_case("digest")
+                            && schema.eq_ignore_ascii_case(&extension_schema)
+                    }
+                    crate::catalog::ParsedName::DatabaseQualified {
+                        database: qualified_database,
+                        schema,
+                        name,
+                    } => {
+                        qualified_database.eq_ignore_ascii_case(database)
+                            && name.eq_ignore_ascii_case("digest")
+                            && schema.eq_ignore_ascii_case(&extension_schema)
+                    }
+                }
+            })
+    }
+
     pub fn register_procedure(&self, metadata: ProcedureMeta) {
         let mut procedures = self.procedures.write();
         procedures.insert(metadata.name.to_ascii_lowercase(), metadata);
@@ -442,6 +528,14 @@ impl Catalog {
         out.sort_by_key(|policy| policy.name.to_ascii_lowercase());
         out
     }
+}
+
+fn extension_catalog_key(database: &str, name: &str) -> String {
+    format!(
+        "{}\0{}",
+        database.to_ascii_lowercase(),
+        name.to_ascii_lowercase()
+    )
 }
 
 impl Catalog {

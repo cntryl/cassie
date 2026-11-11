@@ -121,6 +121,18 @@ metadata_heap!(crate::catalog::programs::FunctionMeta {
     body,
 });
 
+metadata_heap!(crate::catalog::programs::ExtensionMeta {
+    format_version,
+    database,
+    name,
+    version,
+    schema,
+    owner_oid,
+    object_id,
+    digest_text_object_id,
+    digest_bytea_object_id,
+});
+
 metadata_heap!(crate::catalog::graphs::GraphMeta {
     name,
     storage_id,
@@ -543,6 +555,7 @@ metadata_heap!(crate::catalog::programs::ViewMeta {
     query,
     schema,
     object_id,
+    extension_dependency_ids,
 });
 
 unit_enum_heap!(crate::catalog::programs::Volatility {

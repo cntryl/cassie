@@ -85,6 +85,7 @@ const FAMILY_COLUMN_BATCH: &[u8] = b"\x17";
 const FAMILY_FUNCTION: &[u8] = b"function";
 const FAMILY_PROCEDURE: &[u8] = b"procedure";
 const FAMILY_VIEW: &[u8] = b"view";
+const FAMILY_EXTENSION: &[u8] = b"extension";
 const FAMILY_ROLE: &[u8] = b"role";
 const FAMILY_SEQUENCE: &[u8] = b"sequence";
 const FAMILY_CONSTRAINTS: &[u8] = b"constraints";
@@ -547,6 +548,14 @@ pub(super) fn view_key(name: &str) -> Vec<u8> {
 
 pub(super) fn view_prefix() -> Vec<u8> {
     prefix(FAMILY_VIEW, &[])
+}
+
+pub(super) fn extension_key(name: &str) -> Vec<u8> {
+    key(FAMILY_EXTENSION, &[name.to_ascii_lowercase().as_bytes()])
+}
+
+pub(super) fn extension_prefix() -> Vec<u8> {
+    prefix(FAMILY_EXTENSION, &[])
 }
 
 pub(super) fn role_key(name: &str) -> Vec<u8> {

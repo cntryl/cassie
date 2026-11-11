@@ -75,6 +75,7 @@ pub enum FunctionId {
     Sha256,
     Sha384,
     Sha512,
+    PgcryptoDigest,
     Count,
     Sum,
     Avg,
@@ -409,6 +410,11 @@ pub fn function(name: &str) -> Option<&'static ScalarFunction> {
 }
 
 fn qualified_function(name: &str) -> Option<&'static ScalarFunction> {
+    if is_qualified_digest(name) {
+        return bytea::FUNCTIONS
+            .iter()
+            .find(|metadata| metadata.id == FunctionId::PgcryptoDigest);
+    }
     name.get(..11)
         .filter(|prefix| prefix.eq_ignore_ascii_case("pg_catalog."))
         .and_then(|_| name.get(11..))
@@ -503,6 +509,17 @@ fn qualified_function(name: &str) -> Option<&'static ScalarFunction> {
                 .chain(temporal::SLEEP_FUNCTIONS)
                 .find(|metadata| metadata.name.eq_ignore_ascii_case(local))
         })
+}
+
+fn is_qualified_digest(name: &str) -> bool {
+    crate::catalog::parse_name(name).is_ok_and(|parsed| {
+        matches!(
+            parsed,
+            crate::catalog::ParsedName::SchemaQualified { name, .. }
+                | crate::catalog::ParsedName::DatabaseQualified { name, .. }
+                if name.eq_ignore_ascii_case("digest")
+        )
+    })
 }
 
 const POWER_FUNCTION: &[ScalarFunction] = &[ScalarFunction {

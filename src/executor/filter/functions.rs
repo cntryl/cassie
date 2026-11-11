@@ -67,6 +67,15 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     args: &[Value],
     context: EvalContext<'_>,
 ) -> Option<Result<Value, QueryError>> {
+    if crate::sql::functions::function(name)
+        .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::PgcryptoDigest)
+        && context
+            .user_functions
+            .get(name)
+            .is_some_and(|metadata| metadata.args.len() == function.args.len())
+    {
+        return None;
+    }
     let search_context = context.search_context;
     let session = context.session;
     let controls = context
@@ -116,7 +125,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
                         });
                         json_path_functions::evaluate(local, args, controls, extraction_owner)
                     })
-                    .or_else(|| bytea_functions::evaluate(local, args, controls))
+                    .or_else(|| bytea_functions::evaluate(local, function, row, args, controls))
                     .or_else(|| math_random::evaluate(local, args, session))
                     .or_else(|| math_functions::evaluate(local, args))
                     .or_else(|| math::evaluate(local, args))

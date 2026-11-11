@@ -93,6 +93,7 @@ pub(crate) enum FunctionInputSignature {
     OrderedSetOrderKey,
     HypotheticalSetArguments,
     BitwiseInteger,
+    Digest,
     RegexpReplace,
     Positional(&'static [i32]),
     VariadicTail { first: i32, tail: i32 },
@@ -133,6 +134,7 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::Sha256
         | FunctionId::Sha384
         | FunctionId::Sha512 => Some(FunctionInputSignature::Positional(&[17])),
+        FunctionId::PgcryptoDigest => Some(FunctionInputSignature::Digest),
         FunctionId::PgSleep => Some(FunctionInputSignature::Positional(&[701])),
         FunctionId::PgSleepFor => Some(FunctionInputSignature::Positional(&[1186])),
         FunctionId::PgSleepUntil => Some(FunctionInputSignature::Positional(&[1184])),

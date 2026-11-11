@@ -10,8 +10,8 @@ use crate::sql::{
         DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
         DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement,
         DropRollupStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
-        EnforceRetentionPolicyStatement, Expr, IdentifierPath, InsertStatement, OrderExpr,
-        ProjectionStatementRef, QuerySource, RefreshRollupStatement, ReindexStatement,
+        EnforceRetentionPolicyStatement, Expr, ExtensionStatement, IdentifierPath, InsertStatement,
+        OrderExpr, ProjectionStatementRef, QuerySource, RefreshRollupStatement, ReindexStatement,
         ReindexTarget, RetentionStatementRef, RuntimeStatementRef, SelectItem, SelectStatement,
         SetStatement, ShowStatement, StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
     },
@@ -108,6 +108,7 @@ pub enum LogicalCommand {
     DropRetentionPolicy(DropRetentionPolicyStatement),
     EnforceRetentionPolicy(EnforceRetentionPolicyStatement),
     CallProcedure(crate::sql::ast::CallProcedureStatement),
+    Extension(ExtensionStatement),
     Show(ShowStatement),
     Set(SetStatement),
     Copy(crate::sql::ast::CopyStatement),
@@ -271,6 +272,11 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
         CatalogStatementRef::CreateProcedure(_)
         | CatalogStatementRef::DropProcedure(_)
         | CatalogStatementRef::CallProcedure(_) => plan_procedure_statement(statement),
+        CatalogStatementRef::Extension(statement) => plan_named_command(
+            statement.name(),
+            "EXTENSION requires a name",
+            LogicalCommand::Extension(statement.clone()),
+        ),
         CatalogStatementRef::CreateIndex(_)
         | CatalogStatementRef::DropIndex(_)
         | CatalogStatementRef::AlterIndex(_)

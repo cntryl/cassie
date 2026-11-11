@@ -6,6 +6,8 @@ use super::{
 };
 use crate::catalog::name_matches;
 
+#[path = "metadata/extensions.rs"]
+mod extensions;
 #[path = "metadata/index_lifecycle.rs"]
 mod index_lifecycle;
 

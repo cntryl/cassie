@@ -24,6 +24,7 @@ pub(super) fn is_transaction_map(name: &str) -> bool {
             | "indexes"
             | "graphs"
             | "views"
+            | "extensions"
             | "sequences"
             | "rollups"
             | "retention_policies"

@@ -186,6 +186,13 @@ use validation::{
     validate_functions, validate_order_by_references, validate_projection_references,
     validate_select_operand_families,
 };
+
+pub(crate) fn collect_functions(
+    statement: &crate::sql::ast::SelectStatement,
+    functions: &mut Vec<crate::sql::ast::FunctionCall>,
+) {
+    validation::collect_functions(statement, functions);
+}
 pub(crate) use wildcard::{
     cte_row_fields, source_row_fields, wildcard_output_fields_and_identity,
     wildcard_output_shape_with_parameters,
@@ -556,6 +563,10 @@ fn bind_catalog_definition_route(
             bind_alter_schema(statement, catalog, context),
             QueryStatement::AlterSchema,
         ),
+        CatalogStatement::Extension(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::Extension(statement),
+        )),
         CatalogStatement::CreateView(statement) => bind_catalog_statement(
             raw_sql,
             bind_create_view(statement, catalog, context),

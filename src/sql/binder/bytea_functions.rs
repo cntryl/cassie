@@ -18,6 +18,17 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
     {
         return Ok(());
     }
+    if crate::catalog::parse_name(&function.name).is_ok_and(|parsed| {
+        matches!(
+            parsed,
+            crate::catalog::ParsedName::Unqualified(name)
+                | crate::catalog::ParsedName::SchemaQualified { name, .. }
+                | crate::catalog::ParsedName::DatabaseQualified { name, .. }
+                if name.eq_ignore_ascii_case("digest")
+        )
+    }) {
+        return qualify_digest(function, types);
+    }
     if function.name.eq_ignore_ascii_case("string_agg") && function.args.len() == 2 {
         let left = types.expression_type(&function.args[0]);
         let right = types.expression_type(&function.args[1]);
@@ -64,6 +75,62 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
         return Ok(());
     };
     qualify_bytea_overload(function, types, metadata)
+}
+
+fn qualify_digest(function: &mut FunctionCall, types: &ResultTypes) -> Result<(), CassieError> {
+    if function.args.len() != 2 {
+        return Ok(());
+    }
+    let first_type = types.expression_type(&function.args[0]);
+    let first_target = match first_type.as_ref() {
+        Some(DataType::Bytea) => DataType::Bytea,
+        Some(
+            DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Null,
+        )
+        | None => DataType::Text,
+        Some(_) => return Err(undefined(function, types)),
+    };
+    let algorithm_type = types.expression_type(&function.args[1]);
+    if algorithm_type.as_ref().is_some_and(|kind| {
+        !matches!(
+            kind,
+            DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Null
+        )
+    }) {
+        return Err(undefined(function, types));
+    }
+    for (index, target) in [(0, first_target), (1, DataType::Text)] {
+        let argument = &mut function.args[index];
+        if matches!(argument, Expr::StringLiteral(_)) {
+            crate::sql::literal_inputs::validate_with_controls(
+                argument,
+                &target,
+                CastIdentity::Scalar,
+                types.controls(),
+            )?;
+            *argument = Expr::Cast {
+                expr: Box::new(std::mem::replace(argument, Expr::Null)),
+                data_type: target,
+                source_type: None,
+                identity: CastIdentity::Scalar,
+            };
+        } else if matches!(argument, Expr::Null)
+            || target == DataType::Text
+                && matches!(
+                    types.expression_type(argument),
+                    Some(DataType::Char { .. } | DataType::Varchar { .. })
+                )
+        {
+            let source_type = types.expression_type(argument);
+            *argument = Expr::Cast {
+                expr: Box::new(std::mem::replace(argument, Expr::Null)),
+                data_type: target,
+                source_type,
+                identity: CastIdentity::Scalar,
+            };
+        }
+    }
+    Ok(())
 }
 
 fn qualify_bytea_overload(

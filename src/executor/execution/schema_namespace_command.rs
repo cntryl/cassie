@@ -40,6 +40,7 @@ pub(crate) fn create_database(
 
 pub(crate) fn drop_schema(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &DropSchemaStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
@@ -53,6 +54,21 @@ pub(crate) fn drop_schema(
         )));
     }
 
+    let namespace = cassie
+        .catalog
+        .get_namespace(&statement.schema)
+        .ok_or_else(|| {
+            QueryError::General(format!("namespace '{}' does not exist", statement.schema))
+        })?;
+    let namespace_database_name = crate::catalog::schema_database_name(&namespace.name)
+        .unwrap_or_else(|| cassie.default_database.clone());
+    let namespace_database = cassie
+        .midge
+        .get_database(&namespace_database_name)
+        .map_err(QueryError::Cassie)?
+        .ok_or_else(|| QueryError::General("namespace database is unavailable".to_owned()))?;
+    let namespace_database_family = namespace_database.physical_family;
+    let transactional = session.is_some_and(CassieSession::is_transaction_active);
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
         let schema_views = cassie
@@ -81,6 +97,12 @@ pub(crate) fn drop_schema(
                 .midge
                 .defer_drop_collection(&collection.name, cassie.runtime.schema_epoch())
                 .map_err(|error| QueryError::General(error.to_string()))?;
+            cleanup_table_role_grants_after_drop(
+                cassie,
+                transactional,
+                &collection.name,
+                collection.storage_id,
+            )?;
             schema_sequence_rename::drop_owned_table_sequences(cassie, &collection.name)?;
             cassie
                 .catalog
@@ -106,9 +128,45 @@ pub(crate) fn drop_schema(
         .midge
         .drop_namespace(&statement.schema)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    let target = crate::catalog::RoleGrantTarget::Schema(namespace.object_id);
+    if transactional {
+        cassie
+            .catalog
+            .unregister_role_object_grants_for_target(&target);
+    } else {
+        cassie
+            .cleanup_role_object_grants_for_target(&namespace_database_family, &target)
+            .map_err(QueryError::Cassie)?;
+    }
     cassie.catalog.unregister_namespace(&statement.schema);
 
     Ok(output)
+}
+
+fn cleanup_table_role_grants_after_drop(
+    cassie: &Cassie,
+    transactional: bool,
+    collection_name: &str,
+    storage_id: u64,
+) -> Result<(), QueryError> {
+    let target = crate::catalog::RoleGrantTarget::Table(storage_id);
+    if transactional {
+        cassie
+            .catalog
+            .unregister_role_object_grants_for_target(&target);
+        return Ok(());
+    }
+    let database_name = crate::catalog::relation_database_name(collection_name)
+        .unwrap_or_else(|| cassie.default_database.clone());
+    let database_family = cassie
+        .midge
+        .get_database(&database_name)
+        .map_err(QueryError::Cassie)?
+        .map(|database| database.physical_family)
+        .ok_or_else(|| QueryError::General("table database is unavailable".to_owned()))?;
+    cassie
+        .cleanup_role_object_grants_for_target(&database_family, &target)
+        .map_err(QueryError::Cassie)
 }
 
 pub(crate) fn drop_database(
@@ -120,6 +178,12 @@ pub(crate) fn drop_database(
     if statement.if_exists && !cassie.catalog.database_exists(&statement.name) {
         return empty_command("DROP DATABASE", controls);
     }
+    let database_family = cassie
+        .midge
+        .get_database(&statement.name)
+        .map_err(QueryError::Cassie)?
+        .map(|database| database.physical_family)
+        .ok_or_else(|| QueryError::General("database metadata is unavailable".to_string()))?;
     let Some(session) = session else {
         return Err(QueryError::General(
             "DROP DATABASE requires a session".to_string(),
@@ -146,6 +210,9 @@ pub(crate) fn drop_database(
         crate::catalog::canonical_schema_name(&statement.name, crate::catalog::DEFAULT_SCHEMA);
     cassie.midge.drop_namespace(&public_schema)?;
     cassie.midge.drop_database(&statement.name)?;
+    cassie
+        .catalog
+        .unregister_role_object_grants_for_database(&database_family);
     cassie.catalog.unregister_namespace(&public_schema);
     cassie.catalog.unregister_database(&statement.name);
 

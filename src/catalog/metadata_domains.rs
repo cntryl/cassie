@@ -2,8 +2,9 @@ use super::Catalog;
 use crate::catalog::{
     local_name, name_matches, normalize_role_name, parse_name, FunctionMeta, GraphMeta,
     MaintenanceDebtMeta, NamespaceMeta, ParsedName, ProcedureMeta, ProjectionKind, ProjectionMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta, ViewMeta,
+    RetentionPolicyMeta, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RollupMeta, ViewMeta,
 };
+use std::collections::BTreeSet;
 
 impl Catalog {
     /// Whether `table.field` is backed by a PRIMARY KEY, UNIQUE constraint or
@@ -358,6 +359,76 @@ impl Catalog {
     pub fn list_roles(&self) -> Vec<RoleMeta> {
         let mut out = self.roles.read().values().cloned().collect::<Vec<_>>();
         out.sort_by_key(|role| role.name.to_ascii_lowercase());
+        out
+    }
+
+    pub fn register_role_object_grant(&self, grant: RoleObjectGrantMeta) {
+        self.role_object_grants
+            .write()
+            .insert(grant.catalog_key(), grant);
+        self.bump_version();
+    }
+
+    pub fn unregister_role_object_grant(&self, grant: &RoleObjectGrantMeta) {
+        self.role_object_grants.write().remove(&grant.catalog_key());
+        self.bump_version();
+    }
+
+    pub fn unregister_role_object_grants_for_role(&self, role_id: u64) {
+        let mut grants = self.role_object_grants.write();
+        let previous_len = grants.len();
+        grants.retain(|_, grant| grant.role_id != role_id);
+        if grants.len() != previous_len {
+            self.bump_version();
+        }
+    }
+
+    pub fn unregister_role_object_grants_for_database(&self, database_family: &str) {
+        let mut grants = self.role_object_grants.write();
+        let previous_len = grants.len();
+        grants.retain(|_, grant| grant.database_family != database_family);
+        if grants.len() != previous_len {
+            self.bump_version();
+        }
+    }
+
+    pub fn unregister_role_object_grants_for_target(&self, target: &RoleGrantTarget) {
+        let mut grants = self.role_object_grants.write();
+        let previous_len = grants.len();
+        grants.retain(|_, grant| &grant.target != target);
+        if grants.len() != previous_len {
+            self.bump_version();
+        }
+    }
+
+    #[must_use]
+    pub fn get_role_object_grant(
+        &self,
+        database_family: &str,
+        role_id: u64,
+        target: &RoleGrantTarget,
+    ) -> Option<RoleObjectGrantMeta> {
+        let probe = RoleObjectGrantMeta {
+            database_family: database_family.to_owned(),
+            role_id,
+            target: target.clone(),
+            privileges: BTreeSet::default(),
+        };
+        self.role_object_grants
+            .read()
+            .get(&probe.catalog_key())
+            .cloned()
+    }
+
+    #[must_use]
+    pub fn list_role_object_grants(&self) -> Vec<RoleObjectGrantMeta> {
+        let mut out = self
+            .role_object_grants
+            .read()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        out.sort_by_key(RoleObjectGrantMeta::catalog_key);
         out
     }
 

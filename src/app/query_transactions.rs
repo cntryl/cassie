@@ -197,6 +197,10 @@ impl Cassie {
             session.transaction_catalog_base_version() != Some(catalog.version())
                 || !storage_overlay.changes.is_empty()
         });
+        let removed_role_grant_targets = catalog_overlay
+            .as_ref()
+            .map(|catalog| self.role_grant_targets_removed_by_transaction(catalog))
+            .unwrap_or_default();
         if let Some(catalog) = &catalog_overlay {
             storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
         }
@@ -259,12 +263,35 @@ impl Cassie {
             self.publication_catalog
                 .publish_transaction_snapshot(snapshot);
         }
+        self.cleanup_committed_role_grants(removed_role_grant_targets);
         session.commit_transaction();
         if let Some(publication) = catalog_publication {
             publication.retire();
         }
         self.finish_staged_write_batches(committed, Some(controls));
         Ok(())
+    }
+
+    fn cleanup_committed_role_grants(
+        &self,
+        removed_role_grant_targets: Vec<(String, Vec<crate::catalog::RoleGrantTarget>)>,
+    ) {
+        for (database_family, targets) in removed_role_grant_targets {
+            if let Err(error) = self
+                .midge
+                .delete_role_object_grants_for_targets(&database_family, &targets)
+            {
+                self.runtime.record_storage_access("schema", true, false);
+                tracing::warn!(
+                    database_family,
+                    target_count = targets.len(),
+                    %error,
+                    "committed DDL left inert role grants for startup reconciliation"
+                );
+            } else {
+                self.runtime.record_storage_access("schema", true, true);
+            }
+        }
     }
 
     fn bump_transaction_schema_epoch(&self) -> Result<(), CassieError> {

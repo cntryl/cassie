@@ -10,7 +10,8 @@ use crate::catalog::{
     CollectionSchema, CollectionStorageMode, DatabaseMeta, FieldConstraint, FunctionMeta,
     GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta, OperationalAssignmentMeta,
     ProcedureMeta, ProjectionComparisonReportMeta, ProjectionConsistencyReportMeta, ProjectionMeta,
-    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
+    ProjectionRepairReportMeta, RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta,
+    SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
@@ -41,6 +42,7 @@ pub struct Catalog {
     pub(super) procedures: Arc<RwLock<HashMap<String, ProcedureMeta>>>,
     pub(super) views: Arc<RwLock<HashMap<String, ViewMeta>>>,
     pub(super) roles: Arc<RwLock<HashMap<String, RoleMeta>>>,
+    pub(super) role_object_grants: Arc<RwLock<HashMap<String, RoleObjectGrantMeta>>>,
     pub(super) sequences: Arc<RwLock<HashMap<String, SequenceMeta>>>,
     pub(super) rollups: Arc<RwLock<HashMap<String, RollupMeta>>>,
     pub(super) retention_policies: Arc<RwLock<HashMap<String, RetentionPolicyMeta>>>,
@@ -81,6 +83,7 @@ impl Catalog {
             procedures: Arc::new(RwLock::new(HashMap::new())),
             views: Arc::new(RwLock::new(HashMap::new())),
             roles: Arc::new(RwLock::new(HashMap::new())),
+            role_object_grants: Arc::new(RwLock::new(HashMap::new())),
             sequences: Self::sequence_store(),
             rollups: Arc::new(RwLock::new(HashMap::new())),
             retention_policies: Arc::new(RwLock::new(HashMap::new())),

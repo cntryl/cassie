@@ -141,9 +141,14 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = vec![
-        namespace_row(catalog, "information_schema", "information_schema"),
-        namespace_row(catalog, "pg_catalog", "pg_catalog"),
-        namespace_row(catalog, "public", "public"),
+        namespace_row(
+            catalog,
+            "information_schema",
+            "information_schema",
+            current_database,
+        ),
+        namespace_row(catalog, "pg_catalog", "pg_catalog", current_database),
+        namespace_row(catalog, "public", "public", current_database),
     ];
     rows.extend(
         catalog
@@ -153,7 +158,14 @@ pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) ->
                 current_database
                     .is_none_or(|database| schema_belongs_to_database(&namespace.name, database))
             })
-            .map(|namespace| namespace_row(catalog, &namespace.name, &local_name(&namespace.name))),
+            .map(|namespace| {
+                namespace_row(
+                    catalog,
+                    &namespace.name,
+                    &local_name(&namespace.name),
+                    current_database,
+                )
+            }),
     );
     rows.sort_by_key(row_sort_key);
     rows.dedup_by_key(|row| row_sort_key(row));
@@ -471,12 +483,20 @@ fn attribute_row(
     ]
 }
 
-fn namespace_row(catalog: &Catalog, canonical: &str, name: &str) -> VirtualRow {
+fn namespace_row(
+    catalog: &Catalog,
+    canonical: &str,
+    name: &str,
+    current_database: Option<&str>,
+) -> VirtualRow {
     vec![
         int_value("oid", namespace_oid(catalog, canonical)),
         string("nspname", name),
         int_value("nspowner", postgres_role_oid()),
-        string("nspacl", ""),
+        (
+            "nspacl".to_owned(),
+            namespace_acl(catalog, canonical, current_database),
+        ),
     ]
 }
 
@@ -513,12 +533,110 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
             },
         ),
         int_value("reltuples", 0),
-        string("relacl", ""),
+        (
+            "relacl".to_owned(),
+            relation_acl(catalog, name, kind, index),
+        ),
         index.and_then(index_reloptions).map_or_else(
             || ("reloptions".to_string(), Value::Null),
             |value| string("reloptions", value),
         ),
     ]
+}
+
+fn namespace_acl(catalog: &Catalog, canonical: &str, current_database: Option<&str>) -> Value {
+    let database = current_database.map(str::to_owned).or_else(|| {
+        catalog
+            .list_databases()
+            .first()
+            .map(|database| database.name.clone())
+    });
+    let schema_name =
+        if canonical.contains('\0') || crate::catalog::schema_database_name(canonical).is_some() {
+            canonical.to_owned()
+        } else if let Some(database) = database.as_deref() {
+            crate::catalog::canonical_schema_name(database, canonical)
+        } else {
+            return Value::Null;
+        };
+    let Some(namespace) = catalog.get_namespace(&schema_name) else {
+        return Value::Null;
+    };
+    let Some(database_meta) = database
+        .as_deref()
+        .and_then(|database| catalog.get_database(database))
+    else {
+        return Value::Null;
+    };
+    acl_value(
+        catalog,
+        catalog
+            .list_role_object_grants()
+            .into_iter()
+            .filter(|grant| {
+                grant.database_family == database_meta.physical_family
+                    && grant.target == crate::catalog::RoleGrantTarget::Schema(namespace.object_id)
+                    && grant.grants(crate::catalog::RoleObjectPrivilege::Usage)
+            })
+            .map(|grant| (grant.role_id, "U".to_owned())),
+    )
+}
+
+fn relation_acl(catalog: &Catalog, relation: &str, kind: &str, index: Option<&IndexMeta>) -> Value {
+    if kind != "r" || index.is_some() {
+        return Value::Null;
+    }
+    let Some(metadata) = catalog.get_collection(relation) else {
+        return Value::Null;
+    };
+    let Some(database) = crate::catalog::relation_database_name(relation)
+        .and_then(|database| catalog.get_database(&database))
+    else {
+        return Value::Null;
+    };
+    acl_value(
+        catalog,
+        catalog
+            .list_role_object_grants()
+            .into_iter()
+            .filter(|grant| {
+                grant.database_family == database.physical_family
+                    && grant.target == crate::catalog::RoleGrantTarget::Table(metadata.storage_id)
+            })
+            .filter_map(|grant| {
+                let mut privileges = String::new();
+                for (privilege, letter) in [
+                    (crate::catalog::RoleObjectPrivilege::Insert, 'a'),
+                    (crate::catalog::RoleObjectPrivilege::Select, 'r'),
+                    (crate::catalog::RoleObjectPrivilege::Update, 'w'),
+                    (crate::catalog::RoleObjectPrivilege::Delete, 'd'),
+                ] {
+                    if grant.grants(privilege) {
+                        privileges.push(letter);
+                    }
+                }
+                (!privileges.is_empty()).then_some((grant.role_id, privileges))
+            }),
+    )
+}
+
+fn acl_value(catalog: &Catalog, grants: impl Iterator<Item = (u64, String)>) -> Value {
+    let roles = catalog.list_roles();
+    let mut entries = grants
+        .filter_map(|(role_id, privileges)| {
+            roles
+                .iter()
+                .find(|role| role.object_id == role_id)
+                .map(|role| (role.name.clone(), privileges))
+        })
+        .map(|(role, privileges)| format!("{role}={privileges}/root"))
+        .collect::<Vec<_>>();
+    entries.sort();
+    if entries.is_empty() {
+        Value::Null
+    } else {
+        Value::String(format!("{{{}}}", entries.join(",")))
+    }
 }
 
 fn relation_access_method_oid(kind: &str, index: Option<&IndexMeta>) -> i64 {

@@ -421,6 +421,7 @@ impl Cassie {
         }
         Self::ensure_transaction_recovery(session, parsed)?;
         session.authorize_statement(&parsed.statement)?;
+        self.authorize_role_object_access(session, &parsed.statement)?;
         super::transaction_semantics::ensure_supported_transaction_semantics(
             &self.catalog,
             session,

@@ -764,6 +764,21 @@ pub struct DropRoleStatement {
 pub struct DatabaseConnectPrivilegeStatement {
     pub database: String,
     pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object: Option<ObjectPrivilegeStatement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObjectPrivilegeStatement {
+    pub target: ObjectPrivilegeTarget,
+    pub privileges: Vec<crate::catalog::RoleObjectPrivilege>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "name", rename_all = "snake_case")]
+pub enum ObjectPrivilegeTarget {
+    Schema(String),
+    Table(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

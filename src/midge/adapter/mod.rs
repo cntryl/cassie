@@ -14,7 +14,7 @@ use crate::catalog::{
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchRow, ColumnBatchSegmentMeta,
     DatabaseMeta, FieldCardinalityStats, FieldConstraint, FieldHeavyHitter, FieldHistogramBucket,
     IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta,
+    RetentionPolicyMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::midge::row_blob::{
@@ -718,6 +718,19 @@ impl Midge {
 
     fn role_prefix() -> Vec<u8> {
         key_encoding::role_prefix()
+    }
+
+    fn role_object_grant_key(
+        database_family: &str,
+        role_id: u64,
+        target_kind: &str,
+        target_id: u64,
+    ) -> Vec<u8> {
+        key_encoding::role_object_grant_key(database_family, role_id, target_kind, target_id)
+    }
+
+    fn role_object_grant_prefix() -> Vec<u8> {
+        key_encoding::role_object_grant_prefix()
     }
 
     pub(super) fn constraints_key(collection: &str) -> Vec<u8> {

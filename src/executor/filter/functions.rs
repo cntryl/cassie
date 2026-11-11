@@ -229,9 +229,9 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
                 }
             }))
         }
-        "has_database_privilege" | "pg_catalog.has_database_privilege" => {
-            Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
-        }
+        "has_database_privilege" | "pg_catalog.has_database_privilege" => Some(
+            evaluate_has_privilege(name, args, session, PrivilegeFunction::Database),
+        ),
         "pg_backend_pid" | "pg_catalog.pg_backend_pid" => Some(
             require_zero_args(name, args)
                 .map(|()| Value::Int64(i64::from(session.map_or(0, CassieSession::backend_pid)))),
@@ -268,9 +268,16 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "has_schema_privilege"
         | "pg_catalog.has_schema_privilege"
         | "has_table_privilege"
-        | "pg_catalog.has_table_privilege" => {
-            Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
-        }
+        | "pg_catalog.has_table_privilege" => Some(evaluate_has_privilege(
+            name,
+            args,
+            session,
+            if name.to_ascii_lowercase().ends_with("has_schema_privilege") {
+                PrivilegeFunction::Schema
+            } else {
+                PrivilegeFunction::Table
+            },
+        )),
         "pg_table_is_visible" | "pg_catalog.pg_table_is_visible" => Some(
             require_arg_count(name, args, 1)
                 .map(|()| Value::Bool(pg_table_is_visible(row, args, session))),
@@ -320,6 +327,47 @@ fn evaluate_current_database(
                 .unwrap_or_default(),
         )
     })
+}
+
+#[derive(Clone, Copy)]
+enum PrivilegeFunction {
+    Database,
+    Schema,
+    Table,
+}
+
+fn evaluate_has_privilege(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+    function: PrivilegeFunction,
+) -> Result<Value, QueryError> {
+    require_arg_count_range(name, args, 2..=3)?;
+    let values = args
+        .iter()
+        .map(|value| text_arg(name, value))
+        .collect::<Result<Option<Vec<_>>, _>>()?;
+    let Some(values) = values else {
+        return Ok(Value::Null);
+    };
+    let (role, object, privilege) = match values.as_slice() {
+        [object, privilege] => (
+            session.map_or("root", |session| session.user.as_str()),
+            object.as_str(),
+            privilege.as_str(),
+        ),
+        [role, object, privilege] => (role.as_str(), object.as_str(), privilege.as_str()),
+        _ => unreachable!("argument count was checked"),
+    };
+    let session = session.ok_or_else(|| {
+        QueryError::General(format!("{name} requires an attached session catalog"))
+    })?;
+    let result = match function {
+        PrivilegeFunction::Database => session.has_database_privilege(role, object, privilege),
+        PrivilegeFunction::Schema => session.has_schema_privilege(role, object, privilege),
+        PrivilegeFunction::Table => session.has_table_privilege(role, object, privilege),
+    }?;
+    Ok(Value::Bool(result))
 }
 
 fn evaluate_current_user(

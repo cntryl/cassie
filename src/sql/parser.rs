@@ -20,8 +20,9 @@ use crate::sql::ast::{
     DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
     DropSequenceStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,
     ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
-    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
-    SelectItem, SortDirection, VerifyProjectionStatement, Volatility, WindowFunctionCall,
+    NullsOrder, ObjectPrivilegeStatement, ObjectPrivilegeTarget, OrderExpr, ParsedStatement,
+    QuerySource, QueryStatement, RefreshRollupStatement, SelectItem, SortDirection,
+    VerifyProjectionStatement, Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -228,7 +229,7 @@ use schema::{
     parse_database_connect_privilege_statement, parse_drop_database_statement,
     parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
     parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
-    parse_reindex_statement,
+    parse_object_privilege_statement, parse_reindex_statement,
 };
 use statements::{
     is_transaction_control_statement, is_unsupported_transaction_control_statement,
@@ -347,6 +348,10 @@ fn parse_access_control_statement(
         Ok(Some(parse_database_connect_privilege_statement(
             trimmed, false,
         )?))
+    } else if starts_statement(lower, "grant") {
+        Ok(Some(parse_object_privilege_statement(trimmed, true)?))
+    } else if starts_statement(lower, "revoke") {
+        Ok(Some(parse_object_privilege_statement(trimmed, false)?))
     } else if let Some(message) = unsupported_privilege_statement(lower) {
         Err(SqlError::unsupported(message.to_string()))
     } else {

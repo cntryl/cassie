@@ -65,6 +65,9 @@ mod database_connect_grants;
 #[path = "catalog_security/security/database_connect_network.rs"]
 mod database_connect_network;
 
+#[path = "catalog_security/security/object_privilege_grants.rs"]
+mod object_privilege_grants;
+
 // Formerly tests/database_images.rs.
 #[path = "catalog_security/databases/images/database_images.rs"]
 mod database_images;

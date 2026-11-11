@@ -72,7 +72,9 @@ pub(crate) const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_v
 pub use programs::{FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility};
 pub use repair::ProjectionRepairReportMeta;
 pub use retention::{RetentionEnforcementMode, RetentionPolicyMeta, RetentionPolicyState};
-pub use roles::{normalize_role_name, RoleMeta};
+pub use roles::{
+    normalize_role_name, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RoleObjectPrivilege,
+};
 pub use rollups::{
     output_collection_name, RollupAggregateMeta, RollupDefinition, RollupMeta, RollupRefreshCursor,
     RollupState,

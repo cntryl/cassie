@@ -200,7 +200,7 @@ fn should_cancel_filtered_fulltext_after_three_exact_source_reads() {
         .saturating_sub(before_reads);
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(reads, 3);
     assert_failed_metrics_unchanged(&before, &after);
     assert_cleanup(&fixture.cassie);

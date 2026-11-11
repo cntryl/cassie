@@ -53,7 +53,7 @@ fn should_release_owned_output_after_cancellation_during_directory_move() {
     assert!(moved);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -91,7 +91,7 @@ fn should_release_owned_output_after_cancellation_during_string_copy() {
     assert!(copied);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -164,7 +164,7 @@ fn should_cancel_selected_null_array_during_actual_alias_value_copy() {
     assert!(reached);
     assert!(matches!(
         status,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -285,7 +285,7 @@ fn should_cancel_owned_mode_string_during_actual_alias_copy() {
     assert!(copied);
     assert!(matches!(
         status,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -403,7 +403,7 @@ fn should_cancel_discrete_string_array_during_second_alias_copy() {
     drop(source);
     let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
     let completed = std::cell::Cell::new(0);
-    let mut cancelled = false;
+    let mut canceled = false;
 
     // Act
     let status = output.append_with_progress(
@@ -412,19 +412,19 @@ fn should_cancel_discrete_string_array_during_second_alias_copy() {
         || completed.set(completed.get() + 1),
         &mut |progress| {
             if completed.get() == 1 && matches!(progress, OutputProgress::ValueCopy) {
-                cancelled = true;
+                canceled = true;
                 cancellation.cancel();
             }
         },
     );
 
     // Assert
-    assert!(cancelled);
+    assert!(canceled);
     assert_eq!(completed.get(), 1);
     assert_eq!(output.values.len(), 1);
     assert!(matches!(
         status,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert!(controls.current_query_memory_bytes() > 0);
     drop(output);
@@ -502,7 +502,7 @@ fn should_cancel_primitive_array_during_second_alias_copy() {
     drop(source);
     let mut output = OutputRow::new(Vec::new(), &[], &controls).expect("row");
     let completed = std::cell::Cell::new(0);
-    let mut cancelled = false;
+    let mut canceled = false;
 
     // Act
     let status = output.append_with_progress(
@@ -511,19 +511,19 @@ fn should_cancel_primitive_array_during_second_alias_copy() {
         || completed.set(completed.get() + 1),
         &mut |progress| {
             if completed.get() == 1 && matches!(progress, OutputProgress::ValueCopy) {
-                cancelled = true;
+                canceled = true;
                 cancellation.cancel();
             }
         },
     );
 
     // Assert
-    assert!(cancelled);
+    assert!(canceled);
     assert_eq!(completed.get(), 1);
     assert_eq!(output.values.len(), 1);
     assert!(matches!(
         status,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert!(controls.current_query_memory_bytes() > 0);
     drop(output);

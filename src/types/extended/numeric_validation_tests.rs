@@ -159,7 +159,7 @@ fn should_interrupt_radix_conversion_with_release_temporary_limbs() {
     // Assert
     assert!(matches!(
         result,
-        Err(ValidationError::Interrupted(CassieError::QueryCancelled))
+        Err(ValidationError::Interrupted(CassieError::QueryCanceled))
     ));
     assert_eq!(steps, 1);
     assert_eq!(controls.current_query_memory_bytes(), 0);

@@ -47,7 +47,7 @@ fn should_reject_identifier_parse_when_query_budget_is_exhausted() {
 }
 
 #[test]
-fn should_stop_controlled_identifier_matching_when_cancelled() {
+fn should_stop_controlled_identifier_matching_when_canceled() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -61,7 +61,7 @@ fn should_stop_controlled_identifier_matching_when_cancelled() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

@@ -193,7 +193,7 @@ fn should_release_allocated_batches_when_projection_pagination_returns_empty() {
 }
 
 #[test]
-fn should_release_fresh_borrowed_projection_buffers_before_cancelled_guard_drops() {
+fn should_release_fresh_borrowed_projection_buffers_before_canceled_guard_drops() {
     // Arrange
     let path = std::env::temp_dir().join(format!(
         "cassie-handoff-late-cancel-{}",
@@ -252,7 +252,7 @@ fn should_release_fresh_borrowed_projection_buffers_before_cancelled_guard_drops
         .sum::<usize>()
         + projected.capacity() * std::mem::size_of::<batch::Batch>();
     let current = controls.current_query_memory_bytes();
-    let cancelled =
+    let canceled =
         matches!(&result, Err(QueryError::General(message)) if message == "query canceled");
     let released = projected.is_empty() && projected.capacity() == 0;
     println!("late_cancel current={current} still_live_body={body} outer_capacity={} released={released}", projected.capacity());
@@ -264,7 +264,7 @@ fn should_release_fresh_borrowed_projection_buffers_before_cancelled_guard_drops
     drop(cassie);
     std::fs::remove_dir_all(path).expect("strict cleanup");
     // Assert
-    assert!(cancelled, "existing cancellation error is preserved");
+    assert!(canceled, "existing cancellation error is preserved");
     assert!(
         released || current >= body,
         "fresh borrowed buffers outlive their admission: {current} < {body}"

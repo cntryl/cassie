@@ -33,10 +33,10 @@ pub(super) async fn resume_suspended_portal(
     request: SuspendedPortalRequest<'_>,
 ) -> Result<(), ExtendedQueryError> {
     if let Some(cancellation) = request.suspended.cancellation.as_ref() {
-        if cancellation.is_cancelled() {
+        if cancellation.is_canceled() {
             request.state.clear_query_cancellation(cancellation);
             request.state.clear_portal_execution(request.portal_name);
-            return Err(ExtendedQueryError::cassie(&CassieError::QueryCancelled));
+            return Err(ExtendedQueryError::cassie(&CassieError::QueryCanceled));
         }
     }
     if request.suspended.streaming {

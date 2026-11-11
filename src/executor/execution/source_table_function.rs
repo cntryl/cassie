@@ -176,7 +176,7 @@ fn execute_pg_input_error_info(
     if let Err(
         error @ QueryError::Cassie(
             crate::app::CassieError::ResourceLimit(_)
-            | crate::app::CassieError::QueryCancelled
+            | crate::app::CassieError::QueryCanceled
             | crate::app::CassieError::DeadlineExceeded,
         ),
     ) = result

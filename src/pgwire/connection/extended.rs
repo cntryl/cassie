@@ -54,7 +54,7 @@ use super::{ConnectionStep, PgwireReader};
 use crate::app::{unsupported_sql_error, Cassie, CassieError, CassieSession};
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
-use crate::runtime::{ExecutionMode, RuntimeState};
+use crate::runtime::{ExecutionMode, QueryMemoryReservation, RuntimeState};
 use crate::types::Value;
 
 #[path = "extended/portal_state.rs"]
@@ -71,7 +71,7 @@ use portal_streaming::{
     execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
     StreamingPortalPageRequest, SuspendedPortalRequest,
 };
-use text_parameters::decode_text_parameter;
+use text_parameters::{decode_text_parameter, DecodedTextParameter};
 
 const OID_UNKNOWN: i32 = 705;
 const MAX_PORTALS_PER_CONNECTION: usize = 1_024;
@@ -337,18 +337,12 @@ async fn handle_bind(
     }
     validate_format_count(parameter_formats.len(), parameters.len(), "parameter")?;
 
-    let values = parameters
-        .iter()
-        .enumerate()
-        .map(|(index, parameter)| {
-            decode_parameter(
-                parameter.as_deref(),
-                format_for_index(&parameter_formats, index),
-                prepared.parameter_types[index],
-                index,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let (values, parameter_memory) = decode_bind_parameters(
+        &parameters,
+        &parameter_formats,
+        &prepared.parameter_types,
+        &state.portal_memory_controls,
+    )?;
 
     let prepared_id = prepared.id;
     let described = prepared.described;
@@ -374,6 +368,7 @@ async fn handle_bind(
             statement_name: statement,
             prepared_id,
             params: values,
+            parameter_memory,
             result_formats,
             described,
             suspended: None,
@@ -386,6 +381,33 @@ async fn handle_bind(
 
     let _ = write_bind_complete(write_half).await;
     Ok(())
+}
+
+fn decode_bind_parameters(
+    parameters: &[Option<Vec<u8>>],
+    parameter_formats: &[i16],
+    parameter_types: &[i32],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(Vec<Value>, Vec<QueryMemoryReservation>), ExtendedQueryError> {
+    let decoded_parameters = parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            decode_parameter(
+                parameter.as_deref(),
+                format_for_index(parameter_formats, index),
+                parameter_types[index],
+                index,
+                controls,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (values, parameter_memory): (Vec<_>, Vec<_>) = decoded_parameters
+        .into_iter()
+        .map(|parameter| (parameter.value, parameter.memory))
+        .unzip();
+    let parameter_memory = parameter_memory.into_iter().flatten().collect();
+    Ok((values, parameter_memory))
 }
 
 async fn handle_describe(
@@ -809,17 +831,79 @@ fn decode_parameter(
     format: i16,
     oid: i32,
     index: usize,
-) -> Result<Value, ExtendedQueryError> {
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<DecodedTextParameter, ExtendedQueryError> {
     if let Some(oid) = unknown_high_bit_parameter_oid(oid) {
         return Err(ExtendedQueryError::unknown_type_oid(oid));
     }
     let Some(parameter) = parameter else {
-        return Ok(Value::Null);
+        return Ok(DecodedTextParameter {
+            value: Value::Null,
+            memory: None,
+        });
     };
     if format == 0 {
-        return decode_text_parameter(parameter, oid);
+        return decode_text_parameter(parameter, oid, controls);
     }
-    decode_binary_parameter(parameter, oid, index)
+    if matches!(oid, 114 | 3802) {
+        return decode_binary_json_parameter(parameter, oid, index, controls);
+    }
+    decode_binary_parameter(parameter, oid, index).map(DecodedTextParameter::unaccounted)
+}
+
+fn decode_binary_json_parameter(
+    parameter: &[u8],
+    oid: i32,
+    index: usize,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<DecodedTextParameter, ExtendedQueryError> {
+    let text = if oid == 3802 {
+        let Some((&version, body)) = parameter.split_first() else {
+            return decode_binary_parameter(parameter, oid, index)
+                .map(DecodedTextParameter::unaccounted);
+        };
+        if version != 1 {
+            return decode_binary_parameter(parameter, oid, index)
+                .map(DecodedTextParameter::unaccounted);
+        }
+        match std::str::from_utf8(body) {
+            Ok(text) => text,
+            Err(_) => {
+                return decode_binary_parameter(parameter, oid, index)
+                    .map(DecodedTextParameter::unaccounted);
+            }
+        }
+    } else {
+        match std::str::from_utf8(parameter) {
+            Ok(text) => text,
+            Err(_) => {
+                return decode_binary_parameter(parameter, oid, index)
+                    .map(DecodedTextParameter::unaccounted);
+            }
+        }
+    };
+
+    let parsed = match crate::runtime::accounted::json_arena::parse_value(text.as_bytes(), controls)
+    {
+        Ok(parsed) => parsed,
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Controlled(error)) => {
+            return Err(ExtendedQueryError::cassie(&error));
+        }
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Invalid) => {
+            return decode_binary_parameter(parameter, oid, index)
+                .map(DecodedTextParameter::unaccounted);
+        }
+    };
+    if oid == 3802 {
+        crate::types::jsonb::format(parsed.get()).map_err(|error| {
+            ExtendedQueryError::cassie(&crate::app::CassieError::TypeInput(error))
+        })?;
+    }
+    let (value, memory) = parsed.into_parts();
+    Ok(DecodedTextParameter {
+        value: Value::Json(value),
+        memory: Some(memory),
+    })
 }
 
 pub(super) fn benchmark_decode_parameter(
@@ -827,7 +911,12 @@ pub(super) fn benchmark_decode_parameter(
     format: i16,
     oid: i32,
 ) -> Result<Value, String> {
-    decode_parameter(Some(parameter), format, oid, 0)
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &crate::config::CassieRuntimeLimits::default(),
+        std::time::Instant::now(),
+    );
+    decode_parameter(Some(parameter), format, oid, 0, &controls)
+        .map(|parameter| parameter.value)
         .map_err(|error| error.pg_error.message.clone())
 }
 

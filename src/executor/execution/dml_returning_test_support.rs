@@ -451,7 +451,7 @@ pub(super) fn interrupt_helper(
         record(&observed, &frame);
         if frame.phase == Phase::Materializing(0) {
             assert!(
-                !frame.controls.is_cancelled() && !frame.controls.is_timed_out(),
+                !frame.controls.is_canceled() && !frame.controls.is_timed_out(),
                 "interrupt must begin at live final boundary"
             );
             if expiry {

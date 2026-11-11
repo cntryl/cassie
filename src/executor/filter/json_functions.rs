@@ -227,7 +227,7 @@ fn inspect_object_keys(
     if let Some(value) = controlled_object_keys(value, controls, owner)? {
         return Ok(value);
     }
-    let document = document(value)?;
+    let document = document(value, controls)?;
     let object = document.as_object().ok_or_else(|| {
         CassieError::InvalidParameterValue("cannot call json_object_keys on a non-object".into())
     })?;
@@ -253,7 +253,7 @@ fn inspect_typeof(
             InspectionRoot::Object => "object",
         }
     } else {
-        let document = document(value)?;
+        let document = document(value, controls)?;
         match document.as_ref() {
             serde_json::Value::Null => "null",
             serde_json::Value::Bool(_) => "boolean",
@@ -282,7 +282,7 @@ fn inspect_array_length(
             }
         }
     } else {
-        let document = document(value)?;
+        let document = document(value, controls)?;
         document
             .as_array()
             .ok_or_else(|| {
@@ -402,16 +402,58 @@ fn controlled_root(
     document.inspection_root().map(Some).map_err(Into::into)
 }
 
-fn document(value: &Value) -> Result<Cow<'_, serde_json::Value>, QueryError> {
+fn document<'a>(
+    value: &'a Value,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<Cow<'a, serde_json::Value>, QueryError> {
     match value {
         Value::Json(value) => Ok(Cow::Borrowed(value)),
-        Value::String(text) => serde_json::from_str(text).map(Cow::Owned).map_err(|error| {
-            QueryError::General(format!("invalid input syntax for type json: {error}"))
-        }),
-        _ => serde_json::from_str(&json_text(value)?)
+        Value::String(text) => parse_document(text, controls)
             .map(Cow::Owned)
-            .map_err(|error| QueryError::General(error.to_string())),
+            .map_err(|error| match error {
+                crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+                    QueryError::General(format!(
+                        "invalid input syntax for type json: {}",
+                        crate::runtime::accounted::json_arena::syntax_error(text.as_bytes())
+                    ))
+                }
+                crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => {
+                    error.into()
+                }
+            }),
+        _ => {
+            let text = json_text(value)?;
+            parse_document(&text, controls)
+                .map(Cow::Owned)
+                .map_err(|error| match error {
+                    crate::runtime::accounted::json_arena::ValueParseError::Invalid => {
+                        QueryError::General(crate::runtime::accounted::json_arena::syntax_error(
+                            text.as_bytes(),
+                        ))
+                    }
+                    crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => {
+                        error.into()
+                    }
+                })
+        }
     }
+}
+
+fn parse_document(
+    text: &str,
+    controls: Option<&QueryExecutionControls>,
+) -> Result<serde_json::Value, crate::runtime::accounted::json_arena::ValueParseError> {
+    if let Some(controls) = controls {
+        return crate::runtime::accounted::json_arena::parse_value_in_reserved_memory(
+            text.as_bytes(),
+            controls,
+        );
+    }
+    let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        text.as_bytes(),
+        None,
+    )?;
+    Ok(parsed.get().clone())
 }
 
 pub(super) fn json_text(value: &Value) -> Result<String, QueryError> {
@@ -483,7 +525,7 @@ mod interrupted_tests {
         let limits = CassieRuntimeLimits::default();
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         let cancellation = QueryCancellationHandle::new();
-        let cancelled = QueryExecutionControls::with_cancellation(
+        let canceled = QueryExecutionControls::with_cancellation(
             &limits,
             Instant::now(),
             cancellation.clone(),
@@ -499,16 +541,16 @@ mod interrupted_tests {
         let interrupted = evaluate(
             "jsonb_typeof",
             &[Value::String("{}".into())],
-            Some(&cancelled),
+            Some(&canceled),
         )
         .expect("inspection");
         // Assert
         assert!(invalid.is_err());
         assert!(interrupted
-            .expect_err("cancelled query")
+            .expect_err("canceled query")
             .to_string()
             .contains("cancel"));
         assert_eq!(controls.current_query_memory_bytes(), 0);
-        assert_eq!(cancelled.current_query_memory_bytes(), 0);
+        assert_eq!(canceled.current_query_memory_bytes(), 0);
     }
 }

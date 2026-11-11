@@ -393,7 +393,7 @@ fn should_cancel_every_retrieval_family_after_three_controlled_reads() {
         let error = fixture
             .cassie
             .execute_sql(&session, &fixture.query(), vec![])
-            .expect_err("controlled retrieval should be cancelled");
+            .expect_err("controlled retrieval should be canceled");
         cassie::midge::adapter::set_query_scan_cancellation_after_entries(None);
         let after_metrics = fixture.cassie.metrics();
         let reads = fixture
@@ -404,7 +404,7 @@ fn should_cancel_every_retrieval_family_after_three_controlled_reads() {
 
         // Assert
         assert!(
-            matches!(error, CassieError::QueryCancelled),
+            matches!(error, CassieError::QueryCanceled),
             "{} should map to SQLSTATE 57014, got {error:?}",
             case.label()
         );
@@ -430,7 +430,7 @@ fn should_cancel_fulltext_exact_fallback_after_three_controlled_rows() {
     let error = fixture
         .cassie
         .execute_sql(&session, &fixture.query(), vec![])
-        .expect_err("controlled exact fulltext fallback should be cancelled");
+        .expect_err("controlled exact fulltext fallback should be canceled");
     cassie::midge::adapter::set_query_scan_cancellation_after_entries(None);
     let after_metrics = fixture.cassie.metrics();
     let reads = fixture
@@ -440,14 +440,14 @@ fn should_cancel_fulltext_exact_fallback_after_three_controlled_rows() {
         .saturating_sub(before_reads);
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(reads, 3);
     assert_failed_path_metrics_unchanged(RetrievalCase::Fulltext, &before_metrics, &after_metrics);
     assert_query_cleanup(&fixture.cassie);
 }
 
 #[test]
-fn should_publish_no_hybrid_diagnostics_when_exact_fallback_is_cancelled() {
+fn should_publish_no_hybrid_diagnostics_when_exact_fallback_is_canceled() {
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
 
     // Arrange
@@ -469,7 +469,7 @@ fn should_publish_no_hybrid_diagnostics_when_exact_fallback_is_cancelled() {
     let error = fixture
         .cassie
         .execute_sql(&session, &fixture.query(), vec![])
-        .expect_err("controlled exact hybrid fallback should be cancelled");
+        .expect_err("controlled exact hybrid fallback should be canceled");
     cassie::midge::adapter::set_query_scan_cancellation_after_entries(None);
     let after_metrics = fixture.cassie.metrics();
     let reads = fixture
@@ -479,7 +479,7 @@ fn should_publish_no_hybrid_diagnostics_when_exact_fallback_is_cancelled() {
         .saturating_sub(before_reads);
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(reads, 3);
     assert_eq!(after_metrics["hybrid"], before_metrics["hybrid"]);
     assert_query_cleanup(&fixture.cassie);

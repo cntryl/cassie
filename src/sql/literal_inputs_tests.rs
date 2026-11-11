@@ -33,7 +33,7 @@ fn should_check_cancellation_before_allocating_a_scalar_input_diagnostic() {
         Some(&controls),
     );
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

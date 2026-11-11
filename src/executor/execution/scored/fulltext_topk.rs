@@ -262,7 +262,7 @@ fn persisted_fallback_reason(error: &crate::app::CassieError) -> &'static str {
 fn is_query_control_error(error: &crate::app::CassieError) -> bool {
     matches!(
         error,
-        crate::app::CassieError::QueryCancelled
+        crate::app::CassieError::QueryCanceled
             | crate::app::CassieError::DeadlineExceeded
             | crate::app::CassieError::ResourceLimit(_)
     )

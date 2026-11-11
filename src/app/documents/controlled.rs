@@ -94,8 +94,8 @@ impl Cassie {
 pub(super) fn check_document_cancellation(
     cancellation: Option<&QueryCancellationHandle>,
 ) -> Result<(), CassieError> {
-    if cancellation.is_some_and(QueryCancellationHandle::is_cancelled) {
-        return Err(CassieError::QueryCancelled);
+    if cancellation.is_some_and(QueryCancellationHandle::is_canceled) {
+        return Err(CassieError::QueryCanceled);
     }
     Ok(())
 }

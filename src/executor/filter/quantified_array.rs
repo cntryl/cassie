@@ -48,7 +48,7 @@ fn elements(array: &ScalarValue) -> Result<Option<Vec<ScalarValue>>, QueryError>
             ))
         }
         ScalarValue::Json(text) | ScalarValue::Str(text) if text.trim_start().starts_with('[') => {
-            serde_json::from_str::<serde_json::Value>(text).map_err(|error| {
+            crate::types::array::parse_json_document(text).map_err(|error| {
                 crate::app::CassieError::ArrayInput(format!("malformed array literal: {error}"))
             })?
         }

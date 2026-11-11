@@ -40,6 +40,21 @@ fn should_distinguish_sql_array_dimensions_from_json_text() {
 use crate::types::DataType;
 
 #[test]
+fn should_keep_reserved_looking_jsonb_array_elements_as_objects() {
+    // Arrange
+    let input = r#"[{"$serde_json::private::Number":"7"}]"#;
+
+    // Act
+    let parsed = parse_text_array(input, &DataType::Jsonb).expect("JSONB array");
+
+    // Assert
+    assert_eq!(
+        parsed,
+        serde_json::json!([{"$serde_json::private::Number":"7"}])
+    );
+}
+
+#[test]
 fn should_reject_text_array_integer_values_outside_declared_domain() {
     // Arrange
     let cases = [

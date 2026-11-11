@@ -72,4 +72,4 @@ terminal scope. The quarantine cleanup regression checks that distinction.
 The projection fixture uses 5 KiB so its one-row input fits while expanded
 output must still be admitted and rejected. No large workload or timing
 assertion is introduced. Final executable and hosted results remain in #1184's
-review record, including any failed or cancelled attempts.
+review record, including any failed or canceled attempts.

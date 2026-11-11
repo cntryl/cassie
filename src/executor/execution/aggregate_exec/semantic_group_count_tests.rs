@@ -51,7 +51,7 @@ fn should_release_estimator_scratch_after_cancellation_during_group_key_walk() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

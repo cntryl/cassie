@@ -32,7 +32,7 @@ fn should_cancel_an_activated_merge_replacement_before_publishing_success() {
         cancellation.clone(),
     );
     assert!(controls.deadline.is_none());
-    assert!(!controls.is_cancelled());
+    assert!(!controls.is_canceled());
     let functions = HashMap::new();
     let env = SourceExecutionEnv {
         cassie: &cassie,
@@ -78,7 +78,7 @@ fn should_cancel_an_activated_merge_replacement_before_publishing_success() {
         &["left.key".to_owned()],
         &["right.key".to_owned()],
         || {
-            assert!(!controls.is_cancelled());
+            assert!(!controls.is_canceled());
             assert!(controls.current_query_memory_bytes() > input_bytes);
             probe_calls.set(probe_calls.get() + 1);
             cancellation.cancel();
@@ -87,7 +87,7 @@ fn should_cancel_an_activated_merge_replacement_before_publishing_success() {
     .map_err(CassieError::from);
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(probe_calls.get(), 1, "actual replacement must be activated");
     let after = cassie.runtime.snapshot();
     assert_eq!(

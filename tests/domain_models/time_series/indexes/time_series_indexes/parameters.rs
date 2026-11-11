@@ -57,7 +57,7 @@ fn should_prune_parameterized_time_series_ranges() {
             .expect("parameterized range");
         let cancellation = cassie::runtime::QueryCancellationHandle::new();
         cancellation.cancel();
-        let cancelled = cassie.execute_sql_with_cancellation(
+        let canceled = cassie.execute_sql_with_cancellation(
             &session,
             "SELECT amount FROM ts_control_events WHERE tenant = $1 AND event_at >= $2",
             vec![
@@ -71,7 +71,7 @@ fn should_prune_parameterized_time_series_ranges() {
         // Assert
         assert_eq!(result.rows(), vec![vec![Value::Int64(20)]]);
         assert_eq!(metrics["time_series"]["bucket_native_hits"].as_u64(), Some(1));
-        assert!(cancelled.expect_err("cancelled query").to_string().contains("canceled"));
+        assert!(canceled.expect_err("canceled query").to_string().contains("canceled"));
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -509,13 +509,13 @@ fn should_preserve_source_order_given_multi_row_on_conflict_returning() {
 }
 
 #[test]
-fn should_leave_zero_rows_given_cancelled_multi_row_insert_before_execution() {
+fn should_leave_zero_rows_given_canceled_multi_row_insert_before_execution() {
     // Arrange
     let (cassie, session, path) = database("cancel-before-execution");
     cassie
         .execute_sql(
             &session,
-            "CREATE TABLE atomic_cancelled_insert (row_key INT PRIMARY KEY)",
+            "CREATE TABLE atomic_canceled_insert (row_key INT PRIMARY KEY)",
             vec![],
         )
         .expect("create table");
@@ -526,22 +526,22 @@ fn should_leave_zero_rows_given_cancelled_multi_row_insert_before_execution() {
     let error = cassie
         .execute_sql_with_cancellation(
             &session,
-            "INSERT INTO atomic_cancelled_insert (row_key) VALUES (1), (2), (3) RETURNING row_key",
+            "INSERT INTO atomic_canceled_insert (row_key) VALUES (1), (2), (3) RETURNING row_key",
             vec![],
             &cancellation,
         )
-        .expect_err("cancelled mutation should fail");
+        .expect_err("canceled mutation should fail");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert!(
         rows(
             &cassie,
             &session,
-            "SELECT row_key FROM atomic_cancelled_insert"
+            "SELECT row_key FROM atomic_canceled_insert"
         )
         .is_empty(),
-        "a cancelled mutation must not write rows"
+        "a canceled mutation must not write rows"
     );
 
     let _ = std::fs::remove_dir_all(path);

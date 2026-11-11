@@ -181,7 +181,9 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
                 .map_err(|error| error.to_string())
         }),
         DataType::Json | DataType::Jsonb => Ok(match value {
-            Value::String(text) => serde_json::from_str(&text).unwrap_or(Value::String(text)),
+            Value::String(text) => {
+                crate::types::array::parse_json_document(&text).unwrap_or(Value::String(text))
+            }
             other => other,
         }),
         DataType::Null

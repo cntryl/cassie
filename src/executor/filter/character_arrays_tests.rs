@@ -100,7 +100,7 @@ fn should_admit_all_character_array_padding_before_converting_any_element() {
 }
 
 #[test]
-fn should_release_character_array_scratch_when_cancelled_between_element_conversions() {
+fn should_release_character_array_scratch_when_canceled_between_element_conversions() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -131,7 +131,7 @@ fn should_release_character_array_scratch_when_cancelled_between_element_convers
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(converted, 1);
     assert_eq!(controls.current_query_memory_bytes(), 0);

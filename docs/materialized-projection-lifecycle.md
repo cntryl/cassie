@@ -110,7 +110,7 @@ Concurrent refresh remains cancellable through its database publication guard,
 including waiting for that guard. Cancellation before the activation metadata
 commit preserves the previous active output, removes unpublished output, and
 records the failed version. Terminal cleanup uses an independent scope without
-the cancelled request token; storage recovery quarantine still applies, so an
+the canceled request token; storage recovery quarantine still applies, so an
 unknown outcome is never treated as a confirmed failed write. A confirmed
 activation metadata commit remains authoritative if cancellation arrives later.
 

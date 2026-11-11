@@ -67,11 +67,11 @@ impl QueryCancellationHandle {
     }
 
     #[must_use]
-    pub fn is_cancelled(&self) -> bool {
+    pub fn is_canceled(&self) -> bool {
         self.0.load(Ordering::Acquire)
     }
 
-    pub(crate) async fn wait_cancelled(&self) {
+    pub(crate) async fn wait_canceled(&self) {
         let mut signal = self.3.subscribe();
         while !*signal.borrow_and_update() {
             if signal.changed().await.is_err() {
@@ -283,8 +283,8 @@ impl QueryExecutionControls {
     }
 
     pub(crate) fn check_interruption(&self) -> Result<(), CassieError> {
-        if self.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
+        if self.is_canceled() {
+            return Err(CassieError::QueryCanceled);
         }
         if self.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
@@ -413,8 +413,8 @@ impl QueryExecutionControls {
     }
 
     #[must_use]
-    pub fn is_cancelled(&self) -> bool {
-        self.cancellation.is_cancelled()
+    pub fn is_canceled(&self) -> bool {
+        self.cancellation.is_canceled()
     }
 
     /// # Errors
@@ -543,13 +543,13 @@ mod tests {
 
         // Act
         runtime.block_on(async {
-            tokio::time::timeout(Duration::from_secs(1), cancellation.wait_cancelled())
+            tokio::time::timeout(Duration::from_secs(1), cancellation.wait_canceled())
                 .await
                 .expect("preexisting cancellation signal should wake the waiter");
         });
 
         // Assert
-        assert!(cancellation.is_cancelled());
+        assert!(cancellation.is_canceled());
     }
 
     #[test]
@@ -564,10 +564,10 @@ mod tests {
         // Act
         runtime.block_on(async {
             let waiting = cancellation.clone();
-            let mut wait = Box::pin(waiting.wait_cancelled());
+            let mut wait = Box::pin(waiting.wait_canceled());
             tokio::select! {
                 biased;
-                () = wait.as_mut() => panic!("uncancelled waiter must remain pending"),
+                () = wait.as_mut() => panic!("uncanceled waiter must remain pending"),
                 () = tokio::task::yield_now() => {}
             }
             cancellation.cancel();
@@ -577,7 +577,7 @@ mod tests {
         });
 
         // Assert
-        assert!(cancellation.is_cancelled());
+        assert!(cancellation.is_canceled());
     }
 
     #[test]

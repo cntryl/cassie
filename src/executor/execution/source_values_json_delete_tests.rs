@@ -39,7 +39,7 @@ fn should_hold_values_deletion_output_through_source_row_ownership() {
 }
 
 #[test]
-fn should_release_values_deletion_owner_when_cancelled_before_output_transfer() {
+fn should_release_values_deletion_owner_when_canceled_before_output_transfer() {
     // Arrange
     let cassie =
         Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("fixture");
@@ -61,7 +61,7 @@ fn should_release_values_deletion_owner_when_cancelled_before_output_transfer() 
     // Act
     let result = execute(&env, &input(), None);
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

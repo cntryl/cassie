@@ -76,7 +76,7 @@ hosted_qualified -> merged`
 Every transition records its owner, UTC time and source identity. A source edit
 from `accepted` onward returns affected work to `review`; integration edits also
 require `integrated_review`. A failed gate is a failure, a running gate remains
-running, and a stopped gate is cancelled. A dependency blocker does not count as
+running, and a stopped gate is canceled. A dependency blocker does not count as
 completion. At a user timebox, stop new work and preserve the current state,
 logs and unfinished checks for process review; do not manufacture a completed
 batch to fit the timebox.

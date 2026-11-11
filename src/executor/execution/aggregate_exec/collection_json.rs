@@ -512,15 +512,52 @@ pub(super) fn finish_document_observing(
         }
     }
     json::check(controls)?;
-    let document = serde_json::from_str(&document).map_err(|error| {
-        CassieError::TypeInput(crate::types::extended::TypeInputError::new(
-            "22P02",
-            format!("invalid JSONB collection document: {error}"),
-        ))
-    })?;
+    let (document, parse_memory) = if let Some(controls) = controls {
+        if memory.is_some() {
+            let value = crate::runtime::accounted::json_arena::parse_value_in_reserved_memory(
+                document.as_bytes(),
+                controls,
+            )
+            .map_err(|error| collection_document_parse_error(error, document.as_bytes()))?;
+            (value, None)
+        } else {
+            let parsed =
+                crate::runtime::accounted::json_arena::parse_value(document.as_bytes(), controls)
+                    .map_err(|error| collection_document_parse_error(error, document.as_bytes()))?;
+            let (value, reservation) = parsed.into_parts();
+            (value, Some(reservation))
+        }
+    } else {
+        let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+            document.as_bytes(),
+            None,
+        )
+        .map_err(|error| collection_document_parse_error(error, document.as_bytes()))?;
+        let (value, reservation) = parsed.into_parts();
+        (value, Some(reservation))
+    };
     after_decode();
     json::check(controls)?;
+    drop(parse_memory);
     Ok(Value::Json(document))
+}
+
+fn collection_document_parse_error(
+    error: crate::runtime::accounted::json_arena::ValueParseError,
+    input: &[u8],
+) -> QueryError {
+    match error {
+        crate::runtime::accounted::json_arena::ValueParseError::Invalid => QueryError::Cassie(
+            CassieError::TypeInput(crate::types::extended::TypeInputError::new(
+                "22P02",
+                format!(
+                    "invalid JSONB collection document: {}",
+                    crate::runtime::accounted::json_arena::syntax_error(input)
+                ),
+            )),
+        ),
+        crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error.into(),
+    }
 }
 
 fn row_memory(

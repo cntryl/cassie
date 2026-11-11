@@ -442,7 +442,7 @@ pub(crate) fn try_controlled_column_batch_scan(
             Ok(None)
         }
         Err(
-            error @ (CassieError::QueryCancelled
+            error @ (CassieError::QueryCanceled
             | CassieError::DeadlineExceeded
             | CassieError::ResourceLimit(_)),
         ) => Err(crate::executor::QueryError::from(error)),
@@ -493,7 +493,7 @@ fn controlled_projected_row_fallback(
 fn controlled_storage_error(cassie: &Cassie, error: CassieError) -> crate::executor::QueryError {
     if !matches!(
         error,
-        CassieError::QueryCancelled | CassieError::DeadlineExceeded | CassieError::ResourceLimit(_)
+        CassieError::QueryCanceled | CassieError::DeadlineExceeded | CassieError::ResourceLimit(_)
     ) {
         cassie.runtime.record_storage_access("data", false, false);
     }

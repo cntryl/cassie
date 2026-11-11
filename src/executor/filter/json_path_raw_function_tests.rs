@@ -100,7 +100,7 @@ fn should_release_workspace_after_actual_function_document_scan_cancellation() {
         Some(&owner),
     );
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -129,7 +129,7 @@ fn should_release_both_function_output_with_workspace_after_actual_copy_cancella
         Some(&owner),
     );
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);

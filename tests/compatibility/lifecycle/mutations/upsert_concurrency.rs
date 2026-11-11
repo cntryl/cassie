@@ -196,11 +196,11 @@ fn should_release_waiting_upsert_candidates_given_cancellation_when_the_owner_st
             .cancel_query(NoTls)
             .await
             .expect("cancel waiting statement");
-        let cancelled = tokio::time::timeout(Duration::from_secs(5), pending)
+        let canceled = tokio::time::timeout(Duration::from_secs(5), pending)
             .await
             .expect("cancel completes")
             .expect("waiter task")
-            .expect_err("cancelled upsert");
+            .expect_err("canceled upsert");
         owner
             .batch_execute("COMMIT")
             .await
@@ -214,7 +214,7 @@ fn should_release_waiting_upsert_candidates_given_cancellation_when_the_owner_st
             .expect("committed owner row");
         // Assert
         assert_eq!(
-            cancelled.as_db_error().expect("SQL error").code().code(),
+            canceled.as_db_error().expect("SQL error").code().code(),
             "57014"
         );
         assert_eq!(row.get::<_, String>(0), "owner");
@@ -297,7 +297,7 @@ fn should_recheck_nonarbiter_uniqueness_given_owner_resolution_when_upsert_selec
 }
 
 #[test]
-fn should_retain_prior_transaction_keys_given_cancelled_upsert_when_rollback_has_not_occurred() {
+fn should_retain_prior_transaction_keys_given_canceled_upsert_when_rollback_has_not_occurred() {
     // Arrange
     current_thread_runtime().block_on(async {
         let server=CompatibilityServer::start("upsert_prior_claims").await;
@@ -315,14 +315,14 @@ fn should_retain_prior_transaction_keys_given_cancelled_upsert_when_rollback_has
         wait_for_upsert_boundary(&server,&pending).await;
         // Act
         cancellation.cancel_query(NoTls).await.expect("cancel wait");
-        let (waiter,cancelled)=tokio::time::timeout(Duration::from_secs(5),pending).await.expect("cancel finishes").expect("waiter task");
+        let (waiter,canceled)=tokio::time::timeout(Duration::from_secs(5),pending).await.expect("cancel finishes").expect("waiter task");
         let following=start_waiting_key_seven(following);
         wait_for_upsert_boundary(&server,&following).await;
         owner.batch_execute("COMMIT").await.expect("owner key unaffected");
         waiter.batch_execute("ROLLBACK").await.expect("release earlier key");
         let row=tokio::time::timeout(Duration::from_secs(5),following).await.expect("rollback releases prior key").expect("following task").expect("following insert");
         // Assert
-        assert_eq!(cancelled.expect_err("cancelled statement").as_db_error().expect("SQL error").code().code(),"57014");
+        assert_eq!(canceled.expect_err("canceled statement").as_db_error().expect("SQL error").code().code(),"57014");
         assert_eq!(row.get::<_,String>(0),"following");
         assert_eq!(server.cassie.metrics()["transactions"]["unique_waiters"],0);
         drop((owner,waiter));server.shutdown(owner_connection).await;

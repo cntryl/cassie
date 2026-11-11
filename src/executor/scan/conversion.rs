@@ -106,8 +106,8 @@ pub(super) fn lookup_bytes(entries: usize, names_bytes: usize) -> Result<usize, 
 }
 
 pub(super) fn check_controls(controls: &QueryExecutionControls) -> Result<(), QueryError> {
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled.into());
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled.into());
     }
     if controls.is_timed_out() {
         return Err(CassieError::DeadlineExceeded.into());

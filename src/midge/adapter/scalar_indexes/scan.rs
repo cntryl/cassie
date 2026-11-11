@@ -34,7 +34,7 @@ impl Midge {
             let (key, raw_value) = entry.map_err(CassieError::from)?;
             self.record_query_scan_entry();
             if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
-                return Err(CassieError::QueryCancelled);
+                return Err(CassieError::QueryCanceled);
             }
             let retained_bytes = scalar_index_hit_variable_bytes(&key, &raw_value)?;
             hits.try_push_with_result(retained_bytes, || {
@@ -131,8 +131,8 @@ fn scalar_index_hit_variable_bytes(key: &[u8], raw_value: &[u8]) -> Result<usize
 }
 
 fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     if controls.is_timed_out() {
         return Err(CassieError::DeadlineExceeded);

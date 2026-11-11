@@ -101,7 +101,7 @@ fn should_interrupt_binary_numeric_group_scan_with_release() {
     // Act
     let result = super::decode_observed(1700, &bytes, 0, &controls, || cancellation.cancel());
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -188,7 +188,7 @@ fn should_match_bounded_binary_numeric_group_combinations() {
 }
 
 #[test]
-fn should_release_binary_numeric_output_when_cancelled_during_emission() {
+fn should_release_binary_numeric_output_when_canceled_during_emission() {
     // Arrange
     let bytes = frame(300, 0, 0, &[1]);
     let cancellation = QueryCancellationHandle::new();
@@ -200,13 +200,13 @@ fn should_release_binary_numeric_output_when_cancelled_during_emission() {
     // Act
     let result = super::decode_observed(1700, &bytes, 0, &controls, || cancellation.cancel());
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_release_binary_numeric_output_when_cancelled_during_fraction() {
+fn should_release_binary_numeric_output_when_canceled_during_fraction() {
     // Arrange
     let bytes = frame(0, 0, 1000, &[]);
     let cancellation = QueryCancellationHandle::new();
@@ -218,7 +218,7 @@ fn should_release_binary_numeric_output_when_cancelled_during_fraction() {
     // Act
     let result = super::decode_observed(1700, &bytes, 0, &controls, || cancellation.cancel());
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

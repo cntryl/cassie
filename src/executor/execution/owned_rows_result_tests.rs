@@ -90,7 +90,7 @@ fn should_release_selected_source_with_partial_result_on_actual_handoff_cancella
     // Act
     let result = build_select_result(&cassie, None, &plan, rows, &HashMap::new(), &controls);
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

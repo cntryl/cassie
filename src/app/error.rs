@@ -176,7 +176,7 @@ pub enum CassieError {
     DeadlineExceeded,
 
     #[error("query canceled")]
-    QueryCancelled,
+    QueryCanceled,
 
     #[error("resource limit exceeded: {0}")]
     ResourceLimit(String),
@@ -311,7 +311,7 @@ impl CassieError {
                 constraint: None,
             },
             Self::DeadlineExceeded => timeout_descriptor(),
-            Self::QueryCancelled => cancellation_descriptor(),
+            Self::QueryCanceled => cancellation_descriptor(),
             Self::ResourceLimit(message) => resource_limit_descriptor(message.clone()),
             Self::Execution(message) => execution_descriptor(message),
             Self::Configuration(_) => service_unavailable_descriptor("58030", self.to_string()),
@@ -501,7 +501,7 @@ fn cancellation_descriptor() -> CassieErrorDescriptor {
     CassieErrorDescriptor {
         http_status: 499,
         sql_state: "57014",
-        message: CassieError::QueryCancelled.to_string(),
+        message: CassieError::QueryCanceled.to_string(),
         table: None,
         column: None,
         constraint: None,
@@ -666,7 +666,7 @@ impl From<QueryError> for CassieError {
                 CassieError::DeadlineExceeded
             }
             QueryError::General(message) if message.eq_ignore_ascii_case("query canceled") => {
-                CassieError::QueryCancelled
+                CassieError::QueryCanceled
             }
             QueryError::General(message)
                 if message.starts_with("query memory budget exceeded:") =>
@@ -693,7 +693,7 @@ impl From<crate::config::CassieRuntimeConfigError> for CassieError {
 impl From<EmbeddingError> for CassieError {
     fn from(value: EmbeddingError) -> Self {
         match value {
-            EmbeddingError::Cancelled { .. } => CassieError::QueryCancelled,
+            EmbeddingError::Canceled { .. } => CassieError::QueryCanceled,
             EmbeddingError::InvalidConfiguration(message) | EmbeddingError::ParseError(message) => {
                 CassieError::InvalidEmbedding(message)
             }

@@ -409,7 +409,7 @@ fn should_release_nested_raw_source_after_actual_push_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(DocumentError::Control(CassieError::QueryCancelled))
+        Err(DocumentError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -438,7 +438,7 @@ fn should_release_raw_source_with_result_after_actual_value_ready_cancellation()
     // Assert
     assert!(matches!(
         result,
-        Err(DocumentError::Control(CassieError::QueryCancelled))
+        Err(DocumentError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -581,7 +581,7 @@ fn should_report_cancellation_observed_during_post_error_unwinding() {
     // Assert
     assert!(matches!(
         result,
-        Err(DocumentError::Control(CassieError::QueryCancelled))
+        Err(DocumentError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -735,7 +735,7 @@ fn should_release_nested_number_owners_after_actual_post_decode_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(DocumentError::Control(CassieError::QueryCancelled))
+        Err(DocumentError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -847,7 +847,7 @@ fn should_release_scanned_number_token_on_actual_type_error_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(DocumentError::Control(CassieError::QueryCancelled))
+        Err(DocumentError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -872,7 +872,7 @@ fn should_drop_partial_forest_on_actual_frame_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(DocumentError::Control(CassieError::QueryCancelled))
+        Err(DocumentError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

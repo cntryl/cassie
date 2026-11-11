@@ -337,8 +337,7 @@ descriptor revision u64; composite then has checked field count u32 and recursiv
 framed nullable values, domain one framed base value. New integer fields use big-endian
 encoding; existing tags/bytes do not change. Domain NULL uses the outer NULL marker and
 cannot wrap a NULL base value to bypass constraints. Existing CRB1 scalar bytes remain
-unchanged; new tagged payloads require the common compatibility marker. Retain old
-descriptors for old rows, including dropped fields. Text/binary RECORD uses PostgreSQL
+unchanged within the current format. New tagged payloads are validated by the current reader; no pre-release marker transition or migration is required. Retain descriptors needed by current rows, including dropped fields. Text/binary RECORD uses PostgreSQL
 field count/OID/length framing; named composites use allocated OIDs, transient RECORD
 uses 2249/contextual typmod. Domain output uses base codecs where SQL resolution
 flattens it. Catalog/schema/constraint/row changes publish in one family and survive
@@ -370,8 +369,7 @@ helpers need a reviewed contextual resolver contract. DROP RESTRICT protects liv
 dependent columns/indexes; CASCADE behavior must remove actual dependents atomically.
 Restore retains extension IDs and rebuilds derived ANN state from authoritative vectors.
 
-These new durable features require the selected compatibility transition in
-[Release Baseline](release-baseline.md#selected-v02-compatibility-transition-2026-11-04).
+These durable features use the current format and must pass current-build restart and recovery checks. No pre-release compatibility transition is required; see [Release Baseline](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).
 Named ENUM #827 remains deferred to v0.4; historical full-parity/CRB3 proposals
 remain superseded. Codec goldens, checked framing and version admission precede
 new row-value admission. Existing tags and scalar bytes retain their meaning.

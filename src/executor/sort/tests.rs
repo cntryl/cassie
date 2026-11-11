@@ -14,7 +14,7 @@ use super::{
     SortRetentionContext, SortRetentionPhase,
 };
 
-struct CancellingRow<'a> {
+struct CancelingRow<'a> {
     row: BatchRow,
     controls: &'a QueryExecutionControls,
     cancellation: &'a QueryCancellationHandle,
@@ -22,13 +22,13 @@ struct CancellingRow<'a> {
     memory_at_cancellation: &'a Cell<usize>,
 }
 
-impl RowAccess for CancellingRow<'_> {
+impl RowAccess for CancelingRow<'_> {
     fn get(&self, name: &str) -> Option<&Value> {
         if name == "value" {
             let reads = self.key_reads.get() + 1;
             self.key_reads.set(reads);
             if reads == 2 {
-                assert!(!self.controls.is_cancelled());
+                assert!(!self.controls.is_canceled());
                 let retained = self.controls.current_query_memory_bytes();
                 assert!(retained > 0, "the first sort key must remain reserved");
                 self.memory_at_cancellation.set(retained);
@@ -57,12 +57,12 @@ fn should_cancel_sort_after_retaining_the_first_key() {
         cancellation.clone(),
     );
     assert!(controls.deadline.is_none());
-    assert!(!controls.is_cancelled());
+    assert!(!controls.is_canceled());
     let key_reads = Cell::new(0);
     let memory_at_cancellation = Cell::new(0);
     let rows = [3, 2, 1]
         .into_iter()
-        .map(|value| CancellingRow {
+        .map(|value| CancelingRow {
             row: BatchRow::new(vec![("value".to_owned(), Value::Int64(value))]),
             controls: &controls,
             cancellation: &cancellation,
@@ -89,7 +89,7 @@ fn should_cancel_sort_after_retaining_the_first_key() {
     let result = sort_rows_with_controls(rows, &eval, &controls).map_err(CassieError::from);
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(key_reads.get(), 2, "the third key must never be evaluated");
     assert!(memory_at_cancellation.get() > 0);
     assert!(controls.peak_query_memory_bytes() > 0);

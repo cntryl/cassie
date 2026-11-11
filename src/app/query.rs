@@ -334,8 +334,8 @@ impl Cassie {
             return Err(error);
         }
 
-        if controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
+        if controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
         }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
@@ -391,8 +391,8 @@ impl Cassie {
             return Err(error);
         }
 
-        if controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
+        if controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
         }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
@@ -413,8 +413,8 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         self.check_storage_statement_admission(&parsed.statement)?;
-        if controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
+        if controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
         }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);

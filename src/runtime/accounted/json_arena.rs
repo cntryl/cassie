@@ -21,6 +21,8 @@ pub(crate) mod raw_number;
 mod slots;
 #[path = "json_arena/sources.rs"]
 mod sources;
+#[path = "json_arena/value.rs"]
+mod value;
 
 pub(crate) use document::binary::{binary_json_text, BinaryJsonError};
 pub(crate) use document::comparison::compare as compare_jsonb_candidate;
@@ -28,7 +30,10 @@ pub(crate) use document::diagnostic::OwnedDiagnostic as JsonbDiagnostic;
 #[cfg(test)]
 pub(crate) use document::exists::cancel_existence_parse_once;
 pub(crate) use document::exists::parse as parse_existence_candidate;
-pub(crate) use document::jsonb::{parse_field as parse_jsonb_field, JsonbFieldError};
+pub(crate) use document::jsonb::{
+    canonical_text as canonical_jsonb_text, parse_field as parse_jsonb_field, JsonbFieldError,
+    JsonbTextError,
+};
 pub(crate) use document::text_array::{parse as parse_text_array_candidate, OwnedTextArray};
 #[cfg(test)]
 pub(crate) use forest::comparison::{
@@ -36,6 +41,10 @@ pub(crate) use forest::comparison::{
 };
 pub(crate) use forest::object_keys::{build_object_keys_from_map, OwnedObjectKeys};
 pub(crate) use forest::InspectionRoot;
+pub(crate) use value::{
+    parse_value, parse_value_in_reserved_memory, parse_value_with_optional_controls, syntax_error,
+    ValueParseError,
+};
 
 #[cfg(test)]
 pub(crate) use forest::object_keys::{

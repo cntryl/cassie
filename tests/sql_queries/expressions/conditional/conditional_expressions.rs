@@ -445,7 +445,7 @@ fn should_observe_cancellation_before_conditional_argument_errors() {
     // Assert
     assert!(matches!(
         result,
-        Err(cassie::app::CassieError::QueryCancelled)
+        Err(cassie::app::CassieError::QueryCanceled)
     ));
 }
 

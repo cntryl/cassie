@@ -56,7 +56,7 @@ fn should_cancel_after_scanning_a_real_unescaped_string_chunk() {
 
     // Assert
     assert!(scanned);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -83,7 +83,7 @@ fn should_cancel_after_copying_a_real_number_chunk() {
 
     // Assert
     assert!(copied);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -116,7 +116,7 @@ fn should_release_both_output_buffers_after_cancellation_during_growth_copy() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(retained_during_move > original);
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(sink);
@@ -154,7 +154,7 @@ fn should_release_frame_owners_after_cancellation_during_replacement_move() {
 
     // Assert
     assert!(moved);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(stack);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -245,7 +245,7 @@ fn should_cancel_during_a_real_counted_string_scan() {
 
     // Assert
     assert!(scanned);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

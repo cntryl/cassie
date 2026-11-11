@@ -295,7 +295,7 @@ export default function QueryPage() {
                     “{closeCandidate()?.title}” will be permanently deleted from this browser. This
                     action cannot be undone
                     {workspaceRegistry.controller(closeCandidate()?.id ?? "")?.isBusy()
-                      ? ", and its running operation will be cancelled first."
+                      ? ", and its running operation will be canceled first."
                       : "."}
                   </AlertDialogDescription>
                 </div>

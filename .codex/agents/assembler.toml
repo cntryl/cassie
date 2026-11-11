@@ -31,7 +31,7 @@ Do not start build/test loops for each small edit. Do not silence lints, reduce
 checks, weaken assertions, add ignores, or turn cancellation into a pass.
 
 Retain exact commands, start/end times, source/tree identities, logs, and passed,
-failed, running, cancelled, or blocked outcomes under ignored target/. Follow
+failed, running, canceled, or blocked outcomes under ignored target/. Follow
 the user's timebox: stop new work at its deadline, terminate owned unfinished
 gate processes when directed, preserve receipts, and report incomplete results.
 

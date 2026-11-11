@@ -66,10 +66,7 @@ fn should_cancel_during_reached_json_argument_scan_on_exists_window_path() {
 
     // Assert
     crate::executor::filter::cancel_raw_scan_once(None);
-    assert!(
-        cancel.is_cancelled(),
-        "actual JSON scan must reach the hook"
-    );
+    assert!(cancel.is_canceled(), "actual JSON scan must reach the hook");
     assert!(result.is_err());
     drop(result);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -93,10 +90,7 @@ fn should_cancel_during_json_leaf_copy_on_exists_window_path() {
     let result = run(&cassie, &select, &controls);
 
     // Assert
-    assert!(
-        cancel.is_cancelled(),
-        "actual leaf copy must reach the hook"
-    );
+    assert!(cancel.is_canceled(), "actual leaf copy must reach the hook");
     assert!(result.is_err());
     drop(result);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -128,7 +122,7 @@ fn should_cancel_during_json_path_function_scan_on_exists_window_path() {
 
     // Assert
     assert!(
-        cancel.is_cancelled(),
+        cancel.is_canceled(),
         "actual function scan must reach the hook"
     );
     assert!(result.is_err());
@@ -155,7 +149,7 @@ fn should_not_copy_json_leaf_when_exists_window_filter_is_false() {
     crate::executor::filter::clear_json_leaf_copy_cancellation();
 
     // Assert
-    assert!(!cancel.is_cancelled());
+    assert!(!cancel.is_canceled());
     let output = result.expect("false filter skips argument");
     drop(output);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -181,7 +175,7 @@ fn should_skip_the_argument_when_exists_window_filter_is_false_or_null() {
 
         // Assert
         crate::executor::filter::cancel_raw_scan_once(None);
-        assert!(!cancel.is_cancelled(), "excluded argument was reached");
+        assert!(!cancel.is_canceled(), "excluded argument was reached");
         assert!(matches!(
             output[0][0].entries().last().expect("result").1,
             Value::Null

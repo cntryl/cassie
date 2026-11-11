@@ -252,13 +252,13 @@ fn should_propagate_cancellation_before_recognizing_a_posix_rule() {
     assert!(matches!(
         result,
         Err(crate::executor::QueryError::Cassie(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
 }
 
 #[test]
-fn should_preserve_excluded_rule_fallback_with_precancelled_controls() {
+fn should_preserve_excluded_rule_fallback_with_precanceled_controls() {
     // Arrange
     let cancel = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -316,7 +316,7 @@ fn should_report_precancellation_for_matching_rule_before_origin_fallback() {
     assert!(matches!(
         result,
         Err(crate::executor::QueryError::Cassie(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
 }

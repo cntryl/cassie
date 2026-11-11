@@ -99,15 +99,15 @@ fn should_enforce_binary_vector_overlap_budget_with_cancellation() {
     drop(input);
     assert_eq!(denied.current_query_memory_bytes(), 0);
     let cancellation = QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        super::decode(100_003, &bytes, 0, &cancelled),
-        Err(CassieError::QueryCancelled)
+        super::decode(100_003, &bytes, 0, &canceled),
+        Err(CassieError::QueryCanceled)
     ));
 }
 
@@ -128,7 +128,7 @@ fn should_release_binary_vector_output_on_synchronized_emission_cancellation() {
         }
     });
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -150,7 +150,7 @@ fn should_interrupt_binary_vector_validation_before_output_allocation() {
         }
     });
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

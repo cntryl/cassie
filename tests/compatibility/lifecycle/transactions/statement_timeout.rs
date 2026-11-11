@@ -119,10 +119,10 @@ fn should_cancel_overdue_statement_with_sqlstate() {
             .expect("set a short statement timeout");
 
         // Act
-        let cancelled = client
+        let canceled = client
             .query_one("SELECT pg_sleep(0.2)", &[])
             .await
-            .expect_err("pg_sleep exceeding statement_timeout must be cancelled");
+            .expect_err("pg_sleep exceeding statement_timeout must be canceled");
         client
             .batch_execute("RESET statement_timeout")
             .await
@@ -134,7 +134,7 @@ fn should_cancel_overdue_statement_with_sqlstate() {
             .get(0);
 
         // Assert
-        assert_eq!(db_error(&cancelled).code().code(), "57014");
+        assert_eq!(db_error(&canceled).code().code(), "57014");
         assert_eq!(recovered, 1);
 
         drop(client);

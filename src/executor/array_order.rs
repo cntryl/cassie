@@ -186,7 +186,7 @@ fn typed_key(value: &Value, data_type: Option<&DataType>) -> SemanticValue {
         Value::Json(json) => {
             array_key(json, element_type).unwrap_or_else(|| SemanticValue::from_value(value))
         }
-        Value::String(text) => serde_json::from_str(text)
+        Value::String(text) => crate::types::array::parse_json_document(text)
             .ok()
             .and_then(|json| array_key(&json, element_type))
             .unwrap_or_else(|| SemanticValue::from_value(value)),
@@ -416,7 +416,7 @@ fn array_value(value: &Value, element_type: &DataType) -> Option<crate::types::S
         Value::Json(value) => {
             crate::types::SqlArray::from_nested_json_typed(value, element_type).ok()
         }
-        Value::String(text) => serde_json::from_str(text)
+        Value::String(text) => crate::types::array::parse_json_document(text)
             .ok()
             .and_then(|value| {
                 crate::types::SqlArray::from_nested_json_typed(&value, element_type).ok()

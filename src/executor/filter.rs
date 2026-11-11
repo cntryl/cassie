@@ -610,9 +610,9 @@ fn cast_scalar(
         DataType::Json => cast_json_text(value, controls).map(ScalarValue::Json),
         DataType::Jsonb => {
             let text = cast_json_text(value, controls)?;
-            crate::types::jsonb::canonical(&text)
+            crate::types::jsonb::canonical_with_controls(&text, controls)
                 .map(ScalarValue::Json)
-                .map_err(|error| crate::app::CassieError::TypeInput(error).into())
+                .map_err(Into::into)
         }
         DataType::Array(element) => {
             character_arrays::cast(value, data_type, None, controls, None, false)

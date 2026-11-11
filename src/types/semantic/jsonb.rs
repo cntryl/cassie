@@ -39,20 +39,22 @@ impl JsonbKey {
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Self, CassieError> {
         check(controls)?;
-        let _parse_memory = controls
-            .map(|controls| {
-                controls.reserve_query_memory(
-                    crate::runtime::accounted::json::serialized_decode_bytes(text.len())?,
-                )
-            })
-            .transpose()?;
-        let value = serde_json::from_str(text).map_err(|error| {
-            TypeInputError::new(
+        let parsed = crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+            text.as_bytes(),
+            controls,
+        )
+        .map_err(|error| match error {
+            crate::runtime::accounted::json_arena::ValueParseError::Invalid => TypeInputError::new(
                 "22P02",
-                format!("invalid input syntax for type jsonb: {error}"),
+                format!(
+                    "invalid input syntax for type jsonb: {}",
+                    crate::runtime::accounted::json_arena::syntax_error(text.as_bytes())
+                ),
             )
+            .into(),
+            crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => error,
         })?;
-        Self::from_json(&value, controls)
+        Self::from_json(parsed.get(), controls)
     }
 
     pub(crate) fn from_json(

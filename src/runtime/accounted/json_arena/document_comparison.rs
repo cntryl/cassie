@@ -11,7 +11,7 @@ fn parse(input: &str, controls: &QueryExecutionControls) -> Result<Option<Parsed
             CursorError::Interrupted(error) => error,
             _ => CassieError::Execution("invalid UTF-8 in JSONB comparison operand".into()),
         })?;
-    match Document::parse_sources(sources, controls, |_| {}) {
+    match Document::parse_sources_plain(sources, controls, |_| {}) {
         Ok(parsed) => Ok(Some(parsed)),
         Err(
             DocumentError::Control(error)

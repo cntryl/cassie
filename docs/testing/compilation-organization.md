@@ -108,7 +108,7 @@ isolation and coverage gap judgments were 0.16 and 0.13. These are review leads;
 the source/registration comparisons and executable gates are the evidence.
 
 The first serial hosted revision completed test compilation in 8m45s, versus the
-older revision still compiling when cancelled after 12m48s, but exhausted its
+older revision still compiling when canceled after 12m48s, but exhausted its
 20-minute job budget during correctness execution after roughly seven minutes
 of prior quality/build work. This prompted the package-owned jobs above. Quality
 and test dependencies use separate cache keys for their dev/test profiles. No
@@ -116,5 +116,5 @@ check, test, target compilation or benchmark assertion was removed; benchmark
 sampling remains a separately invoked workload.
 
 The aggregate `backend` shell condition was exercised for all 16 combinations
-of success/failure/cancelled/skipped upstream outcomes. Only success/success
+of success/failure/canceled/skipped upstream outcomes. Only success/success
 passes. Package metadata confirms the two test jobs own every workspace target.

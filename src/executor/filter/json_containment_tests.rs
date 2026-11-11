@@ -151,7 +151,7 @@ fn should_release_containment_frames_after_actual_scalar_cancellation() {
         // Assert
         assert!(matches!(
             result,
-            Err(QueryError::Cassie(CassieError::QueryCancelled))
+            Err(QueryError::Cassie(CassieError::QueryCanceled))
         ));
         assert_eq!(observations.len(), 1);
         assert_eq!(observations[0].0, first_comparison);
@@ -202,7 +202,7 @@ fn should_release_deep_containment_frames_after_leaf_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     let (matched, retained) = observed.expect("actual deep leaf comparison");
     assert!(matched);

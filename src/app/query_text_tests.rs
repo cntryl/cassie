@@ -126,7 +126,7 @@ fn should_leave_no_statement_text_given_precancellation_when_query_is_rejected()
         &controls,
     );
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     assert_eq!(fixture.session.statement_text(), None);
 }

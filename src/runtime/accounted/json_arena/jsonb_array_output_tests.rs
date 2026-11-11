@@ -74,7 +74,7 @@ fn should_cancel_after_actual_array_element_validation_with_during_output_copy()
         assert!(observed);
         assert!(matches!(
             result,
-            Err(OutputError::Control(CassieError::QueryCancelled))
+            Err(OutputError::Control(CassieError::QueryCanceled))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

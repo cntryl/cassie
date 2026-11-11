@@ -803,7 +803,7 @@ fn is_folding_error(error: &QueryError) -> bool {
                 | crate::app::CassieError::ByteaIndex { .. }
                 | crate::app::CassieError::InvalidParameterValue(_)
                 | crate::app::CassieError::ResourceLimit(_)
-                | crate::app::CassieError::QueryCancelled
+                | crate::app::CassieError::QueryCanceled
                 | crate::app::CassieError::DeadlineExceeded
         )
     ) || matches!(

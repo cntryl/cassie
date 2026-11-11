@@ -21,7 +21,7 @@ struct Observation {
     build_bytes: usize,
     calls: usize,
     denied: bool,
-    cancelled: bool,
+    canceled: bool,
     rows: Vec<(Value, Value)>,
     after_kernel: usize,
     retired: usize,
@@ -87,7 +87,7 @@ fn observe(budget: usize, reverse: bool, mode: Mode) -> Observation {
     .map_err(CassieError::from);
     let mut rows = Vec::new();
     let mut denied = false;
-    let mut cancelled = false;
+    let mut canceled = false;
     match result {
         Ok(mut kernel) => {
             if matches!(mode, Mode::Output) {
@@ -105,7 +105,7 @@ fn observe(budget: usize, reverse: bool, mode: Mode) -> Observation {
             }
         }
         Err(CassieError::ResourceLimit(_)) => denied = true,
-        Err(CassieError::QueryCancelled) => cancelled = true,
+        Err(CassieError::QueryCanceled) => canceled = true,
         Err(error) => panic!("unexpected typed join failure: {error}"),
     }
     let after_kernel = controls.current_query_memory_bytes();
@@ -116,7 +116,7 @@ fn observe(budget: usize, reverse: bool, mode: Mode) -> Observation {
         build_bytes: build_bytes.get(),
         calls: calls.get(),
         denied,
-        cancelled,
+        canceled,
         rows,
         after_kernel,
         retired: controls.current_query_memory_bytes(),
@@ -151,12 +151,12 @@ fn should_bound_mixed_typed_hash_ownership_in_both_build_orientations() {
         let boundary = ample.input_bytes + ample.build_bytes;
         let admitted = observe(boundary, reverse, Mode::Admission);
         let denied = observe(boundary - 1, reverse, Mode::Admission);
-        let cancelled = observe(1024 * 1024, reverse, Mode::Cancel);
-        (ample, admitted, denied, cancelled)
+        let canceled = observe(1024 * 1024, reverse, Mode::Cancel);
+        (ample, admitted, denied, canceled)
     });
 
     // Assert
-    for (mut ample, admitted, denied, cancelled) in observations {
+    for (mut ample, admitted, denied, canceled) in observations {
         ample.rows.sort_by_key(|(value, _)| match value {
             Value::Int64(value) => *value,
             _ => panic!("original integer carrier"),
@@ -175,19 +175,19 @@ fn should_bound_mixed_typed_hash_ownership_in_both_build_orientations() {
             admitted.calls, 3,
             "each real build lane is reached at exact admission"
         );
-        assert!(!admitted.denied && !admitted.cancelled);
+        assert!(!admitted.denied && !admitted.canceled);
         assert_eq!(admitted.build_bytes, ample.build_bytes);
         assert!(denied.denied);
         assert_eq!(
             denied.calls, 0,
             "one byte short rejects before a build key is demanded"
         );
-        assert!(cancelled.cancelled);
+        assert!(canceled.canceled);
         assert_eq!(
-            cancelled.calls, 2,
+            canceled.calls, 2,
             "cancellation is triggered by the second actual build lane"
         );
-        for observation in [&ample, &admitted, &denied, &cancelled] {
+        for observation in [&ample, &admitted, &denied, &canceled] {
             assert_eq!(
                 observation.after_kernel, observation.input_bytes,
                 "failed/completed build releases only its own lease"

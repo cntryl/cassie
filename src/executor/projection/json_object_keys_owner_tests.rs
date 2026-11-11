@@ -65,7 +65,7 @@ fn should_retain_owned_object_keys_through_projection_expansion_with_last_row() 
 }
 
 #[test]
-fn should_release_object_key_projection_when_cancelled_before_row_attachment() {
+fn should_release_object_key_projection_when_canceled_before_row_attachment() {
     // Arrange
     let cancel = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -94,7 +94,7 @@ fn should_release_object_key_projection_when_cancelled_before_row_attachment() {
         Some(&session),
     );
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), baseline);
     drop(session);
@@ -207,7 +207,7 @@ fn should_release_prepared_object_key_rows_after_actual_copy_directory_with_slot
         // Act
         let result = json_object_keys::expand(batches, &projection, &controls);
         // Assert
-        assert!(cancel.is_cancelled(), "stage {stage}");
+        assert!(cancel.is_canceled(), "stage {stage}");
         assert!(result.is_err(), "stage {stage}");
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
@@ -401,7 +401,7 @@ fn should_release_all_parent_with_output_owners_after_actual_first_attachment_ca
     // Act
     let result = json_object_keys::expand(batches, &projection, &controls);
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert!(weak.upgrade().is_none());
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -450,7 +450,7 @@ fn should_release_replacement_rows_with_source_after_actual_move_with_reverse_ca
         // Act
         let result = json_object_keys::expand(batches, &projection, &controls);
         // Assert
-        assert!(cancel.is_cancelled(), "stage {stage}");
+        assert!(cancel.is_canceled(), "stage {stage}");
         assert!(result.is_err(), "stage {stage}");
         assert!(weak.upgrade().is_none());
         assert_eq!(controls.current_query_memory_bytes(), 0);

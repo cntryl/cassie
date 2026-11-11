@@ -282,7 +282,7 @@ fn should_cancel_at_actual_returning_materialization_after_successful_projection
     );
     assert!(matches!(
         CassieError::from(result.expect_err("canceled helper")),
-        CassieError::QueryCancelled
+        CassieError::QueryCanceled
     ));
     fixture.assert_readback(false);
 }

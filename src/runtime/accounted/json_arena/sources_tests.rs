@@ -78,7 +78,7 @@ fn should_reject_a_nested_source_from_another_tracker() {
 }
 
 #[test]
-fn should_preserve_sources_when_cancelled_during_frame_migration() {
+fn should_preserve_sources_when_canceled_during_frame_migration() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -104,7 +104,7 @@ fn should_preserve_sources_when_cancelled_during_frame_migration() {
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(sources.test_len(), 4);
     assert_eq!(sources.test_owned_text(1), Some("x"));
     assert_eq!(sources.test_owned_text(3), Some("x"));

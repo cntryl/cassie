@@ -121,7 +121,7 @@ fn should_release_search_lineage_keys_when_cancellation_follows_actual_normaliza
     );
     // Assert
     assert!(observed > 0);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

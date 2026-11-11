@@ -33,7 +33,7 @@ fn should_admit_character_padding_given_a_large_values_width_when_query_memory_i
 }
 
 #[test]
-fn should_cancel_typed_values_given_cancelled_controls_when_execution_starts() {
+fn should_cancel_typed_values_given_canceled_controls_when_execution_starts() {
     // Arrange
     let fixture = sql_fixture("valuescasts-cancel", &[]);
     let plan = physical(&fixture, "VALUES ('2024-02-29'::DATE),(NULL::DATE)");
@@ -47,7 +47,7 @@ fn should_cancel_typed_values_given_cancelled_controls_when_execution_starts() {
     // Assert
     assert!(matches!(
         result.map_err(CassieError::from),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

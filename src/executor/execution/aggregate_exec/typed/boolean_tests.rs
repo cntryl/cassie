@@ -91,7 +91,7 @@ fn should_release_boolean_typed_owners_given_cancellation_when_a_partition_is_co
     // Assert
     assert!(
         result.is_err(),
-        "cancelled input cannot produce a completed aggregate"
+        "canceled input cannot produce a completed aggregate"
     );
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -157,12 +157,12 @@ fn should_cancel_boolean_typed_input_after_the_last_transition() {
     // Assert
     reached.expect("last Boolean input must be retained before cancellation");
     assert!(result
-        .expect_err("cancelled Boolean aggregate cannot finish its final lane")
+        .expect_err("canceled Boolean aggregate cannot finish its final lane")
         .to_string()
         .contains("query canceled"));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let reused = controls
         .reserve_query_memory(CassieRuntimeLimits::default().query_memory_budget_bytes)
-        .expect("cancelled Boolean input releases its complete memory allowance");
+        .expect("canceled Boolean input releases its complete memory allowance");
     drop(reused);
 }

@@ -129,7 +129,7 @@ fn should_acknowledge_admin_query_cancellation_before_returning() {
         // Assert
         assert_eq!(cancellation_status, StatusCode::OK);
         assert_eq!(cancellation_payload["operation_id"], operation_id.to_string());
-        assert_eq!(cancellation_payload["cancelled"], true);
+        assert_eq!(cancellation_payload["canceled"], true);
         assert_eq!(query_status.as_u16(), 499);
 
         stop_rest_server(shutdown, server).await;

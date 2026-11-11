@@ -195,7 +195,7 @@ export function QueryWorkspace({
       // never reaches the success branch above — it lands here instead.
       // validateMutation.error is only non-null for a genuine failure (an
       // abort leaves it null), which is what distinguishes "show an error
-      // toast" from "the user cancelled, stay silent" below.
+      // toast" from "the user canceled, stay silent" below.
       if (validateMutation.error !== null && status() !== "stopping") {
         showValidationToast({
           variant: "danger",

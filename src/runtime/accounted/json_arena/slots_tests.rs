@@ -73,7 +73,7 @@ fn should_reject_stale_with_out_of_range_slot_removal() {
 }
 
 #[test]
-fn should_preserve_live_slots_when_cancelled_during_chunk_directory_growth() {
+fn should_preserve_live_slots_when_canceled_during_chunk_directory_growth() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -95,7 +95,7 @@ fn should_preserve_live_slots_when_cancelled_during_chunk_directory_growth() {
         Ok(())
     });
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(!slots.is_poisoned());
     for (number, id) in ids.into_iter().enumerate() {
         assert_eq!(*slots.get(id).expect("live"), number);
@@ -105,7 +105,7 @@ fn should_preserve_live_slots_when_cancelled_during_chunk_directory_growth() {
 }
 
 #[test]
-fn should_keep_an_empty_published_chunk_owned_when_cancelled_before_slot_insert() {
+fn should_keep_an_empty_published_chunk_owned_when_canceled_before_slot_insert() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -128,7 +128,7 @@ fn should_keep_an_empty_published_chunk_owned_when_cancelled_before_slot_insert(
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(*slots.get(first).expect("live"), 0);
     assert_eq!(slots.length, 4);
     assert!(slots.chunks.get(1).is_some());
@@ -146,10 +146,10 @@ fn should_reuse_slots_on_either_side_of_an_interrupted_chunk_migration() {
         ids.push(slots.insert(value(number, &controls)).expect("insert"));
     }
     let result = slots.insert_observed(value(16, &controls), |progress| match progress {
-        Progress::Move => Err(CassieError::QueryCancelled),
+        Progress::Move => Err(CassieError::QueryCanceled),
         Progress::ChunkPublished => Ok(()),
     });
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
 
     // Act
     drop(slots.remove(ids[0]).expect("moved"));
@@ -179,10 +179,10 @@ fn should_reuse_an_empty_published_chunk_after_interruption() {
         slots.insert(value(number, &controls)).expect("insert");
     }
     let result = slots.insert_observed(value(4, &controls), |progress| match progress {
-        Progress::ChunkPublished => Err(CassieError::QueryCancelled),
+        Progress::ChunkPublished => Err(CassieError::QueryCanceled),
         Progress::Move => Ok(()),
     });
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     let retained = controls.current_query_memory_bytes();
 
     // Act

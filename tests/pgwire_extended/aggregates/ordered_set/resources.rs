@@ -287,6 +287,6 @@ fn should_cancel_without_partial_rows_given_an_ordered_set_aggregate_when_cancel
 
         // Assert
         support::assert_control_and_recovery(&case.control, expected, &case.recovery, "47");
-        support::assert_cancelled_without_retained_resources(&case);
+        support::assert_canceled_without_retained_resources(&case);
     }
 }

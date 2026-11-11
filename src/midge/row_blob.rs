@@ -546,6 +546,7 @@ fn field_bit(bitmap: &[u8], field_id: u32) -> bool {
 }
 
 fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Value, CassieError> {
+    let controls = crate::midge::adapter::PublicationControlScope::current_query_controls();
     let mut framed = Vec::new();
     let input = if matches!(
         type_tag,
@@ -569,7 +570,7 @@ fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Valu
     // a field whose payload decodes a shorter prefix is rejected instead of
     // silently dropping the remainder.
     let mut cursor = Cursor::new(input);
-    let value = decode_value(type_tag, &mut cursor)?;
+    let value = decode_value(type_tag, &mut cursor, controls.as_ref())?;
     if !cursor.remaining().is_empty() {
         return Err(CassieError::Parse(
             "row blob field payload has unconsumed bytes".to_string(),
@@ -666,7 +667,11 @@ fn active_field_names(schema: &RowSchema) -> HashSet<String> {
         .collect()
 }
 
-fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieError> {
+fn decode_value(
+    type_tag: u8,
+    cursor: &mut Cursor<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<serde_json::Value, CassieError> {
     match type_tag {
         TYPE_NULL => Ok(serde_json::Value::Null),
         TYPE_BOOL => Ok(serde_json::Value::Bool(cursor.read_u8()? != 0)),
@@ -693,11 +698,7 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
                 .map(serde_json::Value::String)
                 .map_err(|error| CassieError::Parse(format!("invalid UTF-8 in row blob: {error}")))
         }
-        TYPE_JSON => {
-            let bytes = cursor.read_len_prefixed()?;
-            serde_json::from_slice(&bytes)
-                .map_err(|error| CassieError::Parse(format!("invalid JSON in row blob: {error}")))
-        }
+        TYPE_JSON => decode_json_value(cursor, controls),
         TYPE_DATE => {
             let bytes = cursor.read_len_prefixed()?;
             String::from_utf8(bytes)
@@ -722,7 +723,7 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
             let bytes = cursor.read_len_prefixed()?;
             Ok(serde_json::Value::String(encode_bytea(&bytes)))
         }
-        TYPE_ARRAY => decode_array(cursor),
+        TYPE_ARRAY => decode_array(cursor, controls),
         TYPE_EXTENDED => {
             let bytes = cursor.read_len_prefixed()?;
             let (oid, payload) = bytes
@@ -767,7 +768,31 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
     }
 }
 
-fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieError> {
+fn decode_json_value(
+    cursor: &mut Cursor<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<serde_json::Value, CassieError> {
+    let bytes = cursor.read_len_prefixed()?;
+    match crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+        &bytes, controls,
+    ) {
+        Ok(parsed) => Ok(parsed.get().clone()),
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Controlled(error)) => {
+            Err(error)
+        }
+        Err(crate::runtime::accounted::json_arena::ValueParseError::Invalid) => {
+            let detail = crate::runtime::accounted::json_arena::syntax_error(&bytes);
+            Err(CassieError::Parse(format!(
+                "invalid JSON in row blob: {detail}"
+            )))
+        }
+    }
+}
+
+fn decode_array(
+    cursor: &mut Cursor<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<serde_json::Value, CassieError> {
     let dimension_count = usize::try_from(cursor.read_varint()?).map_err(|_| {
         CassieError::Parse("array dimension count out of range in row blob".to_string())
     })?;
@@ -816,7 +841,7 @@ fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieErro
                 ))
             }
             TYPE_EXTENDED => decode_array_extended(cursor)?,
-            _ => value_from_decoded_tag(value_type, decode_value(value_type, cursor)?)?,
+            _ => value_from_decoded_tag(value_type, decode_value(value_type, cursor, controls)?)?,
         };
         values.push(value);
     }

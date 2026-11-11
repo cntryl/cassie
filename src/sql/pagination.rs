@@ -222,8 +222,8 @@ pub(crate) fn resolve_statement(
     traversal::visit_reached_statement(
         statement,
         &mut |bound, offset| {
-            if controls.is_cancelled() {
-                return Err(CassieError::QueryCancelled);
+            if controls.is_canceled() {
+                return Err(CassieError::QueryCanceled);
             }
             if controls.is_timed_out() {
                 return Err(CassieError::DeadlineExceeded);
@@ -279,8 +279,8 @@ fn evaluate(
     declared_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<(Option<i64>, DataType), CassieError> {
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     if controls.is_timed_out() {
         return Err(CassieError::DeadlineExceeded);

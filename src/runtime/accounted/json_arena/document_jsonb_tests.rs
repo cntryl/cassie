@@ -24,7 +24,12 @@ fn should_match_original_jsonb_canonical_text_for_valid_binary_fields() {
     for input in inputs {
         let mut field = vec![1];
         field.extend_from_slice(input.as_bytes());
-        let expected = crate::types::jsonb::canonical(input).expect("canonical");
+        let expected = {
+            let parsed =
+                crate::runtime::accounted::json_arena::parse_value(input.as_bytes(), &controls)
+                    .expect("ordinary value");
+            crate::types::jsonb::format(parsed.get()).expect("canonical")
+        };
         let output = parse_field(&field, 1, &controls).expect("field");
         // Assert
         assert_eq!(output.as_str(), expected);
@@ -78,8 +83,6 @@ fn should_match_existing_jsonb_error_messages_for_nested_with_malformed_document
         "[1,]",
         "\u{7b}\"a\":",
         "\"\\u12G4\"",
-        r#"{"$serde_json::private::Number":"-xY"}"#,
-        "\u{7b}\"$serde_json::private::RawValue\":\"{\\\"a\\\":]\"}",
         "\u{7b}\"a\":\"\\u0000\",\"b\":]",
         r#"{"a":"\u0000","b":1e+131072}"#,
         r#"{"a":1e+131072,"b":"\u0000"}"#,
@@ -108,7 +111,7 @@ fn should_keep_admitted_error_until_drop_with_propagate_cancellation() {
     let controls = controls();
     let cancellation = QueryCancellationHandle::new();
     cancellation.cancel();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation,
@@ -118,12 +121,12 @@ fn should_keep_admitted_error_until_drop_with_propagate_cancellation() {
         panic!("accepted");
     };
     let admitted = controls.current_query_memory_bytes();
-    let cancelled_result = parse_field(b"\x01null", 1, &cancelled);
+    let canceled_result = parse_field(b"\x01null", 1, &canceled);
     // Assert
     assert!(admitted > 0);
     assert!(matches!(
-        cancelled_result,
-        Err(JsonbFieldError::Control(CassieError::QueryCancelled))
+        canceled_result,
+        Err(JsonbFieldError::Control(CassieError::QueryCanceled))
     ));
     drop(error);
     assert_eq!(controls.current_query_memory_bytes(), 0);

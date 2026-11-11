@@ -202,13 +202,11 @@ outer extensions under existing admission and cancellation controls. Ordinary
 before loading; null-omitting indexes keep authoritative residual/fallback reads.
 No index encoding or public AST variant changes are needed.
 
-Every version-1 definition requires the existing v0.2 reader marker before
-publication, including a version-1 body containing only older operators. Public
-metadata writers enforce this independently; SQL creation fences before view
-object IDs or materialized output are allocated. Legacy version-zero metadata
-and merely reopening a v1 store keep their prior behavior. An acknowledged
-marker can remain v2 after later feature failure, as required by the monotonic
-[storage compatibility transition](storage-compatibility-transition.md).
+Version-1 definitions are published directly in the current format. Their
+record validation and SQL behavior remain required, but publication does not
+advance a store marker or fence earlier Cassie readers. Pre-release storage is
+not a compatibility input; current-build restart and recovery are the durable
+acceptance boundary.
 
 The existing transactional-DDL profile is unchanged: table CHECK/default changes
 and scalar indexes use the current staged catalog/data overlay and roll back

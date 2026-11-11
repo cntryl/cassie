@@ -97,7 +97,7 @@ sorting and output tests are unexecuted.
 The raw syntax scanner uses an admitted iterative frame stack and borrowed
 result spans on the controlled SQL routes described below. Authored malformed
 diagnostic, synchronized stack-move cancellation, selection, formatting and
-result-owner probes have not been executed. A pre-cancelled query reports
+result-owner probes have not been executed. A pre-canceled query reports
 cancellation before inspecting even an empty or malformed input.
 
 The raw deletion implementation covers object and array `-` overloads and

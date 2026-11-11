@@ -10,7 +10,7 @@ impl ExtendedQueryError {
         let (sqlstate, message) = match error {
             ParameterAdmissionError::Memory(message) => ("53200", message),
             ParameterAdmissionError::InvalidParam(message) => ("42P02", message),
-            ParameterAdmissionError::Cancelled => ("57014", "query cancelled".to_string()),
+            ParameterAdmissionError::Canceled => ("57014", "query canceled".to_string()),
             ParameterAdmissionError::Deadline => ("57014", "query deadline exceeded".to_string()),
             ParameterAdmissionError::InvalidBooleanLiteral {
                 input,

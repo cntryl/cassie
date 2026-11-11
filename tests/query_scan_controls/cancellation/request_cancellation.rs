@@ -38,13 +38,13 @@ fn should_propagate_acknowledged_rest_read_cancellation_without_leaking_resource
     cassie
         .execute_sql(
             &session,
-            "CREATE TABLE rest_cancelled_read (payload TEXT)",
+            "CREATE TABLE rest_canceled_read (payload TEXT)",
             vec![],
         )
         .expect("create table");
-    seed_rows(&cassie, "rest_cancelled_read", 16);
+    seed_rows(&cassie, "rest_canceled_read", 16);
     set_query_scan_cancellation_after_entries(Some(3));
-    let body = br#"{"sql":"SELECT payload FROM rest_cancelled_read"}"#;
+    let body = br#"{"sql":"SELECT payload FROM rest_canceled_read"}"#;
 
     // Act
     let result = cassie::rest::query::execute_with_session_and_cancellation(
@@ -59,7 +59,7 @@ fn should_propagate_acknowledged_rest_read_cancellation_without_leaking_resource
     let metrics = cassie.metrics();
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(metrics["runtime"]["running_queries"].as_u64(), Some(0));
     assert_eq!(
         metrics["query"]["current_accounted_memory_bytes"].as_u64(),
@@ -68,7 +68,7 @@ fn should_propagate_acknowledged_rest_read_cancellation_without_leaking_resource
 }
 
 #[test]
-fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
+fn should_leave_zero_writes_when_rest_mutation_is_canceled_before_commit() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let cassie = configured_cassie();
@@ -76,13 +76,13 @@ fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
     cassie
         .execute_sql(
             &session,
-            "CREATE TABLE rest_cancelled_mutation (value BIGINT UNIQUE)",
+            "CREATE TABLE rest_canceled_mutation (value BIGINT UNIQUE)",
             vec![],
         )
         .expect("create table");
     let cancellation = QueryCancellationHandle::new();
     cancellation.cancel();
-    let body = br#"{"sql":"INSERT INTO rest_cancelled_mutation (value) VALUES (1), (2), (3)"}"#;
+    let body = br#"{"sql":"INSERT INTO rest_canceled_mutation (value) VALUES (1), (2), (3)"}"#;
 
     // Act
     let result = cassie::rest::query::execute_with_session_and_cancellation(
@@ -92,18 +92,18 @@ fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
         &cancellation,
     );
     let Err(error) = result else {
-        panic!("cancelled mutation must not publish");
+        panic!("canceled mutation must not publish");
     };
     let result = cassie
         .execute_sql(
             &session,
-            "SELECT COUNT(*) AS count FROM rest_cancelled_mutation",
+            "SELECT COUNT(*) AS count FROM rest_canceled_mutation",
             vec![],
         )
         .expect("count rows");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(result.rows(), vec![vec![cassie::types::Value::Int64(0)]]);
     drop(result);
     assert_eq!(
@@ -113,7 +113,7 @@ fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
 }
 
 #[test]
-fn should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publication() {
+fn should_leave_zero_documents_when_rest_document_write_is_canceled_before_publication() {
     // Arrange
     let _guard = query_scan_control_test_guard();
     let cassie = configured_cassie();
@@ -121,7 +121,7 @@ fn should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publ
     cassie
         .execute_sql(
             &session,
-            "CREATE TABLE rest_cancelled_document (payload TEXT)",
+            "CREATE TABLE rest_canceled_document (payload TEXT)",
             vec![],
         )
         .expect("create table");
@@ -131,22 +131,22 @@ fn should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publ
     // Act
     let result = cassie::rest::documents::create_with_cancellation(
         &cassie,
-        "rest_cancelled_document",
+        "rest_canceled_document",
         br#"{"payload":"must-not-commit"}"#,
         &cancellation,
     );
     let Err(error) = result else {
-        panic!("cancelled REST document write must not publish");
+        panic!("canceled REST document write must not publish");
     };
     let rows = cassie
         .execute_sql(
             &session,
-            "SELECT COUNT(*) AS count FROM rest_cancelled_document",
+            "SELECT COUNT(*) AS count FROM rest_canceled_document",
             vec![],
         )
         .expect("count documents");
 
     // Assert
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(rows.rows(), vec![vec![cassie::types::Value::Int64(0)]]);
 }

@@ -132,7 +132,7 @@ fn should_reject_binary_row_directory_when_budget_is_exhausted() {
 }
 
 #[test]
-fn should_stop_binary_column_lookup_when_copy_is_cancelled() {
+fn should_stop_binary_column_lookup_when_copy_is_canceled() {
     // Arrange
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -150,7 +150,7 @@ fn should_stop_binary_column_lookup_when_copy_is_cancelled() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -238,7 +238,7 @@ fn should_preserve_binary_utf8_at_chunk_boundary_with_reject_truncated_sequence(
 }
 
 #[test]
-fn should_release_binary_output_when_cancelled_during_conversion() {
+fn should_release_binary_output_when_canceled_during_conversion() {
     // Arrange
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -252,7 +252,7 @@ fn should_release_binary_output_when_cancelled_during_conversion() {
     // Assert
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -355,15 +355,15 @@ fn should_enforce_binary_fixed_text_overlap_budget_with_cancellation() {
     drop(input);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let cancellation = crate::runtime::QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        super::binary_fixed::decode(16, &[1], 0, &cancelled),
-        Err(crate::app::CassieError::QueryCancelled)
+        super::binary_fixed::decode(16, &[1], 0, &canceled),
+        Err(crate::app::CassieError::QueryCanceled)
     ));
 }
 
@@ -513,7 +513,7 @@ fn should_admit_name_binary_at_exact_budget_with_honor_cancellation() {
     cancellation.cancel();
     assert!(matches!(
         super::binary_name::decode(19, b"name", 0, &controls),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
 }
 
@@ -736,15 +736,15 @@ fn should_deny_binary_inet_below_overlap_budget_with_honor_cancellation() {
     drop(input);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let cancellation = crate::runtime::QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        super::binary_inet::decode(869, &bytes, 0, &cancelled),
-        Err(crate::app::CassieError::QueryCancelled)
+        super::binary_inet::decode(869, &bytes, 0, &canceled),
+        Err(crate::app::CassieError::QueryCanceled)
     ));
 }
 
@@ -846,15 +846,15 @@ fn should_enforce_binary_real_input_output_overlap_with_cancellation() {
     drop(input);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let cancellation = crate::runtime::QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        super::binary_real::decode(700, &0.1_f32.to_be_bytes(), 0, &cancelled),
-        Err(crate::app::CassieError::QueryCancelled)
+        super::binary_real::decode(700, &0.1_f32.to_be_bytes(), 0, &canceled),
+        Err(crate::app::CassieError::QueryCanceled)
     ));
 }
 
@@ -944,15 +944,15 @@ fn should_enforce_binary_float8_input_output_budget_with_cancellation() {
     drop(input);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let cancellation = crate::runtime::QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        super::binary_float8::decode(701, &0.1_f64.to_be_bytes(), 0, &cancelled),
-        Err(crate::app::CassieError::QueryCancelled)
+        super::binary_float8::decode(701, &0.1_f64.to_be_bytes(), 0, &canceled),
+        Err(crate::app::CassieError::QueryCanceled)
     ));
 }
 

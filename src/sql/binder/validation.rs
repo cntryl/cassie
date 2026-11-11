@@ -573,7 +573,7 @@ fn contextual_string_literal_families(
             if family == OperandFamily::Text || (allow_json && family == OperandFamily::Json) =>
         {
             if family == OperandFamily::Json {
-                serde_json::from_str::<serde_json::Value>(literal).map_err(|_| {
+                serde_json::from_str::<serde::de::IgnoredAny>(literal).map_err(|_| {
                     CassieError::Planner(format!("invalid JSON literal '{literal}'"))
                 })?;
             }

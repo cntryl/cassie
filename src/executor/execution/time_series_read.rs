@@ -414,7 +414,7 @@ fn time_series_error_fallback(
 ) -> Result<TimeSeriesDocuments, QueryError> {
     if matches!(
         error,
-        crate::app::CassieError::QueryCancelled
+        crate::app::CassieError::QueryCanceled
             | crate::app::CassieError::DeadlineExceeded
             | crate::app::CassieError::ResourceLimit(_)
     ) {

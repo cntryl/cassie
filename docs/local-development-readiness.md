@@ -80,7 +80,7 @@ reconciling the selected v0.3 transactional-DDL runtime. Owner direction moved
 named enums #827 to v0.4.
 
 This candidate fixes cleanup when concurrent materialized-view refresh is
-cancelled after replacement output and copied indexes are built but before
+canceled after replacement output and copied indexes are built but before
 activation. The failed candidate is recorded, its physical output and copied
 indexes are removed, and the prior output remains active. An injected
 pre-publication error exercises the same cleanup path. Cancellation arriving

@@ -98,7 +98,7 @@ fn should_cancel_checked_key_comparison_without_mutating_object() {
         Ok(())
     });
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(!object.is_poisoned());
     assert_eq!(object.test_value(&first), Some(1));
     assert_eq!(object.test_value(&second), None);
@@ -108,7 +108,7 @@ fn should_cancel_checked_key_comparison_without_mutating_object() {
 }
 
 #[test]
-fn should_preserve_tree_when_cancelled_during_chunk_directory_growth() {
+fn should_preserve_tree_when_canceled_during_chunk_directory_growth() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -133,7 +133,7 @@ fn should_preserve_tree_when_cancelled_during_chunk_directory_growth() {
         Ok(())
     });
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(!object.is_poisoned());
     assert_eq!(object.test_value("a"), Some(1));
     assert_eq!(object.test_value("p"), Some(1));
@@ -157,11 +157,11 @@ fn should_resume_object_insertion_after_interrupted_directory_migration() {
     }
     let result = object.insert_observed(Key::new("q", &controls).expect("key"), 2, |progress| {
         if matches!(progress, Progress::Move) {
-            return Err(CassieError::QueryCancelled);
+            return Err(CassieError::QueryCanceled);
         }
         Ok(())
     });
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
 
     // Act
     object
@@ -189,11 +189,11 @@ fn should_reuse_an_entry_chunk_published_before_interrupted_insertion() {
     }
     let result = object.insert_observed(Key::new("e", &controls).expect("key"), 2, |progress| {
         if matches!(progress, Progress::ChunkPublished) {
-            return Err(CassieError::QueryCancelled);
+            return Err(CassieError::QueryCanceled);
         }
         Ok(())
     });
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     let retained = controls.current_query_memory_bytes();
 
     // Act

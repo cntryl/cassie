@@ -191,7 +191,7 @@ Operational memory admission reports 53200, selected program/value limits 54000
 Authoritative durable corruption is a data-corruption error and blocks serving
 the affected state; it is never NULL, a skipped row or a successful empty result.
 The pgwire error owner qualifies these mappings rather than matching text alone.
-Cancelled/failed DML leaves no partial published row/catalog/index mutation.
+Canceled/failed DML leaves no partial published row/catalog/index mutation.
 If commit wins the cancellation race, report the committed outcome under the
 written transaction/wire contract; do not return false rollback success.
 

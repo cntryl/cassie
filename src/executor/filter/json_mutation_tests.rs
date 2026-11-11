@@ -49,7 +49,7 @@ fn should_release_json_mutation_memory_given_path_errors_and_cancellation_when_q
     let limits = CassieRuntimeLimits::default();
     let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
     let cancellation = QueryCancellationHandle::new();
-    let cancelled =
+    let canceled =
         QueryExecutionControls::with_cancellation(&limits, Instant::now(), cancellation.clone());
     cancellation.cancel();
     let args = [
@@ -60,13 +60,13 @@ fn should_release_json_mutation_memory_given_path_errors_and_cancellation_when_q
     // Act
     let invalid = evaluate("jsonb_set", &args, Some(&controls), None).expect("mutation function");
     let interrupted =
-        evaluate("jsonb_set", &args, Some(&cancelled), None).expect("mutation function");
+        evaluate("jsonb_set", &args, Some(&canceled), None).expect("mutation function");
     // Assert
     assert!(invalid.is_err());
     assert!(interrupted
-        .expect_err("cancelled mutation")
+        .expect_err("canceled mutation")
         .to_string()
         .contains("cancel"));
     assert_eq!(controls.current_query_memory_bytes(), 0);
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
 }

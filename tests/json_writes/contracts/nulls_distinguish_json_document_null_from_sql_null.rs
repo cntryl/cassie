@@ -93,6 +93,56 @@ fn should_distinguish_json_document_null_from_sql_null() {
 }
 
 #[test]
+fn should_preserve_reserved_looking_json_objects_through_text_copy() {
+    // Arrange
+    with_json_database(|cassie, session| {
+        cassie
+            .execute_sql(
+                session,
+                "CREATE TABLE json_reserved_copy (id TEXT, doc JSON, docb JSONB)",
+                vec![],
+            )
+            .expect("create table");
+
+        // Act
+        cassie
+            .copy_from_csv_stdin(
+                session,
+                &CopyStatement {
+                    table: "json_reserved_copy".to_string(),
+                    columns: vec!["id".to_string(), "doc".to_string(), "docb".to_string()],
+                    format: CopyFormat::Csv,
+                    header: false,
+                },
+                b"copy,\"{\"\"$serde_json::private::Number\"\":\"\"7\"\",\"\"nested\"\":{\"\"$serde_json::private::RawValue\"\":\"\"[1]\"\"}}\",\"{\"\"$serde_json::private::Number\"\":\"\"7\"\",\"\"nested\"\":{\"\"$serde_json::private::RawValue\"\":\"\"[1]\"\"}}\"\n",
+            )
+            .expect("copy JSON values");
+        let rows = cassie
+            .execute_sql(
+                session,
+                "SELECT doc::TEXT, docb::TEXT FROM json_reserved_copy",
+                vec![],
+            )
+            .expect("read copied JSON values");
+
+        // Assert
+        assert_eq!(
+            rows.rows(),
+            vec![vec![
+                Value::String(
+                    r#"{"$serde_json::private::Number":"7","nested":{"$serde_json::private::RawValue":"[1]"}}"#
+                        .to_string()
+                ),
+                Value::String(
+                    r#"{"nested": {"$serde_json::private::RawValue": "[1]"}, "$serde_json::private::Number": "7"}"#
+                        .to_string()
+                )
+            ]]
+        );
+    });
+}
+
+#[test]
 fn should_allow_json_null_in_required_json_field() {
     with_json_database(|cassie, session| {
         // Arrange

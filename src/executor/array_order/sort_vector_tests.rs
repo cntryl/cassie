@@ -94,7 +94,7 @@ fn should_cancel_after_an_actual_component_with_release_reservation() {
     assert_eq!(moved, 1);
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     drop(memory);
     assert_eq!(controls.current_query_memory_bytes(), 0);

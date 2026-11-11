@@ -224,7 +224,7 @@ report failures during Bind planning, preserving statements across Sync for
 reuse. Parse rejects ambiguous untyped `pg_size_pretty` and invalid selected
 signatures. Compiled plans rebuild at epoch 15. No persistent format, layout or
 stored type changes. Full resource/cancellation qualification remains #849;
-the selected cancellation witness checks already-cancelled execution and does
+the selected cancellation witness checks already-canceled execution and does
 not establish interruption inside a long parser loop.
 
 Current executed checks and remaining failures are recorded in
@@ -411,5 +411,4 @@ row-value wire formats.
 
 Revalidate grants at statement admission and before each resumed Execute so
 revocations affect existing sessions and suspended portals before more output.
-All new durable records require the compatibility transition in
-[Release Baseline](release-baseline.md#selected-v02-compatibility-transition-2026-11-04).
+New durable records use the current format and must pass current-build restart and recovery checks. No pre-release migration or old-reader compatibility is required; see [Release Baseline](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).

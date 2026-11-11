@@ -115,7 +115,7 @@ fn should_validate_all_native_keys_before_short_circuiting() {
 }
 
 #[test]
-fn should_release_arena_after_precancelled_existence() {
+fn should_release_arena_after_precanceled_existence() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -237,7 +237,7 @@ fn should_release_string_keys_with_document_after_parse_cancellation() {
     // Act
     let result = evaluate_controlled(&left, &BinaryOp::JsonbKeyExistsAny, &right, &controls);
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

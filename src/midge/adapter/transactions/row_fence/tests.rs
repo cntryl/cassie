@@ -159,7 +159,7 @@ fn should_cancel_after_the_final_row_assertions_are_retained() {
 
     // Assert
     assert!(retained);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(origin.current_query_memory_bytes(), 0);
     assert_eq!(current.current_query_memory_bytes(), 0);
 }

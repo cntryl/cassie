@@ -153,7 +153,7 @@ export function createDragResize(options: DragResizeOptions) {
       try {
         target.releasePointerCapture(event.pointerId);
       } catch {
-        // The browser may already have released capture as part of cancelling
+        // The browser may already have released capture as part of canceling
         // the gesture. The committed size is still the correct final state.
       }
     }

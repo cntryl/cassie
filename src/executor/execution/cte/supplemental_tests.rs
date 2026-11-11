@@ -212,7 +212,7 @@ fn should_release_cte_copy_attempts_after_control_failure() {
     ));
     assert_eq!(denied.current_query_memory_bytes(), 0);
     let handle = crate::runtime::QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &crate::config::CassieRuntimeLimits::default(),
         Instant::now(),
         handle.clone(),
@@ -220,11 +220,11 @@ fn should_release_cte_copy_attempts_after_control_failure() {
     handle.cancel();
     assert!(matches!(
         relation
-            .copy(&cancelled)
+            .copy(&canceled)
             .map_err(crate::app::CassieError::from),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
     let expired = QueryExecutionControls::from_limits(
         &crate::config::CassieRuntimeLimits {
             query_timeout_ms: 1,
@@ -377,7 +377,7 @@ fn should_release_recursive_delta_copy_after_mid_copy_cancellation() {
         // Assert
         assert!(matches!(
             output.map_err(crate::app::CassieError::from),
-            Err(crate::app::CassieError::QueryCancelled)
+            Err(crate::app::CassieError::QueryCanceled)
         ));
         drop(context);
         assert_eq!(controls.current_query_memory_bytes(), 65_536);
@@ -510,7 +510,7 @@ fn should_admit_non_power_of_two_accumulator_growth_with_partial_copy_cancellati
     let result = original.append(&delta.rows, &controls);
     assert!(matches!(
         result.map_err(crate::app::CassieError::from),
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(
         original.rows.len(),

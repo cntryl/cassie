@@ -112,15 +112,15 @@ fn should_admit_binary_timestamp_output_with_honor_cancellation() {
     drop(input);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let cancellation = QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
     cancellation.cancel();
     assert!(matches!(
-        super::decode(1114, &0_i64.to_be_bytes(), 0, &cancelled),
-        Err(CassieError::QueryCancelled)
+        super::decode(1114, &0_i64.to_be_bytes(), 0, &canceled),
+        Err(CassieError::QueryCanceled)
     ));
 }
 

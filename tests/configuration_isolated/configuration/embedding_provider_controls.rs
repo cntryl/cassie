@@ -295,10 +295,10 @@ fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeou
     let error = query
         .join()
         .expect("provider thread")
-        .expect_err("active request should be cancelled");
+        .expect_err("active request should be canceled");
 
     // Assert
-    assert!(matches!(error, EmbeddingError::Cancelled { .. }));
+    assert!(matches!(error, EmbeddingError::Canceled { .. }));
     assert!(
         started.elapsed() < Duration::from_millis(50),
         "cancellation waited for the provider transport: {:?}",
@@ -307,7 +307,7 @@ fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeou
     assert_eq!(
         active_controlled_request_workers_for_diagnostics(),
         baseline_workers,
-        "cancelled request worker should terminate before the caller returns"
+        "canceled request worker should terminate before the caller returns"
     );
     server.join().expect("delayed server");
 }

@@ -388,7 +388,7 @@ fn rejected_cast(
     };
     crate::sql::literal_inputs::rejects_cast_with_controls(expression, Some(controls)).map_err(
         |error| match error {
-            crate::app::CassieError::QueryCancelled => ParameterAdmissionError::Cancelled,
+            crate::app::CassieError::QueryCanceled => ParameterAdmissionError::Canceled,
             crate::app::CassieError::DeadlineExceeded => ParameterAdmissionError::Deadline,
             crate::app::CassieError::ResourceLimit(message) => {
                 ParameterAdmissionError::Memory(message)

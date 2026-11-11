@@ -48,7 +48,7 @@ contract/process foundation PR precedes these five logical bundles:
 | Bundle | Issues | Dependency and acceptance boundary |
 | --- | --- | --- |
 | Boolean and scalar functions | #805, #813, #815 | Existing aggregate/math/time prerequisites are closed. Qualify current implementations and repair confirmed defects, including execution-boundary cancellation. |
-| Query expressions and arrays | #762, #796, #798, #799, #800, #807, #808 | Resolve casts/subqueries before dependent arrays and set functions. Persisted null-safe definitions use the newly selected versioned contract. |
+| Query expressions and arrays | #762, #796, #798, #799, #800, #807, #808 | Resolve casts/subqueries before dependent arrays and set functions. Persisted null-safe definitions use the current-format contract; no pre-release migration or old-reader compatibility is required. |
 | Row lifecycle, snapshots and type catalogs | #817, #818, #819, #826, #828, #833, #839, #842 | Complete selected catalog publication before dependent table/type evolution; casts precede object pseudo-types. Verify direct Midge retained-view support before snapshot runtime. |
 | JSON, collection/statistical functions and cancellation | #806, #809, #810, #811, #829, #954 | JSON operators precede construction; arrays, table functions and named records precede dependent collections/recordsets. Reconcile all named cancellation fixtures against current source. |
 | Reader/projector access and extension retrieval | #831, #843, #844, #845 | Catalog identities precede grants/comments/extensions; extension identity precedes the selected vector descriptor/retrieval profile. |

@@ -415,7 +415,7 @@ fn should_cancel_statistical_aggregate_before_publishing_a_partial_result() {
 
     // Act
     let error = AggregateAccumulator::evaluate(aggregate_call(&plan), &rows, &context)
-        .expect_err("cancelled statistical work cannot publish a result");
+        .expect_err("canceled statistical work cannot publish a result");
 
     // Assert
     assert!(error.to_string().contains("query canceled"));

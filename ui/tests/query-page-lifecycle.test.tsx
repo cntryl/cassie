@@ -38,7 +38,7 @@ describe("admin query page lifecycle and actions", () => {
     mockResponseHandler(
       "/api/v1/admin/query-operations/active-operation",
       () =>
-        new Response(JSON.stringify({ operation_id: "active-operation", cancelled: true }), {
+        new Response(JSON.stringify({ operation_id: "active-operation", canceled: true }), {
           headers: { "content-type": "application/json" },
         }),
       { method: "DELETE" },
@@ -83,12 +83,12 @@ describe("admin query page lifecycle and actions", () => {
         }),
       { method: "POST" },
     );
-    let workspacePresentWhenCancelled = false;
+    let workspacePresentWhenCanceled = false;
     mockResponseHandler(
       "/api/v1/admin/query-operations/close-operation",
       () => {
-        workspacePresentWhenCancelled = root.querySelector("#saved-query-query-1") !== null;
-        return new Response(JSON.stringify({ operation_id: "close-operation", cancelled: true }), {
+        workspacePresentWhenCanceled = root.querySelector("#saved-query-query-1") !== null;
+        return new Response(JSON.stringify({ operation_id: "close-operation", canceled: true }), {
           headers: { "content-type": "application/json" },
         });
       },
@@ -107,12 +107,12 @@ describe("admin query page lifecycle and actions", () => {
     );
     expect(deleteButtons).toHaveLength(1);
     deleteButtons[deleteButtons.length - 1]?.click();
-    await waitForText(document.body, "running operation will be cancelled first");
+    await waitForText(document.body, "running operation will be canceled first");
     buttonByText(document.body, "Delete query").click();
     await waitForText(root, "Choose a database");
 
     // Assert
-    expect(workspacePresentWhenCancelled).toBe(true);
+    expect(workspacePresentWhenCanceled).toBe(true);
     expect(root.querySelector("#saved-query-query-1")).toBeNull();
   });
 

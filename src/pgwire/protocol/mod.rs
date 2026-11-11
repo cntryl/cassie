@@ -131,6 +131,7 @@ pub struct Portal {
     pub statement_name: String,
     pub prepared_id: u64,
     pub params: Vec<crate::types::Value>,
+    pub parameter_memory: Vec<crate::runtime::QueryMemoryReservation>,
     pub result_formats: Vec<i16>,
     pub described: bool,
     pub suspended: Option<PortalSuspended>,

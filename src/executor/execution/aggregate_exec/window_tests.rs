@@ -189,7 +189,7 @@ fn should_release_frame_state_given_cancellation_after_a_selected_transition() {
     assert_eq!(transitions, 1);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

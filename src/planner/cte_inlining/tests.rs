@@ -38,7 +38,7 @@ fn should_reject_cte_expansion_given_small_budget_when_tree_would_grow() {
 }
 
 #[test]
-fn should_cancel_cte_expansion_given_cancelled_controls_when_no_tree_is_published() {
+fn should_cancel_cte_expansion_given_canceled_controls_when_no_tree_is_published() {
     // Arrange
     let mut plan =
         logical("WITH chosen AS NOT MATERIALIZED (SELECT 7 AS value) SELECT value FROM chosen");
@@ -53,7 +53,7 @@ fn should_cancel_cte_expansion_given_cancelled_controls_when_no_tree_is_publishe
     // Act
     let result = inline(&mut plan, &Catalog::new(), &controls);
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(serde_json::to_value(plan).unwrap(), before);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

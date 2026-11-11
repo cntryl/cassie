@@ -41,14 +41,16 @@ fn text_cast(
     if source == Some(&DataType::Jsonb)
         && matches!(target, DataType::Text | DataType::Varchar { .. })
     {
-        return jsonb_text(value).map(Some);
+        return jsonb_text(value, controls).map(Some);
     }
     if matches!(target, DataType::Text | DataType::Varchar { .. }) {
         if let Some(formatted) = format_array_text(value, source, controls) {
             return Ok(Some(formatted));
         }
         if matches!(value, ScalarValue::Json(_)) || source == Some(&DataType::Json) {
-            return json_text(value).map(Some);
+            let validate =
+                source != Some(&DataType::Json) || !matches!(value, ScalarValue::Json(_));
+            return json_text(value, controls, validate).map(Some);
         }
     }
     Ok(None)
@@ -198,24 +200,43 @@ fn float_input(value: &ScalarValue) -> Option<Result<ScalarValue, QueryError>> {
     }
 }
 
-fn jsonb_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+fn jsonb_text(
+    value: &ScalarValue,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<ScalarValue, QueryError> {
     let document = super::json_concat::as_json_document(value)?;
     let ScalarValue::Json(text) = document else {
         return Ok(ScalarValue::Null);
     };
-    crate::types::jsonb::canonical(&text)
+    crate::types::jsonb::canonical_with_controls(&text, controls)
         .map(ScalarValue::Str)
-        .map_err(|error| crate::app::CassieError::TypeInput(error).into())
+        .map_err(Into::into)
 }
 
-fn json_text(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
+fn json_text(
+    value: &ScalarValue,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    validate: bool,
+) -> Result<ScalarValue, QueryError> {
     let text = match value {
         ScalarValue::Json(text) | ScalarValue::Str(text) => text,
         ScalarValue::Null => return Ok(ScalarValue::Null),
         _ => return Err(QueryError::General("cannot cast value to JSON text".into())),
     };
-    serde_json::from_str::<serde_json::Value>(text)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    if validate {
+        crate::runtime::accounted::json_arena::parse_value_with_optional_controls(
+            text.as_bytes(),
+            controls,
+        )
+        .map_err(|error| match error {
+            crate::runtime::accounted::json_arena::ValueParseError::Invalid => QueryError::General(
+                crate::runtime::accounted::json_arena::syntax_error(text.as_bytes()),
+            ),
+            crate::runtime::accounted::json_arena::ValueParseError::Controlled(error) => {
+                error.into()
+            }
+        })?;
+    }
     Ok(ScalarValue::Str(text.clone()))
 }
 
@@ -229,7 +250,7 @@ fn format_array_text(
     };
     match value {
         ScalarValue::Json(input) => {
-            let array = serde_json::from_str::<serde_json::Value>(input).ok()?;
+            let array = crate::types::array::parse_json_document(input).ok()?;
             crate::types::array::format_text_array(&array, element_type).map(ScalarValue::Str)
         }
         ScalarValue::Array(array) => crate::types::array_value::format_text_in(

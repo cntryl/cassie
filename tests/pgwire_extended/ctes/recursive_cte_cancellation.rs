@@ -54,7 +54,7 @@ fn should_cancel_recursive_cte_with_cycle_metadata_without_publishing_partial_ro
     let runtime = current_thread_runtime();
 
     // Act
-    let (baseline, cancelled, recovery) = runtime.block_on(async {
+    let (baseline, canceled, recovery) = runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie
             .startup()
@@ -92,7 +92,7 @@ fn should_cancel_recursive_cte_with_cycle_metadata_without_publishing_partial_ro
             .shutdown()
             .await
             .expect("close cancel request");
-        let cancelled =
+        let canceled =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
         wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
@@ -102,7 +102,7 @@ fn should_cancel_recursive_cte_with_cycle_metadata_without_publishing_partial_ro
         drop(reader);
         drop(writer);
         server.stop().await;
-        (baseline, cancelled, recovery)
+        (baseline, canceled, recovery)
     });
     drop(runtime);
 
@@ -118,13 +118,13 @@ fn should_cancel_recursive_cte_with_cycle_metadata_without_publishing_partial_ro
     );
     assert_eq!(wire::data_rows(&baseline), vec![vec![Some("4".to_owned())]]);
 
-    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert_eq!(wire::error_code(&canceled).as_deref(), Some("57014"));
     assert_eq!(
-        wire::data_rows(&cancelled),
+        wire::data_rows(&canceled),
         Vec::<Vec<Option<String>>>::new()
     );
-    assert_eq!(cancelled.iter().filter(|frame| frame.0 == b'C').count(), 0);
-    assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
+    assert_eq!(canceled.iter().filter(|frame| frame.0 == b'C').count(), 0);
+    assert_eq!(canceled.last().map(|frame| frame.0), Some(b'Z'));
 
     assert_eq!(wire::error_code(&recovery), None);
     assert_eq!(

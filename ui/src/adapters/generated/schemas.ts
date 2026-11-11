@@ -192,7 +192,7 @@ export type QueryExplainResponse = {
 
 export type QueryOperationCancellation = {
   "operation_id": string;
-  "cancelled": boolean;
+  "canceled": boolean;
 };
 
 export type QueryPlanAnalyze = {

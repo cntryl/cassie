@@ -226,7 +226,7 @@ fn should_recover_row_queries_given_prior_cancellation_when_the_same_instance_is
     let recovery = fixture.execute("SELECT ROW(1,2) < ROW(2,0)");
     // Assert
     assert!(
-        matches!(rejected, Err(cassie::app::CassieError::QueryCancelled)),
+        matches!(rejected, Err(cassie::app::CassieError::QueryCanceled)),
         "{rejected:?}"
     );
     assert_eq!(

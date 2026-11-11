@@ -118,7 +118,7 @@ fn should_release_partial_string_after_actual_copy_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(CursorError::Interrupted(CassieError::QueryCancelled))
+        Err(CursorError::Interrupted(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -139,7 +139,7 @@ fn should_observe_cancellation_before_inspecting_a_string_token() {
     // Assert
     assert!(matches!(
         cursor.read_string(),
-        Err(CursorError::Interrupted(CassieError::QueryCancelled))
+        Err(CursorError::Interrupted(CassieError::QueryCanceled))
     ));
     assert_eq!(
         cursor.position(),
@@ -152,7 +152,7 @@ fn should_observe_cancellation_before_inspecting_a_string_token() {
 }
 
 #[test]
-fn should_release_both_string_owners_when_cancelled_during_buffer_growth() {
+fn should_release_both_string_owners_when_canceled_during_buffer_growth() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -175,7 +175,7 @@ fn should_release_both_string_owners_when_cancelled_during_buffer_growth() {
     assert!(saw_overlap);
     assert!(matches!(
         result,
-        Err(CursorError::Interrupted(CassieError::QueryCancelled))
+        Err(CursorError::Interrupted(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

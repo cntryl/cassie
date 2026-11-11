@@ -96,10 +96,10 @@ mod tests {
             max_query_workers: 1,
             ..CassieRuntimeLimits::default()
         }));
-        let cancelled = runtime.try_begin_running_query().expect("active query");
+        let canceled = runtime.try_begin_running_query().expect("active query");
 
         // Act
-        drop(cancelled);
+        drop(canceled);
         let replacement = runtime.try_begin_running_query();
 
         // Assert

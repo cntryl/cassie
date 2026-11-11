@@ -203,7 +203,7 @@ fn should_cancel_after_a_real_binary_utf8_validation_chunk() {
     // Assert
     assert!(matches!(
         result,
-        Err(CursorError::Interrupted(CassieError::QueryCancelled))
+        Err(CursorError::Interrupted(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

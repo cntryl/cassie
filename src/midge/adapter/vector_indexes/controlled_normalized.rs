@@ -29,7 +29,7 @@ impl Midge {
             let (key, raw) = entry.map_err(CassieError::from)?;
             self.record_query_scan_entry();
             if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
-                return Err(CassieError::QueryCancelled);
+                return Err(CassieError::QueryCanceled);
             }
             let Some(decoded_bytes) = normalized_vector_decoded_values_bytes(&raw) else {
                 continue;
@@ -117,8 +117,8 @@ impl Midge {
 }
 
 fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     if controls.is_timed_out() {
         return Err(CassieError::DeadlineExceeded);

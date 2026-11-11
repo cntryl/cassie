@@ -161,7 +161,7 @@ fn run_active_workers(action: ActiveAction) {
             2
         );
         assert!(controls.current_query_memory_bytes() > 0);
-        assert!(!controls.is_cancelled());
+        assert!(!controls.is_canceled());
         assert!(!controls.is_timed_out());
         match action {
             ActiveAction::Cancel => cancellation.cancel(),
@@ -197,7 +197,7 @@ fn assert_active_result(
             let error = CassieError::from(result.expect_err("active worker controls must stop"));
             assert_eq!(error.descriptor().sql_state, "57014");
             assert!(match action {
-                ActiveAction::Cancel => matches!(error, CassieError::QueryCancelled),
+                ActiveAction::Cancel => matches!(error, CassieError::QueryCanceled),
                 ActiveAction::Expire => matches!(error, CassieError::DeadlineExceeded),
                 ActiveAction::Finish => unreachable!("terminal action branch"),
             });
@@ -293,16 +293,16 @@ fn should_cancel_any_value_partition_without_returning_partial_group() {
 
     // Assert
     let error = CassieError::from(match result {
-        Ok(_) => panic!("cancelled partition must not publish"),
+        Ok(_) => panic!("canceled partition must not publish"),
         Err(error) => error,
     });
-    assert!(matches!(error, CassieError::QueryCancelled));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(error.descriptor().sql_state, "57014");
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
-fn should_reject_cancelled_aggregate_merge_without_publishing_success() {
+fn should_reject_canceled_aggregate_merge_without_publishing_success() {
     // Arrange
     let fixture = Fixture::new(0);
     let plan = aggregate_plan("SELECT tenant, COUNT(*) AS total FROM events GROUP BY tenant");
@@ -345,14 +345,14 @@ fn should_reject_cancelled_aggregate_merge_without_publishing_success() {
     assert_eq!(controls.current_query_memory_bytes(), 0);
     fixture.assert_released_permits();
     // The ordinary SQL caller has a downstream window fence; this asserts the aggregate's
-    // own checkpoint and metrics contract, not cancelled SQL row publication.
+    // own checkpoint and metrics contract, not canceled SQL row publication.
     assert_eq!(
         after["parallel_aggregation"]["aggregations"],
         before["parallel_aggregation"]["aggregations"],
-        "cancelled merge must not report successful aggregation"
+        "canceled merge must not report successful aggregation"
     );
-    let error = CassieError::from(result.expect_err("cancelled aggregate merge"));
-    assert!(matches!(error, CassieError::QueryCancelled));
+    let error = CassieError::from(result.expect_err("canceled aggregate merge"));
+    assert!(matches!(error, CassieError::QueryCanceled));
     assert_eq!(error.descriptor().sql_state, "57014");
 }
 

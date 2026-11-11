@@ -17,8 +17,8 @@ struct CountingWriter<'a> {
 
 impl Write for CountingWriter<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.aborted = if self.controls.is_cancelled() {
-            Some(CassieError::QueryCancelled)
+        self.aborted = if self.controls.is_canceled() {
+            Some(CassieError::QueryCanceled)
         } else if self.controls.is_timed_out() {
             Some(CassieError::DeadlineExceeded)
         } else {
@@ -69,8 +69,8 @@ pub(super) fn reserve_plan_clone(
     plan: &LogicalPlan,
     controls: &QueryExecutionControls,
 ) -> Result<QueryMemoryReservation, CassieError> {
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
+    if controls.is_canceled() {
+        return Err(CassieError::QueryCanceled);
     }
     if controls.is_timed_out() {
         return Err(CassieError::DeadlineExceeded);

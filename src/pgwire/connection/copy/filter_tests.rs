@@ -105,7 +105,7 @@ fn should_cancel_copy_where_while_predicate_is_executing() {
     assert!(matches!(
         outcome,
         Err(super::CopyWhereError::Cassie(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
 }
@@ -222,7 +222,7 @@ fn should_reject_copy_where_expression_growth_before_allocating_over_budget() {
 }
 
 #[test]
-fn should_stop_copy_where_expression_rewrite_when_cancelled() {
+fn should_stop_copy_where_expression_rewrite_when_canceled() {
     // Arrange
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -237,7 +237,7 @@ fn should_stop_copy_where_expression_rewrite_when_cancelled() {
     assert!(matches!(
         result,
         Err(super::CopyWhereError::Cassie(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);

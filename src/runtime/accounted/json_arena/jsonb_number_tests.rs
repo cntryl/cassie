@@ -133,7 +133,7 @@ fn should_cancel_during_actual_decimal_scan_with_release_owners() {
     assert!(scanned);
     assert!(matches!(
         result,
-        Err(FormatError::Control(CassieError::QueryCancelled))
+        Err(FormatError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -161,7 +161,7 @@ fn should_cancel_during_actual_decimal_output_with_release_owners() {
     assert!(emitted);
     assert!(matches!(
         result,
-        Err(FormatError::Control(CassieError::QueryCancelled))
+        Err(FormatError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

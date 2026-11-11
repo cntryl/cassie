@@ -47,7 +47,7 @@ fn should_cancel_before_operator_switch_without_leaking_resources_or_success() {
             let after = cassie.metrics();
 
             // Assert
-            assert!(matches!(result, Err(cassie::CassieError::QueryCancelled)));
+            assert!(matches!(result, Err(cassie::CassieError::QueryCanceled)));
             assert_eq!(
                 snapshot_delta(
                     &after,

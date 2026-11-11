@@ -32,7 +32,7 @@ fn should_admit_copy_payload_growth_overlapping_retained_owner_with_release() {
 }
 
 #[test]
-fn should_leave_copy_payload_unchanged_when_growth_is_cancelled() {
+fn should_leave_copy_payload_unchanged_when_growth_is_canceled() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

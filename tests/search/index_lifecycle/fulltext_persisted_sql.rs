@@ -680,15 +680,15 @@ fn should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary() {
 
     // Act
     let reached = selected.recv_timeout(Duration::from_secs(10));
-    let cancelled_before_boundary = cancellation.is_cancelled();
+    let canceled_before_boundary = cancellation.is_canceled();
     cancellation.cancel();
     let _ = resume.send(());
     let (result, after, recovery) = query.join().expect("query thread");
 
     // Assert
     reached.expect("persisted full-text candidate was scored and retained");
-    assert!(!cancelled_before_boundary);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(!canceled_before_boundary);
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     assert_eq!(after["runtime"]["running_queries"], 0);
     assert_eq!(after["runtime"]["active_operator_workers"], 0);

@@ -5,6 +5,51 @@ use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 use crate::runtime::QueryExecutionControls;
 
 #[test]
+fn should_copy_binary_jsonb_with_reserved_looking_keys_as_ordinary_objects() {
+    // Arrange
+    let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE copy_jsonb_reserved_keys (value JSONB)",
+            vec![],
+        )
+        .expect("table");
+    let parsed =
+        crate::sql::parser::parse_statement("COPY copy_jsonb_reserved_keys (value) FROM STDIN")
+            .expect("parse");
+    let crate::sql::ast::QueryStatement::Copy(statement) = parsed.statement else {
+        panic!("COPY")
+    };
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let document = br#"{"$serde_json::private::Number":"not-a-number","nested":{"$serde_json::private::RawValue":"[1]"}}"#;
+    let mut field = vec![1];
+    field.extend_from_slice(document);
+    let mut payload = b"PGCOPY\n\xff\r\n\0".to_vec();
+    payload.extend_from_slice(&0_i32.to_be_bytes());
+    payload.extend_from_slice(&0_i32.to_be_bytes());
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&i32::try_from(field.len()).expect("length").to_be_bytes());
+    payload.extend_from_slice(&field);
+    payload.extend_from_slice(&(-1_i16).to_be_bytes());
+    let expected =
+        crate::types::jsonb::canonical(std::str::from_utf8(document).expect("UTF8 JSONB text"))
+            .expect("canonical JSONB");
+
+    // Act
+    let (rows, memory) =
+        super::parse_binary_payload(&payload, &cassie, &statement, &controls).expect("copy");
+
+    // Assert
+    assert_eq!(rows, vec![vec![Some(expected)]]);
+    drop((rows, memory));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_keep_jsonb_copy_diagnostic_owned_with_original_message() {
     // Arrange
     let cassie = Cassie::new_in_memory_with_config(CassieRuntimeConfig::default()).expect("Cassie");

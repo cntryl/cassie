@@ -359,7 +359,7 @@ postcommit probe retained 20 actual records and 45 checks. Final rules and the
 merged tree were read back; at merge, optional hosted checks were five passed,
 one neutral and eight pending. Pending checks were not counted as passed.
 
-The earlier interim Parse gate remains cancelled; its partial receipt supplies
+The earlier interim Parse gate remains canceled; its partial receipt supplies
 no full-gate acceptance. Full #904/#793/#791/#848/#849 and the original parameter
 occurrence/coercion gaps remain open. #933 uses `Refs #766`: its finite repairs
 and configured cache-bound tests do not prove lifetime ownership of cache copies.

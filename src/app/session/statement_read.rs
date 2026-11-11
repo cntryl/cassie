@@ -45,8 +45,8 @@ impl CassieSession {
         database: &str,
         controls: &QueryExecutionControls,
     ) -> Result<Arc<StatementDataRead>, CassieError> {
-        if controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
+        if controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
         }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);

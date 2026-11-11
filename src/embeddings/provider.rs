@@ -37,7 +37,7 @@ pub trait EmbeddingProvider: Send + Sync {
     fn embed_documents(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError>;
     /// # Errors
     ///
-    /// Returns an error when the query is cancelled, its deadline expires, or the provider fails.
+    /// Returns an error when the query is canceled, its deadline expires, or the provider fails.
     fn embed_documents_with_controls(
         &self,
         inputs: &[String],
@@ -62,7 +62,7 @@ pub trait EmbeddingProvider: Send + Sync {
     }
     /// # Errors
     ///
-    /// Returns an error when the query is cancelled, its deadline expires, or the provider fails.
+    /// Returns an error when the query is canceled, its deadline expires, or the provider fails.
     fn embed_query_with_controls(
         &self,
         input: &str,
@@ -82,8 +82,8 @@ pub(crate) fn check_controls(
     provider: &str,
     controls: &QueryExecutionControls,
 ) -> Result<(), EmbeddingError> {
-    if controls.is_cancelled() {
-        return Err(EmbeddingError::Cancelled {
+    if controls.is_canceled() {
+        return Err(EmbeddingError::Canceled {
             provider: provider.to_string(),
         });
     }
@@ -135,7 +135,7 @@ pub(crate) fn controlled_backoff(
 
 enum ControlledRequestOutcome<T, E> {
     Completed(Result<T, E>),
-    Cancelled,
+    Canceled,
     RuntimeError(String),
 }
 
@@ -179,7 +179,7 @@ where
                 Ok(runtime) => runtime.block_on(async move {
                     tokio::select! {
                         result = request => ControlledRequestOutcome::Completed(result),
-                        _ = cancel_receiver => ControlledRequestOutcome::Cancelled,
+                        _ = cancel_receiver => ControlledRequestOutcome::Canceled,
                     }
                 }),
                 Err(error) => ControlledRequestOutcome::RuntimeError(error.to_string()),
@@ -199,9 +199,9 @@ where
                 join_controlled_request_worker(&mut worker, provider)?;
                 return Ok(result);
             }
-            Ok(ControlledRequestOutcome::Cancelled) => {
+            Ok(ControlledRequestOutcome::Canceled) => {
                 join_controlled_request_worker(&mut worker, provider)?;
-                return Err(EmbeddingError::Cancelled {
+                return Err(EmbeddingError::Canceled {
                     provider: provider.to_string(),
                 });
             }
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_cancelled_controlled_embedding_before_provider_call() {
+    fn should_reject_canceled_controlled_embedding_before_provider_call() {
         // Arrange
         let cancellation = QueryCancellationHandle::new();
         cancellation.cancel();
@@ -277,7 +277,7 @@ mod tests {
         let result = provider.embed_query_with_controls("hello", &controls);
 
         // Assert
-        assert!(matches!(result, Err(EmbeddingError::Cancelled { .. })));
+        assert!(matches!(result, Err(EmbeddingError::Canceled { .. })));
         assert!(!provider.0.load(Ordering::Acquire));
     }
 }

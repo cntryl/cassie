@@ -46,6 +46,7 @@ fn state(limits: &CassieRuntimeLimits) -> (SessionState, PortalExecution) {
             statement_name: "source".to_owned(),
             prepared_id: 1,
             params: Vec::new(),
+            parameter_memory: Vec::new(),
             result_formats: Vec::new(),
             described: false,
             suspended: None,
@@ -54,6 +55,46 @@ fn state(limits: &CassieRuntimeLimits) -> (SessionState, PortalExecution) {
     );
     let portal = PortalExecution::from(state.portals.get("retained").expect("portal"));
     (state, portal)
+}
+
+#[test]
+fn should_retain_json_bind_memory_while_portal_execution_clones_parameters() {
+    // Arrange
+    let limits = CassieRuntimeLimits::default();
+    let mut state = SessionState::new(&limits);
+    let parsed = crate::runtime::accounted::json_arena::parse_value(
+        br#"{"$serde_json::private::Number":"ordinary"}"#,
+        &state.portal_memory_controls,
+    )
+    .expect("parse JSON parameter");
+    let (value, memory) = parsed.into_parts();
+    state.portals.insert(
+        "json".to_string(),
+        Portal {
+            name: "json".to_string(),
+            statement_name: "query".to_string(),
+            prepared_id: 1,
+            params: vec![Value::Json(value)],
+            parameter_memory: vec![memory],
+            result_formats: Vec::new(),
+            described: false,
+            suspended: None,
+            completed_command: None,
+        },
+    );
+    assert!(state.portal_memory_controls.current_query_memory_bytes() > 0);
+
+    // Act
+    let execution = PortalExecution::from(state.portals.get("json").expect("portal"));
+    drop(execution);
+    let (execution, _) = take_portal_execution(&mut state, "json").expect("execution");
+    drop(execution);
+    let retained_bytes = state.portal_memory_controls.current_query_memory_bytes();
+    drop(state.remove_portal("json"));
+
+    // Assert
+    assert!(retained_bytes > 0);
+    assert_eq!(state.portal_memory_controls.current_query_memory_bytes(), 0);
 }
 
 async fn suspend(

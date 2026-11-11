@@ -9997,8 +9997,8 @@
       }
     },
     {
-      "id": "tests/catalog_security/catalogs/options_execution.rs::should_cancel_expansion_given_cancelled_controls_when_options_are_executed",
-      "name": "should_cancel_expansion_given_cancelled_controls_when_options_are_executed",
+      "id": "tests/catalog_security/catalogs/options_execution.rs::should_cancel_expansion_given_canceled_controls_when_options_are_executed",
+      "name": "should_cancel_expansion_given_canceled_controls_when_options_are_executed",
       "current_file": "tests/catalog_security/catalogs/options_execution.rs",
       "line": 73,
       "end_line": 95,
@@ -10009,7 +10009,7 @@
       "instances": [
         {
           "suite": "catalog_security",
-          "name": "catalog_options_execution::should_cancel_expansion_given_cancelled_controls_when_options_are_executed"
+          "name": "catalog_options_execution::should_cancel_expansion_given_canceled_controls_when_options_are_executed"
         }
       ],
       "attributes": [
@@ -10896,8 +10896,8 @@
       }
     },
     {
-      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_cancel_module_discovery_given_cancelled_controls_when_the_table_function_is_executed",
-      "name": "should_cancel_module_discovery_given_cancelled_controls_when_the_table_function_is_executed",
+      "id": "tests/catalog_security/catalogs/runtime_profile.rs::should_cancel_module_discovery_given_canceled_controls_when_the_table_function_is_executed",
+      "name": "should_cancel_module_discovery_given_canceled_controls_when_the_table_function_is_executed",
       "current_file": "tests/catalog_security/catalogs/runtime_profile.rs",
       "line": 78,
       "end_line": 101,
@@ -10908,7 +10908,7 @@
       "instances": [
         {
           "suite": "catalog_security",
-          "name": "catalog_runtime_profile::should_cancel_module_discovery_given_cancelled_controls_when_the_table_function_is_executed"
+          "name": "catalog_runtime_profile::should_cancel_module_discovery_given_canceled_controls_when_the_table_function_is_executed"
         }
       ],
       "attributes": [
@@ -11888,8 +11888,8 @@
       }
     },
     {
-      "id": "tests/catalog_security/catalogs/sizes/scalar_execution.rs::should_cancel_size_parsing_given_cancelled_controls_when_a_parameter_is_reached",
-      "name": "should_cancel_size_parsing_given_cancelled_controls_when_a_parameter_is_reached",
+      "id": "tests/catalog_security/catalogs/sizes/scalar_execution.rs::should_cancel_size_parsing_given_canceled_controls_when_a_parameter_is_reached",
+      "name": "should_cancel_size_parsing_given_canceled_controls_when_a_parameter_is_reached",
       "current_file": "tests/catalog_security/catalogs/sizes/scalar_execution.rs",
       "line": 150,
       "end_line": 174,
@@ -11900,7 +11900,7 @@
       "instances": [
         {
           "suite": "catalog_security",
-          "name": "catalog_scalar_execution::should_cancel_size_parsing_given_cancelled_controls_when_a_parameter_is_reached"
+          "name": "catalog_scalar_execution::should_cancel_size_parsing_given_canceled_controls_when_a_parameter_is_reached"
         }
       ],
       "attributes": [
@@ -24451,8 +24451,8 @@
       }
     },
     {
-      "id": "tests/compatibility/lifecycle/mutations/upsert_concurrency.rs::should_retain_prior_transaction_keys_given_cancelled_upsert_when_rollback_has_not_occurred",
-      "name": "should_retain_prior_transaction_keys_given_cancelled_upsert_when_rollback_has_not_occurred",
+      "id": "tests/compatibility/lifecycle/mutations/upsert_concurrency.rs::should_retain_prior_transaction_keys_given_canceled_upsert_when_rollback_has_not_occurred",
+      "name": "should_retain_prior_transaction_keys_given_canceled_upsert_when_rollback_has_not_occurred",
       "current_file": "tests/compatibility/lifecycle/mutations/upsert_concurrency.rs",
       "line": 300,
       "end_line": 332,
@@ -24463,7 +24463,7 @@
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::upsert_concurrency::should_retain_prior_transaction_keys_given_cancelled_upsert_when_rollback_has_not_occurred"
+          "name": "compatibility::lifecycle::upsert_concurrency::should_retain_prior_transaction_keys_given_canceled_upsert_when_rollback_has_not_occurred"
         }
       ],
       "attributes": [
@@ -140313,8 +140313,8 @@
       }
     },
     {
-      "id": "tests/pgwire_extended/subqueries/scalar_subqueries.rs::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
-      "name": "should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
+      "id": "tests/pgwire_extended/subqueries/scalar_subqueries.rs::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results",
+      "name": "should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results",
       "current_file": "tests/pgwire_extended/subqueries/scalar_subqueries.rs",
       "line": 256,
       "end_line": 268,
@@ -140325,7 +140325,7 @@
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results"
+          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results"
         }
       ],
       "attributes": [
@@ -174351,8 +174351,8 @@
       }
     },
     {
-      "id": "tests/query_scan_controls/cancellation/request_cancellation.rs::should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit",
-      "name": "should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit",
+      "id": "tests/query_scan_controls/cancellation/request_cancellation.rs::should_leave_zero_writes_when_rest_mutation_is_canceled_before_commit",
+      "name": "should_leave_zero_writes_when_rest_mutation_is_canceled_before_commit",
       "current_file": "tests/query_scan_controls/cancellation/request_cancellation.rs",
       "line": 71,
       "end_line": 113,
@@ -174363,7 +174363,7 @@
       "instances": [
         {
           "suite": "query_scan_controls",
-          "name": "rest_request_cancellation::should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit"
+          "name": "rest_request_cancellation::should_leave_zero_writes_when_rest_mutation_is_canceled_before_commit"
         }
       ],
       "attributes": [
@@ -174382,8 +174382,8 @@
       }
     },
     {
-      "id": "tests/query_scan_controls/cancellation/request_cancellation.rs::should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publication",
-      "name": "should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publication",
+      "id": "tests/query_scan_controls/cancellation/request_cancellation.rs::should_leave_zero_documents_when_rest_document_write_is_canceled_before_publication",
+      "name": "should_leave_zero_documents_when_rest_document_write_is_canceled_before_publication",
       "current_file": "tests/query_scan_controls/cancellation/request_cancellation.rs",
       "line": 116,
       "end_line": 152,
@@ -174394,7 +174394,7 @@
       "instances": [
         {
           "suite": "query_scan_controls",
-          "name": "rest_request_cancellation::should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publication"
+          "name": "rest_request_cancellation::should_leave_zero_documents_when_rest_document_write_is_canceled_before_publication"
         }
       ],
       "attributes": [
@@ -175901,8 +175901,8 @@
       }
     },
     {
-      "id": "tests/query_scan_controls/scans/specialized_query_controls_retrieval.rs::should_publish_no_hybrid_diagnostics_when_exact_fallback_is_cancelled",
-      "name": "should_publish_no_hybrid_diagnostics_when_exact_fallback_is_cancelled",
+      "id": "tests/query_scan_controls/scans/specialized_query_controls_retrieval.rs::should_publish_no_hybrid_diagnostics_when_exact_fallback_is_canceled",
+      "name": "should_publish_no_hybrid_diagnostics_when_exact_fallback_is_canceled",
       "current_file": "tests/query_scan_controls/scans/specialized_query_controls_retrieval.rs",
       "line": 450,
       "end_line": 486,
@@ -175913,7 +175913,7 @@
       "instances": [
         {
           "suite": "query_scan_controls",
-          "name": "specialized_query_controls_retrieval::should_publish_no_hybrid_diagnostics_when_exact_fallback_is_cancelled"
+          "name": "specialized_query_controls_retrieval::should_publish_no_hybrid_diagnostics_when_exact_fallback_is_canceled"
         }
       ],
       "attributes": [
@@ -185976,8 +185976,8 @@
       }
     },
     {
-      "id": "tests/sql_mutations/atomicity/dml_statement_atomicity.rs::should_leave_zero_rows_given_cancelled_multi_row_insert_before_execution",
-      "name": "should_leave_zero_rows_given_cancelled_multi_row_insert_before_execution",
+      "id": "tests/sql_mutations/atomicity/dml_statement_atomicity.rs::should_leave_zero_rows_given_canceled_multi_row_insert_before_execution",
+      "name": "should_leave_zero_rows_given_canceled_multi_row_insert_before_execution",
       "current_file": "tests/sql_mutations/atomicity/dml_statement_atomicity.rs",
       "line": 512,
       "end_line": 548,
@@ -185988,7 +185988,7 @@
       "instances": [
         {
           "suite": "sql_mutations",
-          "name": "dml_statement_atomicity::should_leave_zero_rows_given_cancelled_multi_row_insert_before_execution"
+          "name": "dml_statement_atomicity::should_leave_zero_rows_given_canceled_multi_row_insert_before_execution"
         }
       ],
       "attributes": [
@@ -204328,8 +204328,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/casts/bytea_controls.rs::should_cancel_bytea_given_cancelled_controls_when_integer_conversion_starts",
-      "name": "should_cancel_bytea_given_cancelled_controls_when_integer_conversion_starts",
+      "id": "tests/sql_queries/casts/bytea_controls.rs::should_cancel_bytea_given_canceled_controls_when_integer_conversion_starts",
+      "name": "should_cancel_bytea_given_canceled_controls_when_integer_conversion_starts",
       "current_file": "tests/sql_queries/casts/bytea_controls.rs",
       "line": 178,
       "end_line": 200,
@@ -204340,7 +204340,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "bytea_cast_controls::should_cancel_bytea_given_cancelled_controls_when_integer_conversion_starts"
+          "name": "bytea_cast_controls::should_cancel_bytea_given_canceled_controls_when_integer_conversion_starts"
         }
       ],
       "attributes": [
@@ -205940,8 +205940,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/casts/bytea_input_controls.rs::should_cancel_input_conversion_given_cancelled_controls_when_an_escape_parameter_is_reached",
-      "name": "should_cancel_input_conversion_given_cancelled_controls_when_an_escape_parameter_is_reached",
+      "id": "tests/sql_queries/casts/bytea_input_controls.rs::should_cancel_input_conversion_given_canceled_controls_when_an_escape_parameter_is_reached",
+      "name": "should_cancel_input_conversion_given_canceled_controls_when_an_escape_parameter_is_reached",
       "current_file": "tests/sql_queries/casts/bytea_input_controls.rs",
       "line": 138,
       "end_line": 162,
@@ -205952,7 +205952,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "bytea_input_controls::should_cancel_input_conversion_given_cancelled_controls_when_an_escape_parameter_is_reached"
+          "name": "bytea_input_controls::should_cancel_input_conversion_given_canceled_controls_when_an_escape_parameter_is_reached"
         }
       ],
       "attributes": [
@@ -221626,8 +221626,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/expressions/fetch.rs::should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts",
-      "name": "should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts",
+      "id": "tests/sql_queries/expressions/fetch.rs::should_cancel_fetch_given_a_canceled_query_when_direct_execution_starts",
+      "name": "should_cancel_fetch_given_a_canceled_query_when_direct_execution_starts",
       "current_file": "tests/sql_queries/expressions/fetch.rs",
       "line": 164,
       "end_line": 186,
@@ -221638,7 +221638,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "sql_queries::fetch::should_cancel_fetch_given_a_cancelled_query_when_direct_execution_starts"
+          "name": "sql_queries::fetch::should_cancel_fetch_given_a_canceled_query_when_direct_execution_starts"
         }
       ],
       "attributes": [
@@ -222339,8 +222339,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_before_evaluation",
-      "name": "should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_before_evaluation",
+      "id": "tests/sql_queries/expressions/operators/bytea_concat.rs::should_observe_cancellation_given_bytea_concat_when_execution_is_canceled_before_evaluation",
+      "name": "should_observe_cancellation_given_bytea_concat_when_execution_is_canceled_before_evaluation",
       "current_file": "tests/sql_queries/expressions/operators/bytea_concat.rs",
       "line": 126,
       "end_line": 144,
@@ -222351,7 +222351,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "bytea_concat::should_observe_cancellation_given_bytea_concat_when_execution_is_cancelled_before_evaluation"
+          "name": "bytea_concat::should_observe_cancellation_given_bytea_concat_when_execution_is_canceled_before_evaluation"
         }
       ],
       "attributes": [
@@ -239172,8 +239172,8 @@
       }
     },
     {
-      "id": "tests/sql_queries/relations/values_cast_controls.rs::should_cancel_typed_values_given_cancelled_controls_when_execution_starts",
-      "name": "should_cancel_typed_values_given_cancelled_controls_when_execution_starts",
+      "id": "tests/sql_queries/relations/values_cast_controls.rs::should_cancel_typed_values_given_canceled_controls_when_execution_starts",
+      "name": "should_cancel_typed_values_given_canceled_controls_when_execution_starts",
       "current_file": "tests/sql_queries/relations/values_cast_controls.rs",
       "line": 36,
       "end_line": 53,
@@ -239184,7 +239184,7 @@
       "instances": [
         {
           "suite": "sql_queries",
-          "name": "values_cast_controls::should_cancel_typed_values_given_cancelled_controls_when_execution_starts"
+          "name": "values_cast_controls::should_cancel_typed_values_given_canceled_controls_when_execution_starts"
         }
       ],
       "attributes": [
@@ -292664,11 +292664,11 @@
       "file": "tests/pgwire_extended/subqueries/scalar_subqueries.rs",
       "execution_status": "not_run_after_test_refinement",
       "category": "subqueries",
-      "actual_test": "should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
+      "actual_test": "should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results",
       "instances": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results"
+          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results"
         }
       ],
       "asserted_contract": "Existing test expects 57014, no partial rows, and same-session recovery; it is blocked because baseline is 42601.",
@@ -292682,9 +292682,9 @@
       "prior_observations": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
+          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results",
           "status": "failed_observed",
-          "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results' (19553426) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:389:5:\nassertion `left == right` failed: baseline scalar-subquery ErrorResponse: Some(\"S=ERROR, C=42601, M=invalid expression token 'INTERVAL '0 seconds''\")\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results ... FAILED\ntest pgwire_extended_control::should_close_connection_on_cancel_request_without_response ... ok\ntest pgwire_portal_streaming::should_cancel_suspended_portal_before_resume ... ok\n\n",
+          "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results' (19553426) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:389:5:\nassertion `left == right` failed: baseline scalar-subquery ErrorResponse: Some(\"S=ERROR, C=42601, M=invalid expression token 'INTERVAL '0 seconds''\")\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results ... FAILED\ntest pgwire_extended_control::should_close_connection_on_cancel_request_without_response ... ok\ntest pgwire_portal_streaming::should_cancel_suspended_portal_before_resume ... ok\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
       ],
@@ -292893,7 +292893,7 @@
     },
     {
       "issue": 801,
-      "name": "should_release_cycle_state_given_cancelled_recursion_when_the_session_is_reused",
+      "name": "should_release_cycle_state_given_canceled_recursion_when_the_session_is_reused",
       "status": "existing_equivalent",
       "suite": "pgwire_extended",
       "directory": "tests/pgwire_extended/ctes",
@@ -294726,18 +294726,18 @@
     },
     {
       "issue": 820,
-      "name": "should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
+      "name": "should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused",
       "status": "authored",
       "suite": "compatibility",
       "directory": "tests/compatibility/lifecycle/transactions",
       "file": "tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs",
       "execution_status": "failed_observed",
       "category": "lifecycle/transactions",
-      "actual_test": "should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
+      "actual_test": "should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused",
       "instances": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused"
+          "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused"
         }
       ],
       "asserted_contract": "After cancellation and owner-lock release, the same waiter session updates and reads the row as reused.",
@@ -294752,9 +294752,9 @@
       "observations": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
+          "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused",
           "status": "failed_observed",
-          "failure_excerpt": "thread 'compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused' (19486558) panicked at tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs:53:10:\nhold a row lock while the contender waits: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"invalid expression token '1 FOR UPDATE'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused ... FAILED\ntest compatibility::lifecycle::row_lock_cancellation::should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arrives ... FAILED\n\n",
+          "failure_excerpt": "thread 'compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused' (19486558) panicked at tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs:53:10:\nhold a row lock while the contender waits: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"invalid expression token '1 FOR UPDATE'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused ... FAILED\ntest compatibility::lifecycle::row_lock_cancellation::should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arrives ... FAILED\n\n",
           "evidence": "final focused run: final-row-lock-tests.log"
         }
       ]

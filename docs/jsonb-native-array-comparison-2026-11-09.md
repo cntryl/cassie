@@ -21,5 +21,5 @@ and text owners can make budget and cancellation errors occur earlier than the
 previous result. Input `ScalarValue` to `Value` conversion may already clone the
 arrays; element Values and earlier expression construction are not admitted by
 this change. Generic element comparison, non-native conversion, fallback
-reparsing, allocator transients, Value/arena teardown and private sentinel and
-storage migration remain unqualified. Probes are deferred to the combined gate.
+reparsing, allocator transients, Value/arena teardown and ordinary sentinel-key round-trip semantics remain
+unqualified. Probes are deferred to the combined gate.

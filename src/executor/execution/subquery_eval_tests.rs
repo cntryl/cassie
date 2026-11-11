@@ -196,7 +196,7 @@ fn should_treat_float_power_range_failures_as_non_interruptions() {
         assert!(!is_interruption(error));
     }
     assert!(is_interruption(&QueryError::Cassie(
-        crate::app::CassieError::QueryCancelled
+        crate::app::CassieError::QueryCanceled
     )));
     assert!(is_interruption(&QueryError::Cassie(
         crate::app::CassieError::DeadlineExceeded

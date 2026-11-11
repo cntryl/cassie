@@ -753,7 +753,7 @@ async fn handle_simple_copy_from_stdin(
         )
         .await
         {
-            CopyReadOutcome::Cancelled => break cassie_pg_error(&CassieError::QueryCancelled),
+            CopyReadOutcome::Canceled => break cassie_pg_error(&CassieError::QueryCanceled),
             CopyReadOutcome::DeadlineIdle => break cassie_pg_error(&CassieError::DeadlineExceeded),
             CopyReadOutcome::DeadlinePartial | CopyReadOutcome::FramingInvalid => return false,
             CopyReadOutcome::Resource(error) => break cassie_pg_error(&error),
@@ -768,9 +768,9 @@ async fn handle_simple_copy_from_stdin(
             Ok(FrontendMessage::CopyData(chunk)) => {
                 if cancellation
                     .as_ref()
-                    .is_some_and(crate::runtime::QueryCancellationHandle::is_cancelled)
+                    .is_some_and(crate::runtime::QueryCancellationHandle::is_canceled)
                 {
-                    break cassie_pg_error(&CassieError::QueryCancelled);
+                    break cassie_pg_error(&CassieError::QueryCanceled);
                 }
                 if copy_payload_exceeds_limit(
                     payload.len(),

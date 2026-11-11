@@ -667,10 +667,10 @@ fn should_cancel_pg_sleep_for() {
     let sql = "SELECT PG_SLEEP_FOR(INTERVAL '60 seconds')";
 
     // Act
-    let (cancelled, recovered) = crate::support_temporal_cancellation::run_sleep_cancellation(sql);
+    let (canceled, recovered) = crate::support_temporal_cancellation::run_sleep_cancellation(sql);
 
     // Assert
-    crate::support_temporal_cancellation::assert_cancelled_and_recovered(&cancelled, &recovered);
+    crate::support_temporal_cancellation::assert_canceled_and_recovered(&canceled, &recovered);
 }
 
 #[test]
@@ -679,8 +679,8 @@ fn should_cancel_pg_sleep_until() {
     let sql = "SELECT PG_SLEEP_UNTIL(CLOCK_TIMESTAMP() + INTERVAL '60 seconds')";
 
     // Act
-    let (cancelled, recovered) = crate::support_temporal_cancellation::run_sleep_cancellation(sql);
+    let (canceled, recovered) = crate::support_temporal_cancellation::run_sleep_cancellation(sql);
 
     // Assert
-    crate::support_temporal_cancellation::assert_cancelled_and_recovered(&cancelled, &recovered);
+    crate::support_temporal_cancellation::assert_canceled_and_recovered(&canceled, &recovered);
 }

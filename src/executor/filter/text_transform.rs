@@ -427,7 +427,7 @@ mod tests {
     }
 
     #[test]
-    fn should_release_output_admission_when_text_transform_is_cancelled() {
+    fn should_release_output_admission_when_text_transform_is_canceled() {
         // Arrange
         let cancellation = QueryCancellationHandle::new();
         let controls = QueryExecutionControls::with_cancellation(
@@ -444,7 +444,7 @@ mod tests {
         // Assert
         assert!(matches!(
             result,
-            Some(Err(QueryError::Cassie(CassieError::QueryCancelled)))
+            Some(Err(QueryError::Cassie(CassieError::QueryCanceled)))
         ));
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

@@ -192,7 +192,7 @@ fn should_cancel_ordered_row_id_pages_at_the_first_controlled_read() {
             Instant::now(),
         );
         assert!(controls.deadline.is_none());
-        assert!(!controls.is_cancelled());
+        assert!(!controls.is_canceled());
         super::super::check_timeout(&controls).expect("live query admission");
         let before_reads = fixture.cassie().midge.query_scan_entries_for_diagnostics();
         let before_paths = fixture.cassie().runtime.snapshot().read_paths;
@@ -211,7 +211,7 @@ fn should_cancel_ordered_row_id_pages_at_the_first_controlled_read() {
 
         // Assert
         assert!(
-            matches!(result, Err(CassieError::QueryCancelled)),
+            matches!(result, Err(CassieError::QueryCanceled)),
             "{mode} must cancel before the second-row decode canary: {result:?}"
         );
         assert_eq!(
@@ -247,7 +247,7 @@ fn should_reject_ordered_row_id_pages_with_a_tiny_preflight_budget() {
             Instant::now(),
         );
         assert!(controls.deadline.is_none());
-        assert!(!controls.is_cancelled());
+        assert!(!controls.is_canceled());
         super::super::check_timeout(&controls).expect("live query admission");
         let before_reads = fixture.cassie().midge.query_scan_entries_for_diagnostics();
         let before_paths = fixture.cassie().runtime.snapshot().read_paths;
@@ -310,7 +310,7 @@ fn should_reserve_ordered_row_id_pages_before_decoding_the_first_payload() {
         assert_selected_mode(&plan, mode);
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         assert!(controls.deadline.is_none());
-        assert!(!controls.is_cancelled());
+        assert!(!controls.is_canceled());
         super::super::check_timeout(&controls).expect("live query admission");
         let before_reads = fixture.cassie().midge.query_scan_entries_for_diagnostics();
         let before_paths = fixture.cassie().runtime.snapshot().read_paths;

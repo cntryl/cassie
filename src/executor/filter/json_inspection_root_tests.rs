@@ -78,7 +78,7 @@ fn should_release_inspection_scratch_with_arena_after_actual_parse_cancellation(
         Some(&controls),
     );
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert!(controls.peak_query_memory_bytes() > 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);

@@ -10,6 +10,9 @@ pub(super) fn binary_scalar_with_controls(
     right: &ScalarValue,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
+    if let Some(result) = super::json_path_operator::evaluate(left, op, right, controls) {
+        return result;
+    }
     if let (BinaryOp::JsonbCompare { comparison }, Some(controls)) = (op, controls) {
         if matches!(
             left,
@@ -49,7 +52,7 @@ pub(super) fn binary_scalar(
     if let Some(result) = super::array_operators::evaluate(left, op, right) {
         return result;
     }
-    if let Some(result) = super::json_path_operator::evaluate(left, op, right) {
+    if let Some(result) = super::json_path_operator::evaluate(left, op, right, None) {
         return result;
     }
     if let Some(result) = json_operator(left, op, right) {

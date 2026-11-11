@@ -69,7 +69,7 @@ fn should_release_json_builder_memory_given_errors_and_cancellation_when_constru
     let limits = CassieRuntimeLimits::default();
     let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
     let cancellation = QueryCancellationHandle::new();
-    let cancelled =
+    let canceled =
         QueryExecutionControls::with_cancellation(&limits, Instant::now(), cancellation.clone());
     cancellation.cancel();
     let function = FunctionCall {
@@ -79,13 +79,13 @@ fn should_release_json_builder_memory_given_errors_and_cancellation_when_constru
     };
     // Act
     let invalid = call(&controls, &function, &[Value::Null, Value::Int64(42)]);
-    let interrupted = call(&cancelled, &function, &[Value::Null, Value::Int64(42)]);
+    let interrupted = call(&canceled, &function, &[Value::Null, Value::Int64(42)]);
     // Assert
     assert!(invalid.is_err());
     assert!(interrupted
-        .expect_err("cancelled construction")
+        .expect_err("canceled construction")
         .to_string()
         .contains("cancel"));
     assert_eq!(controls.current_query_memory_bytes(), 0);
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
 }

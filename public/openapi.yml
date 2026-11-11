@@ -115,7 +115,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     ClientClosedRequest:
-      description: Query execution was cancelled by the client.
+      description: Query execution was canceled by the client.
       content:
         application/json:
           schema:
@@ -752,12 +752,12 @@ components:
       type: object
       required:
         - operation_id
-        - cancelled
+        - canceled
       properties:
         operation_id:
           type: string
           format: uuid
-        cancelled:
+        canceled:
           type: boolean
     ColumnMeta:
       type: object

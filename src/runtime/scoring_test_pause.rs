@@ -82,7 +82,7 @@ mod tests {
             hook.is_ok(),
             "the diagnostic hook must not mask the operator check"
         );
-        assert!(matches!(interruption, Err(CassieError::QueryCancelled)));
+        assert!(matches!(interruption, Err(CassieError::QueryCanceled)));
     }
 
     #[test]
@@ -120,7 +120,7 @@ mod tests {
         ));
         reached.expect("owned scoring boundary");
         assert!(result.0.is_ok());
-        assert!(matches!(result.1, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result.1, Err(CassieError::QueryCanceled)));
     }
 
     #[test]

@@ -9,7 +9,7 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
         .expect("runtime");
 
     // Act
-    let (setup, inserted, baseline, cancelled, recovery) = runtime.block_on(async {
+    let (setup, inserted, baseline, canceled, recovery) = runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().expect("Cassie");
         cassie
             .startup()
@@ -74,7 +74,7 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
             .shutdown()
             .await
             .expect("close cancel request");
-        let cancelled =
+        let canceled =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
         wire::write_frames(&mut writer, vec![wire::simple_query_frame("SELECT 45")]).await;
@@ -84,7 +84,7 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
         drop(reader);
         drop(writer);
         server.stop().await;
-        (setup, inserted, baseline, cancelled, recovery)
+        (setup, inserted, baseline, canceled, recovery)
     });
 
     // Assert
@@ -99,13 +99,13 @@ fn should_cancel_tablesample_filter_without_partial_rows_or_stale_state() {
             vec![Some("3".to_owned())],
         ]
     );
-    assert_eq!(wire::error_code(&cancelled).as_deref(), Some("57014"));
+    assert_eq!(wire::error_code(&canceled).as_deref(), Some("57014"));
     assert_eq!(
-        wire::data_rows(&cancelled),
+        wire::data_rows(&canceled),
         Vec::<Vec<Option<String>>>::new()
     );
-    assert_eq!(cancelled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
-    assert_eq!(cancelled.last().map(|frame| frame.0), Some(b'Z'));
+    assert_eq!(canceled.iter().filter(|(tag, _)| *tag == b'C').count(), 0);
+    assert_eq!(canceled.last().map(|frame| frame.0), Some(b'Z'));
     assert_eq!(wire::error_code(&recovery), None);
     assert_eq!(
         wire::data_rows(&recovery),

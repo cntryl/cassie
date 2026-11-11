@@ -135,7 +135,7 @@ fn should_release_input_result_given_a_retained_clone_when_the_final_owner_drops
 }
 
 #[test]
-fn should_cancel_input_conversion_given_cancelled_controls_when_an_escape_parameter_is_reached() {
+fn should_cancel_input_conversion_given_canceled_controls_when_an_escape_parameter_is_reached() {
     // Arrange
     let fixture = sql_fixture("byteainput-cancel", &[]);
     let plan = physical(&fixture);
@@ -156,7 +156,7 @@ fn should_cancel_input_conversion_given_cancelled_controls_when_an_escape_parame
     // Assert
     assert!(matches!(
         result.map_err(CassieError::from),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

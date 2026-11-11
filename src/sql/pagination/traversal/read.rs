@@ -49,8 +49,8 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     fn guard(&self, depth: usize) -> Result<(), CassieError> {
-        if self.controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
+        if self.controls.is_canceled() {
+            return Err(CassieError::QueryCanceled);
         }
         if self.controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);

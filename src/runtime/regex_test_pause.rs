@@ -164,11 +164,11 @@ mod tests {
             .recv_timeout(Duration::from_secs(5))
             .expect("completed regex search");
         cancellation.cancel();
-        resume.send(()).expect("resume cancelled regex");
+        resume.send(()).expect("resume canceled regex");
         let result = worker.join().expect("regex worker");
 
         // Assert
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert!(selected.try_recv().is_err());
     }
 

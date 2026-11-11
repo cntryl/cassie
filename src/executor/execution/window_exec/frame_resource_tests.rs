@@ -123,7 +123,7 @@ fn should_cancel_during_unordered_frame_construction_with_release_its_reservatio
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -160,13 +160,13 @@ fn should_admit_peer_groups_with_cancel_while_scanning_unordered_rows() {
         ..context
     };
     let cancellation = QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
     );
-    let cancelled_context = WindowExecutionContext {
-        controls: &cancelled,
+    let canceled_context = WindowExecutionContext {
+        controls: &canceled,
         ..context
     };
 
@@ -176,7 +176,7 @@ fn should_admit_peer_groups_with_cancel_while_scanning_unordered_rows() {
     drop(groups);
     let rejected = peer_groups(&indices, &rows, &function, &denied_context);
     CANCEL_AFTER.with(|slot| *slot.borrow_mut() = Some((1, cancellation)));
-    let interrupted = peer_groups(&indices, &rows, &function, &cancelled_context);
+    let interrupted = peer_groups(&indices, &rows, &function, &canceled_context);
     CANCEL_AFTER.with(|slot| *slot.borrow_mut() = None);
 
     // Assert
@@ -190,8 +190,8 @@ fn should_admit_peer_groups_with_cancel_while_scanning_unordered_rows() {
     ));
     assert!(matches!(
         interrupted,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(denied.current_query_memory_bytes(), 0);
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
 }

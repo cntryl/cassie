@@ -330,7 +330,7 @@ pub async fn pgwire_transport_cancellation(ctx: &PgwireTransportBenchContext) ->
     let error = transaction
         .query_portal(&portal, 1)
         .await
-        .expect_err("cancelled portal returned no row page");
+        .expect_err("canceled portal returned no row page");
     assert_eq!(
         error.code().map(tokio_postgres::error::SqlState::code),
         Some("57014"),

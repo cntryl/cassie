@@ -195,6 +195,46 @@ fn should_preserve_user_payload_key_shape() {
 }
 
 #[test]
+fn should_preserve_reserved_looking_json_keys_in_rest_document_input() {
+    // Arrange
+    let path = data_dir("reserved-json-keys");
+    let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+    cassie.startup().expect("startup");
+    let collection = "rest_json_reserved_keys";
+    collections::create(
+        &cassie,
+        serde_json::json!({
+            "name": collection,
+            "fields": [{"name": "document", "type": "json"}]
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .expect("create collection");
+
+    // Act
+    let created = documents::create(
+        &cassie,
+        collection,
+        br#"{"document":{"$serde_json::private::Number":"7","nested":{"$serde_json::private::RawValue":"[1]"}}}"#,
+    )
+    .expect("create document");
+    let id = created["id"].as_str().expect("document id");
+    let loaded = documents::get(&cassie, collection, id).expect("get document");
+
+    // Assert
+    assert_eq!(
+        loaded["document"],
+        serde_json::json!({
+            "$serde_json::private::Number": "7",
+            "nested": {"$serde_json::private::RawValue": "[1]"}
+        })
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_store_a_value_under_the_declared_field_name_given_a_differently_cased_key() {
     // Arrange
     let path = data_dir("payload-key-case");

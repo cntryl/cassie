@@ -157,7 +157,7 @@ fn should_release_size_context_given_precancellation_when_query_is_rejected() {
         &controls,
     );
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

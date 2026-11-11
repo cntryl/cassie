@@ -25,7 +25,7 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_cancel_constant_planning_given_cancelled_controls_when_no_portal_exists() {
+fn should_cancel_constant_planning_given_canceled_controls_when_no_portal_exists() {
     // Arrange
     let plan = logical("SELECT 1/0");
     let cancellation = QueryCancellationHandle::new();
@@ -38,7 +38,7 @@ fn should_cancel_constant_planning_given_cancelled_controls_when_no_portal_exist
     // Act
     let result = check_plan(&plan, &controls).map_err(CassieError::from);
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

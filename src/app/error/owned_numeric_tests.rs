@@ -81,7 +81,7 @@ fn should_classify_owned_numeric_errors_like_existing_type_input_errors() {
 }
 
 #[test]
-fn should_release_owned_numeric_diagnostic_when_cancelled_during_copy() {
+fn should_release_owned_numeric_diagnostic_when_canceled_during_copy() {
     // Arrange
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -102,7 +102,7 @@ fn should_release_owned_numeric_diagnostic_when_cancelled_during_copy() {
     assert!(observed);
     assert!(matches!(
         result,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

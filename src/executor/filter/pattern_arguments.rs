@@ -175,7 +175,7 @@ mod tests {
     };
 
     #[test]
-    fn should_skip_pattern_directories_for_cancelled_zero_budget_requests() {
+    fn should_skip_pattern_directories_for_canceled_zero_budget_requests() {
         // Arrange
         let limits = CassieRuntimeLimits {
             query_memory_budget_bytes: 0,
@@ -217,7 +217,7 @@ mod tests {
         assert!(matches!(
             result,
             Err(crate::executor::filter::QueryError::Cassie(
-                crate::app::CassieError::QueryCancelled
+                crate::app::CassieError::QueryCanceled
             ))
         ));
         assert_eq!(controls.peak_query_memory_bytes(), 0);

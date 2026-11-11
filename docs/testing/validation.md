@@ -1234,7 +1234,7 @@ Validation:
   Inventory records 5,806 integration registration instances plus 992 library
   tests, distinct from passing counts.
 
-An intermediate full run was explicitly cancelled during analytics when the
+An intermediate full run was explicitly canceled during analytics when the
 INSERT parser defect superseded it; it is not counted as a completed gate.
 The final complete run above includes all runtime changes. Ignored
 `target/green-bind-*` files retain commands, native packets and test evidence.
@@ -1281,7 +1281,7 @@ still assigns gap 0.34; pending full nested-shape support stays linked to
 
 A broader column-inference candidate was reverted after it admitted inputs whose
 Describe phase timed out or lost enclosing relation metadata. Its superseded
-focused run was cancelled; no partial binder change remains. Existing Parse
+focused run was canceled; no partial binder change remains. Existing Parse
 rejection and the failing native expectations are preserved. Ignored
 `target/green-reachability-*` artifacts retain commands, native frames, review
 questions, dispositions and validation logs.
@@ -1383,7 +1383,7 @@ helpers to satisfy the strict function-size limits:
   distinct from executed/passing counts. No benchmark timing is claimed.
 
 Both full test invocations completed through the known catalog failure; no full
-run was cancelled. Full repository green and PostgreSQL qualification remain
+run was canceled. Full repository green and PostgreSQL qualification remain
 incomplete. The oracle server reports PostgreSQL 18.6; the native executable
 SHA256 is `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`,
 recorded in `target/green-unary-native-version.log` with the version readback.
@@ -1431,7 +1431,7 @@ Validation:
   catalog/security blocker: library 1,010/0, analytics 179/0, backend CI 2/0,
   benchmark operations 16/0, catalog/security 139/209. All 209 failure identities
   match the previous batch. Later targets compiled but were not executed by
-  those full commands; neither full run was cancelled.
+  those full commands; neither full run was canceled.
 - Final `cargo test --locked --test pgwire_extended pagination`: 98/0, including
   all 96 new functions after the fixture assertion cleanup.
 - Related compiled Rust selection: 517/20 across 537 functions (library 64/0,
@@ -1527,7 +1527,7 @@ Validation:
   library 1,014/0, analytics 179/0, backend CI 2/0 and benchmark operations 16/0;
   catalog/security 139/209. All 209 failure identities match the prior batch.
   Later targets compiled but were not executed by that full command. The run
-  was not cancelled.
+  was not canceled.
 - Final locked targeted runs: parser 4/0, wire 132/0 and SQL 8/0. The four
   additional parameter probes and a validator-driven test-label rename were
   included in final focused execution. No assertion or expected native state
@@ -1622,7 +1622,7 @@ A preliminary gate overlapped an unfinished signature edit and failed to
 compile; after correction, the complete ordered gate above was rerun. Initial
 focused green attempts also exposed the ordinal, exported-name and derived
 alias defects before their fixes. No failures were skipped or assertions
-weakened, and no full run was cancelled.
+weakened, and no full run was canceled.
 
 ## 2026-10-16 — Typed VALUES scalar identity and character ownership
 
@@ -1712,7 +1712,7 @@ Final ordered validation:
 The preliminary gate reproduced the catalog failures and one pedantic numeric
 literal finding in a test. After that correction and the confirmed CTE metadata
 fix, the full ordered gate was rerun. Final focused/source-family checks use the
-compiled final binaries. No full run was cancelled; no failures were skipped.
+compiled final binaries. No full run was canceled; no failures were skipped.
 
 ### Explicit VARCHAR typmods checkpoint (2026-10-16)
 
@@ -2114,7 +2114,7 @@ The final ordered gate ran with CARGO_INCREMENTAL=0:
   src/midge/adapter/verification.rs (1,002). No benchmark timing is claimed.
 
 Stored-row projection/filtering, good/error/NULL/good cached-plan inputs,
-last-result-owner release and already-cancelled execution accompany the wire
+last-result-owner release and already-canceled execution accompany the wire
 matrix. The cancellation witness does not qualify interruption inside a long
 parser loop; full resource/restart acceptance remains #849. Native NAME parameter
 ABI, NUMERIC formatting, physical size APIs, wider locale/encoding, historical
@@ -2186,7 +2186,7 @@ The coherent new batch passes 61 wire and six catalog tests. It includes native
 text/binary descriptors and payloads, typed primitive parameter format crosses,
 arity/unresolved signatures, Sync recovery, actual Unicode profile, stored
 compression, propagated cast errors, empty-set COUNT, left-row preservation and
-pre-cancelled discovery with zero retained query memory. Pre-cancellation does
+pre-canceled discovery with zero retained query memory. Pre-cancellation does
 not qualify interruption during long-running work; #849 remains open.
 
 Fresh `cargo test --locked --no-run --message-format=json` artifact discovery
@@ -3332,7 +3332,7 @@ scoring has started.
 
 A hidden, request-owned diagnostic pauses once after a scored candidate has
 entered the retained top-K state. The test observes that boundary, verifies the
-handle was not already cancelled, cancels externally, and resumes execution.
+handle was not already canceled, cancels externally, and resumes execution.
 Handle/control clones share the pause; unrelated requests and the other scoring
 operator cannot consume it. Disconnection and a ten-second diagnostic hang guard
 fail the query rather than leaving a blocked worker. Exact-vector scoring now
@@ -3663,7 +3663,7 @@ rows and a 25 ms sleep) is replaced with
 `should_require_finite_regex_execution_before_active_cancellation`, a three-row
 known-red prerequisite. #954 retains actual synchronized cancellation, cleanup,
 no partial output and session recovery after #799 implements regex. This is not
-active cancellation coverage or a pre-cancelled substitute.
+active cancellation coverage or a pre-canceled substitute.
 
 Two review items are explicitly deferred: #816 retains defensive complete
 BYTEA-carrier validation until every ingress invariant is proven; #796 owns
@@ -3684,7 +3684,7 @@ error fields and same-socket recovery. The local oracle executable SHA256 is
 `db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`. Full distribution/corpus and release qualification
 remain with #848/#849.
 
-The last audited pre-closeout hosted backend run was cancelled during tests;
+The last audited pre-closeout hosted backend run was canceled during tests;
 CodeQL's aggregate check failed with 143 changed-code alerts. A separate PR-ref
 snapshot had 186 open alerts. Specific modeled-flow/test-fixture groups have
 source-backed false-positive evidence, but no bulk dismissal or complete
@@ -4852,14 +4852,14 @@ frame arrives. They cover explicit status `E`, implicit status `I`, late
 the runtime change, the idle-cancel regression failed red at the five-second
 response guard while waiting for `ReadyForQuery`.
 
-`should_preserve_frontend_alignment_when_cancelled_after_copy_tag` sends only
+`should_preserve_frontend_alignment_when_canceled_after_copy_tag` sends only
 the COPY frame tag, waits until the server consumes it, cancels, then completes
 the frame and verifies no rows were applied and the next query succeeds. It
 failed red on the two-second recovery guard because dropping `read_exact` after
 the tag left the stream misaligned; it now passes 1/1.
-`should_preserve_frontend_alignment_when_cancelled_after_partial_copy_body`
+`should_preserve_frontend_alignment_when_canceled_after_partial_copy_body`
 waits until the raw pgwire server consumes one of two body bytes before
-cancelling. With cancellation selected around the entire frame read, it failed
+canceling. With cancellation selected around the entire frame read, it failed
 red on the same recovery guard; with the frame-boundary implementation, it
 passes 1/1 and verifies `57014`, no ingested rows, late-frame discard, and query
 recovery. `should_fail_explicit_transaction_after_partial_copy_body_cancellation`
@@ -5777,7 +5777,7 @@ New authored regression paths:
 
 - `tests/compatibility/lifecycle/transactions/repeatable_read.rs`: first-view/savepoint/data/catalog visibility, current new-table descriptor, and current rename/add-column descriptors over historical rows.
 - `tests/pgwire_extended/transactions/repeatable_read.rs`, with `tests/support/repeatable_read.rs`: constant/Parse/Bind/Describe/SHOW/SAVEPOINT/utility boundaries and limited direct-cursor pagination. The initially proposed idle-prebound Execute witness was removed after the pinned oracle rejected its phase order, as recorded below.
-- `src/app/transaction_snapshot/tests.rs`: rejected admission and retry, last shared owner release, no second request charge, actual cancelled-query/savepoint recovery, disconnect by final session drop, pre-cancel/deadline, synchronized cancellation while publication is held, and RC/RR descriptor-authority controls.
+- `src/app/transaction_snapshot/tests.rs`: rejected admission and retry, last shared owner release, no second request charge, actual canceled-query/savepoint recovery, disconnect by final session drop, pre-cancel/deadline, synchronized cancellation while publication is held, and RC/RR descriptor-authority controls.
 - `src/app/transaction_snapshot/tests/indexes.rs`: current-planner late scalar selection with row fallback, bounded indexed-join fallback, unchanged/replaced/renamed storage identities, REINDEX/drop-recreate, and a late full-text scalar prefilter.
 - `src/midge/adapter/transactions/snapshot_proofs.rs`: published API capability boundaries; native assertions do not make independently captured snapshots equivalent.
 

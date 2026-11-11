@@ -200,7 +200,7 @@ fn should_cancel_after_real_limb_division_with_release_workspace() {
     });
     // Assert
     assert_eq!(divided, 1);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     drop(output_memory);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

@@ -136,8 +136,8 @@ fn should_preserve_null_safe_query_cancellation() {
     );
     // Assert
     assert!(
-        matches!(result, Err(cassie::app::CassieError::QueryCancelled)),
-        "should_preserve_null_safe_query_cancellation should report QueryCancelled"
+        matches!(result, Err(cassie::app::CassieError::QueryCanceled)),
+        "should_preserve_null_safe_query_cancellation should report QueryCanceled"
     );
     let snapshot = fixture.cassie.metrics();
     assert_eq!(snapshot["query"]["current_accounted_memory_bytes"], 0);

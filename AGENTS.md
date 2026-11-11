@@ -162,16 +162,16 @@ Create GitHub issues and pull requests as durable engineering records. Use real 
 - Match the linked issue category in the title and use sentence case after the prefix, for example `Enhancement: Add ...` or `Documentation/readiness: Define ...`.
 - Apply the matching existing label and link the issue with `Closes #N`, `Fixes #N`, or `Resolves #N` when the PR completes it.
 - Include these sections: `Type`, `Linked issue`, `Summary`, `User/operator impact`, `Current and expected behavior`, `Scope`, `Evidence and support status`, `Validation`, `Acceptance criteria`, and `Status`.
-- Record red/green TDD evidence where code changes are made. List the exact validation commands and distinguish passed, running, cancelled, and blocked checks; never report a pending check as passed.
+- Record red/green TDD evidence where code changes are made. List the exact validation commands and distinguish passed, running, canceled, and blocked checks; never report a pending check as passed.
 - State whether the PR changes runtime behavior, documentation/readiness only, or operational process. Record blockers and the next action when a PR cannot proceed.
-- Before merge, verify title, label, issue link, body formatting, acceptance criteria, available checks, and review status. GitHub Actions should remain enabled. Wait for the available required checks on the final PR head and record their actual outcomes; never claim pending, cancelled, failed, or unavailable checks passed. Use squash merge for completed slices when merge is requested.
+- Before merge, verify title, label, issue link, body formatting, acceptance criteria, available checks, and review status. GitHub Actions should remain enabled. Wait for the available required checks on the final PR head and record their actual outcomes; never claim pending, canceled, failed, or unavailable checks passed. Use squash merge for completed slices when merge is requested.
 
 ## Agentic Workflow
 
 Agents must work from the current repository source of truth, not from ad hoc architectural judgment.
 Use `gh` CLI to read the current GitHub backlog, issue dependencies, PRs, reviews, checks, and repository settings. Follow documented priority and dependency order, using the user request plus `docs/product-roadmap.md`, `docs/production-readiness.md`, `docs/performance-contracts.md`, and subsystem docs. Use Jev at semantic decision gates and for focused review of substantial diffs; skip it when code or tests determine the answer. Treat its judgments as leads and verify them against source, executable evidence, and current GitHub state.
 
-GitHub Actions should be enabled by user direction. Normal push and pull-request workflows are authorized. Use `gh` to verify repository settings and final-head checks, and wait for required checks before merge. Report pending, cancelled, failed, and unavailable workflow evidence accurately; never claim it passed.
+GitHub Actions should be enabled by user direction. Normal push and pull-request workflows are authorized. Use `gh` to verify repository settings and final-head checks, and wait for required checks before merge. Report pending, canceled, failed, and unavailable workflow evidence accurately; never claim it passed.
 
 Do not create, edit, rename, or delete CI, release, or versioning configuration (`.github/workflows/**`, `GitVersion.yml`, and similar) unless the user explicitly asks for that change in the current request. If a fix seems to need one, say so and stop instead of changing it.
 

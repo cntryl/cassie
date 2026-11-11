@@ -147,7 +147,7 @@ fn should_retain_size_results_given_a_result_clone_when_the_original_owner_drops
 }
 
 #[test]
-fn should_cancel_size_parsing_given_cancelled_controls_when_a_parameter_is_reached() {
+fn should_cancel_size_parsing_given_canceled_controls_when_a_parameter_is_reached() {
     // Arrange
     let fixture = sql_fixture("catalog-size-cancel", &[]);
     let plan = physical(&fixture);
@@ -168,7 +168,7 @@ fn should_cancel_size_parsing_given_cancelled_controls_when_a_parameter_is_reach
     // Assert
     assert!(matches!(
         result.map_err(CassieError::from),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

@@ -43,6 +43,32 @@ fn should_share_exact_jsonb_numeric_identity_across_key_operations() {
 }
 
 #[test]
+fn should_compare_reserved_looking_jsonb_object_keys_as_ordinary_fields() {
+    // Arrange
+    let controls = controls(16_777_216);
+    let input = r#"{"$serde_json::private::Number":"ordinary","nested":{"$serde_json::private::RawValue":"[1,]"}}"#;
+    let mut nested = serde_json::Map::new();
+    nested.insert(
+        "$serde_json::private::RawValue".into(),
+        serde_json::Value::String("[1,]".into()),
+    );
+    let mut expected = serde_json::Map::new();
+    expected.insert(
+        "$serde_json::private::Number".into(),
+        serde_json::Value::String("ordinary".into()),
+    );
+    expected.insert("nested".into(), serde_json::Value::Object(nested));
+    let expected = serde_json::Value::Object(expected);
+
+    // Act
+    let actual = JsonbKey::from_text(input, Some(&controls)).expect("ordinary object key");
+    let expected = JsonbKey::from_json(&expected, Some(&controls)).expect("expected key");
+
+    // Assert
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn should_match_the_pinned_jsonb_type_order() {
     // Arrange
     let controls = controls(16_777_216);
@@ -126,7 +152,7 @@ fn should_cancel_jsonb_normalization_after_actual_token_work() {
     });
     // Assert
     assert!(observed > 0);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 

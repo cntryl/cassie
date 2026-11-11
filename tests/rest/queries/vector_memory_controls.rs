@@ -155,6 +155,7 @@ fn should_account_long_rest_query_cache_keys_before_copying_them() {
 fn should_reserve_sparse_json_nodes_before_rest_vector_output() {
     // Arrange
     let cassie = circle_fixture("rest-sparse-json-budget", 1, 16 * 1024);
+    create_index(&cassie, "index_type = bruteforce");
     cassie
         .execute_sql(
             &cassie.create_session("tester", None),
@@ -169,7 +170,6 @@ fn should_reserve_sparse_json_nodes_before_rest_vector_output() {
     cassie.midge.put_documents("docs", vec![(Some("row-00".to_owned()),
             serde_json::json!({"content": "query", "embedding": [1.0, 0.0, 1.0], "payload": payload}))])
             .expect("sparse JSON row");
-    create_index(&cassie, "index_type = bruteforce");
     let before = cassie.metrics();
 
     // Act

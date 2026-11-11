@@ -97,7 +97,7 @@ fn should_cancel_during_semantic_hint_copy_with_release_every_owner() {
 
     // Assert
     assert!(observed);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -294,7 +294,7 @@ fn should_reject_invalid_boolean_error_frame_below_its_admitted_peak() {
 fn should_prioritize_interruption_before_semantic_error_allocation() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
-    let cancelled = QueryExecutionControls::with_cancellation(
+    let canceled = QueryExecutionControls::with_cancellation(
         &CassieRuntimeLimits::default(),
         Instant::now(),
         cancellation.clone(),
@@ -307,12 +307,12 @@ fn should_prioritize_interruption_before_semantic_error_allocation() {
             .expect("past"),
     );
     // Act
-    let cancelled_result = PgWireError::parameter_semantic(diagnostic(), &cancelled);
+    let canceled_result = PgWireError::parameter_semantic(diagnostic(), &canceled);
     let expired_result = PgWireError::parameter_semantic(diagnostic(), &expired);
     // Assert
-    assert!(matches!(cancelled_result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(canceled_result, Err(CassieError::QueryCanceled)));
     assert!(matches!(expired_result, Err(CassieError::DeadlineExceeded)));
-    assert_eq!(cancelled.peak_query_memory_bytes(), 0);
+    assert_eq!(canceled.peak_query_memory_bytes(), 0);
     assert_eq!(expired.peak_query_memory_bytes(), 0);
 }
 
@@ -496,8 +496,8 @@ fn should_prioritize_scalar_literal_cancellation_given_pending_coercion_when_all
         &controls,
     );
     // Assert
-    assert!(matches!(normalization, Err(CassieError::QueryCancelled)));
-    assert!(matches!(frame, Err(CassieError::QueryCancelled)));
+    assert!(matches!(normalization, Err(CassieError::QueryCanceled)));
+    assert!(matches!(frame, Err(CassieError::QueryCanceled)));
     assert_eq!(serde_json::to_string(&parsed).expect("snapshot"), before);
     assert_eq!(controls.peak_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -616,7 +616,7 @@ fn should_retain_jsonb_copy_diagnostic_with_frame_during_pending_write() {
 }
 
 #[test]
-fn should_release_cancelled_copy_unknown_column_diagnostic() {
+fn should_release_canceled_copy_unknown_column_diagnostic() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -628,7 +628,7 @@ fn should_release_cancelled_copy_unknown_column_diagnostic() {
     // Act
     let result = PgWireError::copy_undefined_column("name", &controls);
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -791,7 +791,7 @@ fn should_release_numeric_error_frame_on_interruption_during_message_or_frame_co
 
         // Assert
         assert!(observed);
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert_eq!(interrupted_controls.current_query_memory_bytes(), 0);
         let recovery_controls = controls(65_536);
         let recovery = PgWireError::controlled_diagnostic(

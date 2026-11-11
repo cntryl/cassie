@@ -79,7 +79,7 @@ fn should_retain_source_iterator_on_partial_move_with_cancellation() {
     let result = source.next_observing(&controls, || cancel.cancel());
     // Assert
     assert!(result.is_err());
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert_eq!(controls.current_query_memory_bytes(), bytes);
     drop(source);
     assert_eq!(controls.current_query_memory_bytes(), 0);

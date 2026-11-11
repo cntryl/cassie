@@ -170,7 +170,7 @@ mod tests {
             );
             let acknowledged = async {
                 tokio::task::yield_now().await;
-                assert!(cancellation.is_cancelled());
+                assert!(cancellation.is_canceled());
                 registration.finish();
             };
             let (result, ()) =

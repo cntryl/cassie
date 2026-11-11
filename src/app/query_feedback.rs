@@ -295,8 +295,8 @@ impl Cassie {
         let mut bound =
             binder::bind_initial_with_controls(parsed, &self.catalog, &context, controls)?;
         if let Some(controls) = controls {
-            if controls.is_cancelled() {
-                return Err(CassieError::QueryCancelled);
+            if controls.is_canceled() {
+                return Err(CassieError::QueryCanceled);
             }
             if controls.is_timed_out() {
                 return Err(CassieError::DeadlineExceeded);

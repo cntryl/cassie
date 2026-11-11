@@ -125,5 +125,5 @@ fn should_propagate_numeric_preflight_cancellation() {
     let result = rejects_cast_with_controls(&cast, Some(&controls));
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
 }

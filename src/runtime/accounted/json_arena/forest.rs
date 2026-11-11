@@ -87,6 +87,77 @@ pub(super) enum TextArrayElement<'a> {
 }
 
 impl Forest {
+    pub(super) fn to_serde_value(&self, root: NodeId) -> Result<serde_json::Value, CassieError> {
+        self.controls.check_interruption()?;
+        let node = self.nodes.get(root)?;
+        match &node.kind {
+            Kind::Scalar => Ok(serde_json::Value::Null),
+            Kind::Boolean(value) => Ok(serde_json::Value::Bool(*value)),
+            Kind::Text(text) => Ok(serde_json::Value::String(self.copy_text(text.as_str())?)),
+            Kind::Number(text) => text
+                .as_str()
+                .parse::<serde_json::Number>()
+                .map(serde_json::Value::Number)
+                .map_err(|error| {
+                    CassieError::Execution(format!(
+                        "parsed JSON number could not materialize: {error}"
+                    ))
+                }),
+            Kind::Array(array) => {
+                let mut values = Vec::new();
+                values
+                    .try_reserve_exact(array.len())
+                    .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+                for position in 0..array.len() {
+                    self.controls.check_interruption()?;
+                    let child = array.get(position).ok_or_else(invalid_owner)?;
+                    values.push(self.to_serde_value(child)?);
+                }
+                self.controls.check_interruption()?;
+                Ok(serde_json::Value::Array(values))
+            }
+            Kind::Object(object) => {
+                let mut values = serde_json::Map::new();
+                let mut next = object.first_index()?;
+                while let Some(index) = next {
+                    self.controls.check_interruption()?;
+                    let (key, child) = object.item(index);
+                    let key = self.copy_text(key)?;
+                    let value = self.to_serde_value(child)?;
+                    values.insert(key, value);
+                    next = object.next_index(index, &mut || {})?;
+                }
+                self.controls.check_interruption()?;
+                Ok(serde_json::Value::Object(values))
+            }
+        }
+    }
+
+    fn copy_text(&self, text: &str) -> Result<String, CassieError> {
+        self.controls.check_interruption()?;
+        let mut copied = String::new();
+        copied
+            .try_reserve_exact(text.len())
+            .map_err(|error| crate::runtime::owned_memory::allocation_error(&error))?;
+        if copied.capacity() > text.len() {
+            return Err(CassieError::ResourceLimit(
+                "allocator exceeded admitted JSON string capacity".into(),
+            ));
+        }
+        let mut start = 0;
+        while start < text.len() {
+            self.controls.check_interruption()?;
+            let mut end = start.saturating_add(1024).min(text.len());
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            copied.push_str(&text[start..end]);
+            start = end;
+        }
+        self.controls.check_interruption()?;
+        Ok(copied)
+    }
+
     pub(super) fn inspection_root(&self, root: NodeId) -> Result<InspectionRoot, CassieError> {
         Ok(match &self.nodes.get(root)?.kind {
             Kind::Scalar => InspectionRoot::Null,

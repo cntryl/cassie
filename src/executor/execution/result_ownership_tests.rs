@@ -213,7 +213,7 @@ fn should_cancel_during_admission_prepass_before_allocating_row_capacity() {
     // Assert
     assert!(matches!(
         denied,
-        Err(crate::app::CassieError::QueryCancelled)
+        Err(crate::app::CassieError::QueryCanceled)
     ));
     assert_eq!(
         visits.get(),

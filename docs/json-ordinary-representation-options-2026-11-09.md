@@ -1,139 +1,69 @@
-# Ordinary JSON representation options
+# #809 JSON carrier decision
 
-This source audit follows the #809 private-sentinel decision and compares
-approaches without activating runtime behavior. Source baseline `5ad2d757`;
-no executable tests have been run. The already transformed contents of a
-stored record cannot be inferred or restored merely by changing the decoder.
+Status: current-format direction selected and implemented on 2026-11-10. The
+older option analysis below is decision history. Cassie is unreleased; no prior
+Cassie Rust API or storage layout must be preserved, and no migration path is
+required. Executed evidence is in the [#809 round-trip gate](json-sentinel-roundtrip-gate-2026-11-09.md).
 
-`types::Value` is a public `Debug + Clone + PartialEq + Serialize + Deserialize`
-enum with `Json(serde_json::Value)`. Adding a raw/arena variant would break
-downstream exhaustive matches and add a serialized enum shape. `BatchRow` is
-private and carries column `DataType` and owner links, but `RowAccess::get`
-returns `&Value`; `eval_column_value` converts `Value::String` to scalar text
-without consulting the JSON column type. A raw String substituted into an
-existing `TYPE_JSON` serde encoder is serialized as a JSON string, not an
-object. Existing JSON/JSONB output, NULL, field alias and expression behavior
-therefore cannot be preserved by changing one value at that boundary.
+## Selected direction
 
-Cassie's `Midge::put_document` takes `serde_json::Value` and row-blob
-`encode_row` serializes each JSON field as bytes; `decode_row` and projected
-variants deserialize to serde Value. Their callers include streaming and
-ordered document scans, document mutation/read, column-store compact fields,
-full-text, graph/time-series, vector publication, indexes and query source
-hydration. These are Cassie adapters and consumers. Published cntryl-midge
-0.5.2 exposes byte-key/value transactions; the storage engine need not change
-and no second storage layer is selected.
+Keep `serde_json::Value` as the current public JSON carrier for this increment,
+but do not use its sentinel-aware text deserializer for Cassie JSON documents.
+Use Cassie's controlled JSON parser with an ordinary-object policy, then
+materialize the parsed value without reparsing through serde's private map
+sentinels. This retains existing public signatures as a practical implementation
+choice; it is not a cross-version API compatibility promise.
 
-Option A adds an internal schema-typed, owner-coupled raw/arena JSON cell and
-parallel row decode/encode path, retaining the current public `Value` enum and
-serde representation. The existing TYPE_JSON bytes can carry ordinary JSON
-text without a persisted tag change, subject to proof of old/new readers and
-exact canonical/diagnostic behavior. SQL hydration, expression evaluation,
-semantic keys, Bind/COPY, joins, projections, arrays and every listed adapter
-must migrate coherently before the new path is enabled. Public APIs returning
-serde Value need either a separately proven conversion or an explicitly
-retained legacy boundary; there is no blanket claim that a raw internal cell
-can satisfy those APIs. Versioning, memory ownership through clones and
-`into_entries`/`into_values`, cancellation, row-blob format compatibility and
-already stored data require dedicated probes.
+Jev's source-based choice favored `serde_value_custom_parser` at probability
+0.65/confidence 0.53, over a Cassie-owned public tree at 0.29, raw source at
+0.01 and none at 0.05. The action is to source-prove a plain-object parse and
+conversion path. Jev is a lead, not correctness evidence. The request and
+response are retained under ignored
+`target/jev/milestone-triage-20261110/revised-representation-{request,response}.json`.
 
-The result boundary is also public: `QueryResult::rows()` returns
-`&[Vec<Value>]`, and its `Serialize` implementation serializes those Values.
-An internal raw cell cannot replace a returned `Value::Json` object with a
-String without changing the embedded API and serialized shape. A compatible
-embedded result must materialize the expected Value representation or use a
-separately proven equivalent. The infallible `rows()` accessor cannot report
-an admission failure from a newly introduced lazy conversion. To avoid that
-conversion for protocol clients, a private raw-aware result/encoder path would
-need to carry the row owner through pgwire or REST independently; its control,
-error, output and transport lifetimes require proof. The existing public
-result remains unchanged until such a path is established.
-Current pgwire simple-query handlers and connection writers iterate
-`result.rows()`; extended portal state and COPY paths do likewise. A private
-raw-aware path must therefore reach those consumers rather than only changing
-the result builder.
-Jev selected investigating a private schema-typed result and pgwire encoder,
-with fallible materialization before constructing the unchanged public
-`QueryResult` (A_design 1.00). Lazy conversion in the infallible accessor and
-public API breaks were rejected. The public materialization/serialization
-(0.63), pgwire/portal/REST (0.66), clone/owner lifetime (0.81) and storage/
-old-reader compatibility (0.84) leads require probes before any activation.
-Receipt: `target/assembly-review/json-raw-result-boundary-contract-{request,response}.json`.
+## Source evidence
 
-### Prerequisites for a real row-to-pgwire path
+At `bab19a57b5ebf996bf526f4af81826de250b275f`, `Value::Json`,
+`DocumentRef.payload` and `QueryResult::rows()` expose serde Values. CRB1
+`TYPE_JSON` writes `serde_json::to_vec` and reads it with
+`serde_json::from_slice`; text Bind and JSONB canonicalization also deserialize
+through serde Value. The existing `runtime::accounted::json_arena` is an
+admitted iterative forest with exact number tokens, duplicate-last object
+insertion, owned output routines and query-control checks. Its production parse
+policy currently recognizes serde's private Number and RawValue sentinels. A
+separate unmerged prototype adds plain-object parsing tests only; it is not
+production behavior.
 
-A source-reviewed, test-only candidate carries synthetic existing-format
-`TYPE_JSON` field bytes through an admitted directory, a plain-object cell,
-and an admitted single-column DataRow. The candidate has no live callers and
-its tests have not run. It proves no actual storage, SQL, socket or public API
-handoff. PostgreSQL preserves JSON input spelling while Cassie's current
-`Value::Json` writer compacts it; JSONB uses canonical text and binary version
-byte 1. The selected wire behavior and its compatibility impact require
-qualification, not an assumption that the two writers are byte-identical.
+The public storage boundary remains Cassie's Midge adapter over the published
+`cntryl-midge` API. Do not edit Midge or add another storage layer. The new
+current format must restart and recover; no earlier Cassie format or reader is
+part of the gate.
 
-The first live path needs the following connected changes before activation:
+## Contract and implementation boundary
 
-1. **Preserve the input before it is lost.** Extended text Bind currently
-   builds `Value::Json` via serde parsing, and JSONB first calls
-   `jsonb::canonical`; `Midge::put_document` receives a serde Value and
-   `encode_row` serializes that Value. A SQL write/read witness for a sentinel
-   object requires a schema-typed owner through input, DML and row encoding,
-   plus an unchanged TYPE_JSON byte layout. A synthetic row alone does not
-   prove that fresh SQL writes preserve the object. Earlier transformed rows
-   cannot be reconstructed.
-2. **Carry the private cell through scans and execution.** Batched
-   `scan_row_blobs_batched` and controlled `streaming_scans` currently call
-   `decode_row` or a projected decoder and create public `DocumentRef` with
-   `payload: serde_json::Value`; `AccountedDocument` owns that representation.
-   `BatchRow` contains `(String, Value)` entries and its lookup and consuming
-   handoffs expose those Values. A private sidecar or parallel internal row
-   needs explicit per-field schema identity, SQL NULL, alias, query/operator
-   owner transfer and fallible clone semantics through the actual chosen scan,
-   projection and every supported operator. A fast path cannot silently skip
-   authorization, filters, aliases, ordering or snapshot rules. Unsupported
-   shapes must retain their established semantics; merely passing a raw JSON
-   String as a `Value` does not satisfy this prerequisite.
-3. **Carry the result to real consumers.** The existing public `QueryResult`
-   and simple/extended pgwire paths consume `Vec<Value>` rows. The private
-   result must survive worker and portal lifetimes and feed the real writer;
-   public embedded and REST consumers must use a separately proven fallible
-   materialization or remain on an explicitly compatible route. The isolated
-   frame's lease ends at the frame owner and does not establish network-buffer
-   or socket-flush ownership. Error mapping and resource/cancellation ordering
-   must be preserved or explicitly selected and tested.
+- `$serde_json::private::Number` and `$serde_json::private::RawValue` are
+  ordinary JSON keys at the root and every nested position, including escaped
+  key spellings. Parsing them must not reinterpret their values as serde
+  internals.
+- Keep SQL NULL distinct from JSON document null. Keep JSON OID 114 and JSONB
+  OID 3802/array OID 3807 distinct. JSONB keeps canonical key ordering,
+  duplicate-last semantics and exact decimal values from the Type Contract.
+- A current-format row write, full/projected row read, operator execution,
+  result serialization and restart must preserve the supported document.
+  Already transformed bytes from an earlier unreleased build are not migration
+  inputs and are not required to be reconstructed.
+- The implemented path covers text and binary JSON/JSONB Bind, text and binary
+  COPY, REST, casts, arrays, operators, row persistence and decode, result
+  serialization, restart, and database-image restore. The round-trip gate records
+  the current route evidence and ordered local validation. Independent JSON
+  feature limits remain in the Feature Support matrix.
 
-No one of these changes independently repairs #809. Qualification needs a
-fresh write, scan, SQL projection and text/binary wire round trip for ordinary
-and nested sentinel objects, SQL/JSON null, duplicate keys and malformed input,
-as well as public-result compatibility, legacy stored rows, admission,
-interruption and owner-drop probes. Midge remains the direct published byte
-storage API; no new storage layer or upstream engine changes are implied.
+## Qualification status
 
-Option B preserves all current signatures and builds serde Values directly
-from the plain-object arena. This avoids sentinel-aware deserialization at the
-initial conversion, but every later deserialization must also use the plain
-policy. With pinned serde_json 1.0.154 and no `preserve_order` dependency,
-`Map` is backed by `BTreeMap`, `with_capacity` does not reserve space, and
-String-key comparisons and node allocations are private to the map. A
-cross-toolchain, before-allocation admission bound and bounded interruption
-for those operations has not been established. Public `Number::from_str`
-likewise needs a full-length allocation/interruption proof; the hidden
-`Number::from_string_unchecked` is documented as non-public API. Keeping an
-arena alive alongside a newly allocated Value does not account for the new
-Value. Accepting guessed limits or treating unadmitted map work as complete is
-not selected.
-
-Option C keeps both runtime routes unchanged while implementing focused,
-unwired tests and owner-coupled primitives, until either A or B is evidenced.
-Any production migration must preserve ordinary sentinel keys at all depths,
-JSON versus JSONB input and output semantics, duplicate-last, numeric range,
-NUL and SQLSTATE/error order, PostgreSQL wire OIDs, restart and cross-version
-reads, memory/timeout controls and full scan/filter/projection/join behavior.
-Use existing Midge APIs only. Jev selection and exact execution gates are
-not executable proof. Jev selected investigating option A as a design and
-test-only path (0.66; C 0.33), with no runtime activation selected. Its leads
-are public API loss (0.81), storage and old-reader behavior (0.87), resource
-accounting (0.83), and downstream reparsing (0.75). Receipt:
-`target/assembly-review/json-typed-raw-cell-contract-{request,response}.json`.
-No claim is made that Midge's existing Value-facing Cassie adapters carry the
-new cell or that already transformed bytes are recoverable.
+The coherent bundle gate passed on 2026-11-10: the locked build and full test
+suite, strict all-target/all-feature pedantic Clippy, formatting, and global
+test-policy validation. Focused tests cover root/nested/escaped sentinels,
+duplicate keys, exact numbers, SQL NULL versus document null, malformed input,
+text and binary wire formats, current-format restart, resource admission,
+cancellation, and failure cleanup. See the round-trip gate for exact commands
+and route evidence; this design record alone does not close #809.

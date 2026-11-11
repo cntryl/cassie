@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(worker, (false, true));
         assert!(!disarmed);
         assert_eq!(rearmed, (false, true));
-        assert!(!cancellation.is_cancelled());
+        assert!(!cancellation.is_canceled());
         assert!(cancellation.is_same_request(&cancellation.clone()));
     }
 

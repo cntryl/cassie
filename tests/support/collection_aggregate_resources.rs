@@ -21,7 +21,7 @@ pub struct ResourceCase {
 
 pub struct CancellationCase {
     pub control: Frames,
-    pub cancelled: Frames,
+    pub canceled: Frames,
     pub recovery: Frames,
     during_pause: serde_json::Value,
     after_cancel: serde_json::Value,
@@ -250,9 +250,9 @@ pub fn assert_aggregate_pause_targets_one_backend() {
             .expect("target reaches retained input");
         cancel_and_wait_for_close(first_server.address, process_id, secret_key).await;
         resume.send(()).expect("resume target");
-        let cancelled =
+        let canceled =
             wire::read_frames_until_ready_within(&mut target_reader, Duration::from_secs(10)).await;
-        assert_rejected_without_partial_rows(&cancelled, "57014");
+        assert_rejected_without_partial_rows(&canceled, "57014");
         wire::write_frames(
             &mut target_writer,
             vec![wire::simple_query_frame("SELECT 47")],
@@ -328,7 +328,7 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
         resume
             .send(())
             .expect("resume retained aggregate after CancelRequest was handled");
-        let cancelled =
+        let canceled =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(10)).await;
         let after_cancel = cassie.metrics();
         wire::write_frames(
@@ -344,7 +344,7 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
         server.stop().await;
         CancellationCase {
             control,
-            cancelled,
+            canceled,
             recovery,
             during_pause,
             after_cancel,
@@ -352,7 +352,7 @@ pub fn run_cancellation_case_with_setup_after_aggregate_input(
     })
 }
 
-pub fn assert_cancelled_without_retained_resources(case: &CancellationCase) {
+pub fn assert_canceled_without_retained_resources(case: &CancellationCase) {
     assert_eq!(case.during_pause["running_queries"].as_u64(), Some(1));
     assert!(
         case.during_pause["query"]["current_accounted_memory_bytes"]
@@ -361,9 +361,9 @@ pub fn assert_cancelled_without_retained_resources(case: &CancellationCase) {
         "paused aggregate must expose retained accounting: {}",
         case.during_pause,
     );
-    assert_rejected_without_partial_rows(&case.cancelled, "57014");
+    assert_rejected_without_partial_rows(&case.canceled, "57014");
     assert_eq!(
-        case.cancelled.last().map(|frame| frame.1.as_slice()),
+        case.canceled.last().map(|frame| frame.1.as_slice()),
         Some(b"I".as_slice())
     );
     assert_eq!(case.after_cancel["running_queries"].as_u64(), Some(0));

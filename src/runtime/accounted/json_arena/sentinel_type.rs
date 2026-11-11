@@ -19,7 +19,7 @@ enum Unexpected {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct TypeDiagnostic {
+pub(in crate::runtime::accounted::json_arena) struct TypeDiagnostic {
     unexpected: Unexpected,
     expected: Expected,
     position: Position,

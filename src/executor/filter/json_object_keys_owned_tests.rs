@@ -81,7 +81,7 @@ fn should_release_object_key_output_on_actual_copy_with_traversal_cancellation()
             Some(&owner),
         );
         // Assert
-        assert!(cancel.is_cancelled());
+        assert!(cancel.is_canceled());
         assert!(result.is_err());
         drop(owner);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -243,7 +243,7 @@ fn should_release_value_key_sort_with_output_after_actual_work_cancellation() {
         // Act
         let result = run("json_object_keys", input, Some(&controls), Some(&owner));
         // Assert
-        assert!(cancel.is_cancelled());
+        assert!(cancel.is_canceled());
         assert!(result.is_err());
         drop(owner);
         assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -343,7 +343,7 @@ fn should_release_count_stack_after_actual_selected_preflight_scan_cancellation(
     // Act
     let result = run("json_object_keys", input, Some(&controls), Some(&owner));
     // Assert
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     assert!(result.is_err());
     assert_eq!(owner.bytes(), 0);
     drop(owner);
@@ -365,10 +365,10 @@ fn should_leave_ownerless_value_preflight_on_legacy_route() {
     let result = run("json_object_keys", input.clone(), Some(&controls), None);
     // Assert
     assert!(result.is_ok());
-    assert!(!cancel.is_cancelled());
+    assert!(!cancel.is_canceled());
     let owner = EvaluationMemory::new(&controls).expect("owner");
     assert!(run("json_object_keys", input, Some(&controls), Some(&owner)).is_err());
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -391,10 +391,10 @@ fn should_preserve_nonobject_error_before_selected_count_hook() {
     assert!(result
         .expect_err("non-object")
         .contains("cannot call json_object_keys on a non-object"));
-    assert!(!cancel.is_cancelled());
+    assert!(!cancel.is_canceled());
     let object = Value::Json(serde_json::json!({"a":"x".repeat(2_048)}));
     assert!(run("json_object_keys", object, Some(&controls), Some(&owner)).is_err());
-    assert!(cancel.is_cancelled());
+    assert!(cancel.is_canceled());
     drop(owner);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

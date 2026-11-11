@@ -273,7 +273,7 @@ fn should_check_capture_controls_before_overlay_admission() {
     };
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     cancellation.cancel();
-    let cancelled = crate::runtime::QueryExecutionControls::with_cancellation(
+    let canceled = crate::runtime::QueryExecutionControls::with_cancellation(
         &limits,
         std::time::Instant::now(),
         cancellation,
@@ -289,15 +289,15 @@ fn should_check_capture_controls_before_overlay_admission() {
     );
 
     // Act
-    let cancelled_result =
-        session.capture_statement_read(&cassie.midge, &cassie.default_database, &cancelled);
+    let canceled_result =
+        session.capture_statement_read(&cassie.midge, &cassie.default_database, &canceled);
     let denied_result =
         session.capture_statement_read(&cassie.midge, &cassie.default_database, &denied);
     let expired_result =
         session.capture_statement_read(&cassie.midge, &cassie.default_database, &expired);
     println!(
-        "capture controls: cancelled_error={} denied_error={} expired_error={}",
-        cancelled_result.is_err(),
+        "capture controls: canceled_error={} denied_error={} expired_error={}",
+        canceled_result.is_err(),
         denied_result.is_err(),
         expired_result.is_err()
     );
@@ -306,8 +306,8 @@ fn should_check_capture_controls_before_overlay_admission() {
 
     // Assert
     assert!(matches!(
-        cancelled_result,
-        Err(super::CassieError::QueryCancelled)
+        canceled_result,
+        Err(super::CassieError::QueryCanceled)
     ));
     assert!(matches!(
         denied_result,
@@ -317,7 +317,7 @@ fn should_check_capture_controls_before_overlay_admission() {
         expired_result,
         Err(super::CassieError::DeadlineExceeded)
     ));
-    assert_eq!(cancelled.current_query_memory_bytes(), 0);
+    assert_eq!(canceled.current_query_memory_bytes(), 0);
     assert_eq!(denied.current_query_memory_bytes(), 0);
     assert_eq!(expired.current_query_memory_bytes(), 0);
 }

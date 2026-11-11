@@ -130,7 +130,7 @@ are baseline PASS receipts for existing guards, without a runtime RED or repair.
 | `cargo test --locked --test analytics column_batch_format_v2::should_validate_selected_dictionary_payload_before_partial_decode -- --nocapture` | 1 passed, 0 failed; existing valid sparse result and truncation sweep. |
 | `cargo test --locked --lib unselected_fsst_value -- --nocapture` | 2 passed, 0 failed; existing corrupt-stream and invalid-UTF-8 unselected FSST controls. |
 
-An earlier compile on the old dependency baseline was cancelled after the live
+An earlier compile on the old dependency baseline was canceled after the live
 main refresh; it supplies no test outcome. Command, source-hash and output-hash
 receipts are retained in the isolated worktree's ignored
 `target/768-evidence/`. The PR validation record pins the committed head and

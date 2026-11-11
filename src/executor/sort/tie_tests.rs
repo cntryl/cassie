@@ -237,7 +237,7 @@ fn should_cancel_during_tie_string_copy() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert!(copied > 0 && copied < 8192);
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -266,7 +266,7 @@ fn should_keep_both_tie_buffers_owned_during_growth_cancellation() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert!(copied > 0 && copied < input.len());
     assert!(retained > input.len());
@@ -274,7 +274,7 @@ fn should_keep_both_tie_buffers_owned_during_growth_cancellation() {
 }
 
 #[test]
-fn should_release_replacement_stack_when_cancelled_during_a_frame_move() {
+fn should_release_replacement_stack_when_canceled_during_a_frame_move() {
     // Arrange
     let cancellation = QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(
@@ -300,7 +300,7 @@ fn should_release_replacement_stack_when_cancelled_during_a_frame_move() {
     assert_eq!(moved, 1);
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(crate::app::CassieError::QueryCancelled))
+        Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(stack);

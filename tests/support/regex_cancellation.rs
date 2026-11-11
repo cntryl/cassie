@@ -13,7 +13,7 @@ type Frames = Vec<(u8, Vec<u8>)>;
 
 pub struct CancellationCase {
     pub control: Frames,
-    pub cancelled: Frames,
+    pub canceled: Frames,
     pub recovery: Frames,
     pub memory_before: u64,
     pub memory_after: u64,
@@ -93,7 +93,7 @@ pub fn run(sql: &str) -> CancellationCase {
             .send(())
             .expect("resume regex after its completed search");
 
-        let cancelled =
+        let canceled =
             wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
         let memory_after = current_memory(&cassie);
         wire::write_frames(&mut writer, vec![wire::simple_query_frame(sql)]).await;
@@ -105,7 +105,7 @@ pub fn run(sql: &str) -> CancellationCase {
         let _ = server.await;
         CancellationCase {
             control,
-            cancelled,
+            canceled,
             recovery,
             memory_before,
             memory_after,

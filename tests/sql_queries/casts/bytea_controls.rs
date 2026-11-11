@@ -175,7 +175,7 @@ fn should_retain_bytea_given_result_clones_when_the_original_owner_drops() {
 }
 
 #[test]
-fn should_cancel_bytea_given_cancelled_controls_when_integer_conversion_starts() {
+fn should_cancel_bytea_given_canceled_controls_when_integer_conversion_starts() {
     // Arrange
     let fixture = sql_fixture("byteacasts-cancel", &[]);
     let plan = physical(&fixture, "SELECT $1::INT8::BYTEA AS output");
@@ -194,7 +194,7 @@ fn should_cancel_bytea_given_cancelled_controls_when_integer_conversion_starts()
     // Assert
     assert!(matches!(
         result.map_err(CassieError::from),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

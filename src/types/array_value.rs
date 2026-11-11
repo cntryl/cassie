@@ -368,11 +368,22 @@ impl SqlArray {
             .ok_or_else(|| "SQL array elements are missing".to_string())?;
         let elements = values
             .iter()
-            .cloned()
-            .map(serde_json::from_value::<Value>)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| "invalid SQL array element in storage envelope".to_string())?;
+            .map(Self::decode_storage_element)
+            .collect::<Result<Vec<_>, _>>()?;
         Self::new(dimensions, elements)
+    }
+
+    fn decode_storage_element(value: &JsonValue) -> Result<Value, String> {
+        if let Some(variant) = value.as_object().filter(|object| object.len() == 1) {
+            if let Some(json) = variant.get("Json") {
+                return Ok(Value::Json(json.clone()));
+            }
+            if let Some(array) = variant.get("Array") {
+                return Self::from_storage_json(array).map(Value::Array);
+            }
+        }
+        serde_json::from_value(value.clone())
+            .map_err(|_| "invalid SQL array element in storage envelope".to_string())
     }
 
     /// Convert nested SQL array values to the storage envelope.
@@ -780,6 +791,24 @@ mod tests {
             restored.elements(),
             &[Value::Null, Value::Json(JsonValue::Null)]
         );
+    }
+
+    #[test]
+    fn should_preserve_reserved_looking_json_objects_in_storage_envelopes() {
+        // Arrange
+        let array = SqlArray::from_elements(vec![
+            Value::Json(serde_json::json!({"$serde_json::private::Number": "7"})),
+            Value::Json(serde_json::json!({
+                "nested": {"$serde_json::private::RawValue": "[1]"}
+            })),
+        ])
+        .expect("JSON array");
+
+        // Act
+        let restored = SqlArray::from_storage_json(&array.to_storage_json()).expect("restore");
+
+        // Assert
+        assert_eq!(restored, array);
     }
 
     #[test]

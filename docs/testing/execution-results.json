@@ -409,13 +409,13 @@
     {
       "issue": 762,
       "inventory_name": "should_cancel_without_partial_rows_given_a_running_subquery_when_cancel_request_arrives",
-      "actual_test": "should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
+      "actual_test": "should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results",
       "observations": [
         {
           "suite": "pgwire_extended",
-          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
+          "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results",
           "status": "failed_observed",
-          "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results' (19553426) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:389:5:\nassertion `left == right` failed: baseline scalar-subquery ErrorResponse: Some(\"S=ERROR, C=42601, M=invalid expression token 'INTERVAL '0 seconds''\")\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results ... FAILED\ntest pgwire_extended_control::should_close_connection_on_cancel_request_without_response ... ok\ntest pgwire_portal_streaming::should_cancel_suspended_portal_before_resume ... ok\n\n",
+          "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results' (19553426) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:389:5:\nassertion `left == right` failed: baseline scalar-subquery ErrorResponse: Some(\"S=ERROR, C=42601, M=invalid expression token 'INTERVAL '0 seconds''\")\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results ... FAILED\ntest pgwire_extended_control::should_close_connection_on_cancel_request_without_response ... ok\ntest pgwire_portal_streaming::should_cancel_suspended_portal_before_resume ... ok\n\n",
           "evidence": "final focused run: final-cancellation-tests.log"
         }
       ]
@@ -501,7 +501,7 @@
     },
     {
       "issue": 801,
-      "inventory_name": "should_release_cycle_state_given_cancelled_recursion_when_the_session_is_reused",
+      "inventory_name": "should_release_cycle_state_given_canceled_recursion_when_the_session_is_reused",
       "actual_test": "should_return_57014_given_cycle_recursion_has_started_when_cancel_request_arrives",
       "observations": [
         {
@@ -1305,14 +1305,14 @@
     },
     {
       "issue": 820,
-      "inventory_name": "should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
-      "actual_test": "should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
+      "inventory_name": "should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused",
+      "actual_test": "should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused",
       "observations": [
         {
           "suite": "compatibility",
-          "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
+          "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused",
           "status": "failed_observed",
-          "failure_excerpt": "thread 'compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused' (19486558) panicked at tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs:53:10:\nhold a row lock while the contender waits: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"invalid expression token '1 FOR UPDATE'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused ... FAILED\ntest compatibility::lifecycle::row_lock_cancellation::should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arrives ... FAILED\n\n",
+          "failure_excerpt": "thread 'compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused' (19486558) panicked at tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs:53:10:\nhold a row lock while the contender waits: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"invalid expression token '1 FOR UPDATE'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused ... FAILED\ntest compatibility::lifecycle::row_lock_cancellation::should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arrives ... FAILED\n\n",
           "evidence": "final focused run: final-row-lock-tests.log"
         }
       ]
@@ -2590,9 +2590,9 @@
     },
     {
       "suite": "pgwire_extended",
-      "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results",
+      "name": "pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results",
       "status": "failed_observed",
-      "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results' (19553426) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:389:5:\nassertion `left == right` failed: baseline scalar-subquery ErrorResponse: Some(\"S=ERROR, C=42601, M=invalid expression token 'INTERVAL '0 seconds''\")\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_cancelling_without_partial_results ... FAILED\ntest pgwire_extended_control::should_close_connection_on_cancel_request_without_response ... ok\ntest pgwire_portal_streaming::should_cancel_suspended_portal_before_resume ... ok\n\n",
+      "failure_excerpt": "thread 'pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results' (19553426) panicked at tests/pgwire_extended/subqueries/scalar_subqueries.rs:389:5:\nassertion `left == right` failed: baseline scalar-subquery ErrorResponse: Some(\"S=ERROR, C=42601, M=invalid expression token 'INTERVAL '0 seconds''\")\n  left: Some(\"42601\")\n right: None\ntest pgwire_extended::scalar_subqueries::should_accept_a_sleeping_scalar_subquery_before_canceling_without_partial_results ... FAILED\ntest pgwire_extended_control::should_close_connection_on_cancel_request_without_response ... ok\ntest pgwire_portal_streaming::should_cancel_suspended_portal_before_resume ... ok\n\n",
       "evidence": "final focused run: final-cancellation-tests.log"
     },
     {
@@ -2618,9 +2618,9 @@
     },
     {
       "suite": "compatibility",
-      "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused",
+      "name": "compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused",
       "status": "failed_observed",
-      "failure_excerpt": "thread 'compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused' (19486558) panicked at tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs:53:10:\nhold a row lock while the contender waits: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"invalid expression token '1 FOR UPDATE'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_cancelled_row_lock_request_when_the_session_is_reused ... FAILED\ntest compatibility::lifecycle::row_lock_cancellation::should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arrives ... FAILED\n\n",
+      "failure_excerpt": "thread 'compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused' (19486558) panicked at tests/compatibility/lifecycle/transactions/row_lock_cancellation.rs:53:10:\nhold a row lock while the contender waits: Error { kind: Db, cause: Some(DbError { severity: \"ERROR\", parsed_severity: None, code: SqlState(E42601), message: \"invalid expression token '1 FOR UPDATE'\", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: None, line: None, routine: None }) }\ntest compatibility::lifecycle::row_lock_cancellation::should_release_waiter_state_given_a_canceled_row_lock_request_when_the_session_is_reused ... FAILED\ntest compatibility::lifecycle::row_lock_cancellation::should_return_57014_given_a_blocked_row_lock_waiter_when_cancel_request_arrives ... FAILED\n\n",
       "evidence": "final focused run: final-row-lock-tests.log"
     },
     {

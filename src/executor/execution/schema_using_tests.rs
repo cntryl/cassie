@@ -118,7 +118,7 @@ fn should_cancel_using_preparation_before_rewrite_mutation() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
     assert_unmodified(&cassie, &session);
@@ -153,7 +153,7 @@ fn should_keep_prepared_using_owners_until_the_rewrite_boundary() {
     // Assert
     assert!(matches!(
         result,
-        Err(QueryError::Cassie(CassieError::QueryCancelled))
+        Err(QueryError::Cassie(CassieError::QueryCanceled))
     ));
     assert!(prepared > 0);
     assert!(writes > 0);

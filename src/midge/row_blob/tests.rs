@@ -29,6 +29,52 @@ fn should_decode_sparse_rows_without_field_names() {
 }
 
 #[test]
+fn should_decode_reserved_looking_json_keys_as_ordinary_objects_from_crb1_rows() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "document".to_string(),
+                data_type: DataType::Json,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "binary_document".to_string(),
+                data_type: DataType::Jsonb,
+                nullable: true,
+            },
+        ],
+    });
+    let mut nested = serde_json::Map::new();
+    nested.insert(
+        "$serde_json::private::RawValue".into(),
+        serde_json::Value::String("ordinary nested value".into()),
+    );
+    let mut document = serde_json::Map::new();
+    document.insert(
+        "$serde_json::private::Number".into(),
+        serde_json::Value::String("ordinary root value".into()),
+    );
+    document.insert("nested".into(), serde_json::Value::Object(nested));
+    let document = serde_json::Value::Object(document);
+    let mut payload = serde_json::Map::new();
+    payload.insert("document".into(), document.clone());
+    payload.insert("binary_document".into(), document.clone());
+    let payload = serde_json::Value::Object(payload);
+
+    // Act
+    let encoded = encode_row(&schema, &payload).expect("encode row");
+    let decoded = decode_row(&schema, &encoded).expect("decode row");
+    let projection = HashSet::from(["document".to_string()]);
+    let projected =
+        decode_projected_row(&schema, &encoded, &projection).expect("decode projected row");
+
+    // Assert
+    assert_eq!(decoded, payload);
+    assert_eq!(projected, serde_json::json!({"document": document}));
+}
+
+#[test]
 fn should_project_exact_case_from_persisted_row_metadata() {
     // Arrange
     let mut persisted_schema = RowSchema::from_schema(&Schema {
@@ -308,7 +354,7 @@ fn should_reject_crb1_array_null_with_nonzero_payload_length() {
     let mut cursor = Cursor::new(&encoded_array);
 
     // Act
-    let result = decode_value(TYPE_ARRAY, &mut cursor);
+    let result = decode_value(TYPE_ARRAY, &mut cursor, None);
 
     // Assert
     assert!(result.is_err());
@@ -577,7 +623,7 @@ fn should_roundtrip_extended_scalar_types() {
     for index in 0..field_count {
         let field_id = cursor.read_varint().unwrap();
         let tag = cursor.read_u8().unwrap();
-        let value = decode_value(tag, &mut cursor);
+        let value = decode_value(tag, &mut cursor, None);
         assert!(
             value.is_ok(),
             "field {index} id={field_id} tag={tag}: {value:?}"

@@ -119,7 +119,7 @@ tests; its successful exit is not counted as coverage. A supplemental corrected
 filter, `executor::execution::source::source_join::`, then passed all 39 source-join
 tests at the unchanged refinement revision. This supplement ran after the policy
 gates and changed no source. Actual focused coverage therefore totals 95 tests.
-Exact commands, source and log hashes, prior failed/cancelled runs and the
+Exact commands, source and log hashes, prior failed/canceled runs and the
 refinement provenance remain in
 `target/independent-776-review/final-publication-manifest.json`.
 
@@ -131,7 +131,7 @@ no broader feature/readiness promotion.
 ## Hosted controlled-read fixture correction
 
 PR #856's first hosted core run at `1281e0b2` passed 580 unit tests and failed
-one existing ordered-read ResourceLimit canary with QueryCancelled instead.
+one existing ordered-read ResourceLimit canary with QueryCanceled instead.
 The exact hosted interleaving is unknown. A deterministic, source-snapshot
 probe proved the mechanism: while an owner armed cancellation at its second
 read, an unguarded unrelated thread consumed the global first read, causing the
@@ -161,5 +161,5 @@ REST blocking-worker boundary retain their exact read-count and cleanup
 assertions. The coherent correction requires a new complete ordered local
 validation and fresh exact-head hosted checks; the earlier 3,372-test result
 is prior provenance, not completion of this behavioral fixture correction.
-Exact source snapshots, red/green logs, Jev gap probes, cancelled diagnostics
+Exact source snapshots, red/green logs, Jev gap probes, canceled diagnostics
 and final gates are retained under `target/independent-776-review/`.

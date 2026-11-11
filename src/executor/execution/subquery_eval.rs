@@ -191,7 +191,7 @@ pub(super) fn is_interruption(error: &QueryError) -> bool {
         }
         QueryError::Cassie(error) => matches!(
             error,
-            crate::app::CassieError::QueryCancelled | crate::app::CassieError::DeadlineExceeded
+            crate::app::CassieError::QueryCanceled | crate::app::CassieError::DeadlineExceeded
         ),
     }
 }

@@ -38,7 +38,7 @@ struct MergeCancellationEvidence {
     setup: Vec<Frames>,
     baseline: Frames,
     source_update: Frames,
-    cancelled: Frames,
+    canceled: Frames,
     recovery: Frames,
     progress_observed: bool,
 }
@@ -169,7 +169,7 @@ async fn cancel_merge_and_read_recovery(session: MergeSession) -> MergeCancellat
     resume
         .send(())
         .expect("resume paused MERGE after CancelRequest");
-    let cancelled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
+    let canceled = wire::read_frames_until_ready_within(&mut reader, Duration::from_secs(5)).await;
 
     wire::write_frames(
         &mut writer,
@@ -189,7 +189,7 @@ async fn cancel_merge_and_read_recovery(session: MergeSession) -> MergeCancellat
         setup,
         baseline,
         source_update,
-        cancelled,
+        canceled,
         recovery,
         progress_observed,
     }
@@ -233,29 +233,29 @@ fn assert_merge_cancellation(evidence: &MergeCancellationEvidence) {
         "MERGE must evaluate its matched UPDATE before RETURNING sleep is entered"
     );
     assert_eq!(
-        wire::error_code(&evidence.cancelled).as_deref(),
+        wire::error_code(&evidence.canceled).as_deref(),
         Some("57014"),
-        "cancelled MERGE ErrorResponse: {:?}",
+        "canceled MERGE ErrorResponse: {:?}",
         evidence
-            .cancelled
+            .canceled
             .iter()
             .filter(|frame| frame.0 == b'E')
             .map(|frame| wire::parse_error_fields(&frame.1))
             .collect::<Vec<_>>()
     );
     assert_eq!(
-        wire::data_rows(&evidence.cancelled),
+        wire::data_rows(&evidence.canceled),
         Vec::<Vec<Option<String>>>::new()
     );
     assert_eq!(
         evidence
-            .cancelled
+            .canceled
             .iter()
             .filter(|frame| frame.0 == b'C')
             .count(),
         0
     );
-    assert_eq!(evidence.cancelled.last().map(|frame| frame.0), Some(b'Z'));
+    assert_eq!(evidence.canceled.last().map(|frame| frame.0), Some(b'Z'));
     assert_eq!(wire::error_code(&evidence.recovery), None);
     assert_eq!(
         wire::data_rows(&evidence.recovery),
@@ -264,7 +264,7 @@ fn assert_merge_cancellation(evidence: &MergeCancellationEvidence) {
             Some("20".to_owned()),
             Some("1".to_owned()),
         ]],
-        "the cancelled MERGE must roll its matched UPDATE back after progress value 2"
+        "the canceled MERGE must roll its matched UPDATE back after progress value 2"
     );
 }
 

@@ -209,7 +209,7 @@ fn should_interrupt_numeric_error_encoding_during_actual_scan_with_output() {
 
         // Assert
         assert!(observed);
-        assert!(matches!(result, Err(CassieError::QueryCancelled)));
+        assert!(matches!(result, Err(CassieError::QueryCanceled)));
         assert!(bytes.len() < message.len());
     }
 }

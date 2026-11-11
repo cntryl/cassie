@@ -9,7 +9,10 @@ and regression suites:
   interval interpolation, result identity, invalid-fraction errors, retained
   memory and cancellation are covered under
   `tests/sql_queries/aggregates/ordered_set/` and
-  `tests/pgwire_extended/aggregates/ordered_set/`.
+  `tests/pgwire_extended/aggregates/ordered_set/`. One-key `mode()` tie
+  selection is covered in `tests/sql_queries/aggregates/ordered_set/aggregate_query/semantics.rs`;
+  hypothetical rank NULL/order behavior and heterogeneous multi-column keys
+  are covered in `tests/sql_queries/aggregates/ordered_set/hypothetical_multicolumn.rs`.
 - Window `FILTER` for COUNT/SUM/BOOL_AND/BOOL_OR, including the selected
   `EXCLUDE TIES` behavior, is covered by
   `tests/sql_queries/aggregates/windows/aggregate_query/semantics.rs` and
@@ -124,8 +127,8 @@ selected regression suites above and the ordered local gate below.
 The historical partial-checkpoint notes in this document are superseded by the
 source and regression suites present at `4216ea32`. The shared
 `docs/feature-support.md` regression-aggregate row is reconciled in this final
-bundle. The complete ordered local gate passed on the final branch before PR
-creation; hosted final-head checks remain pending. Local gates alone do not
+bundle. The complete ordered local gate passed before this evidence-only follow-up,
+which changes no source or tests. Exact-head GitHub checks remain pending. Local gates alone do not
 satisfy hosted review and issue-closure steps.
 
 ## Public Rust AST shape

@@ -16,8 +16,87 @@ these virtual rows deterministically, but implicit relation order is not part of
 the compatibility contract. An unavailable virtual view is an undefined relation and pgwire returns
 SQLSTATE `42P01`; Cassie does not synthesize undocumented PostgreSQL-internal rows.
 
-The current v0.2 dependency-owned catalog field inventory and remaining selection
-work are recorded in [v0.2 catalog inventory](catalog-v020-inventory-2026-11-06.md).
+The active v0.2 dependent catalog field set selected on 2026-11-11 is recorded
+below. The [2026-11-06 v0.2 catalog inventory](catalog-v020-inventory-2026-11-06.md)
+is retained as historical implementation context; its wider inventory does not
+expand the current milestone selection.
+
+## Finite v0.2 dependent catalog columns (2026-11-11)
+
+Issue [#817](https://github.com/cntryl/cassie/issues/817) selects only the
+catalog fields required by [#818](https://github.com/cntryl/cassie/issues/818),
+[#828](https://github.com/cntryl/cassie/issues/828), and
+[#843](https://github.com/cntryl/cassie/issues/843). The fields below are a
+finite descriptor and row contract, not a claim that every dependent feature
+or PostgreSQL catalog behavior is implemented.
+
+| Consumer | Catalog relation | Selected fields |
+| --- | --- | --- |
+| #818 object identifiers | `pg_namespace` | `oid`, `nspname`, `nspowner`, `nspacl` |
+| #818 object identifiers | `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions` |
+| #818 object identifiers | `pg_type` | `oid`, `typname`, `typnamespace`, `typlen`, `typbyval`, `typtype`, `typcategory`, `typelem`, `typarray`, `typbasetype`, `typrelid` |
+| #818 object identifiers | `pg_attribute` | `attrelid`, `attrelid_oid`, `attname`, `attnum`, `atttypid`, `attnotnull`, `atttypmod`, `atthasdef`, `attisdropped`, `attidentity`, `attgenerated`, `attcollation` |
+| #828 composites and domains | `pg_class` addition | `reltype` |
+| #828 composites and domains | `pg_type` additions | `typnotnull`, `typtypmod` |
+| #843 built-in extensions | `pg_extension` | `oid`, `extname`, `extowner`, `extnamespace`, `extrelocatable`, `extversion`, `extconfig`, `extcondition` |
+| #843 built-in extensions | `pg_available_extensions` | `name`, `default_version`, `installed_version`, `comment` |
+| #843 pgcrypto shim | `pg_proc` | Only the registered `pgcrypto.digest(text|bytea, text)` identities selected by #843; broad routine discovery is excluded. |
+
+The `#828` additions remain pending behind its open #826 table/type lifecycle
+prerequisite. The `#843` descriptors exist in
+[`virtual_views_extensions.rs`](../src/catalog/virtual_views_extensions.rs),
+but `pg_extension` and `pg_available_extensions` currently return no rows;
+extension installation, availability, digest registration, and lifecycle are
+still owned by #843. Empty rows do not advertise an installed or available
+extension. The `#818` conversion and lookup contract is owned by #818 and its
+remaining privilege-aware visibility dependency; the base relation descriptors
+do not establish that lookup behavior by themselves.
+
+In the current source, [`virtual_views_pg.rs`](../src/catalog/virtual_views_pg.rs)
+declares and builds the selected base `pg_namespace`, `pg_class`, `pg_type`,
+and `pg_attribute` rows. Their existence does not complete the dependent
+workflows: user object resolution still belongs to #818, selected
+composite/domain type rows are absent until #828, and extension catalog rows
+remain empty until #843. `nspowner` and
+`relowner` currently describe the bootstrap `root`; `nspacl` and `relacl` are
+empty. Role-aware schema/table grant reporting remains with #831.
+
+The finite `pg_class.relam` mapping remains limited to identities already
+selected by their owning features: heap tables use OID 2, scalar btree indexes
+use OID 403, and full-text indexes use GIN OID 2742. Cassie-native vector,
+column, and time-series indexes continue to report 0 because this field set
+does not yet assign PostgreSQL or Cassie-specific access-method identities to
+them. This is current source behavior, not a disposition of the selected
+`relam` acceptance: #817 must resolve whether those implemented index rows need
+catalog identities before the issue can close. The current source and contract
+do not justify adding `pg_am` rows or inventing identities here. In particular,
+pgvector HNSW/IVFFlat method identity remains part of the pending #843/#844
+contract.
+
+The selected `pg_class.relhasindex` value currently reports whether the
+relation has an index, derived from live index metadata.
+[PostgreSQL 18.6](https://www.postgresql.org/docs/18/catalog-pg-class.html)
+defines a lazy flag that may remain true after the last index is dropped until
+VACUUM clears it. Cassie's stale-flag behavior remains an open compatibility
+cell under #817. This inventory records the current value and PostgreSQL
+witness without selecting a replacement contract or adding vacuum behavior.
+
+Separate dependency question for coordinator triage: the [#954 JSONPath
+cancellation fixture](../tests/pgwire_extended/types/json/jsonpath/cancellation.rs)
+polls `pg_catalog.pg_stat_activity`, and Feature Support currently records
+that view as a #817 prerequisite. The active #817 field set above does not name
+`pg_stat_activity`, and current source registers only its builtin identities
+in [`pg_class.tsv`](../src/catalog/builtin_identity/pg_class.tsv) and
+[`pg_type.tsv`](../src/catalog/builtin_identity/pg_type.tsv), not a queryable
+view. This field inventory does not remove or redefine the existing #954
+dependency; ownership and scope need a separate disposition before that
+cancellation fixture can rely on the view.
+
+Do not add broad `pg_proc`, dependency, sequence, partition, or enum catalog
+behavior through this field inventory. Named enum rows remain deferred with
+[#827](https://github.com/cntryl/cassie/issues/827) to v0.4.0. The exact
+extension field shapes and the pinned PostgreSQL 18.6 observations are also
+recorded in the [extension compatibility contract](extension-compatibility-contract-2026-11-09.md).
 
 ## Stable named-client subset
 

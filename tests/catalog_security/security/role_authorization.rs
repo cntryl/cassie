@@ -493,11 +493,26 @@ fn should_enforce_copy_privileges_by_direction() {
     let admin = cassie
         .authenticate_role("root", Some(support::test_root_password()), None)
         .expect("admin login");
+    let reader_password = uuid::Uuid::new_v4().to_string();
+    let writer_password = uuid::Uuid::new_v4().to_string();
     for sql in [
         "CREATE TABLE copy_access_docs (title TEXT)",
         "INSERT INTO copy_access_docs (title) VALUES ('visible')",
-        "CREATE ROLE copy_reader LOGIN PASSWORD 'reader-secret'",
-        "CREATE ROLE copy_writer LOGIN PASSWORD 'writer-secret'",
+    ] {
+        cassie
+            .execute_sql(&admin, sql, Vec::new())
+            .expect("seed COPY access fixture");
+    }
+    for (role, password) in [
+        ("copy_reader", &reader_password),
+        ("copy_writer", &writer_password),
+    ] {
+        let sql = format!("CREATE ROLE {role} LOGIN PASSWORD '{password}'");
+        cassie
+            .execute_sql(&admin, &sql, Vec::new())
+            .expect("create COPY role fixture");
+    }
+    for sql in [
         "GRANT USAGE ON SCHEMA public TO copy_reader",
         "GRANT SELECT ON TABLE public.copy_access_docs TO copy_reader",
         "GRANT USAGE ON SCHEMA public TO copy_writer",
@@ -528,21 +543,21 @@ fn should_enforce_copy_privileges_by_direction() {
         let reader_frames = copy_out_frames_as(
             address,
             "copy_reader",
-            "reader-secret",
+            &reader_password,
             "COPY copy_access_docs TO STDOUT WITH (FORMAT CSV)",
         )
         .await;
         let insert_only_frames = copy_out_frames_as(
             address,
             "copy_writer",
-            "writer-secret",
+            &writer_password,
             "COPY copy_access_docs TO STDOUT WITH (FORMAT CSV)",
         )
         .await;
         let insert_frames = copy_in_frames_as(
             address,
             "copy_writer",
-            "writer-secret",
+            &writer_password,
             "COPY copy_access_docs (title) FROM STDIN WITH (FORMAT CSV)",
             b"projected\n",
         )

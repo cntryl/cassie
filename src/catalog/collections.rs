@@ -9,6 +9,11 @@ pub struct CollectionMeta {
     pub name: String,
     #[serde(default)]
     pub storage_id: u64,
+    /// PostgreSQL's `pg_class.relhasindex` remains true after an index drop
+    /// until maintenance clears it. Cassie has no selected VACUUM path, so
+    /// this stays set for the relation's lifetime once index cleanup commits.
+    #[serde(default)]
+    pub has_ever_had_indexes: bool,
     pub description: Option<String>,
     #[serde(default)]
     pub storage_mode: CollectionStorageMode,
@@ -410,6 +415,7 @@ impl CollectionMeta {
         Self {
             name: name.into(),
             storage_id: 0,
+            has_ever_had_indexes: false,
             description,
             storage_mode,
             storage_version: default_collection_storage_version(),

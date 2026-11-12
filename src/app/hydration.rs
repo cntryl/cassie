@@ -1,5 +1,7 @@
 use super::auth::verify_password;
 use super::{current_time_millis, normalize_role_name, Cassie, CassieError, Instant, RoleMeta};
+use crate::catalog::RoleGrantTarget;
+use std::collections::BTreeSet;
 
 impl Cassie {
     /// # Errors
@@ -18,6 +20,8 @@ impl Cassie {
         self.hydrate_time_series_metadata()?;
         self.hydrate_maintenance_debt()?;
         self.hydrate_roles()?;
+        self.hydrate_role_object_grants()?;
+        self.hydrate_object_comments()?;
         self.runtime.record_catalog_hydration(started_at.elapsed());
         Ok(())
     }
@@ -324,6 +328,96 @@ impl Cassie {
             self.catalog.register_role(role);
         }
 
+        Ok(())
+    }
+
+    fn hydrate_object_comments(&self) -> Result<(), CassieError> {
+        let comments = self.midge.list_object_comments().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list object comments: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        for comment in comments {
+            self.catalog.register_object_comment(comment);
+        }
+        Ok(())
+    }
+
+    fn hydrate_role_object_grants(&self) -> Result<(), CassieError> {
+        let grants = self.midge.list_role_object_grants().map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("list role object grants: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+
+        let role_ids = self
+            .catalog
+            .list_roles()
+            .into_iter()
+            .map(|role| role.object_id)
+            .collect::<BTreeSet<_>>();
+        let database_names = self
+            .catalog
+            .list_databases()
+            .into_iter()
+            .map(|database| (database.physical_family, database.name))
+            .collect::<std::collections::HashMap<_, _>>();
+        let namespaces = self.catalog.list_namespaces();
+        let collections = self.catalog.list_collections_canonical();
+        let mut stale_roles = BTreeSet::new();
+        let mut stale_targets = Vec::<(String, RoleGrantTarget)>::new();
+
+        for grant in grants {
+            if !role_ids.contains(&grant.role_id) {
+                stale_roles.insert(grant.role_id);
+                continue;
+            }
+            let database_name = database_names.get(&grant.database_family);
+            let target_exists = match (&grant.target, database_name) {
+                (RoleGrantTarget::Schema(object_id), Some(database)) => namespaces.iter().any(
+                    |namespace| {
+                        namespace.object_id == *object_id
+                            && crate::catalog::schema_database_name(&namespace.name)
+                                .is_some_and(|name| name.eq_ignore_ascii_case(database))
+                    },
+                ),
+                (RoleGrantTarget::Table(object_id), Some(database)) => collections.iter().any(
+                    |collection| {
+                        collection.storage_id == *object_id
+                            && crate::catalog::relation_database_name(&collection.name)
+                                .is_some_and(|name| name.eq_ignore_ascii_case(database))
+                    },
+                ),
+                (_, None) => false,
+            };
+            if target_exists {
+                self.catalog.register_role_object_grant(grant);
+            } else if !stale_targets
+                .iter()
+                .any(|(family, target)| family == &grant.database_family && target == &grant.target)
+            {
+                stale_targets.push((grant.database_family, grant.target));
+            }
+        }
+
+        for role_id in stale_roles {
+            self.midge
+                .delete_role_object_grants_for_role(role_id)
+                .map_err(|error| {
+                    self.runtime.record_storage_access("schema", false, false);
+                    CassieError::Storage(format!("remove stale role object grants: {error}"))
+                })?;
+            self.runtime.record_storage_access("schema", false, true);
+        }
+        for (database_family, target) in stale_targets {
+            self.midge
+                .delete_role_object_grants_for_targets(&database_family, &[target])
+                .map_err(|error| {
+                    self.runtime.record_storage_access("schema", false, false);
+                    CassieError::Storage(format!("remove stale target grants: {error}"))
+                })?;
+            self.runtime.record_storage_access("schema", false, true);
+        }
         Ok(())
     }
 

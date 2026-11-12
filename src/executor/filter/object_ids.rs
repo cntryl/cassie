@@ -38,7 +38,7 @@ pub(super) fn with_scope<T>(
     lookup: impl FnOnce(&ObjectScope<'_>) -> Result<T, ObjectIdentifierError>,
 ) -> Result<T, QueryError> {
     let (catalog, context) = session
-        .and_then(CassieSession::object_lookup_context)
+        .and_then(CassieSession::object_identifier_lookup_context)
         .ok_or_else(|| {
             QueryError::General("object identifier lookup requires a session catalog".to_string())
         })?;

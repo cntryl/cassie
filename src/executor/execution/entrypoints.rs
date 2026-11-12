@@ -1,6 +1,7 @@
 use super::types::ExecutionBreakdownDurations;
 use super::{
-    build_select_result, dml_command, execute_physical_plan, execute_plan_with_execution_breakdown,
+    build_select_result, dml_command, execute_physical_plan_with_parameter_oids,
+    execute_plan_with_execution_breakdown,
     materialized_projection, materialized_projection_maintenance, plan_needs_user_functions,
     rollups, Arc, Cassie, CassieSession, CteContext, ExecutionBreakdownOutput, FunctionMeta,
     HashMap, Instant, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QueryResult,
@@ -117,6 +118,17 @@ pub(crate) fn run_with_session_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    run_with_session_parameter_oids(cassie, session, plan, params, &[], controls)
+}
+
+pub(crate) fn run_with_session_parameter_oids(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &Arc<PhysicalPlan>,
+    params: Vec<Value>,
+    parameter_type_oids: &[i32],
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
     cassie
         .check_storage_recovery_required()
         .map_err(QueryError::from)?;
@@ -153,13 +165,14 @@ pub(crate) fn run_with_session_controls(
     let controls = &statement_controls;
     let (_read_scope, _overlay_scope) = enter_statement_read(controls);
     let mut cte_context = CteContext::new();
-    let rows = execute_physical_plan(
+    let rows = execute_physical_plan_with_parameter_oids(
         cassie,
         session,
         plan.as_ref(),
         &mut cte_context,
         &user_functions,
         &params,
+        parameter_type_oids,
         controls,
     )?;
 

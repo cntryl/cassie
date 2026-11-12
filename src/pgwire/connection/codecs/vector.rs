@@ -1,25 +1,30 @@
 use std::io;
 
-use super::{invalid_data, invalid_value, unsupported_codec};
-use crate::types::schema::vector_dimensions_for_oid;
+use super::{invalid_data, invalid_value};
 use crate::types::Value;
-use crate::vector::text::visit_components;
+use crate::vector::text::visit_components_with_dimension;
 
-pub(super) fn encode_vector(value: &Value, type_oid: i64) -> io::Result<Vec<u8>> {
-    let dimensions =
-        vector_dimensions_for_oid(type_oid).ok_or_else(|| unsupported_codec(type_oid))?;
+pub(super) fn encode_vector(
+    value: &Value,
+    atttypmod: i32,
+) -> io::Result<Vec<u8>> {
+    let expected_dimensions = usize::try_from(atttypmod)
+        .ok()
+        .filter(|dimensions| (1..=16_000).contains(dimensions));
     if let Value::String(text) = value {
-        return encode_text_vector(text, dimensions);
+        return encode_text_vector(text, expected_dimensions);
     }
     let length = match value {
         Value::Vector(vector) => vector.values.len(),
         Value::Json(serde_json::Value::Array(values)) => values.len(),
         _ => return invalid_value("vector"),
     };
-    if length != dimensions || dimensions > i16::MAX as usize {
+    if !(1..=16_000).contains(&length)
+        || expected_dimensions.is_some_and(|dimensions| length != dimensions)
+    {
         return Err(invalid_data("vector"));
     }
-    let mut encoded = vector_output_buffer(dimensions)?;
+    let mut encoded = vector_output_buffer(length)?;
     match value {
         Value::Vector(vector) => {
             for component in &vector.values {
@@ -43,15 +48,20 @@ pub(super) fn encode_vector(value: &Value, type_oid: i64) -> io::Result<Vec<u8>>
     Ok(encoded)
 }
 
-pub(super) fn decode_vector(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
+pub(super) fn decode_vector(
+    parameter: &[u8],
+    expected_dimensions: Option<usize>,
+) -> io::Result<Value> {
     if parameter.len() < 4 {
         return Err(invalid_data("vector"));
     }
     let dimensions = usize::from(u16::from_be_bytes([parameter[0], parameter[1]]));
     let reserved = i16::from_be_bytes([parameter[2], parameter[3]]);
-    let expected =
-        vector_dimensions_for_oid(type_oid).ok_or_else(|| unsupported_codec(type_oid))?;
-    if dimensions != expected || reserved != 0 || parameter.len() != 4 + dimensions * 4 {
+    if !(1..=16_000).contains(&dimensions)
+        || expected_dimensions.is_some_and(|expected| dimensions != expected)
+        || reserved != 0
+        || parameter.len() != 4 + dimensions * 4
+    {
         return Err(invalid_data("vector"));
     }
     let mut values = Vec::with_capacity(dimensions);
@@ -68,10 +78,14 @@ pub(super) fn decode_vector(parameter: &[u8], type_oid: i64) -> io::Result<Value
 // Text Bind retains its original String carrier. Validate the entire known-width
 // sequence before allocating a result buffer, then replay the immutable text into
 // that bounded buffer. Neither pass builds a JSON array or a temporary vector.
-fn encode_text_vector(text: &str, dimensions: usize) -> io::Result<Vec<u8>> {
-    visit_components(text, dimensions, |_| {}).map_err(|_| invalid_data("vector"))?;
+fn encode_text_vector(
+    text: &str,
+    expected_dimensions: Option<usize>,
+) -> io::Result<Vec<u8>> {
+    let dimensions = visit_components_with_dimension(text, expected_dimensions, |_| {})
+        .map_err(|_| invalid_data("vector"))?;
     let mut encoded = vector_output_buffer(dimensions)?;
-    visit_components(text, dimensions, |component| {
+    visit_components_with_dimension(text, Some(dimensions), |component| {
         encoded.extend_from_slice(&component.to_be_bytes());
     })
     .map_err(|_| invalid_data("vector"))?;

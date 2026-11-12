@@ -41,7 +41,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use super::blocking::run_pgwire_blocking;
-use super::codecs::{binary_to_value, validate_result_formats};
+use super::codecs::validate_result_formats;
 use super::errors::{PgWireError, PgWireSeverity};
 use super::readers::read_frontend_message;
 use super::state::{DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState};
@@ -337,11 +337,21 @@ async fn handle_bind(
     }
     validate_format_count(parameter_formats.len(), parameters.len(), "parameter")?;
 
-    let (values, parameter_memory) = decode_bind_parameters(
+    let vector_oid = session
+        .current_database()
+        .unwrap_or(&cassie.default_database);
+    let vector_oid = crate::catalog::object_identity::type_oid_for_database(
+        &cassie.catalog,
+        vector_oid,
+        &crate::types::DataType::Vector(None),
+    )
+    .and_then(|oid| i32::try_from(oid).ok());
+    let (values, parameter_memory) = decode_bind_parameters_with_vector_oid(
         &parameters,
         &parameter_formats,
         &prepared.parameter_types,
         &state.portal_memory_controls,
+        vector_oid,
     )?;
 
     let prepared_id = prepared.id;
@@ -383,22 +393,24 @@ async fn handle_bind(
     Ok(())
 }
 
-fn decode_bind_parameters(
+fn decode_bind_parameters_with_vector_oid(
     parameters: &[Option<Vec<u8>>],
     parameter_formats: &[i16],
     parameter_types: &[i32],
     controls: &crate::runtime::QueryExecutionControls,
+    vector_oid: Option<i32>,
 ) -> Result<(Vec<Value>, Vec<QueryMemoryReservation>), ExtendedQueryError> {
     let decoded_parameters = parameters
         .iter()
         .enumerate()
         .map(|(index, parameter)| {
-            decode_parameter(
+            decode_parameter_with_vector(
                 parameter.as_deref(),
                 format_for_index(parameter_formats, index),
                 parameter_types[index],
                 index,
                 controls,
+                vector_oid.is_some_and(|vector_oid| parameter_types[index] == vector_oid),
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -833,6 +845,17 @@ fn decode_parameter(
     index: usize,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<DecodedTextParameter, ExtendedQueryError> {
+    decode_parameter_with_vector(parameter, format, oid, index, controls, false)
+}
+
+fn decode_parameter_with_vector(
+    parameter: Option<&[u8]>,
+    format: i16,
+    oid: i32,
+    index: usize,
+    controls: &crate::runtime::QueryExecutionControls,
+    is_vector: bool,
+) -> Result<DecodedTextParameter, ExtendedQueryError> {
     if let Some(oid) = unknown_high_bit_parameter_oid(oid) {
         return Err(ExtendedQueryError::unknown_type_oid(oid));
     }
@@ -848,7 +871,8 @@ fn decode_parameter(
     if matches!(oid, 114 | 3802) {
         return decode_binary_json_parameter(parameter, oid, index, controls);
     }
-    decode_binary_parameter(parameter, oid, index).map(DecodedTextParameter::unaccounted)
+    decode_binary_parameter_with_vector(parameter, oid, index, is_vector)
+        .map(DecodedTextParameter::unaccounted)
 }
 
 fn decode_binary_json_parameter(
@@ -925,7 +949,16 @@ fn decode_binary_parameter(
     oid: i32,
     index: usize,
 ) -> Result<Value, ExtendedQueryError> {
-    binary_to_value(parameter, i64::from(oid)).map_err(|error| {
+    decode_binary_parameter_with_vector(parameter, oid, index, false)
+}
+
+fn decode_binary_parameter_with_vector(
+    parameter: &[u8],
+    oid: i32,
+    index: usize,
+    is_vector: bool,
+) -> Result<Value, ExtendedQueryError> {
+    super::codecs::binary_to_value_with_vector(parameter, i64::from(oid), is_vector).map_err(|error| {
         if super::codecs::temporal_scalar_excess(&error) {
             ExtendedQueryError {
                 pg_error: Box::new(PgWireError::new(

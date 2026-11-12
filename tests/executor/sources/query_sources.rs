@@ -31,7 +31,7 @@ fn seed_alias_query_docs(cassie: &Cassie, collection: &str) {
             },
             FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             },
         ],

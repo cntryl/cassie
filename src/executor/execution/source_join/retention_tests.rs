@@ -78,6 +78,7 @@ fn probe_loaded_phase(phase: JoinRetentionPhase) -> Result<JoinResult, CassieErr
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     let text_key = phase == JoinRetentionPhase::HashBuild;

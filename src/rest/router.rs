@@ -272,7 +272,8 @@ fn record_rest_error(
 
 /// # Errors
 ///
-/// Returns an error when validation, storage, or execution fails.
+/// Returns an error when route validation, storage, or execution fails. Owned
+/// NUMERIC input diagnostics are returned as admitted error responses.
 pub async fn route_request(
     request: Request<Incoming>,
     cassie: Arc<Cassie>,
@@ -283,7 +284,7 @@ pub async fn route_request(
         Arc::new(AdminUiStaticFiles::new(default_admin_ui_dir())),
         false,
         IpAddr::V4(Ipv4Addr::LOCALHOST),
-        false,
+        true,
     )
     .await
 }

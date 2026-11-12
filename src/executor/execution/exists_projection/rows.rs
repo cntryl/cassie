@@ -31,6 +31,7 @@ pub(in crate::executor::execution) fn project(
                 cte_context: context,
                 user_functions: env.user_functions,
                 params: env.params,
+                parameter_type_oids: env.parameter_type_oids,
                 controls: env.controls,
                 outer_row: Some(&outer),
             };

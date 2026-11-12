@@ -152,6 +152,63 @@ fn should_preserve_descriptor_metadata_during_sequence_mutations() {
 }
 
 #[test]
+fn should_keep_published_sequence_cursor_out_of_the_transaction_catalog_overlay() {
+    // Arrange
+    let (cassie, session) = fixture();
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let owner = session
+        .command_descriptor_snapshot(&cassie.publication_catalog, &controls)
+        .expect("initial descriptors")
+        .expect("repeatable-read descriptor owner");
+    let sequence = owner
+        .catalog()
+        .list_sequences()
+        .into_iter()
+        .find(|sequence| {
+            sequence
+                .owned_by
+                .as_ref()
+                .is_some_and(|owner| crate::catalog::name_matches(&owner.table, "scoped_identity"))
+        })
+        .expect("published sequence");
+    let before = sequence.cursor();
+    let mut updated = sequence.clone();
+    updated.current_value = 40;
+    updated.is_called = true;
+    let mut scoped = cassie.clone();
+    scoped.catalog = owner.catalog().clone();
+    scoped.catalog_owner = Some(Arc::clone(&owner));
+    scoped.metadata_write_catalog = session
+        .transaction_catalog_overlay()
+        .expect("transaction catalog overlay");
+    session.attach_schema_context(&scoped);
+
+    // Act
+    session.publish_sequence_metadata(updated);
+    let staged = session
+        .transaction_catalog_overlay()
+        .expect("transaction catalog overlay remains")
+        .get_sequence(&sequence.name)
+        .expect("staged sequence remains present");
+    let refreshed = session
+        .command_descriptor_snapshot(&cassie.publication_catalog, &controls)
+        .expect("refresh descriptors after cursor publication")
+        .expect("refreshed owner");
+    let visible = refreshed
+        .catalog()
+        .get_sequence(&sequence.name)
+        .expect("sequence remains visible");
+    session.rollback_transaction();
+
+    // Assert
+    assert_eq!(staged.cursor(), before);
+    assert_eq!(visible.current_value, 40);
+    assert!(visible.is_called);
+    assert!(!Arc::ptr_eq(&owner, &refreshed));
+}
+
+#[test]
 fn should_preserve_once_only_upsert_defaults_before_the_working_fork() {
     // Arrange
     let (cassie, session) = fixture();

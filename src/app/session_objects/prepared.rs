@@ -40,9 +40,12 @@ impl Cassie {
                 ));
         let mut parameter_types = prepare.parameter_types.clone();
         parameter_types.resize(parameter_count, String::new());
+        let database = session
+            .current_database()
+            .unwrap_or(&self.default_database);
         let parameter_oids = parameter_types
             .iter()
-            .map(|name| parameter_oid(name))
+            .map(|name| parameter_oid(name, &self.catalog, database))
             .collect::<Result<Vec<_>, _>>()?;
         let parsed = (*prepare.statement).clone();
         let fingerprint = crate::runtime::sql_fingerprint(&parsed);
@@ -140,12 +143,29 @@ impl Cassie {
 
 /// The OID a declared parameter type binds as; an undeclared slot is
 /// inferred from its use.
-fn parameter_oid(name: &str) -> Result<i32, CassieError> {
+fn parameter_oid(
+    name: &str,
+    catalog: &crate::catalog::Catalog,
+    database: &str,
+) -> Result<i32, CassieError> {
     if name.is_empty() {
         return Ok(0);
     }
     let data_type = DataType::parse_sql(name).map_err(CassieError::Parse)?;
-    i32::try_from(data_type.type_oid())
+    if matches!(&data_type, DataType::Array(element) if matches!(element.as_ref(), DataType::Vector(_))) {
+        return Err(CassieError::Unsupported(
+            "VECTOR array parameter identities are not supported".to_string(),
+        ));
+    }
+    let type_oid = if matches!(&data_type, DataType::Vector(_)) {
+        crate::catalog::object_identity::type_oid_for_database(catalog, database, &data_type)
+            .ok_or_else(|| {
+                crate::app::DiagnosticError::new("42704", "type \"vector\" does not exist")
+            })?
+    } else {
+        data_type.type_oid()
+    };
+    i32::try_from(type_oid)
         .map_err(|_| CassieError::Parse(format!("type \"{name}\" has no wire identity")))
 }
 

@@ -113,10 +113,11 @@ fn encode_binary_row(columns: &[ColumnMeta], row: &[Value]) -> Result<Vec<u8>, C
             bytes.extend_from_slice(&(-1_i32).to_be_bytes());
             continue;
         }
-        let encoded = super::super::codecs::value_to_binary_with_typmod(
+        let encoded = super::super::codecs::value_to_binary_with_typmod_and_vector(
             value,
             column.type_oid,
             column.atttypmod,
+            column.is_vector(),
         )
         .map_err(|error| CassieError::Unsupported(error.to_string()))?;
         let length = i32::try_from(encoded.len())

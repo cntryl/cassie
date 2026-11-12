@@ -14,8 +14,25 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     if matches!(op, BinaryOp::And | BinaryOp::Or) {
         return eval_logical_expr(row, left, op, right, context);
     }
-    let left_value = eval_scalar_with_context(row, left, context)?;
-    let right_value = eval_scalar_with_context(row, right, context)?;
+    let operand_context = if *op == BinaryOp::Power && context.memory.is_none() {
+        EvalContext {
+            memory: context.deletion_memory,
+            ..context
+        }
+    } else {
+        context
+    };
+    let mut power_scope = if *op == BinaryOp::Power {
+        operand_context
+            .memory
+            .or(operand_context.deletion_memory)
+            .map(|memory| memory.scope(0))
+            .transpose()?
+    } else {
+        None
+    };
+    let left_value = eval_scalar_with_context(row, left, operand_context)?;
+    let right_value = eval_scalar_with_context(row, right, operand_context)?;
     let controls = execution_controls(context);
     if *op == BinaryOp::Concat {
         if let Some(result) = super::array_operators::concatenate_operand(
@@ -48,7 +65,25 @@ pub(super) fn eval_binary_expr<R: RowAccess + ?Sized>(
     {
         return Ok(result);
     }
-    super::binary::binary_scalar_with_controls(&left_value, op, &right_value, controls)
+    let result = super::binary::binary_scalar_with_resources(
+        &left_value,
+        op,
+        &right_value,
+        controls,
+        operand_context.memory.or(operand_context.deletion_memory),
+    )?;
+    let retained_bytes = match &result {
+        ScalarValue::Typed(value @ crate::types::typed::TypedValue::Numeric(_)) => {
+            value.heap_bytes()
+        }
+        _ => 0,
+    };
+    if retained_bytes > 0 {
+        if let Some(scope) = power_scope.as_mut() {
+            scope.retain_existing(retained_bytes)?;
+        }
+    }
+    Ok(result)
 }
 
 enum JsonDispatch {

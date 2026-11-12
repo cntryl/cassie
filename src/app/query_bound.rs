@@ -350,6 +350,7 @@ impl Cassie {
             session,
             &physical,
             params,
+            parameter_type_oids,
             cache_context.is_select,
             controls,
         )?;
@@ -445,6 +446,7 @@ impl Cassie {
         session: &CassieSession,
         physical: &std::sync::Arc<crate::planner::physical::PhysicalPlan>,
         params: Vec<Value>,
+        parameter_type_oids: &[i32],
         is_select: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
@@ -454,7 +456,13 @@ impl Cassie {
             &session.search_path(),
             physical,
         );
-        let execution = self.execute_physical_statement(session, physical, params, controls);
+        let execution = self.execute_physical_statement_with_parameter_oids(
+            session,
+            physical,
+            params,
+            parameter_type_oids,
+            controls,
+        );
         self.record_query_feedback(feedback, &execution);
         execution
     }

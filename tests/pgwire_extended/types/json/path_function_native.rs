@@ -99,3 +99,96 @@ fn should_reject_nonpostgres_path_index_spacing_given_text_components_when_extra
         vec![vec![None, None, None, Some("1".into()), Some("1".into())]]
     );
 }
+
+#[test]
+fn should_expand_variadic_text_array_paths_with_postgresql_null_semantics() {
+    // Arrange
+    let sql = "SELECT json_extract_path('{\"a\":{\"b\":1}}'::JSON, VARIADIC ARRAY['a','b']::TEXT[]), jsonb_extract_path('{\"a\":{\"b\":1}}'::JSONB, VARIADIC ARRAY['a','b']::TEXT[]), json_extract_path_text('{\"a\":{\"b\":1}}'::JSON, VARIADIC ARRAY['a','b']::TEXT[]), json_extract_path('{\"a\":null}'::JSON, VARIADIC ARRAY['a']::TEXT[]), jsonb_extract_path('{\"a\":null}'::JSONB, VARIADIC ARRAY['a']::TEXT[]), jsonb_extract_path_text('{\"a\":null}'::JSONB, VARIADIC ARRAY['a']::TEXT[]), jsonb_extract_path('{\"a\":1}'::JSONB, VARIADIC ARRAY[]::TEXT[]), jsonb_extract_path('{\"a\":1}'::JSONB, VARIADIC NULL::TEXT[]), jsonb_extract_path_text('{\"a\":1}'::JSONB, VARIADIC ARRAY[NULL]::TEXT[]), jsonb_extract_path('{\"a\":1}'::JSONB, VARIADIC ARRAY[['a']])";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles("finite-json-path-variadic", &[], vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    let description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("variadic path RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![114, 3802, 25, 114, 3802, 25, 3802, 3802, 25, 3802]
+    );
+    assert_eq!(
+        wire::data_rows(&batches[0]),
+        vec![vec![
+            Some("1".into()),
+            Some("1".into()),
+            Some("1".into()),
+            Some("null".into()),
+            Some("null".into()),
+            None,
+            Some(r#"{"a": 1}"#.into()),
+            None,
+            None,
+            Some("1".into())
+        ]]
+    );
+}
+
+#[test]
+fn should_infer_text_array_parameter_given_variadic_path_invocation() {
+    // Arrange
+    let cycle = fixture::execute_cycle(
+        "SELECT jsonb_extract_path_text('{\"a\":2}'::JSONB, VARIADIC $1)",
+        Some((0, 0, Some(b"{a}"))),
+        0,
+        true,
+    );
+
+    // Act
+    let batches = fixture::run_cycles("finite-json-path-variadic-parameter", &[], vec![cycle]);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    let result_description = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("result RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&result_description.1)
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![25]
+    );
+    let parameters = batches[0]
+        .iter()
+        .find(|(tag, _)| *tag == b't')
+        .expect("parameters");
+    assert_eq!(wire::parse_parameter_description(&parameters.1), [1009]);
+    assert_eq!(wire::data_rows(&batches[0]), vec![vec![Some("2".into())]]);
+}
+
+#[test]
+fn should_reject_unmarked_or_non_text_arrays_given_variadic_path_functions() {
+    // Arrange
+    let cycles = [
+        "SELECT jsonb_extract_path('{}'::JSONB, ARRAY['a']::TEXT[])",
+        "SELECT jsonb_extract_path('{}'::JSONB, VARIADIC ARRAY[1]::INT[])",
+        "SELECT 7::INT",
+    ]
+    .map(|sql| fixture::execute_cycle(sql, None, 0, true));
+
+    // Act
+    let batches = fixture::run_cycles("finite-json-path-variadic-boundary", &[], cycles.into());
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]).as_deref(), Some("42883"));
+    assert_eq!(wire::error_code(&batches[1]).as_deref(), Some("42883"));
+    fixture::assert_success(&batches[2]);
+    assert_eq!(wire::data_rows(&batches[2]), vec![vec![Some("7".into())]]);
+}

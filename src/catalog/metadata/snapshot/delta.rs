@@ -31,6 +31,8 @@ pub(super) fn is_transaction_map(name: &str) -> bool {
             | "vector_indexes"
             | "projections"
             | "cardinality"
+            | "object_comments"
+            | "role_object_grants"
     )
 }
 

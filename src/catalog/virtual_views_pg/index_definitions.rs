@@ -26,11 +26,14 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
         .as_ref()
         .map(|predicate| format!(" WHERE {}", format_stored_expression(predicate)))
         .unwrap_or_default();
-    let storage_options = index
-        .options
+    let storage_option_names = match index.access_method() {
+        "hnsw" => &["m", "ef_construction"][..],
+        "ivfflat" => &["lists"][..],
+        _ => &["deduplicate_items", "fillfactor"][..],
+    };
+    let storage_options = storage_option_names
         .iter()
-        .filter(|(name, _)| matches!(name.as_str(), "deduplicate_items" | "fillfactor"))
-        .map(|(name, value)| format!("{name}='{}'", value.replace('\'', "''")))
+        .filter_map(|name| index.options.get(*name).map(|value| format!("{name}={value}")))
         .collect::<Vec<_>>();
     let storage_options = if storage_options.is_empty() {
         String::new()

@@ -28,6 +28,8 @@ mod column_batch_format_v1;
 pub(crate) use column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod core;
+mod object_comments;
+mod role_object_grants;
 pub mod fulltext_retrieval;
 mod publication;
 pub(crate) use publication::RetainedRowHistory;
@@ -718,6 +720,10 @@ impl Midge {
 
     fn role_prefix() -> Vec<u8> {
         key_encoding::role_prefix()
+    }
+
+    fn role_object_grant_prefix() -> Vec<u8> {
+        key_encoding::role_object_grant_prefix()
     }
 
     pub(super) fn constraints_key(collection: &str) -> Vec<u8> {

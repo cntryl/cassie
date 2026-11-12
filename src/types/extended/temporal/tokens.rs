@@ -271,11 +271,50 @@ pub fn field_unit(name: &str) -> Option<Unit> {
 /// # Errors
 /// Returns `BadFormat` for characters PostgreSQL rejects.
 pub fn tokenize(input: &str) -> Result<Vec<Token>, DecodeError> {
-    let chars: Vec<char> = input.chars().collect();
+    let mut check = || Ok::<(), std::convert::Infallible>(());
+    tokenize_with_check(input, &mut check).map_err(|error| match error {
+        TokenizeError::Decode(error) => error,
+        TokenizeError::Check(never) => match never {},
+    })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum TokenizeError<E> {
+    Decode(DecodeError),
+    Check(E),
+}
+
+/// Conservative capacity bound for tokenizing one input string.
+pub(crate) fn tokenization_memory_bound(input: &str) -> Option<usize> {
+    let per_byte = 2_usize
+        .checked_mul(std::mem::size_of::<char>())?
+        .checked_add(2_usize.checked_mul(std::mem::size_of::<Token>())?)?
+        .checked_add(4)?;
+    input.len().checked_mul(per_byte)
+}
+
+impl<E> From<DecodeError> for TokenizeError<E> {
+    fn from(error: DecodeError) -> Self {
+        Self::Decode(error)
+    }
+}
+
+/// Checked tokenization for query-owned temporal input.
+pub(crate) fn tokenize_with_check<E>(
+    input: &str,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Vec<Token>, TokenizeError<E>> {
+    check().map_err(TokenizeError::Check)?;
+    let mut chars = Vec::new();
+    for (index, character) in input.chars().enumerate() {
+        check_tokenizer_progress(index, check)?;
+        chars.push(character);
+    }
     let mut tokens = Vec::new();
     let mut index = 0;
     let at = |index: usize| chars.get(index).copied().unwrap_or('\0');
     while index < chars.len() {
+        check_tokenizer_progress(index, check)?;
         let current = chars[index];
         if current.is_whitespace() {
             index += 1;
@@ -284,17 +323,19 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, DecodeError> {
         let mut text = String::new();
         let kind;
         if current.is_ascii_digit() {
-            kind = digit_field(&chars, &mut index, &mut text);
+            kind = digit_field(&chars, &mut index, &mut text, check)?;
         } else if current == '.' {
             text.push('.');
             index += 1;
             while at(index).is_ascii_digit() {
+                check_tokenizer_progress(index, check)?;
                 text.push(at(index));
                 index += 1;
             }
             kind = TokenKind::Number;
         } else if current.is_ascii_alphabetic() {
             while at(index).is_ascii_alphabetic() {
+                check_tokenizer_progress(index, check)?;
                 text.push(at(index).to_ascii_lowercase());
                 index += 1;
             }
@@ -304,6 +345,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, DecodeError> {
             if is_date {
                 kind = TokenKind::Date;
                 loop {
+                    check_tokenizer_progress(index, check)?;
                     text.push(at(index).to_ascii_lowercase());
                     index += 1;
                     let next = at(index);
@@ -320,6 +362,7 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, DecodeError> {
             text.push(current);
             index += 1;
             while at(index).is_whitespace() {
+                check_tokenizer_progress(index, check)?;
                 index += 1;
             }
             if at(index).is_ascii_digit() {
@@ -327,17 +370,19 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, DecodeError> {
                 text.push(at(index));
                 index += 1;
                 while matches!(at(index), '0'..='9' | ':' | '.' | '-') {
+                    check_tokenizer_progress(index, check)?;
                     text.push(at(index));
                     index += 1;
                 }
             } else if at(index).is_ascii_alphabetic() {
                 kind = TokenKind::Special;
                 while at(index).is_ascii_alphabetic() {
+                    check_tokenizer_progress(index, check)?;
                     text.push(at(index).to_ascii_lowercase());
                     index += 1;
                 }
             } else {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
         } else if current.is_ascii_punctuation() {
             index += 1;
@@ -347,20 +392,38 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>, DecodeError> {
         }
         tokens.push(Token { text, kind });
     }
+    check().map_err(TokenizeError::Check)?;
     Ok(tokens)
 }
 
+fn check_tokenizer_progress<E>(
+    index: usize,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(), TokenizeError<E>> {
+    if index % 128 == 0 {
+        check().map_err(TokenizeError::Check)?;
+    }
+    Ok(())
+}
+
 /// A field starting with a digit: a number, a time, or a delimited date.
-fn digit_field(chars: &[char], index: &mut usize, text: &mut String) -> TokenKind {
+fn digit_field<E>(
+    chars: &[char],
+    index: &mut usize,
+    text: &mut String,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<TokenKind, TokenizeError<E>> {
     let at = |index: usize| chars.get(index).copied().unwrap_or('\0');
     let kind;
     while at(*index).is_ascii_digit() {
+        check_tokenizer_progress(*index, check)?;
         text.push(at(*index));
         *index += 1;
     }
     if at(*index) == ':' {
         kind = TokenKind::Time;
         while matches!(at(*index), '0'..='9' | ':' | '.') {
+            check_tokenizer_progress(*index, check)?;
             text.push(at(*index));
             *index += 1;
         }
@@ -375,12 +438,14 @@ fn digit_field(chars: &[char], index: &mut usize, text: &mut String) -> TokenKin
                 TokenKind::Date
             };
             while at(*index).is_ascii_digit() {
+                check_tokenizer_progress(*index, check)?;
                 text.push(at(*index));
                 *index += 1;
             }
             if at(*index) == delimiter {
                 field_kind = TokenKind::Date;
                 while at(*index).is_ascii_digit() || at(*index) == delimiter {
+                    check_tokenizer_progress(*index, check)?;
                     text.push(at(*index));
                     *index += 1;
                 }
@@ -389,6 +454,7 @@ fn digit_field(chars: &[char], index: &mut usize, text: &mut String) -> TokenKin
         } else {
             kind = TokenKind::Date;
             while at(*index).is_ascii_alphanumeric() || at(*index) == delimiter {
+                check_tokenizer_progress(*index, check)?;
                 text.push(at(*index).to_ascii_lowercase());
                 *index += 1;
             }
@@ -396,7 +462,7 @@ fn digit_field(chars: &[char], index: &mut usize, text: &mut String) -> TokenKin
     } else {
         kind = TokenKind::Number;
     }
-    kind
+    Ok(kind)
 }
 
 /// `strtoint`-style parse of a leading signed decimal integer; returns the
@@ -481,7 +547,7 @@ pub fn truncate_f64_i32(value: f64) -> Option<i32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{tokenize, TokenKind};
+    use super::{tokenize, tokenize_with_check, TokenKind, TokenizeError};
 
     #[test]
     fn should_tokenize_postgresql_datetime_fields() {
@@ -504,5 +570,27 @@ mod tests {
             ]
         );
         assert_eq!(tokens[3].text, "america/new_york");
+    }
+
+    #[test]
+    fn should_interrupt_while_scanning_a_single_long_temporal_token() {
+        // Arrange
+        let input = "a".repeat(2_048);
+        let mut checks = 0;
+        let mut check = || {
+            checks += 1;
+            if checks == 3 {
+                Err("canceled")
+            } else {
+                Ok(())
+            }
+        };
+
+        // Act
+        let result = tokenize_with_check(&input, &mut check);
+
+        // Assert
+        assert_eq!(result, Err(TokenizeError::Check("canceled")));
+        assert_eq!(checks, 3);
     }
 }

@@ -94,6 +94,7 @@ pub(super) fn project(
         session: context.session,
         user_functions: context.user_functions,
         params: context.params,
+        parameter_type_oids: &[],
         controls: context.statement_read_controls,
     };
     {

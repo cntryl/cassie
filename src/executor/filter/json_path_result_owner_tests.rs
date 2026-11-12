@@ -47,6 +47,40 @@ fn should_retain_extraction_workspace_for_all_json_path_function_variants() {
 }
 
 #[test]
+fn should_retain_variadic_path_output_until_its_owner_is_released() {
+    // Arrange
+    let controls = controls(10 * 1024 * 1024);
+    let owner = EvaluationMemory::new(&controls).expect("owner");
+    let input = [
+        Value::String(r#"{"a":{"b":"payload"}}"#.into()),
+        Value::Array(
+            crate::types::SqlArray::from_elements(vec![
+                crate::types::Value::String("a".into()),
+                crate::types::Value::String("b".into()),
+            ])
+            .expect("path array"),
+        ),
+    ];
+
+    // Act
+    let result = evaluate(
+        "jsonb_extract_path_text",
+        &input,
+        Some(&controls),
+        Some(&owner),
+    )
+    .expect("selected variadic path")
+    .expect("extracted text");
+
+    // Assert
+    assert!(matches!(result, Value::String(ref value) if value == "payload"));
+    assert!(owner.bytes() > 0);
+    drop(result);
+    drop(owner);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_preserve_missing_null_with_invalid_path_results_without_retaining_a_lease() {
     // Arrange
     let controls = controls(10 * 1024 * 1024);
@@ -98,7 +132,12 @@ fn should_release_extracted_output_after_post_finish_cancellation() {
         "json_extract_path_text",
         &[
             Value::String(r#"{"a":"payload"}"#.into()),
-            Value::String("a".into()),
+            Value::Array(
+                crate::types::SqlArray::from_elements(vec![
+                    crate::types::Value::String("a".into()),
+                ])
+                .expect("path array"),
+            ),
         ],
         Some(&controls),
         Some(&owner),

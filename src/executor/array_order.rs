@@ -19,12 +19,26 @@ pub(super) fn expression_type<R: RowAccess + ?Sized>(
     expr: &Expr,
     functions: &HashMap<String, FunctionMeta>,
 ) -> Option<DataType> {
+    expression_type_with_parameter_oids(row, expr, functions, &[])
+}
+
+pub(super) fn expression_type_with_parameter_oids<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    functions: &HashMap<String, FunctionMeta>,
+    parameter_type_oids: &[i32],
+) -> Option<DataType> {
     if let Expr::Column(name) = expr {
         return row.column_type(name).cloned();
     }
     let mut columns = Vec::new();
     collect_columns(row, expr, &mut columns);
-    crate::sql::binder::infer_expr_type(expr, &Schema::from_iter(columns), functions, &[])
+    crate::sql::binder::infer_expr_type(
+        expr,
+        &Schema::from_iter(columns),
+        functions,
+        parameter_type_oids,
+    )
 }
 
 fn collect_columns<R: RowAccess + ?Sized>(
@@ -50,10 +64,21 @@ pub(super) fn key<R: RowAccess + ?Sized>(
     functions: &HashMap<String, FunctionMeta>,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<SemanticValue, crate::app::CassieError> {
+    key_with_parameter_oids(row, expr, value, functions, &[], controls)
+}
+
+pub(super) fn key_with_parameter_oids<R: RowAccess + ?Sized>(
+    row: &R,
+    expr: &Expr,
+    value: &Value,
+    functions: &HashMap<String, FunctionMeta>,
+    parameter_type_oids: &[i32],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<SemanticValue, crate::app::CassieError> {
     if let Some(key) = super::search_lineage::extract(row, expr, controls)? {
         return Ok(key);
     }
-    key_after_lineage(row, expr, value, functions, controls)
+    key_after_lineage(row, expr, value, functions, parameter_type_oids, controls)
 }
 
 fn key_after_lineage<R: RowAccess + ?Sized>(
@@ -61,6 +86,7 @@ fn key_after_lineage<R: RowAccess + ?Sized>(
     expr: &Expr,
     value: &Value,
     functions: &HashMap<String, FunctionMeta>,
+    parameter_type_oids: &[i32],
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<SemanticValue, crate::app::CassieError> {
     let declared = match expr {
@@ -77,7 +103,7 @@ fn key_after_lineage<R: RowAccess + ?Sized>(
     if matches!(expr, Expr::Column(_)) {
         return Ok(SemanticValue::from_value(value));
     }
-    let inferred = expression_type(row, expr, functions);
+    let inferred = expression_type_with_parameter_oids(row, expr, functions, parameter_type_oids);
     if inferred.as_ref().is_some_and(super::semantic::jsonb_type) {
         return super::semantic::typed_value(value, inferred.as_ref(), controls);
     }
@@ -104,7 +130,7 @@ pub(super) fn sort_vector_key<R: RowAccess + ?Sized>(
         let (key, retained) = sort_vector::build(value, controls)?;
         return Ok((key, Some(retained)));
     }
-    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
+    key_after_lineage(row, expr, value, functions, &[], Some(controls)).map(|key| (key, None))
 }
 
 pub(super) fn sort_numeric_key<R: RowAccess + ?Sized>(
@@ -127,7 +153,7 @@ pub(super) fn sort_numeric_key<R: RowAccess + ?Sized>(
         let (key, retained) = sort_numeric::build(value, controls)?;
         return Ok((key, Some(retained)));
     }
-    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
+    key_after_lineage(row, expr, value, functions, &[], Some(controls)).map(|key| (key, None))
 }
 
 pub(super) fn sort_bit_key<R: RowAccess + ?Sized>(
@@ -150,7 +176,7 @@ pub(super) fn sort_bit_key<R: RowAccess + ?Sized>(
         let (key, retained) = sort_bit::build(value, controls)?;
         return Ok((key, Some(retained)));
     }
-    key_after_lineage(row, expr, value, functions, Some(controls)).map(|key| (key, None))
+    key_after_lineage(row, expr, value, functions, &[], Some(controls)).map(|key| (key, None))
 }
 
 fn typed_key(value: &Value, data_type: Option<&DataType>) -> SemanticValue {

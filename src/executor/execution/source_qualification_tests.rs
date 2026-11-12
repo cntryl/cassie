@@ -37,6 +37,7 @@ fn should_retain_fresh_derived_qualification_backing_with_parent_roots() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         let qualifier = "q".repeat(4096);
@@ -84,6 +85,7 @@ fn should_deny_derived_qualification_before_constructing_long_aliases() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         // Act
@@ -163,6 +165,7 @@ fn should_retain_cte_array_source_descriptor_replacement_until_output_drop() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         let mut batches = vec![vec![BatchRow::new(vec![("n".into(), Value::Null)])
@@ -239,6 +242,7 @@ fn should_retain_known_cte_null_template_copy_until_template_drop() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         // Act
@@ -293,6 +297,7 @@ fn should_deny_known_cte_null_template_copy_without_partial_publication() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         // Act
@@ -352,6 +357,7 @@ fn should_admit_combined_known_cte_templates_before_copying_backing() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         let left = source_shape::null_row(&env, &QuerySource::Cte("c".into()), &context)
@@ -391,6 +397,7 @@ fn should_admit_combined_known_cte_templates_before_copying_backing() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &denied,
         };
         let result = source_shape::null_row(&env, &source, &context);
@@ -447,6 +454,7 @@ fn should_retain_derived_lateral_cte_array_templates_until_drop() {
                 session: None,
                 user_functions: &functions,
                 params: &[],
+                parameter_type_oids: &[],
                 controls: &controls,
             };
             // Act
@@ -514,6 +522,7 @@ fn should_deny_derived_lateral_cte_template_aliases_before_construction() {
                 session: None,
                 user_functions: &functions,
                 params: &[],
+                parameter_type_oids: &[],
                 controls: &controls,
             };
             // Act

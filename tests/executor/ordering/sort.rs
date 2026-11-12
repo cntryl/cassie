@@ -127,7 +127,7 @@ fn should_sort_by_projection_alias_with_different_case() {
                     },
                     FieldSchema {
                         name: "embedding".to_string(),
-                        data_type: DataType::Vector(2),
+                        data_type: DataType::Vector(Some(2)),
                         nullable: true,
                     },
                 ],

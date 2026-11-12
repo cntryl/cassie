@@ -120,6 +120,18 @@ fn should_propagate_null_through_rounding_functions() {
 }
 
 #[test]
+fn should_propagate_null_through_selected_numeric_scalar_functions() {
+    // Arrange
+    let sql = "SELECT ROUND(NULL::NUMERIC) IS NULL AND ROUND(NULL::NUMERIC, 2) IS NULL AND TRUNC(NULL::NUMERIC, 2) IS NULL AND FLOOR(NULL::NUMERIC) IS NULL AND CEILING(NULL::FLOAT8) IS NULL AND MOD(NULL::BIGINT, 2::BIGINT) IS NULL AND MOD(NULL::NUMERIC, 2::NUMERIC) IS NULL AND POWER(NULL::NUMERIC, 2::NUMERIC) IS NULL AND POWER(NULL::FLOAT8, 2::FLOAT8) IS NULL AND (NULL::NUMERIC ^ 2::NUMERIC) IS NULL";
+
+    // Act
+    let rows = predicate_rows("issue-813-numeric-functions-null", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
 fn should_return_numeric_modulo_with_the_dividend_sign() {
     // Arrange
     let sql = "SELECT MOD(9, 4) = 1 AND MOD(-9, 4) = -1 AND MOD(9, -4) = 1";
@@ -150,6 +162,18 @@ fn should_preserve_exact_numeric_modulo_quotient_values() {
 
     // Act
     let rows = predicate_rows("issue-813-mod-div-numeric", sql);
+
+    // Assert
+    assert_eq!(rows, vec![vec![Value::Bool(true)]]);
+}
+
+#[test]
+fn should_return_zero_for_bigint_minimum_modulo_negative_one() {
+    // Arrange
+    let sql = "SELECT MOD('-9223372036854775808'::bigint, -1::bigint) = 0::bigint";
+
+    // Act
+    let rows = predicate_rows("issue-813-mod-bigint-min-over-minus-one", sql);
 
     // Assert
     assert_eq!(rows, vec![vec![Value::Bool(true)]]);

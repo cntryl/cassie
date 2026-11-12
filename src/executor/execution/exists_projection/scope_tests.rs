@@ -52,6 +52,7 @@ fn should_release_denied_joined_qualifier_name_cross_product_scope() {
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &broad,
         outer_row: None,
     };

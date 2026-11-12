@@ -4,8 +4,9 @@ use super::super::calendar::{
 };
 use super::super::session::IntervalStyle;
 use super::super::tokens::{
-    date_keyword, leading_integer, parse_fraction, parse_fractional_second, tokenize, truncate_f64,
-    truncate_f64_i32, unit_keyword, DecodeError, Keyword, Reserved, TokenKind, Unit,
+    date_keyword, leading_integer, parse_fraction, parse_fractional_second, tokenize_with_check,
+    truncate_f64, truncate_f64_i32, unit_keyword, DecodeError, Keyword,
+    Reserved, TokenKind, TokenizeError, Unit,
 };
 use super::{
     Interval, DAY_MASK, FULL_RANGE, HOUR_MASK, MINUTE_MASK, MONTH_MASK, SECOND_MASK, YEAR_MASK,
@@ -209,9 +210,25 @@ pub fn parse_interval(
     range: i32,
     style: IntervalStyle,
 ) -> Result<Interval, DecodeError> {
-    let decoded = tokenize(input).and_then(|tokens| decode_interval(&tokens, range, style));
+    let mut check = || Ok::<(), std::convert::Infallible>(());
+    parse_interval_with_check(input, range, style, &mut check).map_err(|error| match error {
+        TokenizeError::Decode(error) => error,
+        TokenizeError::Check(never) => match never {},
+    })
+}
+
+pub(super) fn parse_interval_with_check<E>(
+    input: &str,
+    range: i32,
+    style: IntervalStyle,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Interval, TokenizeError<E>> {
+    let decoded = tokenize_with_check(input, check)
+        .and_then(|tokens| decode_interval_with_check(&tokens, range, style, check));
     match decoded {
-        Err(DecodeError::BadFormat) => decode_iso8601(input.trim()),
+        Err(TokenizeError::Decode(DecodeError::BadFormat)) => {
+            decode_iso8601_with_check(input.trim(), check)
+        }
         other => other,
     }
 }
@@ -234,23 +251,41 @@ fn default_unit(range: i32) -> Unit {
     }
 }
 
-fn decode_interval(
+fn decode_interval_with_check<E>(
     tokens: &[super::super::tokens::Token],
     range: i32,
     style: IntervalStyle,
-) -> Result<Interval, DecodeError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Interval, TokenizeError<E>> {
+    let mut has_explicit_sign = false;
+    if style == IntervalStyle::SqlStandard
+        && tokens
+            .first()
+            .is_some_and(|token| token.text.starts_with('-'))
+    {
+        for (index, token) in tokens[1..].iter().enumerate() {
+            if index % 128 == 0 {
+                check().map_err(TokenizeError::Check)?;
+            }
+            if token.text.starts_with('-') || token.text.starts_with('+') {
+                has_explicit_sign = true;
+                break;
+            }
+        }
+    }
     let force_negative = style == IntervalStyle::SqlStandard
         && tokens
             .first()
             .is_some_and(|token| token.text.starts_with('-'))
-        && !tokens[1..]
-            .iter()
-            .any(|token| token.text.starts_with('-') || token.text.starts_with('+'));
+        && !has_explicit_sign;
     let mut accumulator = Accumulator::default();
     let (mut fmask, mut unit, mut parsing_unit, mut is_before) =
         (0_u32, None::<Unit>, false, false);
     let mut special = None;
     for (index, token) in tokens.iter().enumerate().rev() {
+        if index % 128 == 0 {
+            check().map_err(TokenizeError::Check)?;
+        }
         let field = token.text.as_str();
         let mut tmask = 0;
         match token.kind {
@@ -286,7 +321,7 @@ fn decode_interval(
             }
             TokenKind::String | TokenKind::Special => {
                 if parsing_unit {
-                    return Err(DecodeError::BadFormat);
+                    return Err(DecodeError::BadFormat.into());
                 }
                 match unit_keyword(field).or_else(|| date_keyword(field)) {
                     Some(Keyword::Ignore) => continue,
@@ -296,7 +331,7 @@ fn decode_interval(
                     }
                     Some(Keyword::Ago) => {
                         if index != tokens.len() - 1 {
-                            return Err(DecodeError::BadFormat);
+                            return Err(DecodeError::BadFormat.into());
                         }
                         is_before = true;
                     }
@@ -304,21 +339,21 @@ fn decode_interval(
                         tmask = DATE_FIELDS | TIME_FIELDS;
                         special = Some(reserved);
                     }
-                    _ => return Err(DecodeError::BadFormat),
+                    _ => return Err(DecodeError::BadFormat.into()),
                 }
             }
         }
         if tmask & fmask != 0 {
-            return Err(DecodeError::BadFormat);
+            return Err(DecodeError::BadFormat.into());
         }
         fmask |= tmask;
     }
     if fmask == 0 || parsing_unit {
-        return Err(DecodeError::BadFormat);
+        return Err(DecodeError::BadFormat.into());
     }
     if let Some(reserved) = special {
         if tokens.len() != 1 {
-            return Err(DecodeError::BadFormat);
+            return Err(DecodeError::BadFormat.into());
         }
         return Ok(if reserved == Reserved::Late {
             Interval::INFINITY
@@ -448,26 +483,32 @@ fn interval_time(
 }
 
 /// `ParseISO8601Number`: integer and fractional parts of a decimal number.
-fn iso_number(text: &str) -> Result<(i64, f64, &str), DecodeError> {
+fn iso_number<E>(
+    text: &str,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<(i64, f64, &str), TokenizeError<E>> {
     let bytes = text.as_bytes();
     if !bytes
         .first()
         .is_some_and(|byte| byte.is_ascii_digit() || *byte == b'-' || *byte == b'.')
     {
-        return Err(DecodeError::BadFormat);
+        return Err(DecodeError::BadFormat.into());
     }
     let mut end = usize::from(bytes[0] == b'-' || bytes[0] == b'+');
     while bytes
         .get(end)
         .is_some_and(|byte| byte.is_ascii_digit() || *byte == b'.')
     {
+        if end % 128 == 0 {
+            check().map_err(TokenizeError::Check)?;
+        }
         end += 1;
     }
     let value = text[..end]
         .parse::<f64>()
         .map_err(|_| DecodeError::BadFormat)?;
     if !(-1.0e15..=1.0e15).contains(&value) {
-        return Err(DecodeError::FieldOverflow);
+        return Err(DecodeError::FieldOverflow.into());
     }
     let integer = truncate_f64(value).ok_or(DecodeError::FieldOverflow)?;
     let fraction = value - num_traits::ToPrimitive::to_f64(&integer).unwrap_or(0.0);
@@ -499,14 +540,18 @@ struct IsoField<'a> {
 }
 
 /// `DecodeISO8601Interval`: `P1Y2M3DT4H5M6S` or `P0001-02-03T04:05:06`.
-fn decode_iso8601(input: &str) -> Result<Interval, DecodeError> {
+fn decode_iso8601_with_check<E>(
+    input: &str,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Interval, TokenizeError<E>> {
     let mut rest = input.strip_prefix('P').ok_or(DecodeError::BadFormat)?;
     if rest.is_empty() {
-        return Err(DecodeError::BadFormat);
+        return Err(DecodeError::BadFormat.into());
     }
     let mut accumulator = Accumulator::default();
     let (mut date_part, mut have_field) = (true, false);
     while !rest.is_empty() {
+        check().map_err(TokenizeError::Check)?;
         if let Some(after) = rest.strip_prefix('T') {
             date_part = false;
             have_field = false;
@@ -514,7 +559,7 @@ fn decode_iso8601(input: &str) -> Result<Interval, DecodeError> {
             continue;
         }
         let start = rest;
-        let (value, fraction, after) = iso_number(rest)?;
+        let (value, fraction, after) = iso_number(rest, check)?;
         let unit = after.chars().next().unwrap_or('\0');
         rest = after.get(unit.len_utf8().min(after.len())..).unwrap_or("");
         let field = IsoField {
@@ -525,12 +570,12 @@ fn decode_iso8601(input: &str) -> Result<Interval, DecodeError> {
             have_field,
         };
         let step = if date_part {
-            iso_date_field(&field, &mut rest, &mut accumulator)?
+            iso_date_field(&field, &mut rest, &mut accumulator, check)?
         } else {
-            iso_time_field(&field, &mut rest, &mut accumulator)?
+            iso_time_field(&field, &mut rest, &mut accumulator, check)?
         };
         match step {
-            IsoStep::Finish => return accumulator.finish(),
+            IsoStep::Finish => return accumulator.finish().map_err(Into::into),
             IsoStep::TimePart => {
                 date_part = false;
                 have_field = false;
@@ -538,14 +583,15 @@ fn decode_iso8601(input: &str) -> Result<Interval, DecodeError> {
             IsoStep::Field => have_field = true,
         }
     }
-    accumulator.finish()
+    accumulator.finish().map_err(Into::into)
 }
 
-fn iso_date_field(
+fn iso_date_field<E>(
     field: &IsoField<'_>,
     rest: &mut &str,
     accumulator: &mut Accumulator,
-) -> Result<IsoStep, DecodeError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<IsoStep, TokenizeError<E>> {
     let IsoField {
         start,
         value,
@@ -581,20 +627,21 @@ fn iso_date_field(
                 IsoStep::TimePart
             });
         }
-        'T' | '\0' | '-' => return iso_extended_date(field, rest, accumulator),
-        _ => return Err(DecodeError::BadFormat),
+        'T' | '\0' | '-' => return iso_extended_date(field, rest, accumulator, check),
+        _ => return Err(DecodeError::BadFormat.into()),
     }
     Ok(IsoStep::Field)
 }
 
 /// ISO 8601 alternative extended format: `YYYY-MM-DD`.
-fn iso_extended_date(
+fn iso_extended_date<E>(
     field: &IsoField<'_>,
     rest: &mut &str,
     accumulator: &mut Accumulator,
-) -> Result<IsoStep, DecodeError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<IsoStep, TokenizeError<E>> {
     if field.have_field {
-        return Err(DecodeError::BadFormat);
+        return Err(DecodeError::BadFormat.into());
     }
     accumulator.years(field.value, 1)?;
     accumulator.fraction_years(field.fraction, 1)?;
@@ -603,7 +650,7 @@ fn iso_extended_date(
         'T' => return Ok(IsoStep::TimePart),
         _ => {}
     }
-    let (months, fraction, after) = iso_number(rest)?;
+    let (months, fraction, after) = iso_number(rest, check)?;
     accumulator.months(months)?;
     accumulator.fraction_days(fraction, DAYS_PER_MONTH)?;
     *rest = after;
@@ -615,7 +662,7 @@ fn iso_extended_date(
         return Ok(IsoStep::TimePart);
     }
     *rest = rest.strip_prefix('-').ok_or(DecodeError::BadFormat)?;
-    let (days, fraction, after) = iso_number(rest)?;
+    let (days, fraction, after) = iso_number(rest, check)?;
     accumulator.days(days, 1)?;
     accumulator.fraction_micros(fraction, USECS_PER_DAY)?;
     *rest = after;
@@ -626,11 +673,12 @@ fn iso_extended_date(
     Ok(IsoStep::TimePart)
 }
 
-fn iso_time_field(
+fn iso_time_field<E>(
     field: &IsoField<'_>,
     rest: &mut &str,
     accumulator: &mut Accumulator,
-) -> Result<IsoStep, DecodeError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<IsoStep, TokenizeError<E>> {
     let IsoField {
         start,
         value,
@@ -651,27 +699,27 @@ fn iso_time_field(
         }
         '\0' | ':' => {
             if have_field {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
             accumulator.micros(value, fraction, USECS_PER_HOUR)?;
             if unit == '\0' {
                 return Ok(IsoStep::Finish);
             }
-            let (minutes, fraction, after) = iso_number(rest)?;
+            let (minutes, fraction, after) = iso_number(rest, check)?;
             accumulator.micros(minutes, fraction, USECS_PER_MINUTE)?;
             *rest = after;
             if rest.is_empty() {
                 return Ok(IsoStep::Finish);
             }
             *rest = rest.strip_prefix(':').ok_or(DecodeError::BadFormat)?;
-            let (seconds, fraction, after) = iso_number(rest)?;
+            let (seconds, fraction, after) = iso_number(rest, check)?;
             accumulator.micros(seconds, fraction, USECS_PER_SEC)?;
             if !after.is_empty() {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
             return Ok(IsoStep::Finish);
         }
-        _ => return Err(DecodeError::BadFormat),
+        _ => return Err(DecodeError::BadFormat.into()),
     }
     Ok(IsoStep::Field)
 }

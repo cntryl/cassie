@@ -99,6 +99,92 @@ fn should_list_builtin_access_methods_in_pg_am() {
 }
 
 #[test]
+fn should_omit_cassie_internal_index_methods_from_postgresql_catalogs() {
+    // Arrange
+    let fixture = sql_fixture(
+        "issue-817-internal-index-catalog-boundary",
+        &[
+            "CREATE SCHEMA issue_817_internal_index_catalog",
+            "CREATE TABLE issue_817_internal_index_catalog.events (\
+                 event_at TIMESTAMPTZ NOT NULL, tenant TEXT NOT NULL, payload TEXT)",
+            "CREATE INDEX issue_817_events_column_idx \
+                 ON issue_817_internal_index_catalog.events USING column (payload) \
+                 WITH (segment_size = 1)",
+            "CREATE INDEX issue_817_events_timeseries_idx \
+                 ON issue_817_internal_index_catalog.events USING time_series (event_at) \
+                 WITH (bucket_width = '1 hour', partition_by = tenant)",
+            "CREATE INDEX issue_817_events_btree_idx \
+                 ON issue_817_internal_index_catalog.events USING btree (tenant)",
+        ],
+    );
+    fixture.cassie.startup().expect("startup");
+
+    // Act
+    let class_rows = fixture
+        .execute(
+            "SELECT relname FROM pg_catalog.pg_class \
+             WHERE relname IN (\
+                 'issue_817_events_column_idx', \
+                 'issue_817_events_timeseries_idx', \
+                 'issue_817_events_btree_idx') \
+             ORDER BY relname",
+        )
+        .expect("read selected pg_class index rows");
+    let access_method_rows = fixture
+        .execute(
+            "SELECT index_class.relname, index_class.relkind, index_class.relam, \
+                    access_method.amname \
+             FROM pg_catalog.pg_class AS index_class \
+             JOIN pg_catalog.pg_am AS access_method \
+               ON access_method.oid = index_class.relam \
+             WHERE index_class.relname IN (\
+                 'issue_817_events_column_idx', \
+                 'issue_817_events_timeseries_idx', \
+                 'issue_817_events_btree_idx') \
+             ORDER BY index_class.relname",
+        )
+        .expect("join emitted index relations to genuine access methods");
+    let index_rows = fixture
+        .execute(
+            "SELECT indexrelid FROM pg_catalog.pg_index \
+             WHERE indexrelid IN (\
+                 'issue_817_events_column_idx', \
+                 'issue_817_events_timeseries_idx', \
+                 'issue_817_events_btree_idx') \
+             ORDER BY indexrelid",
+        )
+        .expect("read selected pg_index rows");
+    let index_views = fixture
+        .execute(
+            "SELECT indexname FROM pg_catalog.pg_indexes \
+             WHERE schemaname = 'issue_817_internal_index_catalog' \
+               AND indexname IN (\
+                 'issue_817_events_column_idx', \
+                 'issue_817_events_timeseries_idx', \
+                 'issue_817_events_btree_idx') \
+             ORDER BY indexname",
+        )
+        .expect("read selected pg_indexes rows");
+
+    // Assert
+    let expected = vec![vec![Value::String(
+        "issue_817_events_btree_idx".to_owned(),
+    )]];
+    assert_eq!(class_rows.rows(), expected);
+    assert_eq!(
+        access_method_rows.rows(),
+        vec![vec![
+            Value::String("issue_817_events_btree_idx".to_owned()),
+            Value::String("i".to_owned()),
+            Value::Int64(403),
+            Value::String("btree".to_owned()),
+        ]]
+    );
+    assert_eq!(index_rows.rows(), expected);
+    assert_eq!(index_views.rows(), expected);
+}
+
+#[test]
 fn should_render_a_created_index_definition() {
     // Arrange
     let fixture = sql_fixture(

@@ -460,7 +460,7 @@ fn known_expr_type_with_parameters(
         if matches!(oid, 0 | UNKNOWN_PARAMETER_TYPE_OID) {
             return None;
         }
-        binder::parameter_data_type_for_oid(oid)
+        oids.data_type_for_oid(oid)
     })
 }
 
@@ -896,9 +896,10 @@ pub(super) fn infer_parameter_type_from_expected_expr(
 
 fn set_parameter_type_oid(oids: &mut ParameterInference, index: usize, data_type: &DataType) {
     oids.record_type_demand(index, data_type);
+    let resolved = oids.oid_for_data_type(data_type);
     if let Some(oid) = oids.oids.get_mut(index) {
         if *oid == UNKNOWN_PARAMETER_TYPE_OID {
-            *oid = i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX);
+            *oid = resolved;
         }
     }
 }

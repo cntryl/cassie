@@ -34,6 +34,7 @@ fn should_retain_sorted_values_until_their_owner_drops() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -91,6 +92,7 @@ fn should_retain_null_percentile_output_through_every_row_alias() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -141,6 +143,7 @@ fn should_preserve_scalar_fraction_result_policy() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -328,6 +331,7 @@ fn should_retain_null_array_for_continuous_with_discrete_filtered_percentiles() 
         let context = AggregateExecutionContext {
             plan: &plan,
             params: &params,
+            parameter_type_oids: &[],
             search_context: None,
             user_functions: &functions,
             session: None,
@@ -393,6 +397,7 @@ fn should_cancel_actual_percentile_null_output_while_source_leases_overlap() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

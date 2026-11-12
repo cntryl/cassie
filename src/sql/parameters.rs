@@ -30,6 +30,7 @@ struct ParameterInference<'a> {
     oids: Vec<i32>,
     context_demands: Vec<u8>,
     record_context_demands: bool,
+    catalog: Option<&'a crate::catalog::Catalog>,
     scope: Option<&'a crate::catalog::FunctionInputScope<'a>>,
     controls: Option<&'a QueryExecutionControls>,
     failure: Option<ParameterAdmissionError>,
@@ -41,6 +42,7 @@ impl ParameterInference<'_> {
             context_demands: vec![0; oids.len()],
             oids,
             record_context_demands: true,
+            catalog: None,
             scope: None,
             controls: None,
             failure: None,
@@ -86,6 +88,34 @@ impl ParameterInference<'_> {
     fn record_expression_demand(&mut self, expr: &ast::Expr, data_type: &DataType) {
         if let ast::Expr::Param(index) = expr {
             self.record_type_demand(*index, data_type);
+        }
+    }
+
+    fn data_type_for_oid(&self, oid: i32) -> Option<DataType> {
+        match (self.catalog, self.scope) {
+            (Some(catalog), Some(scope)) => {
+                crate::sql::binder::parameter_data_type_for_oid_in_database(
+                    oid,
+                    catalog,
+                    scope.database,
+                )
+            }
+            _ => crate::sql::binder::parameter_data_type_for_oid(oid),
+        }
+    }
+
+    fn oid_for_data_type(&self, data_type: &DataType) -> i32 {
+        match (self.catalog, self.scope) {
+            (Some(catalog), Some(scope)) => {
+                crate::catalog::object_identity::type_oid_for_database(
+                    catalog,
+                    scope.database,
+                    data_type,
+                )
+                .and_then(|oid| i32::try_from(oid).ok())
+                .unwrap_or_else(|| i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX))
+            }
+            _ => i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX),
         }
     }
 
@@ -333,7 +363,7 @@ fn checked_legacy_parameter_types(
     {
         // The conflict pass deliberately starts UNKNOWN, independently of
         // supplied OIDs. Both its vectors drop before the second pass begins.
-        let mut first = AccountedInference::new(count, &[], controls, scope)?;
+        let mut first = AccountedInference::new(count, &[], catalog, controls, scope)?;
         check_controls(controls)?;
         infer_parameter_type_oids_query(&statement.statement, catalog, &mut first.value);
         first.value.finish_pass()?;
@@ -343,7 +373,7 @@ fn checked_legacy_parameter_types(
             return Err(ParameterAdmissionError::LegacyConflict(message));
         }
     }
-    let mut actual = AccountedInference::new(count, &normalized.values, controls, scope)?;
+    let mut actual = AccountedInference::new(count, &normalized.values, catalog, controls, scope)?;
     check_controls(controls)?;
     infer_parameter_type_oids_query(&statement.statement, catalog, &mut actual.value);
     actual.value.finish_pass()?;
@@ -356,6 +386,7 @@ fn checked_legacy_parameter_types(
         oids,
         context_demands,
         record_context_demands: _,
+        catalog: _,
         scope: _,
         controls: _,
         failure: _,
@@ -431,6 +462,7 @@ impl<'a> AccountedInference<'a> {
     fn new(
         count: usize,
         provided: &[i32],
+        catalog: &'a crate::catalog::Catalog,
         controls: &'a QueryExecutionControls,
         scope: Option<&'a crate::catalog::FunctionInputScope<'a>>,
     ) -> Result<Self, ParameterAdmissionError> {
@@ -453,6 +485,7 @@ impl<'a> AccountedInference<'a> {
                 oids: oids.values,
                 context_demands: demands.values,
                 record_context_demands: true,
+                catalog: Some(catalog),
                 scope,
                 controls: Some(controls),
                 failure: None,

@@ -46,7 +46,7 @@ fn should_preserve_vector_extrema_given_empty_and_filtered_inputs_when_other_ove
             .iter()
             .map(|column| column.type_oid)
             .collect::<Vec<_>>(),
-        vec![DataType::Vector(2).type_oid(); 2]
+        vec![DataType::Vector(Some(2)).type_oid(); 2]
     );
     for (actual, expected) in errors {
         assert_eq!(actual, format!("execution error: {expected}"));

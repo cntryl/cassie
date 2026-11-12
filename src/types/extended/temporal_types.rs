@@ -243,6 +243,15 @@ pub(super) fn parse_text(
     })
 }
 
+pub(crate) fn parse_text_with_controls(
+    kind: ExtendedType,
+    text: &str,
+    session: &TemporalSession,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<TypedValue, crate::app::CassieError> {
+    temporal::controlled_input::parse_text(kind, text, session, controls)
+}
+
 fn cannot_cast(source: &str, target: ExtendedType) -> TypeInputError {
     TypeInputError {
         sqlstate: "42846",
@@ -454,6 +463,47 @@ pub fn parameter_from_text(
         }
     }
     Some(parsed)
+}
+
+/// Controlled version of temporal bind decoding. Control failures propagate
+/// as query errors; ordinary PostgreSQL input errors remain type diagnostics.
+pub(crate) fn parameter_from_text_with_controls(
+    kind: ExtendedType,
+    text: &str,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Option<Result<TypedValue, TypeInputError>>, crate::app::CassieError> {
+    if !is_temporal(kind) {
+        return Ok(None);
+    }
+    let utc = temporal::default_session();
+    let parsed = parse_controlled(kind, text, &utc, controls)?;
+    if matches!(
+        kind,
+        ExtendedType::TimestampTz { .. } | ExtendedType::TimeTz { .. }
+    ) {
+        let shifted = TemporalSession {
+            zone: temporal::zone::fixed_zone(3600),
+            ..utc.clone()
+        };
+        let shifted_result = parse_controlled(kind, text, &shifted, controls)?;
+        if parsed.as_ref().ok() != shifted_result.as_ref().ok() {
+            return Ok(None);
+        }
+    }
+    Ok(Some(parsed))
+}
+
+fn parse_controlled(
+    kind: ExtendedType,
+    text: &str,
+    session: &TemporalSession,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<Result<TypedValue, TypeInputError>, crate::app::CassieError> {
+    match parse_text_with_controls(kind, text, session, controls) {
+        Ok(value) => Ok(Ok(value)),
+        Err(crate::app::CassieError::TypeInput(error)) => Ok(Err(error)),
+        Err(error) => Err(error),
+    }
 }
 
 /// Reads a stored `date`/`time`/`timestamp` column value natively; the

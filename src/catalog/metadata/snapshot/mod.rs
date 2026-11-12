@@ -22,6 +22,47 @@ mod exact_eq;
 use delta::{clone_delta_map, delta_map_bytes, is_transaction_map};
 use exact_eq::ExactMetadataEq;
 
+fn sequence_definition_exact_eq(
+    left: &crate::catalog::SequenceMeta,
+    right: &crate::catalog::SequenceMeta,
+    controls: &QueryExecutionControls,
+) -> Result<bool, CassieError> {
+    Ok(left.name.exact_eq(&right.name, controls)?
+        && left.data_type.exact_eq(&right.data_type, controls)?
+        && left.start_value.exact_eq(&right.start_value, controls)?
+        && left.increment_by.exact_eq(&right.increment_by, controls)?
+        && left.min_value.exact_eq(&right.min_value, controls)?
+        && left.max_value.exact_eq(&right.max_value, controls)?
+        && left.cache.exact_eq(&right.cache, controls)?
+        && left.cycle.exact_eq(&right.cycle, controls)?
+        && left.owned_by.exact_eq(&right.owned_by, controls)?
+        && left.persistence.exact_eq(&right.persistence, controls)?
+        && left.object_id.exact_eq(&right.object_id, controls)?)
+}
+
+fn sequence_definitions_exact_eq(
+    left: &HashMap<String, crate::catalog::SequenceMeta>,
+    right: &HashMap<String, crate::catalog::SequenceMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<bool, CassieError> {
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    for (index, (name, sequence)) in left.iter().enumerate() {
+        if index % 128 == 0 {
+            controls.check_interruption()?;
+        }
+        let Some(other) = right.get(name) else {
+            return Ok(false);
+        };
+        if !sequence_definition_exact_eq(sequence, other, controls)? {
+            return Ok(false);
+        }
+    }
+    controls.check_interruption()?;
+    Ok(true)
+}
+
 // Exhaustive destructuring makes an added owned metadata field a compilation
 // error until its retained backing is explicitly included in the admission.
 macro_rules! metadata_heap {
@@ -157,6 +198,10 @@ impl Catalog {
                 self.operational_assignments.read().clone(),
             )),
             maintenance_debts: Arc::new(RwLock::new(self.maintenance_debts.read().clone())),
+            object_comments: Arc::new(RwLock::new(self.object_comments.read().clone())),
+            role_object_grants: Arc::new(RwLock::new(
+                self.role_object_grants.read().clone(),
+            )),
             version: Arc::new(AtomicU64::new(self.version())),
         }
     }
@@ -302,9 +347,18 @@ macro_rules! catalog_maps {
                 controls: &QueryExecutionControls,
             ) -> Result<bool, CassieError> {
                 $(
-                    if is_transaction_map(stringify!($field))
-                        && !self.$field.exact_eq(&other.$field, controls)?
-                    { return Ok(false); }
+                    if is_transaction_map(stringify!($field)) {
+                        let equal = if stringify!($field) == "sequences" {
+                            sequence_definitions_exact_eq(
+                                &self.sequences,
+                                &other.sequences,
+                                controls,
+                            )?
+                        } else {
+                            self.$field.exact_eq(&other.$field, controls)?
+                        };
+                        if !equal { return Ok(false); }
+                    }
                 )*
                 controls.check_interruption()?;
                 Ok(true)
@@ -337,6 +391,8 @@ catalog_maps! {
     projection_repair_reports: crate::catalog::ProjectionRepairReportMeta,
     operational_assignments: crate::catalog::OperationalAssignmentMeta,
     maintenance_debts: crate::catalog::MaintenanceDebtMeta,
+    object_comments: crate::catalog::ObjectCommentMeta,
+    role_object_grants: crate::catalog::RoleObjectGrantMeta,
 }
 
 #[cfg(test)]

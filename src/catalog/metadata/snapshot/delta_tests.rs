@@ -2,7 +2,11 @@ use std::cell::Cell;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::catalog::{CollectionSchema, DatabaseMeta, FieldMeta, NamespaceMeta};
+use crate::catalog::{
+    CollectionSchema, DatabaseMeta, FieldMeta, NamespaceMeta, RoleGrantTarget,
+    RoleObjectGrantMeta, RoleObjectPrivilege, SequenceMeta,
+};
+use std::collections::BTreeSet;
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryCancellationHandle;
 
@@ -24,6 +28,15 @@ fn namespace(name: &str, description: &str) -> NamespaceMeta {
         name: name.to_owned(),
         description: Some(description.to_owned()),
         object_id: 17,
+    }
+}
+
+fn role_grant(target: RoleGrantTarget) -> RoleObjectGrantMeta {
+    RoleObjectGrantMeta {
+        database_family: "db-family".to_owned(),
+        role_id: 23,
+        target,
+        privileges: BTreeSet::from([RoleObjectPrivilege::Select]),
     }
 }
 
@@ -112,6 +125,30 @@ fn should_apply_own_catalog_delta_over_current_descriptor_metadata() {
     assert!(namespaces.contains_key("created"));
     assert!(!namespaces.contains_key("removed"));
     assert_eq!(namespaces["changed"].description.as_deref(), Some("own"));
+}
+
+#[test]
+fn should_publish_role_grant_delta_from_a_detached_transaction_snapshot() {
+    // Arrange
+    let initial = Catalog::new();
+    let removed = role_grant(RoleGrantTarget::Table(41));
+    let added = role_grant(RoleGrantTarget::Table(42));
+    initial.register_role_object_grant(removed.clone());
+    let base = initial.detached_transaction_snapshot();
+    let overlay = base.detached_transaction_snapshot();
+    overlay.unregister_role_object_grant(&removed);
+    overlay.register_role_object_grant(added.clone());
+    let controls = controls(usize::MAX);
+
+    // Act
+    let owner = initial
+        .snapshot_with_delta(&base, &overlay, &controls)
+        .expect("role grant delta snapshot");
+
+    // Assert
+    assert_eq!(owner.catalog().list_role_object_grants(), vec![added]);
+    assert_eq!(owner.accounted_bytes(), controls.current_query_memory_bytes());
+    assert!(!initial.matches_transaction_metadata(&overlay, &controls).unwrap());
 }
 
 #[test]
@@ -278,6 +315,51 @@ fn should_compare_transaction_metadata_without_capacity_or_version_identity() {
     assert!(same);
     assert!(!changed);
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_ignore_sequence_cursor_for_conflicts_and_keep_the_owner_cursor_in_its_read_view() {
+    // Arrange
+    let current = Catalog::new();
+    let mut sequence = SequenceMeta::new(
+        "public.sequence_cursor",
+        crate::types::DataType::BigInt,
+    );
+    sequence.object_id = 83;
+    current.register_sequence(sequence.clone());
+    let base = current.detached_transaction_snapshot();
+    sequence.current_value = 2;
+    sequence.is_called = true;
+    current.update_sequence_cursor(&sequence);
+    let mut staged_sequence = sequence.clone();
+    staged_sequence.current_value = 3;
+    let staged = base.detached_transaction_snapshot();
+    staged.register_sequence(staged_sequence);
+    let controls = controls(usize::MAX);
+
+    // Act
+    let cursor_only_change = current
+        .matches_transaction_metadata(&base, &controls)
+        .expect("cursor is not structural catalog metadata");
+    let owner = current
+        .snapshot_with_delta(&base, &staged, &controls)
+        .expect("owner view retains its sequence cursor");
+    let owner_cursor = owner
+        .catalog()
+        .get_sequence("public.sequence_cursor")
+        .expect("sequence is visible in owner view");
+    let mut changed_definition = sequence;
+    changed_definition.increment_by = 2;
+    current.register_sequence(changed_definition);
+    let structural_change = current
+        .matches_transaction_metadata(&base, &controls)
+        .expect("definition change is structural catalog metadata");
+
+    // Assert
+    assert!(cursor_only_change);
+    assert_eq!(owner_cursor.current_value, 3);
+    assert!(owner_cursor.is_called);
+    assert!(!structural_change);
 }
 
 #[test]

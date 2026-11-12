@@ -18,6 +18,8 @@ mod materialized_view_reindex;
 mod nulls_not_distinct;
 #[path = "operator_class_key_modifiers.rs"]
 mod operator_class_key_modifiers;
+#[path = "pgvector_profile.rs"]
+mod pgvector_profile;
 #[path = "partial_index_query_equivalence.rs"]
 mod partial_index_query_equivalence;
 #[path = "reindex_database_concurrent_ddl.rs"]

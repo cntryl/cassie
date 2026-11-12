@@ -62,6 +62,7 @@ fn primary_key_indexes(
 }
 
 mod command_output;
+mod comment_command;
 mod query_result;
 pub(crate) use query_result::native_result_text_bound;
 mod types;
@@ -95,7 +96,7 @@ mod result;
 
 pub(crate) use entrypoints::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,
-    rollup_rewrite_name_for_plan, run_with_session_controls,
+    rollup_rewrite_name_for_plan, run_with_session_controls, run_with_session_parameter_oids,
     sync_derived_maintenance_debt_external,
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
@@ -104,8 +105,10 @@ pub(crate) use scored::install_ann_rerank_barriers;
 use cte::{execute_cte, CteContext};
 use dispatch::{
     build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
-    execute_physical_plan, execute_plan, execute_plan_with_execution_breakdown,
-    execute_plan_with_outer_row, plan_execution_env, reserve_projection_output_before_building,
+    execute_physical_plan, execute_physical_plan_with_parameter_oids, execute_plan,
+    execute_plan_with_execution_breakdown, execute_plan_with_parameter_oids,
+    execute_plan_with_outer_row, plan_execution_env_with_parameter_oids,
+    reserve_projection_output_before_building,
     resolve_exists_expr, resolve_statement_exists, ExistsResolutionContext,
 };
 #[cfg(test)]

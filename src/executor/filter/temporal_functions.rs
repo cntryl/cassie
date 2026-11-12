@@ -45,11 +45,18 @@ fn coerce(
     value: &Value,
     kind: ExtendedType,
     session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<TypedValue, QueryError> {
     match value {
         Value::Typed(typed) if typed.kind() == kind.base() => Ok(typed.clone()),
         Value::Typed(typed) => convert_temporal(typed, kind, session).map_err(type_error),
-        Value::String(text) => kind.parse_text_in(text, session).map_err(type_error),
+        Value::String(text) => controls.map_or_else(
+            || kind.parse_text_in(text, session).map_err(type_error),
+            |controls| {
+                kind.parse_text_in_with_controls(text, session, controls)
+                    .map_err(QueryError::from)
+            },
+        ),
         _ => Err(execution(format!(
             "cannot cast value to {}",
             crate::types::extended::temporal_display_name(kind)
@@ -193,6 +200,7 @@ pub(super) fn evaluate(
     name: &str,
     args: &[Value],
     controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
 ) -> Option<Result<Value, QueryError>> {
     if !is_temporal_function(name, args) {
         return None;
@@ -207,7 +215,7 @@ pub(super) fn evaluate(
     if name != "overlaps" && args.iter().any(|value| matches!(value, Value::Null)) {
         return Some(Ok(Value::Null));
     }
-    Some(dispatch(name, args, &session, controls))
+    Some(dispatch_with_memory(name, args, &session, controls, memory))
 }
 
 /// Whether `name` with these arguments is a date/time builtin here.
@@ -232,10 +240,11 @@ fn constructor(
     name: &str,
     args: &[Value],
     session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Option<Value>, QueryError> {
     let result = match (name, args) {
         ("justify_days" | "justify_hours" | "justify_interval", [value]) => {
-            let TypedValue::Interval(interval) = coerce(value, INTERVAL, session)? else {
+            let TypedValue::Interval(interval) = coerce(value, INTERVAL, session, controls)? else {
                 return Err(argument_error(name, args));
             };
             let justified = match name {
@@ -301,19 +310,32 @@ fn constructor(
     result.map(Some)
 }
 
+#[cfg(test)]
 fn dispatch(
     name: &str,
     args: &[Value],
     session: &TemporalSession,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
-    if let Some(value) = constructor(name, args, session)? {
+    dispatch_with_memory(name, args, session, controls, None)
+}
+
+fn dispatch_with_memory(
+    name: &str,
+    args: &[Value],
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
+) -> Result<Value, QueryError> {
+    if let Some(value) = constructor(name, args, session, controls)? {
         return Ok(value);
     }
     match (name, args) {
-        ("date_trunc", [field, source]) => date_trunc(field, source, None, session),
-        ("date_trunc", [field, source, zone]) => date_trunc(field, source, Some(zone), session),
-        ("date_part", [field, source]) => date_part(field, source, session),
+        ("date_trunc", [field, source]) => date_trunc(field, source, None, session, controls),
+        ("date_trunc", [field, source, zone]) => {
+            date_trunc(field, source, Some(zone), session, controls)
+        }
+        ("date_part", [field, source]) => date_part(field, source, session, controls),
         ("to_number", [input, template]) => {
             let (Some(input), Some(template)) = (text(input), text(template)) else {
                 return Err(argument_error(name, args));
@@ -331,26 +353,26 @@ fn dispatch(
                     TypedValue::Timestamp(temporal::local_of(*instant, &session.zone))
                 }
                 Value::Typed(typed) => typed.clone(),
-                other => coerce(other, TIMESTAMPTZ, session)?,
+                other => coerce(other, TIMESTAMPTZ, session, controls)?,
             };
             extract::validate_date_unit(&unit, &original)?;
             if let Some(result) = extract::wide_date_part(&unit, &original) {
                 return Ok(result);
             }
-            match date_part(field, source, session)? {
+            match date_part(field, source, session, controls)? {
                 Value::Float64(part) => extract::numeric_part(&unit, &original, part),
                 other => Ok(other),
             }
         }
-        ("date_bin", [stride, source, origin]) => date_bin(stride, source, origin, session),
-        ("age", [left, right]) => age(left, right, session),
+        ("date_bin", [stride, source, origin]) => date_bin(stride, source, origin, session, controls),
+        ("age", [left, right]) => age(left, right, session, controls),
         ("age", [value]) => {
             let today = session
                 .zone
                 .utc_to_local(session.transaction_start)
                 .div_euclid(USECS_PER_DAY);
             let midnight = Value::Typed(TypedValue::Timestamp(today * USECS_PER_DAY));
-            age(&midnight, value, session)
+            age(&midnight, value, session, controls)
         }
         ("to_timestamp", [seconds]) => {
             let seconds = float(seconds).ok_or_else(|| argument_error(name, args))?;
@@ -359,31 +381,31 @@ fn dispatch(
                 .map_err(type_error)
         }
         ("to_timestamp" | "to_date" | "to_char", [_, _]) => {
-            super::temporal_format::evaluate(name, args, session, controls)
+            super::temporal_format::evaluate(name, args, session, controls, memory)
         }
         ("isfinite", [value]) => {
             let value = match value {
                 Value::Typed(value) => value.clone(),
-                other => coerce(other, TIMESTAMPTZ, session)?,
+                other => coerce(other, TIMESTAMPTZ, session, controls)?,
             };
             Ok(Value::Bool(ops::is_finite(&value)))
         }
         ("overlaps", [first, second, third, fourth]) => {
-            overlaps([first, second, third, fourth], session)
+            overlaps([first, second, third, fourth], session, controls)
         }
         ("timezone", [zone, value]) => {
             let zone = match posix_timezone::resolve(zone, value, session, controls)? {
                 Some(zone) => zone,
                 None => zone_argument(zone, session)?,
             };
-            timezone(&zone, value, session)
+            timezone(&zone, value, session, controls)
         }
-        ("timezone", [value]) => timezone(&session.zone, value, session),
+        ("timezone", [value]) => timezone(&session.zone, value, session, controls),
         ("date_add" | "date_subtract", [value, span, rest @ ..]) => {
-            let TypedValue::TimestampTz(instant) = coerce(value, TIMESTAMPTZ, session)? else {
+            let TypedValue::TimestampTz(instant) = coerce(value, TIMESTAMPTZ, session, controls)? else {
                 return Err(argument_error(name, args));
             };
-            let TypedValue::Interval(mut span) = coerce(span, INTERVAL, session)? else {
+            let TypedValue::Interval(mut span) = coerce(span, INTERVAL, session, controls)? else {
                 return Err(argument_error(name, args));
             };
             if name == "date_subtract" {
@@ -416,13 +438,17 @@ fn make_interval(parts: &[Value]) -> Result<Value, QueryError> {
         .map_err(type_error)
 }
 
-fn source_value(value: &Value, session: &TemporalSession) -> Result<TypedValue, QueryError> {
+fn source_value(
+    value: &Value,
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<TypedValue, QueryError> {
     match value {
         Value::Typed(TypedValue::Date(date)) => {
             convert_temporal(&TypedValue::Date(*date), TIMESTAMPTZ, session).map_err(type_error)
         }
         Value::Typed(typed) => Ok(typed.clone()),
-        other => coerce(other, TIMESTAMPTZ, session),
+        other => coerce(other, TIMESTAMPTZ, session, controls),
     }
 }
 
@@ -431,10 +457,11 @@ fn date_trunc(
     source: &Value,
     zone: Option<&Value>,
     session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
     let unit = text(field).ok_or_else(|| execution("date_trunc unit must be text"))?;
     let zone = zone.map(|zone| zone_argument(zone, session)).transpose()?;
-    match source_value(source, session)? {
+    match source_value(source, session, controls)? {
         TypedValue::Timestamp(value) => {
             temporal::trunc_timestamp(&unit, value).map(TypedValue::Timestamp)
         }
@@ -459,6 +486,7 @@ fn date_part(
     field: &Value,
     source: &Value,
     session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
     let unit = text(field).ok_or_else(|| execution("date_part unit must be text"))?;
     let value = match source {
@@ -466,7 +494,7 @@ fn date_part(
             convert_temporal(&TypedValue::Date(*date), TIMESTAMP, session).map_err(type_error)?
         }
         Value::Typed(typed) => typed.clone(),
-        other => coerce(other, TIMESTAMPTZ, session)?,
+        other => coerce(other, TIMESTAMPTZ, session, controls)?,
     };
     let part: Result<Option<f64>, TypeInputError> = match value {
         TypedValue::Timestamp(value) => {
@@ -502,19 +530,22 @@ fn date_bin(
     source: &Value,
     origin: &Value,
     session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<Value, QueryError> {
-    let TypedValue::Interval(stride) = coerce(stride, INTERVAL, session)? else {
+    let TypedValue::Interval(stride) = coerce(stride, INTERVAL, session, controls)? else {
         return Err(execution("date_bin stride must be an interval"));
     };
-    match source_value(source, session)? {
+    match source_value(source, session, controls)? {
         TypedValue::Timestamp(value) => {
-            let TypedValue::Timestamp(origin) = coerce(origin, TIMESTAMP, session)? else {
+            let TypedValue::Timestamp(origin) = coerce(origin, TIMESTAMP, session, controls)? else {
                 return Err(execution("date_bin origin must be a timestamp"));
             };
             temporal::date_bin(&stride, value, origin).map(TypedValue::Timestamp)
         }
         TypedValue::TimestampTz(value) => {
-            let TypedValue::TimestampTz(origin) = coerce(origin, TIMESTAMPTZ, session)? else {
+            let TypedValue::TimestampTz(origin) =
+                coerce(origin, TIMESTAMPTZ, session, controls)?
+            else {
                 return Err(execution("date_bin origin must be a timestamp"));
             };
             temporal::date_bin(&stride, value, origin).map(TypedValue::TimestampTz)
@@ -525,17 +556,22 @@ fn date_bin(
     .map_err(type_error)
 }
 
-fn age(left: &Value, right: &Value, session: &TemporalSession) -> Result<Value, QueryError> {
+fn age(
+    left: &Value,
+    right: &Value,
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
     let zoned = matches!(left, Value::Typed(TypedValue::TimestampTz(_)))
         || matches!(right, Value::Typed(TypedValue::TimestampTz(_)));
     let local = |value: &Value| -> Result<i64, QueryError> {
         if zoned {
-            match coerce(value, TIMESTAMPTZ, session)? {
+            match coerce(value, TIMESTAMPTZ, session, controls)? {
                 TypedValue::TimestampTz(value) => Ok(temporal::local_of(value, &session.zone)),
                 _ => Err(execution("age requires timestamps")),
             }
         } else {
-            match coerce(value, TIMESTAMP, session)? {
+            match coerce(value, TIMESTAMP, session, controls)? {
                 TypedValue::Timestamp(value) => Ok(value),
                 _ => Err(execution("age requires timestamps")),
             }
@@ -546,7 +582,11 @@ fn age(left: &Value, right: &Value, session: &TemporalSession) -> Result<Value, 
         .map_err(type_error)
 }
 
-fn overlaps(args: [&Value; 4], session: &TemporalSession) -> Result<Value, QueryError> {
+fn overlaps(
+    args: [&Value; 4],
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
     let kind = args
         .iter()
         .find_map(|value| match value {
@@ -558,7 +598,7 @@ fn overlaps(args: [&Value; 4], session: &TemporalSession) -> Result<Value, Query
     let point = |value: &Value| -> Result<Option<TypedValue>, QueryError> {
         match value {
             Value::Null => Ok(None),
-            other => coerce(other, kind, session).map(Some),
+            other => coerce(other, kind, session, controls).map(Some),
         }
     };
     let end =
@@ -621,10 +661,15 @@ fn overlap_truth(
     }
 }
 
-fn timezone(zone: &Zone, value: &Value, session: &TemporalSession) -> Result<Value, QueryError> {
+fn timezone(
+    zone: &Zone,
+    value: &Value,
+    session: &TemporalSession,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<Value, QueryError> {
     let value = match value {
         Value::Typed(typed) => typed.clone(),
-        other => coerce(other, TIMESTAMPTZ, session)?,
+        other => coerce(other, TIMESTAMPTZ, session, controls)?,
     };
     Ok(typed(match value {
         TypedValue::Timestamp(local) => TypedValue::TimestampTz(temporal::utc_of(local, zone)),
@@ -636,6 +681,7 @@ fn timezone(zone: &Zone, value: &Value, session: &TemporalSession) -> Result<Val
                 &Value::Typed(value),
                 ExtendedType::TimeTz { precision: None },
                 session,
+                controls,
             )?
             else {
                 return Err(execution("timezone requires a time with time zone"));
@@ -651,7 +697,7 @@ fn timezone(zone: &Zone, value: &Value, session: &TemporalSession) -> Result<Val
         }
         TypedValue::Date(_) => {
             let TypedValue::TimestampTz(instant) =
-                coerce(&Value::Typed(value), TIMESTAMPTZ, session)?
+                coerce(&Value::Typed(value), TIMESTAMPTZ, session, controls)?
             else {
                 return Err(execution("timezone requires a timestamp"));
             };
@@ -668,3 +714,7 @@ mod timezone_regression_tests;
 #[cfg(test)]
 #[path = "temporal_posix_tests.rs"]
 mod posix_tests;
+
+#[cfg(test)]
+#[path = "temporal_control_tests.rs"]
+mod control_tests;

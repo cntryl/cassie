@@ -33,6 +33,9 @@ mod postgresql18_tablesample_seed;
 #[path = "protocol/temporal/semantics.rs"]
 mod postgresql18_temporal_compat;
 
+#[path = "functions/temporal/abbreviation_input.rs"]
+mod postgresql18_temporal_abbreviation_input;
+
 #[path = "protocol/text.rs"]
 mod postgresql18_text_compat;
 

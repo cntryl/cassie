@@ -100,7 +100,7 @@ fn vector_field_dimensions(
         })?;
 
     match vector_field.data_type {
-        DataType::Vector(dimensions) => Ok(dimensions),
+        DataType::Vector(Some(dimensions)) => Ok(dimensions),
         _ => Err(CassieError::InvalidEmbedding(format!(
             "field '{field}' is not a vector field"
         ))),

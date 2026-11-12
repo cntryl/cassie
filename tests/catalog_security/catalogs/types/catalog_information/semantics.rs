@@ -249,25 +249,28 @@ fn should_report_postgresql_builtin_type_metadata() {
 }
 
 #[test]
-fn should_keep_private_vector_type_classification() {
+fn should_report_vector_type_classification_from_installed_extension() {
     // Arrange
     let fixture = sql_fixture(
         "issue-817-private-vector-type-kind",
-        &["CREATE TABLE vector_kind (embedding VECTOR(2))"],
+        &[
+            "CREATE EXTENSION vector VERSION '0.8.7'",
+            "CREATE TABLE vector_kind (embedding VECTOR(2))",
+        ],
     );
     fixture.cassie.startup().expect("startup");
 
     // Act
     let selected = fixture
-        .execute("SELECT typtype, typcategory, typbyval FROM pg_catalog.pg_type WHERE typname = 'vector(2)'")
-        .expect("read private vector type");
+        .execute("SELECT typtype, typcategory, typbyval FROM pg_catalog.pg_type WHERE typname = 'vector'")
+        .expect("read installed vector type");
 
     // Assert
     assert_eq!(
         selected.rows(),
         vec![vec![
             Value::String("b".into()),
-            Value::String("V".into()),
+            Value::String("U".into()),
             Value::Bool(false)
         ]]
     );

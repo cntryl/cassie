@@ -24,6 +24,10 @@ impl CassieSession {
             .map(Catalog::version)
     }
 
+    pub(crate) fn invalidate_sequence_cursor_descriptor(&self) {
+        self.transaction.lock().catalog_views.descriptors = None;
+    }
+
     /// The caller holds the current catalog publication guard. Compare all
     /// published metadata before binding, including no-op DDL dependencies.
     pub(crate) fn check_repeatable_catalog_write(

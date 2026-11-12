@@ -165,6 +165,7 @@ fn probe_phase_admission(selected: Path, phase: JoinRetentionPhase) -> Result<us
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     let entry_bytes = Cell::new(0);

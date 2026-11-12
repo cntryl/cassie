@@ -9,9 +9,10 @@ use super::{
     CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement,
     DataType, DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropIndexStatement,
     DropRoleStatement, DropSchemaStatement, DropSequenceStatement, DropTableStatement, Expr,
-    FieldConstraint, FieldDefinition, HashSet, IndexKind, ParsedStatement, QueryStatement,
-    SqlError, Value,
+    FieldConstraint, FieldDefinition, HashSet, IndexKind, ObjectPrivilegeStatement,
+    ObjectPrivilegeTarget, ParsedStatement, QueryStatement, SqlError, Value,
 };
+use crate::catalog::RoleObjectPrivilege;
 
 #[path = "schema_checks.rs"]
 mod schema_checks;
@@ -780,6 +781,7 @@ pub(super) fn parse_database_connect_privilege_statement(
     let statement = DatabaseConnectPrivilegeStatement {
         database: parse_identifier(&tokens[4])?,
         role: parse_identifier(&tokens[6])?,
+        object: None,
     };
     if statement.database.is_empty() || statement.role.is_empty() {
         return Err(SqlError::new(format!(
@@ -789,6 +791,109 @@ pub(super) fn parse_database_connect_privilege_statement(
     }
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
+        statement: if grant {
+            QueryStatement::GrantDatabaseConnect(statement)
+        } else {
+            QueryStatement::RevokeDatabaseConnect(statement)
+        },
+    })
+}
+
+pub(super) fn parse_object_privilege_statement(
+    sql: &str,
+    grant: bool,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let connector = if grant { "to" } else { "from" };
+    let verb = if grant { "grant" } else { "revoke" };
+    let raw = trimmed
+        .get(verb.len()..)
+        .filter(|_| {
+            trimmed
+                .get(..verb.len())
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case(verb))
+        })
+        .ok_or_else(|| SqlError::syntax(format!("expected {verb} privilege statement")))?
+        .trim();
+    let (privileges_raw, target_clause) =
+        super::clauses::split_top_level(raw, "on").ok_or_else(|| {
+            SqlError::unsupported(format!("{verb} supports only direct schema/table grants"))
+        })?;
+    let (target_clause, role_raw) = super::clauses::split_top_level(target_clause, connector)
+        .ok_or_else(|| SqlError::syntax(format!("{verb} requires one role after {connector}")))?;
+    let target_clause = target_clause.trim();
+    let lower_target = target_clause.to_ascii_lowercase();
+    let (target, target_raw, permitted) = if let Some(name) = lower_target.strip_prefix("schema ") {
+        (
+            ObjectPrivilegeTarget::Schema(parse_identifier(&target_clause[7..])?),
+            name.trim(),
+            &[RoleObjectPrivilege::Usage][..],
+        )
+    } else if let Some(name) = lower_target.strip_prefix("table ") {
+        (
+            ObjectPrivilegeTarget::Table(parse_identifier(&target_clause[6..])?),
+            name.trim(),
+            &[
+                RoleObjectPrivilege::Select,
+                RoleObjectPrivilege::Insert,
+                RoleObjectPrivilege::Update,
+                RoleObjectPrivilege::Delete,
+            ][..],
+        )
+    } else {
+        return Err(SqlError::unsupported(format!(
+            "{verb} supports only schema USAGE and table SELECT/INSERT/UPDATE/DELETE grants"
+        )));
+    };
+    if target_raw.is_empty() {
+        return Err(SqlError::syntax(format!("{verb} requires a target object")));
+    }
+    let mut privileges = Vec::new();
+    for raw_privilege in split_csv(privileges_raw) {
+        let privilege = match raw_privilege.trim().to_ascii_lowercase().as_str() {
+            "usage" => RoleObjectPrivilege::Usage,
+            "select" => RoleObjectPrivilege::Select,
+            "insert" => RoleObjectPrivilege::Insert,
+            "update" => RoleObjectPrivilege::Update,
+            "delete" => RoleObjectPrivilege::Delete,
+            _ => {
+                return Err(SqlError::unsupported(format!(
+                    "unsupported direct privilege '{}'",
+                    raw_privilege.trim()
+                )));
+            }
+        };
+        if !permitted.contains(&privilege) {
+            return Err(SqlError::unsupported(format!(
+                "privilege '{}' is not supported for this target",
+                raw_privilege.trim()
+            )));
+        }
+        if !privileges.contains(&privilege) {
+            privileges.push(privilege);
+        }
+    }
+    if privileges.is_empty() {
+        return Err(SqlError::syntax(format!(
+            "{verb} requires at least one privilege"
+        )));
+    }
+    let role = parse_identifier(role_raw)?;
+    if role.is_empty() {
+        return Err(SqlError::syntax(format!("{verb} requires one grantee")));
+    }
+    if role.eq_ignore_ascii_case("public") {
+        return Err(SqlError::unsupported(
+            "PUBLIC object grants are not supported".to_string(),
+        ));
+    }
+    let statement = DatabaseConnectPrivilegeStatement {
+        database: String::new(),
+        role,
+        object: Some(ObjectPrivilegeStatement { target, privileges }),
+    };
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_owned(),
         statement: if grant {
             QueryStatement::GrantDatabaseConnect(statement)
         } else {

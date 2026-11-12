@@ -20,7 +20,7 @@ fn seed_ivfflat(cassie: &Cassie, collection: &str) {
             },
             FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(3),
+                data_type: DataType::Vector(Some(3)),
                 nullable: true,
             },
         ],

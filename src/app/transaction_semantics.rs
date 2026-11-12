@@ -1,7 +1,7 @@
 use crate::catalog::Catalog;
 use crate::sql::ast::{QueryStatement, StatementFamily};
 
-use super::{CassieError, CassieSession};
+use super::{CassieError, CassieSession, TransactionErrorKind};
 
 pub(crate) fn ensure_supported_transaction_semantics(
     catalog: &Catalog,
@@ -20,6 +20,17 @@ pub(crate) fn ensure_supported_transaction_semantics(
             session,
             "COPY is not supported inside an active transaction",
         );
+    }
+
+    if matches!(
+        statement,
+        QueryStatement::GrantDatabaseConnect(_) | QueryStatement::RevokeDatabaseConnect(_)
+    ) {
+        session.mark_transaction_failed();
+        return Err(CassieError::Transaction {
+            kind: TransactionErrorKind::ActiveTransaction,
+            message: "GRANT and REVOKE are not supported inside an explicit transaction".to_owned(),
+        });
     }
 
     if statement.family() != StatementFamily::Runtime
@@ -42,6 +53,7 @@ pub(crate) fn transactional_ddl_supported(catalog: &Catalog, statement: &QuerySt
         | QueryStatement::CreateSchema(_)
         | QueryStatement::DropSchema(_)
         | QueryStatement::AlterSchema(_)
+        | QueryStatement::CommentOn(_)
         | QueryStatement::Extension(_)
         | QueryStatement::CreateMaterializedView(_)
         | QueryStatement::RefreshMaterializedView(_)

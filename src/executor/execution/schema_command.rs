@@ -169,6 +169,20 @@ fn selected_extension_dependency_ids(
             extension_ids.insert(extension.object_id);
         }
     }
+    if crate::sql::binder::select_uses_vector_extension(select) {
+        if let Some(extension) =
+            cassie
+                .catalog
+                .get_extension(&context.database, "vector")
+        {
+            extension_ids.insert(extension.object_id);
+        }
+    }
+    for relation in crate::sql::binder::select_referenced_relations(select) {
+        if let Some(view) = cassie.catalog.get_view(&relation) {
+            extension_ids.extend(view.extension_dependency_ids);
+        }
+    }
     extension_ids.into_iter().collect()
 }
 
@@ -236,16 +250,72 @@ fn drop_table_target(
     for view in dependent_views {
         drop_stored_view(cassie, &view)?;
     }
+    let collection = cassie.catalog.get_collection(table).ok_or_else(|| {
+        QueryError::Cassie(crate::app::CassieError::CatalogObjectNotFound {
+            kind: crate::app::CatalogObjectKind::Relation,
+            name: table.to_owned(),
+        })
+    })?;
     cassie
         .midge
         .defer_drop_collection(table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
+    cleanup_relation_comments(cassie, &collection.name, collection.storage_id)?;
     schema_sequence_rename::drop_owned_table_sequences(cassie, table)?;
     cassie
         .catalog
         .unregister_collection(table)
         .map_err(|error| QueryError::General(error.to_string()))?;
 
+    Ok(())
+}
+
+pub(super) fn cleanup_relation_comments(
+    cassie: &Cassie,
+    relation: &str,
+    relation_id: u64,
+) -> Result<(), QueryError> {
+    let database = crate::catalog::relation_database_name(relation)
+        .unwrap_or_else(|| cassie.default_database.clone());
+    let object_oid = crate::catalog::object_identity::normal_oid(relation_id).ok_or_else(|| {
+        QueryError::Cassie(crate::app::CassieError::Unsupported(
+            "comment cleanup requires a stable table catalog identity".to_owned(),
+        ))
+    })?;
+    cassie
+        .midge
+        .delete_object_comments_for_object(&database, 1259, object_oid)
+        .map_err(QueryError::Cassie)?;
+    cassie
+        .metadata_write_catalog
+        .unregister_relation_comments(&database, object_oid);
+    Ok(())
+}
+
+pub(super) fn cleanup_schema_comment(
+    cassie: &Cassie,
+    database: &str,
+    schema: &str,
+) -> Result<(), QueryError> {
+    let object_oid = crate::catalog::object_identity::stored_namespace_oid(&cassie.catalog, schema)
+        .ok_or_else(|| {
+            QueryError::Cassie(crate::app::CassieError::Unsupported(
+                "comment cleanup requires a stable schema catalog identity".to_owned(),
+            ))
+        })?;
+    let address = crate::catalog::ObjectCommentAddress {
+        database: database.to_ascii_lowercase(),
+        class_oid: 2615,
+        object_oid,
+        object_sub_id: 0,
+    };
+    cassie
+        .midge
+        .delete_object_comment(&address)
+        .map_err(QueryError::Cassie)?;
+    cassie
+        .metadata_write_catalog
+        .unregister_object_comment(&address);
     Ok(())
 }
 
@@ -698,10 +768,53 @@ fn alter_table_drop_column(
         drop_stored_view(cassie, &view)?;
     }
     schema_constraint_helpers::drop_composite_constraints_on_column(cassie, table, field)?;
+    let row_schema = cassie
+        .midge
+        .row_schema(table)
+        .map_err(QueryError::Cassie)?;
+    let dropped_field_id = row_schema
+        .fields
+        .iter()
+        .find(|stored| {
+            !stored.retired
+                && crate::sql::ColumnIdentifierPath::matches_stored_field(field, &stored.name)
+        })
+        .map(|stored| stored.field_id);
+    let database = crate::catalog::relation_database_name(table)
+        .unwrap_or_else(|| cassie.default_database.clone());
+    let object_oid = cassie
+        .catalog
+        .collection_storage_id(table)
+        .and_then(crate::catalog::object_identity::normal_oid)
+        .ok_or_else(|| {
+            QueryError::Cassie(crate::app::CassieError::Unsupported(
+                "column comment cleanup requires a stable table catalog identity".to_owned(),
+            ))
+        })?;
     cassie
         .midge
         .alter_collection_drop_column(table, field)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    if let Some(field_id) = dropped_field_id {
+        let object_sub_id = i32::try_from(field_id).map_err(|_| {
+            QueryError::Cassie(crate::app::CassieError::Unsupported(
+                "column attribute number exceeds PostgreSQL int4".to_owned(),
+            ))
+        })?;
+        let address = crate::catalog::ObjectCommentAddress {
+            database: database.to_ascii_lowercase(),
+            class_oid: 1259,
+            object_oid,
+            object_sub_id,
+        };
+        cassie
+            .midge
+            .delete_object_comment(&address)
+            .map_err(QueryError::Cassie)?;
+        cassie
+            .metadata_write_catalog
+            .unregister_object_comment(&address);
+    }
     cassie.catalog.remove_collection_field(table, field);
     unregister_vector_indexes_on_column(cassie, table, field);
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;

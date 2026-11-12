@@ -23,11 +23,19 @@ pub(crate) fn visit_components(
     dimensions: usize,
     component: impl FnMut(f32),
 ) -> Result<(), TextVectorError> {
+    visit_components_with_dimension(text, Some(dimensions), component).map(|_| ())
+}
+
+pub(crate) fn visit_components_with_dimension(
+    text: &str,
+    expected_dimensions: Option<usize>,
+    component: impl FnMut(f32),
+) -> Result<usize, TextVectorError> {
     let mut range_error = false;
     let mut deserializer = serde_json::Deserializer::from_str(text);
-    deserializer
+    let dimensions = deserializer
         .deserialize_seq(TextVectorVisitor {
-            dimensions,
+            expected_dimensions,
             component,
             range_error: &mut range_error,
         })
@@ -36,35 +44,40 @@ pub(crate) fn visit_components(
     if range_error {
         Err(TextVectorError::Range)
     } else {
-        Ok(())
+        Ok(dimensions)
     }
 }
 
 struct TextVectorVisitor<'a, F> {
-    dimensions: usize,
+    expected_dimensions: Option<usize>,
     component: F,
     range_error: &'a mut bool,
 }
 
 impl<'de, F: FnMut(f32)> Visitor<'de> for TextVectorVisitor<'_, F> {
-    type Value = ();
+    type Value = usize;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            formatter,
-            "a finite vector of {} components",
-            self.dimensions
-        )
+        match self.expected_dimensions {
+            Some(dimensions) => write!(formatter, "a finite vector of {dimensions} components"),
+            None => formatter.write_str("a finite vector of 1 through 16000 components"),
+        }
     }
 
-    fn visit_seq<A>(mut self, mut sequence: A) -> Result<(), A::Error>
+    fn visit_seq<A>(mut self, mut sequence: A) -> Result<usize, A::Error>
     where
         A: SeqAccess<'de>,
     {
-        for _ in 0..self.dimensions {
-            let token = sequence
-                .next_element::<&'de RawValue>()?
-                .ok_or_else(|| <A::Error as de::Error>::custom("vector dimension mismatch"))?;
+        let mut dimensions = 0;
+        while let Some(token) = sequence.next_element::<&'de RawValue>()? {
+            dimensions += 1;
+            if dimensions > 16_000
+                || self
+                    .expected_dimensions
+                    .is_some_and(|expected| dimensions > expected)
+            {
+                return Err(<A::Error as de::Error>::custom("vector dimension mismatch"));
+            }
             let value = token
                 .get()
                 .parse::<f64>()
@@ -79,11 +92,48 @@ impl<'de, F: FnMut(f32)> Visitor<'de> for TextVectorVisitor<'_, F> {
                 *self.range_error = true;
             }
         }
-        // Read at most one excess token. No JSON array or numeric Vec is built,
-        // and wrong width is rejected before any caller output construction.
-        if sequence.next_element::<&'de RawValue>()?.is_some() {
+        if dimensions == 0
+            || self
+                .expected_dimensions
+                .is_some_and(|expected| dimensions != expected)
+        {
             return Err(<A::Error as de::Error>::custom("vector dimension mismatch"));
         }
-        Ok(())
+        Ok(dimensions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{visit_components_with_dimension, TextVectorError};
+
+    #[test]
+    fn should_infer_dimensions_for_bare_vector_text() {
+        // Arrange
+        let mut observed = Vec::new();
+
+        // Act
+        let dimensions = visit_components_with_dimension("[1,2.5]", None, |value| {
+            observed.push(value)
+        })
+        .expect("variable-width finite vector");
+
+        // Assert
+        assert_eq!(dimensions, 2);
+        assert_eq!(observed, vec![1.0, 2.5]);
+    }
+
+    #[test]
+    fn should_reject_empty_and_oversized_bare_vector_text() {
+        // Arrange
+        let oversized = format!("[{}]", std::iter::repeat_n("0", 16_001).collect::<Vec<_>>().join(","));
+
+        // Act
+        let empty = visit_components_with_dimension("[]", None, |_| {});
+        let too_large = visit_components_with_dimension(&oversized, None, |_| {});
+
+        // Assert
+        assert_eq!(empty, Err(TextVectorError::Shape));
+        assert_eq!(too_large, Err(TextVectorError::Shape));
     }
 }

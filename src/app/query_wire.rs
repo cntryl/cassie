@@ -107,9 +107,25 @@ impl Cassie {
                 schema_has_id,
             );
         }
-        for column in &columns {
+        let database = session
+            .and_then(CassieSession::current_database)
+            .unwrap_or(&self.default_database);
+        for column in &mut columns {
             let data_type = DataType::parse_sql(&column.data_type)
                 .map_err(|error| CassieError::Execution(format!("invalid result type: {error}")))?;
+            if matches!(data_type, DataType::Vector(_)) {
+                column.type_oid = crate::catalog::object_identity::type_oid_for_database(
+                    &self.catalog,
+                    database,
+                    &data_type,
+                )
+                .ok_or_else(|| {
+                    crate::app::DiagnosticError::new(
+                        "42704",
+                        "type \"vector\" does not exist",
+                    )
+                })?;
+            }
             if matches!(data_type, DataType::Array(element) if matches!(*element, DataType::Vector(_)))
             {
                 return Err(CassieError::Unsupported(

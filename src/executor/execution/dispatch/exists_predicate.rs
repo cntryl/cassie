@@ -1,5 +1,7 @@
 //! Execute a resolved EXISTS predicate with the enclosing statement context.
-use super::{build_exists_logical_plan, execute_plan_with_outer_row, plan_execution_env};
+use super::{
+    build_exists_logical_plan, execute_plan_with_outer_row, plan_execution_env_with_parameter_oids,
+};
 use super::{ExistsResolutionContext, Expr, QueryError};
 
 pub(super) fn execute<'a>(
@@ -17,11 +19,12 @@ pub(super) fn execute<'a>(
         };
     let logical = super::super::exists_target::bounded_exists_logical(logical);
     let mut subquery_context = context.cte_context.copy(context.controls)?;
-    let env = plan_execution_env(
+    let env = plan_execution_env_with_parameter_oids(
         context.cassie,
         context.session,
         context.user_functions,
         context.params,
+        context.parameter_type_oids,
         context.controls,
     );
     let outer_row = context

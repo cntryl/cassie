@@ -7,6 +7,13 @@ fn query(sql: &str) -> Vec<Vec<u8>> {
     vec![wire::simple_query_frame(sql)]
 }
 
+fn ready_status(frames: &[(u8, Vec<u8>)]) -> Option<u8> {
+    frames
+        .iter()
+        .find(|(tag, _)| *tag == b'Z')
+        .and_then(|(_, body)| body.first().copied())
+}
+
 #[test]
 fn should_retain_bind_own_rows_for_every_portal_page() {
     // Arrange
@@ -104,8 +111,87 @@ fn should_keep_an_extended_ctas_source_on_its_command_catalog() {
     let frames = run_own_script(&[], script);
 
     // Assert
+    assert_eq!(wire::error_code(&frames[2]), None);
+    assert_eq!(
+        frames[2]
+            .iter()
+            .find(|(tag, _)| *tag == b'C')
+            .map(|(_, body)| body.as_slice()),
+        Some(&b"SELECT 1\0"[..])
+    );
+    assert_eq!(
+        frames[2].last().map(|(tag, body)| (*tag, body.as_slice())),
+        Some((b'Z', &b"T"[..]))
+    );
     assert_eq!(wire::data_rows(&frames[3]), vec![vec![Some("0".into())]]);
     assert_eq!(wire::data_rows(&frames[4]), vec![vec![Some("1".into())]]);
+}
+
+#[test]
+fn should_keep_an_extended_ctas_bound_to_its_bind_catalog() {
+    // Arrange
+    let sql = "CREATE TABLE rr_bound_ctas_bind_target AS \
+               SELECT count(*) AS later_count \
+               FROM information_schema.tables \
+               WHERE table_name = 'rr_bound_ctas_later_table'";
+    let script = vec![
+        query("BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE"),
+        vec![
+            wire::parse_frame("ctas_bind_catalog", sql),
+            wire::bind_frame("bound_ctas_catalog", "ctas_bind_catalog", &[]),
+            wire::sync_frame(),
+        ],
+        query("CREATE TABLE rr_bound_ctas_later_table (id INT)"),
+        vec![
+            wire::execute_frame("bound_ctas_catalog"),
+            wire::sync_frame(),
+        ],
+        query("SELECT later_count FROM rr_bound_ctas_bind_target"),
+        query(
+            "SELECT count(*) FROM information_schema.tables \
+             WHERE table_name = 'rr_bound_ctas_later_table'",
+        ),
+        query("ROLLBACK"),
+    ];
+
+    // Act
+    let frames = run_own_script(&[], script);
+
+    // Assert
+    assert_eq!(wire::error_code(&frames[1]), None);
+    assert_eq!(frames[1].last().map(|(tag, _)| *tag), Some(b'Z'));
+    assert_eq!(
+        frames[1].last().and_then(|(_, body)| body.first()),
+        Some(&b'T')
+    );
+    assert_eq!(wire::error_code(&frames[2]), None);
+    assert_eq!(wire::error_code(&frames[3]), None);
+    assert_eq!(
+        frames[3]
+            .iter()
+            .find(|(tag, _)| *tag == b'C')
+            .map(|(_, body)| body.as_slice()),
+        Some(&b"SELECT 1\0"[..])
+    );
+    assert_eq!(frames[3].last().map(|(tag, _)| *tag), Some(b'Z'));
+    assert_eq!(
+        frames[3].last().and_then(|(_, body)| body.first()),
+        Some(&b'T')
+    );
+    assert_eq!(
+        wire::data_rows(&frames[4]),
+        vec![vec![Some("0".into())]]
+    );
+    assert_eq!(
+        wire::data_rows(&frames[5]),
+        vec![vec![Some("1".into())]]
+    );
+    assert_eq!(wire::error_code(&frames[6]), None);
+    assert_eq!(frames[6].last().map(|(tag, _)| *tag), Some(b'Z'));
+    assert_eq!(
+        frames[6].last().and_then(|(_, body)| body.first()),
+        Some(&b'I')
+    );
 }
 
 #[test]
@@ -261,6 +347,110 @@ fn should_keep_published_sequence_advances_after_transactional_ddl_rollback() {
     // Assert
     assert_eq!(wire::data_rows(&frames[2]), vec![vec![Some("1".into())]]);
     assert_eq!(wire::data_rows(&frames[4]), vec![vec![Some("2".into())]]);
+}
+
+#[test]
+fn should_apply_published_serial_default_after_unrelated_ddl_in_both_isolation_levels() {
+    // Arrange
+    for begin in [
+        "BEGIN ISOLATION LEVEL READ COMMITTED",
+        "BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE",
+    ] {
+        let script = vec![
+            query(begin),
+            query("CREATE TABLE rr_published_sequence_unrelated (value INT)"),
+            query("INSERT INTO rr_published_sequence_rows DEFAULT VALUES RETURNING id"),
+            query(
+                "SELECT last_value FROM pg_catalog.pg_sequences \
+                 WHERE sequencename = 'rr_published_sequence_rows_id_seq'",
+            ),
+            query("CREATE TABLE rr_published_sequence_after_default (value INT)"),
+            query("ROLLBACK"),
+            query("SELECT count(*) FROM rr_published_sequence_rows"),
+            query(
+                "SELECT last_value FROM pg_catalog.pg_sequences \
+                 WHERE sequencename = 'rr_published_sequence_rows_id_seq'",
+            ),
+            query("SELECT nextval('rr_published_sequence_rows_id_seq')"),
+        ];
+
+        // Act
+        let frames = run_own_script(
+            &["CREATE TABLE rr_published_sequence_rows (id SERIAL PRIMARY KEY)"],
+            script,
+        );
+
+        // Assert
+        for index in [0, 1, 2, 3, 4] {
+            assert_eq!(wire::error_code(&frames[index]), None);
+            assert_eq!(ready_status(&frames[index]), Some(b'T'));
+        }
+        assert_eq!(
+            frames[2]
+                .iter()
+                .find(|(tag, _)| *tag == b'C')
+                .map(|(_, body)| body.as_slice()),
+            Some(&b"INSERT 0 1\0"[..])
+        );
+        assert_eq!(wire::data_rows(&frames[2]), vec![vec![Some("1".into())]]);
+        assert_eq!(wire::data_rows(&frames[3]), vec![vec![Some("1".into())]]);
+        assert_eq!(wire::error_code(&frames[4]), None);
+        assert_eq!(wire::error_code(&frames[5]), None);
+        assert_eq!(ready_status(&frames[5]), Some(b'I'));
+        assert_eq!(wire::error_code(&frames[6]), None);
+        assert_eq!(ready_status(&frames[6]), Some(b'I'));
+        assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("0".into())]]);
+        assert_eq!(wire::error_code(&frames[7]), None);
+        assert_eq!(ready_status(&frames[7]), Some(b'I'));
+        assert_eq!(wire::data_rows(&frames[7]), vec![vec![Some("1".into())]]);
+        assert_eq!(wire::error_code(&frames[8]), None);
+        assert_eq!(ready_status(&frames[8]), Some(b'I'));
+        assert_eq!(wire::data_rows(&frames[8]), vec![vec![Some("2".into())]]);
+    }
+}
+
+#[test]
+fn should_commit_published_serial_default_after_repeatable_read_ddl() {
+    // Arrange
+    let script = vec![
+        query("BEGIN ISOLATION LEVEL REPEATABLE READ READ WRITE"),
+        query("CREATE TABLE rr_published_sequence_commit_unrelated (value INT)"),
+        query("INSERT INTO rr_published_sequence_commit_rows DEFAULT VALUES RETURNING id"),
+        query("COMMIT"),
+        query("SELECT count(*) FROM rr_published_sequence_commit_rows"),
+        query(
+            "SELECT last_value FROM pg_catalog.pg_sequences \
+             WHERE sequencename = 'rr_published_sequence_commit_rows_id_seq'",
+        ),
+        query("SELECT nextval('rr_published_sequence_commit_rows_id_seq')"),
+    ];
+
+    // Act
+    let frames = run_own_script(
+        &["CREATE TABLE rr_published_sequence_commit_rows (id SERIAL PRIMARY KEY)"],
+        script,
+    );
+
+    // Assert
+    for index in [0, 1, 2] {
+        assert_eq!(wire::error_code(&frames[index]), None);
+        assert_eq!(ready_status(&frames[index]), Some(b'T'));
+    }
+    assert_eq!(
+        frames[2]
+            .iter()
+            .find(|(tag, _)| *tag == b'C')
+            .map(|(_, body)| body.as_slice()),
+        Some(&b"INSERT 0 1\0"[..])
+    );
+    assert_eq!(wire::data_rows(&frames[2]), vec![vec![Some("1".into())]]);
+    for index in [3, 4, 5, 6] {
+        assert_eq!(wire::error_code(&frames[index]), None);
+        assert_eq!(ready_status(&frames[index]), Some(b'I'));
+    }
+    assert_eq!(wire::data_rows(&frames[4]), vec![vec![Some("1".into())]]);
+    assert_eq!(wire::data_rows(&frames[5]), vec![vec![Some("1".into())]]);
+    assert_eq!(wire::data_rows(&frames[6]), vec![vec![Some("2".into())]]);
 }
 
 #[test]

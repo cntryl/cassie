@@ -10,7 +10,7 @@ fn row() -> BatchRow {
         SqlArray::from_elements(vec![Value::Vector(Vector::new(vec![1.0; 4096]))]).expect("array"),
     );
     let mut row = BatchRow::new(vec![("v".into(), value)]);
-    row.set_data_types(vec![DataType::Array(Box::new(DataType::Vector(4096)))].into());
+    row.set_data_types(vec![DataType::Array(Box::new(DataType::Vector(Some(4096))))].into());
     row
 }
 

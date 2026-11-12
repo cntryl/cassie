@@ -25,6 +25,7 @@ fn should_hold_values_deletion_output_through_source_row_ownership() {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     // Act
@@ -55,6 +56,7 @@ fn should_release_values_deletion_owner_when_canceled_before_output_transfer() {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     super::cancel_after_value_once(cancel.clone());
@@ -79,6 +81,7 @@ fn should_enforce_measured_values_deletion_overlap_budget() {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &baseline,
     };
     let (rows, _) = execute(&env, &input(), None).expect("baseline");

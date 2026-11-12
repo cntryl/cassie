@@ -65,6 +65,7 @@ fn should_retain_enclosing_row_owners_for_exists_scope() {
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
         outer_row: Some(&row),
     };
@@ -179,6 +180,7 @@ fn scoped(
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls,
         outer_row: Some(row),
     };

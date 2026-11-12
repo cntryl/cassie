@@ -72,6 +72,7 @@ fn should_preserve_unpopulated_materialized_view_vector_type_after_restart() {
     }
     let path = super::support_sql::data_dir("matview-vector-type-restart");
     let _directory = TypeCatalogDirectory(path.clone());
+    let original_oid;
     let config =
         super::support_sql::with_test_root_password(cassie::config::CassieRuntimeConfig::default());
     {
@@ -80,11 +81,21 @@ fn should_preserve_unpopulated_materialized_view_vector_type_after_restart() {
         cassie.startup().expect("initial startup");
         let session = cassie.create_session("tester", None);
         for sql in [
+            "CREATE EXTENSION vector VERSION '0.8.7'",
             "CREATE TABLE mv_restart_source (id INTEGER)",
             "CREATE MATERIALIZED VIEW mv_restart_projection AS SELECT CAST(NULL AS VECTOR(19)) AS embedding FROM mv_restart_source WITH NO DATA",
         ] {
             cassie.execute_sql(&session, sql, vec![]).expect("persist fixture metadata");
         }
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT oid FROM pg_catalog.pg_type WHERE typname = 'vector'",
+                vec![],
+            )
+            .expect("initial vector identity");
+        assert_eq!(selected.rows().len(), 1);
+        original_oid = selected.rows()[0][0].clone();
         drop(session);
         cassie.shutdown();
     }
@@ -93,13 +104,12 @@ fn should_preserve_unpopulated_materialized_view_vector_type_after_restart() {
     let reopened = Cassie::new_with_data_dir_and_config(&path, config).expect("reopened Cassie");
     reopened.startup().expect("restart startup");
     let session = reopened.create_session("tester", None);
-    let selected = reopened.execute_sql(&session, "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(19)'", vec![]).expect("recovered vector identity");
+    let selected = reopened.execute_sql(&session, "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector'", vec![]).expect("recovered vector identity");
 
     // Assert
-    assert_eq!(
-        selected.rows(),
-        vec![type_row(100_019, "vector(19)", -1, 0)]
-    );
+    assert_eq!(selected.rows().len(), 1);
+    assert_eq!(selected.rows()[0][1], Value::String("vector".to_string()));
+    assert_eq!(selected.rows()[0][0], original_oid);
     drop(session);
     reopened.shutdown();
     println!("{COMPLETE}");

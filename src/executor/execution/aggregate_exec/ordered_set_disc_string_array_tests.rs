@@ -49,6 +49,7 @@ fn run(name: &str, direction: &str, rows: &[BatchRow], params: &[Value]) -> Valu
     let context = AggregateExecutionContext {
         plan: &plan,
         params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -148,6 +149,7 @@ fn should_retain_discrete_string_array_through_aliases_with_last_row_clone() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -196,6 +198,7 @@ fn should_cancel_actual_string_array_copy_with_all_owners_live() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -239,6 +242,7 @@ fn run_with_budget(budget: usize) -> (bool, usize) {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

@@ -98,7 +98,7 @@ fn validate_graph_table_function(
     Ok(())
 }
 
-/// One JSON or JSONB document argument; the json and jsonb families do not cross-convert.
+/// Exactly one document argument; family typing happens in `source_bindings`.
 fn validate_json_element_function(
     function: &FunctionCall,
     source: crate::sql::table_sources::JsonElementSource,
@@ -117,21 +117,8 @@ fn validate_json_element_function(
         return Err(undefined());
     }
     validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
-    if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
-        return Ok(());
-    }
-    let inferred = super::inference::infer_expr_type(
-        argument,
-        &Schema { fields: Vec::new() },
-        &HashMap::new(),
-        &[],
-    );
-    match inferred {
-        None | Some(DataType::Null) => Ok(()),
-        Some(DataType::Json) if !source.binary => Ok(()),
-        Some(DataType::Jsonb) if source.binary => Ok(()),
-        Some(_) => Err(undefined()),
-    }
+    // The json/jsonb family check needs column types and runs at the typed bind stage.
+    Ok(())
 }
 
 fn literal_string_arg(function: &FunctionCall, index: usize) -> Option<String> {

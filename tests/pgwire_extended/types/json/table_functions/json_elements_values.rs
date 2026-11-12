@@ -222,3 +222,20 @@ fn should_apply_limit_given_array_elements_source_when_more_elements_exist() {
     fixture::assert_success(&frames);
     assert_eq!(wire::data_rows(&frames), text_rows(&["10", "20"]));
 }
+
+#[test]
+fn should_normalize_numbers_and_order_nested_keys_given_jsonb_text_expansion() {
+    // Arrange
+    let sql = r#"SELECT value FROM jsonb_array_elements_text('[1e2, {"bb":1,"a":2,"ccc":{"zz":1,"y":2}}]'::jsonb)"#;
+    // Act
+    let frames = query("json-elements-jsonb-text-normalized", &[], sql, false);
+    // Assert
+    fixture::assert_success(&frames);
+    assert_eq!(
+        wire::data_rows(&frames),
+        text_rows(&[
+            "100",
+            "{\"a\": 2, \"bb\": 1, \"ccc\": {\"y\": 2, \"zz\": 1}}"
+        ])
+    );
+}

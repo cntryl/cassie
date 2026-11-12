@@ -214,3 +214,49 @@ fn should_return_no_rows_given_a_null_bind_parameter() {
     fixture::assert_success(&frames);
     assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
 }
+
+#[test]
+fn should_accept_extraction_results_as_document_arguments_given_json_and_jsonb_columns() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE json_elements_items (id INT, j JSON, b JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO json_elements_items VALUES (1, '{\"items\":[1,2],\"n\":{\"x\":[3]}}', '{\"items\":[1,2],\"n\":{\"x\":[3]}}')",
+            Vec::new(),
+        ),
+    ];
+    let cases = [
+        ("SELECT e.value FROM json_elements_items d, json_array_elements(d.j -> 'items') e ORDER BY 1", vec!["1", "2"]),
+        ("SELECT e.value FROM json_elements_items d, jsonb_array_elements(d.b -> 'items') e ORDER BY 1", vec!["1", "2"]),
+        ("SELECT e.value FROM json_elements_items d, json_array_elements(d.j #> '{n,x}') e", vec!["3"]),
+        ("SELECT e.value FROM json_elements_items d, jsonb_array_elements(d.b #> '{n,x}') e", vec!["3"]),
+    ];
+    for (sql, expected) in cases {
+        // Act
+        let frames = query("json-elements-extraction-argument", &setup, sql, false);
+        // Assert
+        fixture::assert_success(&frames);
+        assert_eq!(wire::data_rows(&frames), text_rows(&expected), "{sql}");
+    }
+}
+
+#[test]
+fn should_apply_limit_to_ordinality_and_accept_qualified_names() {
+    // Arrange
+    let limited = "SELECT value, ordinality FROM jsonb_array_elements('[5,6,7]'::jsonb) WITH ORDINALITY LIMIT 2";
+    let qualified = "SELECT value FROM pg_catalog.jsonb_array_elements('[5]'::jsonb)";
+    // Act
+    let limited_frames = query("json-elements-ordinality-limit", &[], limited, false);
+    let qualified_frames = query("json-elements-qualified-name", &[], qualified, false);
+    // Assert
+    fixture::assert_success(&limited_frames);
+    fixture::assert_success(&qualified_frames);
+    assert_eq!(
+        wire::data_rows(&limited_frames),
+        vec![row(&[Some("5"), Some("1")]), row(&[Some("6"), Some("2")])]
+    );
+    assert_eq!(wire::data_rows(&qualified_frames), text_rows(&["5"]));
+}

@@ -161,3 +161,73 @@ fn should_keep_the_connection_usable_given_an_expansion_error() {
     fixture::assert_success(&batches[1]);
     assert_eq!(wire::data_rows(&batches[1]), text_rows(&["7"]));
 }
+
+#[test]
+fn should_reject_nul_escape_with_unsupported_unicode_escape_given_uncast_jsonb_text() {
+    // Arrange
+    let cases = [
+        r#"SELECT * FROM jsonb_array_elements('["\u0000"]')"#,
+        r#"SELECT * FROM jsonb_array_elements_text('["\u0000"]')"#,
+        r#"SELECT * FROM jsonb_each('{"a":"\u0000"}')"#,
+        r#"SELECT * FROM jsonb_each_text('{"a":"\u0000"}')"#,
+    ];
+    for sql in cases {
+        // Act
+        let frames = query("json-elements-jsonb-nul", &[], sql, false);
+        // Assert
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("22P05"), "{sql}");
+        assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
+    }
+}
+
+#[test]
+fn should_return_a_depth_error_given_nesting_beyond_the_json_parser_bound() {
+    // Arrange
+    let nested = format!("{}1{}", "[".repeat(200), "]".repeat(200));
+    let array = format!("SELECT * FROM json_array_elements('[{nested}]')");
+    let each = format!("SELECT * FROM json_each('{{\"a\":{nested}}}')");
+    for sql in [array, each] {
+        // Act
+        let frames = query("json-elements-depth", &[], &sql, false);
+        // Assert
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("54001"), "{sql}");
+        assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
+    }
+}
+
+#[test]
+fn should_reject_cross_family_columns_with_undefined_function() {
+    // Arrange
+    let setup = [
+        (
+            "CREATE TABLE json_elements_families (j JSON, b JSONB)",
+            Vec::new(),
+        ),
+        (
+            "INSERT INTO json_elements_families VALUES ('{\"a\":1}', '{\"a\":1}')",
+            Vec::new(),
+        ),
+    ];
+    let cases = [
+        "SELECT * FROM json_elements_families f, json_each(f.b) e",
+        "SELECT * FROM json_elements_families f, jsonb_each(f.j) e",
+        "SELECT * FROM json_elements_families f, json_array_elements(f.b) e",
+    ];
+    for sql in cases {
+        // Act
+        let frames = query("json-elements-cross-family", &setup, sql, false);
+        // Assert
+        assert_eq!(wire::error_code(&frames).as_deref(), Some("42883"), "{sql}");
+    }
+}
+
+#[test]
+fn should_return_the_documented_unsupported_error_given_select_list_use() {
+    // Arrange
+    let sql = "SELECT jsonb_array_elements('[1]'::jsonb)";
+    // Act
+    let frames = query("json-elements-select-list", &[], sql, false);
+    // Assert
+    assert_eq!(wire::error_code(&frames).as_deref(), Some("0A000"));
+    assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
+}

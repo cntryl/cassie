@@ -239,6 +239,32 @@ fn items(
     Ok(())
 }
 
+/// The json and jsonb families do not cross-convert. Only direct columns and casts have a
+/// firmly known type; extraction results and other expressions are treated as unknown.
+fn json_element_family(
+    function: &crate::sql::ast::FunctionCall,
+    json: table_sources::JsonElementSource,
+    types: &ResultTypes,
+) -> Result<(), CassieError> {
+    let Some(argument) = function.args.first() else {
+        return Ok(());
+    };
+    let known = match argument {
+        Expr::Column(_) => types.expression_type(argument),
+        Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        _ => None,
+    };
+    match known {
+        None | Some(DataType::Null) => Ok(()),
+        Some(DataType::Json) if !json.binary => Ok(()),
+        Some(DataType::Jsonb) if json.binary => Ok(()),
+        Some(_) => Err(CassieError::from(crate::app::DiagnosticError::new(
+            "42883",
+            format!("function {}(...) does not exist", json.function_name()),
+        ))),
+    }
+}
+
 fn source(
     source: &mut QuerySource,
     types: &ResultTypes,
@@ -270,6 +296,9 @@ fn source(
         )?,
         QuerySource::TableFunction { function, .. } => {
             function_arguments(function, types, catalog, context, parameters)?;
+            if let Some(json) = table_sources::json_element_source(&function.name) {
+                json_element_family(function, json, types)?;
+            }
             if table_sources::is_generated(&function.name) {
                 for argument in &mut function.args {
                     super::boolean_contexts::validate_value(

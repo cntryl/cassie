@@ -1,8 +1,9 @@
 //! Bounded `json[b]_array_elements[_text]` and `json[b]_each[_text]` FROM sources.
 //!
-//! The document is decoded under a query reservation, the complete retained
-//! output is admitted, and only then are rows built, so a malformed document
-//! or a resource failure never publishes a partial result.
+//! Text input reserves its decode bound (`serialized_decode_bytes` plus the raw span copy)
+//! before parsing and holds it until the rows exist; the complete retained output is then
+//! admitted before any row is built, so a malformed document or a resource failure never
+//! publishes a partial result.
 use std::fmt;
 use std::mem::size_of;
 use std::sync::Arc;
@@ -78,6 +79,16 @@ pub(super) fn execute(
         return Ok((Vec::new(), Vec::new()));
     }
     let argument = argument_value(env, function, outer, ctes)?;
+    // Admit the decode bound and the raw span copy before any parse allocates.
+    let _decode = match &argument {
+        Value::String(text) => Some(
+            env.controls.reserve_query_memory(
+                crate::runtime::accounted::json::serialized_decode_bytes(text.len())?
+                    .saturating_add(text.len()),
+            )?,
+        ),
+        _ => None,
+    };
     let entries = decode(env, source, argument)?;
     let take = entries.len().min(row_budget.unwrap_or(usize::MAX));
     let columns = table_sources::json_element_columns(source, ordinal);
@@ -193,6 +204,9 @@ fn decode(
             }
             _ => return Err(wrong_input(source)),
         };
+        if contains_nul(&document) {
+            return Err(nul_error());
+        }
         return binary_entries(source, document);
     }
     let text = match argument {
@@ -264,10 +278,11 @@ fn text_entries(
     if root != expected {
         return Err(shape_error(source, root));
     }
-    // The text is valid, so a failure here is only the parser's nesting bound.
-    let nesting = |error: serde_json::Error| {
-        QueryError::from(CassieError::ResourceLimit(format!(
-            "JSON document exceeds the expansion nesting limit: {error}"
+    // The text is valid, so a failure here is only serde's recursion bound (128 levels).
+    let nesting = |_: serde_json::Error| {
+        QueryError::from(CassieError::from(DiagnosticError::new(
+            "54001",
+            "JSON document exceeds the supported expansion nesting depth".to_owned(),
         )))
     };
     if source.each {
@@ -354,15 +369,39 @@ fn raw_text(raw: &RawValue) -> Result<Value, QueryError> {
                 )))
             })?;
             if text.contains('\0') {
-                return Err(CassieError::TypeInput(TypeInputError::new(
-                    "22P05",
-                    "unsupported Unicode escape sequence: \\u0000 cannot be converted to text"
-                        .into(),
-                ))
-                .into());
+                return Err(nul_error());
             }
             Ok(Value::String(text))
         }
         _ => Ok(Value::String(token.to_owned())),
     }
+}
+
+fn nul_error() -> QueryError {
+    CassieError::TypeInput(TypeInputError::new(
+        "22P05",
+        "unsupported Unicode escape sequence: \\u0000 cannot be converted to text".into(),
+    ))
+    .into()
+}
+
+/// JSONB cannot hold U+0000 in any string or key.
+fn contains_nul(document: &serde_json::Value) -> bool {
+    let mut pending = vec![document];
+    while let Some(value) = pending.pop() {
+        match value {
+            serde_json::Value::String(text) if text.contains('\0') => return true,
+            serde_json::Value::Array(values) => pending.extend(values),
+            serde_json::Value::Object(members) => {
+                for (key, value) in members {
+                    if key.contains('\0') {
+                        return true;
+                    }
+                    pending.push(value);
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }

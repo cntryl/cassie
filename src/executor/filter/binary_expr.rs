@@ -557,6 +557,234 @@ fn try_json_concat<R: RowAccess + ?Sized>(
     Ok(JsonDispatch::Continue(left_value, right_value))
 }
 
+enum JsonDispatch {
+    Handled(ScalarValue),
+    Continue(ScalarValue, ScalarValue),
+}
+
+fn eval_logical_expr<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    context: EvalContext<'_>,
+) -> Result<ScalarValue, QueryError> {
+    if let Some(value) = constants::logical(left, op, right, row, context)? {
+        return Ok(value);
+    }
+    let left = eval_scalar_with_context(row, left, context)?;
+    if matches!(&left, ScalarValue::Bool(value) if *value == matches!(op, BinaryOp::Or)) {
+        return Ok(left);
+    }
+    let right = eval_scalar_with_context(row, right, context)?;
+    binary_scalar(&left, op, &right)
+}
+
+fn execution_controls(context: EvalContext<'_>) -> Option<&crate::runtime::QueryExecutionControls> {
+    context.controls.or_else(|| {
+        context
+            .session
+            .and_then(crate::app::CassieSession::statement_execution_controls)
+    })
+}
+
+fn evaluate_json_dispatch<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    operands: (ScalarValue, ScalarValue),
+    context: EvalContext<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<JsonDispatch, QueryError> {
+    let dispatch = try_json_extract(
+        op,
+        JsonDispatch::Continue(operands.0, operands.1),
+        context,
+        controls,
+    )?;
+    let dispatch = try_json_delete(row, left, op, dispatch, context, controls)?;
+    let dispatch = try_json_containment(row, left, op, right, dispatch, context, controls)?;
+    try_json_concat(row, left, op, right, dispatch, context, controls)
+}
+
+fn try_json_extract(
+    op: &BinaryOp,
+    dispatch: JsonDispatch,
+    context: EvalContext<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<JsonDispatch, QueryError> {
+    let JsonDispatch::Continue(left_value, right_value) = dispatch else {
+        return Ok(dispatch);
+    };
+    let BinaryOp::JsonExtract {
+        path,
+        as_text,
+        jsonb,
+    } = op
+    else {
+        return Ok(JsonDispatch::Continue(left_value, right_value));
+    };
+    let document = json_operand(
+        left_value,
+        true,
+        controls.filter(|_| context.deletion_memory.is_some()),
+    )?;
+    if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+        if let Some(value) = json_delete::controlled_extraction(
+            document.value(),
+            &right_value,
+            *path,
+            *as_text,
+            *jsonb,
+            controls,
+            owner,
+        )? {
+            return Ok(JsonDispatch::Handled(value));
+        }
+    }
+    Ok(JsonDispatch::Handled(json_extract::evaluate(
+        document.value(),
+        &right_value,
+        *path,
+        *as_text,
+        *jsonb,
+    )?))
+}
+
+fn try_json_delete<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    op: &BinaryOp,
+    dispatch: JsonDispatch,
+    context: EvalContext<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<JsonDispatch, QueryError> {
+    let JsonDispatch::Continue(left_value, right_value) = dispatch else {
+        return Ok(dispatch);
+    };
+    if !matches!(op, BinaryOp::Sub | BinaryOp::JsonbDeletePath)
+        || !(is_json_typed_input(row, left, &left_value)
+            || (*op == BinaryOp::Sub
+                && matches!(&left_value, ScalarValue::Json(_))
+                && !matches!(&right_value, ScalarValue::Array(_))))
+    {
+        return Ok(JsonDispatch::Continue(left_value, right_value));
+    }
+    if matches!(&left_value, ScalarValue::Null) || matches!(&right_value, ScalarValue::Null) {
+        return Ok(JsonDispatch::Handled(ScalarValue::Null));
+    }
+    if !matches!(&left_value, ScalarValue::Json(_)) {
+        return Err(crate::app::CassieError::InvalidParameterValue(
+            "cannot delete from scalar".into(),
+        )
+        .into());
+    }
+    if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+        let result = if matches!(op, BinaryOp::JsonbDeletePath) {
+            json_delete::controlled_path(&left_value, &right_value, controls, owner)?
+        } else {
+            json_delete::controlled_operator(&left_value, &right_value, controls, owner)?
+        };
+        if let Some(value) = result {
+            return Ok(JsonDispatch::Handled(value));
+        }
+    }
+    let result = if matches!(op, BinaryOp::JsonbDeletePath) {
+        json_delete::delete_path(&left_value, &right_value)?
+    } else {
+        json_delete::delete_operator(&left_value, &right_value)?
+    };
+    Ok(JsonDispatch::Handled(result))
+}
+
+fn try_json_containment<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    dispatch: JsonDispatch,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<JsonDispatch, QueryError> {
+    let JsonDispatch::Continue(left_value, right_value) = dispatch else {
+        return Ok(dispatch);
+    };
+    if !json_containment::handles(op)
+        || !(is_json_typed_input(row, left, &left_value)
+            || is_json_typed_input(row, right, &right_value))
+    {
+        return Ok(JsonDispatch::Continue(left_value, right_value));
+    }
+    let left_value = if is_json_typed_input(row, left, &left_value)
+        && !matches!(left_value, ScalarValue::Json(_) | ScalarValue::Null)
+    {
+        json_concat::as_json_document(&left_value)?
+    } else {
+        left_value
+    };
+    let right_value = if is_json_typed_input(row, right, &right_value)
+        && !matches!(right_value, ScalarValue::Json(_) | ScalarValue::Null)
+    {
+        json_concat::as_json_document(&right_value)?
+    } else {
+        right_value
+    };
+    Ok(JsonDispatch::Handled(
+        json_containment::evaluate_with_controls(op, &left_value, &right_value, controls)?,
+    ))
+}
+
+fn try_json_concat<R: RowAccess + ?Sized>(
+    row: &R,
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    dispatch: JsonDispatch,
+    context: EvalContext<'_>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<JsonDispatch, QueryError> {
+    let JsonDispatch::Continue(left_value, right_value) = dispatch else {
+        return Ok(dispatch);
+    };
+    if *op != BinaryOp::Concat {
+        return Ok(JsonDispatch::Continue(left_value, right_value));
+    }
+    let left_is_json = is_json_typed_input(row, left, &left_value);
+    let right_is_json = is_json_typed_input(row, right, &right_value);
+    if left_is_json || right_is_json {
+        let conversion_controls = controls.filter(|_| context.deletion_memory.is_some());
+        let left_value = json_operand(left_value, left_is_json, conversion_controls)?;
+        let right_value = json_operand(right_value, right_is_json, conversion_controls)?;
+        if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+            if let Some(result) = json_concat::concatenate_controlled(
+                left_value.value(),
+                right_value.value(),
+                controls,
+                owner,
+            )? {
+                return Ok(JsonDispatch::Handled(result));
+            }
+        }
+        return Ok(JsonDispatch::Handled(json_concat::concatenate(
+            left_value.value(),
+            right_value.value(),
+        )?));
+    }
+    if (matches!(left_value, ScalarValue::Json(_))
+        && matches!(right_value, ScalarValue::Json(_) | ScalarValue::Null))
+        || (matches!(right_value, ScalarValue::Json(_)) && matches!(left_value, ScalarValue::Null))
+    {
+        if let (Some(controls), Some(owner)) = (controls, context.deletion_memory) {
+            if let Some(result) =
+                json_concat::concatenate_controlled(&left_value, &right_value, controls, owner)?
+            {
+                return Ok(JsonDispatch::Handled(result));
+            }
+        }
+    }
+    Ok(JsonDispatch::Continue(left_value, right_value))
+}
+
 fn json_operand(
     value: ScalarValue,
     convert: bool,

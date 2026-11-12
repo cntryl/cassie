@@ -917,3 +917,7 @@ mod tests {
     }
 
 }
+
+#[cfg(test)]
+#[path = "zone_classification.rs"]
+mod classification;

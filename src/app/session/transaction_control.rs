@@ -113,8 +113,9 @@ impl CassieSession {
     pub(crate) fn set_transaction_isolation(&self, value: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::Idle || transaction.implicit {
-            return Err(CassieError::savepoint_outside_transaction(
-                "SET TRANSACTION",
+            return Err(CassieError::Unsupported(
+                "SET TRANSACTION ISOLATION LEVEL requires an explicit transaction block"
+                    .to_string(),
             ));
         }
         if transaction.status == SessionTransactionStatus::Failed {

@@ -206,6 +206,8 @@ mod support_scalar_index_rebuild;
 mod index_namespace;
 #[path = "sql_mutations/ddl/scalar_index_rename.rs"]
 mod scalar_index_rename;
+#[path = "sql_mutations/ddl/scalar_index_replacement_guard.rs"]
+mod scalar_index_replacement_guard;
 
 #[path = "sql_mutations/ddl/like_composite_primary_key.rs"]
 mod like_composite_primary_key;

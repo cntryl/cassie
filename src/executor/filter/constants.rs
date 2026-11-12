@@ -86,9 +86,7 @@ fn cast_constant<R: RowAccess + ?Sized>(
     }
     // Resolving or rendering a `reg*` value reads the session catalog, which
     // constant evaluation does not have, so the runtime evaluator handles it.
-    let catalog_dependent = |data_type: &crate::types::DataType| {
-        matches!(data_type, crate::types::DataType::ObjectId(kind) if kind.is_alias())
-    };
+    let catalog_dependent = |data_type: &crate::types::DataType| matches!(data_type, crate::types::DataType::ObjectId(kind) if kind.is_alias());
     if catalog_dependent(data_type) || source_type.as_ref().is_some_and(catalog_dependent) {
         return Ok(None);
     }

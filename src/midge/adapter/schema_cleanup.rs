@@ -33,6 +33,12 @@ impl PendingSchemaCleanup {
 }
 
 impl Midge {
+    /// Reports whether this thread is inside a transactional DDL scope, where
+    /// pending cleanups are not completable and must wait for a later statement.
+    pub(crate) fn defers_schema_cleanup(&self) -> bool {
+        self.has_active_transactional_ddl_scope()
+    }
+
     pub(crate) fn ensure_no_pending_index_cleanup(
         &self,
         collection: &str,

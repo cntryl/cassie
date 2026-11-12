@@ -8,8 +8,8 @@ use crate::catalog::builtin_identity::{
     PG_CATALOG_NAMESPACE_OID, PG_TOAST_NAMESPACE_OID, PUBLIC_NAMESPACE_OID,
 };
 use crate::catalog::{
-    canonical_identifier_component, canonical_relation_name, canonical_schema_name, local_name, relation_schema_name, Catalog,
-    DEFAULT_SCHEMA,
+    canonical_identifier_component, canonical_relation_name, canonical_schema_name, local_name,
+    relation_schema_name, Catalog, DEFAULT_SCHEMA,
 };
 use crate::sql::binder::BindingContext;
 use crate::types::object_id::{parse_oid_text, FIRST_NORMAL_OBJECT_ID};

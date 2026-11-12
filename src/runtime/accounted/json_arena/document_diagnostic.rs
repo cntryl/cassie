@@ -78,6 +78,32 @@ pub(super) fn render(
     finish(&stack, controls)
 }
 
+#[cfg(test)]
+pub(super) fn render_row(
+    error: &DocumentError,
+    controls: &QueryExecutionControls,
+) -> Result<OwnedDiagnostic, DiagnosticError> {
+    render_row_observing(error, controls, || {})
+}
+
+#[cfg(test)]
+fn render_row_observing(
+    error: &DocumentError,
+    controls: &QueryExecutionControls,
+    observe: impl FnMut(),
+) -> Result<OwnedDiagnostic, DiagnosticError> {
+    controls.check_interruption()?;
+    let mut stack = StackText {
+        bytes: [0; 512],
+        length: 0,
+    };
+    stack
+        .write_str("invalid JSON in row blob: ")
+        .map_err(overflow)?;
+    write_document(error, &mut stack)?;
+    finish_observing(&stack, controls, observe)
+}
+
 pub(in crate::runtime::accounted::json_arena) enum FixedError {
     Missing,
     Version(u8),
@@ -126,6 +152,14 @@ fn finish(
     stack: &StackText,
     controls: &QueryExecutionControls,
 ) -> Result<OwnedDiagnostic, DiagnosticError> {
+    finish_observing(stack, controls, || {})
+}
+
+fn finish_observing(
+    stack: &StackText,
+    controls: &QueryExecutionControls,
+    mut observe: impl FnMut(),
+) -> Result<OwnedDiagnostic, DiagnosticError> {
     controls.check_interruption()?;
     let source =
         std::str::from_utf8(&stack.bytes[..stack.length]).map_err(|_| overflow(fmt::Error))?;
@@ -137,6 +171,7 @@ fn finish(
         return Err(overflow(fmt::Error));
     }
     text.push_str(source);
+    observe();
     controls.check_interruption()?;
     Ok(OwnedDiagnostic {
         text,

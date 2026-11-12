@@ -1041,4 +1041,4 @@ impl<'a> Cursor<'a> {
 
 #[cfg(test)]
 #[path = "row_blob/tests.rs"]
-mod tests;
+pub(crate) mod tests;

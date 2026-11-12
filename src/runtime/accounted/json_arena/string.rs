@@ -8,6 +8,14 @@ use super::{Cursor, CursorError, Position};
 #[path = "string_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "row_string_tests.rs"]
+mod row_tests;
+
+#[cfg(test)]
+#[path = "row_string.rs"]
+mod row_string;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ErrorKind {
     ExpectedQuote,
@@ -16,6 +24,8 @@ enum ErrorKind {
     InvalidEscape,
     LoneSurrogate,
     UnexpectedHexEnd,
+    #[cfg(test)]
+    InvalidUnicode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +48,8 @@ impl Diagnostic {
             ErrorKind::InvalidEscape => "invalid escape",
             ErrorKind::LoneSurrogate => "lone leading surrogate in hex escape",
             ErrorKind::UnexpectedHexEnd => "unexpected end of hex escape",
+            #[cfg(test)]
+            ErrorKind::InvalidUnicode => "invalid unicode code point",
         };
         write!(
             out,
@@ -68,6 +80,7 @@ impl Diagnostic {
             ErrorKind::InvalidEscape => "invalid escape",
             ErrorKind::LoneSurrogate => "lone leading surrogate in hex escape",
             ErrorKind::UnexpectedHexEnd => "unexpected end of hex escape",
+            ErrorKind::InvalidUnicode => "invalid unicode code point",
         };
         format!(
             "{message} at line {} column {}",
@@ -178,6 +191,10 @@ impl Cursor<'_> {
     pub(in crate::runtime::accounted::json_arena) fn read_string(
         &mut self,
     ) -> Result<DecodedText, CursorError> {
+        #[cfg(test)]
+        if self.row_bytes {
+            return self.read_row_string_observing(|| {});
+        }
         self.read_string_with_observer(|| {})
     }
 

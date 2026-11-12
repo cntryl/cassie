@@ -163,12 +163,17 @@ fn argument_value(
 }
 
 fn invalid_input(text: &str) -> CassieError {
+    let detail = json_arena::syntax_error(text.as_bytes());
+    if detail.starts_with("recursion limit exceeded") {
+        // The shared parser mirrors serde's 128-level bound; surface it as a depth error.
+        return CassieError::from(DiagnosticError::new(
+            "54001",
+            "JSON document exceeds the supported expansion nesting depth".to_owned(),
+        ));
+    }
     CassieError::TypeInput(TypeInputError::new(
         "22P02",
-        format!(
-            "invalid input syntax for type json: {}",
-            json_arena::syntax_error(text.as_bytes())
-        ),
+        format!("invalid input syntax for type json: {detail}"),
     ))
 }
 

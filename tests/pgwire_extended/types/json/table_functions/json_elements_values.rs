@@ -123,18 +123,18 @@ fn should_preserve_order_and_duplicates_given_json_each_when_expanding_json_inpu
 #[test]
 fn should_return_text_values_given_each_text_functions_with_json_null_as_sql_null() {
     // Arrange
-    let jsonb = r#"SELECT key, value FROM jsonb_each_text('{"b":1, "a":"x", "c":null, "d":{"q":[1]}}'::jsonb)"#;
-    let json = r#"SELECT key, value FROM json_each_text('{"b":1, "a":"x", "b":null, "d":{"q" : [1]}}'::json)"#;
+    let binary_sql = r#"SELECT key, value FROM jsonb_each_text('{"b":1, "a":"x", "c":null, "d":{"q":[1]}}'::jsonb)"#;
+    let text_sql = r#"SELECT key, value FROM json_each_text('{"b":1, "a":"x", "b":null, "d":{"q" : [1]}}'::json)"#;
     // Act
-    let jsonb_frames = query("json-elements-jsonb-each-text", &[], jsonb, true);
-    let json_frames = query("json-elements-json-each-text", &[], json, true);
+    let binary_frames = query("json-elements-jsonb-each-text", &[], binary_sql, true);
+    let text_frames = query("json-elements-json-each-text", &[], text_sql, true);
     // Assert
-    fixture::assert_success(&jsonb_frames);
-    fixture::assert_success(&json_frames);
-    assert_eq!(column_oids(&jsonb_frames), vec![25, 25]);
-    assert_eq!(column_oids(&json_frames), vec![25, 25]);
+    fixture::assert_success(&binary_frames);
+    fixture::assert_success(&text_frames);
+    assert_eq!(column_oids(&binary_frames), vec![25, 25]);
+    assert_eq!(column_oids(&text_frames), vec![25, 25]);
     assert_eq!(
-        wire::data_rows(&jsonb_frames),
+        wire::data_rows(&binary_frames),
         vec![
             row(&[Some("a"), Some("x")]),
             row(&[Some("b"), Some("1")]),
@@ -143,7 +143,7 @@ fn should_return_text_values_given_each_text_functions_with_json_null_as_sql_nul
         ]
     );
     assert_eq!(
-        wire::data_rows(&json_frames),
+        wire::data_rows(&text_frames),
         vec![
             row(&[Some("b"), Some("1")]),
             row(&[Some("a"), Some("x")]),

@@ -114,21 +114,21 @@ fn should_reject_a_large_single_string_before_decode_given_a_small_retained_row(
     // Arrange
     let cassie = configured_cassie(MEMORY_BUDGET_BYTES, usize::MAX);
     let session = cassie.create_session("tester", None);
-    let sql = format!(
+    let binary_sql = format!(
         "SELECT value FROM jsonb_array_elements('[\"{}\"]')",
         "x".repeat(30_000)
     );
-    let json_sql = format!(
+    let text_sql = format!(
         "SELECT value FROM json_array_elements('[\"{}\"]')",
         "x".repeat(30_000)
     );
     let before = cassie.metrics();
     // Act
-    let jsonb = cassie.execute_sql(&session, &sql, vec![]);
-    let json = cassie.execute_sql(&session, &json_sql, vec![]);
+    let binary_result = cassie.execute_sql(&session, &binary_sql, vec![]);
+    let text_result = cassie.execute_sql(&session, &text_sql, vec![]);
     // Assert
-    assert!(matches!(jsonb, Err(CassieError::ResourceLimit(_))));
-    assert!(matches!(json, Err(CassieError::ResourceLimit(_))));
+    assert!(matches!(binary_result, Err(CassieError::ResourceLimit(_))));
+    assert!(matches!(text_result, Err(CassieError::ResourceLimit(_))));
     let after = cassie.metrics();
     assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
     assert_eq!(

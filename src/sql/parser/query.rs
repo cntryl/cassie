@@ -479,6 +479,22 @@ fn valid_window_bound_order(start: WindowFrameBound, end: WindowFrameBound) -> b
 
 pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
     let raw = super::lexical::trim_separators(raw);
+    // A top-level comma is a cross join that binds more loosely than any JOIN.
+    let items = super::expr::split_csv(raw);
+    if items.len() > 1 {
+        let mut items = items.into_iter();
+        let first = items.next().unwrap_or_default();
+        let mut source = parse_query_source(first)?;
+        for item in items {
+            source = QuerySource::Join {
+                left: Box::new(source),
+                right: Box::new(parse_query_source(item)?),
+                kind: JoinKind::Cross,
+                on: Expr::BoolLiteral(true),
+            };
+        }
+        return Ok(source);
+    }
     if let Some(join) = rightmost_join(raw) {
         let left = raw[..join.position].trim();
         let right = raw[join.end..].trim();

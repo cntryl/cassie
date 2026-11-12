@@ -690,13 +690,23 @@ pub(super) fn create_index(
                 .into(),
             )
         })?;
-    if statement.if_not_exists
-        && cassie
-            .catalog
-            .get_index(&logical_table, &statement.name)
-            .is_some()
-    {
-        return CreationOutcome::unchanged("CREATE INDEX", controls);
+    if cassie.catalog.index_relation_name_occupied(
+        &statement.name,
+        &cassie.default_database,
+        false,
+        Some(controls),
+    )? {
+        if statement.if_not_exists {
+            return CreationOutcome::unchanged("CREATE INDEX", controls);
+        }
+        return Err(CassieError::from(crate::app::DiagnosticError::new(
+            "42P07",
+            format!(
+                "relation \"{}\" already exists",
+                crate::catalog::local_name(&statement.name)
+            ),
+        ))
+        .into());
     }
 
     let is_column_store = cassie

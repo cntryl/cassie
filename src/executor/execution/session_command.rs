@@ -125,27 +125,21 @@ pub(super) fn execute_set(
     let Some(session) = session else {
         return Err(QueryError::General(format!("{command} requires a session")));
     };
-    if variable == "transaction isolation level" {
-        if statement.action != SettingAction::Set || statement.local {
-            return Err(QueryError::General(
-                "unsupported SET TRANSACTION form".to_string(),
-            ));
+    match statement.action {
+        SettingAction::ResetAll => session.reset_all_settings(),
+        SettingAction::Reset | SettingAction::SetDefault => session.reset_setting(&variable)?,
+        SettingAction::Set if variable == "search_path" => {
+            let path = parse_search_path(statement.value.as_deref().unwrap_or(""));
+            session.set_search_path(path);
         }
-        session.set_transaction_isolation(statement.value.as_deref().unwrap_or(""))?;
-    } else {
-        match statement.action {
-            SettingAction::ResetAll => session.reset_all_settings(),
-            SettingAction::Reset | SettingAction::SetDefault => session.reset_setting(&variable)?,
-            SettingAction::Set if variable == "search_path" => {
-                let path = parse_search_path(statement.value.as_deref().unwrap_or(""));
-                session.set_search_path(path);
-            }
-            SettingAction::Set if statement.local => {
-                session.set_local_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
-            }
-            SettingAction::Set => {
-                session.set_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
-            }
+        SettingAction::Set if variable == "transaction_isolation" => {
+            session.set_transaction_isolation(statement.value.as_deref().unwrap_or(""))?;
+        }
+        SettingAction::Set if statement.local => {
+            session.set_local_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
+        }
+        SettingAction::Set => {
+            session.set_setting(&variable, statement.value.as_deref().unwrap_or(""))?;
         }
     }
     Ok(output)

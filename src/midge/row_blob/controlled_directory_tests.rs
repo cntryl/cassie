@@ -228,7 +228,12 @@ fn should_keep_plain_valid_sentinel_even_when_legacy_value_parse_fails() {
         }],
     });
     let payload = br#"{"$serde_json::private::Number":"bad"}"#;
-    assert!(decode_directory_value(TYPE_JSON, payload).is_err());
+    // The ordinary-object contract (#809) keeps the sentinel key as plain data
+    // on both the owned and borrowed routes.
+    assert_eq!(
+        decode_directory_value(TYPE_JSON, payload).expect("ordinary object"),
+        serde_json::json!({"$serde_json::private::Number": "bad"})
+    );
     let bytes = row(
         &[(
             1,

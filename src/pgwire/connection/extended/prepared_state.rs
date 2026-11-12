@@ -26,8 +26,13 @@ pub(super) fn unknown_high_bit_projection_oid(
 }
 
 /// Treat the signed wire slot as its original u32 bits; only unresolved high-bit OIDs are unknown.
+/// The private vector inference marker shares the bits of wire OID `0x8000_0000`, but
+/// wire slots never carry that marker, so a client-supplied value is an unknown type.
 pub(super) fn unknown_high_bit_parameter_oid(oid: i32) -> Option<i32> {
-    (oid < 0 && crate::sql::binder::parameter_data_type_for_oid(oid).is_none()).then_some(oid)
+    (oid < 0
+        && (oid == crate::sql::binder::VECTOR_PARAMETER_TYPE_OID
+            || crate::sql::binder::parameter_data_type_for_oid(oid).is_none()))
+    .then_some(oid)
 }
 
 pub(super) fn with_function_input_scope<R>(

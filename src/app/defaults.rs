@@ -28,7 +28,7 @@ pub(super) fn apply_default_values(
                 if !app.midge.is_private_sequence(&updated)? {
                     app.publication_catalog.update_sequence_cursor(&updated);
                     if let Some(session) = session {
-                        session.invalidate_sequence_cursor_descriptor();
+                        session.mirror_published_sequence_cursor(&updated);
                     }
                 }
                 Ok(value)

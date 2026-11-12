@@ -667,6 +667,17 @@ impl Fold<'_, '_> {
                 // Float arguments reach the binder, which names the full
                 // undefined `numeric` overload signature.
                 1700 => matches!(summary.oid, 0 | 20 | 21 | 23 | 700 | 701 | 705 | 1700),
+                // The binder names the full undefined overload signature for
+                // a non-INT4 `round`/`trunc` scale.
+                23 if matches!(
+                    metadata.id,
+                    functions::FunctionId::Math(
+                        functions::math::MathFunction::Round | functions::math::MathFunction::Trunc
+                    )
+                ) && matches!(summary.oid, 20 | 701 | 1700) =>
+                {
+                    true
+                }
                 23 => {
                     matches!(summary.oid, 0 | 21 | 23 | 705)
                         || summary.oid == 20 && self.occurrences.embedded_int4_carrier(*summary)

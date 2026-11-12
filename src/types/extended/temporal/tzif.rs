@@ -9,11 +9,22 @@ pub(crate) struct RawLocalTimeType {
     pub(crate) designation_index: usize,
 }
 
+/// One raw transition: the instant it takes effect and the local-time type
+/// (an index into the raw type table) that applies from then on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RawTransition {
+    pub(crate) unix_seconds: i64,
+    pub(crate) type_index: usize,
+}
+
 /// The parsed local-time types and exact character table owned by one `TZif`.
 #[derive(Debug, Clone)]
 pub(crate) struct RawTzif {
     bytes: Arc<[u8]>,
     pub(crate) local_time_types: Vec<RawLocalTimeType>,
+    pub(crate) transitions: Vec<RawTransition>,
+    /// Whether a non-empty POSIX footer governs instants after the last transition.
+    pub(crate) has_footer: bool,
     designations: std::ops::Range<usize>,
 }
 
@@ -90,17 +101,29 @@ impl RawTzif {
         }
         let transition_count =
             usize::try_from(header.transition_count).map_err(|_| "too many TZif transitions")?;
+        let mut transitions = Vec::with_capacity(transition_count);
         for index in 0..transition_count {
             let time_start = section
                 .transition_times_start
                 .checked_add(index * width)
                 .ok_or("invalid TZif transition time offset")?;
-            if !matches!(width, 4 | 8) {
-                return Err("unsupported TZif timestamp width");
-            }
-            bytes
-                .get(time_start..time_start + width)
-                .ok_or("truncated TZif transition times")?;
+            let unix_seconds = match width {
+                4 => {
+                    let time = bytes
+                        .get(time_start..time_start + 4)
+                        .ok_or("truncated TZif transition times")?;
+                    i64::from(i32::from_be_bytes([time[0], time[1], time[2], time[3]]))
+                }
+                8 => {
+                    let time = bytes
+                        .get(time_start..time_start + 8)
+                        .ok_or("truncated TZif transition times")?;
+                    i64::from_be_bytes([
+                        time[0], time[1], time[2], time[3], time[4], time[5], time[6], time[7],
+                    ])
+                }
+                _ => return Err("unsupported TZif timestamp width"),
+            };
             let type_index = usize::from(
                 *bytes
                     .get(section.transition_type_indices_start + index)
@@ -109,11 +132,18 @@ impl RawTzif {
             if type_index >= local_time_types.len() {
                 return Err("invalid TZif transition type index");
             }
+            transitions.push(RawTransition {
+                unix_seconds,
+                type_index,
+            });
         }
+        let has_footer = header.version != 0 && footer_is_present(&bytes[section.end..]);
 
         Ok(Self {
             bytes,
             local_time_types,
+            transitions,
+            has_footer,
             designations: section.designations,
         })
     }
@@ -184,6 +214,12 @@ impl RawTzif {
                 .zip(query.as_bytes())
                 .all(|(&left, &right)| left.eq_ignore_ascii_case(&right))
     }
+}
+
+fn footer_is_present(rest: &[u8]) -> bool {
+    rest.strip_prefix(b"\n")
+        .and_then(|footer| footer.iter().position(|&byte| byte == b'\n'))
+        .is_some_and(|length| length > 0)
 }
 
 fn read_header(bytes: &[u8], start: usize) -> Result<Header, &'static str> {

@@ -113,6 +113,15 @@ pub(crate) fn bind_input_types(
 ) -> Result<(), CassieError> {
     parameters::bind(statement, oids)
 }
+/// Functions admitted in a VALUES row: temporal functions and the array
+/// builders, which construct their result without reading any relation.
+pub(crate) fn allows_function(name: &str) -> bool {
+    crate::sql::functions::is_temporal_function(name)
+        || name.eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+        || name.eq_ignore_ascii_case("_cassie_array_value")
+        || name.eq_ignore_ascii_case("array_fill")
+}
+
 fn validate(
     expression: &Expr,
     float_context: bool,
@@ -125,27 +134,10 @@ fn validate(
         ..
     } = expression
     {
-        if matches!(
-            data_type,
-            DataType::Array(element)
-                if matches!(
-                    element.as_ref(),
-                    DataType::Char { length: Some(_) } | DataType::Varchar { length: Some(_) }
-                )
-        ) {
-            return Err(CassieError::Unsupported(
-                "VALUES casts to character arrays with element length modifiers are not yet supported".into(),
-            ));
-        }
         crate::sql::literal_inputs::validate_with_controls(expr, data_type, *identity, controls)?;
     }
     match expression {
-        Expr::Function(function)
-            if crate::sql::functions::is_temporal_function(&function.name)
-                || function
-                    .name
-                    .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
-                || function.name.eq_ignore_ascii_case("_cassie_array_value") => {}
+        Expr::Function(function) if allows_function(&function.name) => {}
         Expr::Exists(_) | Expr::Subquery(_) => return Ok(()),
         Expr::Function(_) => {
             return Err(CassieError::Unsupported(

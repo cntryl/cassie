@@ -72,6 +72,13 @@ impl CassieSession {
         }
     }
 
+    pub(crate) fn publication_catalog(&self) -> Option<Catalog> {
+        self.schema_context
+            .lock()
+            .as_ref()
+            .map(|scope| scope.publication_catalog.clone())
+    }
+
     pub(crate) fn publish_sequence_metadata(&self, metadata: &crate::catalog::SequenceMeta) {
         let publication_catalog = self
             .schema_context
@@ -80,7 +87,7 @@ impl CassieSession {
             .map(|scope| scope.publication_catalog.clone());
         if let Some(publication_catalog) = publication_catalog {
             publication_catalog.update_sequence_cursor(metadata);
-            self.invalidate_sequence_cursor_descriptor();
+            self.mirror_published_sequence_cursor(metadata);
         }
     }
 

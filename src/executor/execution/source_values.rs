@@ -162,13 +162,7 @@ pub(in crate::executor::execution) fn scratch_bytes(
             })?,
             4,
         )?,
-        Expr::Function(function)
-            if crate::sql::functions::is_temporal_function(&function.name)
-                || function
-                    .name
-                    .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
-                || function.name.eq_ignore_ascii_case("_cassie_array_value") =>
-        {
+        Expr::Function(function) if crate::sql::binder::values::allows_function(&function.name) => {
             64
         }
         // A subquery (`_` below) admits its own rows when it runs.

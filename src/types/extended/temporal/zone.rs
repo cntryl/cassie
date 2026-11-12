@@ -845,6 +845,32 @@ mod tests {
     use super::{lookup_zone, offset_abbreviation, AbbreviationSet};
     use crate::types::extended::temporal::calendar::{fields_to_timestamp, Fields};
 
+    #[test]
+    fn should_interrupt_a_long_formatted_timezone_abbreviation_search() {
+        // Arrange
+        let zone = lookup_zone("Europe/London").expect("London timezone");
+        let mut checks = 0;
+        let mut check = || {
+            checks += 1;
+            if checks == 2 {
+                Err("cancelled")
+            } else {
+                Ok(())
+            }
+        };
+
+        // Act
+        let result = zone.abbreviation_offset_with_checks(
+            "not-a-timezone-abbreviation",
+            local(2400, 1, 1, 0, 0),
+            &mut check,
+        );
+
+        // Assert
+        assert_eq!(result, Err("cancelled"));
+        assert_eq!(checks, 2);
+    }
+
     fn local(year: i32, month: i32, day: i32, hour: i32, minute: i32) -> i64 {
         fields_to_timestamp(
             &Fields {

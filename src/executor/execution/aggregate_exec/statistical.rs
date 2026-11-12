@@ -272,6 +272,49 @@ impl StatisticalAccumulator {
         Ok(mul(units, 64)?)
     }
 
+    /// Conservative transition/finalization workspace, including decimal
+    /// alignment, coefficient products, division formatting and sqrt temporaries.
+    /// The bound counts coefficient bits as bytes before applying its multiplier.
+    pub(super) fn working_bytes(&self, input: Option<&Value>) -> Result<usize, QueryError> {
+        use crate::executor::retained_memory::{add, mul};
+        let mut units = 128;
+        if let Moments::Exact(state) = &self.moments {
+            units = add(units, numeric_work_units(&state.sum)?)?;
+            units = add(units, numeric_work_units(&state.sum_squares)?)?;
+        }
+        match input {
+            Some(Value::Typed(TypedValue::Numeric(value))) => {
+                units = add(units, numeric_work_units(value)?)?;
+            }
+            Some(Value::Int64(_)) => units = add(units, 64)?,
+            Some(_) | None if !matches!(self.moments, Moments::Exact(_)) => return Ok(0),
+            _ => {}
+        }
+        Ok(mul(units, 64)?)
+    }
+
+    /// Conservative transition/finalization workspace, including decimal
+    /// alignment, coefficient products, division formatting and sqrt temporaries.
+    /// The bound counts coefficient bits as bytes before applying its multiplier.
+    pub(super) fn working_bytes(&self, input: Option<&Value>) -> Result<usize, QueryError> {
+        use crate::executor::retained_memory::{add, mul};
+        let mut units = 128;
+        if let Moments::Exact(state) = &self.moments {
+            units = add(units, numeric_work_units(&state.sum)?)?;
+            units = add(units, numeric_work_units(&state.sum_squares)?)?;
+        }
+        match input {
+            Some(Value::Typed(TypedValue::Numeric(value))) => {
+                units = add(units, numeric_work_units(value)?)?
+            }
+            Some(Value::Int64(_)) => units = add(units, 64)?,
+            Some(_) if !matches!(self.moments, Moments::Exact(_)) => return Ok(0),
+            None if !matches!(self.moments, Moments::Exact(_)) => return Ok(0),
+            _ => {}
+        }
+        Ok(mul(units, 64)?)
+    }
+
     pub(super) fn retained_heap_bytes(&self) -> usize {
         match &self.moments {
             Moments::Exact(state) => numeric_heap_bytes(&state.sum)

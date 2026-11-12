@@ -17,9 +17,10 @@ width (`.1` means one tenth of a second). Delimited MS/US fields read the whole
 numeric field before range validation; adjacent fields retain their declared
 width when followed by a numeric template field; TZH is a separator for this
 purpose in PostgreSQL's pinned `formatting.c`. These finite cases are part of
-the repair, without a general date-format compatibility claim. Existing FF1–FF6
-rounding beyond their declared precision remains a separate #815 obligation;
-this increment does not promote that existing parser behavior.
+the repair, without a general date-format compatibility claim. At the time
+this increment was authored, FF1–FF6 rounding beyond declared precision was a
+separate #815 obligation; its selected contract and evidence are recorded in
+[the FF precision increment](temporal-ff-precision-2026-11-06.md).
 
 `to_timestamp(text,text)` must validate its resulting UTC instant after either
 an explicit format offset or the session timezone is applied. Conversion must
@@ -65,13 +66,14 @@ to the timestamp gap. Focused PostgreSQL/source probes confirmed TZH is a
 non-digit separator; fraction parsing now distinguishes it from numeric fields.
 The range probes covered an offset that overflows INT8, both timestamp ends,
 session-zone rejection, and valid offset-restored wall times. The same probes
-identified existing FF precision rounding as a separate open #815 obligation
-(`to_timestamp('2000-01-01 12:00:00.1235', 'YYYY-MM-DD HH24:MI:SS.FF3')`
-must return `.124`). Next action for that obligation is to preserve the format
-precision through parsing and round the resulting instant with the native
-PostgreSQL oracle, including pre-epoch and range-boundary cases. No FF parity
-claim or #815 closure follows from this increment. Jev selected finishing the
-bounded repair's executable gate with probability 0.91 after these probes.
+identified the separate FF precision obligation:
+`to_timestamp('2000-01-01 12:00:00.1235', 'YYYY-MM-DD HH24:MI:SS.FF3')` must
+return `.124`. That obligation now has a dedicated selected contract,
+implementation and focused regression set in
+[the FF precision increment](temporal-ff-precision-2026-11-06.md). This
+formatter-specific repair remains bounded and does not establish full #815
+completion. Jev selected finishing the bounded repair's executable gate with
+probability 0.91 after these probes.
 Focused review of the signed-zone repair selected the scoped change with
 probability 0.86. Complete delimited-field probes also retained significant
 digits beyond nine leading zeroes and rejected a large MS integer before

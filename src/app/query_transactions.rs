@@ -197,6 +197,10 @@ impl Cassie {
             session.transaction_catalog_base_version() != Some(catalog.version())
                 || !storage_overlay.changes.is_empty()
         });
+        let removed_role_grant_targets = catalog_overlay
+            .as_ref()
+            .map(|catalog| self.role_grant_targets_removed_by_transaction(catalog))
+            .unwrap_or_default();
         if let Some(catalog) = &catalog_overlay {
             storage_overlay.apply_sequence_cursors_to_catalog(catalog, controls)?;
         }
@@ -224,20 +228,38 @@ impl Cassie {
         let transactional_ddl = catalog_overlay
             .as_ref()
             .map(|_| (database.as_str(), &storage_overlay));
-        let (collections, referential) = self.transaction_commit_write_gates(session);
+        #[cfg(test)]
+        output_admission_tests::cancel_before_index_guard_if_armed();
+        let index_guard =
+            crate::midge::adapter::IndexCleanupCommitGuard::capture(&storage_overlay, controls)
+                .inspect_err(|_| session.mark_transaction_failed())?;
+        let (row_collections, referential) = self.transaction_commit_write_gates(session);
+        let gate_names = if index_guard.is_empty() {
+            None
+        } else {
+            Some(
+                index_guard
+                    .gate_names(&row_collections, controls)
+                    .inspect_err(|_| session.mark_transaction_failed())?,
+            )
+        };
+        let collections = gate_names
+            .as_ref()
+            .map_or(row_collections.as_slice(), |names| names.values.as_slice());
         let publish = || {
+            index_guard.validate(&self.midge, controls)?;
             self.publish_transaction_rows(
                 session,
                 &database,
                 catalog_overlay.as_ref(),
-                &collections,
+                collections,
                 controls,
                 transactional_ddl,
             )
         };
         let committed = if repeatable_write {
             self.midge
-                .with_transaction_write_gates(&collections, referential, controls, || {
+                .with_transaction_write_gates(collections, referential, controls, || {
                     if referential {
                         self.validate_staged_foreign_keys(session)?;
                         self.validate_staged_parent_references(session)?;
@@ -245,13 +267,13 @@ impl Cassie {
                     publish()
                 })
         } else if referential {
-            self.midge.with_collection_write_gates(&collections, || {
+            self.midge.with_collection_write_gates(collections, || {
                 self.validate_staged_foreign_keys(session)?;
                 self.validate_staged_parent_references(session)?;
                 publish()
             })
         } else {
-            self.midge.with_collection_gates(&collections, publish)
+            self.midge.with_collection_gates(collections, publish)
         }
         .inspect_err(|_| session.mark_transaction_failed())?;
 
@@ -259,12 +281,35 @@ impl Cassie {
             self.publication_catalog
                 .publish_transaction_snapshot(snapshot);
         }
+        self.cleanup_committed_role_grants(removed_role_grant_targets);
         session.commit_transaction();
         if let Some(publication) = catalog_publication {
             publication.retire();
         }
         self.finish_staged_write_batches(committed, Some(controls));
         Ok(())
+    }
+
+    fn cleanup_committed_role_grants(
+        &self,
+        removed_role_grant_targets: Vec<(String, Vec<crate::catalog::RoleGrantTarget>)>,
+    ) {
+        for (database_family, targets) in removed_role_grant_targets {
+            if let Err(error) = self
+                .midge
+                .delete_role_object_grants_for_targets(&database_family, &targets)
+            {
+                self.runtime.record_storage_access("schema", true, false);
+                tracing::warn!(
+                    database_family,
+                    target_count = targets.len(),
+                    %error,
+                    "committed DDL left inert role grants for startup reconciliation"
+                );
+            } else {
+                self.runtime.record_storage_access("schema", true, true);
+            }
+        }
     }
 
     fn bump_transaction_schema_epoch(&self) -> Result<(), CassieError> {

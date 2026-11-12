@@ -346,6 +346,7 @@ impl Midge {
             column_names: dropped_indexes.columns.clone(),
             column_storage_ids: dropped_indexes.column_storage_ids.clone(),
             scalar_names: dropped_indexes.scalars.clone(),
+            scalar_reservation_generations: dropped_indexes.scalar_reservation_generations.clone(),
             scalar_storage_ids: dropped_indexes.scalar_storage_ids.clone(),
             time_series_names: dropped_indexes.time_series.clone(),
             time_series_storage_ids: dropped_indexes.time_series_storage_ids.clone(),

@@ -151,9 +151,9 @@ impl Midge {
             let Some(values) = Self::scalar_index_key_values(index, payload, row_schema)? else {
                 continue;
             };
-            let key = key_encoding::unique_scalar_index_reservation_key(
+            let key = key_encoding::unique_index_reservation_key_for(
                 collection,
-                index.unique_reservation_name(),
+                index.reservation_identity()?,
                 &values,
             )?;
             targets.push((

@@ -60,6 +60,7 @@ fn should_retain_aliased_cte_source_qualification_until_output_drop() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         let alias = "q".repeat(4096);
@@ -103,6 +104,7 @@ fn should_deny_aliased_cte_carrier_before_uncontrolled_qualification() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         // Act
@@ -139,6 +141,7 @@ fn should_retain_aliased_cte_array_null_template_until_drop() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         let alias = "q".repeat(4096);
@@ -179,6 +182,7 @@ fn should_deny_aliased_cte_null_template_before_uncontrolled_growth() {
             session: None,
             user_functions: &functions,
             params: &[],
+            parameter_type_oids: &[],
             controls: &controls,
         };
         // Act

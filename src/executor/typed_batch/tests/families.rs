@@ -115,7 +115,7 @@ fn scalar_families() -> Vec<(DataType, Vec<Value>)> {
             ],
         ),
         (
-            DataType::Vector(2),
+            DataType::Vector(Some(2)),
             vec![
                 Value::Vector(crate::types::Vector::new(vec![1.0, 2.0])),
                 Value::Null,

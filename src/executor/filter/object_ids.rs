@@ -38,15 +38,16 @@ pub(super) fn with_scope<T>(
     lookup: impl FnOnce(&ObjectScope<'_>) -> Result<T, ObjectIdentifierError>,
 ) -> Result<T, QueryError> {
     let (catalog, context) = session
-        .and_then(CassieSession::object_lookup_context)
+        .and_then(CassieSession::object_identifier_lookup_context)
         .ok_or_else(|| {
             QueryError::General("object identifier lookup requires a session catalog".to_string())
         })?;
     lookup(&ObjectScope::new(&catalog, &context)).map_err(|error| QueryError::Cassie(error.into()))
 }
 
-/// `to_regclass` and its siblings: a lookup that yields NULL instead of an
-/// error for missing, ambiguous or malformed names.
+/// `to_regclass` and its siblings: nullable lookups for missing objects.
+/// `to_regtype` preserves SQL type-name syntax errors; other resolver errors
+/// retain the existing NULL behavior.
 pub(crate) fn evaluate_lookup(
     name: &str,
     args: &[Value],
@@ -100,8 +101,10 @@ fn lookup(
     let Some(Value::String(text)) = argument else {
         return Ok(Value::Null);
     };
-    let resolved = with_scope(session, |scope| {
-        Ok(scope.resolve(kind, text).ok().flatten())
+    let resolved = with_scope(session, |scope| match scope.resolve(kind, text) {
+        Ok(oid) => Ok(oid),
+        Err(error) if kind == ObjectIdKind::RegType => Err(error),
+        Err(_) => Ok(None),
     })?;
     Ok(resolved.map_or(Value::Null, |oid| Value::Int64(i64::from(oid))))
 }

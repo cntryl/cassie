@@ -37,6 +37,7 @@ fn run_build(
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     let keys = EquiJoinKeys {

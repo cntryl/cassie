@@ -39,6 +39,34 @@ scalar_eq!(
     crate::types::extended::ExtendedType,
 );
 
+impl ExactMetadataEq for crate::catalog::ObjectCommentMeta {
+    fn exact_eq(
+        &self,
+        other: &Self,
+        controls: &QueryExecutionControls,
+    ) -> Result<bool, CassieError> {
+        controls.check_interruption()?;
+        Ok(self.format_version.exact_eq(&other.format_version, controls)?
+            && self
+                .address
+                .database
+                .exact_eq(&other.address.database, controls)?
+            && self
+                .address
+                .class_oid
+                .exact_eq(&other.address.class_oid, controls)?
+            && self
+                .address
+                .object_oid
+                .exact_eq(&other.address.object_oid, controls)?
+            && self
+                .address
+                .object_sub_id
+                .exact_eq(&other.address.object_sub_id, controls)?
+            && self.description.exact_eq(&other.description, controls)?)
+    }
+}
+
 macro_rules! float_eq {
     ($($kind:ty),* $(,)?) => {$ (
         impl ExactMetadataEq for $kind {

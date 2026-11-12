@@ -137,6 +137,18 @@ impl Cassie {
         }
 
         self.prepare_transaction_read_view(session, &parsed, controls)?;
+        if session.is_implicit_transaction()
+            && matches!(parsed.statement, QueryStatement::CreateTable(_))
+        {
+            return self.execute_implicit_table_creation(
+                session,
+                parsed,
+                sql_fingerprint,
+                parameters,
+                mode,
+                controls,
+            );
+        }
         let _publication_read = self.catalog_publication.read();
         self.execute_bound_catalog_scoped(
             session,
@@ -197,14 +209,15 @@ impl Cassie {
         } else {
             None
         };
-        scoped_cassie.execute_bound_statement_inner(
+        let result = scoped_cassie.execute_bound_statement_inner(
             session,
             parsed,
             sql_fingerprint,
             parameters,
             mode,
             controls,
-        )
+        );
+        result
     }
 
     fn execute_bound_statement_inner(
@@ -350,6 +363,7 @@ impl Cassie {
             session,
             &physical,
             params,
+            parameter_type_oids,
             cache_context.is_select,
             controls,
         )?;
@@ -445,6 +459,7 @@ impl Cassie {
         session: &CassieSession,
         physical: &std::sync::Arc<crate::planner::physical::PhysicalPlan>,
         params: Vec<Value>,
+        parameter_type_oids: &[i32],
         is_select: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
@@ -454,7 +469,13 @@ impl Cassie {
             &session.search_path(),
             physical,
         );
-        let execution = self.execute_physical_statement(session, physical, params, controls);
+        let execution = self.execute_physical_statement_with_parameter_oids(
+            session,
+            physical,
+            params,
+            parameter_type_oids,
+            controls,
+        );
         self.record_query_feedback(feedback, &execution);
         execution
     }

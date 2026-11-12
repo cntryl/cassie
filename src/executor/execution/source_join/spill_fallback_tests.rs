@@ -32,6 +32,7 @@ fn should_record_spill_fallback_before_merge_retention_failure() {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     // These already loaded rows isolate operator selection from source qualification.

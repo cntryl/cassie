@@ -42,7 +42,7 @@ fn should_order_by_hybrid_score() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],
@@ -138,7 +138,7 @@ fn should_filter_by_hybrid_score_threshold() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],

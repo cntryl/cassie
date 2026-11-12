@@ -84,6 +84,13 @@ enum DecodedBinaryField {
     Text(String, crate::runtime::QueryMemoryReservation),
 }
 
+#[derive(Clone, Copy)]
+struct CopyColumnType {
+    oid: i64,
+    is_vector: bool,
+    expected_vector_dimensions: Option<usize>,
+}
+
 pub(super) fn parse_text_payload(
     payload: &[u8],
     delimiter: char,
@@ -227,6 +234,22 @@ pub(super) fn parse_binary_payload(
     statement: &CopyStatement,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<CopyRowsWithMemory, super::filter::CopyWhereError> {
+    parse_binary_payload_in_database(
+        payload,
+        cassie,
+        &cassie.default_database,
+        statement,
+        controls,
+    )
+}
+
+pub(super) fn parse_binary_payload_in_database(
+    payload: &[u8],
+    cassie: &Cassie,
+    database: &str,
+    statement: &CopyStatement,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<CopyRowsWithMemory, super::filter::CopyWhereError> {
     controls.check_interruption()?;
     let schema = cassie
         .catalog
@@ -234,8 +257,12 @@ pub(super) fn parse_binary_payload(
         .ok_or_else(|| CassieError::CollectionNotFound(statement.table.clone()))?;
     let _type_memory;
     let column_types;
-    (column_types, _type_memory) =
-        copy_column_types(statement, schema.fields.as_slice(), controls)?;
+    (column_types, _type_memory) = copy_column_types_for_database(
+        statement,
+        schema.fields.as_slice(),
+        Some((&cassie.catalog, database)),
+        controls,
+    )?;
     drop(schema);
     let mut cursor = 0_usize;
     parse_binary_header(payload, &mut cursor)?;
@@ -276,7 +303,7 @@ fn parse_binary_header(
 fn parse_binary_rows(
     payload: &[u8],
     cursor: &mut usize,
-    column_types: &[i64],
+    column_types: &[CopyColumnType],
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<CopyRowsWithMemory, super::filter::CopyWhereError> {
     let mut memory = controls.reserve_query_memory(0)?;
@@ -329,12 +356,12 @@ fn validate_binary_row_header(
 fn parse_binary_row(
     payload: &[u8],
     cursor: &mut usize,
-    column_types: &[i64],
+    column_types: &[CopyColumnType],
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<CopyRowWithMemory, super::filter::CopyWhereError> {
     let mut row_memory = controls.reserve_query_memory(0)?;
     let mut row = Vec::new();
-    for (column_index, type_oid) in column_types.iter().copied().enumerate() {
+    for (column_index, column_type) in column_types.iter().copied().enumerate() {
         controls.check_interruption()?;
         crate::app::copy_decode::grow_text_vec(&mut row, &mut row_memory, controls)?;
         let length = i32::from_be_bytes(
@@ -349,7 +376,7 @@ fn parse_binary_row(
         let length = usize::try_from(length)
             .map_err(|_| CassieError::Parse("COPY binary field length is negative".into()))?;
         let bytes = take(payload, cursor, length)?;
-        match decode_binary_field(type_oid, bytes, column_index, controls)? {
+        match decode_binary_field(column_type, bytes, column_index, controls)? {
             DecodedBinaryField::Null => row.push(None),
             DecodedBinaryField::Text(text, memory) => {
                 row.push(Some(text));
@@ -361,11 +388,21 @@ fn parse_binary_row(
 }
 
 fn decode_binary_field(
-    type_oid: i64,
+    column_type: CopyColumnType,
     bytes: &[u8],
     column_index: usize,
     controls: &crate::runtime::QueryExecutionControls,
 ) -> Result<DecodedBinaryField, super::filter::CopyWhereError> {
+    if column_type.is_vector {
+        let (text, memory) = binary_vector::decode(
+            bytes,
+            column_index,
+            controls,
+            column_type.expected_vector_dimensions,
+        )?;
+        return Ok(DecodedBinaryField::Text(text, memory));
+    }
+    let type_oid = column_type.oid;
     if let Some((text, memory)) =
         decode_special_binary_field(type_oid, bytes, column_index, controls)?
     {
@@ -416,7 +453,6 @@ fn decode_special_binary_field(
         binary_time::decode,
         binary_timetz::decode,
         binary_timestamp::decode,
-        binary_vector::decode,
         binary_uuid::decode,
         binary_numeric::decode,
         binary_real::decode,
@@ -480,7 +516,16 @@ fn copy_column_types(
     statement: &CopyStatement,
     fields: &[crate::catalog::FieldMeta],
     controls: &crate::runtime::QueryExecutionControls,
-) -> Result<(Vec<i64>, crate::runtime::QueryMemoryReservation), CassieError> {
+) -> Result<(Vec<CopyColumnType>, crate::runtime::QueryMemoryReservation), CassieError> {
+    copy_column_types_for_database(statement, fields, None, controls)
+}
+
+fn copy_column_types_for_database(
+    statement: &CopyStatement,
+    fields: &[crate::catalog::FieldMeta],
+    vector_context: Option<(&crate::catalog::Catalog, &str)>,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(Vec<CopyColumnType>, crate::runtime::QueryMemoryReservation), CassieError> {
     let count = if statement.columns.is_empty() {
         fields.len()
     } else {
@@ -493,7 +538,7 @@ fn copy_column_types(
     if statement.columns.is_empty() {
         for field in fields {
             controls.check_interruption()?;
-            types.push(field.data_type.type_oid());
+            types.push(copy_column_type(&field.data_type, vector_context)?);
         }
         return Ok((types, memory));
     }
@@ -508,7 +553,7 @@ fn copy_column_types(
     for column in &statement.columns {
         controls.check_interruption()?;
         if crate::types::row_identity::is_identity_reference(column, declares_id) {
-            types.push(DataType::Text.type_oid());
+            types.push(copy_column_type(&DataType::Text, vector_context)?);
             continue;
         }
         let mut matched = None;
@@ -541,9 +586,37 @@ fn copy_column_types(
                 statement.table
             ))
         })?;
-        types.push(field.data_type.type_oid());
+        types.push(copy_column_type(&field.data_type, vector_context)?);
     }
     Ok((types, memory))
+}
+
+fn copy_column_type(
+    data_type: &DataType,
+    vector_context: Option<(&crate::catalog::Catalog, &str)>,
+) -> Result<CopyColumnType, CassieError> {
+    if let DataType::Vector(expected_vector_dimensions) = data_type {
+        let oid = vector_context
+            .and_then(|(catalog, database)| {
+                crate::catalog::object_identity::type_oid_for_database(catalog, database, data_type)
+            })
+            .or_else(|| vector_context.is_none().then(|| data_type.type_oid()))
+            .ok_or_else(|| {
+                CassieError::Unsupported(
+                    "vector type is not installed in the active database".into(),
+                )
+            })?;
+        return Ok(CopyColumnType {
+            oid,
+            is_vector: true,
+            expected_vector_dimensions: *expected_vector_dimensions,
+        });
+    }
+    Ok(CopyColumnType {
+        oid: data_type.type_oid(),
+        is_vector: false,
+        expected_vector_dimensions: None,
+    })
 }
 
 fn take<'a>(payload: &'a [u8], cursor: &mut usize, length: usize) -> Result<&'a [u8], CassieError> {

@@ -6,6 +6,58 @@ use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use crate::types::Value;
 
+thread_local! {
+    static CANCEL_BEFORE_INDEX_GUARD: std::cell::RefCell<Option<QueryCancellationHandle>> = std::cell::RefCell::new(None);
+}
+
+pub(super) fn cancel_before_index_guard_if_armed() {
+    if let Some(cancellation) = CANCEL_BEFORE_INDEX_GUARD.with(|slot| slot.borrow_mut().take()) {
+        cancellation.cancel();
+    }
+}
+
+#[test]
+fn should_fail_transaction_when_index_commit_guard_is_cancelled() {
+    // Arrange
+    let fixture = Fixture::new();
+    let session = fixture.cassie.create_session("tester", None);
+    for sql in [
+        "CREATE TABLE guarded_commit (id INT)",
+        "BEGIN",
+        "CREATE INDEX guarded_idx ON guarded_commit (id)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&session, sql, Vec::new())
+            .expect("setup");
+    }
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    CANCEL_BEFORE_INDEX_GUARD
+        .with(|slot| assert!(slot.borrow_mut().replace(cancellation).is_none()));
+
+    // Act
+    let result = fixture
+        .cassie
+        .commit_transaction_with_controls(&session, &controls);
+
+    // Assert
+    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert_eq!(session.transaction_status(), "failed");
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+    session.rollback_transaction();
+    assert!(fixture
+        .cassie
+        .midge
+        .get_index("guarded_commit", "guarded_idx")
+        .expect("read")
+        .is_none());
+}
+
 struct Fixture {
     cassie: Cassie,
 }

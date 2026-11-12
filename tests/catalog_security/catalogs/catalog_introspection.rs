@@ -626,7 +626,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
                     ],
                     vec![
                         Value::String("vector(2)".to_string()),
-                        Value::Int64(DataType::Vector(2).type_oid()),
+                        Value::Int64(DataType::Vector(Some(2)).type_oid()),
                         Value::Int64(0),
                         Value::Int64(11)
                     ],

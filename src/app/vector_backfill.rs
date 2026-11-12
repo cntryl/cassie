@@ -20,6 +20,10 @@ impl Cassie {
     ) -> Result<(), CassieError> {
         let collections = self.referential_write_collections(&index.collection);
         self.midge.with_collection_write_gates(&collections, || {
+            if let Some(metadata) = sql_index {
+                self.midge
+                    .ensure_no_pending_index_cleanup(&index.collection, &metadata.name)?;
+            }
             let rows = self.prepare_vector_backfill_with_held_gates(index)?;
             let options = self.document_write_options(&index.collection);
             let publication = self
@@ -65,6 +69,9 @@ impl Cassie {
         &self,
         index: &VectorIndexRecord,
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
+        if index.source_field == index.field {
+            return Ok(Vec::new());
+        }
         let batch = self.new_statement_batch(None)?;
         let mut rows = Vec::new();
         let documents = self.midge.scan_documents(&index.collection)?;

@@ -496,3 +496,64 @@ fn should_guard_deep_direct_expression_before_recursive_bound_detection() {
         .contains("pagination plan nesting"));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_guard_alternating_subquery_nesting_before_constant_folding() {
+    // Arrange
+    let fixture = sql_fixture("pagination_alternating_depth", &[]);
+    let parsed = cassie::sql::parse_statement("SELECT 1").expect("parse");
+    let bound = cassie::sql::binder::bind(parsed.clone(), &fixture.cassie.catalog).expect("bind");
+    let mut logical = cassie::planner::logical::plan(&bound).expect("plan");
+    let mut expr = cassie::sql::ast::Expr::IntegerLiteral(1);
+    for _ in 0..80 {
+        let mut statement = parsed.clone();
+        let cassie::sql::ast::QueryStatement::Select(select) = &mut statement.statement else {
+            panic!("select statement");
+        };
+        let cassie::sql::ast::SelectItem::Expr {
+            expr: projection, ..
+        } = &mut select.projection[0]
+        else {
+            panic!("expression projection");
+        };
+        *projection = expr;
+        expr = cassie::sql::ast::Expr::Exists(Box::new(statement));
+    }
+    let cassie::sql::ast::SelectItem::Expr {
+        expr: projection, ..
+    } = &mut logical.projection[0]
+    else {
+        panic!("expression projection");
+    };
+    *projection = expr;
+    let physical = cassie::planner::physical::build(logical);
+
+    // Act
+    let result = cassie::executor::run(&fixture.cassie, physical, vec![]);
+
+    // Assert
+    assert!(result
+        .expect_err("structural nesting admission")
+        .to_string()
+        .contains("pagination plan nesting"));
+}
+
+#[test]
+fn should_preserve_folding_error_before_invalid_direct_pagination_bound() {
+    // Arrange
+    let fixture = sql_fixture("pagination_folding_precedence", &[]);
+    let parsed = cassie::sql::parse_statement("SELECT 1 / 0 LIMIT 1").expect("parse");
+    let bound = cassie::sql::binder::bind(parsed, &fixture.cassie.catalog).expect("bind");
+    let mut logical = cassie::planner::logical::plan(&bound).expect("plan");
+    logical.limit = Some(cassie::sql::ast::Expr::StringLiteral("invalid".into()));
+    let physical = cassie::planner::physical::build(logical);
+
+    // Act
+    let result = cassie::executor::run(&fixture.cassie, physical, vec![]);
+
+    // Assert
+    assert!(result
+        .expect_err("constant folding error")
+        .to_string()
+        .contains("division by zero"));
+}

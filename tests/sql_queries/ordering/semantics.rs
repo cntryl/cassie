@@ -472,7 +472,7 @@ fn should_apply_vector_distance_offset_after_ordering() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(3),
+                data_type: DataType::Vector(Some(3)),
                 nullable: true,
             }],
         };
@@ -637,7 +637,7 @@ fn should_apply_hybrid_offset_after_score_ordering() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],

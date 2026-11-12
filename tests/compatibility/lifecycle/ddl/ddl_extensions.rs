@@ -31,6 +31,8 @@ mod table_storage_access;
 mod type_conversion;
 #[path = "../extensions/vector_extension.rs"]
 mod vector_extension;
+#[path = "../extensions/vector_type_identity.rs"]
+mod vector_type_identity;
 
 include!("ddl_extensions/semantics.rs");
 

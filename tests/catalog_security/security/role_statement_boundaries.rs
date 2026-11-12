@@ -24,6 +24,14 @@ fn with_roles(_test_name: &str, test: impl FnOnce(&Cassie, &CassieSession, &Cass
             vec![],
         )
         .expect("create reader");
+    for grant in [
+        "GRANT USAGE ON SCHEMA public TO statement_reader",
+        "GRANT SELECT ON TABLE public.role_statement_rows TO statement_reader",
+    ] {
+        cassie
+            .execute_sql(&admin, grant, vec![])
+            .expect("grant reader access");
+    }
     let reader = cassie
         .authenticate_role("statement_reader", Some("reader-secret"), None)
         .expect("reader");

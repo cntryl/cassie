@@ -48,6 +48,9 @@ mod output_owner;
 mod output_types;
 mod regression;
 mod retained_change;
+#[cfg(test)]
+#[path = "aggregate_exec/group_size.rs"]
+mod group_size;
 #[path = "aggregate_exec/rewrite.rs"]
 mod rewrite;
 #[path = "aggregate_exec/state.rs"]
@@ -78,6 +81,7 @@ type PartitionRowObserver<'a> = &'a (dyn Fn(usize) + Sync);
 pub(super) struct AggregateExecutionContext<'a> {
     pub(super) plan: &'a LogicalPlan,
     pub(super) params: &'a [Value],
+    pub(super) parameter_type_oids: &'a [i32],
     pub(super) search_context: Option<&'a filter::SearchContext>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) session: Option<&'a CassieSession>,
@@ -638,7 +642,15 @@ fn evaluate_aggregate(
 ) -> Result<AggregateOutput, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if ordered_set::is_ordered_set(function) {
-        return ordered_set::evaluate(function, rows, context);
+        return ordered_set::evaluate(function, rows, context).map(AggregateOutput::from_value);
+    }
+    if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::CollectionAggregate(_)
+        )
+    }) {
+        return modifiers::evaluate_owned(function, rows, context);
     }
     if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
         matches!(

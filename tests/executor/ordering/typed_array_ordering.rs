@@ -290,7 +290,7 @@ fn should_order_array_elements_in_their_declared_domains() {
             (
                 "vector_arrays",
                 "VECTOR(2)[]",
-                DataType::Vector(2),
+                DataType::Vector(Some(2)),
                 serde_json::json!([[-2.0, 0.0]]),
                 serde_json::json!([[-1.0, 0.0]]),
             ),

@@ -11,6 +11,9 @@ fn should_reject_unsupported_transaction_control_sql() {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin transaction");
 
         // Act
         let statement = cassie.execute_sql(
@@ -22,6 +25,9 @@ fn should_reject_unsupported_transaction_control_sql() {
         // Assert
         assert!(statement.is_err());
         assert!(statement.unwrap_err().to_string().contains("unsupported"));
+        cassie
+            .execute_sql(&session, "ROLLBACK", vec![])
+            .expect("recover rejected isolation mode");
 
         let _ = std::fs::remove_dir_all(path);
     });

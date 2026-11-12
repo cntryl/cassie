@@ -65,6 +65,7 @@ impl RowSubqueries<'_> {
             session: self.session,
             user_functions: self.user_functions,
             params: self.params,
+            parameter_type_oids: &[],
             controls: self.controls,
         };
         crate::executor::execution::exists_phase::evaluate(

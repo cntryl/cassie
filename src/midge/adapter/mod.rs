@@ -14,7 +14,7 @@ use crate::catalog::{
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchRow, ColumnBatchSegmentMeta,
     DatabaseMeta, FieldCardinalityStats, FieldConstraint, FieldHeavyHitter, FieldHistogramBucket,
     IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta,
+    RetentionPolicyMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::midge::row_blob::{
@@ -28,6 +28,8 @@ mod column_batch_format_v1;
 pub(crate) use column_batch_format_v1::NumericValues;
 mod collection_gates;
 mod core;
+mod object_comments;
+mod role_object_grants;
 pub mod fulltext_retrieval;
 mod publication;
 pub(crate) use publication::RetainedRowHistory;
@@ -35,7 +37,8 @@ mod raw_ops;
 pub(crate) use publication::PublicationControlScope;
 mod transactions;
 pub(crate) use transactions::{
-    AdapterTransaction, CopyStorageSnapshot, RetainedRowFence, StorageOverlay,
+    AdapterTransaction, CopyStorageSnapshot, IndexCleanupCommitGuard, RetainedRowFence,
+    StorageOverlay,
 };
 
 #[doc(hidden)]
@@ -718,6 +721,10 @@ impl Midge {
 
     fn role_prefix() -> Vec<u8> {
         key_encoding::role_prefix()
+    }
+
+    fn role_object_grant_prefix() -> Vec<u8> {
+        key_encoding::role_object_grant_prefix()
     }
 
     pub(super) fn constraints_key(collection: &str) -> Vec<u8> {

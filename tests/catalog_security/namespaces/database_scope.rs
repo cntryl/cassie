@@ -547,3 +547,83 @@ fn should_not_read_graph_edges_from_another_database() {
         );
     }
 }
+
+#[test]
+fn should_scope_index_catalog_views_like_regclass_when_embedded_database_is_absent() {
+    // Arrange
+    let cassie = new_in_memory_cassie().unwrap();
+    cassie.startup().unwrap();
+    let postgres = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(&postgres, "CREATE DATABASE tenant_b", vec![])
+        .unwrap();
+    for sql in [
+        "CREATE TABLE public.default_index_rows (id INT)",
+        "CREATE INDEX default_only_idx ON public.default_index_rows(id)",
+    ] {
+        cassie.execute_sql(&postgres, sql, vec![]).unwrap();
+    }
+    let tenant = cassie.create_session("tester", Some("tenant_b".to_string()));
+    for sql in [
+        "CREATE TABLE public.tenant_index_rows (id INT)",
+        "CREATE INDEX tenant_only_idx ON public.tenant_index_rows(id)",
+    ] {
+        cassie.execute_sql(&tenant, sql, vec![]).unwrap();
+    }
+    let session_without_database =
+        cassie::app::CassieSession::new("tester".to_string(), None);
+
+    // Act
+    let tenant_rows = query_rows(
+        &cassie,
+        &tenant,
+        "SELECT indexname FROM pg_catalog.pg_indexes WHERE indexname = 'tenant_only_idx'",
+    );
+    let current_database = query_rows(
+        &cassie,
+        &session_without_database,
+        "SELECT current_database()",
+    );
+    let foreign_regclass = query_rows(
+        &cassie,
+        &session_without_database,
+        "SELECT to_regclass('tenant_only_idx')",
+    );
+    let default_index_rows = query_rows(
+        &cassie,
+        &session_without_database,
+        "SELECT indexname, to_regclass(indexname) \
+         FROM pg_catalog.pg_indexes WHERE indexname = 'default_only_idx'",
+    );
+    let class_rows = query_rows(
+        &cassie,
+        &session_without_database,
+        "SELECT relname FROM pg_catalog.pg_class WHERE relname = 'tenant_only_idx'",
+    );
+    let index_rows = query_rows(
+        &cassie,
+        &session_without_database,
+        "SELECT indexrelid FROM pg_catalog.pg_index WHERE indexrelid = 'tenant_only_idx'",
+    );
+    let indexes_rows = query_rows(
+        &cassie,
+        &session_without_database,
+        "SELECT current_database(), indexname, to_regclass(indexname) \
+         FROM pg_catalog.pg_indexes WHERE indexname = 'tenant_only_idx'",
+    );
+
+    // Assert
+    assert_eq!(tenant_rows, vec![vec![Value::String("tenant_only_idx".to_string())]]);
+    assert_eq!(current_database, vec![vec![Value::String(String::new())]]);
+    assert_eq!(foreign_regclass, vec![vec![Value::Null]]);
+    assert_eq!(
+        default_index_rows,
+        vec![vec![
+            Value::String("default_only_idx".to_string()),
+            Value::String("default_only_idx".to_string()),
+        ]]
+    );
+    assert!(class_rows.is_empty());
+    assert!(index_rows.is_empty());
+    assert!(indexes_rows.is_empty());
+}

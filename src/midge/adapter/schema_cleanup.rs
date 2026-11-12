@@ -2,6 +2,9 @@ use super::{
     key_encoding, CassieError, IndexKind, Midge, RowSchema, Schema, TransactionMode, Uuid,
 };
 
+#[path = "schema_cleanup_guard_decode.rs"]
+pub(super) mod guard_decode;
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
     pub cleanup_id: String,
@@ -20,7 +23,7 @@ pub(crate) enum PendingSchemaCleanupAction {
 }
 
 impl PendingSchemaCleanup {
-    fn collection(&self) -> &str {
+    pub(super) fn collection(&self) -> &str {
         match &self.action {
             PendingSchemaCleanupAction::Table { table, .. }
             | PendingSchemaCleanupAction::Index { table, .. } => table,
@@ -30,6 +33,73 @@ impl PendingSchemaCleanup {
 }
 
 impl Midge {
+    pub(crate) fn ensure_no_pending_index_cleanup(
+        &self,
+        collection: &str,
+        index: &str,
+    ) -> Result<(), CassieError> {
+        self.check_pending_index_cleanup(collection, index, true)
+    }
+
+    pub(crate) fn ensure_no_persisted_index_cleanup(
+        &self,
+        collection: &str,
+        index: &str,
+    ) -> Result<(), CassieError> {
+        self.check_pending_index_cleanup(collection, index, false)
+    }
+
+    fn check_pending_index_cleanup(
+        &self,
+        collection: &str,
+        index: &str,
+        include_overlay: bool,
+    ) -> Result<(), CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let database = crate::catalog::relation_database_name(&collection)
+            .unwrap_or_else(|| self.default_database.clone());
+        let family = self.database_family(&database)?;
+        // This bypasses a retained statement snapshot while still seeding the
+        // active DDL overlay, so both persisted and staged markers are visible.
+        let tx = if include_overlay {
+            self.begin_adapter_tx(family.id(), super::TransactionMode::ReadOnly)?
+        } else {
+            self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?
+        };
+        let controls = super::PublicationControlScope::current_query_controls();
+        let scan = tx
+            .scan(&super::Query::new().prefix(Self::schema_cleanup_prefix().into()))
+            .map_err(CassieError::from)?;
+        for entry in scan {
+            if let Some(controls) = controls.as_ref() {
+                controls.check_interruption()?;
+            }
+            let (_, raw) = entry.map_err(CassieError::from)?;
+            let marker = guard_decode::decode::<PendingSchemaCleanup>(
+                &raw,
+                controls.as_ref(),
+                "pending schema cleanup",
+            )?;
+            if let PendingSchemaCleanupAction::Index {
+                table,
+                index: pending,
+            } = &marker.value.action
+            {
+                if self
+                    .canonical_collection_name(table)
+                    .eq_ignore_ascii_case(&collection)
+                    && (guard_decode::names_match(pending, index, controls.as_ref())?
+                        || guard_decode::names_match(index, pending, controls.as_ref())?)
+                {
+                    return Err(CassieError::Unsupported(format!(
+                        "pending index cleanup prevents reusing index '{index}'"
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
     #[doc(hidden)]
     #[must_use]
     pub fn scalar_index_collection_prefix_for_diagnostics(relation_id: u64) -> Vec<u8> {
@@ -155,14 +225,69 @@ impl Midge {
         blocked_by_epoch: u64,
     ) -> Result<(), CassieError> {
         let table = self.canonical_collection_name(table);
-        self.save_pending_schema_cleanup(&PendingSchemaCleanup {
+        let gate = self.collection_write_gate(&table);
+        let _guard = gate.lock();
+        if self.has_prepared_index_publication(&table, index)? {
+            return Err(CassieError::Unsupported(
+                "pending index publication requires recovery before DROP INDEX".to_owned(),
+            ));
+        }
+        let cleanup = PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
             action: PendingSchemaCleanupAction::Index {
                 table: table.clone(),
                 index: index.to_string(),
             },
-        })
+        };
+        if !self.has_active_transactional_ddl_scope() {
+            return self.save_pending_schema_cleanup(&cleanup);
+        }
+
+        // Keep the original metadata preimage in the same staged overlay as
+        // the name-only cleanup. A later direct publisher must conflict with
+        // that preimage before the cleanup can become durable.
+        let _fresh_reads = super::StatementReadScope::enter(None);
+        let metadata = self.get_index(&table, index)?.ok_or_else(|| {
+            CassieError::Unsupported("staged index cleanup requires existing metadata".to_owned())
+        })?;
+        if !self
+            .canonical_collection_name(&metadata.collection)
+            .eq_ignore_ascii_case(&table)
+            || metadata.relation_id().is_none_or(|id| id == 0)
+            || metadata.storage_id().is_none_or(|id| id == 0)
+        {
+            return Err(CassieError::Unsupported(
+                "staged index cleanup requires an exact stable index identity".to_owned(),
+            ));
+        }
+        let index_key = Self::index_key(&metadata.collection, &metadata.name);
+        let mut tx = self.begin_data_rw_tx_for(&table)?;
+        let raw = tx
+            .get(&index_key)
+            .map_err(CassieError::from)?
+            .ok_or_else(|| {
+                CassieError::Unsupported(
+                    "staged index cleanup requires an exact metadata key".to_owned(),
+                )
+            })?;
+        let current: super::IndexMeta = serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid index metadata: {error}")))?;
+        if current != metadata {
+            return Err(CassieError::Unsupported(
+                "staged index cleanup metadata is ambiguous".to_owned(),
+            ));
+        }
+        tx.put(index_key, raw.to_vec(), None)
+            .map_err(CassieError::from)?;
+        tx.put(
+            Self::schema_cleanup_key(&table, &cleanup.cleanup_id),
+            serde_json::to_vec(&cleanup).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     /// # Errors
@@ -284,6 +409,11 @@ impl Midge {
             return Ok(());
         }
         drop(read);
+        if self.has_prepared_index_publication(table, index)? {
+            return Err(CassieError::Unsupported(
+                "ambiguous pending index cleanup and publication require manual recovery; preserve both records".to_owned(),
+            ));
+        }
         self.complete_drop_index_cleanup(table, index)?;
         let mut tx =
             self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadWrite)?;
@@ -320,6 +450,13 @@ impl Midge {
         cleanup: &PendingSchemaCleanup,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_data_rw_tx_for(cleanup.collection())?;
+        if let PendingSchemaCleanupAction::Index { table, .. } = &cleanup.action {
+            let canonical = self.canonical_collection_name(table);
+            let mut metadata = Self::load_collection_metadata_from_tx(&tx, &canonical)?
+                .ok_or_else(|| CassieError::CollectionNotFound(canonical.clone()))?;
+            metadata.has_ever_had_indexes = true;
+            Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
+        }
         let value =
             serde_json::to_vec(cleanup).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(
@@ -339,6 +476,147 @@ mod tests {
     use super::{key_encoding, Midge, PendingSchemaCleanup, PendingSchemaCleanupAction, Uuid};
     use crate::catalog::{IndexKind, IndexMeta};
     use crate::midge::adapter::StorageFamily;
+
+    #[test]
+    fn should_preserve_ambiguous_cleanup_and_publication_after_restart() {
+        // Arrange
+        let path =
+            std::env::temp_dir().join(format!("cassie_index_cleanup_pair_{}", Uuid::new_v4()));
+        let midge = Midge::new_strict_with_data_dir(&path).expect("local Midge");
+        midge
+            .create_collection(
+                "cleanup_pair",
+                crate::types::Schema {
+                    fields: vec![crate::types::FieldSchema {
+                        name: "id".to_owned(),
+                        data_type: crate::types::DataType::Int,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("collection");
+        let index = IndexMeta {
+            definition_semantics_version: 0,
+            collection: "cleanup_pair".to_owned(),
+            name: "cleanup_pair_idx".to_owned(),
+            field: "id".to_owned(),
+            fields: vec!["id".to_owned()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
+        midge.put_index(&index).expect("index");
+        crate::midge::adapter::set_index_publication_failure_point(true);
+        let prepared = midge.put_index(&index);
+        crate::midge::adapter::set_index_publication_failure_point(false);
+        assert!(prepared.is_err(), "leave journal for recovery");
+        let collection = midge.canonical_collection_name(&index.collection);
+        let cleanup = PendingSchemaCleanup {
+            cleanup_id: Uuid::new_v4().to_string(),
+            blocked_by_epoch: 0,
+            action: PendingSchemaCleanupAction::Index {
+                table: collection,
+                index: index.name.clone(),
+            },
+        };
+        midge
+            .save_pending_schema_cleanup(&cleanup)
+            .expect("legacy ambiguous marker");
+        drop(midge);
+
+        // Act
+        let reopened = Midge::new_strict_with_data_dir(&path).expect("reopen");
+        let cleanup_result = reopened.complete_pending_schema_cleanup(&cleanup);
+        let replay_result = reopened.replay_pending_index_publications();
+
+        // Assert
+        assert!(
+            cleanup_result.is_err(),
+            "ambiguous cleanup must be retained"
+        );
+        assert!(
+            replay_result.is_err(),
+            "ambiguous publication must be retained"
+        );
+        assert_eq!(
+            reopened.pending_schema_cleanups().expect("markers").len(),
+            1
+        );
+        assert!(!reopened
+            .raw_scan_prefix(
+                StorageFamily::Data,
+                &key_encoding::index_publication_prefix()
+            )
+            .expect("journal")
+            .is_empty());
+        assert!(reopened
+            .get_index(&index.collection, &index.name)
+            .expect("read")
+            .is_some());
+        drop(reopened);
+        std::fs::remove_dir_all(path).expect("remove fixture");
+    }
+
+    #[test]
+    fn should_keep_index_name_guarded_until_every_matching_cleanup_finishes() {
+        // Arrange
+        let midge = Midge::new_in_memory("postgres").expect("create Midge");
+        midge
+            .create_collection(
+                "cleanup_twice",
+                crate::types::Schema {
+                    fields: vec![crate::types::FieldSchema {
+                        name: "id".to_owned(),
+                        data_type: crate::types::DataType::Int,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("create collection");
+        let index = IndexMeta {
+            definition_semantics_version: 0,
+            collection: "cleanup_twice".to_owned(),
+            name: "cleanup_twice_idx".to_owned(),
+            field: "id".to_owned(),
+            fields: vec!["id".to_owned()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
+        midge.put_index(&index).expect("index");
+        midge
+            .defer_drop_index(&index.collection, &index.name, 0)
+            .expect("first marker");
+        midge
+            .defer_drop_index(&index.collection, &index.name, 0)
+            .expect("second marker");
+        let cleanups = midge.pending_schema_cleanups().expect("markers");
+        assert_eq!(cleanups.len(), 2);
+        midge
+            .complete_pending_schema_cleanup(&cleanups[0])
+            .expect("first cleanup");
+
+        // Act
+        let rejected = midge.put_index(&index);
+
+        // Assert
+        assert!(rejected
+            .expect_err("second marker retains name")
+            .to_string()
+            .contains("pending index cleanup"));
+        midge
+            .complete_pending_schema_cleanup(&cleanups[1])
+            .expect("second cleanup");
+        midge
+            .put_index(&index)
+            .expect("name is available after both cleanups");
+    }
 
     #[test]
     fn should_use_current_index_metadata_during_cleanup_inside_a_stale_read_scope() {

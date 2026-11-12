@@ -29,16 +29,22 @@ pub(crate) fn validate(
     let bytes = Footprint::new(controls).statement(parsed, 0)?;
     let _analysis_memory = controls.reserve_query_memory(bytes)?;
     controls.check_interruption()?;
+    let mut parameter_types = parameter_types.to_vec();
+    super::binder::normalize_parameter_type_oids_for_database(
+        &mut parameter_types,
+        catalog,
+        &context.database,
+    );
     let mut analysis = parsed.clone();
-    super::binder::values::bind_input_types(&mut analysis, parameter_types)?;
-    super::binder::coerce_parameterized_boolean_case_results(&mut analysis, parameter_types);
+    super::binder::values::bind_input_types(&mut analysis, &parameter_types)?;
+    super::binder::coerce_parameterized_boolean_case_results(&mut analysis, &parameter_types);
     let mut bound =
         super::binder::bind_initial_with_controls(analysis, catalog, context, Some(controls))?;
     super::binder::bind_boolean_parameters(
         &mut bound.statement,
         catalog,
         context,
-        parameter_types,
+        &parameter_types,
     )?;
     controls.check_interruption()
 }

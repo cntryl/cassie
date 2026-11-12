@@ -2,6 +2,7 @@
 mod expressions;
 pub(crate) use expressions::{
     data_type_for_parameter_oid, infer_expr_type, integer_literal_type, known_expr_type,
+    VECTOR_PARAMETER_TYPE_OID,
 };
 
 #[path = "inference_types.rs"]

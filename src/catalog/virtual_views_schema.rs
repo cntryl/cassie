@@ -105,7 +105,20 @@ fn pg_catalog_core_schema(name: &str) -> Option<SchemaFactory> {
         "pg_catalog.pg_namespace" => Some(virtual_views_pg::namespace_schema),
         "pg_catalog.pg_class" => Some(virtual_views_pg::class_schema),
         "pg_catalog.pg_am" => Some(virtual_views_pg::access_method_schema),
-        "pg_catalog.pg_collation" => Some(virtual_views_pg::collation_schema),
+        "pg_catalog.pg_operator" => {
+            Some(virtual_views_pg::vector_catalogs::operator_schema)
+        }
+        "pg_catalog.pg_opfamily" => {
+            Some(virtual_views_pg::vector_catalogs::operator_family_schema)
+        }
+        "pg_catalog.pg_opclass" => {
+            Some(virtual_views_pg::vector_catalogs::operator_class_schema)
+        }
+        "pg_catalog.pg_amop" => Some(
+            virtual_views_pg::vector_catalogs::access_method_operator_schema,
+        ),
+        "pg_catalog.pg_collation" => Some(virtual_views_pg::collation::schema),
+        "pg_catalog.pg_description" => Some(virtual_views_pg::descriptions::schema),
         "pg_catalog.pg_attribute" => Some(virtual_views_pg::attribute_schema),
         "pg_catalog.pg_indexes" => Some(virtual_views_pg::indexes_schema),
         "pg_catalog.pg_index" => Some(virtual_views_pg::index_schema),

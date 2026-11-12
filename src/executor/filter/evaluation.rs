@@ -15,6 +15,15 @@ impl EvaluationMemory {
     pub(crate) fn grow(&self, bytes: usize) -> Result<(), QueryError> {
         self.0.borrow_mut().try_grow(bytes).map_err(Into::into)
     }
+    pub(crate) fn scope(&self, bytes: usize) -> Result<EvaluationMemoryScope<'_>, QueryError> {
+        let retained_bytes = self.bytes();
+        self.grow(bytes)?;
+        Ok(EvaluationMemoryScope {
+            memory: self,
+            retained_bytes,
+            admitted_bytes: bytes,
+        })
+    }
     pub(crate) fn belongs_to(&self, controls: &QueryExecutionControls) -> bool {
         self.0.borrow().belongs_to(controls)
     }
@@ -26,6 +35,55 @@ impl EvaluationMemory {
     }
     pub(crate) fn into_reservation(self) -> QueryMemoryReservation {
         self.0.into_inner()
+    }
+}
+
+pub(crate) struct EvaluationMemoryScope<'a> {
+    memory: &'a EvaluationMemory,
+    retained_bytes: usize,
+    admitted_bytes: usize,
+}
+
+impl EvaluationMemoryScope<'_> {
+    pub(crate) fn ensure_admitted(&mut self, bytes: usize) -> Result<(), QueryError> {
+        if bytes > self.admitted_bytes {
+            self.memory.grow(bytes - self.admitted_bytes)?;
+            self.admitted_bytes = bytes;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn retain(&mut self, bytes: usize) {
+        assert!(
+            bytes <= self.admitted_bytes,
+            "retained memory exceeds its lease"
+        );
+        self.retained_bytes = self
+            .retained_bytes
+            .checked_add(bytes)
+            .expect("admitted memory sum");
+    }
+
+    pub(crate) fn retain_existing(&mut self, bytes: usize) -> Result<(), QueryError> {
+        let retained_bytes = self.retained_bytes.checked_add(bytes).ok_or_else(|| {
+            QueryError::Cassie(crate::app::CassieError::ResourceLimit(
+                "retained expression memory size overflow".into(),
+            ))
+        })?;
+        if retained_bytes > self.memory.bytes() {
+            return Err(crate::app::CassieError::ResourceLimit(
+                "retained expression output exceeds its admitted memory".into(),
+            )
+            .into());
+        }
+        self.retained_bytes = retained_bytes;
+        Ok(())
+    }
+}
+
+impl Drop for EvaluationMemoryScope<'_> {
+    fn drop(&mut self) {
+        self.memory.0.borrow_mut().shrink_to(self.retained_bytes);
     }
 }
 
@@ -66,6 +124,17 @@ pub(crate) struct ProjectionValueContext<'a> {
     pub(crate) functions: &'a HashMap<String, FunctionMeta>,
     pub(crate) session: Option<&'a CassieSession>,
     pub(crate) resolver: Option<&'a super::ExistsResolver<'a>>,
+}
+
+pub(crate) fn evaluate_projection_value_with_owners<R: RowAccess + ?Sized>(
+    row: &R,
+    expression: &Expr,
+    context: &ProjectionValueContext<'_>,
+    controls: &QueryExecutionControls,
+    memory: Option<&EvaluationMemory>,
+    deletion_memory: Option<&EvaluationMemory>,
+) -> Result<Value, QueryError> {
+    evaluate_projection_value_with_owners(row, expression, context, controls, Some(memory), None)
 }
 
 pub(crate) fn evaluate_projection_value_with_owners<R: RowAccess + ?Sized>(

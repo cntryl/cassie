@@ -56,17 +56,39 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
             "SET ROLE and SET SESSION AUTHORIZATION are not supported in this version".into(),
         ));
     }
+    if lexical::pattern_end(argument, 0, "LOCAL TRANSACTION").is_some()
+        || lexical::pattern_end(argument, 0, "SESSION TRANSACTION").is_some()
+    {
+        return Err(SqlError::unsupported(
+            "unsupported SET TRANSACTION form".into(),
+        ));
+    }
     let session_end = lexical::pattern_end(argument, 0, "SESSION ");
     let argument = session_end.map_or(argument, |end| &argument[end..]);
     if argument.is_empty() {
         return Err(SqlError::syntax("SET requires a parameter".into()));
     }
-    if let Some(end) = lexical::pattern_end(argument, 0, "LOCAL ") {
-        let mut statement = parse_set_statement(&format!("SET {}", &argument[end..]))?;
-        if let QueryStatement::Set(set) = &mut statement.statement {
-            set.local = true;
+    let uncommented_argument = lexical::without_comments(argument);
+    let normalized_argument = uncommented_argument.to_ascii_lowercase();
+    let mut words = normalized_argument.split_whitespace();
+    if words.next() == Some("transaction") {
+        if session_end.is_none() && words.eq(["isolation", "level", "repeatable", "read"]) {
+            return Ok(parsed(
+                sql,
+                "transaction isolation level",
+                Some("repeatable read".to_string()),
+                SettingAction::Set,
+            ));
         }
-        statement.raw_sql = sql.to_string();
+        return Err(SqlError::unsupported(
+            "unsupported SET TRANSACTION form".into(),
+        ));
+    }
+    if let Some(end) = lexical::pattern_end(argument, 0, "LOCAL ") {
+        return parse_set_local(sql, &argument[end..]);
+    }
+    if let Some(statement) = parse_set_transaction_isolation(sql, argument, session_end.is_some())?
+    {
         return Ok(statement);
     }
     if let Some(statement) = parse_set_names(sql, argument)? {
@@ -129,6 +151,11 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
             "SET ROLE and SET SESSION AUTHORIZATION are not supported in this version".into(),
         ));
     }
+    if variable.eq_ignore_ascii_case("transaction_isolation") {
+        return Err(SqlError::unsupported(
+            "set transaction_isolation assignments are not supported; use SET TRANSACTION ISOLATION LEVEL".into(),
+        ));
+    }
     if value.eq_ignore_ascii_case("DEFAULT")
         || variable == "timezone" && value.eq_ignore_ascii_case("LOCAL")
     {
@@ -143,6 +170,52 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
         value.to_string()
     };
     Ok(parsed(sql, variable, Some(value), SettingAction::Set))
+}
+
+fn parse_set_local(sql: &str, argument: &str) -> Result<ParsedStatement, SqlError> {
+    let mut statement = parse_set_statement(&format!("SET {argument}"))?;
+    if let QueryStatement::Set(set) = &mut statement.statement {
+        if set.variable == "transaction_isolation" {
+            return Err(SqlError::unsupported(
+                "SET LOCAL TRANSACTION ISOLATION is not supported in this version".into(),
+            ));
+        }
+        set.local = true;
+    }
+    statement.raw_sql = sql.to_string();
+    Ok(statement)
+}
+
+fn parse_set_transaction_isolation(
+    sql: &str,
+    argument: &str,
+    session: bool,
+) -> Result<Option<ParsedStatement>, SqlError> {
+    let Some(end) = lexical::pattern_end(argument, 0, "TRANSACTION ISOLATION LEVEL") else {
+        return Ok(None);
+    };
+    if session {
+        return Err(SqlError::unsupported(
+            "SET SESSION TRANSACTION ISOLATION is not supported in this version".into(),
+        ));
+    }
+    let isolation = match argument[end..].trim().to_ascii_lowercase().as_str() {
+        "read committed" => "read committed",
+        "read uncommitted" => "read uncommitted",
+        "repeatable read" => "repeatable read",
+        "serializable" => "serializable",
+        _ => {
+            return Err(SqlError::unsupported(
+                "unsupported transaction isolation level".into(),
+            ));
+        }
+    };
+    Ok(Some(parsed(
+        sql,
+        "transaction_isolation",
+        Some(isolation.to_owned()),
+        SettingAction::Set,
+    )))
 }
 
 fn parse_set_names(sql: &str, argument: &str) -> Result<Option<ParsedStatement>, SqlError> {

@@ -20,8 +20,9 @@ use crate::sql::ast::{
     DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
     DropSequenceStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,
     ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
-    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
-    SelectItem, SortDirection, VerifyProjectionStatement, Volatility, WindowFunctionCall,
+    NullsOrder, ObjectPrivilegeStatement, ObjectPrivilegeTarget, OrderExpr, ParsedStatement,
+    QuerySource, QueryStatement, RefreshRollupStatement, SelectItem, SortDirection,
+    VerifyProjectionStatement, Volatility, WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -146,6 +147,8 @@ fn infer_sql_error_kind(message: &str) -> SqlErrorKind {
 
 #[path = "parser/clauses.rs"]
 mod clauses;
+#[path = "parser/comments.rs"]
+mod comments;
 #[path = "parser/copy.rs"]
 mod copy;
 #[path = "parser/dml.rs"]
@@ -191,6 +194,9 @@ mod rollups;
 mod schema;
 #[path = "parser/statements.rs"]
 mod statements;
+#[cfg(test)]
+#[path = "parser/comment_tests.rs"]
+mod comment_tests;
 
 use clauses::{find_top_level_keyword, strip_parentheses};
 use copy::parse_copy_statement;
@@ -230,7 +236,7 @@ use schema::{
     parse_database_connect_privilege_statement, parse_drop_database_statement,
     parse_drop_index_statement, parse_drop_role_statement, parse_drop_schema_statement,
     parse_drop_sequence_statement, parse_drop_table_statement, parse_index_options,
-    parse_reindex_statement,
+    parse_object_privilege_statement, parse_reindex_statement,
 };
 use statements::{
     is_transaction_control_statement, is_unsupported_transaction_control_statement,
@@ -316,6 +322,10 @@ fn parse_query_or_dml_statement(
         || trimmed.starts_with('(')
     {
         Ok(Some(parse_select_statement(trimmed, Vec::new(), false)?))
+    } else if lower == "set transaction isolation level"
+        || lower.starts_with("set transaction isolation level ")
+    {
+        Ok(Some(parse_set_statement(trimmed)?))
     } else if is_transaction_control_statement(lower) {
         Ok(Some(parse_transaction_statement(trimmed)?))
     } else if is_unsupported_transaction_control_statement(lower) {
@@ -349,6 +359,10 @@ fn parse_access_control_statement(
         Ok(Some(parse_database_connect_privilege_statement(
             trimmed, false,
         )?))
+    } else if starts_statement(lower, "grant") {
+        Ok(Some(parse_object_privilege_statement(trimmed, true)?))
+    } else if starts_statement(lower, "revoke") {
+        Ok(Some(parse_object_privilege_statement(trimmed, false)?))
     } else if let Some(message) = unsupported_privilege_statement(lower) {
         Err(SqlError::unsupported(message.to_string()))
     } else {
@@ -376,6 +390,9 @@ fn parse_routine_statement(
 }
 
 fn parse_schema_statement(trimmed: &str, lower: &str) -> Result<Option<ParsedStatement>, SqlError> {
+    if starts_statement(lower, "comment") {
+        return Ok(Some(comments::parse_comment_statement(trimmed)?));
+    }
     if starts_statement(lower, "create extension")
         || starts_statement(lower, "alter extension")
         || starts_statement(lower, "drop extension")

@@ -278,7 +278,7 @@ fn should_keep_mixed_vector_array_on_the_legacy_window_key_path() {
     let mut row = BatchRow::new(vec![("n".into(), value.clone())]);
     row.set_data_types(
         vec![crate::types::DataType::Array(Box::new(
-            crate::types::DataType::Vector(4096),
+            crate::types::DataType::Vector(Some(4096)),
         ))]
         .into(),
     );

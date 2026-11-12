@@ -2,6 +2,10 @@ use super::super::support_sql as support;
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
+const CTAS_RESTART_SOURCE: &str = "public.issue833_ctas_restart_source";
+const CTAS_RESTART_COMMITTED: &str = "public.issue833_ctas_restart_committed";
+const CTAS_RESTART_ROLLED_BACK: &str = "public.issue833_ctas_restart_rolled_back";
+
 struct DataDirectory(String);
 
 impl Drop for DataDirectory {
@@ -118,6 +122,46 @@ fn prepare_materialized_view_restart_state(path: &str) -> i64 {
         panic!("materialized-view OID must use the integer carrier: {row:?}");
     };
     *oid
+}
+
+fn prepare_ctas_restart_state(path: &str) {
+    let cassie = Cassie::new_with_data_dir(path).expect("create CTAS restart instance");
+    cassie.startup().expect("start CTAS restart instance");
+    let session = cassie.create_session("tester", None);
+    execute(
+        &cassie,
+        &session,
+        &format!("CREATE TABLE {CTAS_RESTART_SOURCE} (id INT, label TEXT)"),
+    );
+    execute(
+        &cassie,
+        &session,
+        &format!("INSERT INTO {CTAS_RESTART_SOURCE} VALUES (1, 'one'), (2, 'two')"),
+    );
+    execute(&cassie, &session, "BEGIN");
+    execute(&cassie, &session, "SAVEPOINT before_ctas_restart");
+    execute(
+        &cassie,
+        &session,
+        &format!(
+            "CREATE TABLE {CTAS_RESTART_ROLLED_BACK} AS \
+             SELECT id, label FROM {CTAS_RESTART_SOURCE} ORDER BY id"
+        ),
+    );
+    execute(
+        &cassie,
+        &session,
+        "ROLLBACK TO SAVEPOINT before_ctas_restart",
+    );
+    execute(
+        &cassie,
+        &session,
+        &format!(
+            "CREATE TABLE {CTAS_RESTART_COMMITTED} AS \
+             SELECT id, label FROM {CTAS_RESTART_SOURCE} ORDER BY id"
+        ),
+    );
+    execute(&cassie, &session, "COMMIT");
 }
 
 #[test]
@@ -292,4 +336,50 @@ fn should_recover_persisted_materialized_view_after_restart() {
         regclass_label,
         vec![vec![Value::String("issue826_restart_view".to_owned())]]
     );
+}
+
+#[test]
+fn should_recover_committed_ctas_and_discard_savepoint_rollback_after_restart() {
+    // Arrange
+    support::use_local_storage();
+    let path = support::data_dir("issue-833-ctas-publication-restart");
+    let _directory = DataDirectory(path.clone());
+
+    // Act
+    prepare_ctas_restart_state(&path);
+    let reopened = Cassie::new_with_data_dir(&path).expect("reopen CTAS restart instance");
+    reopened.startup().expect("recover CTAS publication");
+    let session = reopened.create_session("tester", None);
+    let committed_rows = rows(
+        &reopened,
+        &session,
+        &format!("SELECT id, label FROM {CTAS_RESTART_COMMITTED} ORDER BY id"),
+    );
+    let committed_catalog = rows(
+        &reopened,
+        &session,
+        &format!(
+            "SELECT relkind FROM pg_catalog.pg_class WHERE relname = '{}'",
+            "issue833_ctas_restart_committed"
+        ),
+    );
+    let rolled_back_catalog = rows(
+        &reopened,
+        &session,
+        &format!(
+            "SELECT count(*) FROM pg_catalog.pg_class WHERE relname = '{}'",
+            "issue833_ctas_restart_rolled_back"
+        ),
+    );
+
+    // Assert
+    assert_eq!(
+        committed_rows,
+        vec![
+            vec![Value::Int64(1), Value::String("one".to_owned())],
+            vec![Value::Int64(2), Value::String("two".to_owned())],
+        ]
+    );
+    assert_eq!(committed_catalog, vec![vec![Value::String("r".to_owned())]]);
+    assert_eq!(rolled_back_catalog, vec![vec![Value::Int64(0)]]);
 }

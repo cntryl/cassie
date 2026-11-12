@@ -1,6 +1,6 @@
 use super::{
     env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, Query, StorageFamily,
-    StorageLayout, TransactionMode, WriteOptions,
+    PublicationControlScope, StorageLayout, TransactionMode, WriteOptions,
 };
 use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};
@@ -389,6 +389,21 @@ impl Midge {
             controls,
             operation,
         )
+    }
+
+    /// Serializes a SQL sequence update through its catalog cursor publication.
+    pub(crate) fn with_sequence_update_gate<T>(
+        &self,
+        sequence: &str,
+        operation: impl FnOnce() -> Result<T, CassieError>,
+    ) -> Result<T, CassieError> {
+        let canonical = self.canonical_collection_name(sequence);
+        let sequences = [canonical];
+        if let Some(controls) = PublicationControlScope::current_query_controls() {
+            self.with_transaction_write_gates(&sequences, false, &controls, operation)
+        } else {
+            self.with_collection_gates(&sequences, operation)
+        }
     }
 
     pub(crate) fn with_collection_write_gates<T>(

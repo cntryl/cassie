@@ -11,7 +11,6 @@ use crate::executor::ColumnMeta;
 use crate::types::builtin::{
     builtin_for_oid, BuiltinKind as BinaryCodecKind, BuiltinType as BinaryCodec,
 };
-use crate::types::schema::vector_dimensions_for_oid;
 use crate::types::Value;
 use std::{io, str};
 use time::{Date, PrimitiveDateTime, Time};
@@ -110,11 +109,20 @@ pub(super) fn value_to_binary_with_typmod(
     type_oid: i64,
     atttypmod: i32,
 ) -> io::Result<Vec<u8>> {
+    value_to_binary_with_typmod_and_vector(value, type_oid, atttypmod, false)
+}
+
+pub(super) fn value_to_binary_with_typmod_and_vector(
+    value: &Value,
+    type_oid: i64,
+    atttypmod: i32,
+    is_vector: bool,
+) -> io::Result<Vec<u8>> {
+    if is_vector {
+        return encode_vector(value, atttypmod);
+    }
     if let Some(encoded) = encode_special_binary_type(value, type_oid, atttypmod) {
         return encoded;
-    }
-    if vector_dimensions_for_oid(type_oid).is_some() {
-        return encode_vector(value, type_oid);
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
         return encode_array(value, type_oid, type_oid - OID_ARRAY_BASE);
@@ -264,14 +272,14 @@ fn binary_codec_for_oid(type_oid: i64) -> io::Result<&'static BinaryCodec> {
         .ok_or_else(|| unsupported_codec(type_oid))
 }
 
-fn validate_binary_oid(type_oid: i64) -> io::Result<()> {
+fn validate_binary_oid(type_oid: i64, is_vector: bool) -> io::Result<()> {
+    if is_vector {
+        return Ok(());
+    }
     if type_oid == POSTGRES_INTERNAL_CHAR_OID {
         return Ok(());
     }
     if type_oid == 2278 {
-        return Ok(());
-    }
-    if vector_dimensions_for_oid(type_oid).is_some() {
         return Ok(());
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
@@ -304,18 +312,26 @@ pub(super) fn validate_result_formats(
     }
     for (index, column) in columns.iter().enumerate() {
         if result_format_for_index(result_formats, index) == 1 {
-            validate_binary_oid(column.type_oid)?;
+            validate_binary_oid(column.type_oid, column.is_vector())?;
         }
     }
     Ok(())
 }
 
 pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
+    binary_to_value_with_vector(parameter, type_oid, false)
+}
+
+pub(super) fn binary_to_value_with_vector(
+    parameter: &[u8],
+    type_oid: i64,
+    is_vector: bool,
+) -> io::Result<Value> {
     if type_oid == 4073 {
         return Err(unsupported_codec(type_oid));
     }
-    if vector_dimensions_for_oid(type_oid).is_some() {
-        return decode_vector(parameter, type_oid);
+    if is_vector {
+        return decode_vector(parameter, None);
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
         return decode_array(parameter, type_oid - OID_ARRAY_BASE);
@@ -724,9 +740,7 @@ fn fixed_bytes<const N: usize>(value: &[u8], type_name: &str) -> io::Result<[u8;
 }
 
 fn unsupported_codec(type_oid: i64) -> io::Error {
-    let family = if vector_dimensions_for_oid(type_oid).is_some() {
-        "vector"
-    } else if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
+    let family = if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
         "array"
     } else {
         "type"

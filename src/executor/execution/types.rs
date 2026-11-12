@@ -30,6 +30,14 @@ impl ColumnMeta {
             nullable: true,
         }
     }
+
+    pub(crate) fn is_vector(&self) -> bool {
+        self.data_type.eq_ignore_ascii_case("vector")
+            || self
+                .data_type
+                .get(..7)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("vector("))
+    }
 }
 
 pub use super::query_result::QueryResult;

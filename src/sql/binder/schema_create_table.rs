@@ -97,6 +97,15 @@ fn validate_and_bind_table_fields(
                 "JSONPATH is supported for expressions, not table columns".to_string(),
             ));
         }
+        if matches!(field.data_type, DataType::Vector(_))
+            && catalog.get_extension(&context.database, "vector").is_none()
+        {
+            return Err(crate::app::DiagnosticError::new(
+                "42704",
+                "type \"vector\" does not exist",
+            )
+            .into());
+        }
         let field_name = field.name.trim();
         if field_name.is_empty() {
             return Err(CassieError::Planner(

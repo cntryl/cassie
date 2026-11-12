@@ -58,6 +58,22 @@ pub(super) fn find(chars: &[char], set: AbbreviationSet) -> Option<(ZoneAbbrevia
         .map(|(name, rule)| (ZoneAbbreviation { name, rule: *rule }, name.len()))
 }
 
+pub(super) fn find_exact(name: &str, set: AbbreviationSet) -> Option<ZoneAbbreviation> {
+    if name.len() > 6 || !name.bytes().all(|byte| byte.is_ascii_alphabetic()) {
+        return None;
+    }
+    let overrides = match set {
+        AbbreviationSet::Default => &[][..],
+        AbbreviationSet::Australia => AUSTRALIA,
+        AbbreviationSet::India => INDIA,
+    };
+    overrides
+        .iter()
+        .chain(DEFAULT)
+        .find(|(abbreviation, _)| abbreviation.eq_ignore_ascii_case(name))
+        .map(|(name, rule)| ZoneAbbreviation { name, rule: *rule })
+}
+
 const DEFAULT: &[(&str, ZoneRule)] = &[
     ("eat", ZoneRule::Fixed(10800)),
     ("sast", ZoneRule::Fixed(7200)),

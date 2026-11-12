@@ -82,3 +82,80 @@ fn should_aggregate_array_inputs_into_a_higher_dimension_in_binary_wire() {
         vec![fixture::one_field_row(&nested_array_binary_value())]
     );
 }
+
+#[test]
+fn should_reject_typed_null_array_inputs_before_distinct_aggregation() {
+    // Arrange
+    let cases = [
+        (
+            "issue-811-typed-null-array-ordinary",
+            "SELECT array_agg($1) FROM (VALUES (1),(2)) AS t(n)",
+            Some("22004"),
+        ),
+        (
+            "issue-811-typed-null-array-explain-analyze",
+            "EXPLAIN ANALYZE SELECT array_agg($1) FROM (VALUES (1),(2)) AS t(n)",
+            Some("22004"),
+        ),
+        (
+            "issue-811-typed-null-array-distinct",
+            "SELECT array_agg(DISTINCT $1) FROM (VALUES (1),(2)) AS t(n)",
+            Some("22004"),
+        ),
+        (
+            "issue-811-typed-null-array-distinct-order",
+            "SELECT array_agg(DISTINCT $1 ORDER BY $1) FROM (VALUES (1),(2)) AS t(n)",
+            Some("22004"),
+        ),
+        (
+            "issue-811-typed-null-array-distinct-filter-selected",
+            "SELECT array_agg(DISTINCT $1) FILTER (WHERE TRUE) FROM (VALUES (1),(2)) AS t(n)",
+            Some("22004"),
+        ),
+        (
+            "issue-811-typed-null-array-distinct-filtered-out",
+            "SELECT array_agg(DISTINCT $1) FILTER (WHERE FALSE) FROM (VALUES (1),(2)) AS t(n)",
+            None,
+        ),
+    ];
+
+    // Act
+    let observations = cases.map(|(label, sql, _)| {
+        let cycle = fixture::execute_cycle(sql, Some((1_007, 0, None)), 0, true);
+        fixture::run_cycles(label, &[], vec![cycle])
+    });
+
+    // Assert
+    for ((_, _, sqlstate), batches) in cases.into_iter().zip(observations) {
+        let frames = &batches[0];
+        if let Some(sqlstate) = sqlstate {
+            crate::support_collection_aggregate_resources::assert_rejected_without_partial_rows(
+                frames, sqlstate,
+            );
+        } else {
+            fixture::assert_success(frames);
+            fixture::assert_single_column_descriptors(frames, (1_007, -1, -1), 0, true);
+            assert_eq!(crate::support_pgwire::data_rows(frames), vec![vec![None]]);
+        }
+    }
+}
+
+#[test]
+fn should_validate_distinct_array_inputs_with_different_lower_bounds() {
+    // Arrange
+    let sql = "SELECT array_agg(DISTINCT value) \
+               FROM (VALUES (ARRAY[1,1]), (array_fill(1, ARRAY[2], ARRAY[0]))) AS inputs(value)";
+    let cycle = fixture::execute_cycle(sql, None, 0, true);
+
+    // Act
+    let batches = fixture::run_cycles(
+        "issue-811-distinct-array-shape-validation",
+        &[],
+        vec![cycle],
+    );
+
+    // Assert
+    crate::support_collection_aggregate_resources::assert_rejected_without_partial_rows(
+        &batches[0], "2202E",
+    );
+}

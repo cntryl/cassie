@@ -32,6 +32,7 @@ pub(super) fn evaluate(
         cte_context: ctes,
         user_functions: env.user_functions,
         params: env.params,
+        parameter_type_oids: env.parameter_type_oids,
         controls: env.controls,
         outer_row: Some(&outer),
     };
@@ -83,6 +84,7 @@ pub(super) fn evaluate_with_owner(
         cte_context: ctes,
         user_functions: env.user_functions,
         params: env.params,
+        parameter_type_oids: env.parameter_type_oids,
         controls: env.controls,
         outer_row: Some(&outer),
     };

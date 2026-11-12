@@ -140,6 +140,8 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         FunctionId::PgSleepUntil => Some(FunctionInputSignature::Positional(&[1184])),
         FunctionId::Power => Some(FunctionInputSignature::Positional(&[701, 701])),
         FunctionId::PgInputIsValid => Some(FunctionInputSignature::Positional(&[25, 25])),
+        FunctionId::ObjDescription => Some(FunctionInputSignature::Positional(&[26, 19])),
+        FunctionId::ColDescription => Some(FunctionInputSignature::Positional(&[26, 23])),
         FunctionId::PgCharToEncoding
         | FunctionId::PgSizeBytes
         | FunctionId::Reverse
@@ -148,7 +150,11 @@ pub(crate) const fn input_signature(id: FunctionId) -> Option<FunctionInputSigna
         | FunctionId::OctetLength
         | FunctionId::BitLength
         | FunctionId::Ascii
-        | FunctionId::Format => Some(FunctionInputSignature::Positional(&[25])),
+        | FunctionId::Format
+        | FunctionId::ToRegClass
+        | FunctionId::ToRegNamespace
+        | FunctionId::ToRegType
+        | FunctionId::ToRegProcedure => Some(FunctionInputSignature::Positional(&[25])),
         FunctionId::PgSizePretty => Some(FunctionInputSignature::Positional(&[20])),
         FunctionId::PgGetFunctionArguments
         | FunctionId::PgGetFunctionIdentityArguments

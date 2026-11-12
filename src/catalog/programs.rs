@@ -14,6 +14,34 @@ pub struct ExtensionMeta {
     pub object_id: u64,
     pub digest_text_object_id: Option<u64>,
     pub digest_bytea_object_id: Option<u64>,
+    pub vector_type_object_id: Option<u64>,
+    pub vector_catalog_identities: Option<VectorCatalogIdentitySet>,
+}
+
+/// PostgreSQL catalog object IDs owned by the selected pgvector profile.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VectorCatalogIdentitySet {
+    pub operators: VectorDistanceOperatorIds,
+    pub hnsw: VectorAnnCatalogIdentityIds,
+    pub ivfflat: VectorAnnCatalogIdentityIds,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VectorDistanceOperatorIds {
+    pub l2: u64,
+    pub inner_product: u64,
+    pub cosine: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VectorAnnCatalogIdentityIds {
+    pub access_method: u64,
+    pub l2_operator_family: u64,
+    pub inner_product_operator_family: u64,
+    pub cosine_operator_family: u64,
+    pub l2_operator_class: u64,
+    pub inner_product_operator_class: u64,
+    pub cosine_operator_class: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -70,7 +98,8 @@ pub struct ViewMeta {
     /// Stable relation identity allocated at creation; renames keep it.
     #[serde(default)]
     pub object_id: u64,
-    /// Selected extension identities resolved by functions in the stored query.
+    /// Selected extension identities required by this query, including dependencies
+    /// inherited from referenced stored views.
     pub extension_dependency_ids: Vec<u64>,
 }
 

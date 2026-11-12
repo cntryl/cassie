@@ -85,6 +85,7 @@ fn qualified_outer_row(
             session: context.session,
             user_functions: context.user_functions,
             params: context.params,
+            parameter_type_oids: context.parameter_type_oids,
             controls: context.controls,
         };
         return super::exists_projection::outer_row(&env, source, row);

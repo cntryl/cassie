@@ -145,7 +145,7 @@ fn parameter_oid(value: &Value) -> i32 {
         Value::Int64(_) => DataType::BigInt,
         Value::Float64(_) => DataType::Float,
         Value::String(_) => DataType::Text,
-        Value::Vector(value) => DataType::Vector(value.values.len()),
+        Value::Vector(value) => DataType::Vector(Some(value.values.len())),
         Value::Json(_) => DataType::Json,
         Value::Array(_) => return 0,
         Value::Typed(value) => DataType::Extended(value.kind()),

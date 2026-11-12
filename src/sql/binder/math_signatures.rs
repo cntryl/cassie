@@ -13,6 +13,15 @@ fn is_float(data_type: Option<&DataType>) -> bool {
     )
 }
 
+fn is_integer_scale(data_type: Option<&DataType>) -> bool {
+    data_type.is_none_or(|data_type| {
+        matches!(
+            data_type,
+            DataType::SmallInt | DataType::Int | DataType::Null
+        )
+    })
+}
+
 fn is_numeric_argument(data_type: Option<&DataType>) -> bool {
     matches!(
         data_type,
@@ -57,8 +66,9 @@ fn has_applicable_declared_routine(function: &FunctionCall, types: &ResultTypes)
         })
 }
 
-/// `round(double precision, integer)`, `trunc(double precision, integer)` and
-/// `log(double precision, double precision)` do not exist (SQLSTATE 42883).
+/// Selected PostgreSQL math overloads do not exist (SQLSTATE 42883):
+/// `round`/`trunc` with FLOAT8 or a non-INT4 scale, two-argument FLOAT8 `log`,
+/// and `mod` over REAL/FLOAT8.
 pub(super) fn validate(
     function: &mut FunctionCall,
     types: &ResultTypes,
@@ -108,6 +118,28 @@ pub(super) fn validate(
         }
         return Ok(());
     }
+    if matches!(math, MathFunction::Round | MathFunction::Trunc)
+        && function.args.len() == 2
+        && !has_applicable_declared_routine(function, types)
+    {
+        if let Expr::StringLiteral(input) = &function.args[1] {
+            if let Some(controls) = types.controls() {
+                controls.check_interruption()?;
+            }
+            let Ok(value) =
+                crate::types::integer::parse(input, crate::types::IntegerWidth::I32)
+            else {
+                crate::sql::literal_inputs::validate_with_controls(
+                    &function.args[1],
+                    &DataType::Int,
+                    CastIdentity::Scalar,
+                    types.controls(),
+                )?;
+                unreachable!("INT4 input validation uses the same parser");
+            };
+            function.args[1] = Expr::IntegerLiteral(value);
+        }
+    }
     if function.args.len() != 2 {
         return Ok(());
     }
@@ -116,8 +148,21 @@ pub(super) fn validate(
         .iter()
         .map(|argument| types.expression_type(argument))
         .collect::<Vec<_>>();
+    let has_declared_routine = has_applicable_declared_routine(function, types);
+    if math == MathFunction::Mod
+        && !has_declared_routine
+        && argument_types.iter().any(|kind| is_float(kind.as_ref()))
+    {
+        return Err(super::boolean_aggregates::undefined_function(
+            function, types,
+        ));
+    }
     let rejected = match math {
-        MathFunction::Round | MathFunction::Trunc => is_float(argument_types[0].as_ref()),
+        MathFunction::Round | MathFunction::Trunc => {
+            !has_declared_routine
+                && (is_float(argument_types[0].as_ref())
+                    || !is_integer_scale(argument_types[1].as_ref()))
+        }
         MathFunction::Log => argument_types.iter().any(|kind| is_float(kind.as_ref())),
         _ => false,
     };

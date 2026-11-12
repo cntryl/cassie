@@ -1,10 +1,13 @@
 use super::{
     check_index_drop_failure_point, collect_scan, key_encoding, payload_contains_index_membership,
     payload_contains_vector_membership, CassieError, CollectionCardinalityStats, FieldConstraint,
-    IndexKind, IndexMeta, Midge, ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta,
-    Schema, StorageFamily,
+    IndexKind, IndexMeta, Midge, ProjectionMeta, Query, RetentionPolicyMeta, RollupMeta, Schema,
+    StorageFamily,
 };
-use crate::catalog::name_matches;
+use crate::catalog::{
+    name_matches, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RoleObjectPrivilege,
+};
+use std::collections::BTreeSet;
 
 #[path = "metadata/extensions.rs"]
 mod extensions;
@@ -28,9 +31,7 @@ impl Midge {
                     CassieError::Parse(format!("invalid object id counter: {error}"))
                 })
             })?;
-        let next = current
-            .checked_add(1)
-            .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
+        let next = next_catalog_object_id(current)?;
         tx.put(
             key,
             serde_json::to_vec(&next).map_err(|error| CassieError::Parse(error.to_string()))?,
@@ -906,15 +907,149 @@ impl Midge {
         Ok(out)
     }
 
+    /// Applies one direct object privilege to one stable role/target record.
+    /// The read-modify-write is committed as one schema-family transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the grant record cannot be read or committed.
+    pub fn update_role_object_grant(
+        &self,
+        grant: &RoleObjectGrantMeta,
+        privileges: &[RoleObjectPrivilege],
+        enabled: bool,
+    ) -> Result<Option<RoleObjectGrantMeta>, CassieError> {
+        let mut tx = self.begin_schema_rw_tx()?;
+        let key = Self::role_object_grant_key_for(grant);
+        let raw = tx.get(&key).map_err(CassieError::from)?;
+        let had_record = raw.is_some();
+        let mut stored = raw.map_or_else(
+            || {
+                Ok(RoleObjectGrantMeta {
+                    privileges: BTreeSet::default(),
+                    ..grant.clone()
+                })
+            },
+            |bytes| {
+                serde_json::from_slice::<RoleObjectGrantMeta>(&bytes).map_err(|error| {
+                    CassieError::Parse(format!("invalid role object grant metadata: {error}"))
+                })
+            },
+        )?;
+        for privilege in privileges {
+            if enabled {
+                stored.privileges.insert(*privilege);
+            } else {
+                stored.privileges.remove(privilege);
+            }
+        }
+        let remaining = if stored.privileges.is_empty() {
+            if had_record {
+                tx.delete(key).map_err(CassieError::from)?;
+            }
+            None
+        } else {
+            let value = serde_json::to_vec(&stored)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            tx.put(key, value, None).map_err(CassieError::from)?;
+            Some(stored)
+        };
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(remaining)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the schema-family grant records cannot be read.
+    pub fn list_role_object_grants(&self) -> Result<Vec<RoleObjectGrantMeta>, CassieError> {
+        let entries =
+            self.raw_scan_prefix(StorageFamily::Schema, &Self::role_object_grant_prefix())?;
+        let mut grants = Vec::with_capacity(entries.len());
+        for (_key, value) in entries {
+            let grant = serde_json::from_slice(&value).map_err(|error| {
+                CassieError::Parse(format!("invalid role object grant metadata: {error}"))
+            })?;
+            grants.push(grant);
+        }
+        grants.sort_by_key(RoleObjectGrantMeta::catalog_key);
+        Ok(grants)
+    }
+
+    /// Deletes every direct grant attached to one dropped stable object id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the schema-family grant records cannot be read or committed.
+    pub fn delete_role_object_grants_for_target(
+        &self,
+        database_family: &str,
+        target: &RoleGrantTarget,
+    ) -> Result<Vec<RoleObjectGrantMeta>, CassieError> {
+        self.delete_role_object_grants_for_targets(database_family, std::slice::from_ref(target))
+    }
+
+    /// Deletes grants attached to several dropped stable identities in one
+    /// Schema-family transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when grant records cannot be read or committed.
+    pub(crate) fn delete_role_object_grants_for_targets(
+        &self,
+        database_family: &str,
+        targets: &[RoleGrantTarget],
+    ) -> Result<Vec<RoleObjectGrantMeta>, CassieError> {
+        if targets.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut tx = self.begin_schema_rw_tx()?;
+        let entries = collect_scan(
+            tx.scan(&Query::new().prefix(Self::role_object_grant_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
+        let mut removed = Vec::new();
+        for (key, value) in entries {
+            let grant: RoleObjectGrantMeta = serde_json::from_slice(&value).map_err(|error| {
+                CassieError::Parse(format!("invalid role object grant metadata: {error}"))
+            })?;
+            if grant.database_family == database_family
+                && targets.iter().any(|target| target == &grant.target)
+            {
+                tx.delete(key).map_err(CassieError::from)?;
+                removed.push(grant);
+            }
+        }
+        if !removed.is_empty() {
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+        }
+        Ok(removed)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_role(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::role_key(name)).map_err(CassieError::from)?;
+        let role_key = Self::role_key(name);
+        if let Some(raw) = tx.get(&role_key).map_err(CassieError::from)? {
+            let role: RoleMeta = serde_json::from_slice(&raw)
+                .map_err(|error| CassieError::Parse(format!("invalid role metadata: {error}")))?;
+            Self::delete_role_object_grants_for_role_to_tx(&mut tx, role.object_id)?;
+        }
+        tx.delete(role_key).map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
+    }
+
+    fn role_object_grant_key_for(grant: &RoleObjectGrantMeta) -> Vec<u8> {
+        let (kind, object_id) = match &grant.target {
+            RoleGrantTarget::Schema(id) => ("schema", *id),
+            RoleGrantTarget::Table(id) => ("table", *id),
+        };
+        Self::role_object_grant_key(&grant.database_family, grant.role_id, kind, object_id)
     }
 
     pub fn collection_schema(&self, name: &str) -> Option<Schema> {
@@ -984,3 +1119,20 @@ impl Midge {
 #[cfg(test)]
 #[path = "metadata/index_definition_readback_tests.rs"]
 mod index_definition_readback_tests;
+#[cfg(test)]
+#[path = "metadata/object_id_reservation_tests.rs"]
+mod object_id_reservation_tests;
+
+fn next_catalog_object_id(current: u64) -> Result<u64, CassieError> {
+    const LEGACY_VECTOR_OID_RANGE: std::ops::RangeInclusive<u64> = 100_001..=132_767;
+    let next = current
+        .checked_add(1)
+        .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
+    let oid = u64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID)
+        .checked_add(next)
+        .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
+    if LEGACY_VECTOR_OID_RANGE.contains(&oid) {
+        return Ok(132_767 - u64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID) + 1);
+    }
+    Ok(next)
+}

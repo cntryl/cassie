@@ -106,6 +106,7 @@ fn should_cancel_mode_after_a_real_input_is_retained() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -154,6 +155,7 @@ fn should_cancel_hypothetical_direct_or_ordered_inputs_after_real_retention() {
         let context = AggregateExecutionContext {
             plan: &plan,
             params: &[],
+            parameter_type_oids: &[],
             search_context: None,
             user_functions: &functions,
             session: None,
@@ -205,6 +207,7 @@ fn reached_cancellation_case(
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

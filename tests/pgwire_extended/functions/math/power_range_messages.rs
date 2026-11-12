@@ -121,6 +121,54 @@ fn should_preserve_float_power_special_cases() {
 }
 
 #[test]
+fn should_preserve_float8_power_zero_sign_for_positive_exponents() {
+    // Arrange
+    use crate::support_type_metadata_contract as fixture;
+
+    let statement = "float8_power_signed_zero";
+    let portal = "float8_power_signed_zero_portal";
+    let sql = "SELECT POWER('-0'::FLOAT8, 3::FLOAT8), POWER('-0'::FLOAT8, 2::FLOAT8), '-0'::FLOAT8 ^ 3::FLOAT8, '-0'::FLOAT8 ^ 2::FLOAT8";
+    let steps = vec![
+        Step::ParseFlush(wire::parse_frame(statement, sql)),
+        Step::ThroughReady(vec![
+            wire::bind_frame_with_formats(portal, statement, &[], &[], &[1]),
+            wire::describe_portal_frame(portal),
+            wire::execute_frame(portal),
+            wire::sync_frame(),
+        ]),
+    ];
+
+    // Act
+    let batches = run_script("postgresql18-float8-power-signed-zero", steps);
+
+    // Assert
+    assert_eq!(wire::error_code(&batches[0]), None);
+    assert_eq!(wire::error_code(&batches[1]), None);
+    let description = batches[1]
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .expect("FLOAT8 power RowDescription");
+    assert_eq!(
+        wire::parse_row_description(&description.1)
+            .iter()
+            .map(|column| (column.type_oid, column.type_size, column.format_code))
+            .collect::<Vec<_>>(),
+        vec![(701, 8, 1); 4]
+    );
+    let mut expected = 4_i16.to_be_bytes().to_vec();
+    for bits in [
+        [0x80, 0, 0, 0, 0, 0, 0, 0],
+        [0; 8],
+        [0x80, 0, 0, 0, 0, 0, 0, 0],
+        [0; 8],
+    ] {
+        expected.extend_from_slice(&8_i32.to_be_bytes());
+        expected.extend_from_slice(&bits);
+    }
+    assert_eq!(fixture::data_row_payloads(&batches[1]), vec![expected]);
+}
+
+#[test]
 fn should_report_folded_power_range_at_bind() {
     // Arrange
     let cases = [

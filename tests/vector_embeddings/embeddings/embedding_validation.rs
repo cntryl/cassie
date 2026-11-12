@@ -108,7 +108,7 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(1536),
+                    data_type: DataType::Vector(Some(1536)),
                     nullable: true,
                 },
             ],
@@ -175,7 +175,7 @@ fn should_reject_ingest_when_dimensions_change() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(1536),
+                    data_type: DataType::Vector(Some(1536)),
                     nullable: true,
                 },
             ],
@@ -217,7 +217,7 @@ fn should_reject_query_when_metric_different() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(1536),
+                    data_type: DataType::Vector(Some(1536)),
                     nullable: true,
                 },
             ],

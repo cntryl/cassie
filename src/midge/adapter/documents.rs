@@ -932,23 +932,32 @@ impl Midge {
 
         for field in &schema.fields {
             if let Some(value) = map.get(&field.name) {
-                if let DataType::Vector(dim) = field.data_type {
+                if let DataType::Vector(dimensions) = &field.data_type {
                     if value.is_null() && field.nullable {
                         continue;
                     }
                     if let Some(arr) = value.as_array() {
-                        if arr.len() != dim {
+                        if !(1..=16_000).contains(&arr.len())
+                            || dimensions.is_some_and(|dim| arr.len() != dim)
+                        {
                             return Err(CassieError::InvalidVector(format!(
-                                "field '{}' expects vector({}) but got {}",
+                                "field '{}' expects {} but got {}",
                                 field.name,
-                                dim,
+                                dimensions.map_or_else(
+                                    || "vector".to_string(),
+                                    |dim| format!("vector({dim})"),
+                                ),
                                 arr.len()
                             )));
                         }
                     } else {
                         return Err(CassieError::InvalidVector(format!(
-                            "field '{}' expects vector({}) but received non-array",
-                            field.name, dim
+                            "field '{}' expects {} but received non-array",
+                            field.name,
+                            dimensions.map_or_else(
+                                || "vector".to_string(),
+                                |dim| format!("vector({dim})"),
+                            )
                         )));
                     }
                 }

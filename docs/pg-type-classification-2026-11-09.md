@@ -8,8 +8,10 @@ registry contains these values; the catalog previously synthesized `a` for
 array kind and `b/Z` for unknown.
 
 For existing registered builtin identities, return their pinned kind and
-category. Preserve the previous fallback for private/vector identities and do
-not synthesize user-defined types. Direct, aliased and wildcard-only projections
+category. The installed pgvector 0.8.7 `vector` base type uses PostgreSQL's
+default user-defined category `U`, because its `CREATE TYPE` declaration does
+not set `CATEGORY`; `V` remains the PostgreSQL bit-string category. Do not
+synthesize unselected user-defined types. Direct, aliased and wildcard-only projections
 from `pg_catalog.pg_type` report category as internal `char` OID 18, matching
 the existing `typtype` treatment. This narrow category descriptor change does
 not infer ownership through joins, CTEs, subqueries, or mixed wildcard and

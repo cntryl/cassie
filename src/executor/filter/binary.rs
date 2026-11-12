@@ -10,6 +10,16 @@ pub(super) fn binary_scalar_with_controls(
     right: &ScalarValue,
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ScalarValue, QueryError> {
+    binary_scalar_with_resources(left, op, right, controls, None)
+}
+
+pub(super) fn binary_scalar_with_resources(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
+) -> Result<ScalarValue, QueryError> {
     if let Some(result) = super::json_path_operator::evaluate(left, op, right, controls) {
         return result;
     }
@@ -40,6 +50,11 @@ pub(super) fn binary_scalar_with_controls(
         && (matches!(left, ScalarValue::Json(_)) || matches!(right, ScalarValue::Json(_)))
     {
         return super::json_containment::evaluate_with_controls(op, left, right, controls);
+    }
+    if let Some(result) =
+        super::numeric_ops::arithmetic_with_resources(left, op, right, controls, memory)
+    {
+        return result;
     }
     binary_scalar(left, op, right)
 }

@@ -107,6 +107,136 @@ fn should_preserve_scalar_entries_when_index_is_renamed() {
 }
 
 #[test]
+fn should_keep_recreated_index_and_its_unique_entries_after_old_cleanup_drains() {
+    // Arrange
+    let fixture = sql_fixture(
+        "index-recreate-commit",
+        &[
+            "CREATE TABLE index_recreate_rows(id INT, payload TEXT)",
+            "INSERT INTO index_recreate_rows VALUES (1, 'alpha')",
+            "CREATE UNIQUE INDEX index_recreate_key ON index_recreate_rows(id)",
+        ],
+    );
+    let observer = fixture.cassie.create_session("observer", None);
+    let pinned = fixture.cassie.begin_schema_epoch_guard_for_diagnostics();
+    fixture.execute("BEGIN").unwrap();
+    fixture.execute("DROP INDEX index_recreate_key").unwrap();
+    fixture
+        .execute("CREATE UNIQUE INDEX index_recreate_key ON index_recreate_rows(payload)")
+        .unwrap();
+    // Act
+    fixture.execute("COMMIT").unwrap();
+    fixture
+        .cassie
+        .run_deferred_schema_cleanup_for_diagnostics()
+        .unwrap();
+    drop(pinned);
+    fixture
+        .cassie
+        .run_deferred_schema_cleanup_for_diagnostics()
+        .unwrap();
+    // Assert
+    let metadata = fixture
+        .cassie
+        .catalog
+        .get_index("index_recreate_rows", "index_recreate_key")
+        .expect("replacement index");
+    assert_eq!(metadata.field, "payload");
+    assert!(fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            "INSERT INTO index_recreate_rows VALUES (2, 'alpha')",
+            vec![]
+        )
+        .is_err());
+    fixture
+        .cassie
+        .execute_sql(
+            &observer,
+            "INSERT INTO index_recreate_rows VALUES (1, 'beta')",
+            vec![],
+        )
+        .expect("old unique index retired");
+}
+
+#[test]
+fn should_restore_original_index_after_replacement_savepoint_rollback() {
+    // Arrange
+    let fixture = sql_fixture(
+        "index-recreate-savepoint",
+        &[
+            "CREATE TABLE index_savepoint_rows(id INT, payload TEXT)",
+            "INSERT INTO index_savepoint_rows VALUES (1, 'alpha')",
+            "CREATE UNIQUE INDEX index_savepoint_key ON index_savepoint_rows(id)",
+            "BEGIN",
+            "SAVEPOINT before_replacement",
+        ],
+    );
+    // Act
+    fixture.execute("DROP INDEX index_savepoint_key").unwrap();
+    fixture
+        .execute("CREATE UNIQUE INDEX index_savepoint_key ON index_savepoint_rows(payload)")
+        .unwrap();
+    fixture.execute("ROLLBACK TO before_replacement").unwrap();
+    fixture.execute("COMMIT").unwrap();
+    fixture
+        .cassie
+        .run_deferred_schema_cleanup_for_diagnostics()
+        .unwrap();
+    // Assert
+    let metadata = fixture
+        .cassie
+        .catalog
+        .get_index("index_savepoint_rows", "index_savepoint_key")
+        .expect("original index");
+    assert_eq!(metadata.field, "id");
+    assert!(fixture
+        .execute("INSERT INTO index_savepoint_rows VALUES (1, 'beta')")
+        .is_err());
+    fixture
+        .execute("INSERT INTO index_savepoint_rows VALUES (2, 'alpha')")
+        .expect("replacement rolled back");
+}
+
+#[test]
+fn should_restore_original_index_after_replacement_transaction_rollback() {
+    // Arrange
+    let fixture = sql_fixture(
+        "index-recreate-rollback",
+        &[
+            "CREATE TABLE index_rollback_rows(id INT, payload TEXT)",
+            "INSERT INTO index_rollback_rows VALUES (1, 'alpha')",
+            "CREATE UNIQUE INDEX index_rollback_key ON index_rollback_rows(id)",
+            "BEGIN",
+        ],
+    );
+    // Act
+    fixture.execute("DROP INDEX index_rollback_key").unwrap();
+    fixture
+        .execute("CREATE UNIQUE INDEX index_rollback_key ON index_rollback_rows(payload)")
+        .unwrap();
+    fixture.execute("ROLLBACK").unwrap();
+    fixture
+        .cassie
+        .run_deferred_schema_cleanup_for_diagnostics()
+        .unwrap();
+    // Assert
+    let metadata = fixture
+        .cassie
+        .catalog
+        .get_index("index_rollback_rows", "index_rollback_key")
+        .expect("original index");
+    assert_eq!(metadata.field, "id");
+    assert!(fixture
+        .execute("INSERT INTO index_rollback_rows VALUES (1, 'beta')")
+        .is_err());
+    fixture
+        .execute("INSERT INTO index_rollback_rows VALUES (2, 'alpha')")
+        .expect("replacement rolled back");
+}
+
+#[test]
 fn should_rename_constraint_ownership_with_backing_index() {
     // Arrange
     let fixture = sql_fixture(

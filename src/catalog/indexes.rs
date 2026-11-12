@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::Value;
 
+#[cfg(test)]
+#[path = "indexes_identity_tests.rs"]
+mod identity_tests;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum IndexKind {
@@ -11,6 +15,12 @@ pub enum IndexKind {
     Hybrid,
     Column,
     TimeSeries,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReservationIdentity<'a> {
+    Legacy(&'a str),
+    Generation(u64),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -118,6 +128,8 @@ impl IndexMeta {
     const RELATION_ID_OPTION: &'static str = "__cassie_relation_id";
     const CATALOG_OID_OPTION: &'static str = "__cassie_catalog_oid";
     const UNIQUE_RESERVATION_NAME_OPTION: &'static str = "__cassie_unique_reservation_name";
+    const UNIQUE_RESERVATION_GENERATION_OPTION: &'static str =
+        "__cassie_unique_reservation_generation";
     pub(crate) const ACCESS_METHOD_OPTION: &'static str = "__cassie_access_method";
     pub(crate) const NULLS_NOT_DISTINCT_OPTION: &'static str = "__cassie_nulls_not_distinct";
 
@@ -148,6 +160,7 @@ impl IndexMeta {
                 | Self::RELATION_ID_OPTION
                 | Self::CATALOG_OID_OPTION
                 | Self::UNIQUE_RESERVATION_NAME_OPTION
+                | Self::UNIQUE_RESERVATION_GENERATION_OPTION
         )
     }
 
@@ -160,6 +173,9 @@ impl IndexMeta {
         cloned.options.remove(Self::RELATION_ID_OPTION);
         cloned.options.remove(Self::CATALOG_OID_OPTION);
         cloned.options.remove(Self::UNIQUE_RESERVATION_NAME_OPTION);
+        cloned
+            .options
+            .remove(Self::UNIQUE_RESERVATION_GENERATION_OPTION);
         cloned
     }
 
@@ -189,7 +205,10 @@ impl IndexMeta {
                 .get(Self::ACCESS_METHOD_OPTION)
                 .map_or("btree", String::as_str),
             IndexKind::FullText => "gin",
-            IndexKind::Vector => "vector",
+            IndexKind::Vector => self
+                .options
+                .get(Self::ACCESS_METHOD_OPTION)
+                .map_or("vector", String::as_str),
             IndexKind::Hybrid => "btree",
             IndexKind::Column => "column",
             IndexKind::TimeSeries => "time_series",
@@ -241,6 +260,44 @@ impl IndexMeta {
         self.options
             .get(Self::UNIQUE_RESERVATION_NAME_OPTION)
             .map_or(&self.name, String::as_str)
+    }
+
+    pub(crate) fn reservation_identity(
+        &self,
+    ) -> Result<ReservationIdentity<'_>, crate::app::CassieError> {
+        let Some(raw) = self.options.get(Self::UNIQUE_RESERVATION_GENERATION_OPTION) else {
+            return Ok(ReservationIdentity::Legacy(self.unique_reservation_name()));
+        };
+        let identity = raw
+            .parse::<u64>()
+            .ok()
+            .filter(|value| *value != 0)
+            .filter(|value| {
+                self.storage_id() == Some(*value) && self.relation_id().is_some_and(|id| id != 0)
+            })
+            .ok_or_else(|| {
+                crate::app::CassieError::Parse("invalid unique index reservation generation".into())
+            })?;
+        Ok(ReservationIdentity::Generation(identity))
+    }
+
+    pub(crate) fn set_reservation_generation(
+        &mut self,
+        identity: u64,
+    ) -> Result<(), crate::app::CassieError> {
+        if identity == 0
+            || self.storage_id() != Some(identity)
+            || !self.relation_id().is_some_and(|id| id != 0)
+        {
+            return Err(crate::app::CassieError::Parse(
+                "invalid unique index reservation generation".into(),
+            ));
+        }
+        self.options.insert(
+            Self::UNIQUE_RESERVATION_GENERATION_OPTION.to_string(),
+            identity.to_string(),
+        );
+        Ok(())
     }
 
     pub(crate) fn set_unique_reservation_name_if_missing(&mut self, name: &str) {

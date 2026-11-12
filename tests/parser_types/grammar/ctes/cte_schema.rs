@@ -133,7 +133,7 @@ fn should_parse_create_graph_field_sections() {
     assert!(statement.if_not_exists);
     assert_eq!(statement.node_fields.len(), 2);
     assert_eq!(statement.node_fields[0].name, "label");
-    assert_eq!(statement.node_fields[1].data_type, DataType::Vector(2));
+    assert_eq!(statement.node_fields[1].data_type, DataType::Vector(Some(2)));
     assert_eq!(statement.edge_fields.len(), 1);
     assert_eq!(statement.edge_fields[0].name, "source");
 }

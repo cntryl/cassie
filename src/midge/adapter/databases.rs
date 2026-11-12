@@ -5,6 +5,8 @@ use uuid::Uuid;
 
 use cntryl_midge::ConflictPolicy;
 
+use crate::catalog::RoleObjectGrantMeta;
+
 use super::{
     collect_scan,
     database_catalog_rewrite::{
@@ -345,6 +347,19 @@ impl Midge {
         let mut databases = Self::load_databases(&catalog)?;
         databases.retain(|entry| !entry.eq_ignore_ascii_case(&metadata.name));
         Self::save_databases(&mut catalog, &databases)?;
+        let role_grants = collect_scan(
+            catalog
+                .scan(&Query::new().prefix(Self::role_object_grant_prefix().into()))
+                .map_err(CassieError::from)?,
+        )?;
+        for (key, value) in role_grants {
+            let grant: RoleObjectGrantMeta = serde_json::from_slice(&value).map_err(|error| {
+                CassieError::Parse(format!("invalid role object grant metadata: {error}"))
+            })?;
+            if grant.database_family == metadata.physical_family {
+                catalog.delete(key).map_err(CassieError::from)?;
+            }
+        }
         catalog
             .commit(self.write_options_sync())
             .map_err(CassieError::from)?;

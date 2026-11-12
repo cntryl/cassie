@@ -79,6 +79,7 @@ fn should_hold_full_source_body_admission_through_bounded_build_ownership() {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
 

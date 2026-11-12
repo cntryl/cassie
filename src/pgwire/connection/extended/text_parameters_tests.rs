@@ -199,3 +199,62 @@ fn should_keep_json_parse_control_error_as_the_original_cassie_error() {
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_charge_temporal_text_bind_scratch_at_the_exact_query_budget() {
+    // Arrange
+    let input = b"2024-01-15 12:00:00 UTC";
+    let required = crate::types::extended::temporal::tokens::tokenization_memory_bound(
+        std::str::from_utf8(input).expect("temporal input"),
+    )
+    .expect("temporal scratch bound");
+    let exact = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_memory_budget_bytes: required,
+            ..CassieRuntimeLimits::default()
+        },
+        Instant::now(),
+    );
+    let below = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_memory_budget_bytes: required - 1,
+            ..CassieRuntimeLimits::default()
+        },
+        Instant::now(),
+    );
+
+    // Act
+    let accepted = decode_text_parameter(input, 1184, &exact);
+    let rejected = decode_text_parameter(input, 1184, &below);
+
+    // Assert
+    assert!(accepted.is_ok());
+    assert!(matches!(
+        rejected,
+        Err(ExtendedQueryError { pg_error, .. }) if pg_error.code == "54000"
+    ));
+    assert_eq!(exact.current_query_memory_bytes(), 0);
+    assert_eq!(below.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_preserve_query_cancellation_for_temporal_text_bind() {
+    // Arrange
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    cancellation.cancel();
+
+    // Act
+    let result = decode_text_parameter(b"2024-01-15 12:00:00 UTC", 1184, &controls);
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(ExtendedQueryError { pg_error, .. }) if pg_error.code == "57014"
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

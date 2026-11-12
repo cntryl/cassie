@@ -118,6 +118,61 @@ fn should_refresh_prepared_regclass_lookup_after_relation_ddl() {
         server.shutdown(connection).await;
     });
 }
+
+#[test]
+fn should_hide_cassie_only_derived_indexes_from_regclass() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("regclass_index_catalog_visibility").await;
+        let (client, connection) = server.connect().await;
+        execute_statements(
+            &client,
+            &[
+                "CREATE TABLE compat_regclass_index_visibility \
+                 (tenant TEXT, event_at TIMESTAMP, amount INT)",
+                "CREATE INDEX compat_regclass_column_idx \
+                 ON compat_regclass_index_visibility USING column (amount) \
+                 WITH (segment_size = 1)",
+                "CREATE INDEX compat_regclass_time_series_idx \
+                 ON compat_regclass_index_visibility USING time_series (event_at) \
+                 WITH (bucket_width = '1 hour', partition_by = tenant)",
+                "CREATE INDEX compat_regclass_btree_idx \
+                 ON compat_regclass_index_visibility (amount)",
+            ],
+        )
+        .await
+        .expect("create Cassie-only and PostgreSQL-catalogued index kinds");
+
+        // Act
+        let lookup = client
+            .query_one(
+                "SELECT to_regclass('compat_regclass_column_idx') IS NULL, \
+                        to_regclass('compat_regclass_time_series_idx') IS NULL, \
+                        to_regclass('compat_regclass_btree_idx') IS NOT NULL",
+                &[],
+            )
+            .await
+            .expect("resolve only index kinds represented in PostgreSQL catalogs");
+        let hidden_cast = client
+            .query(
+                "SELECT 'compat_regclass_column_idx'::regclass",
+                &[],
+            )
+            .await
+            .expect_err("a Cassie-only index name is absent from regclass input lookup");
+
+        // Assert
+        assert!(lookup.get::<_, bool>(0));
+        assert!(lookup.get::<_, bool>(1));
+        assert!(lookup.get::<_, bool>(2));
+        assert_eq!(db_error(&hidden_cast).code().code(), "42P01");
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
 #[test]
 fn should_resolve_builtin_regprocedure_overloads() {
     // Arrange
@@ -133,7 +188,9 @@ fn should_resolve_builtin_regprocedure_overloads() {
                           'pg_catalog.abs(int4)'::regprocedure, \
                         to_regprocedure('abs(numeric)') = \
                           'pg_catalog.abs(numeric)'::regprocedure, \
-                        to_regprocedure('abs(text)') IS NULL",
+                        to_regprocedure('abs(text)') IS NULL, \
+                        to_regprocedure('compat_bad_signature(') IS NULL, \
+                        to_regprocedure('abs(compat_missing_type)') IS NULL",
                 &[],
             )
             .await
@@ -143,6 +200,8 @@ fn should_resolve_builtin_regprocedure_overloads() {
         assert!(resolved.get::<_, bool>(0));
         assert!(resolved.get::<_, bool>(1));
         assert!(resolved.get::<_, bool>(2));
+        assert!(resolved.get::<_, bool>(3));
+        assert!(resolved.get::<_, bool>(4));
 
         drop(client);
         server.shutdown(connection).await;
@@ -237,6 +296,118 @@ fn should_return_null_for_missing_regtype_lookup() {
 
         // Assert
         assert!(missing.get::<_, bool>(0));
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_report_postgresql_descriptors_for_selected_reg_aliases() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reg_lookup_result_descriptors").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let described = client
+            .query_one(
+                "SELECT 'pg_catalog.pg_class'::regclass, 'public'::regnamespace, \
+                        'integer'::regtype, 'abs(integer)'::regprocedure, \
+                        to_regclass('pg_catalog.pg_class'), \
+                        to_regnamespace('public'), to_regtype('integer'), \
+                        to_regprocedure('abs(integer)')",
+                &[],
+            )
+            .await
+            .expect("return the four selected object identifier types");
+
+        // Assert
+        assert_eq!(
+            described
+                .columns()
+                .iter()
+                .map(|column| column.type_().oid())
+                .collect::<Vec<_>>(),
+            [2205, 4089, 2206, 2202, 2205, 4089, 2206, 2202]
+        );
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_resolve_text_parameters_for_selected_reg_lookups() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("reg_lookup_bound_text_parameters").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let statement = client
+            .prepare(
+                "SELECT to_regclass($1)::oid::bigint, \
+                        to_regnamespace($2)::oid::bigint, \
+                        to_regtype($3)::oid::bigint, \
+                        to_regprocedure($4)::oid::bigint",
+            )
+            .await
+            .expect("infer text parameters for the selected nullable lookups");
+        let bound = client
+            .query_one(
+                &statement,
+                &[
+                    &"pg_catalog.pg_class",
+                    &"public",
+                    &"integer",
+                    &"abs(integer)",
+                ],
+            )
+            .await
+            .expect("resolve each bound object name");
+
+        // Assert
+        assert_eq!(bound.get::<_, i64>(0), 1259);
+        assert_eq!(bound.get::<_, i64>(1), 2200);
+        assert_eq!(bound.get::<_, i64>(2), 23);
+        assert_eq!(bound.get::<_, i64>(3), 1397);
+
+        drop(client);
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_raise_syntax_error_for_malformed_to_regtype_array_names() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("regtype_array_syntax_errors").await;
+        let (client, connection) = server.connect().await;
+        let malformed_names = [
+            "integer[1__0]",
+            "integer[2147483648]",
+            "integer[0x80000000]",
+            "integer[\u{00a0}2]",
+        ];
+
+        // Act
+        for type_name in malformed_names {
+            let error = client
+                .query(&format!("SELECT to_regtype('{type_name}')"), &[])
+                .await
+                .expect_err("malformed type syntax must not become a missing-object NULL");
+
+            // Assert
+            assert_eq!(db_error(&error).code().code(), "42601", "{type_name}");
+        }
+        let recovered = client
+            .query_one("SELECT 42", &[])
+            .await
+            .expect("connection remains usable after type syntax errors");
+        assert_eq!(recovered.get::<_, i32>(0), 42);
 
         drop(client);
         server.shutdown(connection).await;

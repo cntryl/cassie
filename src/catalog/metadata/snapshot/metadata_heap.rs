@@ -2,6 +2,57 @@
 
 use super::heap::HeapBytes;
 
+impl HeapBytes for crate::catalog::ObjectCommentMeta {
+    fn heap_bytes(
+        &self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<usize, crate::app::CassieError> {
+        controls.check_interruption()?;
+        crate::executor::retained_memory::add(
+            self.address.database.heap_bytes(controls)?,
+            self.description.heap_bytes(controls)?,
+        )
+    }
+}
+
+impl HeapBytes for crate::catalog::RoleGrantTarget {
+    fn heap_bytes(
+        &self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<usize, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(0)
+    }
+}
+
+impl crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq
+    for crate::catalog::RoleGrantTarget
+{
+    fn exact_eq(
+        &self,
+        other: &Self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<bool, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(self == other)
+    }
+}
+
+unit_enum_heap!(crate::catalog::RoleObjectPrivilege {
+    Usage,
+    Select,
+    Insert,
+    Update,
+    Delete
+});
+
+metadata_heap!(crate::catalog::RoleObjectGrantMeta {
+    database_family,
+    role_id,
+    target,
+    privileges,
+});
+
 metadata_heap!(crate::catalog::cardinality::CollectionCardinalityStats {
     built_generation,
     row_count,
@@ -13,6 +64,7 @@ metadata_heap!(crate::catalog::cardinality::CollectionCardinalityStats {
 metadata_heap!(crate::catalog::collections::CollectionMeta {
     name,
     storage_id,
+    has_ever_had_indexes,
     description,
     storage_mode,
     storage_version,
@@ -131,6 +183,8 @@ metadata_heap!(crate::catalog::programs::ExtensionMeta {
     object_id,
     digest_text_object_id,
     digest_bytea_object_id,
+    vector_type_object_id,
+    vector_catalog_identities,
 });
 
 metadata_heap!(crate::catalog::graphs::GraphMeta {
@@ -470,6 +524,44 @@ metadata_heap!(crate::catalog::roles::RoleMeta {
     database_grants,
     object_id,
 });
+
+metadata_heap!(crate::catalog::roles::RoleObjectGrantMeta {
+    database_family,
+    role_id,
+    target,
+    privileges,
+});
+
+unit_enum_heap!(crate::catalog::roles::RoleObjectPrivilege {
+    Usage,
+    Select,
+    Insert,
+    Update,
+    Delete
+});
+
+impl HeapBytes for crate::catalog::roles::RoleGrantTarget {
+    fn heap_bytes(
+        &self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<usize, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(0)
+    }
+}
+
+impl crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq
+    for crate::catalog::roles::RoleGrantTarget
+{
+    fn exact_eq(
+        &self,
+        other: &Self,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<bool, crate::app::CassieError> {
+        controls.check_interruption()?;
+        Ok(self == other)
+    }
+}
 
 metadata_heap!(crate::catalog::rollups::RollupAggregateMeta {
     alias,

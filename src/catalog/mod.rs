@@ -6,6 +6,7 @@ pub mod composite_unique;
 pub mod consistency;
 pub mod constraints;
 mod controlled_name;
+pub(crate) use controlled_name::name_matches_controlled;
 pub(crate) use controlled_name::trim_checked as trim_catalog_name_controlled;
 pub mod function_resolution;
 pub mod graphs;
@@ -13,6 +14,7 @@ pub mod indexes;
 pub mod maintenance;
 pub mod metadata;
 pub mod object_identity;
+pub mod object_comment;
 pub mod operational;
 pub mod programs;
 pub mod repair;
@@ -68,13 +70,17 @@ pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;
 pub(crate) use metadata::{ControlledCatalogSnapshot, FunctionInputScope};
 pub use operational::{OperationalAssignmentMeta, OperationalAssignmentState};
+pub use object_comment::{ObjectCommentAddress, ObjectCommentMeta};
 pub(crate) const SQL_MATERIALIZED_VIEW_OPTION: &str = "cassie.sql_materialized_view";
 pub use programs::{
-    ExtensionMeta, FunctionArgMeta, FunctionMeta, ProcedureMeta, ViewMeta, Volatility,
+    ExtensionMeta, FunctionArgMeta, FunctionMeta, ProcedureMeta, VectorAnnCatalogIdentityIds,
+    VectorCatalogIdentitySet, VectorDistanceOperatorIds, ViewMeta, Volatility,
 };
 pub use repair::ProjectionRepairReportMeta;
 pub use retention::{RetentionEnforcementMode, RetentionPolicyMeta, RetentionPolicyState};
-pub use roles::{normalize_role_name, RoleMeta};
+pub use roles::{
+    normalize_role_name, RoleGrantTarget, RoleMeta, RoleObjectGrantMeta, RoleObjectPrivilege,
+};
 pub use rollups::{
     output_collection_name, RollupAggregateMeta, RollupDefinition, RollupMeta, RollupRefreshCursor,
     RollupState,

@@ -8,7 +8,6 @@ use crate::app::CassieError;
 use crate::executor::retained_memory::{add, mul, serialized_json_bytes};
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
-use crate::types::schema::vector_dimensions_for_oid;
 use crate::types::Value;
 
 use super::writers::{
@@ -19,6 +18,10 @@ use super::writers::{
 #[cfg(test)]
 #[path = "result_frames/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "result_frames/raw_json_frame.rs"]
+mod raw_json_frame;
 
 /// Buffers precede their lease so cancellation drops owned allocations before admission.
 pub(super) struct QueryResultFrames<'a> {
@@ -187,7 +190,11 @@ fn scratch_bytes(
                 _ => formats.get(index).copied().unwrap_or(0),
             };
             let postgres_array_text = postgres_array_text_columns.binary_search(&index).is_ok();
-            let mut cell = cell_bytes(value, oid, atttypmod, format, postgres_array_text)?;
+            let is_vector = result
+                .columns()
+                .get(index)
+                .is_some_and(ColumnMeta::is_vector);
+            let mut cell = cell_bytes(value, oid, atttypmod, format, postgres_array_text, is_vector)?;
             if format == 0 && array_element_oid(oid).is_some() {
                 let mut extra = 0;
                 if let Value::Array(array) = value {
@@ -240,6 +247,7 @@ fn cell_bytes(
     atttypmod: i32,
     format: i16,
     postgres_array_text: bool,
+    is_vector: bool,
 ) -> Result<CellBytes, CassieError> {
     if matches!(value, Value::Null) {
         return Ok(CellBytes {
@@ -259,7 +267,10 @@ fn cell_bytes(
     if format == 0 || matches!(oid, 25 | 1042 | 1043 | 705) {
         return text_bytes(value);
     }
-    if let Some(dimensions) = vector_dimensions_for_oid(oid) {
+    if format == 1 && is_vector {
+        let dimensions = vector_dimensions_for_value(value, atttypmod).ok_or_else(|| {
+            CassieError::InvalidVector("invalid binary VECTOR result dimensions".to_string())
+        })?;
         let encoded = add(4, mul(dimensions, 4)?)?;
         return Ok(CellBytes {
             encoded,
@@ -309,6 +320,28 @@ fn bpchar_cell_bytes(value: &Value, atttypmod: i32) -> Result<CellBytes, CassieE
         encoded,
         scratch: add(encoded, mul(text.len().max(8), 3)?)?,
     })
+}
+
+fn vector_dimensions_for_value(value: &Value, atttypmod: i32) -> Option<usize> {
+    let expected_dimensions = if atttypmod == -1 {
+        None
+    } else {
+        Some(usize::try_from(atttypmod).ok()?)
+    };
+    let dimensions = match value {
+        Value::Vector(vector) => vector.values.len(),
+        Value::Json(serde_json::Value::Array(values)) => values.len(),
+        Value::String(text) => crate::vector::text::visit_components_with_dimension(
+            text,
+            expected_dimensions,
+            |_| {},
+        )
+        .ok()?,
+        _ => return None,
+    };
+    ((1..=16_000).contains(&dimensions)
+        && expected_dimensions.is_none_or(|expected| dimensions == expected))
+    .then_some(dimensions)
 }
 
 fn jsonb_cell_bytes(value: &Value, format: i16) -> Result<CellBytes, CassieError> {

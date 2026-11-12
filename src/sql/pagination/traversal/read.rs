@@ -11,9 +11,25 @@ pub(in crate::sql::pagination) fn plan_needs_resolution(
     plan: &LogicalPlan,
     controls: &QueryExecutionControls,
 ) -> Result<bool, CassieError> {
+    read_plan(plan, controls, false)
+}
+
+pub(in crate::sql::pagination) fn guard_plan_depth(
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+) -> Result<(), CassieError> {
+    read_plan(plan, controls, true).map(|_| ())
+}
+
+fn read_plan(
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+    depth_only: bool,
+) -> Result<bool, CassieError> {
     let mut reader = Reader {
         controls,
         needed: false,
+        depth_only,
     };
     reader.guard(0)?;
     reader.bounds(plan.limit.as_ref(), plan.offset.as_ref())?;
@@ -45,6 +61,7 @@ pub(in crate::sql::pagination) fn plan_needs_resolution(
 struct Reader<'a> {
     controls: &'a QueryExecutionControls,
     needed: bool,
+    depth_only: bool,
 }
 
 impl Reader<'_> {
@@ -69,7 +86,7 @@ impl Reader<'_> {
         self.guard(0)?;
         for expr in limit.into_iter().chain(offset) {
             self.bound_depth(expr, 0)?;
-            if !super::super::is_admitted(expr) {
+            if !self.depth_only && !super::super::is_admitted(expr) {
                 return Err(super::super::type_error());
             }
         }

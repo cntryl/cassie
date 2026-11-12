@@ -27,7 +27,7 @@ fn should_execute_query_filters_by_vector_score_function() {
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "embedding".to_string(),
-            data_type: DataType::Vector(2),
+            data_type: DataType::Vector(Some(2)),
             nullable: true,
         }],
     };
@@ -92,7 +92,7 @@ fn should_execute_query_orders_by_vector_distance_function_parameterized() {
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "embedding".to_string(),
-            data_type: DataType::Vector(2),
+            data_type: DataType::Vector(Some(2)),
             nullable: true,
         }],
     };
@@ -174,7 +174,7 @@ fn should_order_by_pgvector_dot_operator() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             }],
         };
@@ -259,7 +259,7 @@ fn should_order_by_pgvector_l2_operator() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             }],
         };
@@ -344,7 +344,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             }],
         };

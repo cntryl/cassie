@@ -421,6 +421,7 @@ impl Cassie {
         }
         Self::ensure_transaction_recovery(session, parsed)?;
         session.authorize_statement(&parsed.statement)?;
+        self.authorize_role_object_access(session, &parsed.statement)?;
         super::transaction_semantics::ensure_supported_transaction_semantics(
             &self.catalog,
             session,
@@ -641,7 +642,31 @@ impl Cassie {
         params: Vec<crate::types::Value>,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
-        crate::executor::run_with_session_controls(self, Some(session), physical, params, controls)
+        self.execute_physical_statement_with_parameter_oids(
+            session,
+            physical,
+            params,
+            &[],
+            controls,
+        )
+    }
+
+    pub(super) fn execute_physical_statement_with_parameter_oids(
+        &self,
+        session: &CassieSession,
+        physical: &Arc<crate::planner::physical::PhysicalPlan>,
+        params: Vec<crate::types::Value>,
+        parameter_type_oids: &[i32],
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        crate::executor::run_with_session_parameter_oids(
+            self,
+            Some(session),
+            physical,
+            params,
+            parameter_type_oids,
+            controls,
+        )
             .map_err(CassieError::from)
     }
 
@@ -769,6 +794,7 @@ impl Cassie {
                 session,
                 &physical,
                 params,
+                parameter_type_oids,
                 controls,
                 &before.expect("analyze snapshot"),
             )?;
@@ -790,6 +816,7 @@ impl Cassie {
         session: &CassieSession,
         physical: &Arc<crate::planner::physical::PhysicalPlan>,
         params: Vec<crate::types::Value>,
+        parameter_type_oids: &[i32],
         controls: &QueryExecutionControls,
         before: &crate::runtime::RuntimeMetricsSnapshot,
     ) -> Result<ExplainAnalyzeReport, CassieError> {
@@ -802,7 +829,13 @@ impl Cassie {
         );
         self.observe_feedback_lookup(&feedback_keys);
         let started_at = Instant::now();
-        let result = self.execute_physical_statement(session, physical, params, controls)?;
+        let result = self.execute_physical_statement_with_parameter_oids(
+            session,
+            physical,
+            params,
+            parameter_type_oids,
+            controls,
+        )?;
         let elapsed_ms = started_at.elapsed().as_millis();
         let after = self.runtime.snapshot();
         let deltas = ExplainAnalyzeDeltas::from_snapshots(before, &after);

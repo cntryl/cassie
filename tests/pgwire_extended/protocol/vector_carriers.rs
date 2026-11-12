@@ -20,7 +20,7 @@ fn should_encode_declared_text_vector_parameters_in_binary_results() {
         for describe in [false, true] {
             cycles.push(fixture::execute_cycle(
                 sql,
-                Some((100_002, 0, Some(VECTOR_TEXT))),
+                Some((fixture::VECTOR_TYPE_OID, 0, Some(VECTOR_TEXT))),
                 1,
                 describe,
             ));
@@ -34,7 +34,7 @@ fn should_encode_declared_text_vector_parameters_in_binary_results() {
     assert_eq!(batches.len(), 6);
     for (index, frames) in batches.iter().enumerate() {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (100_002, -1, -1), 1, index % 2 == 1);
+        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 1, index % 2 == 1);
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(VECTOR_BINARY)],
@@ -55,7 +55,7 @@ fn should_preserve_declared_vector_parameter_text_spellings() {
             for describe in [false, true] {
                 cycles.push(fixture::execute_cycle(
                     sql,
-                    Some((100_002, input_format, Some(input))),
+                    Some((fixture::VECTOR_TYPE_OID, input_format, Some(input))),
                     0,
                     describe,
                 ));
@@ -71,7 +71,7 @@ fn should_preserve_declared_vector_parameter_text_spellings() {
     assert_eq!(batches.len(), 12);
     for (frames, (describe, output)) in batches.iter().zip(expected) {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (100_002, -1, -1), 0, describe);
+        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 0, describe);
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(output)],
@@ -87,7 +87,7 @@ fn should_preserve_native_vector_parameters_in_binary_results() {
         for describe in [false, true] {
             cycles.push(fixture::execute_cycle(
                 sql,
-                Some((100_002, 1, Some(VECTOR_BINARY))),
+                Some((fixture::VECTOR_TYPE_OID, 1, Some(VECTOR_BINARY))),
                 1,
                 describe,
             ));
@@ -101,7 +101,7 @@ fn should_preserve_native_vector_parameters_in_binary_results() {
     assert_eq!(batches.len(), 6);
     for (index, frames) in batches.iter().enumerate() {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (100_002, -1, -1), 1, index % 2 == 1);
+        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 1, index % 2 == 1);
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(VECTOR_BINARY)],
@@ -121,7 +121,7 @@ fn should_reject_nonnullable_vector_nulls_before_document_publication() {
         for result_format in [0, 1] {
             cycles.push(fixture::execute_cycle(
                 "INSERT INTO type_vector_not_null (k, v) VALUES (1, $1) RETURNING v",
-                Some((100_002, input_format, None)),
+                Some((fixture::VECTOR_TYPE_OID, input_format, None)),
                 result_format,
                 true,
             ));
@@ -143,7 +143,7 @@ fn should_reject_nonnullable_vector_nulls_before_document_publication() {
         assert_eq!(wire::error_code(frames).as_deref(), Some("23502"));
         fixture::assert_single_column_descriptors(
             frames,
-            (100_002, -1, -1),
+            (fixture::VECTOR_TYPE_OID, -1, -1),
             i16::try_from(index % 2).expect("result format"),
             true,
         );
@@ -174,14 +174,14 @@ fn should_preserve_nonnull_vector_width_validation_before_publication() {
         let sql = format!("INSERT INTO type_vector_width (k, v) VALUES ({key}, $1) RETURNING v");
         cycles.push(fixture::execute_cycle(
             &sql,
-            Some((100_002, input_format, Some(input))),
+            Some((fixture::VECTOR_TYPE_OID, input_format, Some(input))),
             1,
             true,
         ));
     }
     cycles.push(fixture::execute_cycle(
         "INSERT INTO type_vector_width (k, v) VALUES (3, $1) RETURNING v",
-        Some((100_002, 0, Some(b"[1]"))),
+        Some((fixture::VECTOR_TYPE_OID, 0, Some(b"[1]"))),
         0,
         true,
     ));
@@ -199,14 +199,14 @@ fn should_preserve_nonnull_vector_width_validation_before_publication() {
     assert_eq!(batches.len(), 4);
     for frames in &batches[..2] {
         fixture::assert_success(frames);
-        fixture::assert_single_column_descriptors(frames, (100_002, -1, -1), 1, true);
+        fixture::assert_single_column_descriptors(frames, (fixture::VECTOR_TYPE_OID, -1, -1), 1, true);
         assert_eq!(
             fixture::data_row_payloads(frames),
             vec![fixture::one_field_row(VECTOR_BINARY)]
         );
     }
     assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22000"));
-    fixture::assert_single_column_descriptors(&batches[2], (100_002, -1, -1), 0, true);
+    fixture::assert_single_column_descriptors(&batches[2], (fixture::VECTOR_TYPE_OID, -1, -1), 0, true);
     assert_eq!(
         fixture::data_row_payloads(&batches[2]),
         Vec::<Vec<u8>>::new()
@@ -236,14 +236,14 @@ fn should_preserve_finite_vector_boundaries_through_text_parameter_writes() {
     let cycles = vec![
         fixture::execute_cycle(
             "INSERT INTO native_boundary_vectors (v) VALUES ($1) RETURNING v",
-            Some((100_002, 1, Some(&binary))),
+            Some((fixture::VECTOR_TYPE_OID, 1, Some(&binary))),
             1,
             false,
         ),
         fixture::execute_cycle("SELECT v FROM native_boundary_vectors", None, 1, false),
         fixture::execute_cycle(
             "INSERT INTO text_boundary_vectors (v) VALUES ($1) RETURNING v",
-            Some((100_002, 0, Some(text))),
+            Some((fixture::VECTOR_TYPE_OID, 0, Some(text))),
             1,
             false,
         ),
@@ -257,7 +257,7 @@ fn should_preserve_finite_vector_boundaries_through_text_parameter_writes() {
     assert_eq!(frames.len(), 4);
     for (index, cycle) in frames.iter().enumerate() {
         fixture::assert_success(cycle);
-        fixture::assert_single_column_descriptors(cycle, (100_002, -1, -1), 1, false);
+        fixture::assert_single_column_descriptors(cycle, (fixture::VECTOR_TYPE_OID, -1, -1), 1, false);
         assert_eq!(
             fixture::data_row_payloads(cycle),
             vec![fixture::one_field_row(&binary)],
@@ -288,7 +288,7 @@ fn should_preserve_vector_text_write_error_precedence_before_publication() {
         .map(|(input, _)| {
             fixture::execute_cycle(
                 "INSERT INTO vector_text_rejection_preservation (v) VALUES ($1) RETURNING v",
-                Some((100_002, 0, Some(input.as_bytes()))),
+                Some((fixture::VECTOR_TYPE_OID, 0, Some(input.as_bytes()))),
                 0,
                 false,
             )
@@ -379,7 +379,7 @@ fn should_preserve_finite_vector_query_values_across_text_parameter_fallback() {
         for (format, bytes) in [(1, binary.as_slice()), (0, text.as_slice())] {
             cycles.push(fixture::execute_cycle(
                 query,
-                Some((100_002, format, Some(bytes))),
+                Some((fixture::VECTOR_TYPE_OID, format, Some(bytes))),
                 1,
                 false,
             ));

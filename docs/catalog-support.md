@@ -16,8 +16,87 @@ these virtual rows deterministically, but implicit relation order is not part of
 the compatibility contract. An unavailable virtual view is an undefined relation and pgwire returns
 SQLSTATE `42P01`; Cassie does not synthesize undocumented PostgreSQL-internal rows.
 
-The current v0.2 dependency-owned catalog field inventory and remaining selection
-work are recorded in [v0.2 catalog inventory](catalog-v020-inventory-2026-11-06.md).
+The active v0.2 dependent catalog field set selected on 2026-11-11 is recorded
+below. The [2026-11-06 v0.2 catalog inventory](catalog-v020-inventory-2026-11-06.md)
+is retained as historical implementation context; its wider inventory does not
+expand the current milestone selection.
+
+## Finite v0.2 dependent catalog columns (2026-11-11)
+
+Issue [#817](https://github.com/cntryl/cassie/issues/817) selects only the
+catalog fields required by [#818](https://github.com/cntryl/cassie/issues/818),
+[#828](https://github.com/cntryl/cassie/issues/828), and
+[#843](https://github.com/cntryl/cassie/issues/843). The fields below are a
+finite descriptor and row contract, not a claim that every dependent feature
+or PostgreSQL catalog behavior is implemented.
+
+| Consumer | Catalog relation | Selected fields |
+| --- | --- | --- |
+| #818 object identifiers | `pg_namespace` | `oid`, `nspname`, `nspowner`, `nspacl` |
+| #818 object identifiers | `pg_class` | `oid`, `relname`, `relkind`, `relam`, `relnamespace`, `relnamespace_oid`, `relowner`, `relhasindex`, `relpersistence`, `reltuples`, `relacl`, `reloptions` |
+| #818 object identifiers | `pg_type` | `oid`, `typname`, `typnamespace`, `typlen`, `typbyval`, `typtype`, `typcategory`, `typelem`, `typarray`, `typbasetype`, `typrelid` |
+| #818 object identifiers | `pg_attribute` | `attrelid`, `attrelid_oid`, `attname`, `attnum`, `atttypid`, `attnotnull`, `atttypmod`, `atthasdef`, `attisdropped`, `attidentity`, `attgenerated`, `attcollation` |
+| #828 composites and domains | `pg_class` addition | `reltype` |
+| #828 composites and domains | `pg_type` additions | `typnotnull`, `typtypmod` |
+| #843 built-in extensions | `pg_extension` | `oid`, `extname`, `extowner`, `extnamespace`, `extrelocatable`, `extversion`, `extconfig`, `extcondition` |
+| #843 built-in extensions | `pg_available_extensions` | `name`, `default_version`, `installed_version`, `comment` |
+| #843 pgcrypto shim | `pg_proc` | Only the registered `pgcrypto.digest(text|bytea, text)` identities selected by #843; broad routine discovery is excluded. |
+
+The `#828` additions remain pending behind its open #826 table/type lifecycle
+prerequisite. The `#843` descriptors exist in
+[`virtual_views_extensions.rs`](../src/catalog/virtual_views_extensions.rs),
+but `pg_extension` and `pg_available_extensions` currently return no rows;
+extension installation, availability, digest registration, and lifecycle are
+still owned by #843. Empty rows do not advertise an installed or available
+extension. The `#818` conversion and lookup contract is owned by #818 and its
+remaining privilege-aware visibility dependency; the base relation descriptors
+do not establish that lookup behavior by themselves.
+
+In the current source, [`virtual_views_pg.rs`](../src/catalog/virtual_views_pg.rs)
+declares and builds the selected base `pg_namespace`, `pg_class`, `pg_type`,
+and `pg_attribute` rows. Their existence does not complete the dependent
+workflows: user object resolution still belongs to #818, selected
+composite/domain type rows are absent until #828, and extension catalog rows
+remain empty until #843. `nspowner` and
+`relowner` currently describe the bootstrap `root`; `nspacl` and `relacl` are
+empty. Role-aware schema/table grant reporting remains with #831.
+
+The finite `pg_class.relam` mapping remains limited to identities already
+selected by their owning features: heap tables use OID 2, scalar btree indexes
+use OID 403, and full-text indexes use GIN OID 2742. Cassie-native vector,
+column, and time-series indexes continue to report 0 because this field set
+does not yet assign PostgreSQL or Cassie-specific access-method identities to
+them. This is current source behavior, not a disposition of the selected
+`relam` acceptance: #817 must resolve whether those implemented index rows need
+catalog identities before the issue can close. The current source and contract
+do not justify adding `pg_am` rows or inventing identities here. In particular,
+pgvector HNSW/IVFFlat method identity remains part of the pending #843/#844
+contract.
+
+The selected `pg_class.relhasindex` value currently reports whether the
+relation has an index, derived from live index metadata.
+[PostgreSQL 18.6](https://www.postgresql.org/docs/18/catalog-pg-class.html)
+defines a lazy flag that may remain true after the last index is dropped until
+VACUUM clears it. Cassie's stale-flag behavior remains an open compatibility
+cell under #817. This inventory records the current value and PostgreSQL
+witness without selecting a replacement contract or adding vacuum behavior.
+
+Separate dependency question for coordinator triage: the [#954 JSONPath
+cancellation fixture](../tests/pgwire_extended/types/json/jsonpath/cancellation.rs)
+polls `pg_catalog.pg_stat_activity`, and Feature Support currently records
+that view as a #817 prerequisite. The active #817 field set above does not name
+`pg_stat_activity`, and current source registers only its builtin identities
+in [`pg_class.tsv`](../src/catalog/builtin_identity/pg_class.tsv) and
+[`pg_type.tsv`](../src/catalog/builtin_identity/pg_type.tsv), not a queryable
+view. This field inventory does not remove or redefine the existing #954
+dependency; ownership and scope need a separate disposition before that
+cancellation fixture can rely on the view.
+
+Do not add broad `pg_proc`, dependency, sequence, partition, or enum catalog
+behavior through this field inventory. Named enum rows remain deferred with
+[#827](https://github.com/cntryl/cassie/issues/827) to v0.4.0. The exact
+extension field shapes and the pinned PostgreSQL 18.6 observations are also
+recorded in the [extension compatibility contract](extension-compatibility-contract-2026-11-09.md).
 
 ## Stable named-client subset
 
@@ -162,10 +241,158 @@ type identities.
 Executed counts and remaining failures are recorded in
 [validation](testing/validation.md).
 
-A focused native probe shows PostgreSQL's hasindexes flag remains true after
-DROP INDEX until maintenance clears it. The current read model reports current
-index presence and clears it immediately; this historical-flag compatibility
-cell remains open under #817 and requires its persistent-state/lifecycle design.
+### Finite v0.2 dependent catalog columns 2026-11-11
+
+The #817 catalog contract is limited to fields used by the named #818, #828,
+and #843 workflows. The selected fields, in descriptor order, are:
+
+- `pg_namespace`: `oid`, `nspname`, `nspowner`, `nspacl`.
+- `pg_class`: `oid`, `relname`, `relkind`, `relam`, `relnamespace`,
+  `relnamespace_oid`, `reltype`, `relowner`, `relhasindex`, `relpersistence`,
+  `reltuples`, `relacl`, `reloptions`.
+- `pg_type`: `oid`, `typname`, `typnamespace`, `typlen`, `typbyval`,
+  `typtype`, `typcategory`, `typelem`, `typarray`, `typbasetype`,
+  `typnotnull`, `typtypmod`, `typrelid`.
+- `pg_attribute`: `attrelid`, `attrelid_oid`, `attname`, `attnum`,
+  `atttypid`, `attnotnull`, `atttypmod`, `atthasdef`, `attisdropped`,
+  `attidentity`, `attgenerated`, `attcollation`.
+- `pg_extension`: `oid`, `extname`, `extowner`, `extnamespace`,
+  `extrelocatable`, `extversion`; `pg_available_extensions`: `name`,
+  `default_version`, `installed_version`.
+- `pg_proc`: `oid`, `proname`, `prorettype`, `pronamespace` only for the
+  installed pgcrypto SHA-256 digest shim. `proargtypes` and general routine
+  introspection are not selected.
+
+The PostgreSQL-facing `pg_class`, `pg_index`, and `pg_indexes` surfaces omit
+Cassie's `Column` and `TimeSeries` derived-index kinds and its legacy `USING
+vector` index method. Those are genuine Cassie runtime indexes, but they have
+no PostgreSQL access-method identities; the catalogs therefore do not publish
+index relations with `relam = 0` or invent `pg_am` rows for them. The selected
+pgvector `USING hnsw` and `USING ivfflat` index methods are published only when
+their matching installed extension identity exists. Their query/storage
+behavior is unchanged. The `relhasindex` summary still reflects current or
+recently dropped indexes of those kinds. PostgreSQL 18 defines `pg_class.relam` as a reference to
+`pg_am.oid` and `pg_am` as one row per supported access method; see
+[`pg_class`](https://www.postgresql.org/docs/18/catalog-pg-class.html) and
+[`pg_am`](https://www.postgresql.org/docs/18/catalog-pg-am.html). Focused
+catalog visibility coverage is authored but unexecuted in
+[`catalog_information/semantics.rs`](../tests/catalog_security/catalogs/indexes/catalog_information/semantics.rs).
+The selected #818 integration uses the same publication predicate for
+`pg_class`, `pg_index`, `pg_indexes`, and `regclass` name/OID resolution:
+internal Column, TimeSeries, and legacy `USING vector` index names remain
+resolvable through Cassie's query/storage APIs, but not through the PostgreSQL
+object-identity surface. An OID supplied directly still renders as its numeric
+value when no published relation owns it. Jev selected this alignment with
+probability 0.89 and confidence 0.85. A follow-up found that the original
+predicate admitted legacy `USING vector` rows with `relam = 0` (gap probability
+0.90); Jev selected publication only for HNSW/IVFFlat rows with installed
+identities (probability 1.0, confidence 1.0). Authored regressions cover
+Column/TimeSeries/legacy-vector name and OID lookup plus installed HNSW
+identity; they remain unexecuted. The requests and responses are retained under
+ignored `target/v020-evidence/818-object-scope/` and
+`target/v020-evidence/844-vector-schema/`.
+
+Catalog row generation uses the same effective database as binding and
+`regclass` resolution. `CassieSession::new(user, None)` is a supported embedded
+session shape accepted by `Cassie::execute_sql`; query binding falls back to
+Cassie's configured default database while the SQL `current_database()` value
+remains empty. Jev selected preserving that empty function result (probability
+0.96, confidence 0.95): the absent stored session database remains observable,
+while the default is only the query execution and name-resolution fallback.
+The execution source therefore passes the effective default
+database into virtual catalog filtering, so another database's index cannot
+appear in `pg_class`, `pg_index`, or `pg_indexes` when `regclass` resolves only
+within the default database. Jev initially selected no reachable mismatch from
+a prompt that omitted this constructor; that no-defect judgment was based on
+incomplete source facts and was superseded. The preceding adversarial review's
+0.54 catalog-divergence probability prompted the source trace, which found the
+public path; a corrected follow-up selected passing the effective database to
+virtual row generation (probability and confidence 1.0). The regression in
+[`database_scope.rs`](../tests/catalog_security/namespaces/database_scope.rs)
+covers all three catalog views, `current_database()`, direct `to_regclass`,
+and foreign/default-database index controls through the public embedded-session
+API; it is authored but unexecuted.
+Both Jev request/response pairs are retained under ignored
+`target/v020-evidence/818/`; the triggering 0.54 response is in
+`target/v020-evidence/844-vector-schema/jev-vector-source-gap-focused-followup-response.json`.
+
+For the #818/#831 interaction, unqualified `regclass` name resolution uses the
+effective search path after schemas without USAGE are excluded. Once a schema
+has USAGE, resolving a relation OID does not require table SELECT; actual
+relation reads still do. Explicitly schema-qualified `regclass` lookup and
+`regnamespace` lookup resolve an existing identity without schema USAGE. Jev
+selected the unqualified-search-path rule (probability 0.95, confidence 0.93),
+direct namespace identity behavior (0.90, 0.85), and qualified lookup behavior
+(0.97, 0.96). This follows PostgreSQL 18's documented search-path filtering and
+`regclass` behavior; see [search_path](https://www.postgresql.org/docs/18/runtime-config-client.html),
+[object identifier types](https://www.postgresql.org/docs/18/datatype-oid.html),
+and the [PostgreSQL 18 `regclass` implementation](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/utils/adt/regproc.c).
+The role-aware lookup regression is authored with #831 integration and remains
+unexecuted; it distinguishes unqualified lookup before/after USAGE, qualified
+identity lookup, namespace lookup, and table SELECT authorization.
+
+The descriptor additions selected by #828 are present before its type runtime: rows for
+the currently supported types report `typnotnull = false` and `typtypmod = -1`,
+and `pg_class.reltype = 0` while Cassie has no row-type identity for the
+relation. This is the deterministic unsupported boundary, not composite/domain
+support or PostgreSQL row-type parity. #828 owns the future database-scoped
+row-type and domain OIDs. Enum rows remain deferred to #827; broad routines,
+dependency families, sequences, and partitions remain unselected except for
+separately documented finite workflows.
+
+Jev weakly selected exposing the descriptor and zero sentinel for `reltype`
+(probability 0.57, confidence 0.35). PostgreSQL 18 documents `reltype` as the
+row type OID when one exists and zero for indexes and sequences; Cassie
+currently has no row-type identity for its table/view relations, so zero records
+that absence and does not claim PostgreSQL's automatic composite row types.
+Evidence: [PostgreSQL 18 `pg_class`](https://www.postgresql.org/docs/18/catalog-pg-class.html)
+and the planned type identity boundary in [#828](https://github.com/cntryl/cassie/issues/828).
+
+`pg_class.relhasindex` reports true while an index exists and stays true after
+committed index cleanup, matching PostgreSQL's “has or recently had” flag.
+Cassie stores that history with the owning collection metadata in the same
+database-family transaction as the cleanup record. It survives restart and
+transaction rollback discards it with the rest of the overlay. Cassie has no
+selected VACUUM operation, so the flag remains true until the relation is
+dropped. The new lifecycle probes are authored but unexecuted pending the
+coherent bundle gate. Jev selected a persisted history bit over deriving only
+from current indexes or the cleanup tombstone (probability 0.85, confidence
+0.77); the latter disappears when Midge completes cleanup and cannot survive a
+restart. The implementation updates the bit in the existing Midge data
+transaction, which is staged by the active database-family overlay. Regressions
+in [`type_catalog_fields.rs`](../tests/catalog_security/catalogs/columns/type_catalog_fields.rs)
+cover restart persistence and rollback, but have not been executed. PostgreSQL
+documents the row-type reference and lazy `relhasindex` clearing behavior in
+[`pg_class`](https://www.postgresql.org/docs/18/catalog-pg-class.html). The
+non-domain `typnotnull` and `typtypmod` defaults are described in
+[`pg_type`](https://www.postgresql.org/docs/18/catalog-pg-type.html).
+
+### #817 stable attribute identity and type collation — 2026-11-11
+
+For persisted physical tables, `pg_attribute.attnum` follows Midge's stable
+`RowSchema.field_id`; dropped slots remain visible at the same positive number
+with PostgreSQL's dropped marker name, `attisdropped = true`, and `atttypid = 0`.
+Dropped rows clear not-null, default, identity, and generated metadata while
+retaining the stored type modifier and type-derived collation. Views and SQL
+materialized views continue to use their derived output ordinals. Explicit
+column `COLLATE` metadata remains unsupported by table DDL.
+
+The finite collation mapping is OID 100 (`default`, provider `d`) for TEXT,
+CHAR, VARCHAR, and arrays of those types; OID 950 (`C`, provider `c`) for NAME;
+and zero for the other selected field types. `pg_collation` exposes the
+referenced `default`, `C`, and existing `POSIX` identities. This supplies
+truthful selected catalog values without selecting native catalog descriptor
+parity or arbitrary per-column collations.
+
+Jev selected this collation mapping with probability 0.99/confidence 0.99 and,
+after source review plus authored schema-evolution and local-restart probes,
+found no remaining source-backed gap in this finite slice (0.97). The probes
+remain unexecuted pending the consolidated ordered validation gate. Key-free
+Jev evidence is retained under
+`target/v020-evidence/817-stable-attribute-identity/`.
+
+The index history contract above is persisted in current collection metadata;
+it does not add compatibility or migration behavior between unreleased builds.
 
 ### Sequence ownership dependencies (2026-10-24)
 
@@ -426,22 +653,10 @@ or [`pg_proc`](https://www.postgresql.org/docs/18/catalog-pg-proc.html).
 
 ### #845
 
-Select COMMENT ON SCHEMA/TABLE/COLUMN ... IS text-or-NULL, owner/root authorization,
-obj_description and col_description plus the finite pg_description fields needed for
-those objects. NULL removes the record; empty string is a retained comment. Keep
-routine/type/database/index/materialized-view comments deterministically unsupported.
-Preserve comments across rename/schema moves and remove them on owning-object drop.
-
-Store versioned comment records keyed by stable object ID and stable column attribute
-identity, never only the mutable name or current ordinal. Reuse the existing persisted
-RowSchema.field_id and retired-field metadata rather than introducing another column
-identity; expose a stable attnum mapping where needed and never reuse dropped IDs.
-Publish comment updates, drop cleanup and schema changes in the same
-family/transaction/savepoint overlay. Restart and database-image restore reload exact
-comment text/ownership; malformed records fail deterministically rather than
-disappearing. Text descriptions use OID 25 and SQL NULL when absent, without new
-row-value wire formats.
-
-Revalidate grants at statement admission and before each resumed Execute so
-revocations affect existing sessions and suspended portals before more output.
-New durable records use the current format and must pass current-build restart and recovery checks. No pre-release migration or old-reader compatibility is required; see [Release Baseline](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).
+The contract decision, object-address rules, unsupported boundary, PostgreSQL 18
+semantics, recovery behavior, and planned regression evidence are recorded in
+[`SQL object comments — issue #845`](sql-object-comments-issue-845.md). The
+previous empty-string-retained note is superseded: NULL and empty string both
+remove the comment. Runtime and recovery qualification remain pending; the
+recorded Jev judgment is a lead, not proof. No pre-release migration or
+old-reader compatibility is required; see [Release Baseline](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).

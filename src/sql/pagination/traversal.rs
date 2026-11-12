@@ -9,7 +9,7 @@ use crate::sql::ast::{
 type Visitor<'a> = dyn FnMut(&mut Option<Expr>, bool) -> Result<(), CassieError> + 'a;
 
 mod read;
-pub(super) use read::plan_needs_resolution;
+pub(super) use read::{guard_plan_depth, plan_needs_resolution};
 
 pub(super) fn visit_statement(
     statement: &mut ParsedStatement,

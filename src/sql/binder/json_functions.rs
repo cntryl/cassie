@@ -26,7 +26,12 @@ pub(super) fn qualify(function: &mut FunctionCall, types: &ResultTypes) -> Resul
     };
     if !metadata.arity.matches(function.args.len())
         || function.args.iter().enumerate().any(|(index, argument)| {
-            let Some(oid) = signature.argument_oid(index) else {
+            let oid = if index == 1 && function.args.get(index).is_some_and(functions::json::is_variadic_array_argument) {
+                Some(1009)
+            } else {
+                signature.argument_oid(index)
+            };
+            let Some(oid) = oid else {
                 return false;
             };
             !matches!(argument, Expr::StringLiteral(_) | Expr::Null)

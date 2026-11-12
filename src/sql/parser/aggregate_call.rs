@@ -123,6 +123,9 @@ fn split_aggregate_order(body: &str) -> Result<(&str, Vec<super::OrderExpr>), Sq
 }
 
 fn parse_arguments(name: &str, raw: &str) -> Result<(String, Vec<super::Expr>), SqlError> {
+    if let Some(arguments) = parse_variadic_json_path_arguments(name, raw)? {
+        return Ok((name.to_owned(), arguments));
+    }
     if let Some(call) = super::pattern_function_call::arguments(name, raw)? {
         return Ok(call);
     }
@@ -149,11 +152,47 @@ fn parse_arguments(name: &str, raw: &str) -> Result<(String, Vec<super::Expr>), 
     Ok((name.to_owned(), arguments))
 }
 
+fn parse_variadic_json_path_arguments(
+    name: &str,
+    raw: &str,
+) -> Result<Option<Vec<super::Expr>>, SqlError> {
+    let local_name = name.rsplit('.').next().unwrap_or(name);
+    if !matches!(
+        local_name.to_ascii_lowercase().as_str(),
+        "json_extract_path"
+            | "jsonb_extract_path"
+            | "json_extract_path_text"
+            | "jsonb_extract_path_text"
+    ) {
+        return Ok(None);
+    }
+    let arguments = split_csv(raw);
+    let [document, path] = arguments.as_slice() else {
+        return Ok(None);
+    };
+    let path = lexical::trim_separators(path);
+    let Some(end) = lexical::pattern_end(path, 0, "variadic") else {
+        return Ok(None);
+    };
+    let array = lexical::trim_separators(&path[end..]);
+    if array.is_empty() {
+        return Err(SqlError::syntax(
+            "VARIADIC requires an array argument for JSON path extraction".into(),
+        ));
+    }
+    let array = super::Expr::Function(Box::new(super::FunctionCall {
+        name: crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION.into(),
+        args: vec![parse_expression(array)?],
+        ..super::FunctionCall::default()
+    }));
+    Ok(Some(vec![parse_expression(document)?, array]))
+}
+
 fn json_exists_policy(input: &str) -> Result<(&str, &'static str), SqlError> {
     let trimmed = lexical::trim_separators(input);
     let lower = trimmed.to_ascii_lowercase();
     let Some(position) = lower.rfind(" on error") else {
-        return Ok((trimmed, "error"));
+        return Ok((trimmed, "false"));
     };
     let prefix = lexical::trim_separators(&trimmed[..position]);
     for (word, policy) in [

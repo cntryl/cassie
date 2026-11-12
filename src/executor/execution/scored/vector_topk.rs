@@ -159,7 +159,7 @@ fn validate_vector_top_k_dimensions(
             spec.vector_field, spec.collection
         )));
     };
-    let crate::types::DataType::Vector(dimensions) = &field.data_type else {
+    let crate::types::DataType::Vector(Some(dimensions)) = &field.data_type else {
         return Err(QueryError::General(format!(
             "field '{}' on collection '{}' is not a vector field",
             spec.vector_field, spec.collection

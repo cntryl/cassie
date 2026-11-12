@@ -17,17 +17,23 @@ pub(super) fn infer(
     let mut types = HashMap::new();
     for expr in &context.plan.group_by {
         if let Some(data_type @ (DataType::Array(_) | DataType::Char { .. } | DataType::Jsonb)) =
-            array_order::expression_type(row, expr, context.user_functions)
+            array_order::expression_type_with_parameter_oids(
+                row,
+                expr,
+                context.user_functions,
+                context.parameter_type_oids,
+            )
         {
             types.insert(group_expr_name(expr), data_type);
         }
     }
     for spec in aggregate_specs(context.plan) {
         if let Some(data_type @ (DataType::Array(_) | DataType::Char { .. } | DataType::Jsonb)) =
-            array_order::expression_type(
+            array_order::expression_type_with_parameter_oids(
                 row,
                 &Expr::Function(Box::new(spec.function)),
                 context.user_functions,
+                context.parameter_type_oids,
             )
         {
             for name in spec.output_names {

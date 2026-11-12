@@ -41,7 +41,7 @@ below according to the declared precision.
 | `json` | 114 | -1 | Existing JSON identity |
 | `jsonb` | 3802 | -1 | Distinct JSONB identity selected on 2026-10-24; implementation and qualification are in progress |
 | `jsonpath` | 4072 | -1 | Expression-only identity; JSONPath columns and arrays are not selected |
-| `vector(n)` | `100000 + n` | -1 | Private identity; finite positive dimension |
+| `vector`, `vector(n)` | Active database's installed vector-extension OID | -1 | One canonical identity; bare typmod -1, fixed typmod is raw dimension (1 through 16,000) |
 | `T[]` | PostgreSQL's registered array OID for supported built-in element types | -1 | Standard identity; unsupported/private element families are excluded from pgwire |
 
 ### Native NAME and NAME[] values
@@ -113,13 +113,14 @@ The selected SQL/JSON subset includes `JSON(input WITH/WITHOUT UNIQUE KEYS)`,
 ERROR)`. JSON input preserves the supplied document text; WITH UNIQUE KEYS
 checks duplicate keys recursively and reports SQLSTATE 22030, while WITHOUT
 UNIQUE KEYS accepts duplicates. The selected JSON_ARRAY query form preserves
-the query's order and uses ABSENT ON NULL behavior. JSON_EXISTS maps structural
-JSONPath errors to FALSE, TRUE, SQL NULL for UNKNOWN, or propagates the error
-for ERROR ON ERROR; omitted policy defaults to ERROR ON ERROR. These finite
-forms do not select general `IS JSON`, `JSON_VALUE`, `JSON_QUERY`, `PASSING`,
-or other JSON constructor clauses. Keep those as pending contract obligations
-until a read-model use case and finite semantics are selected. Likewise,
-`array_to_json`/`row_to_json` remain unselected legacy conversion overloads.
+the query's order and uses ABSENT ON NULL behavior. JSON_EXISTS maps JSONPath
+evaluation errors to FALSE, TRUE, SQL NULL for UNKNOWN, or propagates the error
+for ERROR ON ERROR; omitted policy defaults to FALSE, matching PostgreSQL 18.6.
+These finite forms do not select general `IS JSON`, `JSON_VALUE`, `JSON_QUERY`,
+`PASSING`, or other JSON constructor clauses. Keep those as pending contract
+obligations until a read-model use case and finite semantics are selected.
+Likewise, `array_to_json`/`row_to_json` remain unselected legacy conversion
+overloads.
 
 ### Selected JSONPath expression identity (2026-10-24)
 
@@ -368,6 +369,162 @@ OIDs. Reserve legacy OID ranges from dynamic allocation. Existing Rust DataType 
 helpers need a reviewed contextual resolver contract. DROP RESTRICT protects live
 dependent columns/indexes; CASCADE behavior must remove actual dependents atomically.
 Restore retains extension IDs and rebuilds derived ANN state from authoritative vectors.
+
+#### #844 vector type identity and resolution
+
+Jev selected the explicit active-database type-context direction (probability 0.48,
+confidence 0.31). This is a weak design lead, not correctness evidence. Source review
+confirms that vector extension identity is owned by per-database `ExtensionMeta`, while
+`DataType` is shared by parsing, logical planning, storage schemas, and code paths with
+no database context. Therefore keep `DataType::Vector` logical and dimension-bearing,
+and resolve its PostgreSQL identity only through the active database catalog. For bare
+vector, Jev selected `DataType::Vector(Option<usize>)` with `None` representing the
+unconstrained logical type and `Some(n)` representing `vector(n)` (probability 0.84,
+confidence 0.79). This is a design lead; source review must verify every conversion and
+wire/catalog boundary. Its request and response are in the ignored
+`target/v020-evidence/844-vector-contract/bare-vector-type-model-*` files. The
+active-database resolver request and response are retained in the same evidence
+directory.
+
+The vector extension record owns one allocated vector type object identity per
+database. Its catalog OID is resolved from that persisted identity; it is not derived
+from the dimension. A declared `vector(n)` uses the same OID as bare `vector`, with
+`atttypmod = n`; bare `vector` uses `atttypmod = -1`. The declared typmod is the raw
+dimension, not the string-type `+4` adjustment. The pgvector 0.8.7 source confirms that
+`vector_typmod_in` returns the supplied dimension and its receive/input paths compare
+that typmod directly with the value dimension ([`vector.c`](https://github.com/pgvector/pgvector/blob/v0.8.7/src/vector.c#L2296-L2307),
+[`typmod input`](https://github.com/pgvector/pgvector/blob/v0.8.7/src/vector.c#L2717-L2757)).
+The installed base type uses `typcategory = 'U'`: pgvector's `CREATE TYPE vector`
+does not set `CATEGORY`, and PostgreSQL 18 defaults base types to the user-defined
+category ([pgvector 0.8.7 type definition](https://github.com/pgvector/pgvector/blob/v0.8.7/sql/vector.sql#L2194-L2208),
+[PostgreSQL 18 `DefineType`](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/backend/commands/typecmds.c#L2429-L2464),
+[type-category constants](https://github.com/postgres/postgres/blob/REL_18_STABLE/src/include/catalog/pg_type.h#L1466-L1468)).
+`V` is reserved for PostgreSQL bit-string types.
+Its selected dimension limit is 1 through 16,000
+([`VECTOR_MAX_DIM`](https://github.com/pgvector/pgvector/blob/v0.8.7/src/vector.h#L255),
+[`CheckDim`](https://github.com/pgvector/pgvector/blob/v0.8.7/src/vector.c#L2312-L2334)).
+
+All SQL type binding, `pg_type`/`pg_attribute` identities, prepared parameter
+admission, pgwire text/binary codecs, and result descriptions that handle vector must
+use the active database resolver. Context-free `DataType::type_oid()` and
+`vector_dimensions_for_oid()` must not identify or accept vector protocol/catalog
+types. Binary input gets its dimension from the frame, validates the 1..=16,000 bound,
+reserved zero word, exact frame length and finite f32 values, then checks a declared
+typmod when present. Catalog metadata exposes one installed vector type identity per
+database; vector arrays remain unsupported. Reserve the old dimension-derived OID
+range 100001..=132767 from dynamic object-OID allocation, and never accept or publish
+those IDs as vector types.
+
+Type identity resolution and prepared result descriptors use the current database
+catalog version. If extension activation changes a prepared result's resolved type
+identity, preserve the existing cached-result-type rejection and require the client to
+reprepare or reconnect; do not silently reinterpret a previously supplied private OID.
+Extension DROP continues to reject live column/index dependents under RESTRICT and
+removes actual dependents atomically under CASCADE.
+
+Jev selected storing this identity as `ExtensionMeta.vector_type_object_id: Option<u64>`
+(confidence 1.0). Allocate the vector type object ID from the same Midge catalog object-ID
+counter as other normal objects; resolve its PostgreSQL OID through the existing
+`normal_oid` mapping. The vector extension record sets this field, while the pgcrypto
+record leaves it empty. The changed durable extension record uses format version 2;
+pre-release extension metadata is recreated, with no compatibility reader or migration.
+The request and response are retained in the ignored
+`target/v020-evidence/844-vector-contract/vector-type-identity-storage-*` files.
+
+Jev selected a finite typed `VectorCatalogIdentitySet` owned by `ExtensionMeta` for the
+pgvector access-method, operator, operator-family, and operator-class identities
+(confidence 1.0). Allocate each published object identity from the common Midge counter
+and resolve it through `normal_oid`; persist the complete set on the vector extension
+record and leave it empty for pgcrypto. `pg_amop` rows are identified by their operator
+family, operand types, strategy, and purpose and do not receive a separate object OID.
+The method/operator/family/class rows are derived from this persisted set and disappear
+with the extension record. This remains the current unreleased format version 2, with no
+compatibility reader or migration. The request and response are retained in the ignored
+`target/v020-evidence/844-vector-contract/vector-catalog-identity-storage-*` files.
+
+Jev selected the additive pgvector method profile, finite method/operator-class
+catalog identities, and pgvector's 2,000-dimension ANN limit (probabilities 1.0,
+0.99, and 1.0). These are scoped design selections; the pinned PostgreSQL oracle and
+Cassie implementation/tests remain the correctness evidence. The typed request and
+response are retained in the ignored `target/v020-evidence/844-vector-contract/`
+directory.
+
+Keep Cassie's existing `USING vector` form and add pgvector's `USING hnsw` and
+`USING ivfflat` forms. Each added method accepts exactly `vector_l2_ops`,
+`vector_ip_ops`, and `vector_cosine_ops`, mapping respectively to `<->` L2 distance,
+`<#>` negative inner product, and `<=>` cosine distance. HNSW accepts `m` and
+`ef_construction` index options and the `hnsw.ef_search` query option; IVFFlat accepts
+the `lists` index option and `ivfflat.probes` query option. Keep Cassie's existing
+`USING vector` options and semantics intact. Other vector metrics, vector storage
+types, access methods, operator classes, and ANN options are outside this profile.
+Only IVFFlat defaults to `vector_l2_ops`; HNSW requires an explicit operator class.
+The catalog marks only the IVFFlat L2 class as default, matching the pinned 0.8.7
+SQL profile. Operator-class names resolve in the installed vector extension schema:
+an explicit schema must name that namespace, while an unqualified name requires the
+extension schema to be visible through the effective SQL `search_path` (including
+PostgreSQL's implicit `pg_catalog` entry).
+Cassie's legacy `USING vector` index method keeps its existing retrieval behavior,
+but it is not a PostgreSQL access method and remains absent from `pg_class`,
+`pg_index`, `pg_indexes`, and `regclass` name resolution. Those catalogs publish
+vector indexes only for explicit HNSW/IVFFlat methods with installed extension
+identities, preventing `relam = 0` rows without changing legacy index execution.
+`DROP EXTENSION vector` with dependent vector-typed columns, ANN indexes, or regular
+stored views using vector casts/operators fails with SQLSTATE `2BP01` and
+preserves all objects. `CASCADE` removes those regular views atomically with the
+extension. If vector columns or ANN indexes also depend on the extension, `CASCADE`
+is rejected with `0A000` until atomic same-database-family cleanup is implemented;
+remove those dependents first. Vector-dependent materialized views are also listed
+as dependents, but `CASCADE` rejects with `0A000` until extension, output rows, indexes,
+and materialized-view metadata can be deleted atomically; remove those views first.
+
+The view dependency collector covers vector casts/operators across projection and
+predicate expressions, query sources, nested subqueries, CTEs, and set branches; view
+output fields typed as vector are dependencies even when no operator is used. Extension
+dependency IDs also flow through referenced regular views, so CASCADE removes the
+dependent view chain. A Jev
+source review selected no concrete gap (probability 0.81), while its broader missed-AST
+path estimate was 0.40 and triggered a focused probe. A transitive dependency review
+raised the missed-path probability to 0.71 and selected an additional AST probe; the
+authored CTE-based parent/child view regression now checks that dependency IDs flow
+through a text-only child. The authored
+`should_track_vector_dependencies_in_nested_select_shapes` regression covers CTE,
+scalar-subquery, VALUES-source, and set-right forms; a follow-up rated a remaining
+source gap at 0.24 and selected that probe (0.91). It remains unexecuted until the
+consolidated bundle gate. Jev selected an explicit `0A000` boundary for vector-dependent
+materialized views (probability 0.70) because their output state is not covered by the
+regular-view deletion transaction; a focused authored regression verifies rejection
+preserves the materialized view. Separate authored local-restart regressions check
+stable vector catalog identities and restored regular-view dependency rejection/cascade;
+all remain unexecuted. A later combined review rated a remaining stored-view gap at
+0.68 and a catalog/object-identity gap at 0.73; Jev selected a mixed-dependency
+CASCADE preservation probe (probability 0.82, confidence 0.76). The authored
+`should_preserve_vector_dependents_when_extension_drop_is_rejected` regression now
+combines a regular vector-dependent view with a vector column and ANN index, checks that
+the rejected CASCADE preserves all three dependency classes, and verifies the retained
+ANN index OID, `relam`, `pg_am`, and `regclass` identities agree. It remains unexecuted.
+The selected dependency collector follows vector use visible in a
+stored-view query and extension IDs inherited from referenced stored views; it does not
+inspect SQL user-defined function bodies. Jev selected this explicit 0.2.0 boundary
+(0.92 probability, 0.89 confidence) after reviewing a text-returning function whose body
+uses vector. The request and response are retained under ignored
+`target/v020-evidence/844-vector-schema/jev-user-function-vector-dependency-*` files.
+
+Exact vector operations continue to accept dimensions 1 through 16,000. HNSW and
+IVFFlat admission is limited to dimensions 1 through 2,000, matching the pgvector
+0.8.7 ANN support table ([HNSW](https://github.com/pgvector/pgvector/blob/v0.8.7/README.md#hnsw),
+[IVFFlat](https://github.com/pgvector/pgvector/blob/v0.8.7/README.md#ivfflat)); this
+does not lower the vector type's input or storage limit.
+
+When vector is installed, publish only the finite truthful vector method profile in
+`pg_am`, `pg_operator`, `pg_opfamily`, `pg_amop`, and `pg_opclass`, alongside the one
+canonical vector `pg_type` row. Keep those allocated identities stable for that
+database and owned by the vector extension record, and remove their dependent catalog
+rows atomically on extension DROP. The selected HNSW/IVFFlat operator classes and their
+ordering operators are defined by the pinned [pgvector v0.8.7 SQL profile](https://github.com/pgvector/pgvector/blob/v0.8.7/sql/vector.sql#L2641-L2716).
+Do not publish generic PostgreSQL method or operator-class rows that Cassie does not
+execute. Cassie's existing vector index implementation remains the execution engine;
+these SQL methods and catalog identities are aliases to its supported HNSW and
+IVFFlat paths, not claims of the native pgvector ABI.
 
 These durable features use the current format and must pass current-build restart and recovery checks. No pre-release compatibility transition is required; see [Release Baseline](release-baseline.md#pre-release-format-and-api-policy-2026-11-10).
 Named ENUM #827 remains deferred to v0.4; historical full-parity/CRB3 proposals

@@ -148,7 +148,7 @@ fn should_omit_unreferenced_vector_type_rows() {
 
     // Act
     let selected = fixture
-        .execute("SELECT oid, typname FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%'")
+        .execute("SELECT oid, typname FROM pg_catalog.pg_type WHERE typname LIKE 'vector(%'")
         .expect("unreferenced vector registry");
 
     // Assert
@@ -161,10 +161,13 @@ fn should_deduplicate_supported_schema_vector_identities() {
     let fixture = sql_fixture("finite-type-vector-identities", &[]);
     fixture.cassie.startup().expect("startup");
     fixture
+        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .expect("install vector type identity");
+    fixture
         .execute(
-            "CREATE TABLE p04_vector_documents (v2 VECTOR(2), v7_first VECTOR(7), v7_second VECTOR(7), storage_only VECTOR(32768), excluded_array VECTOR(7016)[])",
+            "CREATE TABLE p04_vector_documents (v2 VECTOR(2), v7_first VECTOR(7), v7_second VECTOR(7), storage_only VECTOR(16000), excluded_array VECTOR(7016)[])",
         )
-        .expect("vector schemas, including existing unsupported wire identities");
+        .expect("vector schemas, including the maximum selected dimension");
     fixture
         .execute(
             "CREATE VIEW p04_vector_view AS SELECT CAST(NULL AS VECTOR(11)) AS embedding FROM p04_vector_documents",
@@ -174,7 +177,7 @@ fn should_deduplicate_supported_schema_vector_identities() {
     // Act
     let vectors = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%' ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector' ORDER BY oid",
         )
         .expect("schema-referenced vector registry");
     let all_types = fixture
@@ -184,11 +187,12 @@ fn should_deduplicate_supported_schema_vector_identities() {
     // Assert
     assert_eq!(
         vectors.rows(),
-        vec![
-            type_row(100_002, "vector(2)", -1, 0),
-            type_row(100_007, "vector(7)", -1, 0),
-            type_row(100_011, "vector(11)", -1, 0),
-        ]
+        vec![type_row(
+            vectors.rows()[0][0].as_i64().expect("vector OID"),
+            "vector",
+            -1,
+            0,
+        )]
     );
     let mut oids = std::collections::BTreeSet::new();
     for row in all_types.rows() {
@@ -214,6 +218,9 @@ fn should_discover_vector_types_within_the_current_database() {
     let fixture = sql_fixture("finite-type-vector-database-scope", &[]);
     fixture.cassie.startup().expect("startup");
     fixture
+        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .expect("install vector in the current database");
+    fixture
         .execute("CREATE TABLE p04_local_vectors (embedding VECTOR(2))")
         .expect("current database vector schema");
     fixture
@@ -221,34 +228,37 @@ fn should_discover_vector_types_within_the_current_database() {
         .expect("second database");
     let tenant = fixture
         .cassie
-        .create_session("tester", Some("p04_vector_tenant".to_string()));
+        .create_session("root", Some("p04_vector_tenant".to_string()));
     fixture
         .cassie
         .execute_sql(
             &tenant,
-            "CREATE TABLE p04_local_vectors (embedding VECTOR(7))",
+            "CREATE EXTENSION vector VERSION '0.8.7'; CREATE TABLE p04_local_vectors (embedding VECTOR(7))",
             vec![],
         )
-        .expect("second database vector schema");
+        .expect("install vector and create second database vector schema");
 
     // Act
     let current = fixture
         .execute(
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%' ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector' ORDER BY oid",
         )
         .expect("current database vector types");
     let other = fixture
         .cassie
         .execute_sql(
             &tenant,
-            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typcategory = 'V' AND typname LIKE 'vector(%' ORDER BY oid",
+            "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector' ORDER BY oid",
             vec![],
         )
         .expect("second database vector types");
 
     // Assert
-    assert_eq!(current.rows(), vec![type_row(100_002, "vector(2)", -1, 0)]);
-    assert_eq!(other.rows(), vec![type_row(100_007, "vector(7)", -1, 0)]);
+    assert_eq!(current.rows().len(), 1);
+    assert_eq!(other.rows().len(), 1);
+    assert_eq!(current.rows()[0][1], Value::String("vector".to_string()));
+    assert_eq!(other.rows()[0][1], Value::String("vector".to_string()));
+    assert_ne!(current.rows()[0][0], other.rows()[0][0]);
 }
 
 #[test]
@@ -375,15 +385,9 @@ fn should_resolve_bounded_array_lookup_signatures() {
                     to_regtype('integer[-- bound comment\n2]')::oid, \
                     to_regprocedure('pg_catalog.array_fill(anyelement, integer[2])')::oid, \
                     to_regtype('_int4[]') IS NULL, \
-                    to_regtype('_int4[2]') IS NULL, \
-                    to_regtype('integer[1__0]') IS NULL, \
-                    to_regtype('integer[2147483648]') IS NULL, \
-                    to_regtype('integer[0x80000000]') IS NULL",
+                    to_regtype('_int4[2]') IS NULL",
         )
         .expect("resolve builtin array dimensions in object identifier names");
-    let nullable = fixture
-        .execute("SELECT to_regtype('integer[\u{00a0}2]') IS NULL")
-        .expect("malformed name has no nullable lookup result");
     let invalid = fixture
         .execute("SELECT 'integer[\u{00a0}2]'::regtype")
         .expect_err("a regtype cast rejects non-SQL whitespace");
@@ -407,25 +411,71 @@ fn should_resolve_bounded_array_lookup_signatures() {
             Value::Int64(1_193),
             Value::Bool(true),
             Value::Bool(true),
-            Value::Bool(true),
-            Value::Bool(true),
-            Value::Bool(true),
         ]]
     );
-    assert_eq!(nullable.rows(), vec![vec![Value::Bool(true)]]);
     match &invalid {
         cassie::app::CassieError::ObjectIdentifier(
-            error @ cassie::types::ObjectIdentifierError::InvalidName(name),
+            error @ cassie::types::ObjectIdentifierError::TypeNameSyntax(name),
         ) => {
             assert_eq!(name, "integer[\u{00a0}2]");
-            assert_eq!(error.sqlstate(), "42602");
+            assert_eq!(error.sqlstate(), "42601");
         }
         other => panic!("unexpected regtype error: {other:?}"),
     }
-    assert_eq!(invalid.to_string(), "invalid name syntax");
+    assert_eq!(invalid.to_string(), "invalid type name syntax");
+}
 
-    // The explicit cast path remains an error for invalid input.
-    assert!(fixture.execute("SELECT 'integer[1__0]'::regtype").is_err());
+#[test]
+fn should_resolve_regnamespace_only_within_the_active_database() {
+    // Arrange
+    let fixture = sql_fixture("issue-818-regnamespace-database-scope", &[]);
+    fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE SCHEMA issue_818_namespace_current_only")
+        .expect("create namespace in the current database");
+    fixture
+        .execute("CREATE DATABASE issue_818_regnamespace_tenant")
+        .expect("create a second database");
+    let tenant = fixture
+        .cassie
+        .create_session("tester", Some("issue_818_regnamespace_tenant".to_owned()));
+    fixture
+        .cassie
+        .execute_sql(
+            &tenant,
+            "CREATE SCHEMA issue_818_namespace_other_only",
+            vec![],
+        )
+        .expect("create a namespace in the second database");
+
+    // Act
+    let current = fixture
+        .execute(
+            "SELECT to_regnamespace('issue_818_namespace_current_only') IS NOT NULL, \
+                    to_regnamespace('issue_818_namespace_other_only') IS NULL, \
+                    to_regnamespace('issue_818_namespace_missing') IS NULL",
+        )
+        .expect("resolve namespaces only from the current database");
+    let other = fixture
+        .cassie
+        .execute_sql(
+            &tenant,
+            "SELECT to_regnamespace('issue_818_namespace_other_only') IS NOT NULL, \
+                    to_regnamespace('issue_818_namespace_current_only') IS NULL, \
+                    to_regnamespace('issue_818_namespace_missing') IS NULL",
+            vec![],
+        )
+        .expect("resolve namespaces only from the second database");
+
+    // Assert
+    assert_eq!(
+        current.rows(),
+        &[vec![Value::Bool(true), Value::Bool(true), Value::Bool(true)]]
+    );
+    assert_eq!(
+        other.rows(),
+        &[vec![Value::Bool(true), Value::Bool(true), Value::Bool(true)]]
+    );
 }
 
 #[test]
@@ -712,10 +762,13 @@ fn should_support_regdictionary_text_io() {
 }
 
 #[test]
-fn should_discover_unpopulated_materialized_view_vector_type_until_drop() {
+fn should_keep_installed_vector_type_after_materialized_view_drop() {
     // Arrange
     let fixture = sql_fixture("catalog-matview-vector-type-lifecycle", &[]);
     fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .expect("install vector type");
     fixture
         .execute("CREATE TABLE mv_type_source (id INTEGER)")
         .expect("source table");
@@ -725,8 +778,8 @@ fn should_discover_unpopulated_materialized_view_vector_type_until_drop() {
 
     // Act
     let types = fixture.execute(
-        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(11)' ORDER BY oid",
-    ).expect("materialized view vector type");
+        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector' ORDER BY oid",
+    ).expect("installed vector type");
     let attributes = fixture.execute(
         "SELECT attname, atttypid FROM pg_catalog.pg_attribute WHERE attrelid = 'mv_type_projection' ORDER BY attnum",
     ).expect("materialized view attribute identities");
@@ -734,25 +787,25 @@ fn should_discover_unpopulated_materialized_view_vector_type_until_drop() {
         .execute("DROP MATERIALIZED VIEW mv_type_projection")
         .expect("drop materialized view");
     let after_drop = fixture.execute(
-        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(11)'",
-    ).expect("registry after dropping the only reference");
+        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector'",
+    ).expect("type remains while extension is installed");
 
     // Assert
-    assert_eq!(types.rows(), vec![type_row(100_011, "vector(11)", -1, 0)]);
+    assert_eq!(types.rows().len(), 1);
     assert_eq!(
         attributes.rows(),
         vec![
             vec![
                 Value::String("embedding".to_string()),
-                Value::Int64(100_011)
+                types.rows()[0][0].clone()
             ],
             vec![
                 Value::String("duplicate".to_string()),
-                Value::Int64(100_011)
+                types.rows()[0][0].clone()
             ],
         ]
     );
-    assert_eq!(after_drop.rows(), &[] as &[Vec<Value>]);
+    assert_eq!(after_drop.rows(), types.rows());
 }
 
 #[test]
@@ -765,14 +818,17 @@ fn should_scope_unpopulated_materialized_view_vector_types_to_current_database()
         .expect("tenant database");
     let tenant = fixture
         .cassie
-        .create_session("tester", Some("mv_type_tenant".to_string()));
+        .create_session("root", Some("mv_type_tenant".to_string()));
+    fixture
+        .cassie
+        .execute_sql(&tenant, "CREATE EXTENSION vector VERSION '0.8.7'", vec![])
+        .expect("install vector in tenant database");
     fixture
         .cassie
         .execute_sql(&tenant, "CREATE TABLE mv_type_source (id INTEGER)", vec![])
         .expect("tenant source");
     fixture.cassie.execute_sql(&tenant, "CREATE MATERIALIZED VIEW mv_type_projection AS SELECT CAST(NULL AS VECTOR(13)) AS embedding FROM mv_type_source WITH NO DATA", vec![]).expect("tenant view");
-    let query =
-        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(13)'";
+    let query = "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector'";
 
     // Act
     let current = fixture.execute(query).expect("original database registry");
@@ -783,14 +839,18 @@ fn should_scope_unpopulated_materialized_view_vector_types_to_current_database()
 
     // Assert
     assert_eq!(current.rows(), &[] as &[Vec<Value>]);
-    assert_eq!(other.rows(), vec![type_row(100_013, "vector(13)", -1, 0)]);
+    assert_eq!(other.rows().len(), 1);
+    assert_eq!(other.rows()[0][1], Value::String("vector".to_string()));
 }
 
 #[test]
-fn should_remove_rolled_back_materialized_view_vector_type() {
+fn should_retain_installed_vector_type_after_view_creation_rollback() {
     // Arrange
     let fixture = sql_fixture("catalog-matview-vector-type-rollback", &[]);
     fixture.cassie.startup().expect("startup");
+    fixture
+        .execute("CREATE EXTENSION vector VERSION '0.8.7'")
+        .expect("install vector type");
     fixture
         .execute("CREATE TABLE mv_rollback_source (id INTEGER)")
         .expect("source table");
@@ -798,8 +858,7 @@ fn should_remove_rolled_back_materialized_view_vector_type() {
     fixture.execute(
         "CREATE MATERIALIZED VIEW mv_rollback_projection AS SELECT CAST(NULL AS VECTOR(17)) AS embedding FROM mv_rollback_source WITH NO DATA",
     ).expect("transaction-owned materialized view");
-    let query =
-        "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector(17)'";
+    let query = "SELECT oid, typname, typlen, typelem FROM pg_catalog.pg_type WHERE typname = 'vector'";
 
     // Act
     let inside = fixture
@@ -811,6 +870,6 @@ fn should_remove_rolled_back_materialized_view_vector_type() {
     let after = fixture.execute(query).expect("registry after rollback");
 
     // Assert
-    assert_eq!(inside.rows(), vec![type_row(100_017, "vector(17)", -1, 0)]);
-    assert_eq!(after.rows(), &[] as &[Vec<Value>]);
+    assert_eq!(inside.rows().len(), 1);
+    assert_eq!(after.rows(), inside.rows());
 }

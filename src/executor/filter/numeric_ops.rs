@@ -137,6 +137,16 @@ pub(super) fn arithmetic(
     op: &BinaryOp,
     right: &ScalarValue,
 ) -> Option<Result<ScalarValue, QueryError>> {
+    arithmetic_with_resources(left, op, right, None, None)
+}
+
+pub(super) fn arithmetic_with_resources(
+    left: &ScalarValue,
+    op: &BinaryOp,
+    right: &ScalarValue,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
+) -> Option<Result<ScalarValue, QueryError>> {
     if !matches!(
         op,
         BinaryOp::Add
@@ -160,7 +170,7 @@ pub(super) fn arithmetic(
         Err(error) => return Some(Err(error)),
     };
     Some(match operands {
-        Operands::Numeric(left, right) => numeric_arithmetic(&left, op, &right),
+        Operands::Numeric(left, right) => numeric_arithmetic(&left, op, &right, controls, memory),
         Operands::Real(left, right) => {
             let finite = left.is_finite() && right.is_finite();
             match op {
@@ -195,14 +205,68 @@ fn numeric_arithmetic(
     left: &Numeric,
     op: &BinaryOp,
     right: &Numeric,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::EvaluationMemory>,
 ) -> Result<ScalarValue, QueryError> {
+    if *op == BinaryOp::Power {
+        if let Some(controls) = controls {
+            controls.check_interruption()?;
+        }
+        let preflight_bytes =
+            math::power_preflight_workspace_bytes(left, right).ok_or_else(|| {
+                QueryError::Cassie(CassieError::ResourceLimit(
+                    "numeric power preflight workspace size overflow".into(),
+                ))
+            })?;
+        let mut owner = memory
+            .map(|memory| memory.scope(preflight_bytes))
+            .transpose()?;
+        let mut temporary = if owner.is_none() {
+            controls
+                .map(|controls| controls.reserve_query_memory(preflight_bytes))
+                .transpose()?
+        } else {
+            None
+        };
+        let bytes = math::power_workspace_bytes(left, right).ok_or_else(|| {
+            QueryError::Cassie(CassieError::ResourceLimit(
+                "numeric power workspace size overflow".into(),
+            ))
+        })?;
+        if let Some(owner) = owner.as_mut() {
+            owner.ensure_admitted(bytes)?;
+        } else if let Some(temporary) = temporary.as_mut() {
+            if bytes > preflight_bytes {
+                temporary.try_grow(bytes - preflight_bytes)?;
+            }
+        }
+        if let Some(controls) = controls {
+            controls.check_interruption()?;
+        }
+        let mut check = || {
+            controls.map_or(
+                Ok(()),
+                crate::runtime::QueryExecutionControls::check_interruption,
+            )
+        };
+        let result =
+            math::power_with_check(left, right, &mut check).map_err(|error| match error {
+                math::PowerError::TypeInput(error) => input_error(error),
+                math::PowerError::Interruption(error) => error.into(),
+            })?;
+        let result = TypedValue::Numeric(result);
+        if let Some(owner) = owner.as_mut() {
+            owner.retain(result.heap_bytes());
+        }
+        return Ok(ScalarValue::Typed(result));
+    }
     let result = match op {
         BinaryOp::Add => math::add(left, right),
         BinaryOp::Sub => math::subtract(left, right),
         BinaryOp::Mul => math::multiply(left, right),
         BinaryOp::Div => math::divide(left, right),
         BinaryOp::Modulo => math::modulo(left, right),
-        _ => math::power(left, right),
+        _ => unreachable!("numeric arithmetic dispatch receives supported operations"),
     };
     result
         .map(|value| ScalarValue::Typed(TypedValue::Numeric(value)))

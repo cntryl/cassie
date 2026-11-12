@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     AlterIndexStatement, AlterMaterializedProjectionStatement, AlterRetentionPolicyStatement,
     AlterRoleStatement, AlterSchemaStatement, AlterSequenceStatement, AlterTableStatement,
-    CallProcedureStatement, CompareProjectionStatement, CopyStatement, CreateDatabaseStatement,
+    CallProcedureStatement, CommentOnStatement, CompareProjectionStatement, CopyStatement, CreateDatabaseStatement,
     CreateFunctionStatement, CreateGraphStatement, CreateIndexStatement,
     CreateMaterializedProjectionStatement, CreateMaterializedViewStatement,
     CreateProcedureStatement, CreateRetentionPolicyStatement, CreateRoleStatement,
@@ -56,6 +56,7 @@ pub enum RuntimeStatementRef<'a> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum CatalogStatementRef<'a> {
+    CommentOn(&'a CommentOnStatement),
     CreateTable(&'a CreateTableStatement),
     CreateGraph(&'a CreateGraphStatement),
     DropTable(&'a DropTableStatement),
@@ -139,6 +140,7 @@ pub enum RuntimeStatement {
 }
 
 pub enum CatalogStatement {
+    CommentOn(CommentOnStatement),
     CreateTable(CreateTableStatement),
     CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
@@ -223,6 +225,7 @@ impl QueryStatement {
             | Self::CreateDatabase(_)
             | Self::DropDatabase(_)
             | Self::CreateSchema(_)
+            | Self::CommentOn(_)
             | Self::DropSchema(_)
             | Self::AlterSchema(_)
             | Self::CreateView(_)
@@ -310,6 +313,7 @@ impl QueryStatement {
 
     fn catalog_route_ref(&self) -> CatalogStatementRef<'_> {
         match self {
+            Self::CommentOn(statement) => CatalogStatementRef::CommentOn(statement),
             Self::CreateTable(statement) => CatalogStatementRef::CreateTable(statement),
             Self::CreateGraph(statement) => CatalogStatementRef::CreateGraph(statement),
             Self::DropTable(statement) => CatalogStatementRef::DropTable(statement),
@@ -434,6 +438,7 @@ impl QueryStatement {
 
     fn into_catalog_route(self) -> CatalogStatement {
         match self {
+            Self::CommentOn(statement) => CatalogStatement::CommentOn(statement),
             Self::CreateTable(statement) => CatalogStatement::CreateTable(statement),
             Self::CreateGraph(statement) => CatalogStatement::CreateGraph(statement),
             Self::DropTable(statement) => CatalogStatement::DropTable(statement),

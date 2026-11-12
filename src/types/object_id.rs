@@ -134,6 +134,8 @@ pub enum ObjectIdentifierError {
     OutOfRange(String),
     /// The name is not a valid (possibly qualified) identifier list.
     InvalidName(String),
+    /// A SQL type name contains malformed type syntax.
+    TypeNameSyntax(String),
     /// A `regprocedure`/`regoperator` signature is malformed.
     Signature(String),
     /// The named object does not exist.
@@ -147,6 +149,7 @@ impl ObjectIdentifierError {
     pub fn sqlstate(&self) -> &'static str {
         match self {
             Self::Syntax(_) | Self::Signature(_) => "22P02",
+            Self::TypeNameSyntax(_) => "42601",
             Self::OutOfRange(_) => "22003",
             Self::InvalidName(_) => "42602",
             Self::Ambiguous { .. } => "42725",
@@ -178,6 +181,7 @@ impl std::fmt::Display for ObjectIdentifierError {
                 write!(formatter, "value \"{text}\" is out of range for type oid")
             }
             Self::InvalidName(_) => formatter.write_str("invalid name syntax"),
+            Self::TypeNameSyntax(_) => formatter.write_str("invalid type name syntax"),
             Self::Signature(message) => formatter.write_str(message),
             Self::Undefined { kind, name } => {
                 let object = match kind {

@@ -53,42 +53,43 @@ fn invalid(column: usize) -> CassieError {
 }
 
 pub(super) fn decode(
-    oid: i64,
     bytes: &[u8],
     column: usize,
     controls: &QueryExecutionControls,
-) -> Result<Option<(String, QueryMemoryReservation)>, CassieError> {
-    decode_with_observer(oid, bytes, column, controls, |_| {})
+    expected_dimensions: Option<usize>,
+) -> Result<(String, QueryMemoryReservation), CassieError> {
+    decode_with_observer(bytes, column, controls, expected_dimensions, |_| {})
 }
 
 #[cfg(test)]
 fn decode_observed(
-    oid: i64,
     bytes: &[u8],
     column: usize,
     controls: &QueryExecutionControls,
+    expected_dimensions: Option<usize>,
     observer: impl FnMut(bool),
-) -> Result<Option<(String, QueryMemoryReservation)>, CassieError> {
-    decode_with_observer(oid, bytes, column, controls, observer)
+) -> Result<(String, QueryMemoryReservation), CassieError> {
+    decode_with_observer(bytes, column, controls, expected_dimensions, observer)
 }
 
 fn decode_with_observer(
-    oid: i64,
     bytes: &[u8],
     column: usize,
     controls: &QueryExecutionControls,
+    expected_dimensions: Option<usize>,
     mut observer: impl FnMut(bool),
-) -> Result<Option<(String, QueryMemoryReservation)>, CassieError> {
-    let Some(expected) = crate::types::schema::vector_dimensions_for_oid(oid) else {
-        return Ok(None);
-    };
+) -> Result<(String, QueryMemoryReservation), CassieError> {
     controls.check_interruption()?;
     if bytes.len() < 4 {
         return Err(invalid(column));
     }
     let dimensions = usize::from(u16::from_be_bytes([bytes[0], bytes[1]]));
     let reserved = i16::from_be_bytes([bytes[2], bytes[3]]);
-    if dimensions != expected || reserved != 0 || bytes.len() != 4 + dimensions * 4 {
+    if !(1..=16_000).contains(&dimensions)
+        || expected_dimensions.is_some_and(|expected| dimensions != expected)
+        || reserved != 0
+        || bytes.len() != 4 + dimensions * 4
+    {
         return Err(invalid(column));
     }
     let mut length = 2_usize
@@ -136,5 +137,5 @@ fn decode_with_observer(
     }
     text.push(']');
     controls.check_interruption()?;
-    Ok(Some((text, memory)))
+    Ok((text, memory))
 }

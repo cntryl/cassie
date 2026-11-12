@@ -855,7 +855,7 @@ fn should_build_physical_operators_for_hybrid_search() {
                 "planner_hybrid_physical",
                 vec![
                     ("body".to_string(), DataType::Text),
-                    ("embedding".to_string(), DataType::Vector(2)),
+                    ("embedding".to_string(), DataType::Vector(Some(2))),
                 ],
             );
         let parsed = parser::parse_statement(

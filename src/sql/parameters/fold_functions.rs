@@ -196,12 +196,25 @@ impl Fold<'_, '_> {
             Some(
                 signature @ (FunctionInputSignature::Positional(_)
                 | FunctionInputSignature::VariadicTail { .. }),
-            ) => self.positional_function(
-                function,
-                metadata.expect("positional metadata"),
-                (0..function.args.len()).filter_map(|index| signature.argument_oid(index)),
-                frame,
-            ),
+            ) => {
+                let variadic_array = matches!(signature, FunctionInputSignature::VariadicTail { .. })
+                    && function
+                        .args
+                        .get(1)
+                        .is_some_and(functions::json::is_variadic_array_argument);
+                self.positional_function(
+                    function,
+                    metadata.expect("positional metadata"),
+                    (0..function.args.len()).filter_map(|index| {
+                        if variadic_array && index == 1 {
+                            Some(1009)
+                        } else {
+                            signature.argument_oid(index)
+                        }
+                    }),
+                    frame,
+                )
+            }
             Some(FunctionInputSignature::RegexpReplace) => {
                 let oids = self.regexp_replace_oids(function.args.len(), frame);
                 self.positional_function(
@@ -664,6 +677,11 @@ impl Fold<'_, '_> {
             return Ok(Summary::known(
                 i32::try_from(result.type_oid()).unwrap_or_default(),
             ));
+        }
+        if metadata.id
+            == functions::FunctionId::Json(functions::json::JsonFunction::VariadicArray)
+        {
+            return Ok(Summary::known(1009));
         }
         Ok(Summary::known(match metadata.return_type {
             functions::FunctionReturnType::Float => 701,

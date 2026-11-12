@@ -9,6 +9,10 @@ mod fulltext;
 mod graph;
 #[path = "key_encoding/hot_indexes.rs"]
 mod hot_indexes;
+#[path = "key_encoding/object_comments.rs"]
+mod object_comments;
+#[path = "key_encoding/role_object_grants.rs"]
+mod role_object_grants;
 #[path = "key_encoding/row_history.rs"]
 mod row_history;
 pub(super) use row_history::is_authoritative_row_key;
@@ -30,12 +34,18 @@ pub(super) use graph::{
 };
 pub(super) use hot_indexes::{
     column_batch_collection_prefix, column_batch_field_key, column_batch_index_prefix,
-    column_batch_metadata_key, column_batch_row_ids_key, scalar_index_collection_prefix,
-    scalar_index_data_prefix, unique_constraint_reservation_field_prefix,
-    unique_constraint_reservation_key, unique_constraint_reservation_prefix,
-    unique_index_reservation_prefix, unique_scalar_index_reservation_key,
-    unique_scalar_index_reservation_prefix,
+    column_batch_metadata_key, column_batch_row_ids_key, generated_unique_index_reservation_key,
+    generated_unique_index_reservation_prefix, generated_unique_index_reservations_prefix,
+    scalar_index_collection_prefix, scalar_index_data_prefix,
+    unique_constraint_reservation_field_prefix, unique_constraint_reservation_key,
+    unique_constraint_reservation_prefix, unique_index_reservation_key_for,
+    unique_index_reservation_prefix, unique_index_reservation_prefix_for,
+    unique_scalar_index_reservation_key, unique_scalar_index_reservation_prefix,
 };
+pub(super) use object_comments::{
+    object_comment_key, object_comment_object_prefix, object_comment_prefix,
+};
+pub(super) use role_object_grants::{role_object_grant_key, role_object_grant_prefix};
 pub(super) use time_series::{
     decode_time_series_bucket_count_key, decode_time_series_entry_key,
     time_series_index_artifact_prefix, time_series_index_bucket_bound_key,
@@ -87,6 +97,8 @@ const FAMILY_PROCEDURE: &[u8] = b"procedure";
 const FAMILY_VIEW: &[u8] = b"view";
 const FAMILY_EXTENSION: &[u8] = b"extension";
 const FAMILY_ROLE: &[u8] = b"role";
+const FAMILY_OBJECT_COMMENT: &[u8] = b"object-comment";
+const FAMILY_ROLE_OBJECT_GRANT: &[u8] = b"role-object-grant";
 const FAMILY_SEQUENCE: &[u8] = b"sequence";
 const FAMILY_CONSTRAINTS: &[u8] = b"constraints";
 const FAMILY_UNIQUE_CONSTRAINT_PUBLICATION: &[u8] = b"unique-constraint-publication";
@@ -564,6 +576,29 @@ pub(super) fn role_key(name: &str) -> Vec<u8> {
 
 pub(super) fn role_prefix() -> Vec<u8> {
     prefix(FAMILY_ROLE, &[])
+}
+
+pub(super) fn role_object_grant_key(
+    database_family: &str,
+    role_id: u64,
+    target_kind: &str,
+    target_id: u64,
+) -> Vec<u8> {
+    let role_id = role_id.to_be_bytes();
+    let target_id = target_id.to_be_bytes();
+    key(
+        FAMILY_ROLE_OBJECT_GRANT,
+        &[
+            database_family.as_bytes(),
+            &role_id,
+            target_kind.as_bytes(),
+            &target_id,
+        ],
+    )
+}
+
+pub(super) fn role_object_grant_prefix() -> Vec<u8> {
+    prefix(FAMILY_ROLE_OBJECT_GRANT, &[])
 }
 
 pub(super) fn sequence_key(name: &str) -> Vec<u8> {

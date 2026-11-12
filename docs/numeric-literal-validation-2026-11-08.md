@@ -81,27 +81,34 @@ message and frame copies check interruption in bounded chunks; conversion
 preserves requested ERROR/FATAL severity. An owned REST encoder uses checked
 JSON escaping and `Bytes::from_owner` to keep its reservation through the last
 body-byte owner. The internal server's admin query execute, validate and explain
-path returns this response directly, while public `route_request`
-continues its legacy `(StatusCode, String)` error return and is therefore an
-explicit unbounded escape. The existing unrelated REST route mappings still
-need reachability audit before any broader REST claim.
+path returns this response directly. The public `route_request` wrapper now also
+uses the owner-aware response for `OwnedNumericLiteral` errors while preserving
+its function signature and tuple errors for other failures. An actual SQL route
+regression is authored but unexecuted. The existing unrelated REST route
+mappings still need reachability audit before any broader REST claim.
 
-All of this remains unexecuted. The integrated code wires the validator at binding for
-Numeric-identity casts to Extended NUMERIC, including power-generated casts.
+The integrated code wires the validator at binding for Numeric-identity casts
+to Extended NUMERIC, including power-generated casts.
 Nested Parse rejection detection and the parameter fold now pass controls and
 propagate interruption/admission failures. Their semantic ordering and coverage,
 non-admin REST reachability, exact-budget diagnostic overlap, and review of the
-new conversion boundaries remain open. Synchronized scan/write cancellation probes are authored but
-unexecuted. Do not claim #813 complete until these are resolved and the deferred
-full gate passes.
+new conversion boundaries remain open. A later bounded decimal-scan interruption
+probe, actual embedded SQL error-owner probe, actual pgwire pending-write and
+pending-flush probe, and public REST SQL-route probe are authored but unexecuted
+on the integration head. An additional actual-SQL-to-REST-body probe now checks
+the controlled diagnostic reservation through source-error drop and final body
+byte-owner drop; it is also authored but unexecuted. Do not claim #813 complete
+until the remaining acceptance items are resolved and the deferred full gate
+passes.
 
 The REST encoding reservation covers the output buffer, the pinned `bytes`
 owner overhead and boxed body estimate. It does not establish admission of
 HTTP Response/header-map metadata or unrelated route error handling. The public
-`route_request` compatibility path still returns the old bare tuple and is not
-covered by that ownership claim. Exact-budget/one-byte-below overlap probes for
-the source diagnostic and both transport outputs have been authored but not
-executed.
+`route_request` function retains tuple errors for other failures; owned numeric
+diagnostics now produce the same admitted response as the internal server. The
+new direct route probe remains unexecuted. Exact-budget/one-byte-below overlap
+probes for the source diagnostic and both transport outputs have been authored
+but not executed on the integration head.
 
 A source-only reachability pass found the current REST SQL entrypoints in
 `rest/query.rs` (execute, validate and explain), each routed through the admin
@@ -126,10 +133,12 @@ bound. A separate connection-budget contract and a source-proven allocation
 bound or supported accounting API are required before including header-map
 storage in the query-owned diagnostic claim; no guessed multiplier is accepted.
 
-Jev selected the narrower body-only accounting scope (1.00) while recording
-headers, response metadata and legacy descriptor/public tuple escapes as
-pending; the gap lead against dual body/extension ownership was 0.90. The
-connection-level budget and private-allocation contract above remain a
+Jev previously selected the narrower body-only accounting scope (1.00) while
+recording headers, response metadata, generic descriptor clones and the public
+route tuple escape as pending; the gap lead against dual body/extension
+ownership was 0.90. This increment addresses the public route tuple only for
+owned NUMERIC diagnostics. The generic descriptor clone and the
+connection-level budget/private-allocation contract above remain a
 Cassie/infrastructure follow-up, with no guessed query charge. After that
 judgment, an additional body-delivery gap was found: Hyper 1.12.0's automatic
 HTTP/1 strategy flattens body chunks into its own connection buffer when the
@@ -146,14 +155,25 @@ proof was 0.94. Hyper, TLS, headers and network buffers/flush remain pending.
 The unregistered, unexecuted
 `docs/probes/numeric_rest_transport_pending.rs` captures the desired
 pending-socket ownership invariant for the follow-up; it is not a passing test
-or part of the current candidate's test modules. The compatibility-preserving
-public route tuple and descriptor escapes remain unchanged.
+or part of the current candidate's test modules. The route wrapper's tuple
+signature and unrelated tuple errors remain unchanged. The generic internal
+descriptor clone remains an unbounded escape for uncontrolled callers; the
+controlled pgwire and REST SQL routes bypass it through admitted frames or
+bodies.
 
 Decision receipts are retained under the coordinator's ignored
 `target/assembly-review/numeric-rest-header-final-{request,response}.json` and
 `target/assembly-review/numeric-rest-transport-{request,response}.json`.
 Their probabilities select the limited scope; they do not prove source parity
 or replace the deferred tests.
+
+For the integration checkout's remaining public-route ownership choice, Jev
+selected enabling the existing owner-aware response only for owned numeric
+diagnostics, with the route signature and unrelated tuple errors preserved
+(confidence 0.94; option A 0.96). The request and response are retained under
+`target/v020-evidence/813-815/numeric-diagnostic-transfer-{request,response}.json`.
+This judgment selected the next code change; it does not establish runtime
+qualification.
 
 The carrier, pgwire frame buffers and REST body reject and discard any
 `try_reserve_exact` allocation whose reported capacity exceeds its admission,

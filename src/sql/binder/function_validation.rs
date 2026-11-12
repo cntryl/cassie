@@ -17,6 +17,7 @@ pub(super) fn validate_function_calls(
         if function
             .name
             .eq_ignore_ascii_case(crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION)
+            || crate::sql::ast::is_record_syntax_function(&function.name)
         {
             continue;
         }

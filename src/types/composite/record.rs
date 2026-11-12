@@ -101,3 +101,26 @@ fn value_heap_bytes(value: &Value) -> usize {
         Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => 0,
     }
 }
+
+/// Best-effort SQL type of a runtime value, used to describe the fields of an
+/// anonymous `ROW(...)`. Untyped NULL and arrays of NULLs report `text`.
+#[must_use]
+pub fn value_data_type(value: &Value) -> crate::types::DataType {
+    use crate::types::DataType;
+    match value {
+        Value::Null | Value::String(_) => DataType::Text,
+        Value::Bool(_) => DataType::Boolean,
+        Value::Int64(_) => DataType::BigInt,
+        Value::Float64(_) => DataType::Float,
+        Value::Vector(_) => DataType::Vector(None),
+        Value::Json(_) => DataType::Jsonb,
+        Value::Array(array) => DataType::Array(Box::new(
+            array
+                .elements()
+                .iter()
+                .find(|element| !matches!(element, Value::Null))
+                .map_or(DataType::Text, value_data_type),
+        )),
+        Value::Typed(typed) => typed.data_type(),
+    }
+}

@@ -20,6 +20,8 @@ mod like_predicates;
 mod numeric_literals;
 #[path = "qualified_operators.rs"]
 mod qualified_operators;
+#[path = "record_syntax.rs"]
+mod record_syntax;
 #[path = "row_predicates.rs"]
 mod row_predicates;
 #[path = "string_literals.rs"]
@@ -736,6 +738,12 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
     if let Some(subquery) = subquery_syntax::scalar(raw)? {
         return Ok(subquery);
+    }
+    if let Some(field) = record_syntax::field_access(raw)? {
+        return Ok(field);
+    }
+    if let Some(row) = record_syntax::row_constructor(raw)? {
+        return Ok(row);
     }
     if let Some(inner) = strip_parentheses(raw) {
         return parse_expression(inner);

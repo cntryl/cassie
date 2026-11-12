@@ -57,11 +57,12 @@ pub use ast_dml::{
     MERGE_ACTION_COLUMN,
 };
 pub use ast_query::{
-    AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params, CastIdentity, CommonTableExpression,
-    CteCycle, CteMaterialization, CteQuery, CteSearch, CteSearchOrder, Expr, FunctionCall,
-    JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement,
-    SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp, WindowFrame, WindowFrameBound,
-    WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall, ARRAY_CONSTRUCTOR_FUNCTION,
+    is_record_syntax_function, AggregateQuantifier, ArraySubscript, BinaryOp, Bm25Params,
+    CastIdentity, CommonTableExpression, CteCycle, CteMaterialization, CteQuery, CteSearch,
+    CteSearchOrder, Expr, FunctionCall, JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem,
+    SelectSet, SelectStatement, SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp,
+    WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall,
+    ARRAY_CONSTRUCTOR_FUNCTION, FIELD_ACCESS_FUNCTION, ROW_CONSTRUCTOR_FUNCTION,
     VARIADIC_ARRAY_ARGUMENT_FUNCTION,
 };
 

@@ -19,6 +19,11 @@ pub(super) fn compare(left: &ScalarValue, right: &ScalarValue) -> Option<std::cm
     }
     match (left, right) {
         (ScalarValue::Typed(left), ScalarValue::Typed(right)) => operations::compare(left, right),
+        (ScalarValue::Typed(crate::types::typed::TypedValue::Record(record)), ScalarValue::Str(_)) => {
+            let target = crate::types::DataType::Composite(record.descriptor().clone());
+            let parsed = super::cast_scalar(right, &target, None).ok()?;
+            compare(left, &parsed)
+        }
         (ScalarValue::Typed(typed), ScalarValue::Str(text)) => typed
             .kind()
             .parse_text(text)
@@ -109,7 +114,9 @@ fn comparison(
 
 fn type_label(value: &ScalarValue) -> String {
     match value {
-        ScalarValue::Typed(typed) => typed.kind().name().to_string(),
+        ScalarValue::Typed(typed) => typed
+            .as_record()
+            .map_or_else(|| typed.kind().name().to_string(), |record| record.descriptor().name.clone()),
         ScalarValue::Int(_) => "integer".to_string(),
         ScalarValue::Float(_) => "double precision".to_string(),
         ScalarValue::Bool(_) => "boolean".to_string(),

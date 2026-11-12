@@ -104,6 +104,12 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
         return evaluate_array_constructor(function, row, args);
     }
+    if name == crate::sql::ast::ROW_CONSTRUCTOR_FUNCTION {
+        return Ok(evaluate_row_constructor(args));
+    }
+    if name == crate::sql::ast::FIELD_ACCESS_FUNCTION {
+        return evaluate_field_access(function, args);
+    }
 
     if let Some(result) = json_builders::evaluate(function, row, &args, context) {
         return result;
@@ -167,6 +173,51 @@ fn evaluate_argument_values<R: RowAccess + ?Sized>(
             Ok::<Value, QueryError>(value)
         })
         .collect()
+}
+
+/// `ROW(a, b, ...)`: an anonymous record whose field types follow the values.
+fn evaluate_row_constructor(args: Vec<Value>) -> Value {
+    let fields = args
+        .into_iter()
+        .map(|value| {
+            let data_type = crate::types::composite::value_data_type(&value);
+            (value, data_type)
+        })
+        .collect();
+    Value::Typed(crate::types::typed::TypedValue::Record(
+        crate::types::RecordValue::anonymous(fields),
+    ))
+}
+
+/// `(record).field`: NULL for a NULL record, the named field otherwise.
+fn evaluate_field_access(function: &FunctionCall, args: Vec<Value>) -> Result<Value, QueryError> {
+    let Some(super::Expr::StringLiteral(field)) = function.args.get(1) else {
+        return Err(QueryError::General(
+            "field selection requires a field name".into(),
+        ));
+    };
+    match args.into_iter().next() {
+        None | Some(Value::Null) => Ok(Value::Null),
+        Some(Value::Typed(crate::types::typed::TypedValue::Record(record))) => {
+            record.field(field).cloned().ok_or_else(|| {
+                crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                    "42703",
+                    format!(
+                        "column \"{field}\" not found in data type {}",
+                        record.descriptor().name
+                    ),
+                ))
+                .into()
+            })
+        }
+        Some(_) => Err(
+            crate::app::CassieError::from(crate::app::DiagnosticError::new(
+                "42809",
+                format!("column notation .{field} applied to a non-composite value"),
+            ))
+            .into(),
+        ),
+    }
 }
 
 fn evaluate_array_constructor<R: RowAccess + ?Sized>(

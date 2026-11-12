@@ -51,6 +51,38 @@ pub(crate) fn infer_expr_type(
         {
             infer_array_constructor_type(function, source_schema, user_functions, parameter_types)
         }
+        Expr::Function(function)
+            if function
+                .name
+                .eq_ignore_ascii_case(crate::sql::ast::ROW_CONSTRUCTOR_FUNCTION) =>
+        {
+            let types = function
+                .args
+                .iter()
+                .map(|argument| {
+                    if matches!(argument, Expr::Null) {
+                        Some(DataType::Text)
+                    } else {
+                        infer_expr_type(argument, source_schema, user_functions, parameter_types)
+                    }
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(DataType::Composite(
+                crate::types::CompositeType::anonymous(types).into(),
+            ))
+        }
+        Expr::Function(function)
+            if function
+                .name
+                .eq_ignore_ascii_case(crate::sql::ast::FIELD_ACCESS_FUNCTION) =>
+        {
+            let [operand, Expr::StringLiteral(field)] = function.args.as_slice() else {
+                return None;
+            };
+            let operand_type =
+                infer_expr_type(operand, source_schema, user_functions, parameter_types)?;
+            super::composite_field_type(&operand_type, field).ok()
+        }
         Expr::Function(function) => {
             infer_function_return_type(function, source_schema, user_functions, parameter_types)
         }

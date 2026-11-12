@@ -18,7 +18,7 @@ pub use descriptor::{
     CompositeField, CompositeRef, CompositeType, RECORD_ARRAY_OID, RECORD_OID, RECORD_STORAGE_KEY,
 };
 pub use key::record_key;
-pub use record::RecordValue;
+pub use record::{value_data_type, RecordValue};
 pub use text::{format_record, format_record_with, parse_record_text, RecordInputError};
 pub use wire::{
     receive_record_binary, record_from_storage_json, record_to_storage_json, send_record_binary,

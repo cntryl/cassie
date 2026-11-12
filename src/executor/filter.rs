@@ -378,10 +378,10 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
 
 #[path = "filter/casts.rs"]
 mod casts;
-#[path = "filter/composite_cast.rs"]
-mod composite_cast;
 #[path = "filter/character_arrays.rs"]
 pub(crate) mod character_arrays;
+#[path = "filter/composite_cast.rs"]
+mod composite_cast;
 #[path = "filter/constants.rs"]
 mod constants;
 mod like_predicate;
@@ -925,8 +925,25 @@ fn eval_is_null_expr<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     let value = eval_scalar_with_context(row, expr, context)?;
-    let is_null = matches!(value, ScalarValue::Null);
-    Ok(ScalarValue::Bool(if negated { !is_null } else { is_null }))
+    Ok(ScalarValue::Bool(null_test(&value, negated)))
+}
+
+/// `IS [NOT] NULL`. A record is NULL when every field is NULL and NOT NULL
+/// only when no field is NULL, so `IS NOT NULL` is not the negation of
+/// `IS NULL` for a partly-NULL record.
+pub(super) fn null_test(value: &ScalarValue, negated: bool) -> bool {
+    let (is_null, is_not_null) = match value {
+        ScalarValue::Null => (true, false),
+        ScalarValue::Typed(crate::types::typed::TypedValue::Record(record)) => {
+            (record.all_fields_null(), record.no_field_null())
+        }
+        _ => (false, true),
+    };
+    if negated {
+        is_not_null
+    } else {
+        is_null
+    }
 }
 
 fn eval_in_list_expr<R: RowAccess + ?Sized>(

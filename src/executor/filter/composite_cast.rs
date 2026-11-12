@@ -40,18 +40,16 @@ pub(super) fn cast(
         ScalarValue::Typed(TypedValue::Record(record)) => {
             cast_record(record, descriptor, controls).map(typed)
         }
-        ScalarValue::Str(text) => {
-            parse_record_text(text, descriptor, |data_type, part| {
-                cast_scalar(&ScalarValue::Str(part.to_owned()), data_type, controls)
-                    .map(|value| value.to_value())
-                    .map_err(CastFailure::Query)
-            })
-            .map(typed)
-            .map_err(|failure| match failure {
-                CastFailure::Input(error) => input_error(error),
-                CastFailure::Query(error) => error,
-            })
-        }
+        ScalarValue::Str(text) => parse_record_text(text, descriptor, |data_type, part| {
+            cast_scalar(&ScalarValue::Str(part.to_owned()), data_type, controls)
+                .map(|value| value.to_value())
+                .map_err(CastFailure::Query)
+        })
+        .map(typed)
+        .map_err(|failure| match failure {
+            CastFailure::Input(error) => input_error(error),
+            CastFailure::Query(error) => error,
+        }),
         other => Err(diagnostic(
             "42846",
             format!(
@@ -103,12 +101,9 @@ fn cast_record(
             fields.push(Value::Null);
             continue;
         }
-        fields.push(
-            cast_scalar(&scalar_from_value(value), &field.data_type, controls)?.to_value(),
-        );
+        fields.push(cast_scalar(&scalar_from_value(value), &field.data_type, controls)?.to_value());
     }
-    RecordValue::new(target.clone(), fields)
-        .map_err(|message| diagnostic("XX000", message, None))
+    RecordValue::new(target.clone(), fields).map_err(|message| diagnostic("XX000", message, None))
 }
 
 fn scalar_label(value: &ScalarValue) -> &'static str {

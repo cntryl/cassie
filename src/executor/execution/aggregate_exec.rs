@@ -78,6 +78,7 @@ type PartitionRowObserver<'a> = &'a (dyn Fn(usize) + Sync);
 pub(super) struct AggregateExecutionContext<'a> {
     pub(super) plan: &'a LogicalPlan,
     pub(super) params: &'a [Value],
+    pub(super) parameter_type_oids: &'a [i32],
     pub(super) search_context: Option<&'a filter::SearchContext>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) session: Option<&'a CassieSession>,

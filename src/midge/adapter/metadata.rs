@@ -28,9 +28,7 @@ impl Midge {
                     CassieError::Parse(format!("invalid object id counter: {error}"))
                 })
             })?;
-        let next = current
-            .checked_add(1)
-            .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
+        let next = next_catalog_object_id(current)?;
         tx.put(
             key,
             serde_json::to_vec(&next).map_err(|error| CassieError::Parse(error.to_string()))?,
@@ -911,7 +909,13 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_role(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::role_key(name)).map_err(CassieError::from)?;
+        let role_key = Self::role_key(name);
+        if let Some(raw) = tx.get(&role_key).map_err(CassieError::from)? {
+            let role: RoleMeta = serde_json::from_slice(&raw)
+                .map_err(|error| CassieError::Parse(format!("invalid role metadata: {error}")))?;
+            Self::delete_role_object_grants_for_role_to_tx(&mut tx, role.object_id)?;
+        }
+        tx.delete(role_key).map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
@@ -984,3 +988,20 @@ impl Midge {
 #[cfg(test)]
 #[path = "metadata/index_definition_readback_tests.rs"]
 mod index_definition_readback_tests;
+#[cfg(test)]
+#[path = "metadata/object_id_reservation_tests.rs"]
+mod object_id_reservation_tests;
+
+fn next_catalog_object_id(current: u64) -> Result<u64, CassieError> {
+    const LEGACY_VECTOR_OID_RANGE: std::ops::RangeInclusive<u64> = 100_001..=132_767;
+    let next = current
+        .checked_add(1)
+        .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
+    let oid = u64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID)
+        .checked_add(next)
+        .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
+    if LEGACY_VECTOR_OID_RANGE.contains(&oid) {
+        return Ok(132_767 - u64::from(crate::types::object_id::FIRST_NORMAL_OBJECT_ID) + 1);
+    }
+    Ok(next)
+}

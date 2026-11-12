@@ -381,7 +381,7 @@ fn should_bound_invalid_typed_vectors_by_their_json_fallback() {
     let payload = serde_json::json!({"embedding": [1, {"nested": "x".repeat(8_192)}, 3]});
     let schema = CollectionSchema {
         collection: "events".to_owned(),
-        fields: vec![field("embedding", DataType::Vector(3))],
+        fields: vec![field("embedding", DataType::Vector(Some(3)))],
     };
     let fields = ["embedding".to_owned()];
     let inputs = vec![accounted_input(&controls, payload)];
@@ -417,7 +417,7 @@ fn should_cover_extreme_finite_vector_formatting_scratch_before_conversion() {
     let controls = controls(1_048_576, QueryCancellationHandle::new());
     let schema = CollectionSchema {
         collection: "events".to_owned(),
-        fields: vec![field("embedding", DataType::Vector(3))],
+        fields: vec![field("embedding", DataType::Vector(Some(3)))],
     };
     let fields = ["embedding".to_owned()];
     let request = Request {

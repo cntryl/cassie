@@ -31,15 +31,17 @@ fn should_match_binary_vector_display_with_error_precedence() {
         f32::MAX,
         f32::MIN,
     ];
-    let oid = 100_000 + i64::try_from(values.len()).expect("dimensions");
     let bytes = frame(&values);
-    let original =
-        super::super::super::super::codecs::binary_to_value(&bytes, oid).expect("original");
-    let expected = super::super::super::super::codecs::value_to_text(&original, oid);
+    let original = super::super::super::super::codecs::binary_to_value_with_vector(
+        &bytes,
+        25,
+        true,
+    )
+    .expect("original");
+    let expected = super::super::super::super::codecs::value_to_text(&original, 25);
     // Act
-    let (actual, memory) = super::decode(oid, &bytes, 0, &controls)
-        .expect("decode")
-        .expect("handled");
+    let (actual, memory) = super::decode(&bytes, 0, &controls, Some(values.len()))
+        .expect("decode");
     // Assert
     assert_eq!(actual, expected);
     drop((actual, memory));
@@ -59,13 +61,32 @@ fn should_match_binary_vector_display_with_error_precedence() {
             b
         },
     ] {
-        let original = super::super::super::super::codecs::binary_to_value(&bytes, 100_001)
-            .expect_err("invalid");
-        let result = super::decode(100_001, &bytes, 2, &controls);
+        let result = super::decode(&bytes, 2, &controls, None);
         assert!(
-            matches!(result, Err(CassieError::Parse(message)) if message == format!("COPY binary field 3 is invalid: {original}"))
+            matches!(result, Err(CassieError::Parse(message)) if message == "COPY binary field 3 is invalid: invalid binary vector value")
         );
     }
+}
+
+#[test]
+fn should_enforce_declared_vector_dimensions_but_infer_bare_vector_dimensions() {
+    // Arrange
+    let bytes = frame(&[1.0, -2.5, 3.0]);
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+
+    // Act
+    let (inferred, memory) = super::decode(&bytes, 0, &controls, None).expect("bare vector");
+    drop((inferred, memory));
+    let rejected = super::decode(&bytes, 0, &controls, Some(2));
+
+    // Assert
+    assert!(matches!(
+        rejected,
+        Err(CassieError::Parse(message))
+            if message == "COPY binary field 1 is invalid: invalid binary vector value"
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
@@ -79,9 +100,7 @@ fn should_enforce_binary_vector_overlap_budget_with_cancellation() {
     let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
     let input = controls.reserve_query_memory(bytes.len()).expect("input");
     // Act
-    let (actual, memory) = super::decode(100_003, &bytes, 0, &controls)
-        .expect("decode")
-        .expect("handled");
+    let (actual, memory) = super::decode(&bytes, 0, &controls, None).expect("decode");
     // Assert
     assert_eq!(actual, "[0,1,-0.5]");
     assert_eq!(controls.current_query_memory_bytes(), 26);
@@ -94,7 +113,7 @@ fn should_enforce_binary_vector_overlap_budget_with_cancellation() {
     };
     let denied = QueryExecutionControls::from_limits(&limits, Instant::now());
     let input = denied.reserve_query_memory(bytes.len()).expect("input");
-    assert!(super::decode(100_003, &bytes, 0, &denied).is_err());
+    assert!(super::decode(&bytes, 0, &denied, None).is_err());
     assert_eq!(denied.current_query_memory_bytes(), bytes.len());
     drop(input);
     assert_eq!(denied.current_query_memory_bytes(), 0);
@@ -106,7 +125,7 @@ fn should_enforce_binary_vector_overlap_budget_with_cancellation() {
     );
     cancellation.cancel();
     assert!(matches!(
-        super::decode(100_003, &bytes, 0, &canceled),
+        super::decode(&bytes, 0, &canceled, None),
         Err(CassieError::QueryCanceled)
     ));
 }
@@ -122,7 +141,7 @@ fn should_release_binary_vector_output_on_synchronized_emission_cancellation() {
         cancellation.clone(),
     );
     // Act
-    let result = super::decode_observed(100_257, &bytes, 0, &controls, |phase| {
+    let result = super::decode_observed(&bytes, 0, &controls, None, |phase| {
         if phase {
             cancellation.cancel();
         }
@@ -144,7 +163,7 @@ fn should_interrupt_binary_vector_validation_before_output_allocation() {
         cancellation.clone(),
     );
     // Act
-    let result = super::decode_observed(100_257, &bytes, 0, &controls, |emitting| {
+    let result = super::decode_observed(&bytes, 0, &controls, None, |emitting| {
         if !emitting {
             cancellation.cancel();
         }

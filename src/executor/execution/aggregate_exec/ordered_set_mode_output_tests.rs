@@ -45,6 +45,7 @@ fn run(values: &[Value], direction: &str) -> (Value, Vec<ModeProgress>) {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -157,6 +158,7 @@ fn should_preserve_mode_null_filter_with_empty_input_behavior() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -193,6 +195,7 @@ fn should_retain_mode_string_through_aliases_with_last_row_clone() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -333,6 +336,7 @@ fn should_cancel_mode_after_an_actual_equal_key_comparison() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -376,6 +380,7 @@ fn should_cancel_mode_during_actual_utf8_output_copy_with_input_owned() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

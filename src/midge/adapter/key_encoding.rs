@@ -9,6 +9,10 @@ mod fulltext;
 mod graph;
 #[path = "key_encoding/hot_indexes.rs"]
 mod hot_indexes;
+#[path = "key_encoding/object_comments.rs"]
+mod object_comments;
+#[path = "key_encoding/role_object_grants.rs"]
+mod role_object_grants;
 #[path = "key_encoding/row_history.rs"]
 mod row_history;
 pub(super) use row_history::is_authoritative_row_key;
@@ -36,6 +40,10 @@ pub(super) use hot_indexes::{
     unique_index_reservation_prefix, unique_scalar_index_reservation_key,
     unique_scalar_index_reservation_prefix,
 };
+pub(super) use object_comments::{
+    object_comment_key, object_comment_object_prefix, object_comment_prefix,
+};
+pub(super) use role_object_grants::{role_object_grant_key, role_object_grant_prefix};
 pub(super) use time_series::{
     decode_time_series_bucket_count_key, decode_time_series_entry_key,
     time_series_index_artifact_prefix, time_series_index_bucket_bound_key,
@@ -87,6 +95,8 @@ const FAMILY_PROCEDURE: &[u8] = b"procedure";
 const FAMILY_VIEW: &[u8] = b"view";
 const FAMILY_EXTENSION: &[u8] = b"extension";
 const FAMILY_ROLE: &[u8] = b"role";
+const FAMILY_OBJECT_COMMENT: &[u8] = b"object-comment";
+const FAMILY_ROLE_OBJECT_GRANT: &[u8] = b"role-object-grant";
 const FAMILY_SEQUENCE: &[u8] = b"sequence";
 const FAMILY_CONSTRAINTS: &[u8] = b"constraints";
 const FAMILY_UNIQUE_CONSTRAINT_PUBLICATION: &[u8] = b"unique-constraint-publication";

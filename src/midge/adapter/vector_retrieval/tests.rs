@@ -186,7 +186,7 @@ fn should_reject_ivfflat_decode_overlap_before_a_later_corrupt_candidate() {
             Schema {
                 fields: vec![FieldSchema {
                     name: field.to_owned(),
-                    data_type: DataType::Vector(dimensions),
+                    data_type: DataType::Vector(Some(dimensions)),
                     nullable: false,
                 }],
             },
@@ -284,7 +284,7 @@ fn controlled_hnsw_fixture(
             Schema {
                 fields: vec![FieldSchema {
                     name: "embedding".to_owned(),
-                    data_type: DataType::Vector(3),
+                    data_type: DataType::Vector(Some(3)),
                     nullable: false,
                 }],
             },
@@ -331,7 +331,7 @@ fn controlled_ivf_fixture(name: &str, dimensions: usize) -> (Midge, std::path::P
             Schema {
                 fields: vec![FieldSchema {
                     name: "embedding".to_owned(),
-                    data_type: DataType::Vector(dimensions),
+                    data_type: DataType::Vector(Some(dimensions)),
                     nullable: false,
                 }],
             },

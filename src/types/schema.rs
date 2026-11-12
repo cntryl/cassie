@@ -2,24 +2,14 @@ use serde::{Deserialize, Serialize};
 
 use super::builtin::{type_metadata, TypeMetadata};
 
-/// First type OID of the `VECTOR(n)` family: `VECTOR(n)` is this plus `n`.
-/// The range sits above the private array fallback (`34000..44000`) so no
-/// vector width can resolve to an array type.
-pub const VECTOR_OID_BASE: i64 = 100_000;
-/// Widest vector the OID range covers; the binary vector format stores the
-/// dimension count as an `int16`.
-pub const VECTOR_OID_MAX_DIMENSIONS: usize = 32_767;
-/// Array element OIDs for vectors keep the historical `33000 + n` residue in
-/// the private fallback; VECTOR arrays remain excluded from pgwire.
-const LEGACY_VECTOR_ELEMENT_BASE: i64 = 33_000;
-
-/// Vector dimension count encoded in `type_oid`, if it is a vector OID.
+/// Context-free vector OID resolution is deliberately disabled.
+///
+/// Vector type identity belongs to the active database catalog, and dimensions
+/// are carried by typmod or the value frame. Protocol/catalog callers must use
+/// that context instead of inferring identity from an OID range.
 #[must_use]
-pub fn vector_dimensions_for_oid(type_oid: i64) -> Option<usize> {
-    let dimensions = usize::try_from(type_oid.checked_sub(VECTOR_OID_BASE)?).ok()?;
-    (1..=VECTOR_OID_MAX_DIMENSIONS)
-        .contains(&dimensions)
-        .then_some(dimensions)
+pub fn vector_dimensions_for_oid(_type_oid: i64) -> Option<usize> {
+    None
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -40,7 +30,7 @@ pub enum DataType {
     Date,
     Time,
     Timestamp,
-    Vector(usize),
+    Vector(Option<usize>),
     Json,
     Jsonb,
     JsonPath,
@@ -85,7 +75,8 @@ impl DataType {
             Self::Date => "date".to_string(),
             Self::Time => "time".to_string(),
             Self::Timestamp => "timestamp".to_string(),
-            Self::Vector(dimensions) => format!("vector({dimensions})"),
+            Self::Vector(Some(dimensions)) => format!("vector({dimensions})"),
+            Self::Vector(None) => "vector".to_string(),
             Self::Json => "json".to_string(),
             Self::Jsonb => "jsonb".to_string(),
             Self::JsonPath => "jsonpath".to_string(),
@@ -100,14 +91,10 @@ impl DataType {
         const OID_ARRAY_BASE: i64 = 34000;
         match type_metadata(self) {
             TypeMetadata::Scalar(metadata) => i64::from(metadata.oid),
-            TypeMetadata::Vector(dimensions) => {
-                VECTOR_OID_BASE + i64::try_from(dimensions).unwrap_or(0)
-            }
+            TypeMetadata::Vector(_) => 0,
             TypeMetadata::Array(inner) => {
                 let element = match inner {
-                    Self::Vector(dimensions) => {
-                        LEGACY_VECTOR_ELEMENT_BASE + i64::try_from(*dimensions).unwrap_or(0)
-                    }
+                    Self::Vector(_) => return 0,
                     other => other.type_oid(),
                 };
                 u32::try_from(element)
@@ -140,6 +127,7 @@ impl DataType {
                 .and_then(|length| length.checked_add(4))
                 .and_then(|length| i32::try_from(length).ok())
                 .unwrap_or(-1),
+            Self::Vector(Some(dimensions)) => i32::try_from(*dimensions).unwrap_or(-1),
             Self::Extended(kind) => kind.typmod(),
             Self::Array(element) => element.atttypmod(),
             _ => -1,
@@ -175,6 +163,9 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
         .map_or((lower.as_str(), ""), |(base, _)| {
             (base, &lower[base.len()..])
         });
+    if base.trim() == "vector" && modifier.is_empty() {
+        return Ok(DataType::Vector(None));
+    }
     if base.trim() == "float" && !modifier.is_empty() {
         return parse_float_type(modifier, raw);
     }
@@ -214,10 +205,10 @@ fn parse_sql_type(raw: &str) -> Result<DataType, String> {
             .trim()
             .parse::<usize>()
             .map_err(|_| format!("invalid VECTOR dimension '{raw}'"))?;
-        if dimensions == 0 {
-            return Err(format!("invalid VECTOR dimension '{raw}'"));
+        if !(1..=16_000).contains(&dimensions) {
+            return Err(format!("VECTOR dimension must be between 1 and 16000 in '{raw}'"));
         }
-        return Ok(DataType::Vector(dimensions));
+        return Ok(DataType::Vector(Some(dimensions)));
     }
 
     if let Some(length) = parse_string_type_with_length(&lower, "char") {

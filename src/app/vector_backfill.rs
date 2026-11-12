@@ -65,6 +65,9 @@ impl Cassie {
         &self,
         index: &VectorIndexRecord,
     ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
+        if index.source_field == index.field {
+            return Ok(Vec::new());
+        }
         let batch = self.new_statement_batch(None)?;
         let mut rows = Vec::new();
         let documents = self.midge.scan_documents(&index.collection)?;

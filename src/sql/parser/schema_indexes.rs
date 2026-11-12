@@ -1,5 +1,6 @@
 use super::super::expr::{parse_expression, split_csv};
 use super::schema_identifiers::{parse_column_reference, parse_identifier, parse_relation_path};
+use crate::sql::ast::IdentifierPath;
 use super::{
     find_matching_paren, find_top_level_keyword, AlterIndexOperation, AlterIndexStatement,
     CreateIndexStatement, DropIndexStatement, Expr, IndexKind, ParsedStatement, QueryStatement,
@@ -106,6 +107,14 @@ pub(in crate::sql::parser) fn parse_create_index_statement(
             crate::catalog::IndexMeta::ACCESS_METHOD_OPTION.to_string(),
             "hash".to_string(),
         );
+    }
+    if matches!(kind, IndexKind::Vector) {
+        if let Some(access_method @ ("hnsw" | "ivfflat")) = access_method {
+            options.insert(
+                crate::catalog::IndexMeta::ACCESS_METHOD_OPTION.to_string(),
+                access_method.to_string(),
+            );
+        }
     }
 
     Ok(ParsedStatement {
@@ -370,6 +379,20 @@ pub(in crate::sql::parser) fn parse_index_kind(
             remainder[6..].trim_start(),
         ));
     }
+    if starts_with_keyword(remainder, "hnsw") {
+        return Ok((
+            IndexKind::Vector,
+            Some("hnsw"),
+            remainder[4..].trim_start(),
+        ));
+    }
+    if starts_with_keyword(remainder, "ivfflat") {
+        return Ok((
+            IndexKind::Vector,
+            Some("ivfflat"),
+            remainder[7..].trim_start(),
+        ));
+    }
     if starts_with_keyword(remainder, "column") {
         return Ok((
             IndexKind::Column,
@@ -519,11 +542,37 @@ fn strip_trailing_operator_class(raw: &str) -> Option<(&str, String)> {
     let trimmed = raw.trim_end();
     let split = trimmed.rfind(char::is_whitespace)?;
     let candidate = trimmed[split + 1..].trim();
-    if candidate.is_empty() || !candidate.to_ascii_lowercase().ends_with("_ops") {
+    if candidate.is_empty() {
         return None;
     }
+    if candidate.eq_ignore_ascii_case("pg_catalog.text_pattern_ops") {
+        let remainder = trimmed[..split].trim_end();
+        return (!remainder.is_empty()).then(|| (remainder, "text_pattern_ops".to_string()));
+    }
+    let path = IdentifierPath::parse(candidate).ok()?;
+    if !path
+        .components()
+        .last()?
+        .value()
+        .to_ascii_lowercase()
+        .ends_with("_ops")
+    {
+        return None;
+    }
+    let candidate = path
+        .components()
+        .iter()
+        .map(|component| {
+            if component.is_delimited() {
+                format!("\"{}\"", component.value().replace('"', "\"\""))
+            } else {
+                component.value().to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(".");
     let remainder = trimmed[..split].trim_end();
-    (!remainder.is_empty()).then(|| (remainder, candidate.to_ascii_lowercase()))
+    (!remainder.is_empty()).then(|| (remainder, candidate))
 }
 
 pub(in crate::sql::parser) fn is_index_field_identifier(raw: &str) -> bool {

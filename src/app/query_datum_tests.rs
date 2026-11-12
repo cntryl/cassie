@@ -201,3 +201,34 @@ fn should_release_observer_memory_given_a_failing_argument_when_execution_unwind
     assert!(result.is_err());
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_retain_owned_numeric_diagnostic_until_embedded_sql_error_drops() {
+    // Arrange
+    let fixture = fixture();
+    let controls = controls(1_048_576);
+    let input = format!("{}x", "1".repeat(4096));
+    let sql = format!("SELECT CAST('{input}' AS NUMERIC)");
+
+    // Act
+    let result = fixture.cassie().execute_sql_with_controls(
+        &fixture.session,
+        &sql,
+        vec![],
+        ExecutionMode::SimpleQuery,
+        &controls,
+    );
+    let error = result.expect_err("invalid NUMERIC literal");
+
+    // Assert
+    match &error {
+        CassieError::OwnedNumericLiteral(diagnostic) => {
+            assert_eq!(diagnostic.sqlstate(), "22P02");
+            assert!(controls.current_query_memory_bytes() >= diagnostic.message().len());
+        }
+        other => panic!("expected owned numeric diagnostic, got {other:?}"),
+    }
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(error);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

@@ -157,6 +157,7 @@ pub enum FunctionId {
     PgGetViewDef,
     PgGetUserById,
     ObjDescription,
+    ColDescription,
     HasSchemaPrivilege,
     HasTablePrivilege,
     PgTableIsVisible,

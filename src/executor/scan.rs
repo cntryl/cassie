@@ -805,9 +805,11 @@ pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataTyp
     if let Some(typed) = crate::types::extended::temporal_column_value(value, data_type) {
         return Value::Typed(typed);
     }
-    if let DataType::Vector(dimensions) = data_type {
+    if let DataType::Vector(expected_dimensions) = data_type {
         if let Some(values) = value.as_array() {
-            if values.len() == *dimensions {
+            if (1..=16_000).contains(&values.len())
+                && expected_dimensions.is_none_or(|dimensions| values.len() == dimensions)
+            {
                 let vector_values = values
                     .iter()
                     .map(|value| value.as_f64().and_then(parse_f64_to_f32))
@@ -823,7 +825,7 @@ pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataTyp
 }
 
 fn parse_f64_to_f32(value: f64) -> Option<f32> {
-    value.to_string().parse::<f32>().ok()
+    crate::vector::f64_to_finite_f32(value)
 }
 
 #[cfg(test)]

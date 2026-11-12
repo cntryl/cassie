@@ -25,7 +25,7 @@ fn fixture(values: Vec<f32>) -> (Value, DataType) {
     .expect("array");
     (
         Value::Array(array),
-        DataType::Array(Box::new(DataType::Vector(4096))),
+        DataType::Array(Box::new(DataType::Vector(Some(4096)))),
     )
 }
 

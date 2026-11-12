@@ -295,14 +295,7 @@ fn should_preserve_identity_hiding_in_aliased_cte_wildcards() {
 #[test]
 fn should_preserve_indexed_alias_pagination_context() {
     // Arrange
-    let fixture = sql_fixture(
-        "alias_indexed_pagination",
-        &[
-            "CREATE TABLE public.records (score BIGINT NOT NULL)",
-            "INSERT INTO public.records VALUES (10), (20), (30), (40)",
-            "CREATE INDEX records_score_idx ON public.records USING btree (score)",
-        ],
-    );
+    let (fixture, reader) = super::support_alias_fixture::indexed_pagination_fixture();
     let dynamic = "SELECT r.key, r.score FROM public.records r(key) ORDER BY r.score, r._id LIMIT $1 OFFSET $2";
     let literal =
         "SELECT r.key, r.score FROM public.records r(key) ORDER BY r.score, r._id LIMIT 2";
@@ -344,7 +337,6 @@ fn should_preserve_indexed_alias_pagination_context() {
         fixture.session.database.clone(),
         &fixture.session.search_path(),
     );
-    let reader = super::support_alias_fixture::reader(&fixture);
     let authorized = fixture
         .cassie
         .execute_sql(&reader, dynamic, first_params.clone());

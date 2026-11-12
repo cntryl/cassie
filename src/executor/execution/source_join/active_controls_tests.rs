@@ -39,6 +39,7 @@ fn should_cancel_an_activated_merge_replacement_before_publishing_success() {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     let left = [BatchRow::new(vec![(

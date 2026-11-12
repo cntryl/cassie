@@ -204,10 +204,11 @@ fn should_not_infer_posix_origin_from_a_custom_zone_name() {
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
     let session = Arc::new(TemporalSession {
-        zone: crate::types::extended::temporal::zone::Zone::Rules {
-            tz: jiff::tz::TimeZone::get("America/New_York").expect("zone"),
-            name: "AAA0AAA-1,M3.2.0,M11.1.0".to_owned(),
-        },
+        zone: crate::types::extended::temporal::zone::Zone::from_tzif(
+            "AAA0AAA-1,M3.2.0,M11.1.0",
+            jiff_tzdb::get("America/New_York").expect("bundled zone").1,
+        )
+        .expect("valid TZif source"),
         ..TemporalSession::default()
     });
     controls.install_temporal_session(Arc::clone(&session), false);
@@ -295,10 +296,11 @@ fn should_report_precancellation_for_matching_rule_before_origin_fallback() {
         cancel.clone(),
     );
     let session = Arc::new(TemporalSession {
-        zone: crate::types::extended::temporal::zone::Zone::Rules {
-            tz: jiff::tz::TimeZone::get("America/New_York").expect("zone"),
-            name: "AAA0AAA-1,M3.2.0,M11.1.0".to_owned(),
-        },
+        zone: crate::types::extended::temporal::zone::Zone::from_tzif(
+            "AAA0AAA-1,M3.2.0,M11.1.0",
+            jiff_tzdb::get("America/New_York").expect("bundled zone").1,
+        )
+        .expect("valid TZif source"),
         ..TemporalSession::default()
     });
     controls.install_temporal_session(Arc::clone(&session), false);

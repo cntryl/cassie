@@ -38,6 +38,7 @@ fn fixture(run: impl FnOnce(&SourceExecutionEnv<'_>)) {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     });
     assert_eq!(controls.current_query_memory_bytes(), 0);

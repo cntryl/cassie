@@ -71,13 +71,14 @@ pub(super) fn json_to_typed_value(value: &serde_json::Value) -> Value {
 }
 
 fn json_to_schema_value(value: &serde_json::Value, data_type: Option<&DataType>) -> Value {
-    if let Some(DataType::Vector(dimensions)) = data_type {
+    if let Some(DataType::Vector(expected_dimensions)) = data_type {
         if let Some(values) = value.as_array() {
-            let vector = (values.len() == *dimensions)
+            let vector = ((1..=16_000).contains(&values.len())
+                && expected_dimensions.is_none_or(|dimensions| values.len() == dimensions))
                 .then(|| {
                     values
                         .iter()
-                        .map(|part| part.as_f64()?.to_string().parse::<f32>().ok())
+                        .map(|part| crate::vector::f64_to_finite_f32(part.as_f64()?))
                         .collect::<Option<Vec<_>>>()
                 })
                 .flatten();

@@ -876,6 +876,7 @@ mod tests {
         let context = super::AggregateExecutionContext {
             plan: &plan,
             params: &[],
+            parameter_type_oids: &[],
             search_context: None,
             user_functions: &routines,
             session: None,

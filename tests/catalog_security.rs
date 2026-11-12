@@ -7,6 +7,14 @@ mod postgresql18_catalog_information;
 #[path = "catalog_security/catalogs/columns/catalog_relation_shapes.rs"]
 mod postgresql18_catalog_relation_shapes;
 
+#[path = "catalog_security/catalogs/columns/stable_attribute_identity.rs"]
+mod postgresql18_stable_attribute_identity;
+
+#[path = "catalog_security/catalogs/columns/type_catalog_fields.rs"]
+mod postgresql18_type_catalog_fields;
+#[path = "catalog_security/catalogs/descriptions/comment_contract.rs"]
+mod postgresql18_comment_contract;
+
 #[path = "support/backend_sessions.rs"]
 mod support_backend_sessions;
 #[path = "support/catalog.rs"]
@@ -64,6 +72,9 @@ mod database_connect_grants;
 // Formerly tests/database_connect_network.rs.
 #[path = "catalog_security/security/database_connect_network.rs"]
 mod database_connect_network;
+
+#[path = "catalog_security/security/object_privilege_grants.rs"]
+mod object_privilege_grants;
 
 // Formerly tests/database_images.rs.
 #[path = "catalog_security/databases/images/database_images.rs"]

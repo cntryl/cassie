@@ -177,10 +177,11 @@ pub(super) fn type_name_bytes(data_type: &crate::types::DataType) -> Result<usiz
         DataType::Varchar {
             length: Some(length),
         } => 9 + decimal_digits(u64::from(*length)),
-        DataType::Vector(dimensions) => checked_add(
+        DataType::Vector(Some(dimensions)) => checked_add(
             8,
             decimal_digits(u64::try_from(*dimensions).map_err(|_| size_overflow())?),
         )?,
+        DataType::Vector(None) => 6,
         DataType::Array(inner) => checked_add(type_name_bytes(inner)?, 2)?,
         DataType::ObjectId(kind) => kind.name().len(),
         DataType::Extended(kind) => kind.name().len(),

@@ -1,5 +1,6 @@
 use super::{CassieError, Catalog, CollectionSchema, DistanceMetric, Expr};
-use crate::sql::ast::CreateIndexStatement;
+use crate::catalog::local_name;
+use crate::sql::ast::{CreateIndexStatement, IdentifierPath};
 use crate::types::DataType;
 use crate::vector::index_options::normalize_vector_index_options;
 
@@ -7,12 +8,35 @@ pub(super) fn bind_vector_index_options(
     statement: &mut CreateIndexStatement,
     catalog: &Catalog,
     schema: &CollectionSchema,
+    database: &str,
+    search_path: &[String],
     table: &str,
     name: &str,
     fields: &[String],
 ) -> Result<(), CassieError> {
     let field = &fields[0];
     validate_vector_index_field(catalog, schema, table, name, field)?;
+    let access_method = statement
+        .options
+        .get(crate::catalog::IndexMeta::ACCESS_METHOD_OPTION)
+        .map_or("vector", String::as_str);
+    if matches!(access_method, "hnsw" | "ivfflat") {
+        return bind_pgvector_index_options(
+            statement,
+            catalog,
+            schema,
+            database,
+            search_path,
+            name,
+            field,
+            access_method,
+        );
+    }
+    if access_method != "vector" {
+        return Err(CassieError::Planner(format!(
+            "unsupported vector access method '{access_method}'"
+        )));
+    }
     let source_field = validate_vector_source_field(statement, schema, table)?.to_string();
 
     let metric = parse_vector_metric(statement.options.get("metric").map(String::as_str))?;
@@ -25,6 +49,156 @@ pub(super) fn bind_vector_index_options(
         .options
         .insert("source_field".to_string(), source_field);
     Ok(())
+}
+
+fn bind_pgvector_index_options(
+    statement: &mut CreateIndexStatement,
+    catalog: &Catalog,
+    schema: &CollectionSchema,
+    database: &str,
+    search_path: &[String],
+    name: &str,
+    field: &str,
+    access_method: &str,
+) -> Result<(), CassieError> {
+    let extension = catalog.get_extension(database, "vector").ok_or_else(|| {
+        CassieError::Planner("pgvector index methods require the vector extension".into())
+    })?;
+    let extension_schema = local_name(&extension.schema);
+    let field_entry = schema
+        .fields
+        .iter()
+        .find(|entry| entry.name == field)
+        .expect("validated vector index field exists");
+    let crate::types::DataType::Vector(Some(dimensions)) = field_entry.data_type else {
+        return Err(CassieError::Planner(format!(
+            "pgvector {access_method} index '{name}' requires a fixed-dimension vector field"
+        )));
+    };
+    if !(1..=2_000).contains(&dimensions) {
+        return Err(CassieError::Planner(format!(
+            "pgvector {access_method} indexes support vector dimensions from 1 through 2000"
+        )));
+    }
+
+    let operator_class_key = crate::catalog::IndexMeta::key_option_name(0, "operator_class");
+    let explicit_operator_class = statement.options.get(&operator_class_key);
+    let operator_class = explicit_operator_class
+        .map(String::as_str)
+        .or_else(|| (access_method == "ivfflat").then_some("vector_l2_ops"))
+        .ok_or_else(|| {
+            CassieError::Planner(format!(
+                "pgvector {access_method} index requires an operator class"
+            ))
+        })?;
+    let operator_class_name = if explicit_operator_class.is_some() {
+        resolve_pgvector_operator_class(
+            operator_class,
+            &extension_schema,
+            search_path,
+            access_method,
+        )?
+    } else {
+        "vector_l2_ops".to_string()
+    };
+    let metric = match operator_class_name.as_str() {
+        "vector_l2_ops" => "l2",
+        "vector_ip_ops" => "dot",
+        "vector_cosine_ops" => "cosine",
+        _ => {
+            return Err(CassieError::Planner(format!(
+                "operator class '{operator_class}' is not supported for pgvector {access_method}"
+            )))
+        }
+    };
+    if statement.options.contains_key("metric") || statement.options.contains_key("source_field") {
+        return Err(CassieError::Planner(format!(
+            "pgvector {access_method} indexes select their metric from the operator class and index the vector field directly"
+        )));
+    }
+    for (key, _) in &statement.options {
+        let allowed = match access_method {
+            "hnsw" => matches!(key.as_str(), "m" | "ef_construction"),
+            "ivfflat" => key == "lists",
+            _ => false,
+        } || key == crate::catalog::IndexMeta::ACCESS_METHOD_OPTION
+            || key == &operator_class_key;
+        if !allowed {
+            return Err(CassieError::Planner(format!(
+                "unsupported pgvector {access_method} index option '{key}'"
+            )));
+        }
+    }
+
+    let key_option_names = ["order", "nulls"];
+    if key_option_names
+        .iter()
+        .any(|option| statement.options.contains_key(&crate::catalog::IndexMeta::key_option_name(0, option)))
+    {
+        return Err(CassieError::Planner(
+            "pgvector indexes do not accept key ordering options".into(),
+        ));
+    }
+
+    statement
+        .options
+        .insert("index_type".to_string(), access_method.to_string());
+    statement
+        .options
+        .entry(operator_class_key)
+        .or_insert_with(|| operator_class.to_string());
+    statement
+        .options
+        .insert("metric".to_string(), metric.to_string());
+    statement
+        .options
+        .insert("source_field".to_string(), field.to_string());
+    normalize_vector_index_options(&mut statement.options).map_err(CassieError::Planner)?;
+    Ok(())
+}
+
+fn resolve_pgvector_operator_class(
+    raw_name: &str,
+    extension_schema: &str,
+    search_path: &[String],
+    access_method: &str,
+) -> Result<String, CassieError> {
+    let path = IdentifierPath::parse(raw_name).map_err(CassieError::Planner)?;
+    let components = path.components();
+    let (schema_component, class_component) = match components {
+        [class] => (None, class),
+        [schema, class] => (Some(schema), class),
+        _ => {
+            return Err(CassieError::Planner(format!(
+                "operator class '{raw_name}' does not resolve for pgvector {access_method}"
+            )));
+        }
+    };
+    let class_name = if class_component.is_delimited() {
+        class_component.value().to_owned()
+    } else {
+        class_component.value().to_ascii_lowercase()
+    };
+    let schema_resolves = schema_component.map_or_else(
+        || {
+            search_path
+                .iter()
+                .any(|schema| local_name(schema).eq_ignore_ascii_case(extension_schema))
+        },
+        |schema| {
+            if schema.is_delimited() {
+                schema.value() == extension_schema
+            } else {
+                schema.value().eq_ignore_ascii_case(extension_schema)
+            }
+        },
+    );
+    if !schema_resolves {
+        return Err(CassieError::Planner(format!(
+            "operator class '{raw_name}' does not resolve in vector extension schema '{extension_schema}' for pgvector {access_method}"
+        )));
+    }
+    Ok(class_name)
 }
 
 pub(super) fn bind_time_series_index_options(

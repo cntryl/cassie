@@ -679,6 +679,7 @@ fn read_rollup_source_batches(
         session: None,
         user_functions,
         params: &[],
+        parameter_type_oids: &[],
         controls,
     };
     let (batches, text_fields) = super::source::execute_query_source(
@@ -730,6 +731,7 @@ fn materialize_rollup_batches(
         &aggregate_exec::AggregateExecutionContext {
             plan,
             params: &[],
+            parameter_type_oids: &[],
             search_context,
             user_functions,
             session: None,

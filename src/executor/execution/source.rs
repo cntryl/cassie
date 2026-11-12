@@ -24,8 +24,9 @@ use super::plan_inspection;
 use super::reserve_projection_output_before_building;
 use super::{
     aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
-    check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan,
-    execute_plan_with_outer_row, filter, graph, load_fulltext_index_options, plan_execution_env,
+    check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan_with_parameter_oids,
+    execute_plan_with_outer_row, filter, graph, load_fulltext_index_options,
+    plan_execution_env_with_parameter_oids,
     projection, resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec,
     AnalyzerConfig, Batch, BatchRow, Cassie, CassieSession, CteContext, ExistsResolutionContext,
     Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
@@ -60,6 +61,7 @@ pub(super) struct SourceExecutionEnv<'a> {
     pub(super) session: Option<&'a CassieSession>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
+    pub(super) parameter_type_oids: &'a [i32],
     pub(super) controls: &'a QueryExecutionControls,
 }
 
@@ -151,10 +153,16 @@ fn execute_collection_source(
     qualify: bool,
     row_budget: Option<usize>,
 ) -> SourceExecution {
-    if let Some(rows) = virtual_views::rows(&env.cassie.catalog, name, env.session) {
+    if let Some(rows) = virtual_views::rows_with_default_database(
+        &env.cassie.catalog,
+        &env.cassie.midge,
+        name,
+        env.session,
+        &env.cassie.default_database,
+    ) {
         return finalize_source_batches(
             env,
-            materialize_virtual_rows(rows),
+            materialize_virtual_rows(rows.map_err(QueryError::from)?),
             Vec::new(),
             qualify,
             name,
@@ -184,13 +192,14 @@ fn execute_view_source(
     crate::sql::definition_guard::view(view).map_err(QueryError::Cassie)?;
     let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;
     let mut view_cte_context = CteContext::new();
-    let rows = execute_plan(
+    let rows = execute_plan_with_parameter_oids(
         env.cassie,
         env.session,
         &logical,
         &mut view_cte_context,
         env.user_functions,
         env.params,
+        env.parameter_type_oids,
         env.controls,
     )?;
     let rows = project_rows_to_schema(rows, &view.schema, name)?;
@@ -303,11 +312,12 @@ fn execute_subquery_source(
     let mut logical = logical;
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &env.cassie.catalog);
     let mut subquery_context = cte_context.copy(env.controls)?;
-    let plan_env = plan_execution_env(
+    let plan_env = plan_execution_env_with_parameter_oids(
         env.cassie,
         env.session,
         env.user_functions,
         env.params,
+        env.parameter_type_oids,
         env.controls,
     );
     let rows = execute_plan_with_outer_row(
@@ -396,6 +406,7 @@ pub(super) fn execute_source_query_with_outer_row(
         cassie: env.cassie,
         session: env.session,
         params: env.params,
+        parameter_type_oids: env.parameter_type_oids,
         user_functions: env.user_functions,
         controls: env.controls,
         search_context: search_context.as_ref(),
@@ -462,11 +473,23 @@ pub(super) fn source_execution_env<'a>(
     params: &'a [Value],
     controls: &'a QueryExecutionControls,
 ) -> SourceExecutionEnv<'a> {
+    source_execution_env_with_parameter_oids(cassie, session, user_functions, params, &[], controls)
+}
+
+pub(super) fn source_execution_env_with_parameter_oids<'a>(
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    parameter_type_oids: &'a [i32],
+    controls: &'a QueryExecutionControls,
+) -> SourceExecutionEnv<'a> {
     SourceExecutionEnv {
         cassie,
         session,
         user_functions,
         params,
+        parameter_type_oids,
         controls,
     }
 }
@@ -568,6 +591,7 @@ struct PhaseExecutionEnv<'a> {
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,
     params: &'a [Value],
+    parameter_type_oids: &'a [i32],
     user_functions: &'a HashMap<String, FunctionMeta>,
     controls: &'a QueryExecutionControls,
     search_context: Option<&'a filter::SearchContext>,
@@ -590,6 +614,7 @@ fn resolve_filter_or_correlate(
         cte_context,
         env.user_functions,
         env.params,
+        env.parameter_type_oids,
         env.controls,
     ) {
         Ok(filter) => return Ok((batches, filter)),
@@ -609,6 +634,7 @@ fn resolve_filter_or_correlate(
             cte_context,
             user_functions: env.user_functions,
             params: env.params,
+            parameter_type_oids: env.parameter_type_oids,
             controls: env.controls,
             outer_row: None,
         },
@@ -627,6 +653,7 @@ fn resolve_plan_filter(
     cte_context: &mut CteContext,
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
+    parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<Option<Expr>, QueryError> {
     plan.filter.as_ref().map_or(Ok(None), |filter_expr| {
@@ -637,6 +664,7 @@ fn resolve_plan_filter(
                 cte_context,
                 user_functions,
                 params,
+                parameter_type_oids,
                 controls,
                 outer_row: None,
             },
@@ -686,6 +714,7 @@ fn apply_aggregate_phase(
         &aggregate_exec::AggregateExecutionContext {
             plan,
             params: env.params,
+            parameter_type_oids: env.parameter_type_oids,
             search_context: env.search_context,
             user_functions: env.user_functions,
             session: env.session,
@@ -701,6 +730,7 @@ fn apply_aggregate_phase(
             session: env.session,
             user_functions: env.user_functions,
             params: env.params,
+            parameter_type_oids: env.parameter_type_oids,
             controls: env.controls,
         },
         cte_context,
@@ -766,13 +796,14 @@ fn finalize_plan_rows(
         // The right branch is an input relation, not a result: the result-row
         // cap must not truncate it before EXCEPT/INTERSECT consult it.
         let right_controls = env.controls.for_uncapped_input();
-        let right_rows = execute_plan(
+        let right_rows = execute_plan_with_parameter_oids(
             env.cassie,
             env.session,
             &right_plan,
             cte_context,
             env.user_functions,
             env.params,
+            env.parameter_type_oids,
             &right_controls,
         )?;
         rows = apply_set_operation(rows, right_rows, &left_output_names, set, env.controls)?;

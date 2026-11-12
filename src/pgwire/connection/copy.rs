@@ -228,6 +228,7 @@ fn bind_copy_from_stdin(
         .ok_or_else(|| CassieError::Parse("COPY FROM STDIN requires a table target".to_string()))?;
     let parsed = crate::sql::parser::parse_statement(&binding_sql)?;
     session.authorize_statement(&parsed.statement)?;
+    cassie.authorize_role_object_access(session, &parsed.statement)?;
     Cassie::ensure_transaction_recovery(session, &parsed)?;
     session.ensure_transaction_writable()?;
     let started = std::time::Instant::now();
@@ -320,6 +321,7 @@ fn bind_copy_to_stdout(
         ));
     }
     session.authorize_statement(&parsed.statement)?;
+    cassie.authorize_role_object_access(session, &parsed.statement)?;
     Cassie::ensure_transaction_recovery(session, &parsed)?;
     session.mark_transaction_query();
     Ok(BoundCopyRequest::To(request, query_sql))

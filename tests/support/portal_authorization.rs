@@ -83,6 +83,8 @@ fn seed(cassie: &Cassie) -> (CassieSession, String) {
         "CREATE TABLE wire_copy_denied (n INT)".to_owned(),
         format!("CREATE ROLE boundary_reader LOGIN PASSWORD '{password}'"),
         "GRANT CONNECT ON DATABASE postgres TO boundary_reader".to_owned(),
+        "GRANT USAGE ON SCHEMA public TO boundary_reader".to_owned(),
+        "GRANT SELECT ON TABLE public.wire_copy_denied TO boundary_reader".to_owned(),
         "INSERT INTO wire_copy_denied (n) VALUES (1), (2), (3)".to_owned(),
     ] {
         cassie

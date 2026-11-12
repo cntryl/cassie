@@ -12,6 +12,7 @@ pub(super) fn try_execute_analytical_projection(
     cte_context: &mut CteContext,
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
+    parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let QuerySource::Collection(source) = &plan.source else {
@@ -46,7 +47,14 @@ pub(super) fn try_execute_analytical_projection(
         crate::sql::IdentifierPath::parse(&output_collection).map_err(QueryError::General)?,
     );
     rewritten.collection = output_collection;
-    let env = super::plan_execution_env(cassie, session, user_functions, params, controls);
+    let env = super::plan_execution_env_with_parameter_oids(
+        cassie,
+        session,
+        user_functions,
+        params,
+        parameter_type_oids,
+        controls,
+    );
     let rows = super::execute_plan_with_outer_row(&env, &rewritten, cte_context, None)?;
     cassie
         .runtime

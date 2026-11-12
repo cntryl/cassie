@@ -179,6 +179,7 @@ fn validate(
                     | DataType::Date
                     | DataType::Time
                     | DataType::Timestamp
+                    | DataType::Vector(_)
                     | DataType::Array(_)
                     | DataType::Extended(crate::types::extended::ExtendedType::Numeric(_))
             ) && !crate::types::extended::operations::handles(data_type) =>

@@ -247,7 +247,7 @@ fn should_record_vector_counts_for_ordered_search_expression() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],
@@ -363,7 +363,7 @@ fn should_record_vector_prefilter_candidate_counts() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],

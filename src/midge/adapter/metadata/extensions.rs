@@ -3,9 +3,9 @@ use super::{CassieError, Midge};
 use crate::catalog::ExtensionMeta;
 
 fn validate_extension_profile(metadata: &ExtensionMeta) -> Result<(), CassieError> {
-    let selected_version = match metadata.name.to_ascii_lowercase().as_str() {
-        "pgcrypto" => "1.4",
-        "vector" => "0.8.7",
+    let (selected_version, has_vector_type) = match metadata.name.to_ascii_lowercase().as_str() {
+        "pgcrypto" => ("1.4", false),
+        "vector" => ("0.8.7", true),
         _ => {
             return Err(CassieError::Unsupported(format!(
                 "extension {} is outside the selected built-in profiles",
@@ -19,6 +19,55 @@ fn validate_extension_profile(metadata: &ExtensionMeta) -> Result<(), CassieErro
             metadata.name, metadata.version
         )));
     }
+    if metadata.format_version != 2 {
+        return Err(CassieError::Unsupported(format!(
+            "extension metadata format {} is unsupported",
+            metadata.format_version
+        )));
+    }
+    if metadata.vector_type_object_id.is_some() != has_vector_type
+        || metadata.vector_catalog_identities.is_some() != has_vector_type
+    {
+        return Err(CassieError::Unsupported(format!(
+            "extension {} has invalid vector catalog identity metadata",
+            metadata.name
+        )));
+    }
+    if let Some(identities) = &metadata.vector_catalog_identities {
+        let Some(vector_type_id) = metadata.vector_type_object_id else {
+            return Err(CassieError::Unsupported(
+                "vector extension has no vector type object identity".into(),
+            ));
+        };
+        let ids = [
+            metadata.object_id,
+            vector_type_id,
+            identities.operators.l2,
+            identities.operators.inner_product,
+            identities.operators.cosine,
+            identities.hnsw.access_method,
+            identities.hnsw.l2_operator_family,
+            identities.hnsw.inner_product_operator_family,
+            identities.hnsw.cosine_operator_family,
+            identities.hnsw.l2_operator_class,
+            identities.hnsw.inner_product_operator_class,
+            identities.hnsw.cosine_operator_class,
+            identities.ivfflat.access_method,
+            identities.ivfflat.l2_operator_family,
+            identities.ivfflat.inner_product_operator_family,
+            identities.ivfflat.cosine_operator_family,
+            identities.ivfflat.l2_operator_class,
+            identities.ivfflat.inner_product_operator_class,
+            identities.ivfflat.cosine_operator_class,
+        ];
+        if ids.iter().any(|id| *id == 0)
+            || ids.iter().enumerate().any(|(index, id)| ids[..index].contains(id))
+        {
+            return Err(CassieError::Unsupported(
+                "vector extension has invalid or duplicate catalog object identities".into(),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -30,7 +79,7 @@ impl Midge {
     /// Returns an error when serialization or durable publication fails.
     pub fn put_extension(&self, metadata: &ExtensionMeta) -> Result<(), CassieError> {
         validate_extension_profile(metadata)?;
-        if metadata.format_version != 1 {
+        if metadata.format_version != 2 {
             return Err(CassieError::Unsupported(format!(
                 "extension metadata format {} is unsupported",
                 metadata.format_version
@@ -63,7 +112,7 @@ impl Midge {
             let metadata: ExtensionMeta = serde_json::from_slice(&raw).map_err(|error| {
                 CassieError::Parse(format!("invalid extension metadata: {error}"))
             })?;
-            if metadata.format_version != 1 {
+            if metadata.format_version != 2 {
                 return Err(CassieError::Unsupported(format!(
                     "extension metadata format {} is unsupported",
                     metadata.format_version

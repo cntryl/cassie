@@ -79,11 +79,18 @@ pub(super) fn bind_create_index(
     let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
     validate_include_fields(&statement, &schema, &table, &fields, &include_fields)?;
     validate_index_fields_and_expressions(&schema, &table, &fields, &expressions)?;
+    let search_path = context
+        .relation_search_order()
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
     bind_index_method_options(
         &mut statement,
         IndexMethodBinding {
             catalog,
             schema: &schema,
+            database: &context.database,
+            search_path: &search_path,
             table: &table,
             name: &name,
             fields: &fields,
@@ -114,6 +121,8 @@ pub(super) fn bind_create_index(
 struct IndexMethodBinding<'a> {
     catalog: &'a Catalog,
     schema: &'a CollectionSchema,
+    database: &'a str,
+    search_path: &'a [String],
     table: &'a str,
     name: &'a str,
     fields: &'a [String],
@@ -128,6 +137,8 @@ fn bind_index_method_options(
     let IndexMethodBinding {
         catalog,
         schema,
+        database,
+        search_path,
         table,
         name,
         fields,
@@ -138,7 +149,14 @@ fn bind_index_method_options(
     validate_scalar_storage_options(statement)?;
     match statement.kind {
         crate::catalog::IndexKind::Vector => schema_index_options::bind_vector_index_options(
-            statement, catalog, schema, table, name, fields,
+            statement,
+            catalog,
+            schema,
+            database,
+            search_path,
+            table,
+            name,
+            fields,
         )?,
         crate::catalog::IndexKind::FullText => {
             bind_fulltext_index_options(statement, catalog, schema, table, name, fields)?;
@@ -668,6 +686,14 @@ fn validate_scalar_index_key_options(
     fields: &[String],
     expressions: &[Expr],
 ) -> Result<(), CassieError> {
+    if statement.kind == crate::catalog::IndexKind::Vector
+        && statement
+            .options
+            .get(&IndexMeta::ACCESS_METHOD_OPTION)
+            .is_some_and(|method| matches!(method.as_str(), "hnsw" | "ivfflat"))
+    {
+        return Ok(());
+    }
     let key_count = fields.len() + expressions.len();
     let key_options = (0..key_count)
         .map(|position| {

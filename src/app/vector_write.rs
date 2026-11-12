@@ -14,7 +14,9 @@ impl Cassie {
         })?;
 
         for index in indexes {
-            self.validate_embedding_compatibility(index, None)?;
+            if index.source_field != index.field {
+                self.validate_embedding_compatibility(index, None)?;
+            }
 
             // An embedding the caller supplied is stored as written; the provider only
             // derives a value for a row that arrives without one.

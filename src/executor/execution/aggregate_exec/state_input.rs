@@ -15,6 +15,7 @@ use super::{AggregateExecutionContext, QueryError};
 
 pub(super) struct AggregateValueContext<'a> {
     pub(super) params: &'a [Value],
+    pub(super) parameter_type_oids: &'a [i32],
     pub(super) search_context: Option<&'a filter::SearchContext>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) session: Option<&'a CassieSession>,
@@ -28,6 +29,7 @@ where
 {
     AggregateValueContext {
         params: context.params,
+        parameter_type_oids: context.parameter_type_oids,
         search_context: context.search_context,
         user_functions: context.user_functions,
         session: context.session,
@@ -191,6 +193,7 @@ impl AggregateAccumulator {
                 row,
                 &AggregateValueContext {
                     params,
+                    parameter_type_oids: &[],
                     search_context,
                     user_functions,
                     session,
@@ -238,7 +241,14 @@ impl AggregateAccumulator {
                 .args
                 .first()
                 .map(|expr| {
-                    crate::executor::array_order::key(row, expr, &value, user_functions, controls)
+                    crate::executor::array_order::key_with_parameter_oids(
+                        row,
+                        expr,
+                        &value,
+                        user_functions,
+                        value_context.parameter_type_oids,
+                        controls,
+                    )
                 })
                 .transpose()?
                 .filter(|key| {
@@ -256,14 +266,40 @@ impl AggregateAccumulator {
         };
         let bytea = is_string_aggregate(function)
             && (function.args.first().is_some_and(|argument| {
-                crate::executor::array_order::expression_type(row, argument, user_functions)
+                crate::executor::array_order::expression_type_with_parameter_oids(
+                    row,
+                    argument,
+                    user_functions,
+                    value_context.parameter_type_oids,
+                )
                     == Some(crate::types::DataType::Bytea)
             }) || has_bytea_pair(&value, second_argument.as_ref()));
-        let change = if bytea {
-            self.update_values_with_bytea(function, value, key, second_argument, true)
-        } else {
-            self.update_values(function, value, key, second_argument)
-        }?;
+        let array_input = crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+            matches!(
+                metadata.id,
+                crate::sql::functions::FunctionId::CollectionAggregate(
+                    crate::sql::functions::CollectionAggregate::Array
+                )
+            ) && function.args.first().is_some_and(|argument| {
+                matches!(
+                    crate::executor::array_order::expression_type_with_parameter_oids(
+                        row,
+                        argument,
+                        user_functions,
+                        value_context.parameter_type_oids,
+                    ),
+                    Some(crate::types::DataType::Array(_))
+                )
+            })
+        });
+        let change = self.update_values_with_bytea(
+            function,
+            value,
+            key,
+            second_argument,
+            bytea,
+            array_input,
+        )?;
         Ok(Some(change))
     }
 }

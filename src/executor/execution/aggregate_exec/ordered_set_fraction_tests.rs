@@ -302,6 +302,7 @@ fn should_report_invalid_fraction_before_reaching_sorted_value_errors() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -358,6 +359,7 @@ fn should_retain_fraction_owner_during_actual_sort_with_release_on_cancel_or_emp
         let context = AggregateExecutionContext {
             plan: &plan,
             params: &params,
+            parameter_type_oids: &[],
             search_context: None,
             user_functions: &functions,
             session: None,
@@ -433,6 +435,7 @@ fn should_cancel_actual_percentile_evaluation_during_fraction_collection() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

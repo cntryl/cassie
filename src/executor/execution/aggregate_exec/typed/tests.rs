@@ -181,6 +181,7 @@ fn should_match_scalar_aggregate_semantics_for_selected_numeric_carriers() {
     let context = super::super::AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

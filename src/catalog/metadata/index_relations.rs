@@ -28,6 +28,33 @@ pub(super) fn rename_scoped_index_name(
 }
 
 impl Catalog {
+    pub(crate) fn is_published_in_postgresql_catalogs(
+        &self,
+        index: &IndexMeta,
+        database: Option<&str>,
+    ) -> bool {
+        match &index.kind {
+            crate::catalog::IndexKind::Scalar
+            | crate::catalog::IndexKind::FullText
+            | crate::catalog::IndexKind::Hybrid => true,
+            crate::catalog::IndexKind::Vector => {
+                let Some(access_method_object_id) = database
+                    .and_then(|database| self.get_extension(database, "vector"))
+                    .and_then(|extension| extension.vector_catalog_identities)
+                    .and_then(|identities| match index.access_method() {
+                        "hnsw" => Some(identities.hnsw.access_method),
+                        "ivfflat" => Some(identities.ivfflat.access_method),
+                        _ => None,
+                    })
+                else {
+                    return false;
+                };
+                crate::catalog::object_identity::normal_oid(access_method_object_id).is_some()
+            }
+            crate::catalog::IndexKind::Column | crate::catalog::IndexKind::TimeSeries => false,
+        }
+    }
+
     pub(crate) fn is_sql_materialized_view(&self, relation: &str) -> bool {
         self.get_materialized_projection(relation)
             .and_then(|projection| projection.materialized)
@@ -70,6 +97,21 @@ impl Catalog {
         out
     }
 
+    pub(crate) fn has_relation_index_history(&self, relation: &str) -> bool {
+        if self
+            .logical_indexes_snapshot()
+            .iter()
+            .any(|index| index.collection.eq_ignore_ascii_case(relation))
+        {
+            return true;
+        }
+        let metadata_relation = self
+            .materialized_view_output_collection(relation)
+            .unwrap_or_else(|| relation.to_owned());
+        self.get_collection(&metadata_relation)
+            .is_some_and(|metadata| metadata.has_ever_had_indexes)
+    }
+
     pub fn register_index(&self, metadata: IndexMeta) {
         let mut indexes = self.indexes.write();
         indexes.insert(
@@ -85,7 +127,7 @@ impl Catalog {
             .unwrap_or_else(|| collection.to_string());
         let mut indexes = self.indexes.write();
         let key = Self::index_key(&collection, name);
-        if indexes.remove(&key).is_none() {
+        let removed = if indexes.remove(&key).is_none() {
             let matching_key = indexes
                 .iter()
                 .find(|(_, index)| {
@@ -94,6 +136,24 @@ impl Catalog {
                 .map(|(stored_key, _)| stored_key.clone());
             if let Some(stored_key) = matching_key {
                 indexes.remove(&stored_key);
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        };
+        drop(indexes);
+        if removed {
+            let mut collections = self.collections.write();
+            let stored_name = collections
+                .keys()
+                .find(|stored| name_matches(stored, &collection))
+                .cloned();
+            if let Some(stored_name) = stored_name {
+                if let Some(metadata) = collections.get_mut(&stored_name) {
+                    metadata.has_ever_had_indexes = true;
+                }
             }
         }
         self.bump_version();

@@ -52,9 +52,7 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
             Value::Int64(_) => 20,
             Value::Float64(_) => 701,
             Value::String(_) => 25,
-            Value::Vector(vector) => {
-                i32::try_from(DataType::Vector(vector.dimension()).type_oid()).unwrap_or(0)
-            }
+            Value::Vector(_) => crate::sql::binder::VECTOR_PARAMETER_TYPE_OID,
             Value::Json(_) => 114,
             Value::Array(array) => array
                 .elements()
@@ -67,8 +65,8 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
                         Value::String(_) => 25,
                         Value::Typed(typed) => i32::try_from(typed.kind().type_oid()).ok()?,
                         Value::Json(_) => 114,
-                        Value::Vector(vector) => {
-                            i32::try_from(DataType::Vector(vector.dimension()).type_oid()).ok()?
+                        Value::Vector(_) => {
+                            Some(crate::sql::binder::VECTOR_PARAMETER_TYPE_OID)?
                         }
                         Value::Array(_) | Value::Null => return None,
                     };
@@ -126,7 +124,8 @@ pub(super) fn parameter_shape_for_oids(oids: &[i32]) -> Vec<crate::runtime::Para
                     | DataType::Timestamp
                     | DataType::JsonPath,
                 ) => ParameterShape::String,
-                Some(DataType::Vector(dimensions)) => ParameterShape::Vector(dimensions),
+                Some(DataType::Vector(Some(dimensions))) => ParameterShape::Vector(dimensions),
+                Some(DataType::Vector(None)) => ParameterShape::Vector(0),
                 Some(DataType::Array(_)) => ParameterShape::Array,
                 Some(DataType::Json | DataType::Jsonb) => ParameterShape::Json,
                 Some(DataType::Null) | None => ParameterShape::Null,

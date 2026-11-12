@@ -37,13 +37,18 @@ impl DecodedTextParameter {
 
 /// Temporal text parameters decode natively; zone-free `timestamptz`
 /// text stays text for the statement's `TimeZone`.
-fn temporal_parameter(text: &str, kind: ExtendedType) -> Result<Value, ExtendedQueryError> {
-    match crate::types::extended::temporal_parameter_from_text(kind, text) {
-        Some(Ok(value)) => Ok(Value::Typed(value)),
-        Some(Err(error)) => Err(ExtendedQueryError::cassie(
+fn temporal_parameter(
+    text: &str,
+    kind: ExtendedType,
+    controls: &QueryExecutionControls,
+) -> Result<Value, ExtendedQueryError> {
+    match crate::types::extended::temporal_parameter_from_text_with_controls(kind, text, controls) {
+        Ok(Some(Ok(value))) => Ok(Value::Typed(value)),
+        Ok(Some(Err(error))) => Err(ExtendedQueryError::cassie(
             &crate::app::CassieError::TypeInput(error),
         )),
-        None => Ok(Value::String(text.to_string())),
+        Ok(None) => Ok(Value::String(text.to_string())),
+        Err(error) => Err(ExtendedQueryError::cassie(&error)),
     }
 }
 
@@ -79,16 +84,18 @@ pub(super) fn decode_text_parameter(
             .map_err(|error| {
                 ExtendedQueryError::cassie(&crate::app::CassieError::Parse(error.to_string()))
             }),
-        Some(BuiltinKind::Date) => temporal_parameter(text, ExtendedType::Date),
-        Some(BuiltinKind::Time) => temporal_parameter(text, ExtendedType::Time { precision: None }),
+        Some(BuiltinKind::Date) => temporal_parameter(text, ExtendedType::Date, controls),
+        Some(BuiltinKind::Time) => {
+            temporal_parameter(text, ExtendedType::Time { precision: None }, controls)
+        }
         Some(BuiltinKind::Timestamp) => {
-            temporal_parameter(text, ExtendedType::Timestamp { precision: None })
+            temporal_parameter(text, ExtendedType::Timestamp { precision: None }, controls)
         }
         Some(BuiltinKind::Extended(
             kind @ (ExtendedType::TimeTz { .. }
             | ExtendedType::TimestampTz { .. }
             | ExtendedType::Interval { .. }),
-        )) => temporal_parameter(text, kind),
+        )) => temporal_parameter(text, kind, controls),
         Some(BuiltinKind::Uuid) => uuid::Uuid::parse_str(text.trim())
             .map(|uuid| Value::String(uuid.to_string()))
             .map_err(|_| ExtendedQueryError::invalid_input_syntax("uuid", text)),

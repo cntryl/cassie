@@ -1,7 +1,11 @@
 use super::command_output::empty as empty_command;
 use super::{Cassie, CassieSession, QueryError, QueryResult};
 use crate::app::{CassieError, DiagnosticError};
-use crate::catalog::{canonical_schema_name, ExtensionMeta, ViewMeta, DEFAULT_SCHEMA};
+use crate::catalog::{
+    canonical_schema_name, relation_belongs_to_database, ExtensionMeta, IndexKind,
+    VectorAnnCatalogIdentityIds, VectorCatalogIdentitySet, VectorDistanceOperatorIds, ViewMeta,
+    DEFAULT_SCHEMA,
+};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{ExtensionAction, ExtensionStatement};
 
@@ -114,7 +118,7 @@ fn create(
     }
     let output = empty_command("CREATE EXTENSION", controls)?;
     let metadata = ExtensionMeta {
-        format_version: 1,
+        format_version: 2,
         database: database.to_owned(),
         name: name.clone(),
         version: selected_version.to_owned(),
@@ -144,6 +148,21 @@ fn create(
         } else {
             None
         },
+        vector_type_object_id: if name == "vector" {
+            Some(
+                cassie
+                    .midge
+                    .allocate_object_id()
+                    .map_err(QueryError::from)?,
+            )
+        } else {
+            None
+        },
+        vector_catalog_identities: if name == "vector" {
+            Some(allocate_vector_catalog_identities(cassie)?)
+        } else {
+            None
+        },
     };
     cassie
         .midge
@@ -151,6 +170,41 @@ fn create(
         .map_err(QueryError::from)?;
     cassie.catalog.register_extension(metadata);
     Ok(output)
+}
+
+fn allocate_vector_catalog_identities(
+    cassie: &Cassie,
+) -> Result<VectorCatalogIdentitySet, QueryError> {
+    Ok(VectorCatalogIdentitySet {
+        operators: VectorDistanceOperatorIds {
+            l2: allocate_catalog_object_id(cassie)?,
+            inner_product: allocate_catalog_object_id(cassie)?,
+            cosine: allocate_catalog_object_id(cassie)?,
+        },
+        hnsw: allocate_vector_ann_catalog_identities(cassie)?,
+        ivfflat: allocate_vector_ann_catalog_identities(cassie)?,
+    })
+}
+
+fn allocate_vector_ann_catalog_identities(
+    cassie: &Cassie,
+) -> Result<VectorAnnCatalogIdentityIds, QueryError> {
+    Ok(VectorAnnCatalogIdentityIds {
+        access_method: allocate_catalog_object_id(cassie)?,
+        l2_operator_family: allocate_catalog_object_id(cassie)?,
+        inner_product_operator_family: allocate_catalog_object_id(cassie)?,
+        cosine_operator_family: allocate_catalog_object_id(cassie)?,
+        l2_operator_class: allocate_catalog_object_id(cassie)?,
+        inner_product_operator_class: allocate_catalog_object_id(cassie)?,
+        cosine_operator_class: allocate_catalog_object_id(cassie)?,
+    })
+}
+
+fn allocate_catalog_object_id(cassie: &Cassie) -> Result<u64, QueryError> {
+    cassie
+        .midge
+        .allocate_object_id()
+        .map_err(QueryError::from)
 }
 
 fn set_schema(
@@ -219,15 +273,24 @@ fn drop_extension(
             Err(undefined_extension(&name))
         };
     };
-    let dependent_views = if name == "pgcrypto" {
-        views_depending_on_digest(cassie, database, &metadata)
+    let dependent_views = views_depending_on_extension(cassie, database, &metadata);
+    let vector_dependents = if name == "vector" {
+        vector_extension_dependents(cassie, database)
     } else {
         Vec::new()
     };
-    if !cascade && !dependent_views.is_empty() {
+    if name == "vector" && cascade && !vector_dependents.is_empty() {
+        return Err(CassieError::Unsupported(format!(
+            "DROP EXTENSION vector CASCADE with dependent vector columns, materialized views, or ANN indexes is not supported: {}",
+            vector_dependents.join(", ")
+        ))
+        .into());
+    }
+    if !cascade && (!dependent_views.is_empty() || !vector_dependents.is_empty()) {
         let dependent = dependent_views
             .iter()
             .map(|view| view.name.as_str())
+            .chain(vector_dependents.iter().map(String::as_str))
             .collect::<Vec<_>>()
             .join(", ");
         return Err(CassieError::from(DiagnosticError::new(
@@ -287,7 +350,7 @@ fn undefined_extension(name: &str) -> QueryError {
     .into()
 }
 
-fn views_depending_on_digest(
+fn views_depending_on_extension(
     cassie: &Cassie,
     database: &str,
     extension: &ExtensionMeta,
@@ -298,8 +361,54 @@ fn views_depending_on_digest(
         .into_iter()
         .filter(|view| crate::catalog::relation_belongs_to_database(&view.name, database))
         .filter(|view| {
-            extension.name.eq_ignore_ascii_case("pgcrypto")
-                && view.extension_dependency_ids.contains(&extension.object_id)
+            view.extension_dependency_ids.contains(&extension.object_id)
+                || (extension.name.eq_ignore_ascii_case("vector")
+                    && view
+                        .schema
+                        .fields
+                        .iter()
+                        .any(|field| crate::sql::binder::data_type_uses_vector(&field.data_type)))
         })
         .collect()
+}
+
+fn vector_extension_dependents(cassie: &Cassie, database: &str) -> Vec<String> {
+    let mut dependents = Vec::new();
+    for collection in cassie.catalog.list_collections_canonical() {
+        if !relation_belongs_to_database(&collection.name, database) {
+            continue;
+        }
+        if let Some(schema) = cassie.catalog.get_schema(&collection.name) {
+            let relation_name = cassie
+                .catalog
+                .materialized_projection_for_output(&collection.name)
+                .filter(|projection| {
+                    projection.materialized.as_ref().is_some_and(
+                        crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view,
+                    )
+                })
+                .map_or_else(|| collection.name.clone(), |projection| projection.collection);
+            dependents.extend(
+                schema
+                    .fields
+                    .iter()
+                    .filter(|field| crate::sql::binder::data_type_uses_vector(&field.data_type))
+                    .map(|field| format!("{relation_name}.{}", field.name)),
+            );
+        }
+    }
+    dependents.extend(
+        cassie
+            .catalog
+            .all_indexes_snapshot()
+            .into_iter()
+            .filter(|index| {
+                index.kind == IndexKind::Vector
+                    && relation_belongs_to_database(&index.collection, database)
+            })
+            .map(|index| index.name),
+    );
+    dependents.sort_unstable();
+    dependents.dedup();
+    dependents
 }

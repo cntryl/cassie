@@ -27,7 +27,7 @@ fn should_project_cosine_distance_for_vector_fields() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             }],
         };
@@ -97,7 +97,7 @@ fn should_project_dot_product_for_vector_fields() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             }],
         };
@@ -154,7 +154,7 @@ fn should_project_l2_distance_for_vector_fields() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             }],
         };
@@ -212,7 +212,7 @@ fn should_project_pgvector_operator_distances() {
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             }],
         };

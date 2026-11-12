@@ -308,6 +308,22 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
+        id: FunctionId::ColDescription,
+        name: "col_description",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
+        id: FunctionId::ColDescription,
+        name: "pg_catalog.col_description",
+        arity: FunctionArity::Exact(2),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
         id: FunctionId::HasSchemaPrivilege,
         name: "has_schema_privilege",
         arity: FunctionArity::Range { min: 2, max: 3 },

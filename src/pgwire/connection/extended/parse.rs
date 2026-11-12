@@ -69,6 +69,9 @@ pub(super) async fn handle_parse(
     session
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    cassie
+        .authorize_role_object_access(session, &parsed.statement)
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let (parsed, parameter_types) = if session.repeatable_read_capture_generation().is_some() {
         let registration = state
             .backend_registration

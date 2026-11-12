@@ -440,74 +440,122 @@ impl Fixed {
 
 /// `exp(x)` for a fixed-point `x`, by halving then squaring.
 fn exp_fixed(work: &Fixed, x: &BigInt) -> BigInt {
+    match exp_fixed_with_check(work, x, &mut || Ok::<(), std::convert::Infallible>(())) {
+        Ok(value) => value,
+        Err(never) => match never {},
+    }
+}
+
+fn exp_fixed_with_check<E>(
+    work: &Fixed,
+    x: &BigInt,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<BigInt, E> {
+    check()?;
     let one = work.one();
+    check()?;
     let mut reduced = x.clone();
     let mut halvings = 0u32;
     let half = &one / 2u8;
     while reduced.magnitude() > half.magnitude() {
+        check()?;
         reduced /= 2u8;
+        check()?;
         halvings += 1;
     }
     let mut term = one.clone();
     let mut sum = one.clone();
     let mut n = 1u32;
     loop {
+        check()?;
         term = work.multiply(&term, &reduced) / n;
+        check()?;
         if term.is_zero() {
             break;
         }
         sum += &term;
+        check()?;
         n += 1;
     }
     for _ in 0..halvings {
+        check()?;
         sum = work.multiply(&sum, &sum);
+        check()?;
     }
-    sum
+    Ok(sum)
 }
 
 /// `ln(x)` for a positive fixed-point `x`.
 fn ln_fixed(work: &Fixed, x: &BigInt) -> BigInt {
+    match ln_fixed_with_check(work, x, &mut || Ok::<(), std::convert::Infallible>(())) {
+        Ok(value) => value,
+        Err(never) => match never {},
+    }
+}
+
+fn ln_fixed_with_check<E>(
+    work: &Fixed,
+    x: &BigInt,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<BigInt, E> {
+    check()?;
     let one = work.one();
+    check()?;
     // Reduce x into [0.5, 2] with powers of ten, then take square roots.
     let mut x = x.clone();
     let mut tens = 0i64;
     let ten_x = &one * 10u8;
     while x > ten_x {
+        check()?;
         x /= 10u8;
+        check()?;
         tens += 1;
     }
     while x < one.clone() / 10u8 {
+        check()?;
         x *= 10u8;
+        check()?;
         tens -= 1;
     }
     let mut roots = 0u32;
     let low = &one * 9u8 / 10u8;
     let high = &one * 11u8 / 10u8;
     while x < low || x > high {
+        check()?;
         x = (&x * &one).sqrt();
+        check()?;
         roots += 1;
     }
     // ln(x) = 2 atanh((x-1)/(x+1))
     let z = work.divide(&(&x - &one), &(&x + &one));
+    check()?;
     let z2 = work.multiply(&z, &z);
+    check()?;
     let mut term = z.clone();
     let mut sum = z;
     let mut k = 3u32;
     loop {
+        check()?;
         term = work.multiply(&term, &z2);
+        check()?;
         let step = &term / k;
         if step.is_zero() {
             break;
         }
         sum += step;
+        check()?;
         k += 2;
     }
     let mut result = sum * 2u8 * (BigInt::one() << roots);
+    check()?;
     if tens != 0 {
         let ten = Fixed::from_numeric(&BigInt::from(10u8), 0, work.digits);
-        result += ln_fixed(work, &ten.value) * tens;
+        check()?;
+        let ln_ten = ln_fixed_with_check(work, &ten.value, check)?;
+        result += ln_ten * tens;
+        check()?;
     }
-    result
+    Ok(result)
 }
 
 /// `estimate_ln_dweight`.
@@ -672,6 +720,10 @@ pub fn exp(value: &Numeric) -> Result<Numeric, TypeInputError> {
 #[path = "numeric_power.rs"]
 mod power_impl;
 pub use power_impl::power;
+pub(crate) use power_impl::{
+    power_with_check, preflight_workspace_bytes as power_preflight_workspace_bytes,
+    workspace_bytes as power_workspace_bytes, PowerError,
+};
 
 /// `factorial(bigint)`.
 ///

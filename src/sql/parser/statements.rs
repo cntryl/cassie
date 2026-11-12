@@ -101,14 +101,28 @@ pub(super) fn unsupported_privilege_statement(lower: &str) -> Option<&'static st
 }
 
 pub(super) fn is_unsupported_transaction_control_statement(lower: &str) -> bool {
-    lower == "prepare transaction"
-        || lower.starts_with("prepare transaction ")
-        || lower == "commit prepared"
-        || lower.starts_with("commit prepared ")
-        || lower == "rollback prepared"
-        || lower.starts_with("rollback prepared ")
-        || lower == "set transaction"
-        || lower.starts_with("set transaction ")
+    let uncommented = lexical::without_comments(lower);
+    let normalized = uncommented.trim();
+    let is_set_transaction = normalized
+        .split_whitespace()
+        .take(2)
+        .eq(["set", "transaction"]);
+    let is_selected_set_transaction = normalized.split_whitespace().eq([
+        "set",
+        "transaction",
+        "isolation",
+        "level",
+        "repeatable",
+        "read",
+    ]);
+
+    normalized == "prepare transaction"
+        || normalized.starts_with("prepare transaction ")
+        || normalized == "commit prepared"
+        || normalized.starts_with("commit prepared ")
+        || normalized == "rollback prepared"
+        || normalized.starts_with("rollback prepared ")
+        || (is_set_transaction && !is_selected_set_transaction)
 }
 
 pub(super) fn parse_create_function_statement(sql: &str) -> Result<ParsedStatement, SqlError> {

@@ -140,6 +140,7 @@ impl Cassie {
         self.ensure_session_database_access(session)?;
         Self::ensure_transaction_recovery(session, parsed)?;
         session.authorize_statement(&parsed.statement)?;
+        self.authorize_role_object_access(session, &parsed.statement)?;
         // Existing executable statements hold the publication read guard. A
         // brief exclusive capture keeps data and SQL metadata at one boundary.
         let _publication = loop {

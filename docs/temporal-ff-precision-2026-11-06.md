@@ -1,23 +1,21 @@
 # Formatted timestamp precision increment
 
-This next increment follows merged #1193 and owns the remaining FF1–FF6
-precision behavior under open #815. The current parser consumes only the
-specified fraction width, losing digits needed for rounding. The prior pinned
+This increment follows merged #1193 and records the selected FF1–FF6 precision
+behavior under open #815. The initial gap was that the parser consumed only
+the specified fraction width, losing digits needed for rounding. The pinned
 PostgreSQL 18.6 oracle confirmed that FF3 input `.1235` must produce `.124`.
 
-The authored first regression retains that exact case. It has not been
-executed; no observed baseline failure is claimed. Compilation and test
-execution remain deferred until the coherent bundle is assembled.
+The first regression retains that exact case. The implementation and focused
+regressions are present in the current source baseline; this closeout branch
+requalifies them with the selected ordinary text `MSK` increment. No baseline
+failure is claimed for the original probe.
 
-Before implementation, confirm FF1–FF6 behavior with the pinned native oracle
-for post-epoch and pre-epoch instants, explicit/session timezone conversion,
-carry into the next second/day, and range rejection after rounding. Submit the
-concrete precision propagation options and source evidence to Jev and record
-the selected contract here. Preserve existing MS/US input semantics and typed
-TIME endpoints. Keep Midge as the direct published dependency; this work needs
-no storage capability or persistent layout change.
-
-Status at initial handoff preparation: regression authored; later contract and implementation evidence is recorded below.
+The selected cases cover post-epoch and pre-epoch rounding, explicit/session
+timezone conversion, carry into the next second/day, and range rejection after
+rounding. The precision propagation decision and semantic evidence are recorded
+below. Preserve existing MS/US input semantics and typed TIME endpoints. Keep
+Midge as the direct published dependency; this work needs no storage capability
+or persistent layout change.
 
 ## Selected contract before implementation
 
@@ -36,17 +34,15 @@ Store FF precision only in the private parsing builder and tuple; do not add a
 persistent representation or public struct field. Retain fixed-width parsing
 when a numeric field follows, and preserve MS/US semantics and typed TIME24.
 
-Seven focused SQL regressions were authored before production edits and remain
-unexecuted pending assembler qualification. The coder runs no Cargo gate and
-makes no RED/GREEN claim from the authored probes.
+Seven focused SQL regressions were authored before production edits. They cover
+FF1–FF6 precision, pre-epoch rounding, explicit and session timezone
+conversion, second/day carry, range rejection, and numeric-token boundaries.
 
 Implementation now carries private FF precision through conversion, reads full
 delimited fractions with bounded microsecond values, rounds the UTC instant,
 and retains range checks on both sides of rounding. The existing public Parsed
 shape and parse signature are unchanged. Production format.rs remains below
-1,000 lines. Source formatting and diff checks passed; all seven authored
-regressions, build, complete tests and strict Clippy remain unexecuted by the
-coder and are handed to the assembler's single coherent-bundle gate.
+1,000 lines.
 
 The native upper-bound probe uncovered a PostgreSQL 18.6 edge discrepancy:
 rounding `294276-12-31 23:59:59.9995` with FF3 emits the exclusive upper
@@ -58,3 +54,9 @@ selected rejecting the rounded out-of-range instant with `22008` (probability
 `END_TIMESTAMP` invariant. Native direct parsing of the endpoint and
 `to_char` of the transient result both reject it; the scalar rounding probe
 alone is not represented as native `22008` evidence.
+
+## Closeout scope
+
+The current #815 slice qualifies this merged FF implementation together with
+the selected ordinary text `MSK` resolver. This bounded slice does not complete
+the broader #815 acceptance criteria.

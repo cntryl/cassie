@@ -83,6 +83,7 @@ fn copy(
         cte_context: &ctes,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls,
         outer_row: Some(row),
     };

@@ -102,6 +102,19 @@ backing, and actual output batch slots. Key admission starts after scalar expres
 the typed expression pipeline has its own roadmap acceptance. Simultaneous build/replacement
 owners retain their reservations until the replacement is complete.
 
+Exact NUMERIC `power(...)` and `^` admit decimal-estimation scratch before sizing
+the operation workspace, then reserve the bounded coefficient workspace before
+exponentiation. Kernel checkpoints observe cancellation between integer-power,
+logarithm and exponential steps. Scratch releases when expression evaluation
+ends; returned numeric coefficient bytes remain attached to the expression
+owner through the projected row's last clone. Temporal `to_char`, `to_date` and
+`to_timestamp` admit template, input and output workspace before parsing or
+rendering. Parsing scratch releases at function return; `to_char` output
+capacity remains attached to the expression owner. Template scanning, input
+digit scanning and rendering check cancellation at bounded intervals. These
+bounds cover SQL scalar execution; they do not include process RSS or a single
+native bigint operation's internal latency.
+
 Cancellation and deadline checkpoints bracket storage/decode calls and row conversion, and
 check aggregate merge and adaptive replacement before success diagnostics. Checkpoints do not
 interrupt an individual Midge, decoder or native sorting call, so this contract specifies

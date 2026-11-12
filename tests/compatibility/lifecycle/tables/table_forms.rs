@@ -21,5 +21,7 @@ mod like_options;
 mod like_primary_key;
 #[path = "table_forms/materialized_view_catalog_identity.rs"]
 mod materialized_view_catalog_identity;
+#[path = "table_forms/transactions.rs"]
+mod transactions;
 
 include!("table_forms/semantics.rs");

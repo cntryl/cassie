@@ -688,6 +688,43 @@ fn should_hold_owned_numeric_error_with_encoded_frame_through_delivery() {
 }
 
 #[test]
+fn should_retain_owned_numeric_frame_through_pending_write_and_flush() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    for pending_flush in [false, true] {
+        let controls = controls(1_048_576);
+        let input = format!("{}é!", "1".repeat(4095));
+        let source = CassieError::OwnedNumericLiteral(
+            crate::app::OwnedNumericLiteralError::syntax(&input, &controls)
+                .expect("admitted diagnostic"),
+        );
+        let error = Box::new(super::cassie_pg_error(&source));
+        drop(source);
+        let retained = controls.current_query_memory_bytes();
+        let mut writer = PendingWrite { pending_flush };
+        let mut send = Box::pin(async move {
+            super::super::writers::write_error_response(&mut writer, &error).await
+        });
+
+        // Act
+        runtime.block_on(poll_fn(|context| {
+            assert!(send.as_mut().poll(context).is_pending());
+            Poll::Ready(())
+        }));
+        let pending = controls.current_query_memory_bytes();
+        drop(send);
+
+        // Assert
+        assert!(retained > 0);
+        assert_eq!(pending, retained);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
 fn should_preserve_fatal_severity_in_owned_numeric_error_frame() {
     // Arrange
     let controls = controls(65_536);

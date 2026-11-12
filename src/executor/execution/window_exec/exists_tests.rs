@@ -31,6 +31,7 @@ fn run(
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls,
     };
     let row = super::super::BatchRow::new(vec![(

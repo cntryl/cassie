@@ -143,7 +143,7 @@ fn should_admit_direct_outer_projection_copies() {
             (Value::String("s".repeat(65536)), DataType::Text),
             (
                 Value::Vector(crate::types::Vector::new(vec![1.0; 16384])),
-                DataType::Vector(16384),
+                DataType::Vector(Some(16384)),
             ),
             (Value::Null, nested_type(128)),
         ];

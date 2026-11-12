@@ -777,6 +777,15 @@ fn validate_cast(
     else {
         unreachable!("only casts reach cast validation");
     };
+    if matches!(data_type, DataType::Vector(_))
+        && catalog.get_extension(&context.database, "vector").is_none()
+    {
+        return Err(crate::app::DiagnosticError::new(
+            "42704",
+            "type \"vector\" does not exist",
+        )
+        .into());
+    }
     crate::sql::literal_inputs::validate_with_controls(
         expr,
         data_type,

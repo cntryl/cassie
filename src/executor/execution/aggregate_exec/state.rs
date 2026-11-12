@@ -301,7 +301,7 @@ impl AggregateAccumulator {
         new_key: Option<SemanticValue>,
         second_argument: Option<Value>,
     ) -> Result<RetainedChange, QueryError> {
-        self.update_values_with_bytea(function, value, new_key, second_argument, false)
+        self.update_values_with_bytea(function, value, new_key, second_argument, false, false)
     }
 
     pub(super) fn update_values_with_bytea(
@@ -311,6 +311,7 @@ impl AggregateAccumulator {
         new_key: Option<SemanticValue>,
         second_argument: Option<Value>,
         bytea: bool,
+        array_input: bool,
     ) -> Result<RetainedChange, QueryError> {
         if let Some(change) = super::interval_aggregate::update(self, &value) {
             return change;
@@ -358,7 +359,7 @@ impl AggregateAccumulator {
                 seen_input,
             } => {
                 *seen_input = true;
-                return update_collection_values(*kind, values, value, second_argument);
+                return update_collection_values(*kind, values, value, second_argument, array_input);
             }
             Self::Sum { sum, seen } => update_sum(sum, seen, function, value)?,
             Self::Avg { sum, count } => update_average(sum, count, function, value)?,
@@ -601,7 +602,11 @@ fn update_collection_values(
     values: &mut Vec<(Value, Option<Value>)>,
     value: Value,
     second_argument: Option<Value>,
+    array_input: bool,
 ) -> Result<RetainedChange, QueryError> {
+    if kind == crate::sql::functions::CollectionAggregate::Array && array_input {
+        validate_array_aggregate_input(values, &value)?;
+    }
     if matches!(
         kind,
         crate::sql::functions::CollectionAggregate::JsonObject { .. }
@@ -677,6 +682,42 @@ fn update_collection_values(
     values.push((value, second_argument));
     let after = collection_values_retained_bytes(values);
     Ok(RetainedChange { before, after })
+}
+
+fn validate_array_aggregate_input(
+    values: &[(Value, Option<Value>)],
+    value: &Value,
+) -> Result<(), QueryError> {
+    let array = match value {
+        Value::Null => {
+            return Err(CassieError::from(crate::app::DiagnosticError::new(
+                "22004",
+                "cannot accumulate null arrays",
+            ))
+            .into());
+        }
+        Value::Array(array) => array,
+        _ => return Ok(()),
+    };
+    if array.is_empty() {
+        return Err(CassieError::from(crate::app::DiagnosticError::new(
+            "2202E",
+            "cannot accumulate empty arrays",
+        ))
+        .into());
+    }
+    let prior_array = values.iter().find_map(|(prior, _)| match prior {
+        Value::Array(array) => Some(array),
+        _ => None,
+    });
+    if prior_array.is_some_and(|prior| prior.dimensions() != array.dimensions()) {
+        return Err(CassieError::from(crate::app::DiagnosticError::new(
+            "2202E",
+            "cannot accumulate arrays of different dimensionality",
+        ))
+        .into());
+    }
+    Ok(())
 }
 
 fn update_sum(

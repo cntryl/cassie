@@ -108,6 +108,8 @@ mod numeric_ops;
 mod object_ids;
 #[path = "filter/sequence_functions.rs"]
 mod sequence_functions;
+#[path = "filter/comment_functions.rs"]
+mod comment_functions;
 pub(crate) use casts::cast_scratch_bytes;
 pub(crate) use numeric_comparison::comparison_key_value;
 #[path = "filter/functions.rs"]
@@ -520,6 +522,35 @@ fn cast_temporal_scalar(
         .map_err(|error| QueryError::General(format!("cannot cast value to {type_name}: {error}")))
 }
 
+fn cast_vector_scalar(
+    value: &ScalarValue,
+    expected_dimensions: Option<usize>,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<ScalarValue, QueryError> {
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    let text = value
+        .as_str()
+        .ok_or_else(|| QueryError::General("cannot cast value to VECTOR".to_string()))?;
+    crate::vector::text::visit_components_with_dimension(text, expected_dimensions, |_| {})
+        .map_err(|error| {
+            let message = match error {
+                crate::vector::text::TextVectorError::Shape => {
+                    "VECTOR input has invalid shape or dimension".to_string()
+                }
+                crate::vector::text::TextVectorError::Range => {
+                    "VECTOR component is outside finite f32 range".to_string()
+                }
+            };
+            QueryError::Cassie(crate::app::CassieError::InvalidVector(message))
+        })?;
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    Ok(ScalarValue::Str(text.to_string()))
+}
+
 fn cast_scalar(
     value: &ScalarValue,
     data_type: &DataType,
@@ -618,9 +649,9 @@ fn cast_scalar(
             character_arrays::cast(value, data_type, None, controls, None, false)
                 .unwrap_or_else(|| text_arrays::cast(value, element))
         }
-        DataType::Vector(_) => Err(QueryError::General(
-            "cannot cast scalar value to VECTOR".to_string(),
-        )),
+        DataType::Vector(expected_dimensions) => {
+            cast_vector_scalar(value, *expected_dimensions, controls)
+        }
     }
 }
 

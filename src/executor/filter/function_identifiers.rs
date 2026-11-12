@@ -118,9 +118,6 @@ pub(super) fn format_type_oid(oid: i64, typmod: i64) -> String {
         1083 => "time without time zone".to_string(),
         1114 => "timestamp without time zone".to_string(),
         2950 => "uuid".to_string(),
-        oid if crate::types::schema::vector_dimensions_for_oid(oid).is_some() => {
-            format!("vector({})", oid - crate::types::schema::VECTOR_OID_BASE)
-        }
         oid if (34_000..50_000).contains(&oid) => "array".to_string(),
         _ => oid.to_string(),
     }

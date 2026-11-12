@@ -133,6 +133,97 @@ fn should_collect_rest_body_with_an_idle_deadline() {
 }
 
 #[test]
+fn should_return_owned_numeric_error_response_through_public_route_request() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Arc::new(
+            Cassie::new_in_memory_with_config(crate::config::CassieRuntimeConfig::default())
+                .expect("cassie"),
+        );
+        cassie.startup().expect("startup");
+        let request_body = serde_json::json!({
+            "database": cassie.default_database.clone(),
+            "sql": "SELECT CAST('not_numeric' AS NUMERIC)"
+        })
+        .to_string();
+        let (route_result_sender, mut route_result_receiver) =
+            tokio::sync::mpsc::unbounded_channel();
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let service = hyper::service::service_fn(move |request: Request<Incoming>| {
+            let cassie = Arc::clone(&cassie);
+            let route_result_sender = route_result_sender.clone();
+            async move {
+                let result = route_request(request, cassie).await;
+                route_result_sender
+                    .send(result.is_ok())
+                    .expect("route result receiver");
+                let response = match result {
+                    Ok(response) => response,
+                    Err((status, message)) => {
+                        json_response(status, &serde_json::json!({"error": message}))
+                    }
+                };
+                Ok::<_, Infallible>(response)
+            }
+        });
+        let server = tokio::spawn(async move {
+            hyper::server::conn::http1::Builder::new()
+                .serve_connection(hyper_util::rt::TokioIo::new(server_io), service)
+                .await
+                .expect("server connection");
+        });
+        let (mut sender, connection) = hyper::client::conn::http1::handshake(
+            hyper_util::rt::TokioIo::new(client_io),
+        )
+        .await
+        .expect("client handshake");
+        let client = tokio::spawn(async move {
+            connection.await.expect("client connection");
+        });
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri("/api/v1/admin/query/execute")
+            .header(CONTENT_TYPE, "application/json")
+            .body(Full::new(Bytes::from(request_body)))
+            .expect("request");
+
+        // Act
+        let response = sender.send_request(request).await.expect("response");
+        let direct_route_response = route_result_receiver.recv().await.expect("route result");
+        let status = response.status();
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("response body")
+            .to_bytes();
+        drop(sender);
+        tokio::time::timeout(Duration::from_secs(1), server)
+            .await
+            .expect("server shutdown")
+            .expect("server task");
+        tokio::time::timeout(Duration::from_secs(1), client)
+            .await
+            .expect("client shutdown")
+            .expect("client task");
+
+        // Assert
+        assert!(direct_route_response);
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let value: serde_json::Value = serde_json::from_slice(&body).expect("error body");
+        assert_eq!(
+            value["error"],
+            "invalid input syntax for type numeric: \"not_numeric\""
+        );
+    });
+}
+
+#[test]
 fn should_reject_a_rest_body_that_stalls_between_frames() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

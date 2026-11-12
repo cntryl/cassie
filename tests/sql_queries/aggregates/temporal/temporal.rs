@@ -5,6 +5,9 @@ use cassie::types::Value;
 
 use crate::support_sql_fixture::{sql_fixture, SqlFixture};
 
+#[path = "../../types/temporal/text_timezone_abbreviations.rs"]
+mod text_timezone_abbreviations;
+
 fn assert_true(fixture: &SqlFixture, sql: &str) {
     let result = fixture.execute(sql);
     assert_eq!(

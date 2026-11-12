@@ -85,6 +85,7 @@ fn observe(fixture: &Fixture, dense: bool, reverse: bool) -> Observation {
         session: None,
         user_functions: &functions,
         params: &[],
+        parameter_type_oids: &[],
         controls: &controls,
     };
     let (left, right) = if reverse {

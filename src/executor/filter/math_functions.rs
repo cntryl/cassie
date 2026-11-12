@@ -9,6 +9,10 @@ use crate::types::extended::numeric::{math, parse_text, Numeric};
 use crate::types::extended::TypeInputError;
 use crate::types::typed::TypedValue;
 
+#[cfg(test)]
+#[path = "math_power_resource_tests.rs"]
+mod power_resource_tests;
+
 #[path = "math_special.rs"]
 mod special;
 
@@ -90,7 +94,12 @@ fn float_range(value: f64, inputs_finite: bool) -> Result<Value, QueryError> {
 }
 
 /// Evaluates `name` when it is a math function; `None` defers to other families.
-pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, QueryError>> {
+pub(super) fn evaluate(
+    name: &str,
+    args: &[Value],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::super::EvaluationMemory>,
+) -> Option<Result<Value, QueryError>> {
     let metadata = crate::sql::functions::function(name)?;
     let crate::sql::functions::FunctionId::Math(function) = metadata.id else {
         if matches!(name, "power" | "pow")
@@ -99,7 +108,7 @@ pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, Query
                 .iter()
                 .any(|value| matches!(value, Value::Float64(_) | Value::Typed(TypedValue::Real(_))))
         {
-            return Some(binary_numeric(args, math::power));
+            return Some(numeric_power(args, controls, memory));
         }
         return None;
     };
@@ -109,6 +118,71 @@ pub(super) fn evaluate(name: &str, args: &[Value]) -> Option<Result<Value, Query
         return Some(Ok(Value::Null));
     }
     Some(dispatch(function, args))
+}
+
+fn numeric_power(
+    args: &[Value],
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+    memory: Option<&super::super::EvaluationMemory>,
+) -> Result<Value, QueryError> {
+    let [base, exponent] = args else {
+        return Err(undefined("numeric"));
+    };
+    if matches!(base, Value::Null) || matches!(exponent, Value::Null) {
+        return Ok(Value::Null);
+    }
+    let base = to_numeric(base)?;
+    let exponent = to_numeric(exponent)?;
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    let preflight_bytes =
+        math::power_preflight_workspace_bytes(&base, &exponent).ok_or_else(|| {
+            QueryError::Cassie(CassieError::ResourceLimit(
+                "numeric power preflight workspace size overflow".into(),
+            ))
+        })?;
+    let mut owner = memory
+        .map(|memory| memory.scope(preflight_bytes))
+        .transpose()?;
+    let mut temporary = if owner.is_none() {
+        controls
+            .map(|controls| controls.reserve_query_memory(preflight_bytes))
+            .transpose()?
+    } else {
+        None
+    };
+    let bytes = math::power_workspace_bytes(&base, &exponent).ok_or_else(|| {
+        QueryError::Cassie(CassieError::ResourceLimit(
+            "numeric power workspace size overflow".into(),
+        ))
+    })?;
+    if let Some(owner) = owner.as_mut() {
+        owner.ensure_admitted(bytes)?;
+    } else if let Some(temporary) = temporary.as_mut() {
+        if bytes > preflight_bytes {
+            temporary.try_grow(bytes - preflight_bytes)?;
+        }
+    }
+    if let Some(controls) = controls {
+        controls.check_interruption()?;
+    }
+    let mut check = || {
+        controls.map_or(
+            Ok(()),
+            crate::runtime::QueryExecutionControls::check_interruption,
+        )
+    };
+    let result =
+        math::power_with_check(&base, &exponent, &mut check).map_err(|error| match error {
+            math::PowerError::TypeInput(error) => input_error(error),
+            math::PowerError::Interruption(error) => error.into(),
+        })?;
+    let result = TypedValue::Numeric(result);
+    if let Some(owner) = owner.as_mut() {
+        owner.retain(result.heap_bytes());
+    }
+    Ok(Value::Typed(result))
 }
 
 fn binary_numeric(

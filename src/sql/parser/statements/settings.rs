@@ -56,10 +56,33 @@ pub(in crate::sql::parser) fn parse_set_statement(sql: &str) -> Result<ParsedSta
             "SET ROLE and SET SESSION AUTHORIZATION are not supported in this version".into(),
         ));
     }
+    if lexical::pattern_end(argument, 0, "LOCAL TRANSACTION").is_some()
+        || lexical::pattern_end(argument, 0, "SESSION TRANSACTION").is_some()
+    {
+        return Err(SqlError::unsupported(
+            "unsupported SET TRANSACTION form".into(),
+        ));
+    }
     let session_end = lexical::pattern_end(argument, 0, "SESSION ");
     let argument = session_end.map_or(argument, |end| &argument[end..]);
     if argument.is_empty() {
         return Err(SqlError::syntax("SET requires a parameter".into()));
+    }
+    let uncommented_argument = lexical::without_comments(argument);
+    let normalized_argument = uncommented_argument.to_ascii_lowercase();
+    let mut words = normalized_argument.split_whitespace();
+    if words.next() == Some("transaction") {
+        if session_end.is_none() && words.eq(["isolation", "level", "repeatable", "read"]) {
+            return Ok(parsed(
+                sql,
+                "transaction isolation level",
+                Some("repeatable read".to_string()),
+                SettingAction::Set,
+            ));
+        }
+        return Err(SqlError::unsupported(
+            "unsupported SET TRANSACTION form".into(),
+        ));
     }
     if let Some(end) = lexical::pattern_end(argument, 0, "LOCAL ") {
         let mut statement = parse_set_statement(&format!("SET {}", &argument[end..]))?;

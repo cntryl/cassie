@@ -320,6 +320,13 @@ impl Midge {
         cleanup: &PendingSchemaCleanup,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_data_rw_tx_for(cleanup.collection())?;
+        if let PendingSchemaCleanupAction::Index { table, .. } = &cleanup.action {
+            let canonical = self.canonical_collection_name(table);
+            let mut metadata = Self::load_collection_metadata_from_tx(&tx, &canonical)?
+                .ok_or_else(|| CassieError::CollectionNotFound(canonical.clone()))?;
+            metadata.has_ever_had_indexes = true;
+            Self::save_collection_metadata_to_tx(&mut tx, &metadata)?;
+        }
         let value =
             serde_json::to_vec(cleanup).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(

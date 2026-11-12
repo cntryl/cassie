@@ -5,8 +5,10 @@ use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 use super::*;
+use crate::catalog::{Catalog, SequenceMeta};
 use crate::config::CassieRuntimeLimits;
 use crate::runtime::QueryCancellationHandle;
+use crate::types::DataType;
 
 thread_local! {
     static WAITING: RefCell<Option<mpsc::Sender<WaitBoundary>>> = const { RefCell::new(None) };
@@ -68,6 +70,87 @@ fn should_cancel_a_commit_while_its_collection_gate_remains_held() {
     assert_eq!(boundary, WaitBoundary::Collection);
     assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(retained, 0);
+}
+
+#[test]
+fn should_serialize_sequence_cursor_publication_after_the_midge_update() {
+    // Arrange
+    let midge = Arc::new(Midge::new_in_memory("postgres").expect("memory engine"));
+    let name = "public.cursor_publication_order";
+    let mut sequence = SequenceMeta::new(name, DataType::BigInt);
+    sequence.object_id = 91;
+    sequence.is_called = true;
+    midge.put_sequence(&sequence).expect("persist sequence");
+    let catalog = Arc::new(Catalog::new());
+    catalog.register_sequence(sequence);
+
+    let (advanced_tx, advanced_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let first_midge = Arc::clone(&midge);
+    let first_catalog = Arc::clone(&catalog);
+    let first_name = name.to_owned();
+    let first = std::thread::spawn(move || {
+        let query_controls = controls(1024 * 1024, QueryCancellationHandle::new());
+        let _query = PublicationControlScope::enter(Some(&query_controls));
+        first_midge.with_sequence_update_gate(&first_name, || {
+            let (_, updated) = first_midge.update_sequence_retrying(&first_name, |metadata| {
+                metadata.advance().map_err(Into::into)
+            })?;
+            advanced_tx
+                .send(updated.current_value)
+                .expect("signal the durable cursor update");
+            resume_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("resume cursor publication");
+            first_catalog.update_sequence_cursor(&updated);
+            Ok(())
+        })
+    });
+
+    let first_value = advanced_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("first Midge cursor update");
+    let second_midge = Arc::clone(&midge);
+    let second_catalog = Arc::clone(&catalog);
+    let second_name = name.to_owned();
+    let (waiting_tx, waiting_rx) = mpsc::channel();
+    let second = std::thread::spawn(move || {
+        let query_controls = controls(1024 * 1024, QueryCancellationHandle::new());
+        WAITING.with(|slot| slot.replace(Some(waiting_tx)));
+        let _query = PublicationControlScope::enter(Some(&query_controls));
+        second_midge.with_sequence_update_gate(&second_name, || {
+            let (_, updated) = second_midge.update_sequence_retrying(&second_name, |metadata| {
+                metadata.advance().map_err(Into::into)
+            })?;
+            second_catalog.update_sequence_cursor(&updated);
+            Ok(())
+        })
+    });
+
+    // Act
+    let boundary = waiting_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("second update reaches the shared sequence gate");
+    resume_tx.send(()).expect("release first cursor publication");
+    let first_result = first.join().expect("first sequence update thread");
+    let second_result = second.join().expect("second sequence update thread");
+
+    // Assert
+    assert_eq!(first_value, 2);
+    assert_eq!(boundary, WaitBoundary::Collection);
+    assert!(first_result.is_ok());
+    assert!(second_result.is_ok());
+    let published = catalog
+        .get_sequence(name)
+        .expect("catalog sequence remains published");
+    let stored = midge
+        .get_sequence(name)
+        .expect("read stored sequence")
+        .expect("stored sequence remains present");
+    assert_eq!(published.current_value, 3);
+    assert!(published.is_called);
+    assert_eq!(stored.current_value, 3);
+    assert!(stored.is_called);
 }
 
 #[test]

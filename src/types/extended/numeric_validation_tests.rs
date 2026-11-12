@@ -166,6 +166,45 @@ fn should_interrupt_radix_conversion_with_release_temporary_limbs() {
 }
 
 #[test]
+fn should_interrupt_decimal_validation_after_a_bounded_scan_checkpoint() {
+    // Arrange
+    let cancellation = QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &CassieRuntimeLimits::default(),
+        Instant::now(),
+        cancellation.clone(),
+    );
+    let input = "1".repeat(4096);
+    let mut scan_checkpoints = 0;
+
+    // Act
+    let result = validate_with_limits_observing(
+        &input,
+        Limits {
+            max_integer_digits: 3,
+            max_dscale: 2,
+        },
+        Some(&controls),
+        |phase| {
+            if matches!(phase, ValidationPhase::Scan) {
+                scan_checkpoints += 1;
+                if scan_checkpoints == 3 {
+                    cancellation.cancel();
+                }
+            }
+        },
+    );
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(ValidationError::Interrupted(CassieError::QueryCanceled))
+    ));
+    assert_eq!(scan_checkpoints, 3);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_admit_radix_limbs_before_conversion() {
     // Arrange
     let denied = controls(std::mem::size_of::<u64>() - 1);

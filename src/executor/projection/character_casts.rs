@@ -1,4 +1,4 @@
-//! Retain data-dependent character-array cast scratch through projected rows.
+//! Retain scalar expression scratch through projected rows.
 use super::super::filter::evaluation::{
     evaluate_projection_value_with_owners, ProjectionValueContext,
 };
@@ -175,6 +175,13 @@ impl<'a> Memory<'a> {
             .is_some_and(|owner| owner.bytes() == 0)
         {
             drop(pending.deletion.take());
+        }
+        if pending
+            .memory
+            .as_ref()
+            .is_some_and(|owner| owner.bytes() == 0)
+        {
+            drop(pending.memory.take());
         }
         if let (Some(memory), Some(deletion)) = (&pending.memory, &pending.deletion) {
             if !memory.belongs_to(controls) || !deletion.belongs_to(controls) {

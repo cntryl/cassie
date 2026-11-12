@@ -38,6 +38,7 @@ pub(super) struct PlanExecutionEnv<'a> {
     pub(super) session: Option<&'a CassieSession>,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
+    pub(super) parameter_type_oids: &'a [i32],
     pub(super) controls: &'a QueryExecutionControls,
 }
 
@@ -56,6 +57,7 @@ pub(super) struct ExistsResolutionContext<'a> {
     pub(super) cte_context: &'a CteContext,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
+    pub(super) parameter_type_oids: &'a [i32],
     pub(super) controls: &'a QueryExecutionControls,
     /// The enclosing row a correlated subquery is evaluated against.
     pub(super) outer_row: Option<&'a BatchRow>,
@@ -108,7 +110,36 @@ pub(super) fn execute_plan(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let env = plan_execution_env(cassie, session, user_functions, params, controls);
+    execute_plan_with_parameter_oids(
+        cassie,
+        session,
+        plan,
+        cte_context,
+        user_functions,
+        params,
+        &[],
+        controls,
+    )
+}
+
+pub(super) fn execute_plan_with_parameter_oids(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    parameter_type_oids: &[i32],
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let env = plan_execution_env_with_parameter_oids(
+        cassie,
+        session,
+        user_functions,
+        params,
+        parameter_type_oids,
+        controls,
+    );
     execute_plan_with_outer_row(&env, plan, cte_context, None)
 }
 
@@ -121,15 +152,45 @@ pub(super) fn execute_physical_plan(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<super::owned_rows::OwnedRows, QueryError> {
-    let env = plan_execution_env(cassie, session, user_functions, params, controls);
+    execute_physical_plan_with_parameter_oids(
+        cassie,
+        session,
+        physical,
+        cte_context,
+        user_functions,
+        params,
+        &[],
+        controls,
+    )
+}
+
+pub(super) fn execute_physical_plan_with_parameter_oids(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    physical: &PhysicalPlan,
+    cte_context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    parameter_type_oids: &[i32],
+    controls: &QueryExecutionControls,
+) -> Result<super::owned_rows::OwnedRows, QueryError> {
+    let env = plan_execution_env_with_parameter_oids(
+        cassie,
+        session,
+        user_functions,
+        params,
+        parameter_type_oids,
+        controls,
+    );
     execute_plan_with_physical(&env, Some(physical), &physical.logical, cte_context, None)
 }
 
-pub(super) fn plan_execution_env<'a>(
+pub(super) fn plan_execution_env_with_parameter_oids<'a>(
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,
     user_functions: &'a HashMap<String, FunctionMeta>,
     params: &'a [Value],
+    parameter_type_oids: &'a [i32],
     controls: &'a QueryExecutionControls,
 ) -> PlanExecutionEnv<'a> {
     PlanExecutionEnv {
@@ -137,6 +198,7 @@ pub(super) fn plan_execution_env<'a>(
         session,
         user_functions,
         params,
+        parameter_type_oids,
         controls,
     }
 }
@@ -206,6 +268,7 @@ fn execute_plan_with_physical(
             cte_context,
             env.user_functions,
             env.params,
+            env.parameter_type_oids,
             &cte_controls,
         )?;
         let _name_memory = cte_controls.reserve_query_memory(cte.name.len())?;
@@ -222,6 +285,7 @@ fn execute_plan_with_physical(
                 cte_context,
                 user_functions: env.user_functions,
                 params: env.params,
+                parameter_type_oids: env.parameter_type_oids,
                 controls: env.controls,
                 outer_row,
             },
@@ -254,11 +318,12 @@ fn execute_plan_with_physical(
     }
     let relational_controls =
         plan_has_cte_boundary(plan).then(|| env.controls.for_relational_scalar_cte());
-    let source_env = source::source_execution_env(
+    let source_env = source::source_execution_env_with_parameter_oids(
         env.cassie,
         env.session,
         env.user_functions,
         env.params,
+        env.parameter_type_oids,
         relational_controls.as_ref().unwrap_or(env.controls),
     );
     source::execute_source_query_with_outer_row(&source_env, plan, cte_context, outer_row)
@@ -389,6 +454,7 @@ fn analytical_projection_path(context: &mut AccessPathContext<'_>) -> AccessPath
         context.cte_context,
         context.env.user_functions,
         context.env.params,
+        context.env.parameter_type_oids,
         context.env.controls,
     )
 }
@@ -568,6 +634,7 @@ pub(super) fn resolve_statement_exists(
             cte_context: &cte_context,
             user_functions,
             params,
+            parameter_type_oids: &[],
             controls,
             outer_row: None,
         },

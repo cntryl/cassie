@@ -1,5 +1,7 @@
 use super::auth::hash_password;
 use super::{normalize_role_name, Cassie, CassieError, CassieSession, CatalogObjectKind, RoleMeta};
+use crate::catalog::{RoleGrantTarget, RoleObjectGrantMeta, RoleObjectPrivilege};
+use std::collections::{BTreeSet, HashSet};
 
 impl Cassie {
     #[must_use]
@@ -246,6 +248,167 @@ impl Cassie {
         self.update_role_database_access(actor, role_name, database, false)
     }
 
+    /// Grants or revokes the selected direct schema/table privileges.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the actor is not an administrator, a role or
+    /// target does not exist, or the grant cannot be committed.
+    pub(crate) fn update_role_object_access(
+        &self,
+        actor: &CassieSession,
+        role_name: &str,
+        target: &crate::sql::ast::ObjectPrivilegeTarget,
+        privileges: &[RoleObjectPrivilege],
+        enabled: bool,
+    ) -> Result<(), CassieError> {
+        if actor.is_transaction_active() {
+            return Err(CassieError::Transaction {
+                kind: super::TransactionErrorKind::ActiveTransaction,
+                message: "GRANT and REVOKE object privileges are not supported inside an explicit transaction".to_owned(),
+            });
+        }
+        if !self
+            .lookup_role(&actor.user)?
+            .is_some_and(|role| role.is_admin)
+        {
+            return Err(CassieError::InsufficientPrivilege);
+        }
+        let normalized = normalize_role_name(role_name);
+        let Some(role) = self.lookup_role(&normalized)? else {
+            return Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Role,
+                name: normalized,
+            });
+        };
+        if role.is_admin {
+            return Err(CassieError::Unsupported(
+                "bootstrap administrators always have all object privileges".to_owned(),
+            ));
+        }
+        let database = actor
+            .current_database()
+            .unwrap_or(self.default_database.as_str());
+        self.ensure_database_exists(database)?;
+        let database_meta = self.catalog.get_database(database).ok_or_else(|| {
+            CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Database,
+                name: database.to_owned(),
+            }
+        })?;
+        let grant_target = match target {
+            crate::sql::ast::ObjectPrivilegeTarget::Schema(name) => {
+                if crate::catalog::is_system_schema(name) {
+                    return Err(CassieError::InsufficientPrivilege);
+                }
+                let canonical = crate::catalog::canonical_schema_name(database, name);
+                let Some(schema) = self.catalog.get_namespace(&canonical) else {
+                    return Err(CassieError::CatalogObjectNotFound {
+                        kind: CatalogObjectKind::Schema,
+                        name: name.clone(),
+                    });
+                };
+                RoleGrantTarget::Schema(schema.object_id)
+            }
+            crate::sql::ast::ObjectPrivilegeTarget::Table(name) => {
+                let context = self.binding_context_for_session(Some(actor));
+                let resolved =
+                    crate::sql::binder::resolve_relation_name(name, &self.catalog, &context)?;
+                let Some(table) = self.catalog.get_collection(&resolved) else {
+                    return Err(CassieError::CatalogObjectNotFound {
+                        kind: CatalogObjectKind::Relation,
+                        name: name.clone(),
+                    });
+                };
+                if table.storage_id == 0 {
+                    return Err(CassieError::Unsupported(
+                        "object privileges require a persisted table identity".to_owned(),
+                    ));
+                }
+                RoleGrantTarget::Table(table.storage_id)
+            }
+        };
+        if privileges.is_empty() {
+            return Err(CassieError::Planner(
+                "object privilege statement requires at least one privilege".to_owned(),
+            ));
+        }
+        let grant = RoleObjectGrantMeta {
+            database_family: database_meta.physical_family,
+            role_id: role.object_id,
+            target: grant_target,
+            privileges: BTreeSet::default(),
+        };
+        let updated = self
+            .midge
+            .update_role_object_grant(&grant, privileges, enabled)
+            .map_err(|error| {
+                CassieError::Storage(format!("update role object privileges: {error}"))
+            })?;
+        if let Some(updated) = updated {
+            self.catalog.register_role_object_grant(updated);
+        } else {
+            self.catalog.unregister_role_object_grant(&grant);
+        }
+        self.bump_schema_epoch_and_invalidate_query_cache()
+    }
+
+    pub(crate) fn cleanup_role_object_grants_for_target(
+        &self,
+        database_family: &str,
+        target: &RoleGrantTarget,
+    ) -> Result<(), CassieError> {
+        self.cleanup_role_object_grants_for_targets(database_family, std::slice::from_ref(target))
+    }
+
+    pub(crate) fn cleanup_role_object_grants_for_targets(
+        &self,
+        database_family: &str,
+        targets: &[RoleGrantTarget],
+    ) -> Result<(), CassieError> {
+        let removed = self
+            .midge
+            .delete_role_object_grants_for_targets(database_family, targets)
+            .map_err(|error| {
+                CassieError::Storage(format!("remove dropped-object privileges: {error}"))
+            })?;
+        if removed.is_empty() {
+            return Ok(());
+        }
+        for grant in removed {
+            self.catalog.unregister_role_object_grant(&grant);
+        }
+        self.bump_schema_epoch_and_invalidate_query_cache()
+    }
+
+    pub(crate) fn role_grant_targets_removed_by_transaction(
+        &self,
+        committed_catalog: &crate::catalog::Catalog,
+    ) -> Vec<(String, Vec<RoleGrantTarget>)> {
+        let retained = committed_catalog
+            .list_role_object_grants()
+            .into_iter()
+            .map(|grant| grant.catalog_key())
+            .collect::<HashSet<_>>();
+        let mut removed: Vec<(String, Vec<RoleGrantTarget>)> = Vec::new();
+        for grant in self.publication_catalog.list_role_object_grants() {
+            if retained.contains(&grant.catalog_key()) {
+                continue;
+            }
+            if let Some((_, targets)) = removed
+                .iter_mut()
+                .find(|(family, _)| family == &grant.database_family)
+            {
+                if !targets.contains(&grant.target) {
+                    targets.push(grant.target);
+                }
+            } else {
+                removed.push((grant.database_family, vec![grant.target]));
+            }
+        }
+        removed
+    }
+
     fn update_role_database_access(
         &self,
         actor: &CassieSession,
@@ -308,6 +471,8 @@ impl Cassie {
         self.midge
             .delete_role(&normalized)
             .map_err(|error| CassieError::Storage(format!("delete role '{name}': {error}")))?;
+        self.catalog
+            .unregister_role_object_grants_for_role(role.object_id);
         self.catalog.unregister_role(&normalized);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())

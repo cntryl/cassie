@@ -374,16 +374,62 @@ fn should_reject_savepoint_without_name() {
 }
 
 #[test]
-fn should_reject_transaction_isolation_level_changes() {
+fn should_parse_selected_set_transaction_isolation_levels() {
     // Arrange
-    let sql = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+    let cases = [
+        (
+            "SET TRANSACTION ISOLATION LEVEL READ COMMITTED",
+            "read committed",
+        ),
+        (
+            "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED",
+            "read uncommitted",
+        ),
+        (
+            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+            "repeatable read",
+        ),
+        (
+            "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE",
+            "serializable",
+        ),
+    ];
 
     // Act
-    let error = parse_statement(sql).expect_err("unsupported isolation changes should fail");
+    let parsed = cases.map(|(sql, _)| parse_statement(sql).expect("supported SET syntax"));
 
     // Assert
-    assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
-    assert!(error.message().contains("unsupported"));
+    for (parsed, (_, expected)) in parsed.into_iter().zip(cases) {
+        let QueryStatement::Set(statement) = parsed.statement else {
+            panic!("expected SET statement");
+        };
+        assert_eq!(statement.variable, "transaction_isolation");
+        assert_eq!(statement.value.as_deref(), Some(expected));
+        assert_eq!(statement.action, cassie::sql::ast::SettingAction::Set);
+    }
+}
+
+#[test]
+fn should_reject_unselected_set_transaction_mode_forms() {
+    // Arrange
+    let cases = [
+        "SET TRANSACTION READ ONLY",
+        "SET TRANSACTION READ WRITE",
+        "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
+        "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ WRITE",
+        "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ DEFERRABLE",
+        "SET LOCAL TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+        "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+        "SET transaction_isolation = 'repeatable read'",
+    ];
+
+    // Act
+    let errors = cases.map(|sql| parse_statement(sql).expect_err("unselected SET form"));
+
+    // Assert
+    for error in errors {
+        assert_eq!(error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    }
 }
 
 #[test]

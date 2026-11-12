@@ -901,7 +901,7 @@ This is a bounded #819 increment, not full transaction-profile qualification.
 
 ### Enabled RW candidate for the combined native gate
 
-The next source candidate deliberately admits default and explicit READ WRITE
+The v0.2 profile admits default and explicit READ WRITE
 `BEGIN ... REPEATABLE READ`, plus changing READ ONLY to READ WRITE before the
 first snapshot. SERIALIZABLE and RR DEFERRABLE remain unsupported. The bounded
 `SET TRANSACTION ISOLATION` form above now covers the pre-snapshot #819

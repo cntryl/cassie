@@ -96,7 +96,7 @@ fn should_preserve_worker_cancellation_in_private_execution_error() {
     // Assert
     assert!(matches!(
         result,
-        Err(PrivateExecutionError::Cassie(CassieError::QueryCancelled))
+        Err(PrivateExecutionError::Cassie(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -219,7 +219,7 @@ fn should_release_partial_frame_after_actual_copy_cancellation() {
     });
     // Assert
     assert_eq!(copied, 1);
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(controls.current_query_memory_bytes() > 0);
     drop(diagnostic);
     assert_eq!(controls.current_query_memory_bytes(), 0);

@@ -114,7 +114,7 @@ fn should_keep_real_sql_numeric_error_admitted_through_rest_body_drop() {
             &session,
             "SELECT CAST('not_numeric' AS NUMERIC)",
             vec![],
-            crate::app::ExecutionMode::SimpleQuery,
+            crate::runtime::ExecutionMode::SimpleQuery,
             &controls,
         )
         .expect_err("invalid NUMERIC literal");

@@ -63,7 +63,7 @@ fn should_release_row_diagnostic_after_actual_copy_cancellation() {
     assert_eq!(copies, 1);
     assert!(matches!(
         result,
-        Err(DiagnosticError::Control(CassieError::QueryCancelled))
+        Err(DiagnosticError::Control(CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }

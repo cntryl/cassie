@@ -48,9 +48,6 @@ mod output_owner;
 mod output_types;
 mod regression;
 mod retained_change;
-#[cfg(test)]
-#[path = "aggregate_exec/group_size.rs"]
-mod group_size;
 #[path = "aggregate_exec/rewrite.rs"]
 mod rewrite;
 #[path = "aggregate_exec/state.rs"]

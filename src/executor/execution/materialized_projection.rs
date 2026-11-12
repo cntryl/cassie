@@ -32,13 +32,7 @@ use crate::midge::adapter::RootHashRecord;
 pub(super) mod test_support;
 
 #[cfg(test)]
-#[path = "materialized_projection_test_support.rs"]
-mod test_support;
-
-#[cfg(test)]
-pub(super) use test_support::{
-    cancel_after_activation_interruption_check, cancel_before_activation_publication,
-};
+pub(super) use test_support::cancel_before_activation_publication;
 
 pub(super) use super::materialized_projection_maintenance::mark_source_projections_stale;
 

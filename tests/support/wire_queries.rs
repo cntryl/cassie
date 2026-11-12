@@ -4,7 +4,8 @@ use crate::support_pgwire as wire;
 use cassie::app::Cassie;
 use cassie::types::Value;
 
-use super::VECTOR_TYPE_OID;
+/// Placeholder OID for the per-database pgvector type; matches `type_metadata_contract`.
+const VECTOR_TYPE_OID: i32 = i32::MIN;
 
 pub type Frames = Vec<(u8, Vec<u8>)>;
 

@@ -26,7 +26,7 @@ fn should_interrupt_the_controlled_index_namespace_lookup() {
     );
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -77,7 +77,7 @@ fn should_release_names_when_cancelled_during_collection_snapshot() {
     );
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -125,7 +125,7 @@ fn should_interrupt_while_waiting_for_a_catalog_guard() {
     // Assert
     assert!(matches!(
         result.expect("cancelled while guard held"),
-        Err(CassieError::QueryCancelled)
+        Err(CassieError::QueryCanceled)
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
@@ -147,7 +147,7 @@ fn should_release_an_acquired_guard_when_cancelled_at_the_acquisition_boundary()
     });
 
     // Assert
-    assert!(matches!(result, Err(CassieError::QueryCancelled)));
+    assert!(matches!(result, Err(CassieError::QueryCanceled)));
     assert!(lock.try_write().is_some());
 }
 

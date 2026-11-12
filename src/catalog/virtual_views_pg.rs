@@ -1034,7 +1034,7 @@ mod tests {
         // Act
         let access_method_oids = indexes
             .iter()
-            .map(|index| relation_access_method_oid(catalog, None, "i", Some(index)))
+            .map(|index| relation_access_method_oid(&catalog, None, "i", Some(index)))
             .collect::<Vec<_>>();
 
         // Assert

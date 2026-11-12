@@ -603,7 +603,9 @@ impl Midge {
         Ok(entries)
     }
 
-    pub(crate) fn canonical_collection_name(&self, collection: &str) -> String {
+    /// The canonical stored name for `collection` in the default database and schema.
+    #[must_use]
+    pub fn canonical_collection_name(&self, collection: &str) -> String {
         match parse_name(collection) {
             Ok(ParsedName::Unqualified(name)) => canonical_relation_name(
                 &self.default_database,

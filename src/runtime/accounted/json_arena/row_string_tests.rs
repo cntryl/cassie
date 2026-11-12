@@ -115,7 +115,7 @@ fn should_release_row_string_buffers_after_actual_byte_copy_cancellation() {
     assert!(matches!(
         result,
         Err(CursorError::Interrupted(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);
@@ -144,7 +144,7 @@ fn should_release_old_and_new_buffers_after_actual_growth_move_cancellation() {
     assert!(matches!(
         result,
         Err(CursorError::Interrupted(
-            crate::app::CassieError::QueryCancelled
+            crate::app::CassieError::QueryCanceled
         ))
     ));
     assert_eq!(controls.current_query_memory_bytes(), 0);

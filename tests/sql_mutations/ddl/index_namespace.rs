@@ -86,16 +86,14 @@ fn should_detect_same_schema_index_name_on_another_table() {
     assert_eq!(
         duplicate
             .expect_err("schema name collision")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
     skipped.expect("valid IF NOT EXISTS skips existing relation");
     assert_eq!(
         invalid
             .expect_err("column validation precedes skip")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42703"
     );
     other_schema.expect("other schemas have independent index names");
@@ -127,15 +125,13 @@ fn should_reject_index_names_used_by_tables_and_sequences() {
     assert_eq!(
         table
             .expect_err("table shares relation namespace")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
     assert_eq!(
         sequence
             .expect_err("sequence shares relation namespace")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
     skipped.expect("IF NOT EXISTS skips occupied relation name");
@@ -160,15 +156,13 @@ fn should_reject_index_names_used_by_views() {
     // Assert
     assert_eq!(
         view.expect_err("view owns relation name")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
     assert_eq!(
         materialized
             .expect_err("materialized view owns relation name")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
 }
@@ -191,8 +185,7 @@ fn should_reject_case_distinct_index_names_until_identity_is_safe() {
     assert_eq!(
         ambiguous
             .expect_err("case-distinct identity is not yet safe")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "0A000"
     );
     let first_oid = fixture.rows("SELECT oid::bigint FROM pg_class WHERE relname = 'Case.Index'");
@@ -255,15 +248,13 @@ fn should_validate_include_and_predicate_before_skipping_an_existing_name() {
     assert_eq!(
         include
             .expect_err("missing INCLUDE column")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42703"
     );
     assert_eq!(
         predicate
             .expect_err("missing predicate column")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42703"
     );
 }
@@ -370,8 +361,7 @@ fn should_restore_schema_namespace_after_savepoint_rollback() {
     assert_eq!(
         collision
             .expect_err("staged index owns name")
-            .descriptor()
-            .sql_state,
+            .sql_state(),
         "42P07"
     );
     assert!(fixture
@@ -421,7 +411,7 @@ fn should_reject_concurrent_catalog_publication_of_the_same_index_name() {
         .expect("recover second transaction");
 
     // Assert
-    assert_eq!(conflict.descriptor().sql_state, "40001");
+    assert_eq!(conflict.sql_state(), "40001");
     assert_eq!(fixture.rows("SELECT indexname FROM pg_indexes WHERE tablename IN ('namespace_left', 'namespace_right')"),
         vec![vec![Value::String("shared_idx".to_owned())]]);
 }

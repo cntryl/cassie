@@ -14,7 +14,7 @@ impl Midge {
     ///
     /// Returns an error for unsupported target/privilege combinations, malformed durable
     /// records, or a failed Schema-family transaction.
-    pub(crate) fn update_role_object_grant(
+    pub fn update_role_object_grant(
         &self,
         grant: &RoleObjectGrantMeta,
         privileges: &[RoleObjectPrivilege],
@@ -61,7 +61,7 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when storage or a record is malformed.
-    pub(crate) fn list_role_object_grants(
+    pub fn list_role_object_grants(
         &self,
     ) -> Result<Vec<RoleObjectGrantMeta>, CassieError> {
         let tx = self.begin_schema_readonly_tx()?;

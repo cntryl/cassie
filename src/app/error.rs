@@ -257,6 +257,12 @@ pub enum CassieError {
 }
 
 impl CassieError {
+    /// The PostgreSQL SQLSTATE reported for this error.
+    #[must_use]
+    pub fn sql_state(&self) -> &'static str {
+        self.descriptor().sql_state
+    }
+
     pub(crate) fn descriptor(&self) -> CassieErrorDescriptor {
         match self {
             Self::UndefinedColumn(_) => bad_request_descriptor("42703", self.to_string()),

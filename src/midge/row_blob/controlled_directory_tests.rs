@@ -309,7 +309,7 @@ fn should_release_partial_cell_after_actual_borrowed_field_copy_cancellation() {
         result,
         Err(super::controlled_directory::HandoffError::Cell(
             crate::runtime::accounted::json_arena::PlainCellError::Control(
-                CassieError::QueryCancelled
+                CassieError::QueryCanceled
             )
         ))
     ));

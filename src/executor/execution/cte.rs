@@ -5,6 +5,8 @@ use super::{
 };
 use crate::executor::semantic::SemanticKey;
 use crate::sql::ast::SetOperator;
+#[cfg(test)]
+use super::execute_plan;
 
 #[cfg(test)]
 mod retention_tests;

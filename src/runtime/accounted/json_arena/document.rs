@@ -364,6 +364,42 @@ impl<'a> Document<'a> {
         Self::parse_sources_with_policy(sources, controls, ObjectPolicy::Plain, observer)
     }
 
+    #[cfg(test)]
+    fn parse_plain(
+        input: &'a str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Parsed, DocumentError> {
+        Self::parse_plain_observed(input, controls, |_| {})
+    }
+
+    #[cfg(test)]
+    fn parse_plain_row(
+        input: &'a [u8],
+        controls: &QueryExecutionControls,
+    ) -> Result<Parsed, DocumentError> {
+        Self::parse_plain_row_observed(input, controls, |_| {})
+    }
+
+    #[cfg(test)]
+    fn parse_plain_row_observed(
+        input: &'a [u8],
+        controls: &QueryExecutionControls,
+        observer: impl FnMut(DocumentProgress),
+    ) -> Result<Parsed, DocumentError> {
+        let sources = SourceStack::from_row_bytes(input, controls)?;
+        Self::parse_sources_plain(sources, controls, observer)
+    }
+
+    #[cfg(test)]
+    fn parse_plain_observed(
+        input: &'a str,
+        controls: &QueryExecutionControls,
+        observer: impl FnMut(DocumentProgress),
+    ) -> Result<Parsed, DocumentError> {
+        let sources = SourceStack::from_str(input, controls)?;
+        Self::parse_sources_plain(sources, controls, observer)
+    }
+
     pub(super) fn parse_sources_with_policy(
         sources: SourceStack<'a>,
         controls: &QueryExecutionControls,

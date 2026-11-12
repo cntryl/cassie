@@ -879,6 +879,8 @@ mod qualification_tests;
 mod source_qualification;
 
 #[cfg(test)]
+use super::execute_plan;
+#[cfg(test)]
 #[path = "source_alias_accounting_tests.rs"]
 mod alias_accounting_tests;
 

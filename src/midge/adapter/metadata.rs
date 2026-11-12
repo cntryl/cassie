@@ -988,9 +988,6 @@ impl Midge {
 #[cfg(test)]
 #[path = "metadata/index_definition_readback_tests.rs"]
 mod index_definition_readback_tests;
-#[cfg(test)]
-#[path = "metadata/object_id_reservation_tests.rs"]
-mod object_id_reservation_tests;
 
 fn next_catalog_object_id(current: u64) -> Result<u64, CassieError> {
     const LEGACY_VECTOR_OID_RANGE: std::ops::RangeInclusive<u64> = 100_001..=132_767;

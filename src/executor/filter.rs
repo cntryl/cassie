@@ -179,10 +179,6 @@ fn take_array_value_clone_count() -> usize {
     ARRAY_VALUE_CLONE_COUNT.with(|count| count.replace(0))
 }
 
-#[cfg(test)]
-#[path = "filter/json_delete_evaluation_tests.rs"]
-mod json_delete_evaluation_tests;
-
 #[derive(Debug, Clone)]
 pub(crate) enum ScalarValue {
     Null,

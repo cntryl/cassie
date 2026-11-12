@@ -104,7 +104,7 @@ fn should_release_partial_clone_after_actual_copy_cancellation() {
     assert_eq!(copies, 1);
     assert!(matches!(
         result,
-        Err(CellError::Control(crate::app::CassieError::QueryCancelled))
+        Err(CellError::Control(crate::app::CassieError::QueryCanceled))
     ));
     assert_eq!(controls.current_query_memory_bytes(), original);
     drop(cell);

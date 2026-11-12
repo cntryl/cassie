@@ -91,6 +91,7 @@ fn should_extract_timestamptz_epoch_without_local_offset_saturation() {
         &Value::String("epoch".to_owned()),
         &Value::Typed(TypedValue::TimestampTz(maximum)),
         &session,
+        None,
     );
 
     // Assert

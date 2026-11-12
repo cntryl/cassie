@@ -129,8 +129,7 @@ pub(super) fn build_select_result(
     let object_labels = ObjectLabels::for_columns(cassie, session, &columns);
     let mut object_oids = object_labels
         .as_ref()
-        .map(|labels| labels.oid_columns(rows.len()))
-        .unwrap_or_default();
+        .map_or_default(|labels| labels.oid_columns(rows.len()));
     for row in rows.iter() {
         let values = row.entries().iter().filter_map(|(name, value)| {
             (!name.starts_with('\0')

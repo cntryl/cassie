@@ -173,8 +173,7 @@ fn load() -> BuiltinIdentities {
             return_type: number(fields[4]),
             argument_types: fields
                 .get(5)
-                .map(|args| args.split_whitespace().map(number).collect())
-                .unwrap_or_default(),
+                .map_or_default(|args| args.split_whitespace().map(number).collect()),
         })
         .collect::<Vec<_>>();
     let operators = rows(include_str!("builtin_identity/pg_operator.tsv"))

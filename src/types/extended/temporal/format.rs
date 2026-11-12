@@ -236,35 +236,29 @@ fn render_name_field(
         "tz" => (
             moment
                 .zone_east
-                .map(|_| case_like(spelling, zone_name))
-                .unwrap_or_default(),
+                .map_or_default(|_| case_like(spelling, zone_name)),
             None,
         ),
         "of" => (
             moment
                 .zone_east
-                .map(|east| zone::format_offset(east, fill))
-                .unwrap_or_default(),
+                .map_or_default(|east| zone::format_offset(east, fill)),
             None,
         ),
         "tzh" => (
-            moment
-                .zone_east
-                .map(|east| {
-                    format!(
-                        "{}{:02}",
-                        if east < 0 { '-' } else { '+' },
-                        east.unsigned_abs() / 3600
-                    )
-                })
-                .unwrap_or_default(),
+            moment.zone_east.map_or_default(|east| {
+                format!(
+                    "{}{:02}",
+                    if east < 0 { '-' } else { '+' },
+                    east.unsigned_abs() / 3600
+                )
+            }),
             None,
         ),
         "tzm" => (
             moment
                 .zone_east
-                .map(|east| format!("{:02}", east.unsigned_abs() / 60 % 60))
-                .unwrap_or_default(),
+                .map_or_default(|east| format!("{:02}", east.unsigned_abs() / 60 % 60)),
             None,
         ),
         _ => return None,

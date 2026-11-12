@@ -218,9 +218,7 @@ fn build_consistency_report(
     ProjectionConsistencyReportMeta {
         report_id: format!("projection-consistency-{}", uuid::Uuid::new_v4()),
         created_ms,
-        projection_id: base
-            .map(|manifest| manifest.projection_id.clone())
-            .unwrap_or_default(),
+        projection_id: base.map_or_default(|manifest| manifest.projection_id.clone()),
         projection_version_id: base.and_then(|manifest| manifest.projection_version_id.clone()),
         state: state.to_string(),
         compatibility_status,

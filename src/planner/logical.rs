@@ -166,11 +166,7 @@ fn plan_runtime_statement(statement: RuntimeStatementRef<'_>) -> Result<LogicalP
             LogicalCommand::Delete(statement.clone()),
         ),
         RuntimeStatementRef::Truncate(statement) => plan_table_command(
-            &statement
-                .tables
-                .first()
-                .map(ToString::to_string)
-                .unwrap_or_default(),
+            &statement.tables.first().map_or_default(ToString::to_string),
             "TRUNCATE requires a target table",
             LogicalCommand::Truncate(statement.clone()),
         ),

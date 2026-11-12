@@ -1075,11 +1075,7 @@ fn estimate_batch_bytes(batches: &[batch::Batch]) -> usize {
     batches
         .iter()
         .flat_map(|batch| batch.iter())
-        .map(|row| {
-            serde_json::to_vec(row.entries())
-                .map(|bytes| bytes.len())
-                .unwrap_or_default()
-        })
+        .map(|row| serde_json::to_vec(row.entries()).map_or_default(|bytes| bytes.len()))
         .sum::<usize>()
         .saturating_add(batch::row_type_bytes(batches.iter().flatten()))
 }

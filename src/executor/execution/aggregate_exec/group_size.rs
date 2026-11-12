@@ -10,9 +10,7 @@ mod group_array_size;
 mod tests;
 
 pub(super) fn json_bytes<T: serde::Serialize + ?Sized>(value: &T) -> usize {
-    serde_json::to_vec(value)
-        .map(|bytes| bytes.len())
-        .unwrap_or_default()
+    serde_json::to_vec(value).map_or_default(|bytes| bytes.len())
 }
 
 pub(super) fn json_bytes_controlled(

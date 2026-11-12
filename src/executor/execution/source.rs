@@ -250,8 +250,7 @@ fn execute_materialized_projection_source(
     let text_fields = projection
         .materialized
         .as_ref()
-        .map(|materialized| schema_text_fields(&materialized.output_schema))
-        .unwrap_or_default();
+        .map_or_default(|materialized| schema_text_fields(&materialized.output_schema));
     Ok((batches, text_fields))
 }
 

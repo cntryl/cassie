@@ -782,17 +782,14 @@ impl Catalog {
     #[must_use]
     pub fn text_fields(&self, collection: &str) -> Vec<String> {
         let schemas = self.schemas.read();
-        schemas
-            .get(collection)
-            .map(|schema| {
-                schema
-                    .fields
-                    .iter()
-                    .filter(|field| field.is_indexed && field.data_type == DataType::Text)
-                    .map(|field| field.name.clone())
-                    .collect()
-            })
-            .unwrap_or_default()
+        schemas.get(collection).map_or_default(|schema| {
+            schema
+                .fields
+                .iter()
+                .filter(|field| field.is_indexed && field.data_type == DataType::Text)
+                .map(|field| field.name.clone())
+                .collect()
+        })
     }
 
     pub fn register_vector_index(&self, record: VectorIndexRecord) {

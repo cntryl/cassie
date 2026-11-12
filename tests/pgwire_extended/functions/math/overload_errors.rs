@@ -135,8 +135,7 @@ fn error_response_fields(frames: &[(u8, Vec<u8>)]) -> Vec<(char, String)> {
     frames
         .iter()
         .find(|(tag, _)| *tag == b'E')
-        .map(|(_, payload)| wire::parse_error_fields(payload))
-        .unwrap_or_default()
+        .map_or_default(|(_, payload)| wire::parse_error_fields(payload))
 }
 
 fn assert_overload_case(batches: &[Frames], offset: usize, case: &OverloadCase) {

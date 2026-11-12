@@ -148,8 +148,7 @@ pub(super) fn parse_add_constraint(raw: &str) -> Result<AlterTableOperation, Sql
     let body = raw
         .get(..3)
         .filter(|prefix| prefix.eq_ignore_ascii_case("add"))
-        .map(|_| raw[3..].trim_start())
-        .unwrap_or_default();
+        .map_or_default(|_| raw[3..].trim_start());
     if starts_with_keyword(body, "primary key") {
         return Ok(AlterTableOperation::AddConstraint {
             constraints: parse_table_constraint_body(body, None)?,

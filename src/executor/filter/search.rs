@@ -362,9 +362,7 @@ impl SearchContext {
     }
 
     pub(crate) fn score_text(&self, field: Option<&str>, source: &str, query: &str) -> f64 {
-        let analyzer = field
-            .map(|field| self.analyzer_for_field(field))
-            .unwrap_or_default();
+        let analyzer = field.map_or_default(|field| self.analyzer_for_field(field));
         let query_terms = prepare_query_terms_with_analyzer(query, &analyzer);
         let source_stats = SearchTermStats::from_text_with_analyzer(Some(source), &analyzer);
         self.score_term_stats(field, &source_stats, &query_terms)

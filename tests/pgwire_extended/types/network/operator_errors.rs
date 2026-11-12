@@ -54,8 +54,7 @@ fn should_return_operator_errors_given_supported_network_values_when_undefined_o
     assert!(rejected
         .iter()
         .find(|(tag, _)| *tag == b'E')
-        .map(|(_, payload)| wire::parse_error_fields(payload))
-        .unwrap_or_default()
+        .map_or_default(|(_, payload)| wire::parse_error_fields(payload))
         .iter()
         .any(|(kind, message)| {
             *kind == 'M' && message == "operator does not exist: macaddr + macaddr"

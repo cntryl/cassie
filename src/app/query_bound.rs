@@ -137,6 +137,18 @@ impl Cassie {
         }
 
         self.prepare_transaction_read_view(session, &parsed, controls)?;
+        if session.is_implicit_transaction()
+            && matches!(parsed.statement, QueryStatement::CreateTable(_))
+        {
+            return self.execute_implicit_table_creation(
+                session,
+                parsed,
+                sql_fingerprint,
+                parameters,
+                mode,
+                controls,
+            );
+        }
         let _publication_read = self.catalog_publication.read();
         self.execute_bound_catalog_scoped(
             session,

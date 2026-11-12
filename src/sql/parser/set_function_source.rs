@@ -18,9 +18,20 @@ pub(super) fn parse(raw: &str) -> Result<Option<QuerySource>, SqlError> {
     let ordinal_end = lexical::pattern_end(tail, 0, "with ordinality");
     let with_ordinality = ordinal_end.is_some();
     let tail = ordinal_end.map_or(tail, |end| &tail[end..]);
+    let json = crate::sql::table_sources::json_element_source(&function.name);
     let unnest = crate::sql::table_sources::is_unnest(&function.name);
-    let default_name = if unnest { "unnest" } else { "generate_series" };
-    let count = if unnest { function.args.len() } else { 1 };
+    let default_name = if let Some(json) = json {
+        json.function_name()
+    } else if unnest {
+        "unnest".to_owned()
+    } else {
+        "generate_series".to_owned()
+    };
+    let count = match json {
+        Some(json) => json.column_count(),
+        None if unnest => function.args.len(),
+        None => 1,
+    };
     let source = QuerySource::TableFunction {
         name: function.name.clone(),
         function,
@@ -34,14 +45,16 @@ pub(super) fn parse(raw: &str) -> Result<Option<QuerySource>, SqlError> {
             alias,
             column_aliases,
         } => (source, alias, column_aliases, true),
-        source => (Box::new(source), default_name.to_owned(), Vec::new(), false),
+        source => (Box::new(source), default_name.clone(), Vec::new(), false),
     };
     for index in column_aliases.len()..count + usize::from(with_ordinality) {
         column_aliases.push(if index < count {
-            if count == 1 && explicit_alias {
+            if let Some(json) = json {
+                json.column_name(index).to_owned()
+            } else if count == 1 && explicit_alias {
                 alias.clone()
             } else {
-                default_name.to_owned()
+                default_name.clone()
             }
         } else {
             "ordinality".to_owned()

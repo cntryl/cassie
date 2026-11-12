@@ -123,3 +123,18 @@ mod nested_text_array_extraction;
 
 #[path = "../delete_path_unknown_literal.rs"]
 mod delete_path_unknown_literal;
+
+#[path = "../table_functions/json_elements_support.rs"]
+mod json_elements_support;
+
+#[path = "../table_functions/json_elements_values.rs"]
+mod json_elements_values;
+
+#[path = "../table_functions/json_elements_shape.rs"]
+mod json_elements_shape;
+
+#[path = "../table_functions/json_elements_errors.rs"]
+mod json_elements_errors;
+
+#[path = "../table_functions/json_elements_limits.rs"]
+mod json_elements_limits;

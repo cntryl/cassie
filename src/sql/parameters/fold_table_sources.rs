@@ -48,6 +48,19 @@ impl Fold<'_, '_> {
             }
             return Ok(Some(Summary::known(output.unwrap_or(705))));
         }
+        if let Some(json) = table_sources::json_element_source(&function.name) {
+            // The document argument is JSON (OID 114) or JSONB (OID 3802) by function family.
+            let document = if json.binary { 3802 } else { 114 };
+            for summary in self.summaries.values[frame.start..]
+                .iter_mut()
+                .take(function.args.len())
+            {
+                if matches!(summary.oid, 0 | 705) {
+                    self.occurrences.coerce(summary, document, false)?;
+                }
+            }
+            return Ok(Some(Summary::known(document)));
+        }
         if !table_sources::is_series(&function.name) {
             return Ok(None);
         }

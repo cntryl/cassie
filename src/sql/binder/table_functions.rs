@@ -40,6 +40,9 @@ fn validate_graph_table_function(
         })?;
         return Ok(());
     }
+    if let Some(source) = crate::sql::table_sources::json_element_source(&function.name) {
+        return validate_json_element_function(function, source, lateral_fields);
+    }
     if crate::sql::functions::is_server_file_helper(&function.name) {
         return Err(crate::sql::functions::reject_server_file_access());
     }
@@ -93,6 +96,42 @@ fn validate_graph_table_function(
         validate_expression(arg, lateral_fields, &HashSet::new(), false)?;
     }
     Ok(())
+}
+
+/// One JSON or JSONB document argument; the json and jsonb families do not cross-convert.
+fn validate_json_element_function(
+    function: &FunctionCall,
+    source: crate::sql::table_sources::JsonElementSource,
+    lateral_fields: &HashSet<String>,
+) -> Result<(), CassieError> {
+    let undefined = || {
+        CassieError::from(crate::app::DiagnosticError::new(
+            "42883",
+            format!("function {}(...) does not exist", source.function_name()),
+        ))
+    };
+    let [argument] = function.args.as_slice() else {
+        return Err(undefined());
+    };
+    if function.has_modifiers() {
+        return Err(undefined());
+    }
+    validate_expression(argument, lateral_fields, &HashSet::new(), false)?;
+    if matches!(argument, Expr::Null | Expr::StringLiteral(_)) {
+        return Ok(());
+    }
+    let inferred = super::inference::infer_expr_type(
+        argument,
+        &Schema { fields: Vec::new() },
+        &HashMap::new(),
+        &[],
+    );
+    match inferred {
+        None | Some(DataType::Null) => Ok(()),
+        Some(DataType::Json) if !source.binary => Ok(()),
+        Some(DataType::Jsonb) if source.binary => Ok(()),
+        Some(_) => Err(undefined()),
+    }
 }
 
 fn literal_string_arg(function: &FunctionCall, index: usize) -> Option<String> {
@@ -150,6 +189,9 @@ pub(super) fn columns(source: &QuerySource) -> Vec<(String, DataType)> {
             )
         })
         .unwrap_or_default();
+    }
+    if let Some(json) = crate::sql::table_sources::json_element_source(&function.name) {
+        return crate::sql::table_sources::json_element_columns(json, *with_ordinality);
     }
     if name.eq_ignore_ascii_case("jsonb_path_query")
         || name.eq_ignore_ascii_case("jsonb_path_query_tz")

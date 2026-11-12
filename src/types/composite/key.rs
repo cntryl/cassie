@@ -26,7 +26,7 @@ fn push_value(out: &mut Vec<u8>, value: &Value) {
         Value::Null => {}
         Value::Bool(flag) => out.push(u8::from(*flag)),
         Value::Int64(number) => {
-            out.extend_from_slice(&(number.cast_unsigned() ^ (1 << 63)).to_be_bytes())
+            out.extend_from_slice(&(number.cast_unsigned() ^ (1 << 63)).to_be_bytes());
         }
         Value::Float64(number) => out.extend_from_slice(&float_order_bits(*number).to_be_bytes()),
         Value::String(text) => push_escaped(out, text.as_bytes()),

@@ -96,6 +96,15 @@ impl Cassie {
             .and_then(CassieSession::current_database)
             .unwrap_or(&self.default_database);
         for column in &mut columns {
+            // Record columns are identified by their type OID; their display
+            // name is not a parseable scalar type name.
+            let is_record_column = u32::try_from(column.type_oid).is_ok_and(|oid| {
+                oid == crate::types::composite::RECORD_OID
+                    || self.catalog.get_composite_type_by_oid(oid).is_some()
+            });
+            if is_record_column {
+                continue;
+            }
             let data_type = DataType::parse_sql(&column.data_type)
                 .map_err(|error| CassieError::Execution(format!("invalid result type: {error}")))?;
             if matches!(data_type, DataType::Vector(_)) {

@@ -51,31 +51,39 @@ fn should_send_record_text_with_postgresql_quoting() {
 }
 
 #[test]
-fn should_describe_named_records_with_the_allocated_oid_otherwise_2249() {
+fn should_describe_named_records_with_the_allocated_oid() {
     // Arrange
-    let cycles = vec![
-        fixture::execute_cycle("SELECT a FROM homes", None, 0, true),
-        fixture::execute_cycle("SELECT ROW(1, 'x')", None, 0, true),
-    ];
+    let cycles = vec![fixture::execute_cycle("SELECT a FROM homes", None, 0, true)];
 
     // Act
     let batches = fixture::run_cycles("composite-wire-oids", &seeded_setup(), cycles);
 
     // Assert
     fixture::assert_success(&batches[0]);
-    fixture::assert_success(&batches[1]);
     let named = &descriptions(&batches[0])[0][0];
-    let anonymous = &descriptions(&batches[1])[0][0];
     assert!(
         named.type_oid > 16_383,
         "named composite uses an allocated OID"
     );
     assert_eq!(named.type_size, -1);
+}
+
+#[test]
+fn should_describe_anonymous_records_with_oid_2249() {
+    // Arrange
+    let cycles = vec![fixture::execute_cycle("SELECT ROW(1, 'x')", None, 0, true)];
+
+    // Act
+    let batches = fixture::run_cycles("composite-wire-anon-oid", &seeded_setup(), cycles);
+
+    // Assert
+    fixture::assert_success(&batches[0]);
+    let anonymous = &descriptions(&batches[0])[0][0];
     assert_eq!(anonymous.type_oid, 2249);
 }
 
 #[test]
-fn should_send_binary_records_with_field_count_oids_plus_lengths() {
+fn should_send_binary_records_in_record_send_layout() {
     // Arrange
     let cycles = vec![fixture::execute_cycle(
         "SELECT a FROM homes WHERE id = 1",

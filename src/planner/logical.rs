@@ -263,29 +263,13 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
         CatalogStatementRef::RevokeDatabaseConnect(statement) => {
             plan_database_connect_command(statement, false)
         }
-        CatalogStatementRef::CreateFunction(statement) => plan_named_command(
-            &statement.name,
-            "CREATE FUNCTION requires a name",
-            LogicalCommand::CreateFunction(statement.clone()),
-        ),
-        CatalogStatementRef::DropFunction(statement) => plan_named_command(
-            &statement.name,
-            "DROP FUNCTION requires a name",
-            LogicalCommand::DropFunction(statement.clone()),
-        ),
-        CatalogStatementRef::CreateProcedure(_)
+        CatalogStatementRef::CreateFunction(_)
+        | CatalogStatementRef::DropFunction(_)
+        | CatalogStatementRef::CreateProcedure(_)
         | CatalogStatementRef::DropProcedure(_)
-        | CatalogStatementRef::CallProcedure(_) => plan_procedure_statement(statement),
-        CatalogStatementRef::Extension(statement) => plan_named_command(
-            statement.name(),
-            "EXTENSION requires a name",
-            LogicalCommand::Extension(statement.clone()),
-        ),
-        CatalogStatementRef::Type(statement) => plan_named_command(
-            statement.name(),
-            "TYPE requires a name",
-            LogicalCommand::Type(statement.clone()),
-        ),
+        | CatalogStatementRef::CallProcedure(_)
+        | CatalogStatementRef::Extension(_)
+        | CatalogStatementRef::Type(_) => plan_procedure_statement(statement),
         CatalogStatementRef::CreateIndex(_)
         | CatalogStatementRef::DropIndex(_)
         | CatalogStatementRef::AlterIndex(_)
@@ -307,6 +291,26 @@ fn plan_procedure_statement(
     statement: CatalogStatementRef<'_>,
 ) -> Result<LogicalPlan, CassieError> {
     match statement {
+        CatalogStatementRef::CreateFunction(statement) => plan_named_command(
+            &statement.name,
+            "CREATE FUNCTION requires a name",
+            LogicalCommand::CreateFunction(statement.clone()),
+        ),
+        CatalogStatementRef::DropFunction(statement) => plan_named_command(
+            &statement.name,
+            "DROP FUNCTION requires a name",
+            LogicalCommand::DropFunction(statement.clone()),
+        ),
+        CatalogStatementRef::Extension(statement) => plan_named_command(
+            statement.name(),
+            "EXTENSION requires a name",
+            LogicalCommand::Extension(statement.clone()),
+        ),
+        CatalogStatementRef::Type(statement) => plan_named_command(
+            statement.name(),
+            "TYPE requires a name",
+            LogicalCommand::Type(statement.clone()),
+        ),
         CatalogStatementRef::CreateProcedure(statement) => plan_named_command(
             &statement.name,
             "CREATE PROCEDURE requires a name",
@@ -322,7 +326,7 @@ fn plan_procedure_statement(
             "CALL requires a procedure name",
             LogicalCommand::CallProcedure(statement.clone()),
         ),
-        _ => unreachable!("statement should be a procedure command"),
+        _ => unreachable!("statement should be a routine, extension or type command"),
     }
 }
 

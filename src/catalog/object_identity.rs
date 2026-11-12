@@ -239,7 +239,7 @@ impl<'a> ObjectScope<'a> {
             .or_else(|| self.composite_relation_in_schema(schema, name))
     }
 
-    /// The `relkind = 'c'` pg_class row a composite type owns.
+    /// The `relkind = 'c'` `pg_class` row a composite type owns.
     fn composite_relation_in_schema(&self, schema: &str, name: &str) -> Option<RelationIdentity> {
         let metadata = self.catalog.get_composite_type(&canonical_relation_name(
             &self.context.database,

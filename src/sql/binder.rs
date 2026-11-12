@@ -558,6 +558,13 @@ fn bind_catalog_route(
             schema::bind_reindex(statement, catalog, context),
             QueryStatement::Reindex,
         ),
+        CatalogStatement::Extension(statement) => Ok(parsed_statement(
+            raw_sql,
+            QueryStatement::Extension(statement),
+        )),
+        CatalogStatement::Type(statement) => {
+            Ok(parsed_statement(raw_sql, QueryStatement::Type(statement)))
+        }
         statement => bind_catalog_definition_route(statement, catalog, raw_sql, context),
     }
 }
@@ -623,13 +630,6 @@ fn bind_catalog_definition_route(
             bind_alter_schema(statement, catalog, context),
             QueryStatement::AlterSchema,
         ),
-        CatalogStatement::Extension(statement) => Ok(parsed_statement(
-            raw_sql,
-            QueryStatement::Extension(statement),
-        )),
-        CatalogStatement::Type(statement) => {
-            Ok(parsed_statement(raw_sql, QueryStatement::Type(statement)))
-        }
         CatalogStatement::CreateView(statement) => bind_catalog_statement(
             raw_sql,
             bind_create_view(statement, catalog, context),
@@ -667,6 +667,8 @@ fn bind_catalog_definition_route(
         | CatalogStatement::CreateIndex(_)
         | CatalogStatement::DropIndex(_)
         | CatalogStatement::AlterIndex(_)
+        | CatalogStatement::Extension(_)
+        | CatalogStatement::Type(_)
         | CatalogStatement::Reindex(_) => unreachable!("routine and index routes are extracted"),
     }
 }

@@ -38,6 +38,22 @@ pub(crate) fn create_database(
     Ok(output)
 }
 
+fn drop_schema_composite_types(cassie: &Cassie, schema: &str) -> Result<(), QueryError> {
+    for composite in cassie
+        .catalog
+        .list_composite_types()
+        .into_iter()
+        .filter(|composite| object_in_schema(&composite.name, schema))
+    {
+        cassie
+            .midge
+            .delete_composite_type(&composite.database, &composite.name)
+            .map_err(QueryError::Cassie)?;
+        cassie.catalog.unregister_composite_type(&composite.name);
+    }
+    Ok(())
+}
+
 pub(crate) fn drop_schema(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -74,18 +90,7 @@ pub(crate) fn drop_schema(
     }
     let output = empty_command("DROP SCHEMA", controls)?;
     if statement.cascade {
-        for composite in cassie
-            .catalog
-            .list_composite_types()
-            .into_iter()
-            .filter(|composite| object_in_schema(&composite.name, &statement.schema))
-        {
-            cassie
-                .midge
-                .delete_composite_type(&composite.database, &composite.name)
-                .map_err(QueryError::Cassie)?;
-            cassie.catalog.unregister_composite_type(&composite.name);
-        }
+        drop_schema_composite_types(cassie, &statement.schema)?;
         let schema_views = cassie
             .catalog
             .list_views()

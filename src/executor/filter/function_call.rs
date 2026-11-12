@@ -88,18 +88,7 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         return evaluate_user_defined_function(&name, row, context, args);
     }
 
-    if let Some(memory) = context.memory {
-        let bytes = args.iter().try_fold(1024, |bytes, value| {
-            crate::executor::retained_memory::add(
-                bytes,
-                crate::executor::retained_memory::mul(
-                    super::super::cast_admission::value_workspace_bytes(value)?,
-                    8,
-                )?,
-            )
-        })?;
-        memory.grow(bytes)?;
-    }
+    reserve_argument_workspace(context, &args)?;
 
     if name == crate::sql::ast::ARRAY_CONSTRUCTOR_FUNCTION {
         return evaluate_array_constructor(function, row, args);
@@ -138,6 +127,23 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
         }
     }
     Ok(result)
+}
+
+fn reserve_argument_workspace(context: EvalContext<'_>, args: &[Value]) -> Result<(), QueryError> {
+    let Some(memory) = context.memory else {
+        return Ok(());
+    };
+    let bytes = args.iter().try_fold(1024, |bytes, value| {
+        crate::executor::retained_memory::add(
+            bytes,
+            crate::executor::retained_memory::mul(
+                super::super::cast_admission::value_workspace_bytes(value)?,
+                8,
+            )?,
+        )
+    })?;
+    memory.grow(bytes)?;
+    Ok(())
 }
 
 fn evaluate_argument_values<R: RowAccess + ?Sized>(

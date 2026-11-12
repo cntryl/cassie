@@ -23,6 +23,8 @@ pub(super) enum OperandFamily {
     Json,
     /// An extended family with its own operators.
     Typed(crate::types::extended::ExtendedFamily),
+    /// A composite (record) value.
+    Record,
     Other,
 }
 
@@ -36,6 +38,7 @@ impl OperandFamily {
             Self::Vector => "vector",
             Self::Json => "json",
             Self::Typed(_) => "typed",
+            Self::Record => "record",
             Self::Other => "other",
         }
     }
@@ -75,6 +78,7 @@ fn validate_select_item_operand_families(
     match item {
         SelectItem::Wildcard | SelectItem::Column { .. } => Ok(()),
         SelectItem::Function { function, .. } => {
+            super::inference::validate_field_access(function, field_types)?;
             for argument in function.expressions() {
                 validate_expression_operand_families(argument, field_types)?;
             }
@@ -138,6 +142,10 @@ fn expression_operand_family(
                 validate_expression_operand_families(argument, field_types)?;
             }
             vector::validate_vector_function_query(function, field_types)?;
+            if let Some(selected) = super::inference::validate_field_access(function, field_types)?
+            {
+                return Ok(Some(data_type_family(&selected)));
+            }
             Ok(temporal_function_family(function, field_types))
         }
         Expr::RowCompare(comparison) => {
@@ -659,6 +667,9 @@ fn families_compatible(left: OperandFamily, right: OperandFamily) -> bool {
             (left, right),
             (OperandFamily::Temporal, OperandFamily::Text)
                 | (OperandFamily::Text, OperandFamily::Temporal)
+                // Record input from text is decided at evaluation (`0A000`).
+                | (OperandFamily::Record, OperandFamily::Text)
+                | (OperandFamily::Text, OperandFamily::Record)
         )
 }
 
@@ -682,12 +693,12 @@ pub(super) const fn data_type_family(data_type: &DataType) -> OperandFamily {
         DataType::Date | DataType::Time | DataType::Timestamp => OperandFamily::Temporal,
         DataType::Vector(_) => OperandFamily::Vector,
         DataType::Json | DataType::Jsonb => OperandFamily::Json,
-        DataType::JsonPath => OperandFamily::Other,
-        DataType::Uuid
+        DataType::JsonPath
+        | DataType::Uuid
         | DataType::Bytea
         | DataType::Array(_)
-        | DataType::Composite(_)
         | DataType::Null => OperandFamily::Other,
+        DataType::Composite(_) => OperandFamily::Record,
     }
 }
 

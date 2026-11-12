@@ -35,3 +35,31 @@ pub(crate) fn composite_field_type(
             .into()
         })
 }
+
+/// Validates a field selection whose operand is a column (or a nested field
+/// selection) with a known type, returning the selected field's type.
+///
+/// # Errors
+///
+/// Returns the SQLSTATE `42809` / `42703` errors of [`composite_field_type`].
+pub(crate) fn validate_field_access(
+    function: &crate::sql::ast::FunctionCall,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<DataType>, CassieError> {
+    use crate::sql::ast::{Expr, FIELD_ACCESS_FUNCTION};
+    if !function.name.eq_ignore_ascii_case(FIELD_ACCESS_FUNCTION) {
+        return Ok(None);
+    }
+    let [operand, Expr::StringLiteral(field)] = function.args.as_slice() else {
+        return Ok(None);
+    };
+    let operand_type = match operand {
+        Expr::Column(name) => crate::sql::field_type_for_column(field_types, name).cloned(),
+        Expr::Function(inner) => validate_field_access(inner, field_types)?,
+        _ => None,
+    };
+    operand_type
+        .filter(|data_type| !matches!(data_type, DataType::Null))
+        .map(|data_type| composite_field_type(&data_type, field))
+        .transpose()
+}

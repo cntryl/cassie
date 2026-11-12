@@ -28,7 +28,7 @@ fn wrap(body: serde_json::Value) -> serde_json::Value {
     serde_json::Value::Object(object)
 }
 
-fn record_json(oid: u32, fields: Vec<serde_json::Value>) -> serde_json::Value {
+fn record_json(oid: u32, fields: &[serde_json::Value]) -> serde_json::Value {
     wrap(serde_json::json!({ "oid": oid, "revision": 7, "fields": fields }))
 }
 
@@ -45,7 +45,7 @@ fn should_write_the_selected_header_before_the_framed_fields() {
     let descriptor = pair_type();
     let value = record_json(
         descriptor.oid,
-        vec![serde_json::json!("a"), serde_json::json!(5)],
+        &[serde_json::json!("a"), serde_json::json!(5)],
     );
 
     // Act
@@ -67,7 +67,7 @@ fn should_round_trip_a_record_with_a_null_field() {
     let descriptor = pair_type();
     let value = record_json(
         descriptor.oid,
-        vec![serde_json::json!("a b"), serde_json::Value::Null],
+        &[serde_json::json!("a b"), serde_json::Value::Null],
     );
     let (_, payload) = encode_composite(&descriptor, &value).expect("encode record");
     let bytes = framed(&payload);
@@ -85,7 +85,7 @@ fn should_keep_an_all_null_record_distinct_from_a_null_field() {
     let descriptor = pair_type();
     let all_null = record_json(
         descriptor.oid,
-        vec![serde_json::Value::Null, serde_json::Value::Null],
+        &[serde_json::Value::Null, serde_json::Value::Null],
     );
 
     // Act
@@ -99,7 +99,7 @@ fn should_keep_an_all_null_record_distinct_from_a_null_field() {
     // Assert
     assert_eq!(record_tag, TYPE_COMPOSITE);
     assert_eq!(null_tag, TYPE_NULL);
-    assert!(null_payload.is_empty());
+    assert_eq!(null_payload, Vec::<u8>::new());
 }
 
 #[test]
@@ -117,10 +117,7 @@ fn should_round_trip_a_nested_record() {
             data_type: DataType::Composite(CompositeRef::new(inner.clone())),
         }],
     };
-    let nested = record_json(
-        inner.oid,
-        vec![serde_json::json!("x"), serde_json::json!(1)],
-    );
+    let nested = record_json(inner.oid, &[serde_json::json!("x"), serde_json::json!(1)]);
     let value = wrap(serde_json::json!({ "oid": outer.oid, "revision": 1, "fields": [nested] }));
     let (_, payload) = encode_composite(&outer, &value).expect("encode nested record");
     let bytes = framed(&payload);
@@ -141,7 +138,7 @@ fn should_reject_a_record_for_a_different_type() {
     let descriptor = pair_type();
     let value = record_json(
         descriptor.oid + 1,
-        vec![serde_json::json!("a"), serde_json::json!(5)],
+        &[serde_json::json!("a"), serde_json::json!(5)],
     );
 
     // Act
@@ -155,7 +152,7 @@ fn should_reject_a_record_for_a_different_type() {
 fn should_reject_a_record_with_the_wrong_field_count() {
     // Arrange
     let descriptor = pair_type();
-    let value = record_json(descriptor.oid, vec![serde_json::json!("a")]);
+    let value = record_json(descriptor.oid, &[serde_json::json!("a")]);
 
     // Act
     let result = encode_composite(&descriptor, &value);
@@ -170,7 +167,7 @@ fn should_reject_every_truncation_of_a_composite_payload() {
     let descriptor = pair_type();
     let value = record_json(
         descriptor.oid,
-        vec![serde_json::json!("abc"), serde_json::json!(9)],
+        &[serde_json::json!("abc"), serde_json::json!(9)],
     );
     let (_, payload) = encode_composite(&descriptor, &value).expect("encode record");
 
@@ -189,7 +186,7 @@ fn should_reject_an_unknown_payload_version() {
     let descriptor = pair_type();
     let value = record_json(
         descriptor.oid,
-        vec![serde_json::json!("a"), serde_json::json!(5)],
+        &[serde_json::json!("a"), serde_json::json!(5)],
     );
     let (_, mut payload) = encode_composite(&descriptor, &value).expect("encode record");
     payload[0] = 2;
@@ -207,7 +204,7 @@ fn should_reject_trailing_bytes_after_the_last_field() {
     let descriptor = pair_type();
     let value = record_json(
         descriptor.oid,
-        vec![serde_json::json!("a"), serde_json::json!(5)],
+        &[serde_json::json!("a"), serde_json::json!(5)],
     );
     let (_, mut payload) = encode_composite(&descriptor, &value).expect("encode record");
     payload.push(0);

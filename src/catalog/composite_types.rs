@@ -130,7 +130,7 @@ impl Catalog {
         !self.composite_types.read().is_empty()
     }
 
-    /// A composite type owns a pg_class row, so creating a view, sequence,
+    /// A composite type owns a `pg_class` row, so creating a view, sequence,
     /// index or table of the same name is `42P07`, as in PostgreSQL.
     ///
     /// # Errors

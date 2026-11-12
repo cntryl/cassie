@@ -706,7 +706,7 @@ pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType>
 
 #[path = "inference_composite.rs"]
 mod composite;
-pub(crate) use composite::composite_field_type;
+pub(crate) use composite::{composite_field_type, validate_field_access};
 #[path = "inference_numeric.rs"]
 mod numeric;
 use numeric::{arithmetic_type, numeric_function_type, power_type};

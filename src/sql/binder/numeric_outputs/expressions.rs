@@ -246,6 +246,24 @@ impl Analyzer<'_> {
         Ok(None)
     }
 
+    fn row_constructor_output(
+        &self,
+        function: &FunctionCall,
+        lookup: &[OutputField],
+    ) -> Result<OutputType, CassieError> {
+        let mut types = Vec::with_capacity(function.args.len());
+        for argument in &function.args {
+            types.push(if matches!(argument, Expr::Null) {
+                DataType::Text
+            } else {
+                self.expression(argument, lookup)?.data_type
+            });
+        }
+        Ok(OutputType::fixed(DataType::Composite(
+            crate::types::CompositeType::anonymous(types).into(),
+        )))
+    }
+
     fn field_access_output(
         &self,
         function: &FunctionCall,
@@ -298,17 +316,7 @@ impl Analyzer<'_> {
             return self.array_constructor_output(function, lookup);
         }
         if name == crate::sql::ast::ROW_CONSTRUCTOR_FUNCTION {
-            let mut types = Vec::with_capacity(function.args.len());
-            for argument in &function.args {
-                types.push(if matches!(argument, Expr::Null) {
-                    DataType::Text
-                } else {
-                    self.expression(argument, lookup)?.data_type
-                });
-            }
-            return Ok(OutputType::fixed(DataType::Composite(
-                crate::types::CompositeType::anonymous(types).into(),
-            )));
+            return self.row_constructor_output(function, lookup);
         }
         if name == crate::sql::ast::FIELD_ACCESS_FUNCTION {
             return self.field_access_output(function, lookup);

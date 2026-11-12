@@ -9,19 +9,29 @@ fn fixture_with_address(label: &str) -> SqlFixture {
 }
 
 #[test]
-fn should_create_then_drop_a_composite_type() {
+fn should_make_a_created_type_usable_in_casts() {
     // Arrange
-    let fixture = sql_fixture("composite_create_drop", &[]);
+    let fixture = sql_fixture("composite_create", &[]);
 
     // Act
     let created = fixture.execute(ADDRESS);
     let usable = fixture.execute("SELECT '(a,1)'::address::text");
-    let dropped = fixture.execute("DROP TYPE address");
-    let after_drop = fixture.execute("SELECT '(a,1)'::address::text");
 
     // Assert
     assert!(created.is_ok(), "CREATE TYPE must succeed");
     assert!(usable.is_ok(), "created type must be usable in casts");
+}
+
+#[test]
+fn should_stop_resolving_a_dropped_type() {
+    // Arrange
+    let fixture = fixture_with_address("composite_drop");
+
+    // Act
+    let dropped = fixture.execute("DROP TYPE address");
+    let after_drop = fixture.execute("SELECT '(a,1)'::address::text");
+
+    // Assert
     assert!(dropped.is_ok(), "DROP TYPE must succeed");
     assert!(after_drop.is_err(), "dropped type must no longer resolve");
 }

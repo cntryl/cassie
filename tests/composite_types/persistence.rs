@@ -13,41 +13,67 @@ fn run(cassie: &Cassie, sql: &str) -> Vec<Vec<cassie::types::Value>> {
 }
 
 #[test]
-fn should_keep_types_rows_plus_catalog_identity_across_restart() {
+fn should_keep_composite_rows_across_restart() {
     // Arrange
-    let store = LocalStore::new("composite_restart");
-    let before_oid;
-    {
-        let cassie = store.open();
-        run(&cassie, "CREATE TYPE address AS (street text, zip int)");
-        run(&cassie, "CREATE TABLE homes (id int, a address)");
-        run(
-            &cassie,
-            "INSERT INTO homes VALUES (1, ROW('x y', 1)), (2, NULL), (3, ROW(NULL, NULL))",
-        );
-        before_oid = only_text(&run(
-            &cassie,
-            "SELECT oid::text FROM pg_type WHERE typname = 'address'",
-        ));
-    }
+    let store = LocalStore::new("composite_restart_rows");
+    seed(&store);
 
     // Act
     let cassie = store.open();
     let rows = first_column_text(&run(&cassie, "SELECT a::text FROM homes ORDER BY id"));
-    let after_oid = only_text(&run(
-        &cassie,
-        "SELECT oid::text FROM pg_type WHERE typname = 'address'",
-    ));
-    let still_cast = only_text(&run(&cassie, "SELECT '(z,9)'::address::text"));
 
     // Assert
     assert_eq!(
         rows,
         vec![Some("(\"x y\",1)".to_owned()), None, Some("(,)".to_owned())]
     );
+}
+
+#[test]
+fn should_keep_the_type_oid_across_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_oid");
+    let before_oid = seed(&store);
+
+    // Act
+    let cassie = store.open();
+    let after_oid = only_text(&run(
+        &cassie,
+        "SELECT oid::text FROM pg_type WHERE typname = 'address'",
+    ));
+
+    // Assert
     assert!(before_oid.is_some(), "type OID is allocated");
     assert_eq!(before_oid, after_oid, "type OID is durable");
+}
+
+#[test]
+fn should_keep_the_type_castable_across_restart() {
+    // Arrange
+    let store = LocalStore::new("composite_restart_cast");
+    seed(&store);
+
+    // Act
+    let cassie = store.open();
+    let still_cast = only_text(&run(&cassie, "SELECT '(z,9)'::address::text"));
+
+    // Assert
     assert_eq!(still_cast, Some("(z,9)".to_owned()));
+}
+
+/// Creates the type and table, returning the type OID text.
+fn seed(store: &LocalStore) -> Option<String> {
+    let cassie = store.open();
+    run(&cassie, "CREATE TYPE address AS (street text, zip int)");
+    run(&cassie, "CREATE TABLE homes (id int, a address)");
+    run(
+        &cassie,
+        "INSERT INTO homes VALUES (1, ROW('x y', 1)), (2, NULL), (3, ROW(NULL, NULL))",
+    );
+    only_text(&run(
+        &cassie,
+        "SELECT oid::text FROM pg_type WHERE typname = 'address'",
+    ))
 }
 
 #[test]

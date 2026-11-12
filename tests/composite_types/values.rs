@@ -135,7 +135,7 @@ fn should_apply_is_null_rules_to_row_constructors() {
 }
 
 #[test]
-fn should_select_fields_from_expressions_plus_columns() {
+fn should_select_fields_from_columns() {
     // Arrange
     let fixture = fixture("composite_field_access");
     fixture
@@ -150,43 +150,73 @@ fn should_select_fields_from_expressions_plus_columns() {
     let streets =
         first_column_text(&fixture.rows("SELECT (people.a).street FROM people ORDER BY id"));
     let nested = fixture.rows("SELECT ((p).home).zip FROM people ORDER BY id");
-    let expression = text(&fixture, "SELECT (ROW('a', 1)::address).street");
 
     // Assert
     assert_eq!(names, vec![Some("Ann".to_owned()), None]);
     assert_eq!(streets, vec![Some("x y".to_owned()), None]);
     assert_eq!(nested, vec![vec![Value::Int64(12345)], vec![Value::Null]]);
+}
+
+#[test]
+fn should_select_a_field_from_an_expression() {
+    // Arrange
+    let fixture = fixture("composite_field_expression");
+
+    // Act
+    let expression = text(&fixture, "SELECT (ROW('a', 1)::address).street");
+
+    // Assert
     assert_eq!(expression, Some("a".to_owned()));
 }
 
 #[test]
-fn should_reject_unknown_fields_plus_non_composite_operands() {
+fn should_reject_unknown_fields_with_sqlstate_42703() {
     // Arrange
-    let fixture = fixture("composite_field_errors");
+    let fixture = fixture("composite_unknown_field");
 
     // Act
     let unknown = fixture.error("SELECT (a).missing FROM people");
-    let scalar = fixture.error("SELECT (id).street FROM people");
 
     // Assert
     assert_eq!(unknown.sql_state(), "42703");
+}
+
+#[test]
+fn should_reject_field_selection_on_scalars_with_sqlstate_42809() {
+    // Arrange
+    let fixture = fixture("composite_scalar_field");
+
+    // Act
+    let scalar = fixture.error("SELECT (id).street FROM people");
+
+    // Assert
     assert_eq!(scalar.sql_state(), "42809");
 }
 
 #[test]
-fn should_cast_row_constructors_plus_text_literals_to_named_types() {
+fn should_cast_row_constructors_to_named_types() {
     // Arrange
-    let fixture = fixture("composite_casts");
+    let fixture = fixture("composite_row_casts");
 
     // Act
     let from_row = text(&fixture, "SELECT ROW('a', 1)::address::text");
     let implicit = text(&fixture, "SELECT ('a', 1)::address::text");
-    let from_text = text(&fixture, "SELECT '(\"a b\",2)'::address::text");
-    let all_null = text(&fixture, "SELECT '(,)'::address::text");
 
     // Assert
     assert_eq!(from_row, Some("(a,1)".to_owned()));
     assert_eq!(implicit, Some("(a,1)".to_owned()));
+}
+
+#[test]
+fn should_cast_text_literals_to_named_types() {
+    // Arrange
+    let fixture = fixture("composite_text_casts");
+
+    // Act
+    let from_text = text(&fixture, "SELECT '(\"a b\",2)'::address::text");
+    let all_null = text(&fixture, "SELECT '(,)'::address::text");
+
+    // Assert
     assert_eq!(from_text, Some("(\"a b\",2)".to_owned()));
     assert_eq!(all_null, Some("(,)".to_owned()));
 }
@@ -240,15 +270,25 @@ fn should_reject_anonymous_records_as_stored_columns() {
 }
 
 #[test]
-fn should_reject_indexes_plus_unique_constraints_on_composite_columns() {
+fn should_reject_indexes_on_composite_columns() {
     // Arrange
     let fixture = fixture("composite_no_index");
 
     // Act
     let index = fixture.error("CREATE INDEX people_a ON people (a)");
-    let unique = fixture.error("CREATE TABLE u (a address UNIQUE)");
 
     // Assert
     assert_eq!(index.sql_state(), "0A000");
+}
+
+#[test]
+fn should_reject_unique_constraints_on_composite_columns() {
+    // Arrange
+    let fixture = fixture("composite_no_unique");
+
+    // Act
+    let unique = fixture.error("CREATE TABLE u (a address UNIQUE)");
+
+    // Assert
     assert_eq!(unique.sql_state(), "0A000");
 }

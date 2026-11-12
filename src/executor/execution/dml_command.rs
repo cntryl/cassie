@@ -883,7 +883,7 @@ fn apply_write_side_effects(
     _controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     if session.is_some_and(CassieSession::is_transaction_active) {
-        super::rollups::mark_source_rollups_stale(cassie, table)?;
+        super::rollups::mark_source_rollups_stale(cassie, session, table)?;
     }
     Ok(())
 }

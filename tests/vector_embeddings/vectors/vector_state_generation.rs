@@ -13,6 +13,7 @@ fn should_reject_vector_state_from_an_older_collection_generation() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         cassie

@@ -9,7 +9,7 @@ use super::support_retrieval_phase_evidence::{RetrievalPhase, RetrievalPhaseEvid
 const COLLECTION: &str = "specialized_retrieval_controls";
 const FIXTURE_ROWS: usize = 64;
 const RESULT_LIMIT: usize = 5;
-const LOW_MEMORY_BYTES: usize = 1_024;
+const LOW_MEMORY_BYTES: usize = 2_048;
 
 #[derive(Clone, Copy, Debug)]
 enum RetrievalCase {
@@ -168,6 +168,7 @@ fn fixture_with_evidence(
     evidence.not_applicable(RetrievalPhase::ServerTeardown);
     evidence.entered(RetrievalPhase::EngineConstruction);
     let cassie = Cassie::new_in_memory_with_config(config).expect("retrieval fixture");
+    crate::support_sql::install_vector_extension(&cassie);
     evidence.observe_midge(&cassie.midge);
     evidence.returned(RetrievalPhase::EngineConstruction);
     evidence.entered(RetrievalPhase::Startup);

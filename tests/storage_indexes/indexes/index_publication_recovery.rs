@@ -23,6 +23,7 @@ fn should_replay_prepared_scalar_index_publication_after_restart() {
 
     runtime.block_on(async {
         let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         cassie
@@ -97,6 +98,7 @@ fn should_replay_prepared_fulltext_index_publication_after_restart() {
     let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("fulltext_index_publication_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -171,6 +173,7 @@ fn should_hide_vector_index_until_prepared_publication_replays() {
     let path = data_dir("vector_index_publication_recovery");
     let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors())
         .expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie
@@ -245,6 +248,7 @@ fn should_rebuild_column_batches_before_prepared_publication_replays() {
     let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("column_index_publication_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie

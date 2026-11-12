@@ -35,6 +35,7 @@ fn fixture_before_index(
     });
     let cassie =
         Arc::new(Cassie::new_in_memory_with_config(config).expect("create concurrent ANN fixture"));
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("startup");
     let session = cassie.create_session("tester", None);
     cassie

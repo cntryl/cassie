@@ -33,10 +33,18 @@ pub fn run_cycles(
             .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));
         cassie.startup().expect("startup before table creation");
         let session = cassie.create_session("tester", None);
-        if cycles
+        let mentions_vector = setup
             .iter()
-            .flatten()
-            .any(|frame| parse_frame_has_vector_placeholder(frame))
+            .any(|(sql, _)| sql.to_ascii_lowercase().contains("vector"))
+            || cycles
+                .iter()
+                .flatten()
+                .any(|frame| frame_mentions_vector(frame));
+        if mentions_vector
+            || cycles
+                .iter()
+                .flatten()
+                .any(|frame| parse_frame_has_vector_placeholder(frame))
         {
             let database = session.current_database().unwrap_or("postgres");
             if cassie.catalog.get_extension(database, "vector").is_none() {
@@ -85,6 +93,12 @@ pub fn run_cycles(
         batches
     });
     batches
+}
+
+fn frame_mentions_vector(frame: &[u8]) -> bool {
+    frame
+        .windows(b"vector".len())
+        .any(|window| window.eq_ignore_ascii_case(b"vector"))
 }
 
 fn parse_frame_has_vector_placeholder(frame: &[u8]) -> bool {

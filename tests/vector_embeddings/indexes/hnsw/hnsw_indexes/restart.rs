@@ -5,6 +5,7 @@ fn should_hydrate_persisted_hnsw_graph_state_after_restart() {
     let path = data_dir("hnsw_graph_restart");
     {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let collection = "hnsw_graph_restart";
         register_hnsw_collection(&cassie, collection);

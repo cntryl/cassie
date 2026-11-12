@@ -23,6 +23,7 @@ fn should_project_cosine_distance_for_vector_fields() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_cosine_distance_projection";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -93,6 +94,7 @@ fn should_project_dot_product_for_vector_fields() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_dot_product_projection";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -150,6 +152,7 @@ fn should_project_l2_distance_for_vector_fields() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_l2_distance_projection";
         let schema = Schema {
             fields: vec![FieldSchema {
@@ -208,6 +211,7 @@ fn should_project_pgvector_operator_distances() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_pgvector_operator_projection";
         let schema = Schema {
             fields: vec![FieldSchema {

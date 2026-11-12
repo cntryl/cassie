@@ -34,6 +34,8 @@ impl Fixture {
         let cassie =
             Arc::new(Cassie::new_with_data_dir_and_config(&directory.0, config).expect("Cassie"));
         cassie.startup().expect("startup");
+        let root = cassie.create_session("root", None);
+        execute(&cassie, &root, "CREATE EXTENSION vector VERSION '0.8.7'");
         let session = cassie.create_session("setup", None);
         execute(
             &cassie,

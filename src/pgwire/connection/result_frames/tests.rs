@@ -1,6 +1,8 @@
 use std::time::Instant;
 
-use super::super::codecs::{value_to_binary, value_to_text};
+use super::super::codecs::{
+    value_to_binary, value_to_binary_with_typmod_and_vector, value_to_text,
+};
 use super::{cell_bytes, QueryResultFrames};
 use crate::config::CassieRuntimeLimits;
 use crate::executor::{ColumnMeta, QueryResult};
@@ -43,7 +45,7 @@ fn cells() -> Vec<(i64, Value)> {
         ),
         (1_007, Value::Json(serde_json::json!([]))),
         (
-            100_003,
+            16_400,
             Value::Vector(Vector::new(vec![-f32::from_bits(1), f32::MAX, 0.0])),
         ),
         (25, Value::Null),
@@ -53,10 +55,13 @@ fn cells() -> Vec<(i64, Value)> {
 fn result(controls: &QueryExecutionControls, cells: &[(i64, Value)]) -> QueryResult {
     let mut builder = QueryResult::try_builder(controls).expect("result builder");
     for (index, (oid, _)) in cells.iter().enumerate() {
-        let column = ColumnMeta {
+        let mut column = ColumnMeta {
             type_oid: *oid,
             ..ColumnMeta::text(format!("column_{index}"))
         };
+        if matches!(cells[index].1, Value::Vector(_)) {
+            column.data_type = "vector(3)".to_owned();
+        }
         builder.try_push_column(&column).expect("column");
     }
     builder
@@ -76,14 +81,15 @@ fn should_bound_supported_cell_encodings_before_allocation() {
         .iter()
         .flat_map(|(oid, value)| {
             [0, 1].map(|format| {
+                let is_vector = matches!(value, Value::Vector(_));
                 let bound =
-                    cell_bytes(value, *oid, -1, format, false, false).expect("admission bound");
+                    cell_bytes(value, *oid, -1, format, false, is_vector).expect("admission bound");
                 let length = if matches!(value, Value::Null) {
                     0
                 } else if format == 0 {
                     value_to_text(value, *oid).len()
                 } else {
-                    value_to_binary(value, *oid)
+                    value_to_binary_with_typmod_and_vector(value, *oid, -1, is_vector)
                         .expect("supported binary carrier")
                         .len()
                 };

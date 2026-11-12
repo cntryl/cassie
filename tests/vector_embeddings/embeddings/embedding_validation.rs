@@ -137,6 +137,7 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
     drop(openai);
 
     let voyage = Cassie::new_with_data_dir_and_config(&path, voyage_runtime()).unwrap();
+    crate::support_sql::install_vector_extension(&voyage);
     runtime.block_on(async {
         // Act
         voyage.startup().unwrap();

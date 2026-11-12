@@ -31,6 +31,7 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_hybrid_top_k_limit";
         let schema = Schema {
             fields: vec![
@@ -109,6 +110,7 @@ fn should_generate_hybrid_candidates_from_text_matches() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_hybrid_text_candidates";
         let schema = Schema {
             fields: vec![
@@ -195,6 +197,7 @@ fn should_explain_mixed_text_vector_execution_stages() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_hybrid_explain_mixed_stages";
         let schema = Schema {
             fields: vec![
@@ -364,6 +367,7 @@ fn should_skip_hybrid_text_candidate_without_vector() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().expect("cassie");
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "sql_hybrid_missing_vector";
         setup_missing_vector_hybrid_fixture(&cassie, collection);
         let session = cassie.create_session("tester", None);
@@ -412,7 +416,13 @@ fn bounded_hybrid_fixture_with_limits(
     if let Some(query_memory_budget_bytes) = query_memory_budget_bytes {
         config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     }
+    let install_extension = query_memory_budget_bytes.is_none();
     let cassie = Cassie::new_in_memory_with_config(config).unwrap();
+    if install_extension {
+        // A tiny query memory budget would reject the install itself; the fixture
+        // registers its collection directly through storage.
+        crate::support_sql::install_vector_extension(&cassie);
+    }
     let collection = "hybrid_bounded_candidates";
     let schema = Schema {
         fields: vec![

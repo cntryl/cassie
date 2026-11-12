@@ -3,6 +3,7 @@ use cassie::types::{Value, Vector};
 
 fn seeded(statements: &[&str]) -> (Cassie, CassieSession) {
     let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     for statement in statements {

@@ -4,6 +4,7 @@ use cassie::types::Value;
 fn should_return_declared_id_from_vector_distance_top_k() {
     // Arrange
     let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     cassie.startup().expect("start Cassie");
     let session = cassie.create_session("tester", None);
     cassie

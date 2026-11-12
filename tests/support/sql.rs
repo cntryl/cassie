@@ -15,6 +15,43 @@ pub fn test_root_password() -> &'static str {
         .as_str()
 }
 
+/// Installs the `vector` extension in the current database through a root session.
+///
+/// Vector columns, casts, and wire identities require the extension; only root may
+/// install it. Safe to call again after a restart because the install is idempotent.
+///
+/// # Panics
+///
+/// Panics when the root session cannot install the extension.
+pub fn install_vector_extension(cassie: &Cassie) {
+    let root = cassie.create_session("root", None);
+    cassie
+        .execute_sql(
+            &root,
+            "CREATE EXTENSION IF NOT EXISTS vector VERSION '0.8.7'",
+            vec![],
+        )
+        .unwrap_or_else(|error| panic!("install vector extension: {error}"));
+}
+
+/// Returns the installed `vector` type OID of the default database as a wire parameter OID.
+///
+/// # Panics
+///
+/// Panics when the extension is not installed or its type has no normal OID.
+#[must_use]
+pub fn installed_vector_oid(cassie: &Cassie) -> i32 {
+    let database = cassie.create_session("root", None);
+    let database = database.current_database().expect("session database");
+    cassie
+        .catalog
+        .get_extension(database, "vector")
+        .and_then(|extension| extension.vector_type_object_id)
+        .and_then(cassie::catalog::object_identity::normal_oid)
+        .and_then(|oid| i32::try_from(oid).ok())
+        .expect("installed vector type has a normal OID")
+}
+
 #[must_use]
 pub fn with_test_root_password(mut config: CassieRuntimeConfig) -> CassieRuntimeConfig {
     test_root_password().clone_into(&mut config.password);

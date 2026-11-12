@@ -42,11 +42,18 @@ impl Cassie {
             None
         } else {
             let context = self.binding_context_for_session(session);
+            // Inference sees the active database's vector OID as its private marker.
+            let mut inference_oids = declared_oids.to_vec();
+            crate::sql::binder::normalize_parameter_type_oids_for_database(
+                &mut inference_oids,
+                &self.catalog,
+                &context.database,
+            );
             crate::sql::binder::infer_plan_output_contract(
                 logical,
                 &self.catalog,
                 &context,
-                declared_oids,
+                &inference_oids,
                 controls,
             )?
         };

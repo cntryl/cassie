@@ -163,6 +163,7 @@ fn assert_remote_providers_reject_oversized_response(status: u16, framing: Frami
             ..CassieRuntimeConfig::default()
         };
         let cassie = Cassie::new_in_memory_with_config(config).expect("provider cassie");
+        crate::support_sql::install_vector_extension(&cassie);
 
         let error = cassie
             .embedding_provider

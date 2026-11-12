@@ -27,6 +27,7 @@ fn should_execute_simple_filtered_query() {
     runtime.block_on(async {
         let path = data_dir("smoke");
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "exec_smoke";
 
         let schema = Schema {
@@ -86,6 +87,7 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "exec_multi_batch";
 
         let schema = Schema {
@@ -161,6 +163,7 @@ fn should_preserve_filtered_projection_across_multiple_batches() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "exec_multi_batch_filter";
 
         let schema = Schema {
@@ -248,6 +251,7 @@ fn should_project_missing_columns_as_null() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "exec_missing_projection_column";
 
         let schema = Schema {
@@ -316,6 +320,7 @@ fn should_project_complex_values_through_filtered_ordered_scan() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

@@ -35,7 +35,7 @@ fn should_reject_rest_vector_search_under_the_same_budget_as_sql() {
 #[test]
 fn should_preserve_zero_limit_with_a_tiny_rest_vector_budget() {
     // Arrange
-    let mut denied = circle_fixture("rest_vector_zero_budget_denied", 3, 512);
+    let mut denied = circle_fixture("rest_vector_zero_budget_denied", 3, 640);
     create_index(&denied, "index_type = bruteforce");
     denied
         .startup()
@@ -250,7 +250,7 @@ fn add_wide_payloads(cassie: &cassie::app::Cassie, rows: u32) {
 #[test]
 fn should_reject_cold_normalized_rest_search_without_success_metrics_given_low_memory() {
     // Arrange
-    let cassie = circle_fixture("rest_normalized_cold_budget", 64, 512);
+    let cassie = circle_fixture("rest_normalized_cold_budget", 64, 640);
     cosine_index(&cassie);
     let before = cassie.metrics();
 

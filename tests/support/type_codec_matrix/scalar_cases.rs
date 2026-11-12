@@ -216,9 +216,9 @@ pub static SCALAR_CASES: [CodecCase; 15] = [
     CodecCase {
         name: "vector",
         sql_type: "VECTOR(2)",
-        oid: 100_002,
+        oid: crate::support_type_metadata_contract::VECTOR_TYPE_OID,
         typlen: -1,
-        typmod: -1,
+        typmod: 2,
         input_text: &[91, 49, 46, 53, 44, 45, 50, 46, 48, 93],
         output_text: &[91, 49, 46, 53, 44, 45, 50, 46, 48, 93],
         stored_output_text: &[91, 49, 46, 53, 44, 45, 50, 93],

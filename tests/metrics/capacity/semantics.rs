@@ -140,6 +140,7 @@ fn should_report_local_capacity_bytes_by_category() {
 
     runtime.block_on(async move {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         seed_capacity_fixture(&cassie, &session);

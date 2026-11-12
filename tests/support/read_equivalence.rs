@@ -26,6 +26,7 @@ pub fn with_fixture_config(
         });
         configure(&mut config);
         let cassie = Cassie::new_in_memory_with_config(config).expect("Cassie");
+        cassie_test_support::support_sql::install_vector_extension(&cassie);
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         test(&cassie, &session);

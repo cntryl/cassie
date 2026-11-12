@@ -22,6 +22,7 @@ fn should_execute_query_filters_by_vector_score_function() {
     // Act
     // Assert
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "exec_vector_score_filter";
 
     let schema = Schema {
@@ -87,6 +88,7 @@ fn should_execute_query_orders_by_vector_distance_function_parameterized() {
     // Act
     // Assert
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "exec_vector_order_func";
 
     let schema = Schema {
@@ -169,6 +171,7 @@ fn should_order_by_pgvector_dot_operator() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "exec_vector_dot_order";
 
         let schema = Schema {
@@ -254,6 +257,7 @@ fn should_order_by_pgvector_l2_operator() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "exec_vector_l2_order";
 
         let schema = Schema {
@@ -339,6 +343,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         let collection = "exec_vector_mismatch";
 
         let schema = Schema {
@@ -389,6 +394,7 @@ fn should_execute_create_vector_index_command() {
     // Arrange
     let path = data_dir("ddl_vector_index_create_command");
     let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -458,6 +464,7 @@ fn should_reject_invalid_hnsw_vector_index_options() {
     // Arrange
     let path = data_dir("ddl_vector_index_invalid_hnsw");
     let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -496,6 +503,7 @@ fn should_execute_drop_vector_index_command() {
     // Arrange
     let path = data_dir("ddl_vector_index_drop_command");
     let cassie = Cassie::new_in_memory_with_config(openai_runtime_for_vectors()).unwrap();
+    crate::support_sql::install_vector_extension(&cassie);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

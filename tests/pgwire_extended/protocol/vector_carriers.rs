@@ -158,7 +158,7 @@ fn should_reject_nonnullable_vector_nulls_before_document_publication() {
         assert_eq!(wire::error_code(frames).as_deref(), Some("23502"));
         fixture::assert_single_column_descriptors(
             frames,
-            (fixture::VECTOR_TYPE_OID, -1, -1),
+            (fixture::VECTOR_TYPE_OID, -1, 2),
             i16::try_from(index % 2).expect("result format"),
             true,
         );
@@ -216,7 +216,7 @@ fn should_preserve_nonnull_vector_width_validation_before_publication() {
         fixture::assert_success(frames);
         fixture::assert_single_column_descriptors(
             frames,
-            (fixture::VECTOR_TYPE_OID, -1, -1),
+            (fixture::VECTOR_TYPE_OID, -1, 2),
             1,
             true,
         );
@@ -228,7 +228,7 @@ fn should_preserve_nonnull_vector_width_validation_before_publication() {
     assert_eq!(wire::error_code(&batches[2]).as_deref(), Some("22000"));
     fixture::assert_single_column_descriptors(
         &batches[2],
-        (fixture::VECTOR_TYPE_OID, -1, -1),
+        (fixture::VECTOR_TYPE_OID, -1, 2),
         0,
         true,
     );
@@ -284,7 +284,7 @@ fn should_preserve_finite_vector_boundaries_through_text_parameter_writes() {
         fixture::assert_success(cycle);
         fixture::assert_single_column_descriptors(
             cycle,
-            (fixture::VECTOR_TYPE_OID, -1, -1),
+            (fixture::VECTOR_TYPE_OID, -1, 2),
             1,
             false,
         );

@@ -42,6 +42,7 @@ fn should_persist_vector_index_metadata() {
     runtime.block_on(async move {
         // Act
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
         let collection = "index_meta_docs";
@@ -118,6 +119,7 @@ fn should_persist_hnsw_vector_index_metadata() {
 
     runtime.block_on(async move {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let collection = "hnsw_index_meta_docs";
         let schema = Schema {
@@ -202,6 +204,7 @@ fn should_reload_registry_after_restart_simulation() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
         let collection = "restart_index_docs";
@@ -294,6 +297,7 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
         let collection = "normalized_restart_docs";
@@ -404,6 +408,7 @@ fn should_remove_vector_state_when_dropping_vector_field() {
 
     runtime.block_on(async move {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let collection = "drop_vector_field_docs";
         let schema = Schema {
@@ -496,6 +501,7 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
     runtime.block_on(async move {
         // Act
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
         let collection = "normalized_dimension_mismatch_docs";
@@ -569,6 +575,7 @@ fn should_reload_generic_index_registry_after_restart() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
         let collection = "generic_index_docs";
@@ -644,6 +651,7 @@ fn should_persist_fulltext_index_metadata_after_restart() {
     runtime.block_on(async move {
         // Act
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
 
         let collection = "fulltext_restart_docs";

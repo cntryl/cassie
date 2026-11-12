@@ -116,10 +116,16 @@ fn should_match_exact_l2_top_k_through_pgvector_hnsw_and_default_ivfflat() {
         let server = CompatibilityServer::start("pgvector_l2_ann_exact_equivalence").await;
         let (client, connection) = server.connect().await;
         client
+            .batch_execute("CREATE EXTENSION vector WITH SCHEMA public VERSION '0.8.7'")
+            .await
+            .expect("install vector");
+        client
+            .batch_execute("CREATE TABLE pgvector_l2_equivalence (id INT, embedding VECTOR(3))")
+            .await
+            .expect("create vector table");
+        client
             .batch_execute(
-                "CREATE EXTENSION vector WITH SCHEMA public VERSION '0.8.7'; \
-                 CREATE TABLE pgvector_l2_equivalence (id INT, embedding VECTOR(3)); \
-                 INSERT INTO pgvector_l2_equivalence VALUES \
+                "INSERT INTO pgvector_l2_equivalence VALUES \
                  (1, '[1,0,0]'::vector), (2, '[0,2,0]'::vector), \
                  (3, '[0,0,3]'::vector), (4, '[-4,0,0]'::vector)",
             )
@@ -736,7 +742,7 @@ fn should_publish_only_installed_vector_access_methods_and_operator_classes() {
         let operator_members = client
             .query(
                 "SELECT am.amname, opc.opcname, amop.amopstrategy, amop.amoppurpose, \
-                 amop.amopsortfamily, oper.oprname \
+                 amop.amopsortfamily::BIGINT, oper.oprname \
                  FROM pg_catalog.pg_amop AS amop \
                  JOIN pg_catalog.pg_opfamily AS opf ON opf.oid = amop.amopfamily \
                  JOIN pg_catalog.pg_opclass AS opc ON opc.opcfamily = opf.oid \

@@ -57,7 +57,7 @@ fn should_match_binary_vector_display_with_error_precedence() {
             b
         },
     ] {
-        let result = super::decode(&bytes, 2, &controls, None);
+        let result = super::decode(&bytes, 2, &controls, Some(1));
         assert!(
             matches!(result, Err(CassieError::Parse(message)) if message == "COPY binary field 3 is invalid: invalid binary vector value")
         );

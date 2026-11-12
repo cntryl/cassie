@@ -30,6 +30,7 @@ fn should_not_persist_row_when_row_family_failpoint_is_triggered() {
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -97,6 +98,7 @@ fn should_not_persist_document_when_scalar_index_family_failpoint_is_triggered()
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -168,6 +170,7 @@ fn should_not_persist_document_when_time_series_index_family_failpoint_is_trigge
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -239,6 +242,7 @@ fn should_not_persist_document_when_graph_adjacency_family_failpoint_is_triggere
 
     runtime.block_on(async {
         let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -310,6 +314,7 @@ fn should_not_persist_document_when_normalized_vector_family_failpoint_is_trigge
             dimensions: 3,
         });
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie
@@ -390,6 +395,7 @@ fn should_not_persist_document_when_vector_state_family_failpoint_is_triggered()
             dimensions: 3,
         });
         let cassie = Cassie::new_in_memory_with_config(config).unwrap();
+        crate::support_sql::install_vector_extension(&cassie);
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
         cassie

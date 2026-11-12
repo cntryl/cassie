@@ -79,7 +79,7 @@ fn should_preserve_unpopulated_materialized_view_vector_type_after_restart() {
         let cassie =
             Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("initial Cassie");
         cassie.startup().expect("initial startup");
-        let session = cassie.create_session("tester", None);
+        let session = cassie.create_session("root", None);
         for sql in [
             "CREATE EXTENSION vector VERSION '0.8.7'",
             "CREATE TABLE mv_restart_source (id INTEGER)",

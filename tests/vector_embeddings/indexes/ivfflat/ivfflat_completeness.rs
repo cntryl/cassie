@@ -134,6 +134,7 @@ fn should_fallback_exactly_given_missing_membership_in_probed_ivfflat_list() {
     // Arrange
     let path = data_dir("ivfflat_missing_probed_membership");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_missing_probed_membership";
     seed_ivfflat(&cassie, collection);
     remove_one_membership(&cassie, collection);
@@ -150,6 +151,7 @@ fn should_fallback_exactly_given_corrupt_ivfflat_list_count() {
     // Arrange
     let path = data_dir("ivfflat_corrupt_list_count");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_corrupt_list_count";
     seed_ivfflat(&cassie, collection);
     let mut state = cassie
@@ -182,6 +184,7 @@ fn should_rebuild_incomplete_ivfflat_membership_on_restart() {
     let collection = "ivfflat_restart_rebuild";
     {
         let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        crate::support_sql::install_vector_extension(&cassie);
         seed_ivfflat(&cassie, collection);
         remove_one_membership(&cassie, collection);
     }
@@ -231,6 +234,7 @@ fn should_rebuild_unsupported_ivfflat_training_version_on_restart() {
     let collection = "ivfflat_version_rebuild";
     {
         let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        crate::support_sql::install_vector_extension(&cassie);
         seed_ivfflat(&cassie, collection);
         let mut state = cassie
             .midge
@@ -267,6 +271,7 @@ fn should_reject_corrupt_membership_key_when_hydrating_ivfflat_state() {
     // Arrange
     let path = data_dir("ivfflat_corrupt_membership_key");
     let cassie = crate::support_sql::new_in_memory_cassie().expect("create Cassie");
+    crate::support_sql::install_vector_extension(&cassie);
     let collection = "ivfflat_corrupt_membership_key";
     seed_ivfflat(&cassie, collection);
     let mut corrupt_key = cassie

@@ -55,6 +55,7 @@ fn config() -> CassieRuntimeConfig {
 
 pub fn fixture(metric: &str, options: Option<&str>) -> (Cassie, Arc<Provider>) {
     let cassie = Cassie::new_in_memory_with_config(config()).expect("in-memory Cassie");
+    cassie_test_support::support_sql::install_vector_extension(&cassie);
     populated_fixture(cassie, metric, options)
 }
 
@@ -67,6 +68,7 @@ pub fn persistent_fixture(metric: &str, options: Option<&str>) -> (Cassie, Strin
         .to_string_lossy()
         .into_owned();
     let cassie = Cassie::new_with_data_dir_and_config(&path, config()).expect("Cassie");
+    cassie_test_support::support_sql::install_vector_extension(&cassie);
     let (cassie, provider) = populated_fixture(cassie, metric, options);
     (cassie, path, provider)
 }

@@ -1,4 +1,26 @@
 use super::*;
+use tokio_postgres::types::{FromSql, Type};
+
+/// Reads the binary `vector` result carrier (dimension count, reserved word, f32 components).
+struct WireVector(String);
+
+impl<'a> FromSql<'a> for WireVector {
+    fn from_sql(_: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        let dimensions = usize::from(u16::from_be_bytes([raw[0], raw[1]]));
+        let components = raw[4..]
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .take(dimensions)
+            .map(|bytes| f32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]).to_string())
+            .collect::<Vec<_>>();
+        Ok(Self(format!("[{}]", components.join(","))))
+    }
+
+    fn accepts(_: &Type) -> bool {
+        true
+    }
+}
 
 #[test]
 fn should_infer_bare_vector_dimensions_and_preserve_fixed_typmod() {
@@ -8,12 +30,13 @@ fn should_infer_bare_vector_dimensions_and_preserve_fixed_typmod() {
         let server = CompatibilityServer::start("vector_bare_dimensions").await;
         let (client, connection) = server.connect().await;
         client
-            .batch_execute(
-                "CREATE EXTENSION vector VERSION '0.8.7'; \
-                 CREATE TABLE vector_bare_values (fixed vector(3), inferred vector)",
-            )
+            .batch_execute("CREATE EXTENSION vector VERSION '0.8.7'")
             .await
-            .expect("install vector and create fixed/bare columns");
+            .expect("install vector");
+        client
+            .batch_execute("CREATE TABLE vector_bare_values (fixed vector(3), inferred vector)")
+            .await
+            .expect("create fixed/bare columns");
 
         // Act
         client
@@ -30,8 +53,8 @@ fn should_infer_bare_vector_dimensions_and_preserve_fixed_typmod() {
 
         // Assert
         assert_eq!(values.len(), 1);
-        assert_eq!(values[0].get::<_, String>(0), "[1,2,3]");
-        assert_eq!(values[0].get::<_, String>(1), "[4,5]");
+        assert_eq!(values[0].get::<_, WireVector>(0).0, "[1,2,3]");
+        assert_eq!(values[0].get::<_, WireVector>(1).0, "[4,5]");
 
         drop(client);
         server.shutdown(connection).await;
@@ -57,17 +80,18 @@ fn should_publish_one_canonical_vector_oid_with_declared_and_bare_typmods() {
             .await
             .expect_err("vector SQL types require the installed extension");
         client
-            .batch_execute(
-                "CREATE EXTENSION vector WITH SCHEMA public VERSION '0.8.7'; \
-                 CREATE TABLE vector_types (fixed vector(3), inferred vector)",
-            )
+            .batch_execute("CREATE EXTENSION vector WITH SCHEMA public VERSION '0.8.7'")
             .await
-            .expect("install vector and create fixed/bare vector columns");
+            .expect("install vector");
+        client
+            .batch_execute("CREATE TABLE vector_types (fixed vector(3), inferred vector)")
+            .await
+            .expect("create fixed/bare vector columns");
 
         // Act
         let columns = client
             .query(
-                "SELECT attname, atttypid, atttypmod \
+                "SELECT attname, atttypid::BIGINT, atttypmod \
                  , pg_catalog.format_type(atttypid, atttypmod) \
                  FROM pg_catalog.pg_attribute \
                  WHERE attrelid = 'vector_types'::regclass AND attnum > 0 \
@@ -78,7 +102,7 @@ fn should_publish_one_canonical_vector_oid_with_declared_and_bare_typmods() {
             .expect("vector column identities");
         let types = client
             .query(
-                "SELECT oid FROM pg_catalog.pg_type WHERE typname = 'vector'",
+                "SELECT oid::BIGINT FROM pg_catalog.pg_type WHERE typname = 'vector'",
                 &[],
             )
             .await
@@ -142,7 +166,7 @@ fn should_describe_sql_prepared_vector_parameters_with_the_active_database_oid()
             vector_oid,
             "PREPARE result descriptors use the active database's vector OID"
         );
-        assert_eq!(result.get::<_, String>(0), "[1,2]");
+        assert_eq!(result.get::<_, WireVector>(0).0, "[1,2]");
 
         drop(client);
         server.shutdown(connection).await;

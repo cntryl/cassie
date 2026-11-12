@@ -75,6 +75,10 @@ name = "configuration_isolated"
 path = "configuration_isolated.rs"
 
 [[test]]
+name = "composite_types"
+path = "composite_types.rs"
+
+[[test]]
 name = "constraint_ingress"
 path = "constraint_ingress.rs"
 

@@ -6,6 +6,9 @@ pub mod support_bind_planning;
 #[path = "../bytea_input_errors.rs"]
 pub mod support_bytea_input_errors;
 
+#[path = "../composite_types.rs"]
+pub mod support_composite_types;
+
 #[path = "../parameter_occurrence_wire.rs"]
 pub mod support_parameter_occurrence_wire;
 

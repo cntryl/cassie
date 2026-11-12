@@ -21,13 +21,6 @@ pub(super) fn execute(
     statement: &TypeStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    if session.is_some_and(|session| !session.user.eq_ignore_ascii_case("root")) {
-        return Err(CassieError::from(DiagnosticError::new(
-            "42501",
-            "must be root to manage composite types",
-        ))
-        .into());
-    }
     let database = session
         .and_then(CassieSession::current_database)
         .unwrap_or(&cassie.default_database)

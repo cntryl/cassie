@@ -199,19 +199,23 @@ impl Catalog {
         }
     }
 
-    /// Objects that keep the type `oid` alive: other types with a field of the
-    /// type and table columns declared with it, as PostgreSQL phrases them.
+    /// Objects that keep the type `oid` alive, phrased as PostgreSQL phrases the
+    /// `DROP TYPE` dependency detail (`column c of table t`).
     #[must_use]
     pub fn composite_type_dependents(&self, oid: u32) -> Vec<String> {
         let mut dependents = Vec::new();
         for metadata in self.composite_types.read().values() {
-            if metadata.type_oid() != oid
-                && metadata
-                    .fields
-                    .iter()
-                    .any(|field| data_type_depends_on(&field.data_type, oid))
-            {
-                dependents.push(format!("type {}", metadata.local_name()));
+            if metadata.type_oid() == oid {
+                continue;
+            }
+            for field in &metadata.fields {
+                if data_type_depends_on(&field.data_type, oid) {
+                    dependents.push(format!(
+                        "column {} of composite type {}",
+                        field.name,
+                        metadata.local_name()
+                    ));
+                }
             }
         }
         for schema in self.schemas.read().values() {

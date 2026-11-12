@@ -8,7 +8,7 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_slice_read_document_error_category_and_position() {
+fn should_match_slice_read_document_error_diagnostics() {
     // Arrange
     let controls = controls();
     let inputs: &[&[u8]] = &[
@@ -25,18 +25,28 @@ fn should_match_slice_read_document_error_category_and_position() {
         b"{\"a\":}",
         b"1e",
     ];
-    // Act / Assert
-    for input in inputs {
-        let expected = serde_json::from_slice::<serde_json::Value>(input).expect_err("legacy");
-        let Err(actual) = Document::parse_plain_row(input, &controls) else {
-            panic!("accepted malformed document");
-        };
-        assert_eq!(
-            actual.test_diagnostic(),
-            Some((expected.classify(), expected.line(), expected.column())),
-            "{input:?}"
-        );
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = inputs
+        .iter()
+        .map(|input| {
+            let expected = serde_json::from_slice::<serde_json::Value>(input).expect_err("legacy");
+            let Err(actual) = Document::parse_plain_row(input, &controls) else {
+                panic!("accepted malformed document");
+            };
+            (
+                *input,
+                actual.test_diagnostic(),
+                Some((expected.classify(), expected.line(), expected.column())),
+                controls.current_query_memory_bytes(),
+            )
+        })
+        .collect();
+
+    // Assert
+    for (input, actual, expected, memory) in results {
+        assert_eq!(actual, expected, "{input:?}");
+        assert_eq!(memory, 0);
     }
 }
 
@@ -73,16 +83,31 @@ fn should_match_slice_read_for_valid_nonsentinel_documents() {
         r#"{"a":[null,true,"é",1E2],"a":{"b":"x"}}"#,
         r#"["",{},false]"#,
     ];
-    // Act / Assert
-    for input in inputs {
-        let expected: serde_json::Value = serde_json::from_slice(input.as_bytes()).expect("legacy");
-        let row = Document::parse_plain_row(input.as_bytes(), &controls).expect("row");
-        let output =
-            super::super::forest::output::serialize(&row.forest, row.root).expect("output");
-        assert_eq!(output.as_str(), expected.to_string());
-        drop(output);
-        drop(row);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = inputs
+        .into_iter()
+        .map(|input| {
+            let expected: serde_json::Value =
+                serde_json::from_slice(input.as_bytes()).expect("legacy");
+            let row = Document::parse_plain_row(input.as_bytes(), &controls).expect("row");
+            let output =
+                super::super::forest::output::serialize(&row.forest, row.root).expect("output");
+            let actual = output.as_str().to_string();
+            drop(output);
+            drop(row);
+            (
+                actual,
+                expected.to_string(),
+                controls.current_query_memory_bytes(),
+            )
+        })
+        .collect();
+
+    // Assert
+    for (actual, expected, memory) in results {
+        assert_eq!(actual, expected);
+        assert_eq!(memory, 0);
     }
 }
 

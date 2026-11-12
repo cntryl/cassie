@@ -58,7 +58,7 @@ fn index_metadata_fixture() -> (Arc<Midge>, Arc<Catalog>, String, String) {
 }
 
 #[test]
-fn should_publish_and_register_target_when_an_unrelated_journal_appears_after_the_check() {
+fn should_publish_target_index_when_unrelated_journal_appears_after_the_check() {
     // Arrange
     let cassie = crate::app::Cassie::new_in_memory_with_config(
         crate::config::CassieRuntimeConfig::default(),

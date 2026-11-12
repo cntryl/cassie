@@ -323,7 +323,7 @@ fn should_compare_transaction_metadata_without_capacity_or_version_identity() {
 }
 
 #[test]
-fn should_ignore_sequence_cursor_for_conflicts_and_keep_the_owner_cursor_in_its_read_view() {
+fn should_treat_sequence_cursor_as_non_structural_metadata() {
     // Arrange
     let current = Catalog::new();
     let mut sequence = SequenceMeta::new("public.sequence_cursor", crate::types::DataType::BigInt);

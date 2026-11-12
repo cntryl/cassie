@@ -24,7 +24,7 @@ fn should_filter_distinct_array_aggregation_by_ordered_inputs() {
 }
 
 #[test]
-fn should_reject_null_empty_and_incompatible_array_aggregate_inputs() {
+fn should_reject_invalid_array_aggregate_input_shapes() {
     // Arrange
     let fixture = sql_fixture("issue-811-array-aggregate-input-shapes", &[]);
     let cases = [

@@ -663,10 +663,8 @@ mod tests {
             catalog_index_oid(&legacy_vector_index),
         );
 
-        // Arrange extension identities before testing the selected pgvector method.
+        // Install extension identities before resolving the selected pgvector method.
         catalog.register_extension(vector_extension());
-
-        // Act
         let hnsw_name_after_install = scope
             .resolve(ObjectIdKind::RegClass, "events_hnsw_idx")
             .expect("resolve HNSW only after vector identities are installed");

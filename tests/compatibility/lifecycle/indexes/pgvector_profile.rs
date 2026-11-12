@@ -4,7 +4,7 @@ const VECTOR_METHOD_COUNT_SQL: &str =
     "SELECT count(*) FROM pg_catalog.pg_am WHERE amname IN ('hnsw', 'ivfflat')";
 
 #[test]
-fn should_bind_pgvector_methods_and_return_operator_ordered_vector_rows() {
+fn should_bind_pgvector_methods_for_operator_ordered_vector_rows() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -109,7 +109,7 @@ fn should_bind_pgvector_methods_and_return_operator_ordered_vector_rows() {
 }
 
 #[test]
-fn should_match_exact_l2_top_k_through_pgvector_hnsw_and_default_ivfflat() {
+fn should_match_exact_l2_top_k_through_pgvector_ann_indexes() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -710,7 +710,7 @@ fn should_restore_vector_view_dependency_after_local_restart() {
 }
 
 #[test]
-fn should_publish_only_installed_vector_access_methods_and_operator_classes() {
+fn should_publish_vector_catalog_rows_only_after_installation() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

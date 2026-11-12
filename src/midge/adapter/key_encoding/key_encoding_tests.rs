@@ -296,14 +296,19 @@ fn should_isolate_generated_unique_index_reservations_from_all_legacy_names() {
     let legacy_key = unique_scalar_index_reservation_key(collection, "41", &[json!(1)]).unwrap();
     let other_collection =
         generated_unique_index_reservation_key("other", 41, &[json!(1)]).unwrap();
-    // Act / Assert
-    assert!(first_key.starts_with(&first));
-    assert!(second_key.starts_with(&second));
-    assert!(!first_key.starts_with(&second));
-    assert!(!legacy_key.starts_with(&first));
-    assert!(!first_key.starts_with(&unique_index_reservation_prefix(collection)));
-    assert!(!other_collection.starts_with(&first));
-    assert!(first_key.starts_with(&generated_unique_index_reservations_prefix(collection)));
+    // Act
+    let results = [
+        first_key.starts_with(&first),
+        second_key.starts_with(&second),
+        !first_key.starts_with(&second),
+        !legacy_key.starts_with(&first),
+        !first_key.starts_with(&unique_index_reservation_prefix(collection)),
+        !other_collection.starts_with(&first),
+        first_key.starts_with(&generated_unique_index_reservations_prefix(collection)),
+    ];
+
+    // Assert
+    assert!(results.iter().all(|isolated| *isolated));
 }
 
 #[test]

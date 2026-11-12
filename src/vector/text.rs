@@ -115,7 +115,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_empty_and_oversized_bare_vector_text() {
+    fn should_reject_bare_vector_text_outside_length_bounds() {
         // Arrange
         let oversized = format!(
             "[{}]",

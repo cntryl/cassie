@@ -2,7 +2,7 @@ use super::{classify, Classification};
 use crate::types::extended::temporal::zone::lookup_zone;
 
 #[test]
-fn should_classify_fixed_dynamic_and_unknown_reachable_abbreviations() {
+fn should_classify_reachable_abbreviations_by_zone_transitions() {
     // Arrange
     let new_york = lookup_zone("America/New_York").expect("New York");
     let moscow = lookup_zone("Europe/Moscow").expect("Moscow");

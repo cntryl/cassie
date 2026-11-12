@@ -663,7 +663,7 @@ mod tests {
     }
 
     #[test]
-    fn should_admit_variadic_path_array_workspace_and_honor_cancellation() {
+    fn should_control_variadic_path_array_workspace_admission() {
         // Arrange
         let path =
             crate::types::SqlArray::from_elements(vec![crate::types::Value::String("a".into())])

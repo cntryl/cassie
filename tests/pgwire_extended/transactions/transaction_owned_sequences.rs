@@ -279,7 +279,7 @@ async fn run_isolation_profile(suffix: &str, isolation: &str) {
 }
 
 #[test]
-fn should_publish_transaction_owned_serial_and_identity_sequences_across_isolation_levels() {
+fn should_publish_transaction_owned_sequences_across_isolation_levels() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -287,12 +287,18 @@ fn should_publish_transaction_owned_serial_and_identity_sequences_across_isolati
         .expect("current-thread runtime");
 
     // Act
-    runtime.block_on(async {
+    let completed = runtime.block_on(async {
+        let mut completed = Vec::new();
         for (suffix, isolation) in [
             ("rc", "READ COMMITTED"),
             ("rr", "REPEATABLE READ READ WRITE"),
         ] {
             run_isolation_profile(suffix, isolation).await;
+            completed.push(suffix);
         }
+        completed
     });
+
+    // Assert
+    assert_eq!(completed, ["rc", "rr"]);
 }

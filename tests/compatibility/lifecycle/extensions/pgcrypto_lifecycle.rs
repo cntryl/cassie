@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn should_publish_pgcrypto_installation_and_digest_transactionally() {
+fn should_publish_pgcrypto_extension_transactionally() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -35,7 +35,7 @@ fn should_publish_pgcrypto_installation_and_digest_transactionally() {
 }
 
 #[test]
-fn should_restore_pgcrypto_namespace_on_savepoint_rollback_and_drop_its_routines() {
+fn should_restore_pgcrypto_namespace_after_savepoint_rollback() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -86,7 +86,7 @@ fn should_expose_only_selected_extension_versions() {
 }
 
 #[test]
-fn should_keep_extension_identity_on_relocation_and_remove_its_dependencies_on_drop() {
+fn should_track_extension_identity_through_relocation_lifecycle() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -114,7 +114,7 @@ fn should_keep_extension_identity_on_relocation_and_remove_its_dependencies_on_d
 }
 
 #[test]
-fn should_resolve_digest_bytea_overload_and_reject_unselected_algorithms() {
+fn should_resolve_digest_bytea_overload_for_selected_algorithms() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

@@ -15,16 +15,25 @@ fn should_preserve_decoder_behavior_with_a_passing_check() {
         "2024-01-01 nonsense",
     ];
 
-    // Act and assert
-    for input in inputs {
-        let expected = decode_datetime(input, &session);
-        let actual = decode_datetime_with_check(input, &session, &mut || Ok::<(), ()>(()));
+    // Act
+    let results: Vec<_> = inputs
+        .iter()
+        .map(|input| {
+            (
+                decode_datetime(input, &session),
+                decode_datetime_with_check(input, &session, &mut || Ok::<(), ()>(())),
+            )
+        })
+        .collect();
+
+    // Assert
+    for (expected, actual) in results {
         assert_eq!(actual, expected.map_err(TokenizeError::Decode));
     }
 }
 
 #[test]
-fn should_stop_and_return_the_original_check_error() {
+fn should_stop_at_the_first_failed_check_with_its_original_error() {
     // Arrange
     let session = TemporalSession::default();
     let mut calls = 0;

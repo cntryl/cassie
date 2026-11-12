@@ -1,7 +1,7 @@
 use super::PendingFieldDrop;
 
 #[test]
-fn should_decode_legacy_field_drop_and_round_trip_generated_reservations() {
+fn should_round_trip_reservation_generations_through_legacy_field_drop_record() {
     // Arrange
     let legacy = serde_json::json!({"collection":"public.t","field":"x","target_generation":2,"scalar_names":["legacy_idx"],"time_series_names":[]});
     // Act

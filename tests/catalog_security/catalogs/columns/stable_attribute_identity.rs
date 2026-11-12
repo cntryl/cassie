@@ -6,7 +6,7 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 
 #[test]
-fn should_preserve_attnum_and_mark_dropped_columns_after_schema_evolution() {
+fn should_keep_attribute_identity_across_schema_evolution() {
     // Arrange
     let fixture = sql_fixture(
         "issue-817-stable-attribute-identity",

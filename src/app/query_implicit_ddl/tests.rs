@@ -55,7 +55,7 @@ fn should_publish_implicit_table_creation_before_returning_its_command() {
 }
 
 #[test]
-fn should_publish_implicit_like_table_with_its_identity_and_index_before_returning() {
+fn should_publish_implicit_like_table_clone_before_returning() {
     // Arrange
     let cassie = fixture();
     let owner = cassie.create_session("tester", None);

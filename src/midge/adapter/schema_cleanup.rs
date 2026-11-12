@@ -484,7 +484,7 @@ mod tests {
     use crate::midge::adapter::StorageFamily;
 
     #[test]
-    fn should_preserve_ambiguous_cleanup_and_publication_after_restart() {
+    fn should_preserve_ambiguous_cleanup_publication_pair_after_restart() {
         // Arrange
         let path =
             std::env::temp_dir().join(format!("cassie_index_cleanup_pair_{}", Uuid::new_v4()));

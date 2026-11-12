@@ -494,7 +494,7 @@ fn should_report_direct_acl_privilege_state() {
 }
 
 #[test]
-fn should_evaluate_selected_privileges_for_current_and_named_roles() {
+fn should_evaluate_selected_privileges_across_role_arguments() {
     // Arrange
     let (cassie, root, reader, _projector) = role_grant_fixture();
 
@@ -597,7 +597,7 @@ fn should_evaluate_selected_privileges_for_current_and_named_roles() {
 }
 
 #[test]
-fn should_reject_role_and_relation_oid_arguments_for_selected_privilege_helpers() {
+fn should_reject_oid_arguments_for_selected_privilege_helpers() {
     // Arrange
     let (cassie, root, _reader, _projector) = role_grant_fixture();
     cassie

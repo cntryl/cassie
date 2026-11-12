@@ -17,7 +17,7 @@ fn controls(limit: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_retain_owned_row_diagnostic_and_match_legacy_parse_error_text() {
+fn should_retain_owned_row_diagnostic_matching_legacy_parse_error_text() {
     // Arrange
     let controls = controls(1_048_576);
     let bytes = b"[}\xff";
@@ -48,7 +48,7 @@ fn should_release_row_diagnostic_after_actual_copy_cancellation() {
         Instant::now(),
         cancel.clone(),
     );
-    let Err(error) = Document::parse_plain_row(b"[}", &controls) else {
+    let Err(error) = Document::parse_plain_row(b"[\x7d", &controls) else {
         panic!("accepted invalid row");
     };
     let mut copies = 0;
@@ -82,22 +82,33 @@ fn should_match_legacy_row_diagnostics_across_malformed_non_sentinel_inputs() {
         b"\"\xff\"",
         b"{\n \"a\":0,\n \"\xff\\nX\":1}",
     ];
-    // Act / Assert
-    for bytes in inputs {
-        let expected = serde_json::from_slice::<serde_json::Value>(bytes)
-            .expect_err("legacy")
-            .to_string();
-        let Err(error) = Document::parse_plain_row(bytes, &controls) else {
-            panic!("accepted malformed row");
-        };
-        let diagnostic = super::render_row(&error, &controls).expect("diagnostic");
-        assert_eq!(
-            diagnostic.as_str(),
-            format!("invalid JSON in row blob: {expected}"),
-            "{bytes:?}"
-        );
-        drop(diagnostic);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+
+    // Act
+    let results: Vec<_> = inputs
+        .iter()
+        .map(|bytes| {
+            let expected = serde_json::from_slice::<serde_json::Value>(bytes)
+                .expect_err("legacy")
+                .to_string();
+            let Err(error) = Document::parse_plain_row(bytes, &controls) else {
+                panic!("accepted malformed row");
+            };
+            let diagnostic = super::render_row(&error, &controls).expect("diagnostic");
+            let actual = diagnostic.as_str().to_string();
+            drop(diagnostic);
+            (
+                *bytes,
+                actual,
+                format!("invalid JSON in row blob: {expected}"),
+                controls.current_query_memory_bytes(),
+            )
+        })
+        .collect();
+
+    // Assert
+    for (bytes, actual, expected, memory) in results {
+        assert_eq!(actual, expected, "{bytes:?}");
+        assert_eq!(memory, 0);
     }
 }
 

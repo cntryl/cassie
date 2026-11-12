@@ -33,7 +33,7 @@ fn scalar_i64(cassie: &Cassie, session: &CassieSession, sql: &str) -> i64 {
 }
 
 #[test]
-fn should_return_schema_table_and_column_comments_with_selected_catalog_descriptors() {
+fn should_return_comments_from_selected_catalog_descriptors() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-comment-values",
@@ -117,7 +117,7 @@ fn should_return_schema_table_and_column_comments_with_selected_catalog_descript
 }
 
 #[test]
-fn should_resolve_single_argument_object_descriptions_for_schema_and_table_oids() {
+fn should_resolve_single_argument_object_descriptions_for_relation_oids() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-single-argument-description",
@@ -252,7 +252,7 @@ const TABLE_COMMENT_SQL: &str =
     "SELECT obj_description('issue_845_tx_subject'::regclass::oid, 'pg_class')";
 
 #[test]
-fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
+fn should_roll_back_staged_comment_changes() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-comment-rollback",
@@ -330,7 +330,7 @@ fn should_stage_comment_changes_through_savepoint_and_transaction_rollback() {
 }
 
 #[test]
-fn should_preserve_comment_addresses_across_renames_and_remove_them_on_drop() {
+fn should_track_comment_addresses_through_object_lifecycle() {
     // Arrange
     let fixture = sql_fixture(
         "issue-845-comment-renames",
@@ -431,7 +431,7 @@ fn should_preserve_comment_addresses_across_renames_and_remove_them_on_drop() {
 }
 
 #[test]
-fn should_preserve_comment_records_through_local_restart_and_database_image_restore() {
+fn should_preserve_comment_records_across_persistence_boundaries() {
     // Arrange
     let path = data_dir("issue-845-comment-recovery");
     let directory = DataDirectory(path.clone());
@@ -504,7 +504,7 @@ fn should_preserve_comment_records_through_local_restart_and_database_image_rest
 }
 
 #[test]
-fn should_reject_unselected_comment_targets_and_non_owner_roles() {
+fn should_reject_comment_changes_outside_the_selected_contract() {
     // Arrange
     let password = crate::support_sql::test_root_password();
     let config = CassieRuntimeConfig {

@@ -347,7 +347,7 @@ async fn finish_ctas_cancellation_session(session: CtasCancellationSession) {
 }
 
 #[test]
-fn should_cancel_extended_ctas_without_publication_and_recover_to_savepoint() {
+fn should_recover_to_savepoint_after_canceled_extended_ctas() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

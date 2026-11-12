@@ -20,7 +20,7 @@ fn catalog_column_names(
 }
 
 #[test]
-fn should_expose_selected_relation_and_type_fields_with_non_domain_defaults() {
+fn should_expose_selected_relation_type_fields_with_non_domain_defaults() {
     // Arrange
     let fixture = sql_fixture("issue-817-type-catalog-fields", &[]);
     fixture.cassie.startup().expect("startup");
@@ -166,6 +166,7 @@ fn should_preserve_relhasindex_after_dropping_last_index_through_restart() {
         cassie.shutdown();
     }
 
+    // Act
     let reopened = Cassie::new_with_data_dir_and_config(&directory.0, config)
         .expect("reopen the local catalog instance");
     reopened.startup().expect("start the reopened instance");

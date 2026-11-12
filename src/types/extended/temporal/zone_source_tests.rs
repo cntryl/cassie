@@ -184,7 +184,7 @@ fn should_ignore_a_later_type_when_the_first_matching_index_is_unreferenced() {
 }
 
 #[test]
-fn should_keep_posix_rule_text_and_explicit_abbreviations() {
+fn should_retain_posix_rule_source_with_explicit_abbreviations() {
     // Arrange
     let rule = "AAA0BBB-1,M3.2.0,M11.1.0";
 

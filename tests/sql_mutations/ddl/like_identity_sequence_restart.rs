@@ -62,7 +62,7 @@ fn should_recover_independent_owned_identity_sequences_after_local_restart() {
              )",
         );
 
-        // Act
+        // Seed identity sequences before the restart
         execute(
             &cassie,
             &session,

@@ -339,7 +339,7 @@ fn should_recover_persisted_materialized_view_after_restart() {
 }
 
 #[test]
-fn should_recover_committed_ctas_and_discard_savepoint_rollback_after_restart() {
+fn should_recover_ctas_publication_after_restart() {
     // Arrange
     support::use_local_storage();
     let path = support::data_dir("issue-833-ctas-publication-restart");

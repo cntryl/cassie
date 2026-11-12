@@ -9,11 +9,12 @@ fn controls() -> QueryExecutionControls {
 }
 
 #[test]
-fn should_match_legacy_frames_for_ordinary_json_and_jsonb_values() {
+fn should_match_legacy_frames_for_ordinary_values_in_each_json_type() {
     // Arrange
     let controls = controls();
     let source = r#"{"a":1}"#;
-    // Act / Assert
+    // Act
+    let mut outcomes = Vec::new();
     for (identity, oid, kind) in [
         (PlainIdentity::Json, 114, crate::types::DataType::Json),
         (PlainIdentity::Jsonb, 3802, crate::types::DataType::Jsonb),
@@ -35,21 +36,32 @@ fn should_match_legacy_frames_for_ordinary_json_and_jsonb_values() {
             )
             .expect("legacy frame");
             let actual = RawFrame::build(Some(&cell), oid, format, &controls).expect("raw frame");
-            assert_eq!(actual.bytes(), expected);
+            let actual_bytes = actual.bytes().to_vec();
             drop(actual);
             drop(cell);
-            assert_eq!(controls.current_query_memory_bytes(), 0);
+            outcomes.push((
+                actual_bytes,
+                expected,
+                controls.current_query_memory_bytes(),
+            ));
         }
+    }
+
+    // Assert
+    for (actual, expected, retained) in outcomes {
+        assert_eq!(actual, expected);
+        assert_eq!(retained, 0);
     }
 }
 
 #[test]
-fn should_emit_postgresql_json_spelling_and_jsonb_binary_version() {
+fn should_emit_postgresql_json_frame_payloads() {
     // Arrange
     let controls = controls();
     let raw = r#" {"z":1e+2, "a": 2, "a":3} "#;
     let sentinel = r#"{"$serde_json::private::Number":"7"}"#;
-    // Act / Assert
+    // Act
+    let mut outcomes = Vec::new();
     for source in [raw, sentinel] {
         for (identity, oid) in [(PlainIdentity::Json, 114), (PlainIdentity::Jsonb, 3802)] {
             let cell = crate::midge::row_blob::tests::owned_row_cell(source, identity, &controls)
@@ -63,20 +75,24 @@ fn should_emit_postgresql_json_spelling_and_jsonb_binary_version() {
                 } else {
                     r#"{"$serde_json::private::Number": "7"}"#
                 };
-                let bytes = frame.bytes();
-                let payload = &bytes[11..];
-                if identity == PlainIdentity::Jsonb && format == 1 {
-                    assert_eq!(payload[0], 1);
-                    assert_eq!(&payload[1..], expected.as_bytes());
-                } else {
-                    assert_eq!(payload, expected.as_bytes());
-                }
+                let binary_jsonb = identity == PlainIdentity::Jsonb && format == 1;
+                outcomes.push((frame.bytes()[11..].to_vec(), expected, binary_jsonb));
                 drop(frame);
             }
             drop(cell);
-            assert_eq!(controls.current_query_memory_bytes(), 0);
         }
     }
+
+    // Assert
+    for (payload, expected, binary_jsonb) in outcomes {
+        if binary_jsonb {
+            assert_eq!(payload[0], 1);
+            assert_eq!(&payload[1..], expected.as_bytes());
+        } else {
+            assert_eq!(payload, expected.as_bytes());
+        }
+    }
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
 #[test]
@@ -113,7 +129,7 @@ fn should_record_json_value_writer_spelling_difference_from_postgresql() {
 }
 
 #[test]
-fn should_distinguish_sql_null_json_null_and_reject_mismatches() {
+fn should_reject_mismatched_raw_frame_arguments_while_distinguishing_nulls() {
     // Arrange
     let controls = controls();
     let cell =
@@ -135,7 +151,7 @@ fn should_distinguish_sql_null_json_null_and_reject_mismatches() {
 }
 
 #[test]
-fn should_retain_frame_after_source_drops_and_reject_a_foreign_tracker() {
+fn should_account_raw_frame_to_owning_tracker_across_source_drop() {
     // Arrange
     let owner = controls();
     let other = controls();
@@ -143,10 +159,11 @@ fn should_retain_frame_after_source_drops_and_reject_a_foreign_tracker() {
         crate::midge::row_blob::tests::owned_row_cell(r#"{"a":1}"#, PlainIdentity::Json, &owner)
             .expect("cell");
     // Act
-    assert!(RawFrame::build(Some(&cell), 114, 0, &other).is_err());
+    let foreign = RawFrame::build(Some(&cell), 114, 0, &other);
     let frame = RawFrame::build(Some(&cell), 114, 0, &owner).expect("frame");
     drop(cell);
     // Assert
+    assert!(foreign.is_err());
     assert_eq!(&frame.bytes()[11..], br#"{"a":1}"#);
     assert!(owner.current_query_memory_bytes() > 0);
     assert_eq!(other.current_query_memory_bytes(), 0);
@@ -185,7 +202,7 @@ fn should_release_partial_frame_after_actual_cell_copy_cancellation() {
 }
 
 #[test]
-fn should_enforce_measured_cell_and_raw_frame_overlap() {
+fn should_enforce_measured_cell_raw_frame_overlap() {
     // Arrange
     let baseline = controls();
     let cell = crate::midge::row_blob::tests::owned_row_cell(
@@ -201,8 +218,8 @@ fn should_enforce_measured_cell_and_raw_frame_overlap() {
     drop(frame);
     drop(filler);
     drop(cell);
-    // Act / Assert
-    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+    // Act
+    let outcomes = [(peak, true), (peak - 1, false)].map(|(budget, succeeds)| {
         let limits = CassieRuntimeLimits {
             query_memory_budget_bytes: budget,
             query_timeout_ms: 0,
@@ -217,10 +234,16 @@ fn should_enforce_measured_cell_and_raw_frame_overlap() {
         .expect("cell");
         let filler = controls.reserve_query_memory(65_536).expect("filler");
         let frame = RawFrame::build(Some(&cell), 3802, 1, &controls);
-        assert_eq!(frame.is_ok(), succeeds);
+        let admitted = frame.is_ok();
         drop(frame);
         drop(filler);
         drop(cell);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+        (succeeds, admitted, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    for (succeeds, admitted, retained) in outcomes {
+        assert_eq!(admitted, succeeds);
+        assert_eq!(retained, 0);
     }
 }

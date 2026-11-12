@@ -93,7 +93,7 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
 }
 
 #[test]
-fn should_reject_unselected_generated_column_and_like_forms_before_publication() {
+fn should_reject_unselected_generated_forms_before_publication() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

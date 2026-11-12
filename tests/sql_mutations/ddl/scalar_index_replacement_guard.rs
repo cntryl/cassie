@@ -2,7 +2,7 @@
 use crate::support_sql_fixture::sql_fixture;
 
 #[test]
-fn should_reject_replacement_before_mutation_and_recover_at_savepoint() {
+fn should_reject_replacement_while_drop_is_pending_in_savepoint() {
     // Arrange
     let fixture = sql_fixture(
         "index-replacement-guard-savepoint",

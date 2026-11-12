@@ -161,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn should_admit_temporal_token_scratch_at_exact_budget_and_release_it() {
+    fn should_gate_temporal_token_scratch_by_exact_budget() {
         // Arrange
         let required = temporal::tokens::tokenization_memory_bound(INPUT).expect("bound");
         let exact = controls(required);

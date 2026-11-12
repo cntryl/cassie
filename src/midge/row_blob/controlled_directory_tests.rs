@@ -36,7 +36,7 @@ fn parse_error(row: &[u8]) -> Option<String> {
 }
 
 #[test]
-fn should_preserve_duplicate_overwrite_and_range_corruption_priority() {
+fn should_match_legacy_error_priority_for_overlapping_directory_entries() {
     // Arrange
     let controls = controls();
     let cases = [
@@ -48,20 +48,31 @@ fn should_preserve_duplicate_overwrite_and_range_corruption_priority() {
         row(&[(1, TYPE_JSON, 0, 1)], b"{}"),
         row(&[(1, TYPE_JSON, 0, 3)], b"{}"),
     ];
-    // Act / Assert
-    for bytes in cases {
-        let expected = parse_error(&bytes);
-        let actual = match Directory::parse(&bytes, &controls) {
-            Ok(_) => None,
-            Err(error) => Some(error.to_string()),
-        };
+    // Act
+    let outcomes = cases
+        .iter()
+        .map(|bytes| {
+            let actual = match Directory::parse(bytes, &controls) {
+                Ok(_) => None,
+                Err(error) => Some(error.to_string()),
+            };
+            (
+                parse_error(bytes),
+                actual,
+                controls.current_query_memory_bytes(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (expected, actual, retained) in outcomes {
         assert_eq!(actual, expected);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+        assert_eq!(retained, 0);
     }
 }
 
 #[test]
-fn should_preserve_header_and_truncated_directory_errors() {
+fn should_match_legacy_errors_for_malformed_directory_prefixes() {
     // Arrange
     let controls = controls();
     let complete = row(&[(1, TYPE_JSON, 0, 2)], b"{}");
@@ -70,20 +81,32 @@ fn should_preserve_header_and_truncated_directory_errors() {
     let mut bad_magic = complete.clone();
     bad_magic[0] ^= 1;
     let truncated = complete[..complete.len() - 4].to_vec();
-    // Act / Assert
-    for bytes in [Vec::new(), bad_magic, bad_version, truncated] {
-        let expected = parse_error(&bytes);
-        let actual = match Directory::parse(&bytes, &controls) {
-            Ok(_) => None,
-            Err(error) => Some(error.to_string()),
-        };
+    let cases = [Vec::new(), bad_magic, bad_version, truncated];
+    // Act
+    let outcomes = cases
+        .iter()
+        .map(|bytes| {
+            let actual = match Directory::parse(bytes, &controls) {
+                Ok(_) => None,
+                Err(error) => Some(error.to_string()),
+            };
+            (
+                parse_error(bytes),
+                actual,
+                controls.current_query_memory_bytes(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    for (expected, actual, retained) in outcomes {
         assert_eq!(actual, expected);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+        assert_eq!(retained, 0);
     }
 }
 
 #[test]
-fn should_preserve_present_json_null_sql_null_missing_and_tag_errors() {
+fn should_match_legacy_json_span_results_for_unusual_field_encodings() {
     // Arrange
     let controls = controls();
     let schema = RowSchema::from_schema(&Schema {
@@ -106,18 +129,17 @@ fn should_preserve_present_json_null_sql_null_missing_and_tag_errors() {
     let wrong_tag =
         encode_row(&text_schema, &serde_json::json!({"doc":"text"})).expect("wrong tag");
     let field = &schema.fields[0];
-    // Act / Assert
-    for (bytes, expected) in [
+    // Act
+    let spans = [
         (&null_json, Some(&b"null"[..])),
         (&missing, None),
         (&sql_null, None),
-    ] {
+    ]
+    .map(|(bytes, expected)| {
         let directory = Directory::parse(bytes, &controls).expect("directory");
-        assert_eq!(
-            directory.json_span(field, &controls).expect("field"),
-            expected
-        );
-    }
+        let actual = directory.json_span(field, &controls).expect("field");
+        (actual == expected, actual.map(<[u8]>::to_vec))
+    });
     let expected = match RowDirectory::parse(&wrong_tag)
         .expect("legacy")
         .decode(field)
@@ -130,8 +152,13 @@ fn should_preserve_present_json_null_sql_null_missing_and_tag_errors() {
         .json_span(field, &controls)
         .expect_err("wrong tag")
         .to_string();
-    assert_eq!(actual, expected);
     drop(directory);
+
+    // Assert
+    for (matched, _) in spans {
+        assert!(matched);
+    }
+    assert_eq!(actual, expected);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
 
@@ -200,7 +227,7 @@ fn should_preserve_legacy_syntax_before_later_invalid_utf8() {
             nullable: true,
         }],
     });
-    let payload = [b'[', b'}', 0xff];
+    let payload = [0x5b_u8, 0x7d, 0xff];
     let expected = decode_directory_value(TYPE_JSON, &payload)
         .expect_err("legacy")
         .to_string();
@@ -409,8 +436,8 @@ fn should_enforce_measured_directory_sort_overlap() {
     let directory = Directory::parse(&bytes, &baseline).expect("directory");
     let peak = baseline.peak_query_memory_bytes();
     drop(directory);
-    // Act / Assert
-    for (budget, succeeds) in [(peak, true), (peak - 1, false)] {
+    // Act
+    let outcomes = [(peak, true), (peak - 1, false)].map(|(budget, succeeds)| {
         let limits = CassieRuntimeLimits {
             query_memory_budget_bytes: budget,
             query_timeout_ms: 0,
@@ -418,8 +445,14 @@ fn should_enforce_measured_directory_sort_overlap() {
         };
         let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
         let result = Directory::parse(&bytes, &controls);
-        assert_eq!(result.is_ok(), succeeds);
+        let admitted = result.is_ok();
         drop(result);
-        assert_eq!(controls.current_query_memory_bytes(), 0);
+        (succeeds, admitted, controls.current_query_memory_bytes())
+    });
+
+    // Assert
+    for (succeeds, admitted, retained) in outcomes {
+        assert_eq!(admitted, succeeds);
+        assert_eq!(retained, 0);
     }
 }

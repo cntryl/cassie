@@ -19,46 +19,65 @@ fn index() -> IndexMeta {
 }
 
 #[test]
-fn should_preserve_legacy_and_generated_unique_reservation_identity() {
+fn should_resolve_unique_reservation_identity_across_generation_changes() {
     // Arrange
     let mut original = index();
-    // Act / Assert
-    assert!(matches!(
+
+    // Act
+    let legacy_matches = matches!(
         original.reservation_identity(),
         Ok(ReservationIdentity::Legacy("t_key"))
-    ));
+    );
     original.set_storage_ids(7, 42);
     original.set_reservation_generation(42).expect("generation");
-    assert!(matches!(
+    let generated_matches = matches!(
         original.reservation_identity(),
         Ok(ReservationIdentity::Generation(42))
-    ));
-    assert!(original.read_definition_matches(&index()));
+    );
+    let definition_matches = original.read_definition_matches(&index());
     original.name = "renamed".into();
-    assert!(matches!(
+    let renamed_matches = matches!(
         original.reservation_identity(),
         Ok(ReservationIdentity::Generation(42))
-    ));
+    );
     let copied = original.clone_for_relation("public.other", "other_key");
-    assert!(matches!(
+    let copied_matches = matches!(
         copied.reservation_identity(),
         Ok(ReservationIdentity::Legacy("other_key"))
-    ));
+    );
+
+    // Assert
+    assert!(legacy_matches);
+    assert!(generated_matches);
+    assert!(definition_matches);
+    assert!(renamed_matches);
+    assert!(copied_matches);
 }
 
 #[test]
 fn should_fail_closed_on_invalid_or_zero_persisted_reservation_generation() {
     // Arrange
     let mut original = index();
-    // Act / Assert
-    for invalid in ["0", "-1", "not-a-number", "18446744073709551616"] {
-        original.options.insert(
-            "__cassie_unique_reservation_generation".into(),
-            invalid.into(),
-        );
-        assert!(original.reservation_identity().is_err(), "{invalid}");
-    }
-    assert!(original.set_reservation_generation(0).is_err());
+
+    // Act
+    let invalid_results: Vec<_> = ["0", "-1", "not-a-number", "18446744073709551616"]
+        .into_iter()
+        .map(|invalid| {
+            original.options.insert(
+                "__cassie_unique_reservation_generation".into(),
+                invalid.into(),
+            );
+            (invalid, original.reservation_identity().is_err())
+        })
+        .collect();
+    let zero_rejected = original.set_reservation_generation(0).is_err();
     original.set_storage_ids(7, 42);
-    assert!(original.set_reservation_generation(43).is_err());
+    let mismatch_rejected = original.set_reservation_generation(43).is_err();
+
+    // Assert
+    for (invalid, rejected) in invalid_results {
+        assert!(rejected, "{invalid}");
+    }
+    assert!(zero_rejected);
+    assert!(mismatch_rejected);
 }

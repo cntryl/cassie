@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn should_persist_and_revoke_direct_role_privileges_in_schema_family() {
+    fn should_track_direct_role_privilege_changes_in_schema_family() {
         // Arrange
         let (midge, family) = midge();
         let schema = grant(&family, 22, RoleGrantTarget::Schema(31), &[]);
@@ -323,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn should_delete_only_matching_database_targets_and_role_records() {
+    fn should_delete_role_records_matching_database_targets_only() {
         // Arrange
         let (midge, family) = midge();
         midge
@@ -450,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn should_remove_role_and_grants_in_one_schema_family_lifecycle() {
+    fn should_remove_role_grants_when_role_is_deleted_in_schema_family() {
         // Arrange
         let (midge, family) = midge();
         let mut role = RoleMeta::login("grant_reader", "hash".to_owned());

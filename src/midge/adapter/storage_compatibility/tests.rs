@@ -91,7 +91,7 @@ fn should_never_lower_generation_fence_for_older_requirements() {
 }
 
 #[test]
-fn should_serialize_concurrent_older_and_generation_marker_requests_monotonically() {
+fn should_serialize_concurrent_marker_requests_for_different_generations_monotonically() {
     // Arrange
     let store = Arc::new(memory_store());
     let start = Arc::new(Barrier::new(2));

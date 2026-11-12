@@ -23,7 +23,7 @@ impl<'a> FromSql<'a> for WireVector {
 }
 
 #[test]
-fn should_infer_bare_vector_dimensions_and_preserve_fixed_typmod() {
+fn should_infer_bare_vector_dimensions_per_value() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -62,7 +62,7 @@ fn should_infer_bare_vector_dimensions_and_preserve_fixed_typmod() {
 }
 
 #[test]
-fn should_publish_one_canonical_vector_oid_with_declared_and_bare_typmods() {
+fn should_publish_one_canonical_vector_oid_across_typmods() {
     // Arrange
     let runtime = current_thread_runtime();
     runtime.block_on(async {

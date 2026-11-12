@@ -3,7 +3,7 @@ use crate::support_sql_fixture::sql_fixture;
 use cassie::types::Value;
 
 #[test]
-fn should_bind_index_names_for_unscoped_and_two_part_collections() {
+fn should_bind_index_names_for_legacy_collection_forms() {
     // Arrange
     let fixture = sql_fixture("index-namespace-unscoped", &[]);
     let schema = cassie::types::Schema {
@@ -112,7 +112,7 @@ fn should_detect_same_schema_index_name_on_another_table() {
 }
 
 #[test]
-fn should_reject_index_names_used_by_tables_and_sequences() {
+fn should_reject_index_names_used_by_other_relations() {
     // Arrange
     let fixture = sql_fixture(
         "index-namespace-relations",
@@ -235,7 +235,7 @@ fn should_preserve_unquoted_lookup_for_an_existing_mixed_case_index() {
 }
 
 #[test]
-fn should_validate_include_and_predicate_before_skipping_an_existing_name() {
+fn should_validate_index_shape_before_skipping_an_existing_name() {
     // Arrange
     let fixture = sql_fixture(
         "index-namespace-if-not-exists-validation",

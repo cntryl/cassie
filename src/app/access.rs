@@ -699,7 +699,13 @@ impl super::Cassie {
     ) -> Result<(), CassieError> {
         let resolved = crate::sql::binder::resolve_relation_name(relation, &self.catalog, context)?;
         let schema_name = crate::catalog::relation_schema_name(&resolved);
-        if crate::catalog::is_system_schema(&schema_name) {
+        // System relations are stored as `schema.name`, not database-qualified.
+        let system_qualified = matches!(
+            crate::catalog::parse_name(&resolved),
+            Ok(crate::catalog::ParsedName::SchemaQualified { schema, .. })
+                if crate::catalog::is_system_schema(&schema)
+        );
+        if system_qualified || crate::catalog::is_system_schema(&schema_name) {
             return Ok(());
         }
         let Some(collection) = self.catalog.get_collection(&resolved) else {

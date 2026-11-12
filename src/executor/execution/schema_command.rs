@@ -214,18 +214,26 @@ fn drop_view_target(cassie: &Cassie, name: &str, if_exists: bool) -> Result<(), 
 
 pub(super) fn drop_table(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &DropTableStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("DROP TABLE", controls)?;
     for table in std::iter::once(&statement.table).chain(&statement.additional_tables) {
-        drop_table_target(cassie, table, statement.if_exists, statement.cascade)?;
+        drop_table_target(
+            cassie,
+            session,
+            table,
+            statement.if_exists,
+            statement.cascade,
+        )?;
     }
     Ok(output)
 }
 
 fn drop_table_target(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     table: &str,
     if_exists: bool,
     cascade: bool,
@@ -257,6 +265,12 @@ fn drop_table_target(
         .defer_drop_collection(table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
     cleanup_relation_comments(cassie, &collection.name, collection.storage_id)?;
+    schema_namespace_command::cleanup_table_role_grants_after_drop(
+        cassie,
+        session.is_some_and(CassieSession::is_transaction_active),
+        &collection.name,
+        collection.storage_id,
+    )?;
     schema_sequence_rename::drop_owned_table_sequences(cassie, table)?;
     cassie
         .catalog

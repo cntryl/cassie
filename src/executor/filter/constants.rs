@@ -84,6 +84,14 @@ fn cast_constant<R: RowAccess + ?Sized>(
     if let Expr::NumericLiteral(input) = child.as_ref() {
         return super::casts::numeric_literal(input, data_type, *identity, controls).map(Some);
     }
+    // Resolving or rendering a `reg*` value reads the session catalog, which
+    // constant evaluation does not have, so the runtime evaluator handles it.
+    let catalog_dependent = |data_type: &crate::types::DataType| {
+        matches!(data_type, crate::types::DataType::ObjectId(kind) if kind.is_alias())
+    };
+    if catalog_dependent(data_type) || source_type.as_ref().is_some_and(catalog_dependent) {
+        return Ok(None);
+    }
     resolve(child, row, context)?
         .map(|value| {
             super::character_arrays::cast(

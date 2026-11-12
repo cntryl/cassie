@@ -349,7 +349,7 @@ mod database_catalog_rewrite;
 mod databases;
 pub(crate) use column_store::ColumnStoreScanRequest;
 pub(crate) use database_catalog_rewrite::{
-    is_database_catalog_entry, validate_database_catalog_entry,
+    is_database_catalog_entry, rewrite_database_data_entry, validate_database_catalog_entry,
 };
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;

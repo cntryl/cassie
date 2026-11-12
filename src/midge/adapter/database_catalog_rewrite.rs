@@ -134,6 +134,23 @@ fn catalog_name_component_belongs_to_database(name: &[u8], database: &str) -> bo
             && name.get(database.len()) == Some(&b'.')
 }
 
+/// Retargets a restored data-plane record that embeds its owning database name.
+/// Object comments carry their database in the payload; other records pass
+/// through unchanged.
+pub(crate) fn rewrite_database_data_entry(
+    key: &[u8],
+    value: &[u8],
+    target: &str,
+) -> Result<Vec<u8>, CassieError> {
+    if key_family(key) != Some("object-comment") {
+        return Ok(value.to_vec());
+    }
+    let mut metadata: crate::catalog::ObjectCommentMeta = serde_json::from_slice(value)
+        .map_err(|error| CassieError::Parse(format!("invalid object comment in image: {error}")))?;
+    metadata.address.database = target.to_ascii_lowercase();
+    serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))
+}
+
 pub(super) fn rewrite_key_component(key: &[u8], source: &str, target: &str) -> Vec<u8> {
     let mut rewritten = Vec::with_capacity(key.len() + target.len().saturating_sub(source.len()));
     for (index, component) in key_components(key).enumerate() {

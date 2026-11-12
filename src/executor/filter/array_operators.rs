@@ -95,7 +95,7 @@ fn element_type(value: &Value) -> crate::types::DataType {
         Value::Int64(_) => crate::types::DataType::BigInt,
         Value::Float64(_) => crate::types::DataType::Float,
         Value::Json(_) => crate::types::DataType::Jsonb,
-        Value::Typed(value) => crate::types::DataType::Extended(value.kind()),
+        Value::Typed(value) => value.extended_data_type(),
         Value::Null | Value::String(_) | Value::Vector(_) | Value::Array(_) => {
             crate::types::DataType::Text
         }

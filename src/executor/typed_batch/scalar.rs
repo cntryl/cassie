@@ -148,7 +148,7 @@ fn parameter_oid(value: &Value) -> i32 {
         Value::Vector(value) => DataType::Vector(Some(value.values.len())),
         Value::Json(_) => DataType::Json,
         Value::Array(_) => return 0,
-        Value::Typed(value) => DataType::Extended(value.kind()),
+        Value::Typed(value) => value.extended_data_type(),
     };
     i32::try_from(data_type.type_oid()).unwrap_or(0)
 }

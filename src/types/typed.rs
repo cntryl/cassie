@@ -118,6 +118,25 @@ impl TypedValue {
         }
     }
 
+    /// Like [`Self::data_type`] but keeping `date`/`time`/`timestamp` as their
+    /// extended kinds, as the typed-expression sites expect.
+    #[must_use]
+    pub fn extended_data_type(&self) -> super::DataType {
+        match self {
+            Self::Record(record) => super::DataType::Composite(record.descriptor().clone()),
+            other => super::DataType::Extended(other.kind()),
+        }
+    }
+
+    /// The wire type OID of this value.
+    #[must_use]
+    pub fn wire_type_oid(&self) -> i64 {
+        match self {
+            Self::Record(record) => i64::from(record.descriptor().oid),
+            other => i64::from(other.kind().type_oid()),
+        }
+    }
+
     /// The text output under a session's `TimeZone`, `DateStyle` and
     /// `IntervalStyle`.
     #[must_use]

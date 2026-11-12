@@ -363,7 +363,7 @@ fn literal(value: ScalarValue) -> Expr {
         },
         ScalarValue::Typed(value) => Expr::Cast {
             expr: Box::new(Expr::StringLiteral(value.text())),
-            data_type: crate::types::DataType::Extended(value.kind()),
+            data_type: value.extended_data_type(),
             source_type: None,
             identity: crate::sql::ast::CastIdentity::Scalar,
         },

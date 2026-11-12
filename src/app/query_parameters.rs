@@ -63,7 +63,7 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
                         Value::Int64(_) => 20,
                         Value::Float64(_) => 701,
                         Value::String(_) => 25,
-                        Value::Typed(typed) => i32::try_from(typed.kind().type_oid()).ok()?,
+                        Value::Typed(typed) => i32::try_from(typed.wire_type_oid()).ok()?,
                         Value::Json(_) => 114,
                         Value::Vector(_) => Some(crate::sql::binder::VECTOR_PARAMETER_TYPE_OID)?,
                         Value::Array(_) | Value::Null => return None,
@@ -74,7 +74,7 @@ pub(super) fn parameter_type_oids(params: &[Value]) -> Vec<i32> {
                     .and_then(|oid| i32::try_from(oid).ok())
                 })
                 .unwrap_or(0),
-            Value::Typed(typed) => i32::try_from(typed.kind().type_oid()).unwrap_or(0),
+            Value::Typed(typed) => i32::try_from(typed.wire_type_oid()).unwrap_or(0),
         })
         .collect()
 }

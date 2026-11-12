@@ -135,7 +135,7 @@ fn split_arguments(text: &str) -> Vec<String> {
 /// the SQL-standard spellings, typmods and array suffixes.
 pub(super) fn builtin_type_oid(text: &str) -> Result<Option<u32>, ObjectIdentifierError> {
     let normalized = sql_comments_as_space(text);
-    let (base, has_array_suffix) = strip_array_dimensions(&normalized);
+    let (base, has_array_suffix) = strip_array_dimensions(&normalized)?;
     let base = strip_typmod(base);
     let canonical = standard_type_name(&base);
     let name = if let Some(name) = canonical {
@@ -161,7 +161,7 @@ pub(super) fn builtin_type_oid(text: &str) -> Result<Option<u32>, ObjectIdentifi
 
 /// Removes the repeated syntactic array dimensions accepted by PostgreSQL's
 /// type-name parser. Array bounds do not change the built-in type identity.
-fn strip_array_dimensions(text: &str) -> (&str, bool) {
+fn strip_array_dimensions(text: &str) -> Result<(&str, bool), ObjectIdentifierError> {
     let text = text.trim();
     let bytes = text.as_bytes();
     let mut cursor = 0;
@@ -188,14 +188,14 @@ fn strip_array_dimensions(text: &str) -> (&str, bool) {
                         character.is_whitespace() && !character.is_ascii_whitespace()
                     })
                 {
-                    return (text[..cursor].trim_end_matches(is_postgres_space), true);
+                    return Ok((text[..cursor].trim_end_matches(is_postgres_space), true));
                 }
-                return (text, false);
+                return Err(ObjectIdentifierError::TypeNameSyntax(text.to_string()));
             }
             _ => cursor += 1,
         }
     }
-    (text, false)
+    Ok((text, false))
 }
 
 fn parse_array_suffix(text: &str, mut cursor: usize) -> bool {
@@ -607,7 +607,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_non_sql_whitespace_with_invalid_array_bounds() {
+    fn should_report_type_name_syntax_for_invalid_array_bounds() {
         // Arrange
         let names = [
             "integer[\u{00a0}2]",
@@ -621,11 +621,10 @@ mod tests {
         let actual = names.map(builtin_type_oid);
 
         // Assert
-        assert!(matches!(
-            &actual[0],
-            Err(ObjectIdentifierError::InvalidName(name)) if name == names[0]
-        ));
-        assert!(actual[1..].iter().all(|result| matches!(result, Ok(None))));
+        assert!(actual[..4]
+            .iter()
+            .all(|result| matches!(result, Err(ObjectIdentifierError::TypeNameSyntax(_)))));
+        assert_eq!(actual[4], Ok(None));
     }
 
     #[test]

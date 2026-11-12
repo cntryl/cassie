@@ -43,7 +43,8 @@ impl<'a> ObjectScope<'a> {
     }
 
     /// Resolves `reg*` text input. `Ok(None)` means the object does not exist;
-    /// malformed input is an error even for the `to_reg*` functions.
+    /// malformed input is an error at this resolver boundary. Nullable
+    /// `to_reg*` callers apply their documented per-kind error behavior.
     ///
     /// # Errors
     /// Returns PostgreSQL's error for malformed or ambiguous input.

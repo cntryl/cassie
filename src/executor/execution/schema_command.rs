@@ -218,18 +218,26 @@ fn drop_view_target(cassie: &Cassie, name: &str, if_exists: bool) -> Result<(), 
 
 pub(super) fn drop_table(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &DropTableStatement,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let output = empty_command("DROP TABLE", controls)?;
     for table in std::iter::once(&statement.table).chain(&statement.additional_tables) {
-        drop_table_target(cassie, table, statement.if_exists, statement.cascade)?;
+        drop_table_target(
+            cassie,
+            session,
+            table,
+            statement.if_exists,
+            statement.cascade,
+        )?;
     }
     Ok(output)
 }
 
 fn drop_table_target(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     table: &str,
     if_exists: bool,
     cascade: bool,
@@ -246,6 +254,19 @@ fn drop_table_target(
     } else {
         schema_foreign_keys::reject_referenced_table_drop(cassie, table)?;
     }
+
+    let collection = cassie
+        .catalog
+        .get_collection(table)
+        .ok_or_else(|| QueryError::General(format!("table '{table}' does not exist")))?;
+    let database_name = crate::catalog::relation_database_name(&collection.name)
+        .unwrap_or_else(|| cassie.default_database.clone());
+    let database_family = cassie
+        .midge
+        .get_database(&database_name)
+        .map_err(QueryError::Cassie)?
+        .map(|database| database.physical_family)
+        .ok_or_else(|| QueryError::General(format!("table '{table}' database is unavailable")))?;
 
     for view in dependent_views {
         drop_stored_view(cassie, &view)?;

@@ -576,6 +576,29 @@ pub(super) fn role_prefix() -> Vec<u8> {
     prefix(FAMILY_ROLE, &[])
 }
 
+pub(super) fn role_object_grant_key(
+    database_family: &str,
+    role_id: u64,
+    target_kind: &str,
+    target_id: u64,
+) -> Vec<u8> {
+    let role_id = role_id.to_be_bytes();
+    let target_id = target_id.to_be_bytes();
+    key(
+        FAMILY_ROLE_OBJECT_GRANT,
+        &[
+            database_family.as_bytes(),
+            &role_id,
+            target_kind.as_bytes(),
+            &target_id,
+        ],
+    )
+}
+
+pub(super) fn role_object_grant_prefix() -> Vec<u8> {
+    prefix(FAMILY_ROLE_OBJECT_GRANT, &[])
+}
+
 pub(super) fn sequence_key(name: &str) -> Vec<u8> {
     scoped_key(FAMILY_SEQUENCE, name, &[])
 }

@@ -19,6 +19,4 @@ fn column_type_oids(frames: &fixture::Frames) -> Vec<i32> {
         .collect()
 }
 
-include!("parameters.rs");
-
 include!("semantics.rs");

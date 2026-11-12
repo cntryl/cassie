@@ -46,6 +46,4 @@ async fn stop_pgwire_fixture(
     let _ = std::fs::remove_dir_all(path);
 }
 
-include!("../relations/system_session.rs");
 
-include!("../system_information/system_session.rs");

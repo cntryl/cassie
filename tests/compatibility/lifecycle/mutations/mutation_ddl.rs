@@ -27,14 +27,10 @@ include!("mutation_ddl/nulls.rs");
 
 include!("mutation_ddl/restart.rs");
 
-include!("../namespaces/mutation_ddl/semantics.rs");
-
 include!("../sequences/mutation_ddl/semantics.rs");
 
 include!("../truncate/mutation_ddl/nulls.rs");
 
 include!("../truncate/mutation_ddl/semantics.rs");
-
-include!("../types/mutation_ddl/semantics.rs");
 
 include!("../update_from/mutation_ddl/semantics.rs");

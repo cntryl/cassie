@@ -93,13 +93,7 @@ include!("../operators/semantics.rs");
 
 include!("../operators/concat.rs");
 
-include!("../sql_json/nulls.rs");
-
 include!("../sql_json/semantics.rs");
-
-include!("../table_functions/errors.rs");
-
-include!("../table_functions/nulls.rs");
 
 include!("../table_functions/semantics.rs");
 
@@ -117,6 +111,9 @@ mod mutation_native;
 
 #[path = "../path_function_native.rs"]
 mod path_function_native;
+
+#[path = "../deferred_sql_json_forms.rs"]
+mod deferred_sql_json_forms;
 
 #[path = "../nested_text_array_existence.rs"]
 mod nested_text_array_existence;

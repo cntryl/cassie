@@ -15,9 +15,3 @@ include!("string/parameters.rs");
 include!("string/errors.rs");
 
 include!("string/nulls.rs");
-
-include!("string/semantics.rs");
-
-include!("string/resources.rs");
-
-include!("string/cancellation.rs");

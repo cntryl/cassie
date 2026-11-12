@@ -6145,3 +6145,18 @@ the combined gate; that lead is not declared discharged by test authorship.
 The concrete retired-fork gap narrowed to 0.08 after the generation check and
 focused regression. Build/test/Clippy/fmt/global policy and inventory must now
 qualify the combined head before support is claimed.
+
+
+## 2026-11-12 — v0.2.0 milestone renumbering and closeout scope
+
+The v0.2.0 milestone was narrowed to stabilizing and defect-proofing the
+delivered feature set. GitHub milestones were renumbered: v0.3.0 Composite Types
+and JSON Recordsets (milestone 12: #817, #818, #828, #829), v0.4.0 Named Enum
+Types (milestone 11: #827) and v0.5.0 Authoritative Columnar Tables
+(milestone 10: #826, #1105–#1112). The former `v0.3-scope-map.md` is now
+[`v0.5-scope-map.md`](../v0.5-scope-map.md). The remaining #810 forms
+(`row_to_json`/`array_to_json`, `IS JSON`, `JSON_VALUE`, `JSON_QUERY`,
+`PASSING`; explicit `VARIADIC text[]` for `json*_extract_path` is implemented) and the #844 pgvector function names are
+deferred, not v0.2.0 scope. Zero-test placeholder files under `tests/` and the
+inventory/ledger rows that cited them were removed; the cited assertions did not
+exist, so the ledgers no longer claim them as evidence.

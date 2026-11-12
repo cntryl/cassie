@@ -117,4 +117,3 @@ fn create_text_search_objects_and_rename(path: &std::path::Path) -> Vec<Value> {
     original_oids
 }
 
-include!("semantics.rs");

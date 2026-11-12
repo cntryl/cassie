@@ -17,6 +17,14 @@ impl Midge {
     ) -> Result<IndexMeta, CassieError> {
         self.require_constraint_definitions(constraints)?;
         let collection = self.canonical_collection_name(collection);
+        if self.has_prepared_index_publication(&collection, current_name)?
+            || self.has_prepared_index_publication(&collection, next_name)?
+        {
+            return Err(CassieError::Unsupported(
+                "pending index publication requires recovery before index rename".to_owned(),
+            ));
+        }
+        self.ensure_no_pending_index_cleanup(&collection, next_name)?;
         let current_key = Midge::index_key(&collection, current_name);
         let next_key = Midge::index_key(&collection, next_name);
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
@@ -63,9 +71,18 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_index(&self, metadata: &IndexMeta) -> Result<(), CassieError> {
-        self.prepare_index_for_publication(metadata)?;
-        check_index_publication_failure_point()?;
-        self.replay_pending_index_publications()
+        {
+            let collection = self.canonical_collection_name(&metadata.collection);
+            let gate = self.collection_write_gate(&collection);
+            let _guard = gate.lock();
+            self.ensure_no_observed_prepared_index_publications(&collection)?;
+            #[cfg(test)]
+            tests::after_journal_check();
+            let publication = self.prepare_index_for_publication(metadata)?;
+            check_index_publication_failure_point()?;
+            self.publish_prepared_index_locked(publication)?;
+        }
+        Ok(())
     }
 
     /// Updates durable index metadata and publishes the catalog update under one collection gate.
@@ -150,6 +167,12 @@ impl Midge {
         &self,
         metadata: &IndexMeta,
     ) -> Result<(), CassieError> {
+        if self.has_prepared_index_publication(&metadata.collection, &metadata.name)? {
+            return Err(CassieError::Unsupported(
+                "pending index publication requires recovery before reusing this index name"
+                    .to_owned(),
+            ));
+        }
         let publication = self.prepare_index_for_publication(metadata)?;
         check_index_publication_failure_point()?;
         self.publish_prepared_index_locked(publication)
@@ -168,9 +191,10 @@ impl Midge {
         metadata: &IndexMeta,
     ) -> Result<IndexMeta, CassieError> {
         crate::sql::definition_guard::index(metadata)?;
-        self.require_definition_version(metadata.definition_semantics_version)?;
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
+        self.ensure_no_pending_index_cleanup(&metadata.collection, &metadata.name)?;
+        self.require_definition_version(metadata.definition_semantics_version)?;
         let relation_id = self
             .collection_metadata(&metadata.collection)?
             .ok_or_else(|| CassieError::CollectionNotFound(metadata.collection.clone()))?

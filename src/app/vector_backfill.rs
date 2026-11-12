@@ -20,6 +20,10 @@ impl Cassie {
     ) -> Result<(), CassieError> {
         let collections = self.referential_write_collections(&index.collection);
         self.midge.with_collection_write_gates(&collections, || {
+            if let Some(metadata) = sql_index {
+                self.midge
+                    .ensure_no_pending_index_cleanup(&index.collection, &metadata.name)?;
+            }
             let rows = self.prepare_vector_backfill_with_held_gates(index)?;
             let options = self.document_write_options(&index.collection);
             let publication = self

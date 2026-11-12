@@ -39,7 +39,7 @@ pub(super) fn bind_create_index(
         String::new()
     } else {
         match parse_name(statement.name.trim()).map_err(CassieError::Planner)? {
-            ParsedName::Unqualified(name) => derive_scoped_name(&table, |_| name),
+            ParsedName::Unqualified(name) => scoped_index_name(&table, name),
             _ => normalize_relation_name(statement.name.trim(), context)?,
         }
     };
@@ -1012,4 +1012,15 @@ pub(super) fn bind_index_rename_target(
         .collect::<Vec<_>>();
     *parts.last_mut().expect("owner has a local component") = local;
     Ok(IdentifierPath::from_values(parts).into_string())
+}
+
+/// Places an unqualified index name beside its table. A name that needs quoting
+/// (dots, quotes, whitespace) keeps its quotes where no database qualifier
+/// re-escapes it, so `"Case.Index"` is not read back as `Case`.`Index`.
+fn scoped_index_name(table: &str, name: String) -> String {
+    let quoted = crate::catalog::canonical_identifier_component(&name);
+    match parse_name(table) {
+        Ok(ParsedName::DatabaseQualified { .. }) => derive_scoped_name(table, |_| name),
+        _ => derive_scoped_name(table, |_| quoted),
+    }
 }

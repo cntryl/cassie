@@ -477,6 +477,9 @@ fn should_preserve_comment_records_through_local_restart_and_database_image_rest
     let restored = cassie.create_session("tester", Some("issue_845_comment_restored".to_owned()));
     let restored_before_restart = selected_descriptions(&cassie, &restored);
     cassie.shutdown();
+    // The image streams hold Cassie clones, and so the storage writer lease.
+    drop(backup);
+    drop(restore);
     drop(restored);
     drop(source);
     drop(postgres);

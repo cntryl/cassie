@@ -145,7 +145,7 @@ pub(crate) fn drop_schema(
     Ok(output)
 }
 
-fn cleanup_table_role_grants_after_drop(
+pub(super) fn cleanup_table_role_grants_after_drop(
     cassie: &Cassie,
     transactional: bool,
     collection_name: &str,

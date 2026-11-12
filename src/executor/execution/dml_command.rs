@@ -300,7 +300,7 @@ fn execute_schema_object_group(
             super::schema_command::drop_view(cassie, statement, controls),
         )),
         LogicalCommand::DropTable(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_table(cassie, statement, controls),
+            super::schema_command::drop_table(cassie, session, statement, controls),
         )),
         LogicalCommand::AlterTable(statement) => Some(CommandExecution::invalidating(
             super::schema_command::alter_table(cassie, session, statement, controls),

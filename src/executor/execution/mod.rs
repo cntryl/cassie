@@ -48,7 +48,7 @@ fn primary_key_indexes(
             name: constraint
                 .primary_key_name
                 .clone()
-                .unwrap_or_else(|| format!("{table}_pkey")),
+                .unwrap_or_else(|| format!("{}_pkey", catalog::local_name(table))),
             field: constraint.field.clone(),
             fields: vec![constraint.field.clone()],
             expressions: Vec::new(),

@@ -8,8 +8,8 @@ use crate::catalog::builtin_identity::{
     PG_CATALOG_NAMESPACE_OID, PG_TOAST_NAMESPACE_OID, PUBLIC_NAMESPACE_OID,
 };
 use crate::catalog::{
-    canonical_relation_name, canonical_schema_name, local_name, relation_schema_name, Catalog,
-    DEFAULT_SCHEMA,
+    canonical_identifier_component, canonical_relation_name, canonical_schema_name, local_name,
+    relation_schema_name, Catalog, DEFAULT_SCHEMA,
 };
 use crate::sql::binder::BindingContext;
 use crate::types::object_id::{parse_oid_text, FIRST_NORMAL_OBJECT_ID};
@@ -169,7 +169,18 @@ impl<'a> ObjectScope<'a> {
                 });
         }
         let canonical = canonical_relation_name(&self.context.database, schema, name);
-        if let Some(oid) = stored_relation_oid(self.catalog, &canonical) {
+        let stored = stored_relation_oid(self.catalog, &canonical).or_else(|| {
+            // An instance without a database catalog stores relations under
+            // their unscoped names, whatever the session's binding scope.
+            // With databases registered, a bare name could match a relation
+            // in another database, so that fallback stays disabled.
+            if !self.catalog.list_databases().is_empty() {
+                return None;
+            }
+            let unscoped = Self::unscoped_relation_name(&canonical, schema, name);
+            stored_relation_oid(self.catalog, &unscoped)
+        });
+        if let Some(oid) = stored {
             return Some(RelationIdentity {
                 oid,
                 schema: schema.to_string(),
@@ -177,6 +188,20 @@ impl<'a> ObjectScope<'a> {
             });
         }
         self.index_in_schema(schema, name)
+    }
+
+    /// The name an unscoped catalog stores a relation under: bare for
+    /// `public`, `schema.name` elsewhere, and database-qualified when a
+    /// component needs escaping.
+    fn unscoped_relation_name(canonical: &str, schema: &str, name: &str) -> String {
+        let escaped = |component: &str| canonical_identifier_component(component) != component;
+        if escaped(schema) || escaped(name) {
+            canonical.to_string()
+        } else if schema.eq_ignore_ascii_case(DEFAULT_SCHEMA) {
+            name.to_string()
+        } else {
+            canonical_schema_name(schema, name)
+        }
     }
 
     fn index_in_schema(&self, schema: &str, name: &str) -> Option<RelationIdentity> {

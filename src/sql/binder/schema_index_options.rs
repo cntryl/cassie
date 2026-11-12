@@ -378,7 +378,14 @@ fn validate_time_series_timestamp_field(
                 "time-series index field '{timestamp_field}' does not exist on collection '{table}'"
             ))
         })?;
-    if matches!(field_entry.data_type, DataType::Timestamp) {
+    if matches!(
+        field_entry.data_type,
+        DataType::Timestamp
+            | DataType::Extended(
+                crate::types::extended::ExtendedType::Timestamp { .. }
+                    | crate::types::extended::ExtendedType::TimestampTz { .. }
+            )
+    ) {
         Ok(())
     } else {
         Err(CassieError::Planner(format!(

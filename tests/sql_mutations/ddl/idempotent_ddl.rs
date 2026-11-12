@@ -189,8 +189,11 @@ fn should_preserve_missing_column_diagnostics_for_nonduplicate_indexes() {
         .expect_err("missing key");
 
     // Assert
-    assert!(matches!(error, cassie::app::CassieError::Planner(message)
-        if message.contains("index field 'missing' does not exist")));
+    assert!(
+        matches!(&error, cassie::app::CassieError::UndefinedColumn(column)
+        if column == "missing")
+    );
+    assert_eq!(error.sql_state(), "42703");
 }
 
 #[test]

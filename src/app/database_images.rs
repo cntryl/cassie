@@ -458,9 +458,14 @@ impl DatabaseRestoreSession {
         let staged = self.staged.as_ref().ok_or_else(|| {
             CassieError::Parse("database image data appeared before a valid header".to_string())
         })?;
+        let stored = crate::midge::adapter::rewrite_database_data_entry(
+            &key,
+            &value,
+            &staged.metadata.name,
+        )?;
         self.cassie
             .midge
-            .write_staged_database_entries(staged, &[(key.clone(), value.clone())])?;
+            .write_staged_database_entries(staged, &[(key.clone(), stored)])?;
         self.hasher
             .update(frame_integrity_bytes(FRAME_DATA, &key, &value));
         self.data_count = self.data_count.saturating_add(1);

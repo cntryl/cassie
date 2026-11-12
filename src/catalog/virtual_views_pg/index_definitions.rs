@@ -37,7 +37,7 @@ pub(super) fn index_definition(index: &IndexMeta) -> String {
             index
                 .options
                 .get(*name)
-                .map(|value| format!("{name}={value}"))
+                .map(|value| format!("{name}='{}'", value.replace('\'', "''")))
         })
         .collect::<Vec<_>>();
     let storage_options = if storage_options.is_empty() {

@@ -113,8 +113,10 @@ impl CassieSession {
     pub(crate) fn set_transaction_isolation(&self, value: &str) -> Result<(), CassieError> {
         let mut transaction = self.transaction.lock();
         if transaction.status == SessionTransactionStatus::Idle || transaction.implicit {
-            return Err(CassieError::savepoint_outside_transaction(
-                "SET TRANSACTION",
+            // The bounded #819 profile keeps this a deterministic 0A000 rejection;
+            // PostgreSQL's 25P01 warning-and-no-op form is not selected.
+            return Err(CassieError::Unsupported(
+                "SET TRANSACTION requires an explicit transaction block".to_owned(),
             ));
         }
         if transaction.status == SessionTransactionStatus::Failed {

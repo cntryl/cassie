@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{CassieError, IndexKind, IndexMeta, Midge};
+use super::{CassieError, IndexKind, IndexMeta, Midge, Query};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(super) enum IndexPublicationState {
@@ -17,6 +17,115 @@ pub(super) struct PendingIndexPublication {
 }
 
 impl Midge {
+    pub(super) fn ensure_no_observed_prepared_index_publications(
+        &self,
+        collection: &str,
+    ) -> Result<(), CassieError> {
+        let controls = super::PublicationControlScope::current_query_controls();
+        for database in self.database_names() {
+            if let Some(controls) = controls.as_ref() {
+                controls.check_interruption()?;
+            }
+            let tx =
+                self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?;
+            let mut scan = tx
+                .scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+                .map_err(CassieError::from)?;
+            if scan
+                .next()
+                .transpose()
+                .map_err(CassieError::from)?
+                .is_some()
+            {
+                return Err(CassieError::Unsupported(
+                    "pending index publication requires sorted recovery before creating another index".to_owned(),
+                ));
+            }
+        }
+        let collection = self.canonical_collection_name(collection);
+        let database = crate::catalog::relation_database_name(&collection)
+            .unwrap_or_else(|| self.default_database.clone());
+        let tx = self.begin_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?;
+        let mut scan = tx
+            .scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+            .map_err(CassieError::from)?;
+        if scan
+            .next()
+            .transpose()
+            .map_err(CassieError::from)?
+            .is_some()
+        {
+            return Err(CassieError::Unsupported(
+                "pending index publication requires sorted recovery before creating another index"
+                    .to_owned(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn has_prepared_index_publication(
+        &self,
+        collection: &str,
+        name: &str,
+    ) -> Result<bool, CassieError> {
+        self.find_prepared_index_publication(collection, name, true)
+    }
+
+    pub(super) fn has_persisted_index_publication(
+        &self,
+        collection: &str,
+        name: &str,
+    ) -> Result<bool, CassieError> {
+        self.find_prepared_index_publication(collection, name, false)
+    }
+
+    fn find_prepared_index_publication(
+        &self,
+        collection: &str,
+        name: &str,
+        include_overlay: bool,
+    ) -> Result<bool, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let database = crate::catalog::relation_database_name(&collection)
+            .unwrap_or_else(|| self.default_database.clone());
+        let tx = if include_overlay {
+            self.begin_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?
+        } else {
+            self.begin_raw_database_adapter_tx(&database, super::TransactionMode::ReadOnly)?
+        };
+        let controls = super::PublicationControlScope::current_query_controls();
+        let scan = tx
+            .scan(&Query::new().prefix(Self::index_publication_prefix().into()))
+            .map_err(CassieError::from)?;
+        for entry in scan {
+            if let Some(controls) = controls.as_ref() {
+                controls.check_interruption()?;
+            }
+            let (_, raw) = entry.map_err(CassieError::from)?;
+            let pending = super::schema_cleanup::guard_decode::decode::<PendingIndexPublication>(
+                &raw,
+                controls.as_ref(),
+                "index publication",
+            )?;
+            if self
+                .canonical_collection_name(&pending.value.index.collection)
+                .eq_ignore_ascii_case(&collection)
+                && (super::schema_cleanup::guard_decode::names_match(
+                    &pending.value.index.name,
+                    name,
+                    controls.as_ref(),
+                )? || super::schema_cleanup::guard_decode::names_match(
+                    name,
+                    &pending.value.index.name,
+                    controls.as_ref(),
+                )?)
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) fn validate_pending_index_publications(&self) -> Result<(), CassieError> {
         let entries = self.scan_database_families(&Self::index_publication_prefix())?;
         for (_key, raw) in entries {
@@ -90,6 +199,10 @@ impl Midge {
         &self,
         mut publication: PendingIndexPublication,
     ) -> Result<(), CassieError> {
+        self.ensure_no_pending_index_cleanup(
+            &publication.index.collection,
+            &publication.index.name,
+        )?;
         if publication.vector_backfill.is_some() {
             self.publish_pending_vector_index(&publication)?;
             return Ok(());

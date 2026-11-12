@@ -388,7 +388,7 @@ pub(crate) fn tokenize_with_check<E>(
             index += 1;
             continue;
         } else {
-            return Err(DecodeError::BadFormat);
+            return Err(DecodeError::BadFormat.into());
         }
         tokens.push(Token { text, kind });
     }

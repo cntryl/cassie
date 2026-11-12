@@ -187,6 +187,28 @@ metadata_heap!(crate::catalog::programs::ExtensionMeta {
     vector_catalog_identities,
 });
 
+metadata_heap!(crate::catalog::programs::VectorCatalogIdentitySet {
+    operators,
+    hnsw,
+    ivfflat,
+});
+
+metadata_heap!(crate::catalog::programs::VectorDistanceOperatorIds {
+    l2,
+    inner_product,
+    cosine,
+});
+
+metadata_heap!(crate::catalog::programs::VectorAnnCatalogIdentityIds {
+    access_method,
+    l2_operator_family,
+    inner_product_operator_family,
+    cosine_operator_family,
+    l2_operator_class,
+    inner_product_operator_class,
+    cosine_operator_class,
+});
+
 metadata_heap!(crate::catalog::graphs::GraphMeta {
     name,
     storage_id,
@@ -524,44 +546,6 @@ metadata_heap!(crate::catalog::roles::RoleMeta {
     database_grants,
     object_id,
 });
-
-metadata_heap!(crate::catalog::roles::RoleObjectGrantMeta {
-    database_family,
-    role_id,
-    target,
-    privileges,
-});
-
-unit_enum_heap!(crate::catalog::roles::RoleObjectPrivilege {
-    Usage,
-    Select,
-    Insert,
-    Update,
-    Delete
-});
-
-impl HeapBytes for crate::catalog::roles::RoleGrantTarget {
-    fn heap_bytes(
-        &self,
-        controls: &crate::runtime::QueryExecutionControls,
-    ) -> Result<usize, crate::app::CassieError> {
-        controls.check_interruption()?;
-        Ok(0)
-    }
-}
-
-impl crate::catalog::metadata::snapshot::exact_eq::ExactMetadataEq
-    for crate::catalog::roles::RoleGrantTarget
-{
-    fn exact_eq(
-        &self,
-        other: &Self,
-        controls: &crate::runtime::QueryExecutionControls,
-    ) -> Result<bool, crate::app::CassieError> {
-        controls.check_interruption()?;
-        Ok(self == other)
-    }
-}
 
 metadata_heap!(crate::catalog::rollups::RollupAggregateMeta {
     alias,

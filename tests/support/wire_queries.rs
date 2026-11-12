@@ -32,7 +32,7 @@ pub fn run_cycles(
             .unwrap_or_else(|error| panic!("create ephemeral fixture {label}: {error}"));
         cassie.startup().expect("startup before table creation");
         let session = cassie.create_session("tester", None);
-        if cycles.iter().flatten().any(parse_frame_has_vector_placeholder) {
+        if cycles.iter().flatten().any(|frame| parse_frame_has_vector_placeholder(frame)) {
             let database = session.current_database().unwrap_or("postgres");
             if cassie.catalog.get_extension(database, "vector").is_none() {
                 let root = cassie.create_session("root", None);

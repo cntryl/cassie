@@ -44,7 +44,7 @@ impl Regex {
             .transpose()?;
         Ok(Self::Native(NativeRegex {
             regex: Box::new(regex),
-            _memory: memory,
+            _allocation: memory,
         }))
     }
 

@@ -642,7 +642,7 @@ fn evaluate_aggregate(
 ) -> Result<AggregateOutput, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if ordered_set::is_ordered_set(function) {
-        return ordered_set::evaluate(function, rows, context).map(AggregateOutput::from_value);
+        return ordered_set::evaluate(function, rows, context);
     }
     if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
         matches!(

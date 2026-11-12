@@ -74,8 +74,8 @@ pub(super) fn bind_create_index(
     validate_index_shape(&statement, &fields, &expressions)?;
 
     let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
-    validate_include_fields(&statement, &schema, &table, &fields, &include_fields)?;
-    validate_index_fields_and_expressions(&schema, &table, &fields, &expressions)?;
+    validate_include_fields(&statement, &schema, &fields, &include_fields)?;
+    validate_index_fields_and_expressions(&schema, &fields, &expressions)?;
     let search_path = context
         .relation_search_order()
         .into_iter()
@@ -668,7 +668,7 @@ fn validate_scalar_index_key_options(
     if statement.kind == crate::catalog::IndexKind::Vector
         && statement
             .options
-            .get(&IndexMeta::ACCESS_METHOD_OPTION)
+            .get(IndexMeta::ACCESS_METHOD_OPTION)
             .is_some_and(|method| matches!(method.as_str(), "hnsw" | "ivfflat"))
     {
         return Ok(());

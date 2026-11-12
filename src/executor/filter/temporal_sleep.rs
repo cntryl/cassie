@@ -29,7 +29,7 @@ pub(super) fn evaluate(
             if matches!(span, Value::Null) {
                 return Some(Ok(Value::Null));
             }
-            match coerce(span, INTERVAL, session) {
+            match coerce(span, INTERVAL, session, controls) {
                 Ok(TypedValue::Interval(span)) => {
                     let days = i64::from(span.months) * 30 + i64::from(span.days);
                     current_timestamp()
@@ -44,7 +44,7 @@ pub(super) fn evaluate(
             if matches!(instant, Value::Null) {
                 return Some(Ok(Value::Null));
             }
-            match coerce(instant, TIMESTAMPTZ, session) {
+            match coerce(instant, TIMESTAMPTZ, session, controls) {
                 Ok(TypedValue::TimestampTz(instant)) => instant,
                 Ok(_) => return Some(Ok(Value::Null)),
                 Err(error) => return Some(Err(error)),

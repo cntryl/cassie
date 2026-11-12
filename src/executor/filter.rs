@@ -305,18 +305,6 @@ impl ScalarValue {
             ScalarValue::Array(value) => Value::Array(value),
         }
     }
-
-    fn into_value(self) -> Value {
-        match self {
-            ScalarValue::Null => Value::Null,
-            ScalarValue::Bool(value) => Value::Bool(value),
-            ScalarValue::Int(value) => Value::Int64(value),
-            ScalarValue::Float(value) => Value::Float64(value),
-            ScalarValue::Str(value) | ScalarValue::Json(value) => Value::String(value),
-            ScalarValue::Typed(value) => Value::Typed(value),
-            ScalarValue::Array(value) => Value::Array(value),
-        }
-    }
 }
 
 /// Casts a value to `target` with the evaluator's `CAST` semantics.

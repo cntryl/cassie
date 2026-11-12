@@ -814,7 +814,7 @@ fn require_zero_args(name: &str, args: &[Value]) -> Result<(), QueryError> {
     require_arg_count(name, args, 0)
 }
 
-fn require_arg_count(name: &str, args: &[Value], expected: usize) -> Result<(), QueryError> {
+pub(super) fn require_arg_count(name: &str, args: &[Value], expected: usize) -> Result<(), QueryError> {
     if args.len() == expected {
         Ok(())
     } else {
@@ -825,7 +825,7 @@ fn require_arg_count(name: &str, args: &[Value], expected: usize) -> Result<(), 
     }
 }
 
-fn require_arg_count_range(
+pub(super) fn require_arg_count_range(
     name: &str,
     args: &[Value],
     range: std::ops::RangeInclusive<usize>,

@@ -282,6 +282,7 @@ fn query_child(query: &QueryStatement) -> Option<Node<'_>> {
         | QueryStatement::CreateRole(_)
         | QueryStatement::AlterRole(_)
         | QueryStatement::DropRole(_)
+        | QueryStatement::CommentOn(_)
         | QueryStatement::GrantDatabaseConnect(_)
         | QueryStatement::RevokeDatabaseConnect(_)
         | QueryStatement::CreateIndex(_)

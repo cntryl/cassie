@@ -16,11 +16,12 @@ use zone_resolution::{
     defer_dynamic_session_abbreviation, global_zone_abbreviation, resolve_zone_with_check,
     session_zone_abbreviation,
 };
-pub(super) use zone_resolution::zone_abbreviation_with_check;
+use zone_resolution::zone_abbreviation_with_check;
 
 #[path = "time_input.rs"]
 mod time_input;
 pub use time_input::{decode_time_only, DecodedTime};
+pub(crate) use time_input::decode_time_only_with_check;
 
 const YEAR: u32 = 1 << 2;
 const MONTH: u32 = 1 << 1;

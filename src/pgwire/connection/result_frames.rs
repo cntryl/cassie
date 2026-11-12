@@ -566,14 +566,14 @@ fn array_element_bytes(value: &serde_json::Value, oid: i64) -> Result<CellBytes,
         return json_bytes(value);
     }
     match value {
-        serde_json::Value::Bool(value) => cell_bytes(&Value::Bool(*value), oid, -1, 1, false),
+        serde_json::Value::Bool(value) => cell_bytes(&Value::Bool(*value), oid, -1, 1, false, false),
         serde_json::Value::Number(value) => {
             let value = value
                 .as_i64()
                 .map(Value::Int64)
                 .or_else(|| value.as_f64().map(Value::Float64))
                 .unwrap_or(Value::Null);
-            cell_bytes(&value, oid, -1, 1, false)
+            cell_bytes(&value, oid, -1, 1, false, false)
         }
         serde_json::Value::String(text) => {
             let encoded = if matches!(oid, 25 | 1042 | 1043 | 705) {

@@ -639,7 +639,7 @@ fn parse_decimal(bytes: &[u8], cursor: &mut usize) -> Result<i64, String> {
     while let Some(byte) = bytes.get(*cursor).filter(|byte| byte.is_ascii_digit()) {
         value = value
             .checked_mul(10)
-            .and_then(|current| current.checked_add(i64::from(**byte - b'0')))
+            .and_then(|current| current.checked_add(i64::from(*byte - b'0')))
             .ok_or_else(|| "POSIX numeric field is out of range".to_string())?;
         *cursor += 1;
     }

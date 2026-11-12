@@ -19,8 +19,8 @@ pub(super) fn bind_vector_index_options(
     let access_method = statement
         .options
         .get(crate::catalog::IndexMeta::ACCESS_METHOD_OPTION)
-        .map_or("vector", String::as_str);
-    if matches!(access_method, "hnsw" | "ivfflat") {
+        .map_or_else(|| "vector".to_owned(), Clone::clone);
+    if matches!(access_method.as_str(), "hnsw" | "ivfflat") {
         return bind_pgvector_index_options(
             statement,
             catalog,
@@ -29,7 +29,7 @@ pub(super) fn bind_vector_index_options(
             search_path,
             name,
             field,
-            access_method,
+            &access_method,
         );
     }
     if access_method != "vector" {
@@ -82,9 +82,9 @@ fn bind_pgvector_index_options(
     }
 
     let operator_class_key = crate::catalog::IndexMeta::key_option_name(0, "operator_class");
-    let explicit_operator_class = statement.options.get(&operator_class_key);
+    let explicit_operator_class = statement.options.get(&operator_class_key).cloned();
     let operator_class = explicit_operator_class
-        .map(String::as_str)
+        .as_deref()
         .or_else(|| (access_method == "ivfflat").then_some("vector_l2_ops"))
         .ok_or_else(|| {
             CassieError::Planner(format!(

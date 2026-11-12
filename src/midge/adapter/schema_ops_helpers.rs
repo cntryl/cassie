@@ -667,7 +667,7 @@ fn collection_rename_prefixes(
     current_name: &str,
     next_name: &str,
     relation_id: u64,
-) -> [CollectionRenamePrefix; 13] {
+) -> [CollectionRenamePrefix; 14] {
     [
         (
             Midge::row_prefix(relation_id),

@@ -32,6 +32,7 @@ scalar_eq!(
     u16,
     u32,
     u64,
+    i32,
     i64,
     usize,
     crate::catalog::DefaultSequenceOwnership,

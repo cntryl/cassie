@@ -306,19 +306,3 @@ fn interval_moment(months: i32, days: i32, time: i64) -> Moment {
         is_interval: true,
     }
 }
-
-fn interval_moment(months: i32, days: i32, time: i64) -> Moment {
-    Moment {
-        fields: Fields {
-            year: months / 12,
-            month: months % 12,
-            day: days,
-            hour: i32::try_from(time / USECS_PER_HOUR).unwrap_or(i32::MAX),
-            minute: i32::try_from((time % USECS_PER_HOUR) / USECS_PER_MINUTE).unwrap_or(0),
-            second: i32::try_from((time % USECS_PER_MINUTE) / USECS_PER_SEC).unwrap_or(0),
-            micros: time % USECS_PER_SEC,
-        },
-        zone_east: None,
-        is_interval: true,
-    }
-}

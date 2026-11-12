@@ -29,12 +29,12 @@ pub fn decode_time_only(
     })
 }
 
-pub(super) fn decode_time_only_with_check<E>(
+pub(crate) fn decode_time_only_with_check<E>(
     input: &str,
     session: &TemporalSession,
     check: &mut impl FnMut() -> Result<(), E>,
 ) -> Result<DecodedTime, TokenizeError<E>> {
-    let tokens = super::tokens::tokenize_with_check(input, check)?;
+    let tokens = super::tokenize_with_check(input, check)?;
     let mut state = State::default();
     for index in 0..tokens.len() {
         if index % 128 == 0 {

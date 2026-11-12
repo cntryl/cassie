@@ -331,5 +331,5 @@ fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
     {
         return Some(metadata.kind.data_type());
     }
-    crate::types::schema::vector_dimensions_for_oid(i64::from(oid)).map(DataType::Vector)
+    crate::types::schema::vector_dimensions_for_oid(i64::from(oid)).map(|dimensions| DataType::Vector(Some(dimensions)))
 }

@@ -15,7 +15,7 @@ mod postgres_tests;
 #[path = "interval_input.rs"]
 mod input;
 pub use input::{interval_range, interval_typmod, parse_interval};
-pub(super) use input::parse_interval_with_check;
+pub(crate) use input::parse_interval_with_check;
 
 pub const MONTH_MASK: i32 = 1 << 1;
 pub const YEAR_MASK: i32 = 1 << 2;

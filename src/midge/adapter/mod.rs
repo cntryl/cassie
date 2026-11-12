@@ -14,7 +14,7 @@ use crate::catalog::{
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchRow, ColumnBatchSegmentMeta,
     DatabaseMeta, FieldCardinalityStats, FieldConstraint, FieldHeavyHitter, FieldHistogramBucket,
     IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta,
-    RetentionPolicyMeta, RollupMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::midge::row_blob::{

@@ -170,6 +170,7 @@ fn path_function_borrowed(
         PathResult::Match(value) => value.map_or(Value::Null, Value::Bool),
     };
     super::json_result_owner::retain_json_tree(value, reservation, owner, controls)
+        .map_err(PathFunctionError::from)
 }
 
 fn sql_json_exists(

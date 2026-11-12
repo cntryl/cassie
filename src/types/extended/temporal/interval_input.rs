@@ -217,7 +217,7 @@ pub fn parse_interval(
     })
 }
 
-pub(super) fn parse_interval_with_check<E>(
+pub(crate) fn parse_interval_with_check<E>(
     input: &str,
     range: i32,
     style: IntervalStyle,
@@ -364,7 +364,7 @@ fn decode_interval_with_check<E>(
     if is_before {
         accumulator.negate()?;
     }
-    accumulator.finish()
+    accumulator.finish().map_err(TokenizeError::from)
 }
 
 /// A signed number, `years-months`, or a fraction, with its effective unit.
@@ -483,10 +483,10 @@ fn interval_time(
 }
 
 /// `ParseISO8601Number`: integer and fractional parts of a decimal number.
-fn iso_number<E>(
-    text: &str,
+fn iso_number<'a, E>(
+    text: &'a str,
     check: &mut impl FnMut() -> Result<(), E>,
-) -> Result<(i64, f64, &str), TokenizeError<E>> {
+) -> Result<(i64, f64, &'a str), TokenizeError<E>> {
     let bytes = text.as_bytes();
     if !bytes
         .first()

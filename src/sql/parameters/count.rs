@@ -31,6 +31,7 @@ fn parameter_count_query(statement: &QueryStatement) -> usize {
         | QueryStatement::CreateRole(_)
         | QueryStatement::AlterRole(_)
         | QueryStatement::DropRole(_)
+        | QueryStatement::CommentOn(_)
         | QueryStatement::GrantDatabaseConnect(_)
         | QueryStatement::RevokeDatabaseConnect(_)
         | QueryStatement::CreateIndex(_)

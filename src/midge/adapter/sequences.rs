@@ -98,16 +98,6 @@ impl Midge {
         name: &str,
         mut update: impl FnMut(&mut crate::catalog::SequenceMeta) -> Result<T, CassieError>,
     ) -> Result<(T, crate::catalog::SequenceMeta), CassieError> {
-        match self.private_sequence_target(name)? {
-            super::transactions::sequence_owner::SequenceTarget::Private {
-                metadata,
-                owner,
-                overlay,
-                epoch,
-                scratch: _scratch,
-            } => return self.advance_private_sequence(metadata, &owner, &overlay, epoch, update),
-            super::transactions::sequence_owner::SequenceTarget::Native => {}
-        }
         const MAX_ATTEMPTS: usize = 64;
         match self.private_sequence_target(name)? {
             super::transactions::sequence_owner::SequenceTarget::Private {

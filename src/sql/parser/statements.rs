@@ -101,7 +101,7 @@ pub(super) fn unsupported_privilege_statement(lower: &str) -> Option<&'static st
 }
 
 pub(super) fn is_unsupported_transaction_control_statement(lower: &str) -> bool {
-    let uncommented = lexical::without_comments(lower);
+    let uncommented = super::lexical::without_comments(lower);
     let normalized = uncommented.trim();
     let is_set_transaction = normalized
         .split_whitespace()

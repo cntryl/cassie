@@ -193,6 +193,7 @@ impl<'a> Cursor<'a> {
                     cte_context: ctes,
                     user_functions: env.user_functions,
                     params: env.params,
+                    parameter_type_oids: env.parameter_type_oids,
                     controls: env.controls,
                     outer_row: if *lateral { outer } else { None },
                 },
@@ -328,6 +329,7 @@ fn filtered(
                 ctes,
                 env.user_functions,
                 env.params,
+                env.parameter_type_oids,
                 env.controls,
             ) {
                 Ok(expression) => {

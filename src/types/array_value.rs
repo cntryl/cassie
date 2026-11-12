@@ -202,7 +202,7 @@ impl SqlArray {
         while let DataType::Array(inner) = element_type {
             element_type = inner;
         }
-        if let DataType::Vector(vector_dimensions) = element_type {
+        if let DataType::Vector(Some(vector_dimensions)) = element_type {
             let (dimensions, elements) = collect_vector_elements(value, *vector_dimensions)?;
             return if elements.is_empty() {
                 Ok(Self::empty())
@@ -677,7 +677,7 @@ fn collect_vector_elements(
     if value.is_null() {
         return Ok((Vec::new(), vec![Value::Null]));
     }
-    if let Ok(vector) = scalar_from_json(value, &DataType::Vector(vector_dimensions)) {
+    if let Ok(vector) = scalar_from_json(value, &DataType::Vector(Some(vector_dimensions))) {
         return Ok((Vec::new(), vec![vector]));
     }
     let values = value

@@ -243,7 +243,7 @@ pub(crate) use execution::{
 pub(crate) use execution::{delete_is_joined, joined_returning_schema, update_is_joined};
 pub(crate) use execution::{
     plan_needs_user_functions, plan_uses_function, plan_uses_function_including_views,
-    run_with_session_controls,
+    run_with_session_controls, run_with_session_parameter_oids,
 };
 pub(crate) use execution::{repeatable_conflict_failure, resolve_transaction_conflict_intents};
 pub use execution::{

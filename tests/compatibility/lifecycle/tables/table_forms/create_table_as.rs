@@ -61,6 +61,42 @@ fn should_create_table_as_an_existing_table_with_column_names() {
 }
 
 #[test]
+fn should_reject_create_table_as_when_column_names_do_not_match_query_width() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("ctas_column_name_width").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let rejected = client
+            .batch_execute(
+                "CREATE TABLE compat_ctas_wrong_width (only_name) AS \
+                 SELECT 1 AS first_value, 2 AS second_value",
+            )
+            .await
+            .expect_err("the output name list must match the query width");
+        let relation_exists: bool = client
+            .query_one(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables \
+                 WHERE table_schema = 'public' \
+                   AND table_name = 'compat_ctas_wrong_width')",
+                &[],
+            )
+            .await
+            .expect("inspect target after rejecting its column list")
+            .get(0);
+
+        // Assert
+        let sqlstate = db_error(&rejected).code().code().to_owned();
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(sqlstate, "42601");
+        assert!(!relation_exists);
+    });
+}
+
+#[test]
 fn should_roll_back_ctas_table_when_query_materialization_fails() {
     // Arrange
     let runtime = current_thread_runtime();

@@ -8,7 +8,7 @@ fn vector_schema(nullable: bool) -> Schema {
     Schema {
         fields: vec![FieldSchema {
             name: "v".to_string(),
-            data_type: DataType::Vector(2),
+            data_type: DataType::Vector(Some(2)),
             nullable,
         }],
     }

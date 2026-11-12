@@ -3,7 +3,7 @@ use crate::sql::{
     ast::{
         AlterIndexStatement, AlterRetentionPolicyStatement, AlterRoleStatement,
         AlterSchemaStatement, AlterTableOperation, AlterTableStatement, CatalogStatementRef,
-        CommonTableExpression, CreateDatabaseStatement, CreateFunctionStatement,
+        CommentOnStatement, CommonTableExpression, CreateDatabaseStatement, CreateFunctionStatement,
         CreateGraphStatement, CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement,
         CreateSchemaStatement, CreateTableStatement, CreateViewStatement,
         DatabaseConnectPrivilegeStatement, DeleteStatement, DropDatabaseStatement,
@@ -59,6 +59,7 @@ impl LogicalPlan {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LogicalCommand {
+    CommentOn(CommentOnStatement),
     CreateTable(CreateTableStatement),
     CreateGraph(CreateGraphStatement),
     DropTable(DropTableStatement),
@@ -188,6 +189,11 @@ fn plan_runtime_statement(statement: RuntimeStatementRef<'_>) -> Result<LogicalP
 
 fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalPlan, CassieError> {
     match statement {
+        CatalogStatementRef::CommentOn(statement) => plan_named_command(
+            statement.object.as_str(),
+            "COMMENT ON requires an object name",
+            LogicalCommand::CommentOn(statement.clone()),
+        ),
         CatalogStatementRef::CreateTable(statement) => plan_create_table(statement),
         CatalogStatementRef::CreateGraph(statement) => plan_named_command(
             &statement.name,

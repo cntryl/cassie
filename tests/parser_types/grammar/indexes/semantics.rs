@@ -447,6 +447,48 @@ fn should_parse_vector_create_index_statement() {
 }
 
 #[test]
+fn should_parse_pgvector_ann_methods_with_operator_classes() {
+    // Arrange
+    let cases = [
+        (
+            "CREATE INDEX hnsw_idx ON vectors USING hnsw (embedding vector_l2_ops) WITH (m = 4, ef_construction = 16)",
+            "hnsw",
+            "vector_l2_ops",
+        ),
+        (
+            "CREATE INDEX ivfflat_idx ON vectors USING ivfflat (embedding vector_ip_ops) WITH (lists = 2)",
+            "ivfflat",
+            "vector_ip_ops",
+        ),
+    ];
+
+    for (sql, method, operator_class) in cases {
+        // Act
+        let parsed = parse_statement(sql).expect("parse pgvector ANN index");
+
+        // Assert
+        let QueryStatement::CreateIndex(statement) = parsed.statement else {
+            panic!("expected CREATE INDEX");
+        };
+        assert!(matches!(statement.kind, IndexKind::Vector));
+        assert_eq!(
+            statement
+                .options
+                .get(crate::catalog::IndexMeta::ACCESS_METHOD_OPTION)
+                .map(String::as_str),
+            Some(method)
+        );
+        assert_eq!(
+            statement
+                .options
+                .get(&crate::catalog::IndexMeta::key_option_name(0, "operator_class"))
+                .map(String::as_str),
+            Some(operator_class)
+        );
+    }
+}
+
+#[test]
 fn should_parse_fulltext_create_index_statement_with_options() {
     // Arrange
     let cassie = crate::support_sql::new_in_memory_cassie().unwrap();
@@ -788,7 +830,7 @@ fn should_reject_vector_create_index_without_source_field() {
                     },
                     FieldSchema {
                         name: "embedding".to_string(),
-                        data_type: DataType::Vector(3),
+                        data_type: DataType::Vector(Some(3)),
                         nullable: true,
                     },
                 ],
@@ -829,7 +871,7 @@ fn should_reject_vector_create_index_with_invalid_metric() {
                         },
                         FieldSchema {
                             name: "embedding".to_string(),
-                            data_type: DataType::Vector(3),
+                            data_type: DataType::Vector(Some(3)),
                             nullable: true,
                         },
                     ],
@@ -907,7 +949,7 @@ fn should_default_vector_metric_to_cosine() {
                         },
                         FieldSchema {
                             name: "embedding".to_string(),
-                            data_type: DataType::Vector(3),
+                            data_type: DataType::Vector(Some(3)),
                             nullable: true,
                         },
                     ],

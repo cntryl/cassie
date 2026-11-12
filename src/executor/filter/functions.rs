@@ -41,6 +41,8 @@ mod regex_functions;
 mod relation_locations;
 #[path = "runtime_information.rs"]
 mod runtime_information;
+#[path = "privilege_functions.rs"]
+mod privilege_functions;
 #[path = "session_setting_flags.rs"]
 mod session_setting_flags;
 #[path = "text_format.rs"]
@@ -99,6 +101,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
             .or_else(|| runtime_information::evaluate(name, args, session))
             .or_else(|| super::object_ids::evaluate_lookup(name, args, session))
             .or_else(|| super::sequence_functions::evaluate(name, args, session))
+            .or_else(|| super::comment_functions::evaluate(name, args, session))
             .or_else(|| evaluate_system_function(name, row, args, session))
             .or_else(|| super::conditional::evaluate(name, args))
             .or_else(|| {
@@ -249,8 +252,13 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
                 }
             }))
         }
-        "has_database_privilege" | "pg_catalog.has_database_privilege" => {
-            Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
+        "has_database_privilege"
+        | "pg_catalog.has_database_privilege"
+        | "has_schema_privilege"
+        | "pg_catalog.has_schema_privilege"
+        | "has_table_privilege"
+        | "pg_catalog.has_table_privilege" => {
+            Some(privilege_functions::evaluate(name, args, session))
         }
         "pg_backend_pid" | "pg_catalog.pg_backend_pid" => Some(
             require_zero_args(name, args)
@@ -274,22 +282,15 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "quote_ident" | "pg_catalog.quote_ident" => Some(unary_nullable_text(name, args, |text| {
             Value::String(quote_identifier(text))
         })),
-        "format_type" | "pg_catalog.format_type" => Some(evaluate_format_type(name, args)),
+        "format_type" | "pg_catalog.format_type" => {
+            Some(evaluate_format_type(name, args, session))
+        }
         "pg_get_expr" | "pg_catalog.pg_get_expr" => Some(evaluate_pg_get_expr(name, args)),
         "pg_get_indexdef" | "pg_catalog.pg_get_indexdef" => {
             Some(evaluate_pg_get_indexdef(name, args, session))
         }
         "pg_get_viewdef" | "pg_catalog.pg_get_viewdef" => {
             Some(evaluate_pg_get_viewdef(name, args, session))
-        }
-        "obj_description" | "pg_catalog.obj_description" => {
-            Some(require_arg_count_range(name, args, 1..=2).map(|()| Value::Null))
-        }
-        "has_schema_privilege"
-        | "pg_catalog.has_schema_privilege"
-        | "has_table_privilege"
-        | "pg_catalog.has_table_privilege" => {
-            Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
         }
         "pg_table_is_visible" | "pg_catalog.pg_table_is_visible" => Some(
             require_arg_count(name, args, 1)
@@ -747,7 +748,7 @@ fn array_element_type(value: &Value) -> Option<crate::types::DataType> {
         Value::Int64(_) => crate::types::DataType::BigInt,
         Value::Float64(_) => crate::types::DataType::Float,
         Value::String(_) => crate::types::DataType::Text,
-        Value::Vector(vector) => crate::types::DataType::Vector(vector.dimension()),
+        Value::Vector(vector) => crate::types::DataType::Vector(Some(vector.dimension())),
         Value::Json(_) => crate::types::DataType::Json,
         Value::Typed(value) => crate::types::DataType::Extended(value.kind()),
     })
@@ -808,14 +809,43 @@ fn unary_nullable_text(
     Ok(text_arg(name, &args[0])?.map_or(Value::Null, |text| map(&text)))
 }
 
-fn evaluate_format_type(name: &str, args: &[Value]) -> Result<Value, QueryError> {
+fn evaluate_format_type(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
     require_arg_count(name, args, 2)?;
     let oid = signed_integer_arg(name, &args[0])?;
     let typmod = signed_integer_arg(name, &args[1])?;
     Ok(match (oid, typmod) {
-        (Some(oid), Some(typmod)) => Value::String(format_type_oid(oid, typmod)),
+        (Some(oid), Some(typmod)) => {
+            Value::String(format_type_oid_in_session(oid, typmod, session))
+        }
         _ => Value::Null,
     })
+}
+
+fn format_type_oid_in_session(
+    oid: i64,
+    typmod: i64,
+    session: Option<&CassieSession>,
+) -> String {
+    if let Some((catalog, context)) = session.and_then(CassieSession::object_lookup_context) {
+        let vector_oid = crate::catalog::object_identity::type_oid_for_database(
+            &catalog,
+            &context.database,
+            &DataType::Vector(None),
+        );
+        if vector_oid == Some(oid) {
+            return usize::try_from(typmod)
+                .ok()
+                .filter(|dimensions| (1..=16_000).contains(dimensions))
+                .map_or_else(|| "vector".to_string(), |dimensions| {
+                    format!("vector({dimensions})")
+                });
+        }
+    }
+    format_type_oid(oid, typmod)
 }
 
 fn evaluate_concat(name: &str, args: &[Value]) -> Result<Value, QueryError> {

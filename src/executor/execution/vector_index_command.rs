@@ -7,9 +7,16 @@ pub(super) fn vector_index_metadata(
 ) -> Result<VectorIndexRecord, QueryError> {
     let schema = collection_schema(cassie, &statement.table)?;
     let vector_field = vector_field(&schema, statement)?;
-    let dimensions = vector_dimensions(cassie, vector_field)?;
-    let source_field = source_field(statement)?;
-    validate_source_field(&schema, &statement.table, &source_field)?;
+    let source_field = statement
+        .options
+        .get("source_field")
+        .cloned()
+        .unwrap_or_else(|| vector_field.name.clone());
+    let direct_vector_index = source_field == vector_field.name;
+    let dimensions = vector_dimensions(cassie, vector_field, !direct_vector_index)?;
+    if !direct_vector_index {
+        validate_source_field(&schema, &statement.table, &source_field)?;
+    }
 
     let mut options = statement.options.clone();
     let normalized_options =
@@ -75,14 +82,15 @@ fn vector_field<'a>(
 fn vector_dimensions(
     cassie: &Cassie,
     vector_field: &crate::types::FieldSchema,
+    validate_provider: bool,
 ) -> Result<usize, QueryError> {
-    let DataType::Vector(dimensions) = vector_field.data_type else {
+    let DataType::Vector(Some(dimensions)) = vector_field.data_type else {
         return Err(QueryError::General(format!(
             "field '{}' is not a vector field",
             vector_field.name
         )));
     };
-    if cassie.embedding_provider.dimensions() != dimensions {
+    if validate_provider && cassie.embedding_provider.dimensions() != dimensions {
         return Err(QueryError::General(format!(
             "embedding dimension mismatch: field '{}' has {}, active provider '{}' model '{}' has {}",
             vector_field.name,
@@ -93,16 +101,6 @@ fn vector_dimensions(
         )));
     }
     Ok(dimensions)
-}
-
-fn source_field(statement: &crate::sql::ast::CreateIndexStatement) -> Result<String, QueryError> {
-    statement
-        .options
-        .get("source_field")
-        .cloned()
-        .ok_or_else(|| {
-            QueryError::General("CREATE INDEX USING vector requires source_field".to_string())
-        })
 }
 
 fn validate_source_field(

@@ -139,24 +139,24 @@ fn numeric_assignment(value: &Value, data_type: &DataType) -> Result<Option<Valu
 fn vector_literal_to_json(
     field: &str,
     text: &str,
-    dimensions: usize,
+    expected_dimensions: Option<usize>,
 ) -> Result<serde_json::Value, QueryError> {
-    use crate::vector::text::{visit_components, TextVectorError};
+    use crate::vector::text::{visit_components_with_dimension, TextVectorError};
 
     let range_error = || {
         QueryError::General(format!(
             "field '{field}' vector element is outside f32 range"
         ))
     };
-    match visit_components(text, dimensions, |_| {}) {
-        Ok(()) => {}
+    let dimensions = match visit_components_with_dimension(text, expected_dimensions, |_| {}) {
+        Ok(dimensions) => dimensions,
         Err(TextVectorError::Shape) => return Ok(serde_json::Value::String(text.to_string())),
         Err(TextVectorError::Range) => return Err(range_error()),
-    }
+    };
     // Validation has completed before allocating the exact known-width output.
     // Each callback receives a finite f32; its f64 promotion is a JSON number.
     let mut components = Vec::with_capacity(dimensions);
-    visit_components(text, dimensions, |component| {
+    visit_components_with_dimension(text, Some(dimensions), |component| {
         components.push(serde_json::Value::from(f64::from(component)));
     })
     .map_err(|_| range_error())?;

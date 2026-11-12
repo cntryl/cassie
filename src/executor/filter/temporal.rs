@@ -303,11 +303,13 @@ pub(super) fn cast(
         if matches!(&source, crate::types::Value::Typed(typed) if !ops::is_temporal(typed)) {
             return None;
         }
-        return Some(
-            kind.cast_from_in(&source, session)
-                .map(ScalarValue::Typed)
-                .map_err(type_error),
+        let cast = controls.map_or_else(
+            || kind.cast_from_in(&source, session).map_err(|error| {
+                crate::app::CassieError::TypeInput(error)
+            }),
+            |controls| kind.cast_from_in_with_controls(&source, session, controls),
         );
+        return Some(cast.map(ScalarValue::Typed).map_err(QueryError::from));
     }
     let typed = temporal(value)?;
     match data_type {

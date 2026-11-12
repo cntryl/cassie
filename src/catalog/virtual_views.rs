@@ -3,6 +3,7 @@ use crate::catalog::{
     local_name, relation_belongs_to_database, relation_database_name, relation_schema_name,
     schema_belongs_to_database, Catalog, DatabaseMeta, FieldConstraint,
 };
+use crate::midge::adapter::Midge;
 use crate::types::{DataType, Value};
 
 pub type VirtualRow = Vec<(String, Value)>;
@@ -84,15 +85,47 @@ pub(crate) fn schema_exists(name: &str) -> bool {
 #[must_use]
 pub fn rows(
     catalog: &Catalog,
+    midge: &Midge,
     name: &str,
     session: Option<&CassieSession>,
-) -> Option<Vec<VirtualRow>> {
+) -> Option<Result<Vec<VirtualRow>, crate::app::CassieError>> {
+    rows_for_database(
+        catalog,
+        midge,
+        name,
+        session,
+        session.and_then(CassieSession::current_database),
+    )
+}
+
+pub(crate) fn rows_with_default_database(
+    catalog: &Catalog,
+    midge: &Midge,
+    name: &str,
+    session: Option<&CassieSession>,
+    default_database: &str,
+) -> Option<Result<Vec<VirtualRow>, crate::app::CassieError>> {
+    let current_database = Some(
+        session
+            .and_then(CassieSession::current_database)
+            .unwrap_or(default_database),
+    );
+    rows_for_database(catalog, midge, name, session, current_database)
+}
+
+fn rows_for_database(
+    catalog: &Catalog,
+    midge: &Midge,
+    name: &str,
+    session: Option<&CassieSession>,
+    current_database: Option<&str>,
+) -> Option<Result<Vec<VirtualRow>, crate::app::CassieError>> {
     let name = normalize_name(name);
     if name == "pg_catalog.pg_settings" {
-        return Some(pg_settings_rows(session));
+        return Some(Ok(pg_settings_rows(session)));
     }
     if let Some(rows) = virtual_views_session_objects::rows(name.as_str(), session) {
-        return Some(rows);
+        return Some(Ok(rows));
     }
     let snapshot = session.and_then(|session| {
         session
@@ -100,9 +133,9 @@ pub fn rows(
             .or_else(|| session.transaction_catalog_snapshot())
     });
     let catalog = snapshot.as_ref().map_or(catalog, |owner| owner.catalog());
-    let current_database = session.and_then(CassieSession::current_database);
     information_schema_rows_for(catalog, name.as_str(), current_database)
-        .or_else(|| pg_catalog_rows_for(catalog, name.as_str(), current_database))
+        .map(Ok)
+        .or_else(|| pg_catalog_rows_for(catalog, midge, name.as_str(), current_database))
 }
 
 fn pg_settings_rows(session: Option<&CassieSession>) -> Vec<VirtualRow> {
@@ -178,19 +211,26 @@ fn information_schema_rows_for(
 
 fn pg_catalog_rows_for(
     catalog: &Catalog,
+    midge: &Midge,
     name: &str,
     current_database: Option<&str>,
-) -> Option<Vec<VirtualRow>> {
+) -> Option<Result<Vec<VirtualRow>, crate::app::CassieError>> {
+    if name == "pg_catalog.pg_attribute" {
+        return Some(
+            virtual_views_pg::pg_attribute(catalog, midge, current_database)
+                .map(|rows| filter_pg_catalog_rows(catalog, name, current_database, rows)),
+        );
+    }
     let rows = pg_catalog_core_rows(catalog, name, current_database)
         .or_else(|| virtual_views_projections::rows(catalog, name))
         .or_else(|| pg_catalog_runtime_rows(catalog, name))
         .or_else(|| virtual_views_timezones::rows(name))?;
-    Some(filter_pg_catalog_rows(
+    Some(Ok(filter_pg_catalog_rows(
         catalog,
         name,
         current_database,
         rows,
-    ))
+    )))
 }
 
 fn filter_pg_catalog_rows(
@@ -311,11 +351,28 @@ fn pg_catalog_core_rows(
             Some(virtual_views_pg::pg_namespace(catalog, current_database))
         }
         "pg_catalog.pg_class" => Some(virtual_views_pg::pg_class(catalog, current_database)),
-        "pg_catalog.pg_am" => Some(virtual_views_pg::pg_am()),
-        "pg_catalog.pg_collation" => Some(virtual_views_pg::pg_collation()),
-        "pg_catalog.pg_attribute" => {
-            Some(virtual_views_pg::pg_attribute(catalog, current_database))
+        "pg_catalog.pg_am" => {
+            Some(virtual_views_pg::vector_catalogs::access_method_rows(catalog, current_database))
         }
+        "pg_catalog.pg_operator" => {
+            Some(virtual_views_pg::vector_catalogs::operator_rows(catalog, current_database))
+        }
+        "pg_catalog.pg_opfamily" => {
+            Some(virtual_views_pg::vector_catalogs::operator_family_rows(catalog, current_database))
+        }
+        "pg_catalog.pg_opclass" => {
+            Some(virtual_views_pg::vector_catalogs::operator_class_rows(catalog, current_database))
+        }
+        "pg_catalog.pg_amop" => Some(
+            virtual_views_pg::vector_catalogs::access_method_operator_rows(catalog, current_database),
+        ),
+        "pg_catalog.pg_collation" => {
+            Some(virtual_views_pg::collation::rows())
+        }
+        "pg_catalog.pg_description" => Some(virtual_views_pg::descriptions::rows(
+            catalog,
+            current_database,
+        )),
         "pg_catalog.pg_indexes" => Some(virtual_views_pg::pg_indexes(catalog, current_database)),
         "pg_catalog.pg_index" => Some(virtual_views_pg::pg_index(catalog, current_database)),
         "pg_catalog.pg_attrdef" => Some(virtual_views_pg::pg_attrdef(catalog, current_database)),
@@ -767,7 +824,8 @@ fn data_type_name(data_type: &DataType) -> String {
         DataType::Date => "date".to_string(),
         DataType::Time => "time".to_string(),
         DataType::Timestamp => "timestamp".to_string(),
-        DataType::Vector(dimensions) => format!("vector({dimensions})"),
+        DataType::Vector(Some(dimensions)) => format!("vector({dimensions})"),
+        DataType::Vector(None) => "vector".to_string(),
         DataType::Json => "json".to_string(),
         DataType::Jsonb => "jsonb".to_string(),
         DataType::JsonPath => "jsonpath".to_string(),

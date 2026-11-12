@@ -87,6 +87,7 @@ struct OrderedInput {
     array_key: Option<SemanticValue>,
     keys: Vec<SemanticValue>,
     bytea: bool,
+    array_input: bool,
 }
 
 struct AggregateInput {
@@ -94,6 +95,7 @@ struct AggregateInput {
     delimiter: Option<Value>,
     array_key: Option<SemanticValue>,
     bytea: bool,
+    array_input: bool,
 }
 
 struct PreparedInput {
@@ -134,12 +136,35 @@ fn prepare_input(
     let bytea = crate::sql::functions::function(&function.name)
         .is_some_and(|metadata| metadata.id == crate::sql::functions::FunctionId::StringAgg)
         && (function.args.first().is_some_and(|argument| {
-            crate::executor::array_order::expression_type(row, argument, context.user_functions)
+            crate::executor::array_order::expression_type_with_parameter_oids(
+                row,
+                argument,
+                context.user_functions,
+                context.parameter_type_oids,
+            )
                 == Some(crate::types::DataType::Bytea)
         }) || super::state::has_bytea_carrier(&value)
             && delimiter
                 .as_ref()
                 .is_some_and(super::state::has_bytea_carrier));
+    let array_input = crate::sql::functions::function(&function.name).is_some_and(|metadata| {
+        matches!(
+            metadata.id,
+            crate::sql::functions::FunctionId::CollectionAggregate(
+                crate::sql::functions::CollectionAggregate::Array
+            )
+        ) && function.args.first().is_some_and(|argument| {
+            matches!(
+                crate::executor::array_order::expression_type_with_parameter_oids(
+                    row,
+                    argument,
+                    context.user_functions,
+                    context.parameter_type_oids,
+                ),
+                Some(crate::types::DataType::Array(_))
+            )
+        })
+    });
     let key_memory = context.controls.reserve_query_memory(add(
         add(
             key_bound(&value)?,
@@ -172,6 +197,7 @@ fn prepare_input(
             delimiter,
             array_key,
             bytea,
+            array_input,
         },
         input_memory,
         key_memory,
@@ -276,6 +302,7 @@ impl ModifierAccumulator {
             array_key: aggregate.array_key,
             keys,
             bytea: aggregate.bytea,
+            array_input: aggregate.array_input,
         });
         self.memory.absorb(input_memory);
         self.memory.absorb(key_memory);
@@ -305,6 +332,7 @@ impl ModifierAccumulator {
                         delimiter: input.delimiter.take(),
                         array_key: input.array_key.take(),
                         bytea: input.bytea,
+                        array_input: input.array_input,
                     },
                     context.controls,
                 )?;
@@ -482,11 +510,12 @@ fn semantic_key(
     value: &Value,
     context: &AggregateExecutionContext<'_>,
 ) -> Result<SemanticValue, QueryError> {
-    Ok(crate::executor::array_order::key(
+    Ok(crate::executor::array_order::key_with_parameter_oids(
         row,
         expression,
         value,
         context.user_functions,
+        context.parameter_type_oids,
         Some(context.controls),
     )?)
 }
@@ -503,6 +532,7 @@ fn transition(
         delimiter,
         array_key: key,
         bytea,
+        array_input,
     } = input;
     let mut retained_bytes = if matches!(accumulator, AggregateAccumulator::Collection { .. }) {
         super::state::retained_value_bytes(&value)
@@ -526,7 +556,7 @@ fn transition(
         )?,
         accumulator.collection_growth_bytes(),
     )?)?;
-    accumulator.update_values_with_bytea(function, value, key, delimiter, bytea)?;
+    accumulator.update_values_with_bytea(function, value, key, delimiter, bytea, array_input)?;
     memory.absorb(candidate);
     memory.shrink_to(accumulator.retained_heap_bytes()?);
     controls.aggregate_input_retained()?;

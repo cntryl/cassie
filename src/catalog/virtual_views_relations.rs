@@ -87,7 +87,7 @@ pub(super) fn rows(
                         // Ownership is not recorded in the current metadata format.
                         null("tableowner"),
                         null("tablespace"),
-                        flag("hasindexes", !catalog.list_indexes(&table.name).is_empty()),
+                        flag("hasindexes", catalog.has_relation_index_history(&table.name)),
                         flag("hasrules", false),
                         flag("hastriggers", false),
                         flag("rowsecurity", false),
@@ -170,7 +170,7 @@ fn materialized_view_rows(catalog: &Catalog, database: Option<&str>) -> Vec<Virt
                 null("tablespace"),
                 flag(
                     "hasindexes",
-                    !catalog.list_indexes(&projection.collection).is_empty(),
+                    catalog.has_relation_index_history(&projection.collection),
                 ),
                 flag("ispopulated", projection.active_version.is_some()),
                 string(

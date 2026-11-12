@@ -1,5 +1,8 @@
 use super::{CassieSession, Catalog};
 
+#[path = "session_schema/object_identifier.rs"]
+mod object_identifier;
+
 #[derive(Clone)]
 pub(super) struct SessionSchemaContext {
     catalog: Catalog,
@@ -70,13 +73,14 @@ impl CassieSession {
     }
 
     pub(crate) fn publish_sequence_metadata(&self, metadata: crate::catalog::SequenceMeta) {
-        let catalog = self
+        let publication_catalog = self
             .schema_context
             .lock()
             .as_ref()
-            .map(|scope| scope.write_catalog.clone());
-        if let Some(catalog) = catalog {
-            catalog.register_sequence(metadata);
+            .map(|scope| scope.publication_catalog.clone());
+        if let Some(publication_catalog) = publication_catalog {
+            publication_catalog.update_sequence_cursor(&metadata);
+            self.invalidate_sequence_cursor_descriptor();
         }
     }
 
@@ -103,9 +107,12 @@ impl CassieSession {
             .current_database()
             .unwrap_or(&scope.default_database)
             .to_string();
-        let search_path = resolved_search_path(&scope.catalog, &database, self);
+        let catalog = self
+            .transaction_catalog_overlay()
+            .unwrap_or_else(|| scope.catalog.clone());
+        let search_path = resolved_search_path(&catalog, &database, self);
         Some((
-            scope.catalog.clone(),
+            catalog,
             crate::sql::binder::BindingContext::scoped(database, search_path),
         ))
     }

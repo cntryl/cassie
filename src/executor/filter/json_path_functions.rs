@@ -47,10 +47,18 @@ fn path_function(
     controls: Option<&QueryExecutionControls>,
     owner: Option<&super::super::EvaluationMemory>,
 ) -> Result<Value, QueryError> {
+    path_function_classified(kind, args, controls, owner)
+        .map_err(PathFunctionError::into_query_error)
+}
+
+fn path_function_classified(
+    kind: JsonFunction,
+    args: &[Value],
+    controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
+) -> Result<Value, PathFunctionError> {
     if !(2..=4).contains(&args.len()) {
-        return Err(QueryError::General(
-            "invalid JSONPATH function arity".into(),
-        ));
+        return Err(QueryError::General("invalid JSONPATH function arity".into()).into());
     }
     if args.iter().any(Value::is_null) {
         return Ok(Value::Null);
@@ -65,10 +73,40 @@ fn path_function(
         }
         None => false,
     };
+    path_function_borrowed(
+        kind,
+        &args[0],
+        &args[1],
+        args.get(2),
+        args.get(3),
+        silent,
+        controls,
+        owner,
+    )
+}
+
+fn path_function_borrowed(
+    kind: JsonFunction,
+    document_value: &Value,
+    path_value: &Value,
+    variables_value: Option<&Value>,
+    silent_value: Option<&Value>,
+    silent: bool,
+    controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
+) -> Result<Value, PathFunctionError> {
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
-    let input_bytes = args.iter().try_fold(0, |total, value| {
+    let input_bytes = [
+        Some(document_value),
+        Some(path_value),
+        variables_value,
+        silent_value,
+    ]
+    .into_iter()
+    .flatten()
+    .try_fold(0, |total, value| {
         add(
             total,
             match value {
@@ -83,9 +121,9 @@ fn path_function(
     let mut reservation = controls
         .map(|controls| controls.reserve_query_memory(estimated_bytes))
         .transpose()?;
-    let (document, document_parse_memory) = document_arg(&args[0], controls)?;
-    let original_path = string_arg(&args[1], "JSONPATH")?;
-    let (variables, variables_parse_memory) = match args.get(2) {
+    let (document, document_parse_memory) = document_arg(document_value, controls)?;
+    let original_path = string_arg(path_value, "JSONPATH")?;
+    let (variables, variables_parse_memory) = match variables_value {
         Some(value) => document_arg(value, controls)?,
         None => (serde_json::Value::Object(serde_json::Map::new()), None),
     };
@@ -103,7 +141,7 @@ fn path_function(
     let result = match evaluated {
         Ok(value) => value,
         Err(error) if silent && error.can_silent() => silent_result(kind),
-        Err(error) => return Err(path_error(&error)),
+        Err(error) => return Err(PathFunctionError::Evaluation(error)),
     };
     let output_bytes = match &result {
         PathResult::Exists(_) | PathResult::Match(_) => 1,
@@ -146,23 +184,59 @@ fn sql_json_exists(
     }
     let policy = super::text_arg("JSON_EXISTS ON ERROR", policy)?
         .ok_or_else(|| CassieError::InvalidParameterValue("missing ON ERROR policy".into()))?;
-    match path_function(
+    match path_function_borrowed(
         JsonFunction::PathExists,
-        &[document.clone(), path.clone()],
+        document,
+        path,
+        None,
+        None,
+        false,
         controls,
         None,
     ) {
         Ok(value) => Ok(value),
-        Err(error) => match policy.to_ascii_lowercase().as_str() {
-            "false" => Ok(Value::Bool(false)),
-            "true" => Ok(Value::Bool(true)),
-            "unknown" => Ok(Value::Null),
-            "error" => Err(error),
-            _ => Err(CassieError::InvalidParameterValue(
-                "JSON_EXISTS ON ERROR policy must be TRUE, FALSE, UNKNOWN, or ERROR".into(),
-            )
-            .into()),
-        },
+        Err(PathFunctionError::Query(error)) => Err(error),
+        Err(PathFunctionError::Evaluation(error)) => {
+            if let Some(controls) = controls {
+                controls.check_interruption()?;
+            }
+            match policy.to_ascii_lowercase().as_str() {
+                "false" => Ok(Value::Bool(false)),
+                "true" => Ok(Value::Bool(true)),
+                "unknown" => Ok(Value::Null),
+                "error" => Err(path_error(&error)),
+                _ => Err(CassieError::InvalidParameterValue(
+                    "JSON_EXISTS ON ERROR policy must be TRUE, FALSE, UNKNOWN, or ERROR".into(),
+                )
+                .into()),
+            }
+        }
+    }
+}
+
+enum PathFunctionError {
+    Evaluation(sql_json_path::EvalError),
+    Query(QueryError),
+}
+
+impl PathFunctionError {
+    fn into_query_error(self) -> QueryError {
+        match self {
+            Self::Evaluation(error) => path_error(&error),
+            Self::Query(error) => error,
+        }
+    }
+}
+
+impl From<QueryError> for PathFunctionError {
+    fn from(error: QueryError) -> Self {
+        Self::Query(error)
+    }
+}
+
+impl From<CassieError> for PathFunctionError {
+    fn from(error: CassieError) -> Self {
+        Self::Query(error.into())
     }
 }
 
@@ -418,26 +492,61 @@ fn extract(
     if let Some(controls) = controls {
         controls.check_interruption()?;
     }
+    if let [document, Value::Array(path)] = args {
+        return extract_segments(
+            document,
+            path.elements(),
+            true,
+            binary,
+            as_text,
+            controls,
+            owner,
+        );
+    }
     if args.len() < 2 {
         return Err(
             CassieError::Execution("function json_extract_path() does not exist".into()).into(),
         );
     }
-    if args.iter().any(|value| matches!(value, Value::Null)) {
+    extract_segments(&args[0], &args[1..], false, binary, as_text, controls, owner)
+}
+
+fn extract_segments(
+    document_value: &Value,
+    segments: &[Value],
+    allow_empty: bool,
+    binary: bool,
+    as_text: bool,
+    controls: Option<&QueryExecutionControls>,
+    owner: Option<&super::super::EvaluationMemory>,
+) -> Result<Value, QueryError> {
+    if segments.is_empty() && !allow_empty {
+        return Err(
+            CassieError::Execution("function json_extract_path() does not exist".into()).into(),
+        );
+    }
+    if matches!(document_value, Value::Null)
+        || segments
+            .iter()
+            .any(|value| matches!(value, Value::Null))
+    {
         return Ok(Value::Null);
     }
-    let mut bytes = 0;
-    for value in args {
+    let mut bytes = match document_value {
+        Value::String(text) => text.len(),
+        Value::Json(value) => serialized_json_bytes(value)?,
+        _ => 64,
+    };
+    for value in segments {
         bytes = add(
             bytes,
             match value {
                 Value::String(text) => text.len(),
-                Value::Json(value) => serialized_json_bytes(value)?,
                 _ => 64,
             },
         )?;
     }
-    let expanded = match &args[0] {
+    let expanded = match document_value {
         Value::String(text) if binary => {
             crate::types::jsonb::input_text_len(text).map_err(CassieError::TypeInput)?
         }
@@ -456,18 +565,18 @@ fn extract(
     let memory = controls
         .map(|controls| controls.reserve_query_memory(scratch))
         .transpose()?;
-    let document = super::json_functions::json_text(&args[0])?;
+    let document = super::json_functions::json_text(document_value)?;
     let result = if let (Some(controls), Some(owner)) = (controls, owner) {
         super::super::json_delete::controlled_function_extraction(
             &document,
-            &args[1..],
+            segments,
             as_text,
             binary,
             controls,
             owner,
         )?
     } else {
-        let segments = args[1..].iter().map(|value| match value {
+        let segments = segments.iter().map(|value| match value {
             Value::String(text) => Some(text.as_str()),
             _ => None,
         });
@@ -493,7 +602,7 @@ fn extract(
 
 #[cfg(test)]
 mod tests {
-    use super::{evaluate, Value};
+    use super::{evaluate, sql_json_exists, QueryError, Value};
     use crate::{
         config::CassieRuntimeLimits,
         runtime::{QueryCancellationHandle, QueryExecutionControls},
@@ -537,6 +646,66 @@ mod tests {
     }
 
     #[test]
+    fn should_admit_variadic_path_array_workspace_and_honor_cancellation() {
+        // Arrange
+        let path = crate::types::SqlArray::from_elements(vec![crate::types::Value::String(
+            "a".into(),
+        )])
+        .expect("path array");
+        let input = [
+            Value::String(format!("{{\"a\":\"{}\"}}", "x".repeat(80))),
+            Value::Array(path),
+        ];
+        let limits = CassieRuntimeLimits::default();
+        let scarce = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 1,
+                ..limits.clone()
+            },
+            Instant::now(),
+        );
+        let ample = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 131_072,
+                ..limits.clone()
+            },
+            Instant::now(),
+        );
+        let cancellation = QueryCancellationHandle::new();
+        let canceled = QueryExecutionControls::with_cancellation(
+            &limits,
+            Instant::now(),
+            cancellation.clone(),
+        );
+        cancellation.cancel();
+
+        // Act
+        let denied = evaluate("jsonb_extract_path", &input, Some(&scarce), None)
+            .expect("finite variadic path");
+        let accepted = evaluate("jsonb_extract_path", &input, Some(&ample), None)
+            .expect("finite variadic path");
+        let interrupted = evaluate("jsonb_extract_path", &input, Some(&canceled), None)
+            .expect("finite variadic path");
+
+        // Assert
+        assert!(denied
+            .expect_err("path scratch exceeds budget")
+            .to_string()
+            .contains("memory budget exceeded"));
+        assert_eq!(
+            accepted.expect("admitted variadic extraction"),
+            Value::String(format!("\"{}\"", "x".repeat(80)))
+        );
+        assert!(interrupted
+            .expect_err("canceled query")
+            .to_string()
+            .contains("cancel"));
+        assert_eq!(scarce.current_query_memory_bytes(), 0);
+        assert_eq!(ample.current_query_memory_bytes(), 0);
+        assert_eq!(canceled.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
     fn should_release_finite_json_path_scratch_given_parse_errors_and_cancellation_when_queries_stop(
     ) {
         // Arrange
@@ -563,6 +732,98 @@ mod tests {
             .contains("cancel"));
         assert_eq!(controls.current_query_memory_bytes(), 0);
         assert_eq!(canceled.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_preserve_json_exists_control_failures_given_false_on_error() {
+        // Arrange
+        let limits = CassieRuntimeLimits::default();
+        let scarce = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 1,
+                ..limits.clone()
+            },
+            Instant::now(),
+        );
+        let cancellation = QueryCancellationHandle::new();
+        let canceled = QueryExecutionControls::with_cancellation(
+            &limits,
+            Instant::now(),
+            cancellation.clone(),
+        );
+        cancellation.cancel();
+        let input = [
+            Value::String("{\"a\":1}".into()),
+            Value::String("strict $.a[*]".into()),
+            Value::String("false".into()),
+        ];
+
+        // Act
+        let denied = sql_json_exists(&input, Some(&scarce));
+        let interrupted = sql_json_exists(&input, Some(&canceled));
+
+        // Assert
+        assert!(matches!(
+            denied,
+            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(_)))
+        ));
+        assert!(matches!(
+            interrupted,
+            Err(QueryError::Cassie(crate::app::CassieError::QueryCanceled))
+        ));
+        assert_eq!(scarce.current_query_memory_bytes(), 0);
+        assert_eq!(canceled.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_admit_owned_json_exists_context_before_applying_false_on_error() {
+        // Arrange
+        let limits = CassieRuntimeLimits::default();
+        let scarce = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 1,
+                ..limits
+            },
+            Instant::now(),
+        );
+        let input = [
+            Value::Json(serde_json::json!({ "payload": "x".repeat(4096) })),
+            Value::String("strict $.payload[*]".into()),
+            Value::String("false".into()),
+        ];
+
+        // Act
+        let denied = sql_json_exists(&input, Some(&scarce));
+
+        // Assert
+        assert!(matches!(
+            denied,
+            Err(QueryError::Cassie(crate::app::CassieError::ResourceLimit(_)))
+        ));
+        assert_eq!(scarce.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_propagate_json_exists_input_errors_given_false_on_error() {
+        // Arrange
+        let invalid_document = [
+            Value::String("not-json".into()),
+            Value::String("$.a".into()),
+            Value::String("false".into()),
+        ];
+        let invalid_path = [
+            Value::String("{}".into()),
+            Value::String("not a jsonpath".into()),
+            Value::String("false".into()),
+        ];
+
+        // Act
+        let document_error = sql_json_exists(&invalid_document, None);
+        let path_error = sql_json_exists(&invalid_path, None);
+
+        // Assert
+        assert!(document_error.is_err());
+        assert!(path_error.is_err());
     }
 }
 

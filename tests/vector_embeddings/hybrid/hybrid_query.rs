@@ -41,7 +41,7 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],
@@ -119,7 +119,7 @@ fn should_generate_hybrid_candidates_from_text_matches() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],
@@ -205,7 +205,7 @@ fn should_explain_mixed_text_vector_execution_stages() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],
@@ -254,7 +254,7 @@ fn setup_missing_vector_hybrid_fixture(cassie: &Cassie, collection: &str) {
             },
             FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             },
         ],
@@ -423,7 +423,7 @@ fn bounded_hybrid_fixture_with_limits(
             },
             FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(2),
+                data_type: DataType::Vector(Some(2)),
                 nullable: true,
             },
             FieldSchema {

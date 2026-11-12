@@ -15,7 +15,7 @@ fn should_reject_normalized_vectors_from_an_older_collection_generation() {
     let schema = Schema {
         fields: vec![FieldSchema {
             name: "embedding".to_string(),
-            data_type: DataType::Vector(3),
+            data_type: DataType::Vector(Some(3)),
             nullable: true,
         }],
     };

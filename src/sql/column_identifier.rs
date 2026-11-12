@@ -50,6 +50,18 @@ impl ColumnIdentifierPath {
             }
         })
     }
+
+    pub(crate) fn namespace_prefix_keys(&self) -> Vec<String> {
+        let final_index = self.components.len() - 1;
+        (0..final_index)
+            .map(|start| {
+                Self {
+                    components: self.components[start..final_index].to_vec(),
+                }
+                .lookup_key()
+            })
+            .collect()
+    }
     /// Returns the canonical key for a SQL column reference's final component.
     pub(crate) fn reference_field_key(raw: &str) -> String {
         Self::parse(raw).map_or_else(|_| raw.to_ascii_lowercase(), |path| path.field_lookup_key())
@@ -319,6 +331,26 @@ mod tests {
         assert_eq!(key, "\"a.b\"");
         assert_eq!(decoded.final_name(), "a.b");
         assert!(!decoded.is_qualified());
+    }
+
+    #[test]
+    fn should_return_every_relation_qualifier_for_a_column_reference() {
+        // Arrange
+        let column = ColumnIdentifierPath::parse_sql("db_name.schema_name.target.body")
+            .expect("qualified column path parses");
+
+        // Act
+        let qualifiers = column.namespace_prefix_keys();
+
+        // Assert
+        assert_eq!(
+            qualifiers,
+            vec![
+                "db_name.schema_name.target".to_owned(),
+                "schema_name.target".to_owned(),
+                "target".to_owned(),
+            ]
+        );
     }
 
     #[test]

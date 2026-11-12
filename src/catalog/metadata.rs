@@ -9,9 +9,10 @@ use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
     CollectionSchema, CollectionStorageMode, DatabaseMeta, ExtensionMeta, FieldConstraint,
     FunctionMeta, GraphMeta, IndexKind, IndexMeta, MaintenanceDebtMeta, NamespaceMeta,
+    ObjectCommentMeta,
     OperationalAssignmentMeta, ProcedureMeta, ProjectionComparisonReportMeta,
     ProjectionConsistencyReportMeta, ProjectionMeta, ProjectionRepairReportMeta,
-    RetentionPolicyMeta, RoleMeta, RollupMeta, SequenceMeta, ViewMeta,
+    RetentionPolicyMeta, RoleMeta, RoleObjectGrantMeta, RollupMeta, SequenceMeta, ViewMeta,
 };
 use crate::embeddings::VectorIndexRecord;
 use crate::types::DataType;
@@ -55,6 +56,8 @@ pub struct Catalog {
     pub(super) projection_repair_reports: Arc<RwLock<HashMap<String, ProjectionRepairReportMeta>>>,
     pub(super) operational_assignments: Arc<RwLock<HashMap<String, OperationalAssignmentMeta>>>,
     pub(super) maintenance_debts: Arc<RwLock<HashMap<String, MaintenanceDebtMeta>>>,
+    pub(super) object_comments: Arc<RwLock<HashMap<String, ObjectCommentMeta>>>,
+    pub(super) role_object_grants: Arc<RwLock<HashMap<String, RoleObjectGrantMeta>>>,
     version: Arc<AtomicU64>,
 }
 
@@ -64,6 +67,8 @@ mod index_relations;
 mod metadata_databases;
 #[path = "metadata_domains.rs"]
 mod metadata_domains;
+#[path = "metadata_comments.rs"]
+mod metadata_comments;
 #[path = "metadata_stored_names.rs"]
 mod metadata_stored_names;
 
@@ -94,6 +99,8 @@ impl Catalog {
             projection_repair_reports: Arc::new(RwLock::new(HashMap::new())),
             operational_assignments: Arc::new(RwLock::new(HashMap::new())),
             maintenance_debts: Arc::new(RwLock::new(HashMap::new())),
+            object_comments: Arc::new(RwLock::new(HashMap::new())),
+            role_object_grants: Arc::new(RwLock::new(HashMap::new())),
             version: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -120,6 +127,9 @@ impl Catalog {
         (*self.vector_indexes.write()).clone_from(&snapshot.vector_indexes.read());
         (*self.projections.write()).clone_from(&snapshot.projections.read());
         (*self.cardinality.write()).clone_from(&snapshot.cardinality.read());
+        (*self.object_comments.write()).clone_from(&snapshot.object_comments.read());
+        (*self.role_object_grants.write())
+            .clone_from(&snapshot.role_object_grants.read());
         self.bump_version();
     }
 
@@ -284,6 +294,8 @@ impl Catalog {
         self.projection_repair_reports.write().clear();
         self.operational_assignments.write().clear();
         self.maintenance_debts.write().clear();
+        self.object_comments.write().clear();
+        self.role_object_grants.write().clear();
         self.bump_version();
     }
 

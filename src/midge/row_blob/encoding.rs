@@ -260,15 +260,21 @@ fn encode_array_value(
 }
 
 fn encode_vector_value(
-    dimensions: usize,
+    expected_dimensions: Option<usize>,
     value: &serde_json::Value,
 ) -> Result<(u8, Vec<u8>), CassieError> {
     let values = value
         .as_array()
         .ok_or_else(|| CassieError::InvalidVector("vector field expects array".into()))?;
-    if values.len() != dimensions {
+    let dimensions = values.len();
+    if !(1..=16_000).contains(&dimensions)
+        || expected_dimensions.is_some_and(|expected| dimensions != expected)
+    {
         return Err(CassieError::InvalidVector(format!(
-            "vector field expects {dimensions} dimensions"
+            "vector field expects {} dimensions but received {dimensions}",
+            expected_dimensions.map_or_else(|| "between 1 and 16000".into(), |expected| {
+                expected.to_string()
+            })
         )));
     }
 

@@ -21,6 +21,9 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement, IdentityAlteratio
 #[path = "ast_extension.rs"]
 mod ast_extension;
 pub use ast_extension::{ExtensionAction, ExtensionStatement};
+#[path = "ast_object_comment.rs"]
+mod ast_object_comment;
+pub use ast_object_comment::{CommentOnObjectKind, CommentOnStatement};
 
 #[path = "ast_query.rs"]
 mod ast_query;
@@ -56,6 +59,7 @@ pub use ast_query::{
     JoinKind, NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement,
     SetOperator, SortDirection, TableSampleMethod, UnaryNumericOp, WindowFrame, WindowFrameBound,
     WindowFrameExclusion, WindowFrameUnit, WindowFunctionCall, ARRAY_CONSTRUCTOR_FUNCTION,
+    VARIADIC_ARRAY_ARGUMENT_FUNCTION,
 };
 
 /// Array subscripts attached to one UPDATE assignment target.
@@ -110,6 +114,7 @@ pub enum QueryStatement {
     CreateDatabase(CreateDatabaseStatement),
     DropDatabase(DropDatabaseStatement),
     CreateSchema(CreateSchemaStatement),
+    CommentOn(CommentOnStatement),
     CreateView(CreateViewStatement),
     DropView(DropViewStatement),
     CreateRole(CreateRoleStatement),

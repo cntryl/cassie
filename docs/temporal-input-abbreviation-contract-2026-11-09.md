@@ -259,3 +259,48 @@ The paired-index and orphan TZif fixtures and checked-decoder probes remain
 test-only prototypes; their oracle observations are not Cassie execution
 evidence. The selected MSK SQL regressions are independent execution evidence,
 not proof for those broader paths. #815 remains open.
+
+## Selected bundled raw-TZif source policy — 2026-11-11
+
+Jev 1.14 selected `bundle_pinned` (probability 0.71, confidence 0.61) over
+source-coupled system/TZDIR loading (0.03), retaining the punt (0.24), and no
+supported option (0.02). This is a contract selection, not correctness proof.
+For Cassie's SQL temporal input, named IANA zones will be constructed from the
+exact raw bytes returned by the pinned bundled `jiff-tzdb` database and the
+same bytes will be retained with their Jiff `TimeZone` and raw local-time type
+table. `TimeZone::get` will not choose a different system/TZDIR source for this
+SQL path. The observable consequence is that Cassie's SQL IANA-zone rules
+follow the bundled tzdb version rather than host zoneinfo updates; this source
+policy must be visible in the temporal support contract.
+
+POSIX rule zones retain their exact rule text and use their two declared
+abbreviations and offsets. Externally supplied rule zones must enter through
+an explicit POSIX-rule constructor or a constructor that accepts raw TZif
+bytes; a bare preconstructed `TimeZone` is insufficient because it cannot
+prove the source designation table. The `Zone` API and its constructors must
+make that source ownership invariant unavoidable. This closes the raw-source
+selection gate but does not complete #815: exact raw-type classification,
+final-date and precedence behavior, checked tokenization, SQL resource and
+cancellation propagation, diagnostic ownership, and executable regressions
+remain required before closure.
+
+## Controlled-input implementation candidate — 2026-11-12
+
+The consolidated candidate now retains the exact source with bundled IANA,
+raw-TZif and POSIX rule zones. It adds query-owned temporal text parsing for
+casts, temporal function argument coercion and extended-protocol Bind values.
+The query reserves a conservative tokenization capacity bound before the
+decoder allocates its character and token storage, checks interruption while
+scanning fields and raw zone classifications, and holds the reservation until
+the parse has either returned a typed value or its PostgreSQL input error.
+Cancellation and memory-limit errors remain Cassie query errors instead of
+being rewritten as invalid temporal syntax. Dynamic session-zone
+abbreviations use their first raw designation index for fixed/dynamic
+classification and resolve their offset after the input date is known.
+
+The source correction for raw-transition-index ordering is still in progress.
+New regressions cover exact/below-budget temporal input, cleanup, cancellation
+in tokenization and Bind/function handoffs, and historical MSK offsets. They
+are **authored/not run**; no gate on the consolidated source has passed. Jev
+review, the full ordered local gate, and final-head hosted checks remain open,
+so #815 remains open.

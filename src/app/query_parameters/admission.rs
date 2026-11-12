@@ -33,7 +33,16 @@ pub(in crate::app) fn prepare_bound_parameters(
     declared_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<(BoundParameterTypes, bool), CassieError> {
-    let effective = super::effective_parameter_type_oids(params, declared_oids);
+    let database = session
+        .current_database()
+        .unwrap_or(&cassie.default_database);
+    let mut inference_oids = declared_oids.to_vec();
+    crate::sql::binder::normalize_parameter_type_oids_for_database(
+        &mut inference_oids,
+        &cassie.catalog,
+        database,
+    );
+    let effective = super::effective_parameter_type_oids(params, &inference_oids);
     let admitted = admit_parameter_types(
         cassie,
         Some(session),
@@ -46,7 +55,7 @@ pub(in crate::app) fn prepare_bound_parameters(
     )?;
     super::canonicalize_string_parameters(statement, &cassie.catalog, params);
     let bound =
-        crate::sql::pagination::resolve_statement(statement, params, declared_oids, controls)?;
+        crate::sql::pagination::resolve_statement(statement, params, &inference_oids, controls)?;
     Ok((
         BoundParameterTypes {
             effective,

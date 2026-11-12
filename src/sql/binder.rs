@@ -42,6 +42,8 @@ mod boolean_parameters;
 pub(crate) use boolean_parameters::validate_plan as validate_boolean_parameter_plan;
 #[path = "binder/boolean_bindings.rs"]
 mod boolean_bindings;
+#[path = "binder/comments.rs"]
+mod comments;
 #[path = "binder/boolean_contexts.rs"]
 mod boolean_contexts;
 mod bytea_functions;
@@ -62,7 +64,8 @@ use crate::search::bm25;
 use crate::sql::ast::{
     AlterIndexOperation, AlterIndexStatement, AlterSchemaOperation, AlterSchemaStatement,
     AlterSequenceStatement, AlterTableOperation, AlterTableStatement, BinaryOp,
-    CallProcedureStatement, CatalogStatement, CommonTableExpression, CopyStatement,
+    CallProcedureStatement, CatalogStatement, CommentOnStatement, CommonTableExpression,
+    CopyStatement,
     CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
     DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
@@ -131,6 +134,12 @@ mod routines;
 mod schema;
 #[path = "binder/schema_sequences.rs"]
 mod schema_sequences;
+#[path = "binder/vector_dependencies.rs"]
+mod vector_dependencies;
+pub(crate) use vector_dependencies::{data_type_uses_vector, select_uses_vector_extension};
+#[path = "binder/view_dependencies.rs"]
+mod view_dependencies;
+pub(crate) use view_dependencies::select_referenced_relations;
 #[path = "binder/search_field_case.rs"]
 mod search_field_case;
 #[path = "binder/select.rs"]
@@ -150,6 +159,7 @@ use commands::{
     bind_alter_retention_policy, bind_create_retention_policy, bind_create_rollup, bind_delete,
     bind_enforce_retention_policy, bind_insert, bind_update,
 };
+use comments::bind_comment_on;
 pub(crate) use context::normalize_database_name;
 pub(crate) use context::normalize_new_relation_name;
 pub(crate) use context::normalize_new_relation_path;
@@ -163,6 +173,7 @@ pub(crate) use inference::cte_collection_schema_with_functions;
 pub(crate) use inference::infer_projection_expr_type;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
 pub(crate) use inference::{infer_expr_type, integer_literal_type, known_expr_type};
+pub(crate) use inference::VECTOR_PARAMETER_TYPE_OID;
 use projections::bind_projection_route;
 use recursive::bind_recursive_cte_query;
 use routines::{
@@ -200,6 +211,44 @@ pub(crate) use wildcard::{
 
 pub(crate) fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
     inference::data_type_for_parameter_oid(oid)
+}
+
+pub(crate) fn parameter_data_type_for_oid_in_database(
+    oid: i32,
+    catalog: &Catalog,
+    database: &str,
+) -> Option<DataType> {
+    let vector_oid = crate::catalog::object_identity::type_oid_for_database(
+        catalog,
+        database,
+        &DataType::Vector(None),
+    );
+    if vector_oid.is_some_and(|vector_oid| i64::from(oid) == vector_oid) {
+        return Some(DataType::Vector(None));
+    }
+    parameter_data_type_for_oid(oid)
+}
+
+/// Replace the active database's vector wire OID with a private marker for
+/// context-free expression inference. Callers retain their original wire OIDs
+/// separately for protocol descriptions and result metadata.
+pub(crate) fn normalize_parameter_type_oids_for_database(
+    oids: &mut [i32],
+    catalog: &Catalog,
+    database: &str,
+) {
+    let Some(vector_oid) = crate::catalog::object_identity::type_oid_for_database(
+        catalog,
+        database,
+        &DataType::Vector(None),
+    ) else {
+        return;
+    };
+    for oid in oids {
+        if i64::from(*oid) == vector_oid {
+            *oid = inference::VECTOR_PARAMETER_TYPE_OID;
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -437,6 +486,11 @@ fn bind_catalog_route(
     controls: Option<&crate::runtime::QueryExecutionControls>,
 ) -> Result<ParsedStatement, CassieError> {
     match statement {
+        CatalogStatement::CommentOn(statement) => bind_catalog_statement(
+            raw_sql,
+            bind_comment_on(statement, catalog, context),
+            QueryStatement::CommentOn,
+        ),
         CatalogStatement::CreateFunction(statement) => bind_catalog_routine_or_index_route(
             raw_sql,
             catalog,
@@ -596,6 +650,7 @@ fn bind_catalog_definition_route(
             Ok(bind_database_connect_route(raw_sql, statement, false))
         }
         CatalogStatement::CreateFunction(_)
+        | CatalogStatement::CommentOn(_)
         | CatalogStatement::DropFunction(_)
         | CatalogStatement::CreateProcedure(_)
         | CatalogStatement::DropProcedure(_)

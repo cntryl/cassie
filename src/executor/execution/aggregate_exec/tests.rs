@@ -71,6 +71,7 @@ fn should_account_serial_aggregate_groups_without_rescanning_buffered_rows() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &user_functions,
         session: None,
@@ -148,6 +149,7 @@ fn aggregate_context<'a>(
     AggregateExecutionContext {
         plan,
         params: &[],
+        parameter_type_oids: &[],
         search_context: None,
         user_functions,
         session: None,

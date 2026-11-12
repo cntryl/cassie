@@ -254,6 +254,9 @@ pub enum ArraySubscript {
 /// Internal parser/binder marker for SQL `ARRAY[...]` constructors.
 pub const ARRAY_CONSTRUCTOR_FUNCTION: &str = "__cassie_array_constructor";
 
+/// Internal marker for an explicit `VARIADIC` array argument to a scalar function.
+pub const VARIADIC_ARRAY_ARGUMENT_FUNCTION: &str = "__cassie_variadic_array_argument";
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AggregateQuantifier {
     #[default]

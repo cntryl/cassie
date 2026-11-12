@@ -47,6 +47,7 @@ fn select(rows: &[BatchRow], direction: &str, fraction: Value) -> Value {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -133,6 +134,7 @@ fn should_retain_discrete_string_through_aliases_with_last_row_clone() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -172,6 +174,7 @@ fn should_own_an_empty_discrete_string_result() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -254,6 +257,7 @@ fn should_cancel_during_discrete_string_copy_with_sorted_with_fraction_owners() 
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -295,6 +299,7 @@ fn run_with_budget(budget: usize) -> (bool, usize) {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -341,6 +346,7 @@ fn should_reject_invalid_fraction_before_selecting_string_output() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

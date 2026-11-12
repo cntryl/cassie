@@ -244,8 +244,18 @@ fn infer_positional_inputs(
     } else {
         signature
     };
+    let variadic_array = matches!(signature, FunctionInputSignature::VariadicTail { .. })
+        && function
+            .args
+            .get(1)
+            .is_some_and(functions::json::is_variadic_array_argument);
     for (index, argument) in function.args.iter().enumerate() {
-        let Some(oid) = signature.argument_oid(index) else {
+        let oid = if variadic_array && index == 1 {
+            Some(1009)
+        } else {
+            signature.argument_oid(index)
+        };
+        let Some(oid) = oid else {
             break;
         };
         let Some(data_type) = u32::try_from(oid)

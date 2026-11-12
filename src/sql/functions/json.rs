@@ -18,6 +18,7 @@ pub enum JsonFunction {
     StripNulls(bool),
     Pretty,
     ExtractPath { binary: bool, as_text: bool },
+    VariadicArray,
     PathMatch,
     PathExists,
     PathQueryArray,
@@ -33,6 +34,12 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     extraction("jsonb_extract_path", true, false),
     extraction("json_extract_path_text", false, true),
     extraction("jsonb_extract_path_text", true, true),
+    function(
+        crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION,
+        JsonFunction::VariadicArray,
+        FunctionReturnType::TextArray,
+        1,
+    ),
     function(
         "json_typeof",
         JsonFunction::Typeof(false),
@@ -221,6 +228,16 @@ pub(super) const FUNCTIONS: &[ScalarFunction] = &[
     ),
 ];
 
+pub(crate) fn is_variadic_array_argument(expression: &crate::sql::ast::Expr) -> bool {
+    matches!(
+        expression,
+        crate::sql::ast::Expr::Function(function)
+            if function.name.eq_ignore_ascii_case(
+                crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION
+            )
+    )
+}
+
 const fn extraction(name: &'static str, binary: bool, as_text: bool) -> ScalarFunction {
     ScalarFunction {
         id: FunctionId::Json(JsonFunction::ExtractPath { binary, as_text }),
@@ -319,6 +336,7 @@ pub(super) const fn inputs(kind: JsonFunction) -> Option<&'static [i32]> {
             Some(&[3802])
         }
         JsonFunction::Exists(_) => Some(&[3802, 1009]),
+        JsonFunction::VariadicArray => Some(&[1009]),
         JsonFunction::SqlExists => Some(&[3802, 4072, 25]),
         JsonFunction::SqlInput => Some(&[25, 16]),
         JsonFunction::ObjectKeys(true) => Some(&[3802]),

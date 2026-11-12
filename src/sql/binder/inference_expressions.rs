@@ -304,6 +304,10 @@ fn array_subscript_result_type(
 }
 
 pub(crate) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
+    if oid == VECTOR_PARAMETER_TYPE_OID {
+        return Some(DataType::Vector(None));
+    }
+
     if let Some(element_oid) = u32::try_from(oid)
         .ok()
         .and_then(crate::catalog::builtin_identity::builtin_array_element_oid)
@@ -315,6 +319,10 @@ pub(crate) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
 
     scalar_data_type_for_parameter_oid(oid)
 }
+
+/// Internal inference marker for an installed, database-owned vector OID.
+/// This value is never accepted from or emitted to the PostgreSQL wire.
+pub(crate) const VECTOR_PARAMETER_TYPE_OID: i32 = i32::MIN;
 
 fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
     if let Some(metadata) = u32::try_from(oid)

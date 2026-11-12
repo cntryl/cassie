@@ -333,10 +333,11 @@ pub(super) fn append_data_row_frame_in(
                         .into_bytes()
                     }
                 } else if format_code == 1 {
-                    super::codecs::value_to_binary_with_typmod(
+                    super::codecs::value_to_binary_with_typmod_and_vector(
                         other,
                         columns[index].type_oid,
                         columns[index].atttypmod,
+                        columns[index].is_vector(),
                     )?
                 } else {
                     return Err(io::Error::new(

@@ -1,7 +1,7 @@
 use super::{
-    build_logical_plan, check_timeout, execute_plan, row_signature, BatchRow, Cassie,
-    CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap, QueryError,
-    QueryExecutionControls, Value,
+    build_logical_plan, check_timeout, execute_plan_with_parameter_oids, row_signature,
+    BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap,
+    QueryError, QueryExecutionControls, Value,
 };
 use crate::executor::semantic::SemanticKey;
 use crate::sql::ast::SetOperator;
@@ -98,6 +98,7 @@ pub(super) fn execute_cte<'a>(
     cte_context: &'a mut CteContext,
     user_functions: &'a HashMap<String, FunctionMeta>,
     params: &'a [Value],
+    parameter_type_oids: &'a [i32],
     controls: &'a QueryExecutionControls,
 ) -> CteExecution<'a> {
     check_timeout(controls)?;
@@ -127,6 +128,7 @@ pub(super) fn execute_cte<'a>(
                 cte_context,
                 user_functions,
                 params,
+                parameter_type_oids,
                 controls,
             )?
         }
@@ -137,6 +139,7 @@ pub(super) fn execute_cte<'a>(
                 cte_context,
                 user_functions,
                 params,
+                parameter_type_oids,
                 controls,
             };
             execute_recursive_cte(&mut environment, cte, &fields)?
@@ -168,6 +171,7 @@ struct RecursiveCteEnvironment<'a> {
     cte_context: &'a mut CteContext,
     user_functions: &'a HashMap<String, FunctionMeta>,
     params: &'a [Value],
+    parameter_type_oids: &'a [i32],
     controls: &'a QueryExecutionControls,
 }
 
@@ -202,6 +206,7 @@ fn execute_recursive_cte(
         environment.cte_context,
         environment.user_functions,
         environment.params,
+        environment.parameter_type_oids,
         environment.controls,
     )?;
     rows = rows.rename(&cte.aliases, environment.controls)?;
@@ -269,6 +274,7 @@ fn execute_recursive_cte_steps(
             environment.cte_context,
             environment.user_functions,
             environment.params,
+            environment.parameter_type_oids,
             environment.controls,
         )?;
         let mut recursive_rows = recursive_rows.rename(&cte.aliases, environment.controls)?;
@@ -344,16 +350,18 @@ fn execute_cte_plan(
     context: &mut CteContext,
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
+    parameter_type_oids: &[i32],
     controls: &QueryExecutionControls,
 ) -> Result<RetainedRows, QueryError> {
     let controls = controls.for_relational_scalar_cte();
-    execute_plan(
+    execute_plan_with_parameter_oids(
         cassie,
         session,
         plan,
         context,
         user_functions,
         params,
+        parameter_type_oids,
         &controls,
     )
     .and_then(|rows| RetainedRows::from_output(rows, &controls))

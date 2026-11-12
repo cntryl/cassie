@@ -94,6 +94,63 @@ fn should_return_admitted_numeric_error_from_admin_query_worker() {
 }
 
 #[test]
+fn should_keep_real_sql_numeric_error_admitted_through_rest_body_drop() {
+    // Arrange
+    let controls = QueryExecutionControls::from_limits(
+        &CassieRuntimeLimits {
+            query_memory_budget_bytes: 1_048_576,
+            ..CassieRuntimeLimits::default()
+        },
+        Instant::now(),
+    );
+    let cassie = crate::app::Cassie::new_in_memory_with_config(
+        crate::config::CassieRuntimeConfig::default(),
+    )
+    .expect("memory fixture");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("root", Some(cassie.default_database.clone()));
+    let error = cassie
+        .execute_sql_with_controls(
+            &session,
+            "SELECT CAST('not_numeric' AS NUMERIC)",
+            vec![],
+            crate::app::ExecutionMode::SimpleQuery,
+            &controls,
+        )
+        .expect_err("invalid NUMERIC literal");
+    let diagnostic = match &error {
+        crate::app::CassieError::OwnedNumericLiteral(diagnostic) => diagnostic,
+        other => panic!("expected owned numeric diagnostic, got {other:?}"),
+    };
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    // Act
+    let response = numeric_error_response(diagnostic).expect("admitted response");
+    drop(error);
+    let mut body = response.into_body();
+    let bytes = runtime
+        .block_on(body.frame())
+        .expect("body frame")
+        .expect("body")
+        .into_data()
+        .expect("body data");
+    drop(body);
+
+    // Assert
+    let value: serde_json::Value = serde_json::from_slice(&bytes).expect("error body");
+    assert_eq!(
+        value["error"],
+        "invalid input syntax for type numeric: \"not_numeric\""
+    );
+    assert!(controls.current_query_memory_bytes() > 0);
+    drop(bytes);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
 fn should_encode_all_json_escapes_with_utf8_like_serde_json() {
     // Arrange
     let controls =

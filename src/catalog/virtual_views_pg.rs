@@ -2,14 +2,23 @@ use crate::catalog::{
     local_name, name_matches, relation_belongs_to_database, relation_schema_name,
     schema_belongs_to_database, Catalog, FieldConstraint, IndexMeta,
 };
+use crate::midge::adapter::Midge;
 use crate::types::{DataType, ObjectIdKind, Value};
 
 use super::VirtualRow;
 
 #[path = "virtual_views_pg/index_definitions.rs"]
 mod index_definitions;
+#[path = "virtual_views_pg/acl.rs"]
+mod acl;
+#[path = "virtual_views_pg/collation.rs"]
+pub(super) mod collation;
+#[path = "virtual_views_pg/descriptions.rs"]
+pub(super) mod descriptions;
 #[path = "virtual_views_pg/type_identity.rs"]
 mod type_identity;
+#[path = "virtual_views_pg/vector_catalogs.rs"]
+pub(super) mod vector_catalogs;
 
 pub(super) fn namespace_schema() -> Vec<(String, DataType)> {
     vec![
@@ -28,6 +37,7 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
         oid("relam"),
         text("relnamespace"),
         int("relnamespace_oid"),
+        oid("reltype"),
         int("relowner"),
         bool("relhasindex"),
         text("relpersistence"),
@@ -39,38 +49,6 @@ pub(super) fn class_schema() -> Vec<(String, DataType)> {
 
 pub(super) fn access_method_schema() -> Vec<(String, DataType)> {
     vec![oid("oid"), text("amname")]
-}
-
-pub(super) fn collation_schema() -> Vec<(String, DataType)> {
-    vec![
-        oid("oid"),
-        text("collname"),
-        text("collprovider"),
-        bool("collisdeterministic"),
-    ]
-}
-
-pub(super) fn pg_collation() -> Vec<VirtualRow> {
-    [("C", 950), ("POSIX", 951)]
-        .into_iter()
-        .map(|(name, oid)| {
-            vec![
-                int_value("oid", oid),
-                string("collname", name),
-                string("collprovider", "c"),
-                bool_value("collisdeterministic", true),
-            ]
-        })
-        .collect()
-}
-
-pub(super) fn pg_am() -> Vec<VirtualRow> {
-    vec![
-        vec![int_value("oid", 2), string("amname", "heap")],
-        vec![int_value("oid", 403), string("amname", "btree")],
-        vec![int_value("oid", 405), string("amname", "hash")],
-        vec![int_value("oid", 2742), string("amname", "gin")],
-    ]
 }
 
 pub(super) fn attribute_schema() -> Vec<(String, DataType)> {
@@ -135,15 +113,17 @@ pub(super) fn type_schema() -> Vec<(String, DataType)> {
         oid("typelem"),
         oid("typarray"),
         oid("typbasetype"),
+        bool("typnotnull"),
+        int("typtypmod"),
         oid("typrelid"),
     ]
 }
 
 pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = vec![
-        namespace_row(catalog, "information_schema", "information_schema"),
-        namespace_row(catalog, "pg_catalog", "pg_catalog"),
-        namespace_row(catalog, "public", "public"),
+        namespace_row(catalog, "information_schema", "information_schema", current_database),
+        namespace_row(catalog, "pg_catalog", "pg_catalog", current_database),
+        namespace_row(catalog, "public", "public", current_database),
     ];
     rows.extend(
         catalog
@@ -153,7 +133,14 @@ pub(super) fn pg_namespace(catalog: &Catalog, current_database: Option<&str>) ->
                 current_database
                     .is_none_or(|database| schema_belongs_to_database(&namespace.name, database))
             })
-            .map(|namespace| namespace_row(catalog, &namespace.name, &local_name(&namespace.name))),
+            .map(|namespace| {
+                namespace_row(
+                    catalog,
+                    &namespace.name,
+                    &local_name(&namespace.name),
+                    current_database,
+                )
+            }),
     );
     rows.sort_by_key(row_sort_key);
     rows.dedup_by_key(|row| row_sort_key(row));
@@ -168,7 +155,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
             current_database
                 .is_none_or(|database| relation_belongs_to_database(&collection.name, database))
         })
-        .map(|collection| class_row(catalog, &collection.name, "r", None))
+        .map(|collection| class_row(catalog, &collection.name, "r", None, current_database))
         .collect::<Vec<_>>();
     rows.extend(
         catalog
@@ -178,7 +165,7 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 current_database
                     .is_none_or(|database| relation_belongs_to_database(&view.name, database))
             })
-            .map(|view| class_row(catalog, &view.name, "v", None)),
+            .map(|view| class_row(catalog, &view.name, "v", None, current_database)),
     );
     rows.extend(
         catalog
@@ -193,7 +180,9 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
                         relation_belongs_to_database(&projection.collection, database)
                     })
             })
-            .map(|projection| class_row(catalog, &projection.collection, "m", None)),
+            .map(|projection| {
+                class_row(catalog, &projection.collection, "m", None, current_database)
+            }),
     );
     rows.extend(
         catalog
@@ -203,23 +192,28 @@ pub(super) fn pg_class(catalog: &Catalog, current_database: Option<&str>) -> Vec
                 current_database
                     .is_none_or(|database| relation_belongs_to_database(&sequence.name, database))
             })
-            .map(|sequence| class_row(catalog, &sequence.name, "S", None)),
+            .map(|sequence| class_row(catalog, &sequence.name, "S", None, current_database)),
     );
     rows.extend(
         sorted_indexes(catalog)
             .into_iter()
             .filter(|index| {
-                current_database.is_none_or(|database| {
-                    relation_belongs_to_database(&index.collection, database)
-                })
+                catalog.is_published_in_postgresql_catalogs(index, current_database)
+                    && current_database.is_none_or(|database| {
+                        relation_belongs_to_database(&index.collection, database)
+                    })
             })
-            .map(|index| class_row(catalog, &index.name, "i", Some(&index))),
+            .map(|index| class_row(catalog, &index.name, "i", Some(&index), current_database)),
     );
     rows.sort_by_key(row_sort_key);
     rows
 }
 
-pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
+pub(super) fn pg_attribute(
+    catalog: &Catalog,
+    midge: &Midge,
+    current_database: Option<&str>,
+) -> Result<Vec<VirtualRow>, crate::app::CassieError> {
     let mut rows = Vec::new();
     for collection in catalog.list_collections_canonical() {
         if current_database
@@ -227,19 +221,30 @@ pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) ->
         {
             continue;
         }
-        let Some(schema) = catalog.get_schema(&collection.name) else {
-            continue;
-        };
+        let row_schema = midge.row_schema(&collection.name)?;
         let constraints = catalog.get_constraints(&collection.name);
-        for (index, field) in schema.fields.iter().enumerate() {
-            let constraint = constraint_for_field(&constraints, &field.name);
+        // Midge field IDs are allocated monotonically and retained on drop, so
+        // they provide the stable positive attribute number for table columns.
+        for field in &row_schema.fields {
+            let constraint = if field.retired {
+                None
+            } else {
+                constraint_for_field(&constraints, &field.name)
+            };
+            let field_name = if field.retired {
+                dropped_attribute_name(field.field_id)
+            } else {
+                field.name.clone()
+            };
             rows.push(attribute_row(
                 catalog,
-                &schema.collection,
-                &field.name,
+                &collection.name,
+                &field_name,
                 &field.data_type,
-                index,
+                field.field_id,
                 constraint,
+                current_database,
+                field.retired,
             ));
         }
     }
@@ -255,8 +260,10 @@ pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) ->
                 &view.name,
                 &field.name,
                 &field.data_type,
-                index,
+                i64::try_from(index + 1).unwrap_or(i64::MAX),
                 None,
+                current_database,
+                false,
             ));
         }
     }
@@ -280,21 +287,24 @@ pub(super) fn pg_attribute(catalog: &Catalog, current_database: Option<&str>) ->
                 &projection.collection,
                 &field.name,
                 &field.data_type,
-                index,
+                i64::try_from(index + 1).unwrap_or(i64::MAX),
                 None,
+                current_database,
+                false,
             ));
         }
     }
     rows.sort_by_key(row_sort_key);
-    rows
+    Ok(rows)
 }
 
 pub(super) fn pg_indexes(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     sorted_indexes(catalog)
         .into_iter()
         .filter(|index| {
-            current_database
-                .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+            catalog.is_published_in_postgresql_catalogs(index, current_database)
+                && current_database
+                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
         })
         .map(|index| {
             vec![
@@ -311,8 +321,9 @@ pub(super) fn pg_index(catalog: &Catalog, current_database: Option<&str>) -> Vec
     sorted_indexes(catalog)
         .into_iter()
         .filter(|index| {
-            current_database
-                .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
+            catalog.is_published_in_postgresql_catalogs(index, current_database)
+                && current_database
+                    .is_none_or(|database| relation_belongs_to_database(&index.collection, database))
         })
         .map(|index| {
             let primary = index_is_primary(catalog, &index);
@@ -383,59 +394,24 @@ pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> V
 
 pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = builtin_type_rows(catalog);
-    let collection_types = catalog
-        .list_collections_canonical()
-        .into_iter()
-        .filter(|collection| {
-            current_database
-                .is_none_or(|database| relation_belongs_to_database(&collection.name, database))
-        })
-        .filter_map(|collection| catalog.get_schema(&collection.name))
-        .flat_map(|schema| schema.fields.into_iter().map(|field| field.data_type));
-    let view_types = catalog
-        .list_views()
-        .into_iter()
-        .filter(|view| {
-            current_database
-                .is_none_or(|database| relation_belongs_to_database(&view.name, database))
-        })
-        .flat_map(|view| view.schema.fields.into_iter().map(|field| field.data_type));
-    let materialized_view_types = catalog
-        .list_projection_metadata()
-        .into_iter()
-        .filter(|projection| {
-            projection.kind == crate::catalog::ProjectionKind::Materialized
-                && current_database.is_none_or(|database| {
-                    relation_belongs_to_database(&projection.collection, database)
-                })
-        })
-        .filter_map(|projection| projection.materialized)
-        .filter(crate::catalog::MaterializedProjectionMeta::is_sql_materialized_view)
-        .flat_map(|materialized| {
-            materialized
-                .output_schema
-                .fields
-                .into_iter()
-                .map(|field| field.data_type)
-        });
-    let dimensions = collection_types
-        .chain(view_types)
-        .chain(materialized_view_types)
-        .filter_map(|data_type| match data_type {
-            DataType::Vector(dimensions)
-                if crate::types::schema::vector_dimensions_for_oid(data_type.type_oid())
-                    .is_some() =>
-            {
-                Some(dimensions)
-            }
-            _ => None,
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    rows.extend(
-        dimensions
-            .into_iter()
-            .map(|dimensions| type_row(catalog, &DataType::Vector(dimensions), "pg_catalog")),
+    let extensions = current_database.map_or_else(
+        || catalog.list_extensions(),
+        |database| catalog.list_extensions_for_database(database),
     );
+    rows.extend(extensions.into_iter().filter_map(|extension| {
+        if !extension.name.eq_ignore_ascii_case("vector") {
+            return None;
+        }
+        let type_oid = extension
+            .vector_type_object_id
+            .and_then(crate::catalog::object_identity::normal_oid)?;
+        Some(type_row_with_oid(
+            catalog,
+            &DataType::Vector(None),
+            &extension.schema,
+            i64::from(type_oid),
+        ))
+    }));
     rows.sort_by_key(row_sort_key);
     rows
 }
@@ -445,42 +421,85 @@ fn attribute_row(
     relation: &str,
     field_name: &str,
     data_type: &DataType,
-    index: usize,
+    attnum: impl TryInto<i64>,
     constraint: Option<&FieldConstraint>,
+    current_database: Option<&str>,
+    is_dropped: bool,
 ) -> VirtualRow {
+    let identity = if is_dropped {
+        None
+    } else {
+        constraint.and_then(|item| item.identity)
+    };
     vec![
         string("attrelid", local_name(relation)),
         int_value("attrelid_oid", relation_oid(catalog, relation)),
         string("attname", field_name),
-        int_value("attnum", index + 1),
-        int_value("atttypid", data_type.type_oid()),
-        bool_value("attnotnull", is_not_null(constraint)),
+        int_value("attnum", attnum),
+        int_value(
+            "atttypid",
+            if is_dropped {
+                0
+            } else {
+                current_database
+                    .and_then(|database| {
+                        crate::catalog::object_identity::type_oid_for_database(
+                            catalog,
+                            database,
+                            data_type,
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        if matches!(data_type, DataType::Vector(_)) {
+                            0
+                        } else {
+                            data_type.type_oid()
+                        }
+                    })
+            },
+        ),
+        bool_value("attnotnull", !is_dropped && is_not_null(constraint)),
         int_value("atttypmod", i64::from(data_type.atttypmod())),
-        bool_value("atthasdef", constraint_has_default(constraint)),
-        bool_value("attisdropped", false),
+        bool_value("atthasdef", !is_dropped && constraint_has_default(constraint)),
+        bool_value("attisdropped", is_dropped),
         string(
             "attidentity",
-            match constraint.and_then(|item| item.identity) {
+            match identity {
                 Some(crate::catalog::IdentityGeneration::Always) => "a",
                 Some(crate::catalog::IdentityGeneration::ByDefault) => "d",
                 None => "",
             },
         ),
         string("attgenerated", ""),
-        int_value("attcollation", 0),
+        int_value("attcollation", collation::type_oid(data_type)),
     ]
 }
 
-fn namespace_row(catalog: &Catalog, canonical: &str, name: &str) -> VirtualRow {
+fn dropped_attribute_name(field_id: u32) -> String {
+    format!("........pg.dropped.{field_id}........")
+}
+
+fn namespace_row(
+    catalog: &Catalog,
+    canonical: &str,
+    name: &str,
+    current_database: Option<&str>,
+) -> VirtualRow {
     vec![
         int_value("oid", namespace_oid(catalog, canonical)),
         string("nspname", name),
         int_value("nspowner", postgres_role_oid()),
-        string("nspacl", ""),
+        ("nspacl".to_string(), acl::schema_acl(catalog, current_database, canonical)),
     ]
 }
 
-fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta>) -> VirtualRow {
+fn class_row(
+    catalog: &Catalog,
+    name: &str,
+    kind: &str,
+    index: Option<&IndexMeta>,
+    current_database: Option<&str>,
+) -> VirtualRow {
     let relation_name = local_name(name);
     let schema_name = index.map_or_else(
         || relation_schema_name(name),
@@ -497,9 +516,15 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
         ),
         string("relname", relation_name),
         string("relkind", kind),
-        int_value("relam", relation_access_method_oid(kind, index)),
+        int_value(
+            "relam",
+            relation_access_method_oid(catalog, current_database, kind, index),
+        ),
         string("relnamespace", &schema_name),
         int_value("relnamespace_oid", namespace_oid(catalog, &namespace)),
+        // Relation row-type identities are selected by #828 but do not exist
+        // until its composite/domain contract is implemented.
+        int_value("reltype", 0),
         int_value("relowner", postgres_role_oid()),
         bool_value("relhasindex", relation_has_indexes(catalog, name)),
         string(
@@ -513,7 +538,10 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
             },
         ),
         int_value("reltuples", 0),
-        string("relacl", ""),
+        (
+            "relacl".to_string(),
+            acl::table_acl(catalog, current_database, name, kind),
+        ),
         index.and_then(index_reloptions).map_or_else(
             || ("reloptions".to_string(), Value::Null),
             |value| string("reloptions", value),
@@ -521,13 +549,28 @@ fn class_row(catalog: &Catalog, name: &str, kind: &str, index: Option<&IndexMeta
     ]
 }
 
-fn relation_access_method_oid(kind: &str, index: Option<&IndexMeta>) -> i64 {
+fn relation_access_method_oid(
+    catalog: &Catalog,
+    current_database: Option<&str>,
+    kind: &str,
+    index: Option<&IndexMeta>,
+) -> i64 {
     match kind {
         "r" | "m" => 2,
         "i" => index.map_or(0, |index| match index.access_method() {
             "btree" => 403,
             "hash" => 405,
             "gin" => 2742,
+            "hnsw" | "ivfflat" => current_database
+                .and_then(|database| catalog.get_extension(database, "vector"))
+                .and_then(|extension| extension.vector_catalog_identities)
+                .map(|identities| match index.access_method() {
+                    "hnsw" => identities.hnsw.access_method,
+                    "ivfflat" => identities.ivfflat.access_method,
+                    _ => 0,
+                })
+                .and_then(crate::catalog::object_identity::normal_oid)
+                .map_or(0, i64::from),
             _ => 0,
         }),
         _ => 0,
@@ -535,19 +578,20 @@ fn relation_access_method_oid(kind: &str, index: Option<&IndexMeta>) -> i64 {
 }
 
 fn index_reloptions(index: &IndexMeta) -> Option<String> {
-    let options = index
-        .options
+    let names = match index.access_method() {
+        "hnsw" => &["m", "ef_construction"][..],
+        "ivfflat" => &["lists"][..],
+        _ => &["deduplicate_items", "fillfactor"][..],
+    };
+    let options = names
         .iter()
-        .filter(|(name, _)| matches!(name.as_str(), "deduplicate_items" | "fillfactor"))
-        .map(|(name, value)| format!("{name}={value}"))
+        .filter_map(|name| index.options.get(*name).map(|value| format!("{name}={value}")))
         .collect::<Vec<_>>();
     (!options.is_empty()).then(|| format!("{{{}}}", options.join(",")))
 }
 
 fn relation_has_indexes(catalog: &Catalog, name: &str) -> bool {
-    sorted_indexes(catalog)
-        .into_iter()
-        .any(|index| index.collection.eq_ignore_ascii_case(name))
+    catalog.has_relation_index_history(name)
 }
 
 fn sorted_indexes(catalog: &Catalog) -> Vec<IndexMeta> {
@@ -773,7 +817,15 @@ fn builtin_type_rows(catalog: &Catalog) -> Vec<VirtualRow> {
 }
 
 fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> VirtualRow {
-    let type_oid = data_type.type_oid();
+    type_row_with_oid(catalog, data_type, namespace, data_type.type_oid())
+}
+
+fn type_row_with_oid(
+    catalog: &Catalog,
+    data_type: &DataType,
+    namespace: &str,
+    type_oid: i64,
+) -> VirtualRow {
     let builtin_type = u32::try_from(type_oid)
         .ok()
         .and_then(|oid| crate::catalog::builtin_identity::builtin_identities().type_by_oid(oid));
@@ -805,6 +857,8 @@ fn type_row(catalog: &Catalog, data_type: &DataType, namespace: &str) -> Virtual
             ),
         ),
         int_value("typbasetype", 0),
+        bool_value("typnotnull", false),
+        int_value("typtypmod", -1),
         int_value("typrelid", 0),
     ]
 }
@@ -961,6 +1015,7 @@ mod tests {
     #[test]
     fn should_leave_unselected_native_index_methods_without_catalog_oids() {
         // Arrange
+        let catalog = Catalog::new();
         let indexes =
             [IndexKind::Vector, IndexKind::Column, IndexKind::TimeSeries].map(|kind| IndexMeta {
                 definition_semantics_version: 0,
@@ -979,7 +1034,7 @@ mod tests {
         // Act
         let access_method_oids = indexes
             .iter()
-            .map(|index| relation_access_method_oid("i", Some(index)))
+            .map(|index| relation_access_method_oid(catalog, None, "i", Some(index)))
             .collect::<Vec<_>>();
 
         // Assert

@@ -877,13 +877,35 @@ PostgreSQL 18.6 probes confirm that gap also affects READ COMMITTED; this source
 increment does not claim it completed.
 
 
+### Bounded `SET TRANSACTION ISOLATION` increment — 2026-11-11
+
+Admit exactly `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ` inside an
+active explicit transaction before its first snapshot-taking statement and
+before any savepoint. The command changes the transaction characteristic but
+does not capture the snapshot; the next qualifying Parse, Bind, or Execute
+acquires the selected RR view. After snapshot capture or savepoint creation,
+reject the change with SQLSTATE `25001` and fail the transaction. A prior
+savepoint can recover that failure and retains the earlier isolation setting.
+Keep the default and `BEGIN` READ COMMITTED behavior unchanged.
+
+This Cassie increment requires an explicit transaction block. Outside one,
+`SET TRANSACTION` remains a deterministic `0A000` rejection. PostgreSQL 18.6
+instead emits a `25P01` warning and completes the command as a no-op; warning
+compatibility is not selected here. PostgreSQL 18.6 also rejects the command
+after `SAVEPOINT` with `25001`, even before a snapshot, because the command
+cannot run in a subtransaction; rollback to that savepoint recovers the block.
+`SERIALIZABLE`, `DEFERRABLE`, comma-combined transaction modes, and other `SET
+TRANSACTION` forms remain unsupported. The pinned oracle and Jev scope choices
+are retained in ignored `target/v020-evidence/819/jev-set-transaction-*.json`.
+This is a bounded #819 increment, not full transaction-profile qualification.
+
 ### Enabled RW candidate for the combined native gate
 
 The next source candidate deliberately admits default and explicit READ WRITE
 `BEGIN ... REPEATABLE READ`, plus changing READ ONLY to READ WRITE before the
-first snapshot. SERIALIZABLE and RR DEFERRABLE remain unsupported. The existing
-`SET TRANSACTION ISOLATION` rejection remains a checkpoint gap in #819; its
-negative regression is preserved, and this increment does not close #819.
+first snapshot. SERIALIZABLE and RR DEFERRABLE remain unsupported. The bounded
+`SET TRANSACTION ISOLATION` form above now covers the pre-snapshot #819
+checkpoint; its other forms remain outside this increment.
 
 A legal READ WRITE-to-READ ONLY change only tightens future write permission.
 It cannot remove an already captured RW owner's row fence or own-row map.

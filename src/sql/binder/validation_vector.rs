@@ -25,7 +25,7 @@ pub(super) fn validate_vector_query_literals(
     else {
         return Ok(());
     };
-    let Some(DataType::Vector(expected_dimensions)) =
+    let Some(DataType::Vector(Some(expected_dimensions))) =
         crate::sql::field_type_for_column(field_types, field)
     else {
         return Ok(());

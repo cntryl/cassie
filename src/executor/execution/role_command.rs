@@ -62,9 +62,21 @@ pub(super) fn grant_database_connect(
 ) -> Result<QueryResult, QueryError> {
     let actor = session.ok_or(QueryError::Cassie(crate::app::CassieError::Unauthorized))?;
     let output = empty_command("GRANT", controls)?;
-    cassie
-        .grant_role_database_access(actor, &statement.role, &statement.database)
-        .map_err(QueryError::Cassie)?;
+    if let Some(object) = &statement.object {
+        cassie
+            .update_role_object_access(
+                actor,
+                &statement.role,
+                &object.target,
+                &object.privileges,
+                true,
+            )
+            .map_err(QueryError::Cassie)?;
+    } else {
+        cassie
+            .grant_role_database_access(actor, &statement.role, &statement.database)
+            .map_err(QueryError::Cassie)?;
+    }
     Ok(output)
 }
 
@@ -76,8 +88,20 @@ pub(super) fn revoke_database_connect(
 ) -> Result<QueryResult, QueryError> {
     let actor = session.ok_or(QueryError::Cassie(crate::app::CassieError::Unauthorized))?;
     let output = empty_command("REVOKE", controls)?;
-    cassie
-        .revoke_role_database_access(actor, &statement.role, &statement.database)
-        .map_err(QueryError::Cassie)?;
+    if let Some(object) = &statement.object {
+        cassie
+            .update_role_object_access(
+                actor,
+                &statement.role,
+                &object.target,
+                &object.privileges,
+                false,
+            )
+            .map_err(QueryError::Cassie)?;
+    } else {
+        cassie
+            .revoke_role_database_access(actor, &statement.role, &statement.database)
+            .map_err(QueryError::Cassie)?;
+    }
     Ok(output)
 }

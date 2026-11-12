@@ -91,7 +91,7 @@ fn should_route_schema_data_temp_across_families() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],
@@ -372,7 +372,7 @@ fn should_keep_cassie_metadata_off_default_family() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],

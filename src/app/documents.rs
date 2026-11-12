@@ -483,7 +483,9 @@ impl Cassie {
                 "JSONPATH values cannot be stored in table columns".to_string(),
             )),
             crate::types::DataType::Json => Self::validate_json(field, value),
-            crate::types::DataType::Vector(size) => Self::validate_vector(field, *size, value),
+            crate::types::DataType::Vector(dimensions) => {
+                Self::validate_vector(field, *dimensions, value)
+            }
             crate::types::DataType::Array(inner) => Self::validate_array(field, inner, value),
         }
     }
@@ -645,14 +647,18 @@ impl Cassie {
 
     fn validate_vector(
         field: &str,
-        size: usize,
+        dimensions: Option<usize>,
         value: &serde_json::Value,
     ) -> Result<(), CassieError> {
+        let expected = dimensions.map_or_else(|| "vector".to_string(), |size| format!("vector({size})"));
         let Some(array) = value.as_array() else {
-            return Self::invalid_vector(field, format!("vector({size})"));
+            return Self::invalid_vector(field, expected);
         };
-        if array.len() != size || array.iter().any(|value| value.as_f64().is_none()) {
-            Self::invalid_vector(field, format!("vector({size})"))
+        if !(1..=16_000).contains(&array.len())
+            || dimensions.is_some_and(|size| array.len() != size)
+            || array.iter().any(|value| value.as_f64().is_none())
+        {
+            Self::invalid_vector(field, expected)
         } else {
             Ok(())
         }

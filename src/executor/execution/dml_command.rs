@@ -278,6 +278,9 @@ fn execute_schema_object_group(
     controls: &QueryExecutionControls,
 ) -> Option<CommandExecution> {
     match command {
+        LogicalCommand::CommentOn(statement) => Some(CommandExecution::invalidating(
+            super::comment_command::execute(cassie, session, statement, controls),
+        )),
         LogicalCommand::CreateTable(statement) => Some(CommandExecution::creation(
             super::schema_creation::create_table(cassie, statement, controls),
         )),
@@ -297,7 +300,7 @@ fn execute_schema_object_group(
             super::schema_command::drop_view(cassie, statement, controls),
         )),
         LogicalCommand::DropTable(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_table(cassie, statement, controls),
+            super::schema_command::drop_table(cassie, session, statement, controls),
         )),
         LogicalCommand::AlterTable(statement) => Some(CommandExecution::invalidating(
             super::schema_command::alter_table(cassie, session, statement, controls),
@@ -306,7 +309,7 @@ fn execute_schema_object_group(
             super::schema_command::create_schema(cassie, statement, controls),
         )),
         LogicalCommand::DropSchema(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::drop_schema(cassie, statement, controls),
+            super::schema_command::drop_schema(cassie, session, statement, controls),
         )),
         LogicalCommand::AlterSchema(statement) => Some(CommandExecution::invalidating(
             super::schema_command::alter_schema(cassie, session, statement, controls),

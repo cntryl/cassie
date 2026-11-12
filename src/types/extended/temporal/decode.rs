@@ -4,10 +4,19 @@ use super::calendar::{
 };
 use super::session::{DateOrder, TemporalSession};
 use super::tokens::{
-    date_keyword, leading_int, parse_fraction, parse_fractional_second, tokenize, DecodeError,
-    Keyword, Meridiem, Reserved, Token, TokenKind, Unit,
+    date_keyword, leading_int, parse_fraction, parse_fractional_second,
+    tokenize_with_check, DecodeError, Keyword, Meridiem, Reserved, Token, TokenKind, TokenizeError,
+    Unit,
 };
 use super::zone::{lookup_zone, AbbreviationSet, Zone};
+
+#[path = "decode_zone.rs"]
+mod zone_resolution;
+use zone_resolution::{
+    defer_dynamic_session_abbreviation, global_zone_abbreviation, resolve_zone_with_check,
+    session_zone_abbreviation,
+};
+pub(super) use zone_resolution::zone_abbreviation_with_check;
 
 #[path = "time_input.rs"]
 mod time_input;
@@ -76,6 +85,8 @@ struct State {
     zone_west: Option<i32>,
     named_zone: Option<Zone>,
     dynamic_zone: Option<Zone>,
+    dynamic_abbreviation: Option<String>,
+    zone_west_adjustment: i32,
     year_day: i32,
     have_text_month: bool,
     special: Option<Special>,
@@ -86,21 +97,36 @@ struct State {
 /// # Errors
 /// Returns PostgreSQL's decode error class.
 pub fn decode_datetime(input: &str, session: &TemporalSession) -> Result<Decoded, DecodeError> {
-    let tokens = tokenize(input)?;
+    let mut check = || Ok::<(), std::convert::Infallible>(());
+    decode_datetime_with_check(input, session, &mut check).map_err(|error| match error {
+        TokenizeError::Decode(error) => error,
+        TokenizeError::Check(never) => match never {},
+    })
+}
+
+pub(crate) fn decode_datetime_with_check<E>(
+    input: &str,
+    session: &TemporalSession,
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Decoded, TokenizeError<E>> {
+    let tokens = tokenize_with_check(input, check)?;
     if tokens.is_empty() {
-        return Err(DecodeError::BadFormat);
+        return Err(DecodeError::BadFormat.into());
     }
     let mut state = State::default();
     for (index, token) in tokens.iter().enumerate() {
-        let tmask = decode_datetime_field(&tokens, index, token, &mut state, session)?;
+        if index % 128 == 0 {
+            check().map_err(TokenizeError::Check)?;
+        }
+        let tmask = decode_datetime_field(&tokens, index, token, &mut state, session, check)?;
         let Some(tmask) = tmask else { continue };
         if tmask & state.fmask != 0 {
-            return Err(DecodeError::BadFormat);
+            return Err(DecodeError::BadFormat.into());
         }
         state.fmask |= tmask;
     }
     if state.ptype.is_some() {
-        return Err(DecodeError::BadFormat);
+        return Err(DecodeError::BadFormat.into());
     }
     if let Some(special) = state.special {
         return Ok(Decoded {
@@ -112,40 +138,14 @@ pub fn decode_datetime(input: &str, session: &TemporalSession) -> Result<Decoded
     validate_date(&mut state)?;
     apply_meridiem(&mut state)?;
     if state.fmask & DATE_M != DATE_M {
-        return Err(DecodeError::BadFormat);
+        return Err(DecodeError::BadFormat.into());
     }
-    let zone_west = resolve_zone(&state, session)?;
+    let zone_west = resolve_zone_with_check(&state, session, check)?;
     Ok(Decoded {
         special: None,
         fields: state.fields,
         zone_west,
     })
-}
-
-fn resolve_zone(state: &State, session: &TemporalSession) -> Result<i32, DecodeError> {
-    let local = local_micros(&state.fields);
-    if let Some(zone) = &state.named_zone {
-        if state.fmask & DTZMOD != 0 {
-            return Err(DecodeError::BadFormat);
-        }
-        return Ok(-zone.offset_for_local(local));
-    }
-    if let Some(zone) = &state.dynamic_zone {
-        let local = local_micros(&state.fields);
-        let east = zone
-            .abbreviation_offset("msk", local)
-            .or_else(|| session.abbreviations.lookup("msk"))
-            .map(|(east, _)| east)
-            .ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?;
-        return Ok(-east);
-    }
-    if let Some(west) = state.zone_west {
-        return Ok(west);
-    }
-    if state.fmask & DTZMOD != 0 {
-        return Err(DecodeError::BadFormat);
-    }
-    Ok(-session.zone.offset_for_local(local))
 }
 
 fn local_micros(fields: &Fields) -> i64 {
@@ -160,24 +160,25 @@ fn local_micros(fields: &Fields) -> i64 {
         ))
 }
 
-fn decode_datetime_field(
+fn decode_datetime_field<E>(
     tokens: &[Token],
     index: usize,
     token: &Token,
     state: &mut State,
     session: &TemporalSession,
-) -> Result<Option<u32>, DecodeError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Option<u32>, TokenizeError<E>> {
     let field = token.text.as_str();
     let tmask = match token.kind {
         TokenKind::Date => {
             if state.ptype == Some(Prefix::Julian) {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
             if state.fmask & DATE_M == DATE_M || state.ptype.is_some() {
                 if field.starts_with(|c: char| c.is_ascii_digit()) || state.ptype.is_some() {
                     if state.ptype.is_some() {
                         if state.ptype != Some(Prefix::IsoTime) {
-                            return Err(DecodeError::BadFormat);
+                            return Err(DecodeError::BadFormat.into());
                         }
                         state.ptype = None;
                     }
@@ -196,12 +197,12 @@ fn decode_datetime_field(
         TokenKind::Time => {
             if let Some(ptype) = state.ptype.take() {
                 if ptype != Prefix::IsoTime {
-                    return Err(DecodeError::BadFormat);
+                    return Err(DecodeError::BadFormat.into());
                 }
             }
             decode_time(field, &mut state.fields)?;
             if time_overflows(&state.fields) {
-                return Err(DecodeError::FieldOverflow);
+                return Err(DecodeError::FieldOverflow.into());
             }
             TIME_M
         }
@@ -211,7 +212,7 @@ fn decode_datetime_field(
         }
         TokenKind::Number => decode_number_token(tokens, index, field, state, session)?,
         TokenKind::String | TokenKind::Special => {
-            return decode_keyword_field(tokens, index, field, state, session);
+            return decode_keyword_field(tokens, index, field, state, session, check);
         }
     };
     Ok(Some(tmask))
@@ -285,35 +286,43 @@ fn decode_number_token(
     }
 }
 
-fn decode_keyword_field(
+fn decode_keyword_field<E>(
     tokens: &[Token],
     index: usize,
     field: &str,
     state: &mut State,
     session: &TemporalSession,
-) -> Result<Option<u32>, DecodeError> {
+    check: &mut impl FnMut() -> Result<(), E>,
+) -> Result<Option<u32>, TokenizeError<E>> {
     if is_default_msk(field, session) {
-        if let Some((east, dst)) = session_zone_abbreviation(field, state, session) {
+        if defer_dynamic_session_abbreviation(field, state, session, check)? {
+            return Ok(Some(TZ));
+        }
+        if let Some((east, dst)) = session_zone_abbreviation(field, state, session, check)? {
             state.zone_west = Some(-east);
             return Ok(Some(if dst { DTZ | TZ } else { TZ }));
         }
         if state.fmask & DATE_M != DATE_M {
-            return Err(DecodeError::BadFormat);
+            return Err(DecodeError::BadFormat.into());
         }
         state.dynamic_zone = Some(
             lookup_zone("Europe/Moscow")
                 .ok_or_else(|| DecodeError::BadTimezone("MSK".to_string()))?,
         );
+        state.dynamic_abbreviation = Some("msk".to_string());
         return Ok(Some(TZ));
     }
-    if let Some((east, dst)) = session_zone_abbreviation(field, state, session) {
+    if defer_dynamic_session_abbreviation(field, state, session, check)? {
+        return Ok(Some(TZ));
+    }
+    if let Some((east, dst)) = session_zone_abbreviation(field, state, session, check)? {
         state.zone_west = Some(-east);
         return Ok(Some(if dst { DTZ | TZ } else { TZ }));
     }
     if session.abbreviations == AbbreviationSet::Default {
         if let Some(zone_name) = super::format::find_dynamic_zone(field, session.abbreviations) {
             if state.fmask & DATE_M != DATE_M {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
             state.named_zone = Some(
                 lookup_zone(zone_name)
@@ -322,7 +331,7 @@ fn decode_keyword_field(
             return Ok(Some(TZ));
         }
     }
-    if let Some((east, dst)) = global_zone_abbreviation(field, session) {
+    if let Some((east, dst)) = global_zone_abbreviation(field, session, check)? {
         state.zone_west = Some(-east);
         return Ok(Some(if dst { DTZ | TZ } else { TZ }));
     }
@@ -350,6 +359,9 @@ fn decode_keyword_field(
         Keyword::DstModifier(seconds) => {
             let west = state.zone_west.ok_or(DecodeError::BadFormat)?;
             state.zone_west = Some(west - seconds);
+            if state.dynamic_abbreviation.is_some() {
+                state.zone_west_adjustment -= seconds;
+            }
             DTZMOD | DTZ
         }
         Keyword::AmPm(meridiem) => {
@@ -363,7 +375,7 @@ fn decode_keyword_field(
         Keyword::Dow(_) => DOW,
         Keyword::Units(unit) => {
             if state.ptype.is_some() {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
             state.ptype = Some(if unit == Unit::Julian {
                 Prefix::Julian
@@ -374,49 +386,21 @@ fn decode_keyword_field(
         }
         Keyword::IsoTime => {
             if state.fmask & DATE_M != DATE_M {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
             let next = tokens.get(index + 1).map(|token| token.kind);
             if !matches!(
                 next,
                 Some(TokenKind::Number | TokenKind::Time | TokenKind::Date)
             ) {
-                return Err(DecodeError::BadFormat);
+                return Err(DecodeError::BadFormat.into());
             }
             state.ptype = Some(Prefix::IsoTime);
             0
         }
-        Keyword::Ago => return Err(DecodeError::BadFormat),
+        Keyword::Ago => return Err(DecodeError::BadFormat.into()),
     };
     Ok(Some(tmask))
-}
-
-fn global_zone_abbreviation(field: &str, session: &TemporalSession) -> Option<(i32, bool)> {
-    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
-        return None;
-    }
-    session.abbreviations.lookup(field)
-}
-
-fn zone_abbreviation(field: &str, state: &State, session: &TemporalSession) -> Option<(i32, bool)> {
-    session_zone_abbreviation(field, state, session)
-        .or_else(|| global_zone_abbreviation(field, session))
-}
-
-fn session_zone_abbreviation(
-    field: &str,
-    state: &State,
-    session: &TemporalSession,
-) -> Option<(i32, bool)> {
-    if !field.chars().all(|c| c.is_ascii_alphabetic()) {
-        return None;
-    }
-    let local = if state.fmask & DATE_M == DATE_M {
-        local_micros(&state.fields)
-    } else {
-        session.transaction_start
-    };
-    session.zone.abbreviation_offset(field, local)
 }
 
 fn is_default_msk(field: &str, session: &TemporalSession) -> bool {

@@ -63,6 +63,7 @@ fn should_retain_selected_primitive_array_through_aliases() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -104,6 +105,7 @@ fn should_retain_zero_byte_empty_primitive_array_owner() {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,
@@ -143,6 +145,7 @@ fn should_cancel_during_selected_primitive_array_copy() {
         let context = AggregateExecutionContext {
             plan: &plan,
             params: &params,
+            parameter_type_oids: &[],
             search_context: None,
             user_functions: &functions,
             session: None,
@@ -192,6 +195,7 @@ fn should_preserve_invalid_with_null_fraction_before_array_output() {
         let context = AggregateExecutionContext {
             plan: &plan,
             params: &params,
+            parameter_type_oids: &[],
             search_context: None,
             user_functions: &functions,
             session: None,
@@ -236,6 +240,7 @@ fn run_with_budget(budget: usize) -> (bool, usize) {
     let context = AggregateExecutionContext {
         plan: &plan,
         params: &params,
+        parameter_type_oids: &[],
         search_context: None,
         user_functions: &functions,
         session: None,

@@ -29,7 +29,7 @@ fn should_parse_supported_scalar_sql_types() {
     assert_eq!(int, DataType::Int);
     assert_eq!(smallint, DataType::SmallInt);
     assert_eq!(bigint, DataType::BigInt);
-    assert_eq!(vector, DataType::Vector(2));
+    assert_eq!(vector, DataType::Vector(Some(2)));
     assert_eq!(json, DataType::Json);
     assert_eq!(jsonb, DataType::Jsonb);
     assert_eq!(uuid, DataType::Uuid);
@@ -58,8 +58,8 @@ fn should_parse_supported_array_sql_types() {
 #[test]
 fn should_validate_deterministic_type_oid_assignments() {
     // Arrange
-    let vector_two = DataType::Vector(2);
-    let vector_three = DataType::Vector(3);
+    let vector_two = DataType::Vector(Some(2));
+    let vector_three = DataType::Vector(Some(3));
     let array_cases = [
         (DataType::SmallInt, 1005),
         (DataType::Int, 1007),

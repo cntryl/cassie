@@ -54,6 +54,15 @@ pub(in crate::executor::filter) fn evaluate_function<R: RowAccess + ?Sized>(
     } else {
         None
     };
+    if name == crate::sql::ast::VARIADIC_ARRAY_ARGUMENT_FUNCTION {
+        let [array] = function.args.as_slice() else {
+            return Err(crate::app::CassieError::Execution(
+                "invalid internal VARIADIC array argument".into(),
+            )
+            .into());
+        };
+        return super::super::evaluate_expr_value_with_context(row, array, context);
+    }
     if crate::sql::functions::is_column_size(&name) {
         return datum_size::evaluate(function, row, context);
     }

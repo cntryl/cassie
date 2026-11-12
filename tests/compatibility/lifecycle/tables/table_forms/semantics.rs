@@ -91,6 +91,63 @@ fn should_reject_table_like_before_if_not_exists_short_circuit() {
         assert_eq!(retained_value, 7);
     });
 }
+
+#[test]
+fn should_reject_unselected_generated_column_and_like_forms_before_publication() {
+    // Arrange
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("unselected_generated_forms").await;
+        let (client, connection) = server.connect().await;
+        client
+            .batch_execute("CREATE TABLE compat_generated_source (base INT)")
+            .await
+            .expect("create source table for LIKE rejection");
+
+        // Act
+        let generated_column = client
+            .batch_execute(
+                "CREATE TABLE compat_generated_expression (\
+                   base INT, doubled INT GENERATED ALWAYS AS (base * 2) STORED\
+                 )",
+            )
+            .await
+            .expect_err("computed generated columns are outside the selected contract");
+        let generated_like = client
+            .batch_execute(
+                "CREATE TABLE compat_generated_like (\
+                   LIKE compat_generated_source INCLUDING GENERATED\
+                 )",
+            )
+            .await
+            .expect_err("LIKE INCLUDING GENERATED is outside the selected contract");
+        let published_targets: i64 = client
+            .query_one(
+                "SELECT count(*) FROM information_schema.tables \
+                 WHERE table_schema = 'public' \
+                   AND table_name IN (\
+                     'compat_generated_expression', 'compat_generated_like'\
+                   )",
+                &[],
+            )
+            .await
+            .expect("inspect whether unsupported generated forms published targets")
+            .get(0);
+
+        // Assert
+        let generated_column_state = db_error(&generated_column)
+            .code()
+            .code()
+            .to_owned();
+        let generated_like_state = db_error(&generated_like).code().code().to_owned();
+        drop(client);
+        server.shutdown(connection).await;
+        assert_eq!(generated_column_state, "42601");
+        assert_eq!(generated_like_state, "0A000");
+        assert_eq!(published_targets, 0);
+    });
+}
+
 #[test]
 fn should_preserve_ctas_type_modifiers_without_materializing_rows() {
     // Arrange

@@ -41,6 +41,8 @@ pub use temporal_types::{
     display_name as temporal_display_name, legacy_text as temporal_legacy_text,
     parameter_from_text as temporal_parameter_from_text, parse_type_name as temporal_type_name,
 };
+pub(crate) use temporal_types::parameter_from_text_with_controls as
+    temporal_parameter_from_text_with_controls;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -415,6 +417,21 @@ impl ExtendedType {
         }
     }
 
+    /// Parses text under a statement session while charging temporal tokenizer
+    /// scratch and propagating the statement's query controls.
+    pub(crate) fn parse_text_in_with_controls(
+        self,
+        text: &str,
+        session: &temporal::TemporalSession,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<TypedValue, crate::app::CassieError> {
+        if temporal_types::is_temporal(self) {
+            return temporal::controlled_input::parse_text(self, text, session, controls);
+        }
+        self.parse_text_in(text, session)
+            .map_err(crate::app::CassieError::from)
+    }
+
     /// Converts an integer, float or text scalar into this type (`CAST`).
     ///
     /// # Errors
@@ -467,6 +484,23 @@ impl ExtendedType {
                 message: format!("cannot cast value to {}", self.name()),
             }),
         }
+    }
+
+    /// Casts text under query controls; non-temporal carriers retain their
+    /// existing type-input behavior.
+    pub(crate) fn cast_from_in_with_controls(
+        self,
+        value: &super::Value,
+        session: &temporal::TemporalSession,
+        controls: &crate::runtime::QueryExecutionControls,
+    ) -> Result<TypedValue, crate::app::CassieError> {
+        if temporal_types::is_temporal(self) {
+            if let super::Value::String(text) = value {
+                return self.parse_text_in_with_controls(text, session, controls);
+            }
+        }
+        self.cast_from_in(value, session)
+            .map_err(crate::app::CassieError::from)
     }
 
     /// Reads the JSON storage carrier written by [`TypedValue::to_json`].

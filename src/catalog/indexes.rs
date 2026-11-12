@@ -189,7 +189,10 @@ impl IndexMeta {
                 .get(Self::ACCESS_METHOD_OPTION)
                 .map_or("btree", String::as_str),
             IndexKind::FullText => "gin",
-            IndexKind::Vector => "vector",
+            IndexKind::Vector => self
+                .options
+                .get(Self::ACCESS_METHOD_OPTION)
+                .map_or("vector", String::as_str),
             IndexKind::Hybrid => "btree",
             IndexKind::Column => "column",
             IndexKind::TimeSeries => "time_series",

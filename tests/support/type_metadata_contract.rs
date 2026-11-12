@@ -14,6 +14,9 @@ mod queries;
 pub use bind::{data_row_payloads, execute_cycle};
 pub use queries::{assert_success, run_cycles, Cycle, Frames};
 
+/// Placeholder resolved to the active database's installed vector type OID.
+pub const VECTOR_TYPE_OID: i32 = i32::MIN;
+
 /// # Panics
 ///
 /// Panics when the observed wire frames do not match the expected test contract.
@@ -48,13 +51,25 @@ pub fn assert_single_column_descriptors(
         .map(|(_, body)| wire::parse_row_description(body))
         .collect::<Vec<_>>();
     assert_eq!(descriptions.len(), if described { 2 } else { 1 });
+    let mut active_vector_oid = None;
     for (index, columns) in descriptions.into_iter().enumerate() {
         assert_eq!(columns.len(), 1);
         let column = &columns[0];
-        assert_eq!(
-            (column.type_oid, column.type_size, column.type_mod),
-            expected
-        );
+        if expected.0 == VECTOR_TYPE_OID {
+            assert!(column.type_oid >= 16_384);
+            assert!(!(100_001..=132_767).contains(&column.type_oid));
+            assert_eq!((column.type_size, column.type_mod), (expected.1, expected.2));
+            if let Some(active_vector_oid) = active_vector_oid {
+                assert_eq!(column.type_oid, active_vector_oid);
+            } else {
+                active_vector_oid = Some(column.type_oid);
+            }
+        } else {
+            assert_eq!(
+                (column.type_oid, column.type_size, column.type_mod),
+                expected
+            );
+        }
         assert_eq!(
             column.format_code,
             if described && index == 0 {

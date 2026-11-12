@@ -346,7 +346,12 @@ pub(super) fn finish_scoped(
         })
         .transpose()?;
     let data_type = row.zip(expression).and_then(|(row, expression)| {
-        crate::executor::array_order::expression_type(row, expression, context.user_functions)
+        crate::executor::array_order::expression_type_with_parameter_oids(
+            row,
+            expression,
+            context.user_functions,
+            context.parameter_type_oids,
+        )
     });
     finish_with_observer(
         kind,

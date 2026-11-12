@@ -176,6 +176,19 @@ impl Catalog {
         self.bump_version();
     }
 
+    /// Mirrors nontransactional cursor state for an existing sequence without
+    /// changing its structural catalog version.
+    pub(crate) fn update_sequence_cursor(&self, metadata: &SequenceMeta) {
+        let key = metadata.name.to_ascii_lowercase();
+        let mut sequences = self.sequences.write();
+        if let Some(current) = sequences.get_mut(&key) {
+            if current.object_id == metadata.object_id {
+                current.current_value = metadata.current_value;
+                current.is_called = metadata.is_called;
+            }
+        }
+    }
+
     pub fn unregister_sequence(&self, name: &str) {
         let mut sequences = self.sequences.write();
         let key = name.to_ascii_lowercase();
@@ -254,6 +267,63 @@ pub fn parse_nextval_default_expression(raw: &str) -> Option<String> {
         return Some(value.to_string());
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SequenceMeta;
+    use crate::catalog::Catalog;
+    use crate::types::DataType;
+
+    #[test]
+    fn should_update_published_sequence_cursor_without_changing_catalog_version() {
+        // Arrange
+        let catalog = Catalog::new();
+        let mut sequence = SequenceMeta::new("public.cursor_probe_seq", DataType::BigInt);
+        sequence.object_id = 71;
+        catalog.register_sequence(sequence.clone());
+        let version = catalog.version();
+        sequence.current_value = 2;
+        sequence.is_called = true;
+
+        // Act
+        catalog.update_sequence_cursor(&sequence);
+
+        // Assert
+        let current = catalog
+            .get_sequence("public.cursor_probe_seq")
+            .expect("published sequence");
+        assert_eq!(catalog.version(), version);
+        assert_eq!(current.current_value, 2);
+        assert!(current.is_called);
+        assert_eq!(current.object_id, 71);
+    }
+
+    #[test]
+    fn should_ignore_a_cursor_update_for_a_replaced_sequence_identity() {
+        // Arrange
+        let catalog = Catalog::new();
+        let mut original = SequenceMeta::new("public.cursor_replaced_seq", DataType::BigInt);
+        original.object_id = 71;
+        catalog.register_sequence(original);
+        let mut replacement = SequenceMeta::new("public.cursor_replaced_seq", DataType::BigInt);
+        replacement.object_id = 72;
+        replacement.current_value = 9;
+        replacement.is_called = true;
+        let version = catalog.version();
+
+        // Act
+        catalog.update_sequence_cursor(&replacement);
+
+        // Assert
+        let current = catalog
+            .get_sequence("public.cursor_replaced_seq")
+            .expect("original sequence remains registered");
+        assert_eq!(catalog.version(), version);
+        assert_eq!(current.object_id, 71);
+        assert_eq!(current.current_value, 1);
+        assert!(!current.is_called);
+    }
 }
 
 fn is_identifier(raw: &str) -> bool {

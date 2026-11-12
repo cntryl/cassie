@@ -41,6 +41,15 @@ pub(super) fn evaluate_with_owner(
     if matches!(kind, JsonFunction::SqlInput) {
         return Some(sql_input(args, controls));
     }
+    if matches!(kind, JsonFunction::VariadicArray) {
+        return Some(match args {
+            [array @ (Value::Array(_) | Value::Null)] => Ok(array.clone()),
+            _ => Err(CassieError::Execution(
+                "VARIADIC JSON path argument requires TEXT[]".into(),
+            )
+            .into()),
+        });
+    }
     matches!(
         kind,
         JsonFunction::Typeof(_)
@@ -200,6 +209,7 @@ fn inspect_value(
         | JsonFunction::StripNulls(_)
         | JsonFunction::Pretty
         | JsonFunction::ExtractPath { .. }
+        | JsonFunction::VariadicArray
         | JsonFunction::PathMatch
         | JsonFunction::PathExists
         | JsonFunction::PathQueryArray

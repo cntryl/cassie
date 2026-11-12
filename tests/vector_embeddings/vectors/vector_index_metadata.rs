@@ -59,7 +59,7 @@ fn should_persist_vector_index_metadata() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(3),
+                    data_type: DataType::Vector(Some(3)),
                     nullable: true,
                 },
             ],
@@ -129,7 +129,7 @@ fn should_persist_hnsw_vector_index_metadata() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(3),
+                    data_type: DataType::Vector(Some(3)),
                     nullable: true,
                 },
             ],
@@ -214,7 +214,7 @@ fn should_reload_registry_after_restart_simulation() {
                 },
                 FieldSchema {
                     name: "vector".to_string(),
-                    data_type: DataType::Vector(2),
+                    data_type: DataType::Vector(Some(2)),
                     nullable: true,
                 },
             ],
@@ -306,7 +306,7 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(3),
+                    data_type: DataType::Vector(Some(3)),
                     nullable: true,
                 },
             ],
@@ -415,7 +415,7 @@ fn should_remove_vector_state_when_dropping_vector_field() {
                 },
                 FieldSchema {
                     name: "embedding".to_string(),
-                    data_type: DataType::Vector(3),
+                    data_type: DataType::Vector(Some(3)),
                     nullable: true,
                 },
             ],
@@ -502,7 +502,7 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
         let schema = Schema {
             fields: vec![FieldSchema {
                 name: "embedding".to_string(),
-                data_type: DataType::Vector(3),
+                data_type: DataType::Vector(Some(3)),
                 nullable: true,
             }],
         };

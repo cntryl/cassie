@@ -10,7 +10,10 @@ fn should_require_finite_regex_execution_before_active_cancellation() {
     );
 
     // Assert
-    assert_eq!(result.expect("regex execution prerequisite").rows(), &[vec![Value::Int64(3)]]);
+    assert_eq!(
+        result.expect("regex execution prerequisite").rows(),
+        &[vec![Value::Int64(3)]]
+    );
 }
 
 #[test]
@@ -30,7 +33,10 @@ fn should_cancel_active_regex_work_before_output_publication() {
     );
     assert_eq!(wire.iter().filter(|frame| frame.0 == b'C').count(), 0);
     assert_eq!(wire.last().map(|frame| frame.0), Some(b'Z'));
-    assert_eq!(wire.last().map(|frame| frame.1.as_slice()), Some(b"I".as_slice()));
+    assert_eq!(
+        wire.last().map(|frame| frame.1.as_slice()),
+        Some(b"I".as_slice())
+    );
     assert_eq!(result.memory_after, result.memory_before);
     assert_eq!(crate::support_pgwire::error_code(&result.recovery), None);
     assert_eq!(
@@ -60,11 +66,20 @@ fn should_cancel_active_are_constraint_work_before_output_publication() {
     );
     assert_eq!(wire.iter().filter(|frame| frame.0 == b'C').count(), 0);
     assert_eq!(wire.last().map(|frame| frame.0), Some(b'Z'));
-    assert_eq!(wire.last().map(|frame| frame.1.as_slice()), Some(b"I".as_slice()));
+    assert_eq!(
+        wire.last().map(|frame| frame.1.as_slice()),
+        Some(b"I".as_slice())
+    );
     assert_eq!(result.memory_after, result.memory_before);
     assert_eq!(crate::support_pgwire::error_code(&result.recovery), None);
-    assert_eq!(crate::support_pgwire::data_rows(&result.recovery), crate::support_pgwire::data_rows(&result.control));
-    assert_eq!(crate::support_pgwire::data_rows(&result.recovery), vec![vec![Some("3".to_owned())]]);
+    assert_eq!(
+        crate::support_pgwire::data_rows(&result.recovery),
+        crate::support_pgwire::data_rows(&result.control)
+    );
+    assert_eq!(
+        crate::support_pgwire::data_rows(&result.recovery),
+        vec![vec![Some("3".to_owned())]]
+    );
 }
 
 #[test]

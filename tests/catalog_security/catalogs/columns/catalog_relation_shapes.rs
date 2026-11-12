@@ -4,8 +4,6 @@
 mod catalog_introspection_functions;
 #[path = "../constraints/information_schema.rs"]
 mod information_schema_contracts;
-#[path = "../routines/object_identity_functions.rs"]
-mod object_identity_functions;
 #[path = "../relations/size_information.rs"]
 mod size_information_contracts;
 

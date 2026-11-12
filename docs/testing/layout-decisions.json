@@ -170,10 +170,6 @@
       "suite": "catalog_security",
       "category": "catalogs"
     },
-    "tests/catalog_security/catalogs/blocking.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs"
-    },
     "tests/catalog_security/catalogs/catalog.rs": {
       "suite": "catalog_security",
       "category": "catalogs"
@@ -222,14 +218,6 @@
       "suite": "catalog_security",
       "category": "catalogs/columns"
     },
-    "tests/catalog_security/catalogs/commit_control.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs"
-    },
-    "tests/catalog_security/catalogs/constraints/catalog_information/nulls.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/constraints/catalog_information"
-    },
     "tests/catalog_security/catalogs/constraints/catalog_information/semantics.rs": {
       "suite": "catalog_security",
       "category": "catalogs/constraints/catalog_information"
@@ -238,21 +226,9 @@
       "suite": "catalog_security",
       "category": "catalogs/constraints"
     },
-    "tests/catalog_security/catalogs/descriptions/catalog_information/semantics.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/descriptions/catalog_information"
-    },
-    "tests/catalog_security/catalogs/foreign_keys.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs"
-    },
     "tests/catalog_security/catalogs/identity_privileges/catalog_information/semantics.rs": {
       "suite": "catalog_security",
       "category": "catalogs/identity_privileges/catalog_information"
-    },
-    "tests/catalog_security/catalogs/identity_privileges/information_schema.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/identity_privileges"
     },
     "tests/catalog_security/catalogs/identity_privileges/system_session.rs": {
       "suite": "catalog_security",
@@ -267,14 +243,6 @@
       "category": "catalogs/indexes"
     },
     "tests/catalog_security/catalogs/locations.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs"
-    },
-    "tests/catalog_security/catalogs/multixact.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs"
-    },
-    "tests/catalog_security/catalogs/object_addresses.rs": {
       "suite": "catalog_security",
       "category": "catalogs"
     },
@@ -314,10 +282,6 @@
       "suite": "catalog_security",
       "category": "catalogs/relations"
     },
-    "tests/catalog_security/catalogs/relations/system_session.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/relations"
-    },
     "tests/catalog_security/catalogs/routines/catalog/semantics.rs": {
       "suite": "catalog_security",
       "category": "catalogs/routines/catalog"
@@ -329,22 +293,6 @@
     "tests/catalog_security/catalogs/routines/catalog_information/semantics.rs": {
       "suite": "catalog_security",
       "category": "catalogs/routines/catalog_information"
-    },
-    "tests/catalog_security/catalogs/routines/catalog_lookup.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/routines"
-    },
-    "tests/catalog_security/catalogs/routines/information_schema.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/routines"
-    },
-    "tests/catalog_security/catalogs/routines/object_identity_functions.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/routines"
-    },
-    "tests/catalog_security/catalogs/routines/populated_descriptions.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/routines"
     },
     "tests/catalog_security/catalogs/runtime_capabilities.rs": {
       "suite": "catalog_security",
@@ -358,15 +306,7 @@
       "suite": "catalog_security",
       "category": "catalogs/sequences/catalog_information"
     },
-    "tests/catalog_security/catalogs/sequences/catalog_lookup.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/sequences"
-    },
     "tests/catalog_security/catalogs/sequences/catalog_relation_shapes.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/sequences"
-    },
-    "tests/catalog_security/catalogs/sequences/size_information.rs": {
       "suite": "catalog_security",
       "category": "catalogs/sequences"
     },
@@ -398,17 +338,9 @@
       "suite": "catalog_security",
       "category": "catalogs/sizes"
     },
-    "tests/catalog_security/catalogs/snapshots.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs"
-    },
     "tests/catalog_security/catalogs/statistics_restore.rs": {
       "suite": "catalog_security",
       "category": "catalogs"
-    },
-    "tests/catalog_security/catalogs/system_information/catalog_information/semantics.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/system_information/catalog_information"
     },
     "tests/catalog_security/catalogs/system_information/catalog_introspection_functions.rs": {
       "suite": "catalog_security",
@@ -418,25 +350,9 @@
       "suite": "catalog_security",
       "category": "catalogs/system_information"
     },
-    "tests/catalog_security/catalogs/system_information/system_session.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/system_information"
-    },
-    "tests/catalog_security/catalogs/transactions.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs"
-    },
     "tests/catalog_security/catalogs/triggers/catalog_information/semantics.rs": {
       "suite": "catalog_security",
       "category": "catalogs/triggers/catalog_information"
-    },
-    "tests/catalog_security/catalogs/triggers/information_schema.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/triggers"
-    },
-    "tests/catalog_security/catalogs/types/base_information_function.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/types"
     },
     "tests/catalog_security/catalogs/types/catalog/metadata.rs": {
       "suite": "catalog_security",
@@ -474,10 +390,6 @@
       "suite": "catalog_security",
       "category": "catalogs/types/identifier"
     },
-    "tests/catalog_security/catalogs/types/information_schema.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/types"
-    },
     "tests/catalog_security/catalogs/types/oid_identity/metadata.rs": {
       "suite": "catalog_security",
       "category": "catalogs/types/oid_identity"
@@ -490,21 +402,9 @@
       "suite": "catalog_security",
       "category": "catalogs/types/text_search_identifier_lookup"
     },
-    "tests/catalog_security/catalogs/types/text_search_identifier_lookup/semantics.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/types/text_search_identifier_lookup"
-    },
     "tests/catalog_security/catalogs/types/user_function_overload_resolution.rs": {
       "suite": "catalog_security",
       "category": "catalogs/types"
-    },
-    "tests/catalog_security/catalogs/types/vector_catalog.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/types"
-    },
-    "tests/catalog_security/catalogs/visibility/visibility_functions.rs": {
-      "suite": "catalog_security",
-      "category": "catalogs/visibility"
     },
     "tests/catalog_security/databases/images/database_images.rs": {
       "suite": "catalog_security",
@@ -650,10 +550,6 @@
       "suite": "compatibility",
       "category": "lifecycle/comments"
     },
-    "tests/compatibility/lifecycle/comments/comment_owner_lifecycle.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/comments"
-    },
     "tests/compatibility/lifecycle/comments/comment_sequence_identity.rs": {
       "suite": "compatibility",
       "category": "lifecycle/comments"
@@ -662,27 +558,11 @@
       "suite": "compatibility",
       "category": "lifecycle/comments"
     },
-    "tests/compatibility/lifecycle/comments/lifecycle/transactions.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/comments/lifecycle"
-    },
-    "tests/compatibility/lifecycle/comments/null_clear/metadata.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/comments/null_clear"
-    },
     "tests/compatibility/lifecycle/comments/null_clear/semantics.rs": {
       "suite": "compatibility",
       "category": "lifecycle/comments/null_clear"
     },
     "tests/compatibility/lifecycle/comments/routine_objects/metadata.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/comments/routine_objects"
-    },
-    "tests/compatibility/lifecycle/comments/routine_objects/restart.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/comments/routine_objects"
-    },
-    "tests/compatibility/lifecycle/comments/routine_objects/semantics.rs": {
       "suite": "compatibility",
       "category": "lifecycle/comments/routine_objects"
     },
@@ -1138,23 +1018,11 @@
       "suite": "compatibility",
       "category": "lifecycle/namespaces"
     },
-    "tests/compatibility/lifecycle/namespaces/mutation_ddl/semantics.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/namespaces/mutation_ddl"
-    },
     "tests/compatibility/lifecycle/namespaces/schema_authorization_elements.rs": {
       "suite": "compatibility",
       "category": "lifecycle/namespaces"
     },
     "tests/compatibility/lifecycle/namespaces/schema_owner_transfer.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/namespaces"
-    },
-    "tests/compatibility/lifecycle/namespaces/session_transaction/semantics.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/namespaces/session_transaction"
-    },
-    "tests/compatibility/lifecycle/namespaces/temp_views.rs": {
       "suite": "compatibility",
       "category": "lifecycle/namespaces"
     },
@@ -1462,10 +1330,6 @@
       "suite": "compatibility",
       "category": "lifecycle/tables"
     },
-    "tests/compatibility/lifecycle/tables/lifecycle/restart.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/tables/lifecycle"
-    },
     "tests/compatibility/lifecycle/tables/lifecycle/semantics.rs": {
       "suite": "compatibility",
       "category": "lifecycle/tables/lifecycle"
@@ -1539,10 +1403,6 @@
       "category": "lifecycle/transactions"
     },
     "tests/compatibility/lifecycle/transactions/session_transaction/errors.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/transactions/session_transaction"
-    },
-    "tests/compatibility/lifecycle/transactions/session_transaction/recovery.rs": {
       "suite": "compatibility",
       "category": "lifecycle/transactions/session_transaction"
     },
@@ -1669,18 +1529,6 @@
     "tests/compatibility/lifecycle/types/enum_record_domain/nulls.rs": {
       "suite": "compatibility",
       "category": "lifecycle/types/enum_record_domain"
-    },
-    "tests/compatibility/lifecycle/types/enum_record_domain/semantics.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/types/enum_record_domain"
-    },
-    "tests/compatibility/lifecycle/types/enum_support_function_identity.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/types"
-    },
-    "tests/compatibility/lifecycle/types/mutation_ddl/semantics.rs": {
-      "suite": "compatibility",
-      "category": "lifecycle/types/mutation_ddl"
     },
     "tests/compatibility/lifecycle/types/object_lifecycle.rs": {
       "suite": "compatibility",
@@ -2578,10 +2426,6 @@
       "suite": "pgwire_extended",
       "category": "functions/string/parse_ident"
     },
-    "tests/pgwire_extended/functions/string/cancellation.rs": {
-      "suite": "pgwire_extended",
-      "category": "functions/string"
-    },
     "tests/pgwire_extended/functions/string/errors.rs": {
       "suite": "pgwire_types",
       "category": "functions/string"
@@ -2596,14 +2440,6 @@
     },
     "tests/pgwire_extended/functions/string/parameters.rs": {
       "suite": "pgwire_types",
-      "category": "functions/string"
-    },
-    "tests/pgwire_extended/functions/string/resources.rs": {
-      "suite": "pgwire_extended",
-      "category": "functions/string"
-    },
-    "tests/pgwire_extended/functions/string/semantics.rs": {
-      "suite": "pgwire_extended",
       "category": "functions/string"
     },
     "tests/pgwire_extended/functions/string/string_scalar_edges.rs": {
@@ -2950,10 +2786,6 @@
       "suite": "pgwire_extended",
       "category": "protocol/transaction_boundaries"
     },
-    "tests/pgwire_extended/protocol/ts_headline_regconfig_wire.rs": {
-      "suite": "pgwire_extended",
-      "category": "protocol"
-    },
     "tests/pgwire_extended/protocol/vector_carriers.rs": {
       "suite": "pgwire_extended",
       "category": "protocol"
@@ -2970,10 +2802,6 @@
       "suite": "pgwire_extended",
       "category": "routines/measurement_predicate"
     },
-    "tests/pgwire_extended/routines/record_functions.rs": {
-      "suite": "pgwire_extended",
-      "category": "routines"
-    },
     "tests/pgwire_extended/security/portal_authorization.rs": {
       "suite": "pgwire_extended",
       "category": "security"
@@ -2989,22 +2817,6 @@
     "tests/pgwire_extended/sequences/spatial_operator/metadata.rs": {
       "suite": "pgwire_extended",
       "category": "sequences/spatial_operator"
-    },
-    "tests/pgwire_extended/set_returning/array_function/resources.rs": {
-      "suite": "pgwire_extended",
-      "category": "set_returning/array_function"
-    },
-    "tests/pgwire_extended/set_returning/array_function/semantics.rs": {
-      "suite": "pgwire_extended",
-      "category": "set_returning/array_function"
-    },
-    "tests/pgwire_extended/set_returning/parameterized_unnest/parameters.rs": {
-      "suite": "pgwire_extended",
-      "category": "set_returning/parameterized_unnest"
-    },
-    "tests/pgwire_extended/set_returning/rows_from_empty_member/nulls.rs": {
-      "suite": "pgwire_extended",
-      "category": "set_returning/rows_from_empty_member"
     },
     "tests/pgwire_extended/set_returning/errors.rs": {
       "suite": "pgwire_extended",
@@ -3226,10 +3038,6 @@
       "suite": "pgwire_extended",
       "category": "types/arrays"
     },
-    "tests/pgwire_extended/types/arrays/boolean_array_container_framing.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/arrays"
-    },
     "tests/pgwire_extended/types/arrays/bounds_subscripts/nulls.rs": {
       "suite": "pgwire_types",
       "category": "types/arrays/bounds_subscripts"
@@ -3250,10 +3058,6 @@
       "suite": "pgwire_types",
       "category": "types/arrays/index_queries"
     },
-    "tests/pgwire_extended/types/arrays/index_queries/semantics.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/arrays/index_queries"
-    },
     "tests/pgwire_extended/types/arrays/multidimensional_persistence_binary.rs": {
       "suite": "pgwire_types",
       "category": "types/arrays"
@@ -3266,29 +3070,13 @@
       "suite": "pgwire_types",
       "category": "types/arrays/operators"
     },
-    "tests/pgwire_extended/types/arrays/operators/parameters.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/arrays/operators"
-    },
     "tests/pgwire_extended/types/arrays/operators/semantics.rs": {
       "suite": "pgwire_types",
       "category": "types/arrays/operators"
     },
-    "tests/pgwire_extended/types/arrays/parameterized_unnest/binary.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/arrays/parameterized_unnest"
-    },
-    "tests/pgwire_extended/types/arrays/parameterized_unnest/semantics.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/arrays/parameterized_unnest"
-    },
     "tests/pgwire_extended/types/arrays/query/metadata.rs": {
       "suite": "pgwire_extended",
       "category": "types/arrays/query"
-    },
-    "tests/pgwire_extended/types/arrays/ragged_array_constructors.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/arrays"
     },
     "tests/pgwire_extended/types/arrays/standard_oid_dml_null_identity.rs": {
       "suite": "pgwire_types",
@@ -3462,24 +3250,12 @@
       "suite": "pgwire_extended",
       "category": "types/json/json_collection_sql_json"
     },
-    "tests/pgwire_extended/types/json/json_collection_sql_json/parameters.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/json_collection_sql_json"
-    },
     "tests/pgwire_extended/types/json/json_collection_sql_json/semantics.rs": {
       "suite": "pgwire_types",
       "category": "types/json/json_collection_sql_json"
     },
     "tests/pgwire_extended/types/json/json_legacy_builders_and_paths.rs": {
       "suite": "pgwire_types",
-      "category": "types/json"
-    },
-    "tests/pgwire_extended/types/json/json_query_quote_policies.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json"
-    },
-    "tests/pgwire_extended/types/json/json_query_returning_alias.rs": {
-      "suite": "pgwire_extended",
       "category": "types/json"
     },
     "tests/pgwire_extended/types/json/jsonb_string_scalar_key_boundary.rs": {
@@ -3566,27 +3342,11 @@
       "suite": "pgwire_extended",
       "category": "types/json"
     },
-    "tests/pgwire_extended/types/json/sql_json/nulls.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/sql_json"
-    },
     "tests/pgwire_extended/types/json/sql_json/semantics.rs": {
       "suite": "pgwire_types",
       "category": "types/json/sql_json"
     },
-    "tests/pgwire_extended/types/json/sql_json_serialize/semantics.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/sql_json_serialize"
-    },
-    "tests/pgwire_extended/types/json/table_functions/errors.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/table_functions"
-    },
     "tests/pgwire_extended/types/json/table_functions/json_table_encoding_path_aliases.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/table_functions"
-    },
-    "tests/pgwire_extended/types/json/table_functions/json_table_later_row_errors.rs": {
       "suite": "pgwire_extended",
       "category": "types/json/table_functions"
     },
@@ -3594,27 +3354,7 @@
       "suite": "pgwire_extended",
       "category": "types/json/table_functions"
     },
-    "tests/pgwire_extended/types/json/table_functions/jsonb_populate_recordset.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/table_functions"
-    },
-    "tests/pgwire_extended/types/json/table_functions/nulls.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/table_functions"
-    },
-    "tests/pgwire_extended/types/json/table_functions/recordset_json_output_types.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/table_functions"
-    },
     "tests/pgwire_extended/types/json/table_functions/recordset_midstream_cancellation.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/table_functions"
-    },
-    "tests/pgwire_extended/types/json/table_functions/recordset_output_typmods.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/json/table_functions"
-    },
-    "tests/pgwire_extended/types/json/table_functions/recordset_parameter_inference.rs": {
       "suite": "pgwire_extended",
       "category": "types/json/table_functions"
     },
@@ -3745,10 +3485,6 @@
     "tests/pgwire_extended/types/temporal/time_twenty_four_wire_endpoint.rs": {
       "suite": "pgwire_extended",
       "category": "types/temporal"
-    },
-    "tests/pgwire_extended/types/temporal/timestamp_without_timezone_series/semantics.rs": {
-      "suite": "pgwire_extended",
-      "category": "types/temporal/timestamp_without_timezone_series"
     },
     "tests/pgwire_extended/types/temporal/timestamptz_timezone_series/parameters.rs": {
       "suite": "pgwire_extended",
@@ -4930,18 +4666,6 @@
       "suite": "sql_queries",
       "category": "set_operations"
     },
-    "tests/sql_queries/set_returning/array_subscripts.rs": {
-      "suite": "sql_queries",
-      "category": "set_returning"
-    },
-    "tests/sql_queries/set_returning/lateral_ordinality.rs": {
-      "suite": "sql_queries",
-      "category": "set_returning"
-    },
-    "tests/sql_queries/set_returning/values_aggregate/nulls.rs": {
-      "suite": "sql_queries",
-      "category": "set_returning/values_aggregate"
-    },
     "tests/sql_queries/statistics/aggregate_type_and_window_boundaries/semantics.rs": {
       "suite": "sql_queries",
       "category": "statistics/aggregate_type_and_window_boundaries"
@@ -4955,10 +4679,6 @@
       "category": "table_sampling"
     },
     "tests/sql_queries/text_search/dictionary_lifecycle.rs": {
-      "suite": "sql_queries",
-      "category": "text_search"
-    },
-    "tests/sql_queries/text_search/table_predicate.rs": {
       "suite": "sql_queries",
       "category": "text_search"
     },
@@ -5041,10 +4761,6 @@
     "tests/sql_queries/types/temporal/temporal.rs": {
       "suite": "sql_queries",
       "category": "types/temporal"
-    },
-    "tests/sql_queries/types/temporal/values_aggregate/semantics.rs": {
-      "suite": "sql_queries",
-      "category": "types/temporal/values_aggregate"
     },
     "tests/sql_queries/types/uuid_lsn/uuid_hash_lsn.rs": {
       "suite": "sql_queries",

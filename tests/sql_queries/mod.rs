@@ -43,13 +43,8 @@ mod postgresql18_values_rows;
 
 #[path = "set_returning/series.rs"]
 mod series_sources;
-#[path = "set_returning/array_subscripts.rs"]
-mod set_returning_array_subscripts;
 #[path = "set_returning/unnest.rs"]
 mod unnest_sources;
-
-#[path = "set_returning/lateral_ordinality.rs"]
-mod set_returning_lateral_ordinality;
 
 #[path = "relations/values_admission.rs"]
 mod postgresql18_values_admission;

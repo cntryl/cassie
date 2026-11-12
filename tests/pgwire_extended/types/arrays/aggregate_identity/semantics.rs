@@ -195,11 +195,7 @@ include!("../functions/nulls.rs");
 
 include!("../index_queries/restart.rs");
 
-include!("../index_queries/semantics.rs");
-
 include!("../operators/nulls.rs");
-
-include!("../operators/parameters.rs");
 
 include!("../operators/semantics.rs");
 

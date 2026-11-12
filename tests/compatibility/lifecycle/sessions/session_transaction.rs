@@ -24,15 +24,11 @@ mod unique_conflict_commit;
 #[path = "../transactions/unique_conflict_rollback.rs"]
 mod unique_conflict_rollback;
 
-include!("../namespaces/session_transaction/semantics.rs");
-
 include!("session_transaction/semantics.rs");
 
 include!("session_transaction/transactions.rs");
 
 include!("../transactions/session_transaction/errors.rs");
-
-include!("../transactions/session_transaction/recovery.rs");
 
 include!("../transactions/session_transaction/semantics.rs");
 

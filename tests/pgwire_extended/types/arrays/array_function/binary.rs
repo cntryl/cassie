@@ -47,8 +47,4 @@ fn should_round_trip_multidimensional_nondefault_bounds_in_binary_format() {
     }
 }
 
-include!("../../../set_returning/array_function/resources.rs");
-
-include!("../../../set_returning/array_function/semantics.rs");
-
 include!("semantics.rs");

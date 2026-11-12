@@ -13,8 +13,8 @@ identifiers; the exact release commit still needs its own ordered gate.
 
 The [Product Roadmap](product-roadmap.md) owns the MVP scope and release order.
 The package version remains the release version authority. The next feature
-releases are v0.2.0 Query and Retrieval and v0.3.0 Authoritative Columnar
-Tables. Production readiness remains a separate qualification gate, not a
+releases are v0.2.0 Query and Retrieval, v0.3.0 Composite Types and JSON
+Recordsets, v0.4.0 Named Enum Types and v0.5.0 Authoritative Columnar Tables. Production readiness remains a separate qualification gate, not a
 feature milestone.
 
 ## Cassie-owned persistent formats

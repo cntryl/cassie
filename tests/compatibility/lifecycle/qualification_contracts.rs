@@ -7,4 +7,3 @@ fn lifecycle_wave_runtime() -> tokio::runtime::Runtime {
         .expect("current-thread Tokio runtime")
 }
 
-include!("comments/lifecycle/transactions.rs");

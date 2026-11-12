@@ -78,6 +78,7 @@ pub(super) fn complete_field_drop_data(
             columns: pending.column_names.clone(),
             column_storage_ids: pending.column_storage_ids.clone(),
             scalars: pending.scalar_names.clone(),
+            scalar_reservation_generations: pending.scalar_reservation_generations.clone(),
             scalar_storage_ids: pending.scalar_storage_ids.clone(),
             time_series: pending.time_series_names.clone(),
             time_series_storage_ids: pending.time_series_storage_ids.clone(),

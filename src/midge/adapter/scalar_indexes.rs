@@ -174,9 +174,9 @@ impl Midge {
             self.validate_unique_index_rows(index, &rows)?;
             self.delete_data_keys_with_prefix_in_batches(
                 &index.collection,
-                &key_encoding::unique_scalar_index_reservation_prefix(
+                &key_encoding::unique_index_reservation_prefix_for(
                     &index.collection,
-                    index.unique_reservation_name(),
+                    index.reservation_identity()?,
                 ),
             )?;
         }
@@ -197,9 +197,9 @@ impl Midge {
                     None
                 };
                 if let Some(values) = reservation_values {
-                    let reservation = key_encoding::unique_scalar_index_reservation_key(
+                    let reservation = key_encoding::unique_index_reservation_key_for(
                         &index.collection,
-                        index.unique_reservation_name(),
+                        index.reservation_identity()?,
                         &values,
                     )?;
                     tx.put(reservation, row.id.as_bytes().to_vec(), None)
@@ -236,9 +236,9 @@ impl Midge {
             else {
                 continue;
             };
-            let key = key_encoding::unique_scalar_index_reservation_key(
+            let key = key_encoding::unique_index_reservation_key_for(
                 &index.collection,
-                index.unique_reservation_name(),
+                index.reservation_identity()?,
                 &values,
             )?;
             if owners.insert(key, row.id.clone()).is_some() {
